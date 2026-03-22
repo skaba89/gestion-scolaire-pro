@@ -1,0 +1,88 @@
+-- Refactorisation Phase 1 : États métiers & Soft Delete
+
+-- 1. Create ENUM types
+DO $$ BEGIN
+    CREATE TYPE public.student_status AS ENUM ('DRAFT', 'PENDING', 'ACTIVE', 'SUSPENDED', 'ARCHIVED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE public.user_status AS ENUM ('INVITED', 'ACTIVE', 'DISABLED');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- 2. Update students table
+-- First, rename the old status column to migrate it
+ALTER TABLE public.students RENAME COLUMN status TO status_old;
+ALTER TABLE public.students ADD COLUMN status public.student_status DEFAULT 'ACTIVE';
+
+-- Migrate existing data (assuming 'active' map to 'ACTIVE')
+UPDATE public.students SET status = 'ACTIVE' WHERE status_old = 'active';
+UPDATE public.students SET status = 'ARCHIVED' WHERE is_archived = true;
+
+-- Add deleted_at for soft delete
+ALTER TABLE public.students ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+
+-- 3. Update profiles table
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status public.user_status DEFAULT 'ACTIVE';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+
+-- 4. Generalize deleted_at for auditability
+ALTER TABLE public.user_roles ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.tenants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.classrooms ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.grades ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+
+-- 5. Business Rules (Triggers)
+
+-- Rule: Cannot assign grades to non-ACTIVE students
+CREATE OR REPLACE FUNCTION public.check_student_active_for_grades()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM public.students 
+        WHERE id = NEW.student_id 
+        AND status = 'ACTIVE'
+        AND deleted_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'Action non autorisée : L''élève doit être au statut ACTIVE pour recevoir des notes.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_check_student_active_grading ON public.grades;
+CREATE TRIGGER tr_check_student_active_grading
+    BEFORE INSERT OR UPDATE ON public.grades
+    FOR EACH ROW
+    EXECUTE FUNCTION public.check_student_active_for_grades();
+
+-- Rule: Archived students are read-only
+CREATE OR REPLACE FUNCTION public.prevent_archived_student_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.status = 'ARCHIVED' AND NEW.status = 'ARCHIVED' THEN
+        RAISE EXCEPTION 'Action non autorisée : Un dossier d''élève ARCHIVÉ ne peut plus être modifié.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_prevent_archived_student_mod ON public.students;
+CREATE TRIGGER tr_prevent_archived_student_mod
+    BEFORE UPDATE ON public.students
+    FOR EACH ROW
+    WHEN (OLD.status = 'ARCHIVED')
+    EXECUTE FUNCTION public.prevent_archived_student_modification();
+
+-- 6. Harden RLS for Soft Delete
+-- Example for students (to be replicated for others)
+DROP POLICY IF EXISTS "Users can view student records" ON public.students;
+CREATE POLICY "Users can view active student records" ON public.students
+    FOR SELECT
+    USING (
+        tenant_id = (SELECT tenant_id FROM public.profiles WHERE id = auth.uid())
+        AND deleted_at IS NULL
+    );

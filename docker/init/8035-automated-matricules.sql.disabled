@@ -1,0 +1,75 @@
+-- Phase 10 : Automated Matricules
+-- Format: [DEP][YYYY][MM][0000X]
+
+-- 1. Helper table for sequences
+CREATE TABLE IF NOT EXISTS public.matricule_sequences (
+    tenant_id UUID REFERENCES public.tenants(id),
+    department_id UUID, -- Can be NULL for generic
+    year_pattern TEXT,
+    month_pattern TEXT,
+    last_value INTEGER DEFAULT 0,
+    PRIMARY KEY (tenant_id, department_id, year_pattern, month_pattern)
+);
+
+-- 2. Trigger function
+CREATE OR REPLACE FUNCTION public.fn_generate_student_matricule()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_dept_code TEXT;
+    v_year TEXT;
+    v_month TEXT;
+    v_seq_val INTEGER;
+    v_new_matricule TEXT;
+    v_dept_id UUID;
+BEGIN
+    -- Only generate if the student doesn't have a matricule yet
+    SELECT matricule, department_id INTO v_new_matricule, v_dept_id 
+    FROM public.students 
+    WHERE id = NEW.student_id;
+
+    IF v_new_matricule IS NULL OR v_new_matricule = '' THEN
+        -- Try to get department from student first, then from classroom
+        IF v_dept_id IS NULL THEN
+             SELECT department_id INTO v_dept_id FROM public.classroom_departments WHERE classroom_id = NEW.classroom_id LIMIT 1;
+        END IF;
+
+        -- Get department code
+        v_dept_code := 'STD'; -- Fallback
+        IF v_dept_id IS NOT NULL THEN
+            SELECT code INTO v_dept_code FROM public.departments WHERE id = v_dept_id;
+        END IF;
+        
+        IF v_dept_code IS NULL THEN v_dept_code := 'STD'; END IF;
+
+        -- Get Year and Month from enrollment date
+        v_year := to_char(COALESCE(NEW.enrolled_at, NOW()), 'YYYY');
+        v_month := to_char(COALESCE(NEW.enrolled_at, NOW()), 'MM');
+
+        -- Get or create sequence
+        INSERT INTO public.matricule_sequences (tenant_id, department_id, year_pattern, month_pattern, last_value)
+        VALUES (NEW.tenant_id, v_dept_id, v_year, v_month, 1)
+        ON CONFLICT (tenant_id, department_id, year_pattern, month_pattern)
+        DO UPDATE SET last_value = matricule_sequences.last_value + 1
+        RETURNING last_value INTO v_seq_val;
+
+        -- Format: [DEP][YYYY][MM][0000X]
+        v_new_matricule := upper(v_dept_code) || v_year || v_month || lpad(v_seq_val::text, 5, '0');
+
+        -- Update the student record
+        UPDATE public.students SET matricule = v_new_matricule WHERE id = NEW.student_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. Trigger attachment
+DROP TRIGGER IF EXISTS tr_on_enrollment_generate_matricule ON public.enrollments;
+CREATE TRIGGER tr_on_enrollment_generate_matricule
+AFTER INSERT ON public.enrollments
+FOR EACH ROW EXECUTE FUNCTION public.fn_generate_student_matricule();
+
+-- Finish push_subscriptions fix
+NOTIFY pgrst, 'reload schema';
+GRANT ALL ON public.push_subscriptions TO authenticated;
+GRANT ALL ON public.push_subscriptions TO service_role;

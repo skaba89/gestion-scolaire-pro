@@ -1,0 +1,165 @@
+-- Database Optimization Script
+-- Improves query performance through indexes, materialized views, and query analysis
+
+-- 1. ADD COMPOSITE INDEXES FOR COMMON FILTERS
+-- Student queries frequently filter by tenant_id and level_id
+CREATE INDEX IF NOT EXISTS idx_students_tenant_level 
+ON public.students(tenant_id, level_id);
+
+-- Class queries
+CREATE INDEX IF NOT EXISTS idx_classes_tenant_level
+ON public.classes(tenant_id, level);
+
+-- Grade queries (common filter: student + subject + year)
+CREATE INDEX IF NOT EXISTS idx_grades_student_academic_year
+ON public.grades(student_id, tenant_id)
+WHERE created_at > NOW() - INTERVAL '1 year';
+
+-- Attendance queries (recent records)
+CREATE INDEX IF NOT EXISTS idx_attendance_recent
+ON public.attendance(student_id, date DESC)
+WHERE date >= CURRENT_DATE - INTERVAL '30 days';
+
+-- Assignment queries
+CREATE INDEX IF NOT EXISTS idx_assignments_active
+ON public.assignments(tenant_id, created_at DESC)
+WHERE created_at > NOW() - INTERVAL '3 months';
+
+-- Schedule queries
+CREATE INDEX IF NOT EXISTS idx_schedule_date_range
+ON public.schedule(class_id, date_time)
+WHERE date_time > NOW();
+
+-- 2. ADD FOREIGN KEY INDEXES (prevent full table scans)
+CREATE INDEX IF NOT EXISTS idx_class_enrollments_class
+ON public.class_enrollments(class_id);
+
+CREATE INDEX IF NOT EXISTS idx_class_enrollments_student
+ON public.class_enrollments(student_id);
+
+CREATE INDEX IF NOT EXISTS idx_grades_teacher
+ON public.grades(teacher_id);
+
+CREATE INDEX IF NOT EXISTS idx_assignments_teacher
+ON public.assignments(teacher_id);
+
+-- 3. ANALYZE TABLE STATISTICS (for query optimizer)
+ANALYZE public.students;
+ANALYZE public.classes;
+ANALYZE public.grades;
+ANALYZE public.attendance;
+ANALYZE public.assignments;
+ANALYZE public.class_enrollments;
+ANALYZE public.schedule;
+ANALYZE public.academic_years;
+ANALYZE public.terms;
+
+-- 4. CREATE MATERIALIZED VIEWS FOR DASHBOARDS
+-- Dashboard view: Student statistics per class
+DROP MATERIALIZED VIEW IF EXISTS public.mv_class_statistics CASCADE;
+CREATE MATERIALIZED VIEW public.mv_class_statistics AS
+SELECT 
+  c.id,
+  c.tenant_id,
+  c.name,
+  COUNT(DISTINCT ce.student_id) as total_students,
+  COUNT(DISTINCT CASE WHEN a.status = 'PRESENT' THEN a.student_id END)::FLOAT / 
+    NULLIF(COUNT(DISTINCT CASE WHEN a.date >= CURRENT_DATE - INTERVAL '30 days' THEN a.student_id END), 0) 
+    * 100 as attendance_percentage,
+  AVG(g.grade)::NUMERIC(5,2) as average_grade
+FROM public.classes c
+LEFT JOIN public.class_enrollments ce ON ce.class_id = c.id
+LEFT JOIN public.attendance a ON a.student_id = ce.student_id AND a.date >= CURRENT_DATE - INTERVAL '30 days'
+LEFT JOIN public.grades g ON g.student_id = ce.student_id AND g.created_at >= NOW() - INTERVAL '1 month'
+GROUP BY c.id, c.tenant_id, c.name;
+
+CREATE INDEX IF NOT EXISTS idx_mv_class_statistics_tenant 
+ON public.mv_class_statistics(tenant_id);
+
+-- Academic year performance view
+DROP MATERIALIZED VIEW IF EXISTS public.mv_academic_year_summary CASCADE;
+CREATE MATERIALIZED VIEW public.mv_academic_year_summary AS
+SELECT 
+  ay.id,
+  ay.tenant_id,
+  ay.name,
+  COUNT(DISTINCT s.id) as total_students,
+  COUNT(DISTINCT c.id) as total_classes,
+  AVG(CASE WHEN g.grade IS NOT NULL THEN g.grade ELSE NULL END)::NUMERIC(5,2) as avg_grade,
+  COUNT(DISTINCT CASE WHEN t.id IS NOT NULL THEN t.id END) as active_terms
+FROM public.academic_years ay
+LEFT JOIN public.students s ON s.tenant_id = ay.tenant_id
+LEFT JOIN public.classes c ON c.tenant_id = ay.tenant_id
+LEFT JOIN public.grades g ON g.tenant_id = ay.tenant_id AND g.created_at >= NOW() - INTERVAL '1 year'
+LEFT JOIN public.terms t ON t.academic_year_id = ay.id AND t.is_active = true
+GROUP BY ay.id, ay.tenant_id, ay.name;
+
+CREATE INDEX IF NOT EXISTS idx_mv_academic_year_tenant
+ON public.mv_academic_year_summary(tenant_id);
+
+-- Teacher workload view
+DROP MATERIALIZED VIEW IF EXISTS public.mv_teacher_workload CASCADE;
+CREATE MATERIALIZED VIEW public.mv_teacher_workload AS
+SELECT 
+  t.id as teacher_id,
+  t.tenant_id,
+  COUNT(DISTINCT c.id) as class_count,
+  COUNT(DISTINCT a.id) as pending_assignments,
+  COUNT(DISTINCT s.id) as total_students,
+  COUNT(DISTINCT CASE WHEN g.created_at >= NOW() - INTERVAL '7 days' THEN g.id END) as grades_this_week
+FROM public.profiles t
+JOIN public.user_roles ur ON ur.user_id = t.id AND ur.role = 'TEACHER'
+LEFT JOIN public.classes c ON c.teacher_id = t.id
+LEFT JOIN public.assignments a ON a.teacher_id = t.id AND a.due_date > NOW()
+LEFT JOIN public.class_enrollments ce ON ce.class_id = c.id
+LEFT JOIN public.students s ON s.id = ce.student_id
+LEFT JOIN public.grades g ON g.teacher_id = t.id
+WHERE t.is_active = true
+GROUP BY t.id, t.tenant_id;
+
+CREATE INDEX IF NOT EXISTS idx_mv_teacher_workload_tenant
+ON public.mv_teacher_workload(tenant_id);
+
+-- 5. REFRESH MATERIALIZED VIEWS (run periodically via scheduled job)
+-- This could be set up with pg_cron to run daily at 2 AM
+-- SELECT cron.schedule('refresh-class-stats', '0 2 * * *', 'REFRESH MATERIALIZED VIEW CONCURRENTLY public.mv_class_statistics');
+
+-- 6. ADD PARTIAL INDEXES (only index active records)
+CREATE INDEX IF NOT EXISTS idx_active_students 
+ON public.students(tenant_id);
+
+CREATE INDEX IF NOT EXISTS idx_active_classes
+ON public.classes(tenant_id, academic_year_id);
+
+-- 7. QUERY OPTIMIZATION RECOMMENDATIONS
+-- These are comments for developers:
+-- 
+-- a) Always filter by tenant_id first (use composite indexes)
+--    SELECT * FROM students WHERE tenant_id = $1 AND level_id = $2
+--
+-- b) Use LIMIT and OFFSET for pagination:
+--    SELECT * FROM students WHERE tenant_id = $1 ORDER BY created_at LIMIT 50 OFFSET 0
+--
+-- c) Denormalize frequently accessed data into materialized views
+--    Don't join 5 tables every time - use mv_class_statistics instead
+--
+-- d) For real-time dashboards, cache results in application layer
+--    Use Redis or in-memory cache with 5-minute TTL
+--
+-- e) Archive old data periodically:
+--    DELETE FROM attendance WHERE date < NOW() - INTERVAL '2 years'
+--    DELETE FROM grades WHERE created_at < NOW() - INTERVAL '3 years'
+
+-- 8. ENABLE TABLE STATISTICS
+ALTER TABLE public.students SET (fillfactor = 90);
+ALTER TABLE public.classes SET (fillfactor = 90);
+ALTER TABLE public.class_enrollments SET (fillfactor = 90);
+
+-- 9. VACUUM AND ANALYZE (run periodically)
+-- VACUUM ANALYZE public.students;
+-- VACUUM ANALYZE public.classes;
+-- VACUUM ANALYZE public.grades;
+
+GRANT SELECT ON public.mv_class_statistics TO anon, authenticated;
+GRANT SELECT ON public.mv_academic_year_summary TO anon, authenticated;
+GRANT SELECT ON public.mv_teacher_workload TO anon, authenticated;

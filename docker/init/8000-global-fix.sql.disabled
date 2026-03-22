@@ -1,0 +1,33 @@
+-- Global Fix for RLS and Base Data
+
+-- 1. Ensure at least one current academic year exists
+UPDATE public.academic_years SET is_current = true WHERE name = '2025-2026';
+
+-- 2. Make RLS permissive for development on problematic tables
+DO $$ 
+BEGIN
+    -- Fees
+    ALTER TABLE public.fees ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "allow_all_fees" ON public.fees;
+    CREATE POLICY "allow_all_fees" ON public.fees FOR ALL USING (true);
+
+    -- Campuses
+    ALTER TABLE public.campuses ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "allow_all_campuses" ON public.campuses;
+    CREATE POLICY "allow_all_campuses" ON public.campuses FOR ALL USING (true);
+
+    -- Academic Years
+    ALTER TABLE public.academic_years ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "allow_all_academic_years" ON public.academic_years;
+    CREATE POLICY "allow_all_academic_years" ON public.academic_years FOR ALL USING (true);
+
+    -- Schedule Slots
+    ALTER TABLE public.schedule_slots ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "allow_all_schedule_slots" ON public.schedule_slots;
+    CREATE POLICY "allow_all_schedule_slots" ON public.schedule_slots FOR ALL USING (true);
+    
+    -- teacher_assignments (already mostly fixed but just in case)
+    ALTER TABLE public.teacher_assignments ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "allow_all_teacher_assignments" ON public.teacher_assignments;
+    CREATE POLICY "allow_all_teacher_assignments" ON public.teacher_assignments FOR ALL USING (true);
+END $$;

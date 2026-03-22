@@ -1,0 +1,287 @@
+_format_version: "2.1"
+_transform: true
+
+services:
+  # Auth Service
+  - name: auth-v1
+    url: http://supabase-auth:9999/
+    routes:
+      - name: auth-v1-route
+        strip_path: true
+        paths:
+          - /auth/v1/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:3001"
+            - "http://localhost:3002"
+            - "http://localhost:8081"
+            - "http://127.0.0.1:3000"
+            - "http://127.0.0.1:3001"
+            - "http://127.0.0.1:3002"
+            - "http://127.0.0.1:8081"
+            - "http://192.168.1.79:8000"
+            - "http://192.168.1.79:3000"
+            - "http://192.168.1.79:3001"
+            - "http://192.168.1.79:3002"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - x-client-info
+            - x-supabase-api-version
+            - accept-profile
+            - content-profile
+          exposed_headers:
+            - X-Total-Count
+          credentials: true
+          max_age: 3600
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+
+  # REST Service
+  - name: rest-v1
+    url: http://supabase-rest:3000/
+    routes:
+      - name: rest-v1-route
+        strip_path: true
+        paths:
+          - /rest/v1/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:3001"
+            - "http://localhost:3002"
+            - "http://localhost:8081"
+            - "http://127.0.0.1:3000"
+            - "http://127.0.0.1:3001"
+            - "http://127.0.0.1:3002"
+            - "http://127.0.0.1:8081"
+            - "http://192.168.1.79:8000"
+            - "http://192.168.1.79:3000"
+            - "http://192.168.1.79:3001"
+            - "http://192.168.1.79:3002"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - x-client-info
+            - x-supabase-api-version
+            - accept-profile
+            - content-profile
+            - Prefer
+            - Range
+          exposed_headers:
+            - X-Total-Count
+            - Content-Range
+          credentials: true
+          max_age: 3600
+      - name: rate-limiting
+        config:
+          minute: 1000
+          policy: local
+
+  # Realtime Service
+  - name: realtime-v1
+    url: http://supabase-realtime:4000/socket
+    routes:
+      - name: realtime-v1-route
+        strip_path: true
+        paths:
+          - /realtime/v1/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:3001"
+            - "http://localhost:3002"
+            - "http://localhost:8081"
+            - "http://127.0.0.1:3000"
+            - "http://127.0.0.1:3001"
+            - "http://127.0.0.1:3002"
+            - "http://127.0.0.1:8081"
+            - "http://192.168.1.79:8000"
+            - "http://192.168.1.79:3000"
+            - "http://192.168.1.79:3001"
+            - "http://192.168.1.79:3002"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - x-client-info
+            - x-supabase-api-version
+            - accept-profile
+            - content-profile
+          credentials: true
+          max_age: 3600
+
+  # Storage Service
+  - name: storage-v1
+    url: http://supabase-storage:5000/
+    routes:
+      - name: storage-v1-route
+        strip_path: true
+        paths:
+          - /storage/v1/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:3001"
+            - "http://localhost:3002"
+            - "http://localhost:8081"
+            - "http://127.0.0.1:3000"
+            - "http://127.0.0.1:3001"
+            - "http://127.0.0.1:3002"
+            - "http://127.0.0.1:8081"
+            - "http://192.168.1.79:8000"
+            - "http://192.168.1.79:3000"
+            - "http://192.168.1.79:3001"
+            - "http://192.168.1.79:3002"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - x-client-info
+            - x-supabase-api-version
+            - accept-profile
+            - content-profile
+            - x-upsert
+            - upload-length
+            - upload-offset
+            - tus-resumable
+            - upload-metadata
+          exposed_headers:
+            - X-Total-Count
+            - upload-offset
+            - upload-length
+            - tus-resumable
+          credentials: true
+          max_age: 3600
+
+  # Edge Functions Service
+  - name: functions-v1
+    url: http://supabase-functions:9000/
+    routes:
+      - name: functions-v1-route
+        strip_path: true
+        paths:
+          - /functions/v1/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "http://localhost:3000"
+            - "http://localhost:3001"
+            - "http://localhost:3002"
+            - "http://localhost:8081"
+            - "http://127.0.0.1:3000"
+            - "http://127.0.0.1:3001"
+            - "http://127.0.0.1:3002"
+            - "http://127.0.0.1:8081"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Version
+            - Content-Length
+            - Content-MD5
+            - Content-Type
+            - Date
+            - X-Auth-Token
+            - Authorization
+            - apikey
+            - x-client-info
+            - x-supabase-api-version
+            - accept-profile
+            - content-profile
+          credentials: true
+          max_age: 3600
+
+  # Meta Service
+  - name: meta
+    url: http://supabase-meta:8080/
+    routes:
+      - name: meta-route
+        strip_path: true
+        paths:
+          - /pg/
+
+consumers:
+  - username: anon
+    keyauth_credentials:
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzM5NjU3NDgyLCJleHAiOjIwNTUyOTM0ODJ9.Ms7tjYEhaUiQbs3Zu2ozNMMG0cNa5jjbgUWcNE2j8DTQ30
+  - username: service_role
+    keyauth_credentials:
+      - key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3Mzk2NTc0ODIsImV4cCI6MjA1NTI5MzQ4Mn0.N-E29W7zCeeh_1e6r0f0uO4lA-Niz9f2A4z7oNoH-3U
+
+acls:
+  - consumer: anon
+    group: anon
+  - consumer: service_role
+    group: admin

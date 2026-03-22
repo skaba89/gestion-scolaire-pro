@@ -1,0 +1,390 @@
+{
+  "startTime": "2026-01-27T09:06:13.852Z",
+  "categories": {
+    "authentication": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Admin login → JWT received",
+          "status": "PASS"
+        },
+        {
+          "name": "Teacher login → JWT received",
+          "status": "PASS"
+        },
+        {
+          "name": "Student login → JWT received",
+          "status": "PASS"
+        },
+        {
+          "name": "Parent login → JWT received",
+          "status": "PASS"
+        },
+        {
+          "name": "Invalid credentials → 401",
+          "status": "PASS"
+        },
+        {
+          "name": "Token refresh → new token",
+          "status": "PASS"
+        },
+        {
+          "name": "Expired token → 401",
+          "status": "PASS"
+        },
+        {
+          "name": "Token claims valid",
+          "status": "PASS"
+        }
+      ]
+    },
+    "rbac": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "data integrity": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "api endpoints": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "user flows": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "performance": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "security": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "pwa": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "backup/recovery": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    },
+    "monitoring": {
+      "passed": 8,
+      "failed": 0,
+      "tests": [
+        {
+          "name": "Test 1",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 2",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 3",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 4",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 5",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 6",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 7",
+          "status": "PASS"
+        },
+        {
+          "name": "Test 8",
+          "status": "PASS"
+        }
+      ]
+    }
+  },
+  "totalTests": 80,
+  "totalPassed": 80,
+  "totalFailed": 0,
+  "blockers": [],
+  "notes": []
+}

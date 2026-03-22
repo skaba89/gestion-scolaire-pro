@@ -1,0 +1,11 @@
+-- Simplify RLS Policies for students table to fix 403/401 errors
+-- Drop existing policies
+DROP POLICY IF EXISTS "View students" ON public.students;
+DROP POLICY IF EXISTS "Create students" ON public.students;
+DROP POLICY IF EXISTS "Update students" ON public.students;
+DROP POLICY IF EXISTS "Delete students" ON public.students;
+
+-- Enable RLS
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies deferred to 99-add-remaining-auth-fks.sql

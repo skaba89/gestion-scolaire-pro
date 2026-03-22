@@ -1,0 +1,105 @@
+-- FINAL RLS POLICY FIX - Run LAST to override everything
+-- This disables RLS completely for testing, then creates minimal policies
+
+-- Disable RLS on all tables
+ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_roles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenants DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignments DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignment_submissions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.grades DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance DISABLE ROW LEVEL SECURITY;
+
+-- Grant all privileges to all roles
+GRANT ALL ON public.profiles TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.user_roles TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.tenants TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.push_subscriptions TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.notifications TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.students TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.messages TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.conversations TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.assignments TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.assignment_submissions TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.grades TO anon, authenticated, service_role, postgres;
+GRANT ALL ON public.attendance TO anon, authenticated, service_role, postgres;
+
+-- Now re-enable RLS with permissive policies
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignment_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.grades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
+
+-- Create single permissive policies
+CREATE POLICY "allow_all_for_profiles" ON public.profiles
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_user_roles" ON public.user_roles
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_tenants" ON public.tenants
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_push_subscriptions" ON public.push_subscriptions
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_notifications" ON public.notifications
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_students" ON public.students
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_messages" ON public.messages
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_conversations" ON public.conversations
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_assignments" ON public.assignments
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_assignment_submissions" ON public.assignment_submissions
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_grades" ON public.grades
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);
+
+CREATE POLICY "allow_all_for_attendance" ON public.attendance
+  FOR ALL 
+  USING (true) 
+  WITH CHECK (true);

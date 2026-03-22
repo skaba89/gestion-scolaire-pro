@@ -1,0 +1,45 @@
+-- Migration: Fix gamification types and add summary view (V2)
+-- Description: Creates missing enums and the student_points_summary view expected by the frontend.
+
+-- 1. Create Enums if they don't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'badge_status') THEN
+        CREATE TYPE public.badge_status AS ENUM ('ACTIVE', 'INACTIVE', 'LOST', 'EXPIRED');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'check_in_type') THEN
+        CREATE TYPE public.check_in_type AS ENUM ('ENTRY', 'EXIT');
+    END IF;
+END $$;
+
+-- 2. Update student_badges to use the enum
+-- Drop the check constraint first
+ALTER TABLE public.student_badges DROP CONSTRAINT IF EXISTS student_badges_status_check;
+
+ALTER TABLE public.student_badges 
+    ALTER COLUMN status DROP DEFAULT,
+    ALTER COLUMN status TYPE public.badge_status USING status::public.badge_status,
+    ALTER COLUMN status SET DEFAULT 'ACTIVE';
+
+-- 3. Update student_check_ins to use the enum
+-- Drop the check constraint first
+ALTER TABLE public.student_check_ins DROP CONSTRAINT IF EXISTS student_check_ins_check_in_type_check;
+
+ALTER TABLE public.student_check_ins 
+    ALTER COLUMN check_in_type TYPE public.check_in_type USING check_in_type::public.check_in_type;
+
+-- 4. Create student_points_summary view
+CREATE OR REPLACE VIEW public.student_points_summary AS
+SELECT 
+    s.id as student_id,
+    s.tenant_id,
+    s.first_name,
+    s.last_name,
+    s.photo_url,
+    COALESCE((SELECT SUM(points) FROM public.point_transactions pt WHERE pt.student_id = s.id), 0) as total_points,
+    COALESCE((SELECT COUNT(*) FROM public.student_achievements sa WHERE sa.student_id = s.id), 0) as achievements_count
+FROM 
+    public.students s;
+
+-- 5. Grant permissions on the view
+GRANT SELECT ON public.student_points_summary TO anon, authenticated, service_role;

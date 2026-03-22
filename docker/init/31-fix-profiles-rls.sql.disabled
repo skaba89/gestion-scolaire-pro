@@ -1,0 +1,19 @@
+-- Fix RLS policies for profiles table to allow admins to view all users in their tenant
+-- This file will be updated in 99-add-remaining-auth-fks.sql after auth functions are available
+-- For now, just enable RLS with a simple policy
+
+-- First, drop the existing policies
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can view profiles" ON public.profiles;
+
+-- Create simple policies that don't depend on auth functions
+CREATE POLICY "Users can view profiles"
+  ON public.profiles
+  FOR SELECT
+  USING (true);
+
+-- Enable other basic operations (will be refined in file 99)
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+
+-- These will be properly defined in 99-add-remaining-auth-fks.sql

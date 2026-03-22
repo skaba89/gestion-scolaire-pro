@@ -1,0 +1,16 @@
+-- Phase 3: Audit Enhancement
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'audit_severity') THEN
+        CREATE TYPE public.audit_severity AS ENUM ('INFO', 'WARNING', 'CRITICAL');
+    END IF;
+END $$;
+
+ALTER TABLE public.audit_logs 
+ADD COLUMN IF NOT EXISTS severity public.audit_severity DEFAULT 'INFO',
+ADD COLUMN IF NOT EXISTS ip_address TEXT,
+ADD COLUMN IF NOT EXISTS user_agent TEXT;
+
+-- Create an index for performance on common filters
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON public.audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON public.audit_logs(entity_type, entity_id);

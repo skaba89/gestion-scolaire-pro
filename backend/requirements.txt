@@ -1,0 +1,29 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+asyncpg
+alembic
+pydantic
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+httpx
+requests
+minio
+redis
+psycopg2-binary
+python-dotenv
+python-keycloak
+email-validator
+slowapi
+
+# Logging & Monitoring
+python-json-logger>=2.0.7
+prometheus-client>=0.20.0
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+httpx

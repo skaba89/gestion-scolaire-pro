@@ -1,0 +1,146 @@
+{
+    "realm": "schoolflow",
+    "enabled": true,
+    "users": [
+        {
+            "username": "superadmin",
+            "enabled": true,
+            "email": "admin@schoolflow.com",
+            "firstName": "Super",
+            "lastName": "Admin",
+            "credentials": [
+                {
+                    "type": "password",
+                    "value": "admin",
+                    "temporary": false
+                }
+            ],
+            "realmRoles": [
+                "SUPER_ADMIN"
+            ]
+        }
+    ],
+    "roles": {
+        "realm": [
+            {
+                "name": "SUPER_ADMIN",
+                "description": "Global Administrator"
+            },
+            {
+                "name": "TENANT_ADMIN",
+                "description": "School Administrator"
+            },
+            {
+                "name": "DIRECTOR",
+                "description": "Institutional Director"
+            },
+            {
+                "name": "ACCOUNTANT",
+                "description": "Financial Manager"
+            },
+            {
+                "name": "STAFF",
+                "description": "General Staff"
+            },
+            {
+                "name": "TEACHER",
+                "description": "Teaching Staff"
+            },
+            {
+                "name": "PARENT",
+                "description": "Student Guardian"
+            },
+            {
+                "name": "STUDENT",
+                "description": "Learner"
+            }
+        ]
+    },
+    "clients": [
+        {
+            "clientId": "schoolflow-frontend",
+            "enabled": true,
+            "publicClient": true,
+            "directAccessGrantsEnabled": true,
+            "redirectUris": [
+                "http://localhost:3000/*",
+                "http://127.0.0.1:3000/*"
+            ],
+            "webOrigins": [
+                "*"
+            ],
+            "protocolMappers": [
+                {
+                    "name": "school_id",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "user.attribute": "school_id",
+                        "claim.name": "app_metadata.school_id",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                },
+                {
+                    "name": "roles",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-realm-role-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "multivalued": "true",
+                        "user.attribute": "roles",
+                        "claim.name": "app_metadata.roles",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                }
+            ]
+        },
+        {
+            "clientId": "schoolflow-supabase",
+            "enabled": true,
+            "publicClient": false,
+            "clientAuthenticatorType": "client-secret",
+            "secret": "supabase-secret",
+            "directAccessGrantsEnabled": false,
+            "serviceAccountsEnabled": true,
+            "redirectUris": [
+                "http://localhost:3000/*",
+                "http://127.0.0.1:3000/*",
+                "http://localhost:9999/callback"
+            ],
+            "protocolMappers": [
+                {
+                    "name": "school_id",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-attribute-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "user.attribute": "school_id",
+                        "claim.name": "app_metadata.school_id",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                },
+                {
+                    "name": "roles",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-usermodel-realm-role-mapper",
+                    "consentRequired": false,
+                    "config": {
+                        "multivalued": "true",
+                        "user.attribute": "roles",
+                        "claim.name": "app_metadata.roles",
+                        "jsonType.label": "String",
+                        "id.token.claim": "true",
+                        "access.token.claim": "true"
+                    }
+                }
+            ]
+        }
+    ]
+}

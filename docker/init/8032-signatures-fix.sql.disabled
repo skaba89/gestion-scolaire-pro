@@ -1,0 +1,27 @@
+-- Phase 8 Revision: Add tenant_id to signatories for consistency
+
+ALTER TABLE public.document_signatories 
+ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+-- Update trigger to handle tenant_id inheritance during insert if not provided
+CREATE OR REPLACE FUNCTION public.fill_signatory_tenant()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.tenant_id IS NULL THEN
+        SELECT tenant_id INTO NEW.tenant_id FROM public.electronic_documents WHERE id = NEW.document_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_fill_signatory_tenant ON public.document_signatories;
+CREATE TRIGGER tr_fill_signatory_tenant
+BEFORE INSERT ON public.document_signatories
+FOR EACH ROW EXECUTE FUNCTION public.fill_signatory_tenant();
+
+-- Re-establish RLS with direct tenant check
+DROP POLICY IF EXISTS "Tenant Isolation for Signatories" ON public.document_signatories;
+CREATE POLICY "Tenant Isolation for Signatories" 
+ON public.document_signatories 
+FOR ALL 
+USING (tenant_id = public.get_app_tenant());

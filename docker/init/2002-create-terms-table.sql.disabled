@@ -1,0 +1,26 @@
+-- Create terms table (Trimestres/Semestres)
+CREATE TABLE IF NOT EXISTS public.terms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  academic_year_id UUID NOT NULL REFERENCES public.academic_years(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  is_current BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_terms_tenant_id ON public.terms(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_terms_academic_year_id ON public.terms(academic_year_id);
+CREATE INDEX IF NOT EXISTS idx_terms_is_current ON public.terms(is_current);
+
+-- RLS
+ALTER TABLE public.terms ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "allow_all_terms" ON public.terms;
+CREATE POLICY "allow_all_terms" ON public.terms FOR ALL USING (true) WITH CHECK (true);
+
+-- Permissions
+GRANT ALL ON public.terms TO anon, authenticated, service_role;

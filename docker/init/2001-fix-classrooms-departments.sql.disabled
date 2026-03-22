@@ -1,0 +1,111 @@
+-- Comprehensive fix for Classrooms, Departments, and User Roles
+
+-- 1. DROP DEPENDENT VIEWS
+DROP VIEW IF EXISTS public.enrollments CASCADE;
+DROP VIEW IF EXISTS public.classrooms CASCADE; -- Ensure we don't have a view conflicting with table
+
+-- 2. FIX CLASSROOMS TABLE (was classes)
+-- Ensure 'classes' is renamed to 'classrooms' if not already
+DO $$
+BEGIN
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'classes') THEN
+    ALTER TABLE public.classes RENAME TO classrooms;
+  END IF;
+END $$;
+
+-- Fix columns in classrooms (handle re-run idempotency)
+DO $$
+BEGIN
+  -- Rename level -> level_id if needed
+  IF EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'classrooms' AND column_name = 'level') THEN
+    ALTER TABLE public.classrooms RENAME COLUMN level TO level_id;
+  END IF;
+  
+  -- Fix level_id type to UUID if it's varchar
+  IF EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'classrooms' AND column_name = 'level_id' AND data_type LIKE '%char%') THEN
+    ALTER TABLE public.classrooms ALTER COLUMN level_id TYPE UUID USING level_id::uuid;
+  END IF;
+
+  -- Add Missing Columns
+  IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'classrooms' AND column_name = 'campus_id') THEN
+    ALTER TABLE public.classrooms ADD COLUMN campus_id UUID REFERENCES public.campuses(id);
+  END IF;
+
+  IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'classrooms' AND column_name = 'capacity') THEN
+    ALTER TABLE public.classrooms ADD COLUMN capacity INTEGER;
+  END IF;
+  
+   -- Check/Add FK to levels (using specific name for clarity)
+  IF NOT EXISTS (SELECT FROM pg_constraint WHERE conname = 'classrooms_level_id_fkey') THEN
+    ALTER TABLE public.classrooms ADD CONSTRAINT classrooms_level_id_fkey FOREIGN KEY (level_id) REFERENCES public.levels(id);
+  END IF;
+END $$;
+
+-- 3. CREATE DEPARTMENTS TABLE (if missing)
+CREATE TABLE IF NOT EXISTS public.departments (
+  id uuid PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  head_of_department_id uuid, -- Optional link to a user/profile
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS for departments
+ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_departments" ON public.departments;
+CREATE POLICY "allow_all_departments" ON public.departments FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON public.departments TO anon, authenticated, service_role;
+
+-- 4. CREATE CLASSROOM_DEPARTMENTS JUNCTION TABLE
+CREATE TABLE IF NOT EXISTS public.classroom_departments (
+  id uuid PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE,
+  classroom_id uuid REFERENCES public.classrooms(id) ON DELETE CASCADE,
+  department_id uuid REFERENCES public.departments(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(classroom_id, department_id)
+);
+
+-- RLS for classroom_departments
+ALTER TABLE public.classroom_departments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_class_depts" ON public.classroom_departments;
+CREATE POLICY "allow_all_class_depts" ON public.classroom_departments FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON public.classroom_departments TO anon, authenticated, service_role;
+
+-- 5. FIX USER_ROLES FK (Required for frontend query)
+DO $$
+BEGIN
+  -- We add FK to PROFILES because the frontend tests `profiles!user_roles_user_id_fkey`
+  -- Note: usually user_id links to auth.users, but here we link to profiles to satisfy the join hint? 
+  -- Actually, profiles.id IS auth.users.id usually.
+  
+  IF NOT EXISTS (SELECT FROM pg_constraint WHERE conname = 'user_roles_user_id_fkey') THEN
+    ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- 6. RECREATE ENROLLMENTS VIEW (Updated to use classrooms and correct columns)
+CREATE OR REPLACE VIEW public.enrollments AS
+SELECT 
+  ce.id,
+  ce.class_id, -- Keep original column name for compatibility if needed, OR adjust below
+  ce.student_id,
+  ce.status,
+  c.level_id, -- Now explicitly level_id
+  c.id as class_id_full,
+  c.name as class_name,
+  ce.created_at,
+  ce.updated_at,
+  ce.tenant_id
+FROM public.class_enrollments ce
+LEFT JOIN public.classrooms c ON ce.class_id = c.id;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.enrollments TO authenticated, service_role;
+
+-- 7. ENSURE CLASSROOMS RLS
+ALTER TABLE public.classrooms ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "allow_all_classrooms" ON public.classrooms;
+CREATE POLICY "allow_all_classrooms" ON public.classrooms FOR ALL USING (true) WITH CHECK (true);
+GRANT ALL ON public.classrooms TO anon, authenticated, service_role;

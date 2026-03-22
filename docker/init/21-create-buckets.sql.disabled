@@ -1,0 +1,40 @@
+-- Create storage buckets for the application
+-- This is executed during Docker Compose startup
+
+-- Ensure storage schema exists
+CREATE SCHEMA IF NOT EXISTS storage AUTHORIZATION supabase_storage_admin;
+
+-- Insert student photos bucket if it doesn't exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('student-photos', 'student-photos', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create RLS policies for student photos bucket
+-- Policy 1: Public can view (SELECT) student photos
+CREATE POLICY IF NOT EXISTS "Public can view student photos"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'student-photos');
+
+-- Policy 2: Authenticated users can upload (INSERT) student photos
+CREATE POLICY IF NOT EXISTS "Authenticated can upload student photos"
+ON storage.objects FOR INSERT
+WITH CHECK (
+  bucket_id = 'student-photos' 
+  AND auth.uid() IS NOT NULL
+);
+
+-- Policy 3: Users can update their own student photos
+CREATE POLICY IF NOT EXISTS "Authenticated can update student photos"
+ON storage.objects FOR UPDATE
+USING (
+  bucket_id = 'student-photos' 
+  AND auth.uid() IS NOT NULL
+);
+
+-- Policy 4: Users can delete student photos they have access to
+CREATE POLICY IF NOT EXISTS "Authenticated can delete student photos"
+ON storage.objects FOR DELETE
+USING (
+  bucket_id = 'student-photos' 
+  AND auth.uid() IS NOT NULL
+);

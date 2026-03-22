@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Nettoyage du Cache</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #f3f4f6;
+        }
+
+        .box {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            color: #2563eb;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <h1>Nettoyage de la mémoire fantôme...</h1>
+        <p>Veuillez patienter 2 secondes.<br>Vous allez être redirigé vers l'application propre.</p>
+    </div>
+    <script>
+        // 1. Unregister all service workers
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let registration of registrations) {
+                    registration.unregister();
+                    console.log("Service Worker retiré");
+                }
+            });
+        }
+
+        // 2. Delete all caches
+        if ('caches' in window) {
+            caches.keys().then((names) => {
+                for (let name of names) {
+                    caches.delete(name);
+                    console.log("Cache supprimé: " + name);
+                }
+            });
+        }
+
+        // 3. Delete localStorage and sessionStorage just in case (optional but helpful)
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // 4. Redirect to home page where fresh code will be loaded
+        setTimeout(() => {
+            window.location.replace("/");
+        }, 3000);
+    </script>
+</body>
+
+</html>

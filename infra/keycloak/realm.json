@@ -1,0 +1,68 @@
+{
+  "id": "schoolflow",
+  "realm": "schoolflow",
+  "enabled": true,
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "clients": [
+    {
+      "clientId": "schoolflow-frontend",
+      "enabled": true,
+      "publicClient": true,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true
+    },
+    {
+      "clientId": "schoolflow-api",
+      "enabled": true,
+      "bearerOnly": false,
+      "publicClient": false,
+      "secret": "kY7f9XnQw1Zp4mBv2rT5jL8sN0aC3dE6",
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "SUPER_ADMIN", "description": "Global administrator" },
+      { "name": "TENANT_ADMIN", "description": "Tenant administrator" },
+      { "name": "DIRECTOR", "description": "School director" },
+      { "name": "TEACHER", "description": "School teacher" },
+      { "name": "STUDENT", "description": "Student" },
+      { "name": "PARENT", "description": "Parent" }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "email": "admin@schoolflow.pro",
+      "firstName": "Sovereign",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "SUPER_ADMIN"
+      ]
+    }
+  ],
+  "scopeMappings": [
+    {
+      "client": "schoolflow-frontend",
+      "roles": ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER", "STUDENT", "PARENT"]
+    }
+  ]
+}

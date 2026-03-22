@@ -1,0 +1,75 @@
+-- Migration: Create bookable_resources and bookings tables
+-- Description: Adds missing tables for resource management and reservations.
+
+-- 1. Create Enums if they don't exist
+DO $$ BEGIN
+    CREATE TYPE public.bookable_resource_type AS ENUM ('room', 'equipment', 'appointment');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE public.booking_status AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+-- 2. Create bookable_resources table
+CREATE TABLE IF NOT EXISTS public.bookable_resources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    resource_type public.bookable_resource_type NOT NULL DEFAULT 'room',
+    location TEXT,
+    capacity INTEGER,
+    requires_approval BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+    available_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5],
+    available_start_time TIME DEFAULT '08:00',
+    available_end_time TIME DEFAULT '18:00',
+    min_duration_minutes INTEGER DEFAULT 30,
+    max_duration_minutes INTEGER DEFAULT 480,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 3. Create bookings table
+CREATE TABLE IF NOT EXISTS public.bookings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    resource_id UUID NOT NULL REFERENCES public.bookable_resources(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    status public.booking_status DEFAULT 'pending',
+    approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    approved_at TIMESTAMP WITH TIME ZONE,
+    rejection_reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 4. Create indexes
+CREATE INDEX IF NOT EXISTS idx_bookable_resources_tenant_id ON public.bookable_resources(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON public.bookings(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_resource_id ON public.bookings(resource_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON public.bookings(user_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_start_time ON public.bookings(start_time);
+
+-- 5. Enable RLS
+ALTER TABLE public.bookable_resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+
+-- 6. Add permissive RLS Policies
+DROP POLICY IF EXISTS "allow_all_for_bookable_resources" ON public.bookable_resources;
+CREATE POLICY "allow_all_for_bookable_resources" ON public.bookable_resources FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "allow_all_for_bookings" ON public.bookings;
+CREATE POLICY "allow_all_for_bookings" ON public.bookings FOR ALL USING (true) WITH CHECK (true);
+
+-- 7. Grant Permissions
+GRANT ALL ON public.bookable_resources TO anon, authenticated, service_role;
+GRANT ALL ON public.bookings TO anon, authenticated, service_role;

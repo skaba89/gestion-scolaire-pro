@@ -1,0 +1,24 @@
+-- Phase 8: RLS Policies for Signatures
+
+-- 1. Electronic Documents RLS
+DROP POLICY IF EXISTS "Tenant Isolation for Documents" ON public.electronic_documents;
+CREATE POLICY "Tenant Isolation for Documents" 
+ON public.electronic_documents 
+FOR ALL 
+USING (tenant_id = public.get_app_tenant());
+
+-- 2. Document Signatories RLS
+DROP POLICY IF EXISTS "Tenant Isolation for Signatories" ON public.document_signatories;
+CREATE POLICY "Tenant Isolation for Signatories" 
+ON public.document_signatories 
+FOR ALL 
+USING (
+    EXISTS (
+        SELECT 1 FROM public.electronic_documents d 
+        WHERE d.id = document_id AND d.tenant_id = public.get_app_tenant()
+    )
+);
+
+-- Note: In a real "SaaS Sérieux", we would also add policies allowing 
+-- external signers (by email) to view their specific document even without being logged in.
+-- But for now, we follow the established tenant-based security.

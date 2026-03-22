@@ -1,0 +1,39 @@
+-- Insert test users in auth.users and then in profiles
+-- Note: These are test users without real authentication
+-- DISABLED: auth.users table not available yet during init
+/*
+
+-- First, insert into auth.users
+INSERT INTO auth.users (id, email, email_confirmed_at, encrypted_password, raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at, last_sign_in_at, confirmation_sent_at, recovery_sent_at, is_sso_user)
+VALUES 
+  ('a1234567-1234-1234-1234-123456789001', 'marie.dupont@school.edu', NOW(), '$2a$10$dummy1', '{"provider":"email","providers":["email"]}', '{}'::jsonb, false, NOW(), NOW(), NOW(), NOW(), NULL, false),
+  ('a1234567-1234-1234-1234-123456789002', 'jean.martin@school.edu', NOW(), '$2a$10$dummy2', '{"provider":"email","providers":["email"]}', '{}'::jsonb, false, NOW(), NOW(), NOW(), NOW(), NULL, false),
+  ('a1234567-1234-1234-1234-123456789003', 'sophie.bernard@school.edu', NOW(), '$2a$10$dummy3', '{"provider":"email","providers":["email"]}', '{}'::jsonb, false, NOW(), NOW(), NOW(), NOW(), NULL, false),
+  ('a1234567-1234-1234-1234-123456789004', 'pierre.leclerc@school.edu', NOW(), '$2a$10$dummy4', '{"provider":"email","providers":["email"]}', '{}'::jsonb, false, NOW(), NOW(), NOW(), NOW(), NULL, false),
+  ('a1234567-1234-1234-1234-123456789005', 'anne.robert@school.edu', NOW(), '$2a$10$dummy5', '{"provider":"email","providers":["email"]}', '{}'::jsonb, false, NOW(), NOW(), NOW(), NOW(), NULL, false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Then insert into public.profiles
+INSERT INTO public.profiles (id, first_name, last_name, email, tenant_id, is_active, created_at, updated_at)
+VALUES 
+  ('a1234567-1234-1234-1234-123456789001', 'Marie', 'Dupont', 'marie.dupont@school.edu', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', true, NOW(), NOW()),
+  ('a1234567-1234-1234-1234-123456789002', 'Jean', 'Martin', 'jean.martin@school.edu', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', true, NOW(), NOW()),
+  ('a1234567-1234-1234-1234-123456789003', 'Sophie', 'Bernard', 'sophie.bernard@school.edu', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', true, NOW(), NOW()),
+  ('a1234567-1234-1234-1234-123456789004', 'Pierre', 'Leclerc', 'pierre.leclerc@school.edu', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', true, NOW(), NOW()),
+  ('a1234567-1234-1234-1234-123456789005', 'Anne', 'Robert', 'anne.robert@school.edu', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', true, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+-- Assign roles to these users
+INSERT INTO public.user_roles (user_id, tenant_id, role, created_at)
+VALUES 
+  ('a1234567-1234-1234-1234-123456789001', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', 'TEACHER', NOW()),
+  ('a1234567-1234-1234-1234-123456789002', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', 'STUDENT', NOW()),
+  ('a1234567-1234-1234-1234-123456789003', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', 'PARENT', NOW()),
+  ('a1234567-1234-1234-1234-123456789004', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', 'TEACHER', NOW()),
+  ('a1234567-1234-1234-1234-123456789005', '3dd29917-e3a8-4e9c-8c17-2c03a861ebc9', 'ACCOUNTANT', NOW())
+ON CONFLICT DO NOTHING;
+
+-- Verify users were created
+SELECT COUNT(*) as total_users FROM public.profiles;
+*/
+SELECT email, first_name, last_name FROM public.profiles ORDER BY created_at DESC;

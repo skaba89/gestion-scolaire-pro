@@ -1,0 +1,182 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-schoolflow}
+      POSTGRES_USER: ${POSTGRES_USER:-schoolflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-schoolflow} -d ${POSTGRES_DB:-schoolflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - schoolflow-network
+    mem_limit: 512m
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - schoolflow-network
+    mem_limit: 128m
+
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    ports:
+      - "${MINIO_API_PORT:-9002}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - schoolflow-network
+    mem_limit: 512m
+
+  keycloak-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${KEYCLOAK_DB:-keycloak}
+      POSTGRES_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+    volumes:
+      - kc_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KEYCLOAK_DB_USER:-keycloak} -d ${KEYCLOAK_DB:-keycloak}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - schoolflow-network
+    mem_limit: 256m
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    restart: unless-stopped
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/${KEYCLOAK_DB:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+      KC_PROXY_HEADERS: "xforwarded"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "${KEYCLOAK_PORT:-8080}:8080"
+    networks:
+      - schoolflow-network
+    mem_limit: 768m
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-schoolflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-schoolflow}
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-schoolflow}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-schoolflow-frontend}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
+      KEYCLOAK_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM:-schoolflow}
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/${KEYCLOAK_REALM:-schoolflow}/protocol/openid-connect/certs
+      KEYCLOAK_AUDIENCE: ${KEYCLOAK_AUDIENCE:-schoolflow-frontend}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-schoolflow}
+      REDIS_URL: redis://redis:6379/0
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000}
+      SECRET_KEY: ${SECRET_KEY:-}
+      DEBUG: ${DEBUG:-True}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    networks:
+      - schoolflow-network
+    mem_limit: 512m
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080}
+        VITE_KEYCLOAK_REALM: ${KEYCLOAK_REALM:-schoolflow}
+        VITE_KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-schoolflow-frontend}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - api
+    networks:
+      - schoolflow-network
+    mem_limit: 128m
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@schoolflow.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD is required}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - schoolflow-network
+    mem_limit: 256m
+
+  db-backup:
+    image: prodrigestivill/postgres-backup-local:16-alpine
+    restart: always
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-schoolflow}
+      POSTGRES_USER: ${POSTGRES_USER:-schoolflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "${BACKUP_SCHEDULE:-@daily}"
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+      BACKUP_KEEP_WEEKS: ${BACKUP_KEEP_WEEKS:-4}
+      BACKUP_KEEP_MONTHS: ${BACKUP_KEEP_MONTHS:-6}
+      HEALTHCHECK_PORT: 8080
+    volumes:
+      - ./infra/backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - schoolflow-network
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:
+  kc_db:
+  backup_data:
+
+networks:
+  schoolflow-network:
+    driver: bridge
