@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 node_modules
 .git
 .venv
@@ -33,3 +34,33 @@ load-tests
 backups
 build_output.log
 vite.config.ts.timestamp-*
+=======
+.git
+.github
+.claude
+.venv
+venv
+node_modules
+dist
+dev-dist
+coverage
+playwright-report
+test-results
+__pycache__
+.pytest_cache
+*.pyc
+*.pyo
+*.pyd
+*.log
+.expo
+.vscode
+.idea
+.env
+.env.*
+!.env.example
+!.env.docker.example
+infra/backups
+backups
+load-tests
+docs
+>>>>>>> 125c0a0d158c7a3102d1b5c1e21c1dffa7f063b7

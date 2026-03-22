@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # SchoolFlow Pro - Édition Institutionnelle 🏛️
 
 SchoolFlow Pro est une plateforme de gestion scolaire de nouvelle génération, durcie pour les exigences de souveraineté et de conformité de l'État.
@@ -55,3 +56,8 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+=======
+# gestion-scolaire-pro
+
+Repository bootstrap for SchoolFlow / Gestion Scolaire Pro.
+>>>>>>> 125c0a0d158c7a3102d1b5c1e21c1dffa7f063b7
