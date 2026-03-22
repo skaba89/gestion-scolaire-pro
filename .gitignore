@@ -1,0 +1,73 @@
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+.env.docker
+.env.docker.local
+backend/.env
+!.env.example
+!.env.docker.example
+
+# Claude / local assistant state
+.claude/
+
+# Python
+.venv/
+venv/
+ENV/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+*.pyc
+*.pyo
+*.pyd
+
+# Node / frontend
+node_modules/
+dist/
+dev-dist/
+dist-ssr/
+coverage/
+.playwright/
+playwright-report/
+test-results/
+
+# Expo / Capacitor / mobile
+.expo/
+android/.gradle/
+ios/Pods/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Generated data / debug artifacts
+api_logs*.txt
+api_*.txt
+*_err*.txt
+backend_api.log
+seed_debug.log
+migration_error.txt
+tmp_*.py
+*.dump
+*.sql.gz
+*.csv
+*.xlsx
+
+# Git internals should never be archived inside project snapshots
+.git/
