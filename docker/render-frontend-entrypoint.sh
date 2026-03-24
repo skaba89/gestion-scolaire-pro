@@ -1,13 +1,13 @@
 #!/bin/sh
 set -eu
 
-: "${API_PUBLIC_HOSTNAME:?API_PUBLIC_HOSTNAME is required}"
-: "${KEYCLOAK_PUBLIC_HOSTNAME:?KEYCLOAK_PUBLIC_HOSTNAME is required}"
+: "${API_PUBLIC_BASE_URL:?API_PUBLIC_BASE_URL is required}"
+: "${KEYCLOAK_PUBLIC_BASE_URL:?KEYCLOAK_PUBLIC_BASE_URL is required}"
 
-export API_PUBLIC_HOSTNAME
-export KEYCLOAK_PUBLIC_HOSTNAME
+export API_PUBLIC_BASE_URL
+export KEYCLOAK_PUBLIC_BASE_URL
 
-envsubst '${API_PUBLIC_HOSTNAME} ${KEYCLOAK_PUBLIC_HOSTNAME}' \
+envsubst '${API_PUBLIC_BASE_URL} ${KEYCLOAK_PUBLIC_BASE_URL}' \
   < /etc/nginx/templates/default.conf.template \
   > /etc/nginx/conf.d/default.conf
 
