@@ -1,0 +1,8 @@
+# SchoolFlow Pro - Backup Crontab Configuration
+# Place this file in /etc/cron.d/schoolflow or add to your user crontab
+
+# Run backup every day at 02:00 AM
+0 2 * * * root /path/to/schoolflow-pro/scripts/backup-database.sh >> /var/log/schoolflow-backup.log 2>&1
+
+# Optional: Run a secondary backup at 02:00 PM
+# 0 14 * * * root /path/to/schoolflow-pro/scripts/backup-database.sh >> /var/log/schoolflow-backup.log 2>&1
