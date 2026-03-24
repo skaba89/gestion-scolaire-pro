@@ -1,4 +1,4 @@
-﻿# SchoolFlow Pro - Édition Institutionnelle
+# SchoolFlow Pro - Édition Institutionnelle
 
 SchoolFlow Pro est une plateforme de gestion scolaire moderne conçue pour les établissements privés, publics et institutionnels, avec une architecture orientée sécurité, multi-tenant et exploitation locale ou cloud.
 
@@ -96,4 +96,3 @@ Le projet est en phase de stabilisation avancée pour devenir une base productio
 ## Licence
 
 Projet propriétaire.
-
