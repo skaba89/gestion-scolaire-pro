@@ -1,33 +1,31 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { AuthProvider as OIDCProvider, useAuth as useOIDCAuth } from "react-oidc-context";
-import { User } from "oidc-client-ts";
-import { apiClient } from "@/api/client";
-import type { Profile, Tenant, AppRole } from "@/lib/types";
-import { toast } from "sonner";
+import type { User } from "oidc-client-ts";
 
-// Compatible User interface (minimal)
-interface SupabaseUserShape {
+import { apiClient } from "@/api/client";
+import type { AppRole, Profile, Tenant } from "@/lib/types";
+
+interface AuthenticatedUser {
   id: string;
   email?: string;
-  app_metadata: any;
-  user_metadata: any;
-  aud: string;
-  created_at: string;
+  metadata: Record<string, unknown>;
+  audience: string;
+  createdAt: string;
 }
 
 interface AuthContextType {
-  user: SupabaseUserShape | null;
-  session: any | null; // Placeholder for compatibility
+  user: AuthenticatedUser | null;
+  session: User | null;
   profile: Profile | null;
   roles: AppRole[];
   tenant: Tenant | null;
   isLoading: boolean;
-  mustChangePassword: boolean; // Managed by Keycloak usually
-  isMfaVerified: boolean; // Managed by Keycloak
+  mustChangePassword: boolean;
+  isMfaVerified: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithKeycloak: () => Promise<{ error: Error | null }>;
   verifyMfa: (token: string) => Promise<{ success: boolean; error?: string }>;
-  signUp: (email: string, password: string, metadata?: any) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, metadata?: unknown) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   signOutAllDevices: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
@@ -37,48 +35,78 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AUTH_RETURN_TO_KEY = "schoolflow:return_to";
+const DEBUG_AUTH = import.meta.env.DEV || import.meta.env.VITE_ENABLE_AUTH_DEBUG === "true";
+
+function authDebug(...args: unknown[]) {
+  if (DEBUG_AUTH) {
+    console.log("[Auth]", ...args);
+  }
+}
 
 const oidcConfig = {
-  authority: import.meta.env.VITE_KEYCLOAK_URL + "/realms/" + import.meta.env.VITE_KEYCLOAK_REALM,
+  authority: `${import.meta.env.VITE_KEYCLOAK_URL}/realms/${import.meta.env.VITE_KEYCLOAK_REALM}`,
   client_id: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
   redirect_uri: window.location.origin,
   automaticSilentRenew: true,
   onSigninCallback: () => {
-    window.history.replaceState({}, document.title, window.location.pathname);
-  }
+    const returnTo = window.sessionStorage.getItem(AUTH_RETURN_TO_KEY);
+    const targetPath = returnTo || window.location.pathname || "/";
+    window.sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
+    window.history.replaceState({}, document.title, targetPath);
+  },
 };
 
-console.log("OIDC Configuration:", oidcConfig);
+function toAuthenticatedUser(user: { id: string; email?: string } | User["profile"]): AuthenticatedUser {
+  return {
+    id: ("id" in user ? user.id : user.sub) || "",
+    email: "email" in user ? user.email : user.email,
+    metadata: {},
+    audience: "authenticated",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function extractRealmRoles(user: User | null): AppRole[] {
+  const tokenRoles = (user?.profile as Record<string, unknown> | undefined)?.realm_access as
+    | { roles?: string[] }
+    | undefined;
+
+  return (tokenRoles?.roles || []).filter((role): role is AppRole =>
+    [
+      "SUPER_ADMIN",
+      "TENANT_ADMIN",
+      "DIRECTOR",
+      "DEPARTMENT_HEAD",
+      "TEACHER",
+      "STUDENT",
+      "PARENT",
+      "ACCOUNTANT",
+      "STAFF",
+    ].includes(role),
+  );
+}
 
 function AuthStateProvider({ children }: { children: React.ReactNode }) {
   const auth = useOIDCAuth();
-  console.log("AuthStateProvider rendering, auth.isLoading:", auth.isLoading, "auth.isAuthenticated:", auth.isAuthenticated);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [dbUser, setDbUser] = useState<SupabaseUserShape | null>(null);
+  const [appUser, setAppUser] = useState<AuthenticatedUser | null>(null);
 
   useEffect(() => {
     if (auth.isAuthenticated && auth.user) {
-      // Fetch full profile from sovereign API
-      apiClient.get('/users/me/')
-        .then(response => {
+      authDebug("Authenticated, fetching profile from API");
+      apiClient
+        .get("/users/me/")
+        .then((response) => {
           const data = response.data;
 
           if (data.user) {
-            console.log("Auth: DB user info received:", data.user.id);
-            setDbUser({
-              id: data.user.id,
-              email: data.user.email,
-              app_metadata: {},
-              user_metadata: {},
-              aud: "authenticated",
-              created_at: new Date().toISOString()
-            });
+            setAppUser(toAuthenticatedUser(data.user));
           }
 
           if (data.profile) {
-            console.log("Auth: Profile info received:", data.profile);
             setProfile({
               id: data.user.id,
               tenant_id: data.tenant?.id,
@@ -88,40 +116,28 @@ function AuthStateProvider({ children }: { children: React.ReactNode }) {
               avatar_url: data.profile.avatar_url,
               is_current: true,
               created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
             });
           }
 
           if (data.roles) {
-            console.log("Auth: Roles received:", data.roles);
             setRoles(data.roles as AppRole[]);
           }
 
           if (data.tenant) {
-            console.log("Auth: Tenant received:", data.tenant.slug);
             setTenant(data.tenant as Tenant);
+            if (data.tenant.id) {
+              localStorage.setItem("last_tenant_id", data.tenant.id);
+            }
           }
         })
-        .catch(err => {
-          console.error("Failed to fetch user profile from API", err);
-          // Fallback to token claims if API is unavailable
-          const tokenRoles = (auth.user?.profile as any).realm_access?.roles || [];
-          const appRoles: AppRole[] = tokenRoles.filter((r: string) =>
-            ["SUPER_ADMIN", "TENANT_ADMIN", "TEACHER", "STUDENT", "PARENT", "DIRECTOR"].includes(r)
-          );
-          setRoles(appRoles);
-
-          setDbUser({
-            id: auth.user!.profile.sub,
-            email: auth.user!.profile.email,
-            app_metadata: {},
-            user_metadata: {},
-            aud: "authenticated",
-            created_at: new Date().toISOString()
-          });
+        .catch((error) => {
+          console.error("Failed to fetch user profile from API", error);
+          setRoles(extractRealmRoles(auth.user));
+          setAppUser(toAuthenticatedUser(auth.user.profile));
         });
     } else {
-      setDbUser(null);
+      setAppUser(null);
       setProfile(null);
       setRoles([]);
       setTenant(null);
@@ -129,22 +145,17 @@ function AuthStateProvider({ children }: { children: React.ReactNode }) {
   }, [auth.isAuthenticated, auth.user]);
 
   const refreshProfile = useCallback(async () => {
-    if (!auth.isAuthenticated || !auth.user) return;
+    if (!auth.isAuthenticated || !auth.user) {
+      return;
+    }
 
     try {
-      console.log("Auth: Manually refreshing profile from sovereign API...");
-      const response = await apiClient.get('/users/me/');
+      authDebug("Refreshing profile from API");
+      const response = await apiClient.get("/users/me/");
       const data = response.data;
 
       if (data.user) {
-        setDbUser({
-          id: data.user.id,
-          email: data.user.email,
-          app_metadata: {},
-          user_metadata: {},
-          aud: "authenticated",
-          created_at: new Date().toISOString()
-        });
+        setAppUser(toAuthenticatedUser(data.user));
       }
 
       if (data.profile) {
@@ -157,7 +168,7 @@ function AuthStateProvider({ children }: { children: React.ReactNode }) {
           avatar_url: data.profile.avatar_url,
           is_current: true,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         });
       }
 
@@ -171,77 +182,105 @@ function AuthStateProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem("last_tenant_id", data.tenant.id);
         }
       }
-    } catch (err) {
-      console.error("Manual profile refresh failed", err);
+    } catch (error) {
+      console.error("Manual profile refresh failed", error);
     }
   }, [auth.isAuthenticated, auth.user]);
 
+  const rememberCurrentPath = useCallback(() => {
+    const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.sessionStorage.setItem(AUTH_RETURN_TO_KEY, currentPath || "/");
+  }, []);
+
   const signIn = useCallback(async () => {
+    rememberCurrentPath();
     await auth.signinRedirect();
     return { error: null };
-  }, [auth]);
+  }, [auth, rememberCurrentPath]);
 
   const signInWithKeycloak = useCallback(async () => {
+    rememberCurrentPath();
     await auth.signinRedirect();
     return { error: null };
-  }, [auth]);
+  }, [auth, rememberCurrentPath]);
 
   const signUp = useCallback(async () => {
-    // Redirection to registration page if enabled in Keycloak
+    rememberCurrentPath();
     await auth.signinRedirect({
-      extraQueryParams: { kc_idp_hint: '' }
+      extraQueryParams: { kc_action: "register" },
     });
     return { error: null };
-  }, [auth]);
+  }, [auth, rememberCurrentPath]);
 
   const signOut = useCallback(async () => {
-    // Standard OIDC logout
-    await auth.signoutRedirect();
+    await auth.signoutRedirect({
+      post_logout_redirect_uri: window.location.origin,
+    });
   }, [auth]);
 
   const signOutAllDevices = useCallback(async () => {
-    await auth.signoutRedirect();
+    await auth.signoutRedirect({
+      post_logout_redirect_uri: window.location.origin,
+    });
   }, [auth]);
 
   const verifyMfa = useCallback(async () => {
-    // Keycloak handles MFA, so we just return success if we are authenticated
     return { success: auth.isAuthenticated };
   }, [auth.isAuthenticated]);
 
   const hasRole = useCallback((role: AppRole) => roles.includes(role), [roles]);
-  const isAdmin = useCallback(() => roles.some(r => ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR"].includes(r)), [roles]);
+  const isAdmin = useCallback(
+    () => roles.some((role) => ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR"].includes(role)),
+    [roles],
+  );
   const isSuperAdmin = useCallback(() => roles.includes("SUPER_ADMIN"), [roles]);
 
-  const contextValue = useMemo(() => ({
-    user: dbUser,
-    session: auth.user,
-    profile,
-    roles,
-    tenant,
-    isLoading: auth.isLoading,
-    mustChangePassword: false,
-    isMfaVerified: true,
-    signIn,
-    signInWithKeycloak,
-    verifyMfa,
-    signUp,
-    signOut,
-    signOutAllDevices,
-    hasRole,
-    isAdmin,
-    isSuperAdmin,
-    refreshProfile
-  }), [dbUser, auth.user, profile, roles, tenant, auth.isLoading, signIn, signInWithKeycloak, verifyMfa, signUp, signOut, signOutAllDevices, hasRole, isAdmin, isSuperAdmin, refreshProfile]);
+  const contextValue = useMemo(
+    () => ({
+      user: appUser,
+      session: auth.user ?? null,
+      profile,
+      roles,
+      tenant,
+      isLoading: auth.isLoading,
+      mustChangePassword: false,
+      isMfaVerified: true,
+      signIn,
+      signInWithKeycloak,
+      verifyMfa,
+      signUp,
+      signOut,
+      signOutAllDevices,
+      hasRole,
+      isAdmin,
+      isSuperAdmin,
+      refreshProfile,
+    }),
+    [
+      appUser,
+      auth.user,
+      profile,
+      roles,
+      tenant,
+      auth.isLoading,
+      signIn,
+      signInWithKeycloak,
+      verifyMfa,
+      signUp,
+      signOut,
+      signOutAllDevices,
+      hasRole,
+      isAdmin,
+      isSuperAdmin,
+      refreshProfile,
+    ],
+  );
 
   if (auth.isLoading) {
     return <div>Loading Auth...</div>;
   }
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
