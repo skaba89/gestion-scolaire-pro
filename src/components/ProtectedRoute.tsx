@@ -1,64 +1,92 @@
 import { useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+
+import { TwoFactorChallenge } from "@/components/auth/TwoFactorChallenge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { AppRole } from "@/lib/types";
-import { TwoFactorChallenge } from "@/components/auth/TwoFactorChallenge";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: AppRole[];
 }
 
+const DEBUG_ROUTE_GUARDS = import.meta.env.DEV || import.meta.env.VITE_ENABLE_ROUTE_DEBUG === "true";
+
+function routeDebug(...args: unknown[]) {
+  if (DEBUG_ROUTE_GUARDS) {
+    console.log("[RouteGuard]", ...args);
+  }
+}
+
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { user, isLoading, roles, hasRole, mustChangePassword, tenant: authTenant, isMfaVerified } = useAuth();
+  const {
+    user,
+    isLoading,
+    roles,
+    hasRole,
+    mustChangePassword,
+    tenant: authTenant,
+    isMfaVerified,
+  } = useAuth();
   const { tenant } = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
-  const navigationRef = useRef<string | null>(null); // Prevent duplicate navigations
+  const navigationRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
 
-    // Build a key to track current navigation context
-    const navigationKey = `${location.pathname}-${user?.id || 'no-user'}-${roles.join(',')}`;
-
-    // Prevent duplicate navigation to the same path with same context
+    const navigationKey = `${location.pathname}-${user?.id || "no-user"}-${roles.join(",")}-${mustChangePassword}`;
     if (navigationRef.current === navigationKey) {
       return;
     }
 
-    console.log("ProtectedRoute: Evaluating access for", location.pathname, "User:", !!user, "Loading:", isLoading);
-
     if (!user) {
-      console.log("ProtectedRoute: No user, redirecting to /auth");
+      const from = `${location.pathname}${location.search}${location.hash}`;
+      routeDebug("Redirecting unauthenticated user to /auth", from);
       navigationRef.current = navigationKey;
-      navigate("/auth", { state: { from: location.pathname }, replace: true });
+      navigate("/auth", { state: { from }, replace: true });
       return;
     }
 
-    // Check if user must change password (and not already on change-password page)
     if (mustChangePassword && location.pathname !== "/change-password") {
-      console.log("ProtectedRoute: mustChangePassword is true, redirecting");
+      routeDebug("Redirecting user to /change-password");
       navigationRef.current = navigationKey;
       navigate("/change-password", { replace: true });
       return;
     }
 
-    // Si des rôles spécifiques sont requis, vérifier
-    if (allowedRoles && allowedRoles.length > 0) {
+    if (allowedRoles && allowedRoles.length > 0 && roles.length > 0) {
       const hasAllowedRole = allowedRoles.some((role) => hasRole(role));
-      console.log("ProtectedRoute: Roles check:", { allowedRoles, userRoles: roles, hasAllowedRole });
-      if (!hasAllowedRole && roles.length > 0) {
-        // L'utilisateur a des rôles mais pas le bon - rediriger
+      if (!hasAllowedRole) {
         const effectiveTenant = tenant || authTenant;
         const redirectPath = getRedirectPathForRoles(roles, effectiveTenant?.slug);
-        console.log("ProtectedRoute: Access denied, redirecting to", redirectPath);
+        routeDebug("Access denied, redirecting", {
+          allowedRoles,
+          roles,
+          redirectPath,
+        });
         navigationRef.current = navigationKey;
         navigate(redirectPath, { replace: true });
       }
     }
-  }, [user, isLoading, roles, allowedRoles, navigate, location.pathname, hasRole, mustChangePassword, tenant, authTenant]);
+  }, [
+    user,
+    isLoading,
+    roles,
+    allowedRoles,
+    navigate,
+    location.pathname,
+    location.search,
+    location.hash,
+    hasRole,
+    mustChangePassword,
+    tenant,
+    authTenant,
+  ]);
 
   if (isLoading) {
     return (
@@ -75,17 +103,14 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     return null;
   }
 
-  // Redirect to change password if needed
   if (mustChangePassword && location.pathname !== "/change-password") {
     return null;
   }
 
-  // Check 2FA
   if (!isMfaVerified) {
-    return <TwoFactorChallenge onSuccess={() => { /* Context updates automatically */ }} />;
+    return <TwoFactorChallenge onSuccess={() => undefined} />;
   }
 
-  // Vérifier les rôles seulement si l'utilisateur a déjà des rôles
   if (allowedRoles && allowedRoles.length > 0 && roles.length > 0) {
     const hasAllowedRole = allowedRoles.some((role) => hasRole(role));
     if (!hasAllowedRole) {
@@ -97,9 +122,18 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 };
 
 export const getRedirectPathForRoles = (roles: AppRole[], tenantSlug?: string | null): string => {
-  // Only consider business roles to avoid redirection loops with Keycloak defaults
-  const businessRoles = roles.filter(role =>
-    ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "DEPARTMENT_HEAD", "TEACHER", "PARENT", "STUDENT", "ACCOUNTANT", "STAFF"].includes(role)
+  const businessRoles = roles.filter((role) =>
+    [
+      "SUPER_ADMIN",
+      "TENANT_ADMIN",
+      "DIRECTOR",
+      "DEPARTMENT_HEAD",
+      "TEACHER",
+      "PARENT",
+      "STUDENT",
+      "ACCOUNTANT",
+      "STAFF",
+    ].includes(role),
   );
 
   if (businessRoles.length === 0) {
@@ -108,7 +142,12 @@ export const getRedirectPathForRoles = (roles: AppRole[], tenantSlug?: string | 
 
   const prefix = tenantSlug ? `/${tenantSlug}` : "";
 
-  if (businessRoles.includes("SUPER_ADMIN") || businessRoles.includes("TENANT_ADMIN") || businessRoles.includes("DIRECTOR") || businessRoles.includes("ACCOUNTANT")) {
+  if (
+    businessRoles.includes("SUPER_ADMIN") ||
+    businessRoles.includes("TENANT_ADMIN") ||
+    businessRoles.includes("DIRECTOR") ||
+    businessRoles.includes("ACCOUNTANT")
+  ) {
     return `${prefix}/admin`;
   }
   if (businessRoles.includes("DEPARTMENT_HEAD" as AppRole)) {
