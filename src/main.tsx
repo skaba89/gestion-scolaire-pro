@@ -1,63 +1,88 @@
-import * as React from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import "./i18n/config";
 import { initSentry } from "./lib/sentry";
 
-console.log("%c SCHOOLFLOW BOOTSTRAP START ", "background: #222; color: #bada55");
-// Safety net for legacy libraries
-(window as any).React = React;
-console.log("React initialized, current origin:", window.location.origin);
+const enableBootstrapDebug =
+  import.meta.env.DEV || import.meta.env.VITE_ENABLE_BOOTSTRAP_DEBUG === "true";
+const forceServiceWorkerReset = import.meta.env.VITE_FORCE_SW_RESET === "true";
 
-// Initialization of error monitoring
-initSentry();
-
-// Force unregister any existing Service Workers that might be caching old code
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (const registration of registrations) {
-            registration.unregister();
-            console.log('Force unregistered rogue ServiceWorker:', registration);
-        }
-    });
+function debugLog(...args: unknown[]) {
+  if (enableBootstrapDebug) {
+    console.log(...args);
+  }
 }
 
-// Global error handling for white screen debugging
+function renderRuntimeOverlay(message: string) {
+  if (!enableBootstrapDebug) {
+    return;
+  }
+
+  const existingOverlay = document.getElementById("schoolflow-runtime-error-overlay");
+  if (existingOverlay) {
+    existingOverlay.textContent = message;
+    return;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.id = "schoolflow-runtime-error-overlay";
+  overlay.style.padding = "12px";
+  overlay.style.color = "white";
+  overlay.style.background = "rgba(220, 38, 38, 0.92)";
+  overlay.style.position = "fixed";
+  overlay.style.bottom = "12px";
+  overlay.style.right = "12px";
+  overlay.style.zIndex = "10000";
+  overlay.style.fontSize = "12px";
+  overlay.style.maxWidth = "420px";
+  overlay.style.borderRadius = "8px";
+  overlay.textContent = message;
+  document.body.appendChild(overlay);
+}
+
+initSentry();
+
+if (enableBootstrapDebug) {
+  (window as Window & { React?: unknown }).React = StrictMode;
+  debugLog("[SchoolFlow] bootstrap start", window.location.origin);
+}
+
+if (forceServiceWorkerReset && "serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      registration.unregister();
+      debugLog("[SchoolFlow] unregistered service worker", registration.scope);
+    }
+  });
+}
+
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-    console.error("Root element not found");
+  const message = "Root element not found";
+  console.error(message);
+  renderRuntimeOverlay(message);
 } else {
-    try {
-        const root = createRoot(rootElement!);
-        root.render(<App />);
-    } catch (e) {
-        console.error("Render crash:", e);
-        const errorDiv = document.createElement("div");
-        errorDiv.style.padding = "20px";
-        errorDiv.style.color = "red";
-        errorDiv.style.background = "white";
-        errorDiv.style.position = "fixed";
-        errorDiv.style.top = "0";
-        errorDiv.style.left = "0";
-        errorDiv.style.zIndex = "9999";
-        errorDiv.innerText = "Fatal Render Error: " + (e instanceof Error ? e.message : String(e));
-        document.body.appendChild(errorDiv);
-    }
+  try {
+    const root = createRoot(rootElement);
+    root.render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+  } catch (error) {
+    const message = `Fatal render error: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(message, error);
+    renderRuntimeOverlay(message);
+  }
 }
 
-window.addEventListener('error', (event) => {
-    const errorMsg = document.createElement("div");
-    errorMsg.style.padding = "10px";
-    errorMsg.style.color = "white";
-    errorMsg.style.background = "rgba(255, 0, 0, 0.8)";
-    errorMsg.style.position = "fixed";
-    errorMsg.style.bottom = "10px";
-    errorMsg.style.right = "10px";
-    errorMsg.style.zIndex = "10000";
-    errorMsg.style.fontSize = "12px";
-    errorMsg.innerText = "Runtime Error: " + event.message;
-    document.body.appendChild(errorMsg);
-});
+window.addEventListener("error", (event) => {
+  if (!enableBootstrapDebug) {
+    return;
+  }
 
+  renderRuntimeOverlay(`Runtime error: ${event.message}`);
+});
