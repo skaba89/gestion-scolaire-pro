@@ -20,16 +20,16 @@ services:
         value: "false"
       - key: VITE_ENABLE_AUTH_DEBUG
         value: "false"
-      - key: API_INTERNAL_HOSTPORT
+      - key: API_PUBLIC_HOSTNAME
         fromService:
           name: schoolflow-api
           type: web
-          property: hostport
-      - key: KEYCLOAK_INTERNAL_HOSTPORT
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      - key: KEYCLOAK_PUBLIC_HOSTNAME
         fromService:
           name: schoolflow-keycloak
           type: web
-          property: hostport
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
 
   - type: web
     name: schoolflow-api
@@ -53,18 +53,17 @@ services:
         value: "True"
       - key: LOG_LEVEL
         value: INFO
-      - key: KEYCLOAK_URL
-        value: http://schoolflow-keycloak:10000/keycloak
+      - key: KEYCLOAK_EXTERNAL_HOSTNAME
+        fromService:
+          name: schoolflow-keycloak
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
       - key: KEYCLOAK_REALM
         value: schoolflow
       - key: KEYCLOAK_CLIENT_ID
         value: schoolflow-frontend
       - key: KEYCLOAK_CLIENT_SECRET
         value: ""
-      - key: KEYCLOAK_ISSUER
-        value: http://schoolflow-keycloak:10000/keycloak/realms/schoolflow
-      - key: KEYCLOAK_JWKS_URL
-        value: http://schoolflow-keycloak:10000/keycloak/realms/schoolflow/protocol/openid-connect/certs
       - key: KEYCLOAK_AUDIENCE
         value: schoolflow-frontend
       - key: REDIS_URL
@@ -72,8 +71,11 @@ services:
           name: schoolflow-redis
           type: keyvalue
           property: connectionString
-      - key: MINIO_ENDPOINT
-        value: schoolflow-minio:10000
+      - key: MINIO_EXTERNAL_HOSTNAME
+        fromService:
+          name: schoolflow-minio
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
       - key: MINIO_ACCESS_KEY
         fromService:
           name: schoolflow-minio
@@ -123,7 +125,6 @@ services:
     name: schoolflow-redis
     plan: free
     ipAllowList: []
-
 
 
 databases:
