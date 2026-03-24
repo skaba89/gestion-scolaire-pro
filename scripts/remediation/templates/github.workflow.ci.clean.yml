@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -132,4 +132,3 @@ jobs:
 
       - name: Build backend image
         run: docker build -t schoolflow-backend:ci ./backend
-

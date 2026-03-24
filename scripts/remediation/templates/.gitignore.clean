@@ -1,4 +1,4 @@
-﻿# Logs
+# Logs
 logs/
 *.log
 npm-debug.log*
@@ -102,4 +102,3 @@ Thumbs.db
 
 # Git internals should never be archived inside project snapshots
 .git/
-

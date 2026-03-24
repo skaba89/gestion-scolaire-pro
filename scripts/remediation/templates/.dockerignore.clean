@@ -1,4 +1,4 @@
-﻿.git
+.git
 .github
 .claude
 .venv
@@ -31,4 +31,3 @@ load-tests
 docs
 build_output.log
 vite.config.ts.timestamp-*
-
