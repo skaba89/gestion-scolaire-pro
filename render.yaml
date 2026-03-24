@@ -93,7 +93,7 @@ services:
     plan: free
     image:
       url: quay.io/keycloak/keycloak:26.0
-    dockerCommand: start-dev --http-port 10000 --hostname-strict=false --proxy-headers=xforwarded --http-relative-path=/keycloak
+    dockerCommand: /opt/keycloak/bin/kc.sh start-dev --http-port 10000 --hostname-strict=false --proxy-headers=xforwarded --http-relative-path=/keycloak
     healthCheckPath: /keycloak/realms/master
     envVars:
       - key: KC_BOOTSTRAP_ADMIN_USERNAME
@@ -111,7 +111,7 @@ services:
     plan: free
     image:
       url: minio/minio:RELEASE.2024-11-07T00-52-20Z
-    dockerCommand: server /data --address :10000 --console-address :10001
+    dockerCommand: minio server /data --address :10000 --console-address :10001
     healthCheckPath: /minio/health/live
     envVars:
       - key: MINIO_ROOT_USER
