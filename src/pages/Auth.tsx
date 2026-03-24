@@ -1,79 +1,116 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation, useSearchParams, Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { GraduationCap, Mail, Lock, User, ArrowLeft, Shield } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+
 import { getRedirectPathForRoles } from "@/components/ProtectedRoute";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { GraduationCap, Shield } from "lucide-react";
+
+const DEBUG_AUTH_PAGE = import.meta.env.DEV || import.meta.env.VITE_ENABLE_AUTH_DEBUG === "true";
+const AUTH_RETURN_TO_KEY = "schoolflow:return_to";
+
+function authPageDebug(...args: unknown[]) {
+  if (DEBUG_AUTH_PAGE) {
+    console.log("[AuthPage]", ...args);
+  }
+}
+
+function extractTenantSlugFromPath(path?: string): string | null {
+  if (!path) {
+    return null;
+  }
+
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length === 0) {
+    return null;
+  }
+
+  const [first, second] = segments;
+  if (["ecole", "info", "admissions", "programmes", "calendrier", "contact"].includes(first) && second) {
+    return second;
+  }
+
+  return first ?? null;
+}
 
 const Auth = () => {
-  const { signInWithKeycloak, user, roles, isLoading, signOut: performSignOut } = useAuth();
+  const { signInWithKeycloak, user, roles, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const { tenant: contextTenant, isLoading: isTenantLoading } = useTenant();
   const [isRedirecting, setIsRedirecting] = useState(false);
   const redirectedRef = useRef(false);
 
-  const tenantSlug = searchParams.get("tenant");
+  const requestedTenantSlug = searchParams.get("tenant");
+  const requestedPath = (location.state as { from?: string } | null)?.from;
+  const fallbackTenantSlug = useMemo(
+    () => requestedTenantSlug || extractTenantSlugFromPath(requestedPath),
+    [requestedTenantSlug, requestedPath],
+  );
 
   useEffect(() => {
-    // Wait for auth and tenant loading
-    if (isLoading || isTenantLoading) {
+    if (isLoading || isTenantLoading || redirectedRef.current) {
       return;
     }
 
-    if (redirectedRef.current) {
+    if (!user) {
       return;
     }
 
-    const handleRedirect = async () => {
-      if (user) {
-        if (roles.length > 0) {
-          console.log('[Auth] Authorized user detected, checking redirect...');
+    if (roles.length === 0) {
+      authPageDebug("Utilisateur authentifié sans rôle, redirection vers la création de tenant");
+      redirectedRef.current = true;
+      navigate("/admin/create-tenant", { replace: true });
+      return;
+    }
 
-          if (!contextTenant && !roles.includes('SUPER_ADMIN')) {
-            console.log('[Auth] Waiting for tenant context...');
-            return;
-          }
+    const effectiveTenantSlug = contextTenant?.slug || fallbackTenantSlug;
 
-          redirectedRef.current = true;
-          const from = (location.state as { from?: string })?.from;
-          const redirectPath = from || getRedirectPathForRoles(roles, contextTenant?.slug);
+    if (!effectiveTenantSlug && !roles.includes("SUPER_ADMIN")) {
+      authPageDebug("Attente du contexte tenant avant redirection", { roles, fallbackTenantSlug });
+      return;
+    }
 
-          console.log('[Auth] Redirecting to:', redirectPath);
-          navigate(redirectPath, { replace: true });
-        } else {
-          console.log('[Auth] No roles found, redirecting to tenant creation');
-          redirectedRef.current = true;
-          navigate("/admin/create-tenant", { replace: true });
-        }
-      }
-    };
-
-    handleRedirect();
-  }, [user, roles, isLoading, isTenantLoading, navigate, location.state, contextTenant]);
+    redirectedRef.current = true;
+    const redirectPath = requestedPath || getRedirectPathForRoles(roles, effectiveTenantSlug);
+    authPageDebug("Redirection utilisateur authentifié", { redirectPath, effectiveTenantSlug, roles });
+    navigate(redirectPath, { replace: true });
+  }, [
+    user,
+    roles,
+    isLoading,
+    isTenantLoading,
+    navigate,
+    requestedPath,
+    contextTenant?.slug,
+    fallbackTenantSlug,
+  ]);
 
   const handleLogin = async () => {
     setIsRedirecting(true);
+
+    const desiredPath = requestedPath || `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.sessionStorage.setItem(AUTH_RETURN_TO_KEY, desiredPath || "/");
+
     try {
       const { error } = await signInWithKeycloak();
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("SSO Error:", err);
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : "Impossible de se connecter au service d'authentification";
+
+      console.error("SSO Error:", error);
       toast({
         title: "Erreur de connexion",
-        description: err.message || "Impossible de se connecter au service d'authentification",
+        description: message,
         variant: "destructive",
       });
       setIsRedirecting(false);
@@ -143,6 +180,5 @@ const Auth = () => {
     </div>
   );
 };
-
 
 export default Auth;
