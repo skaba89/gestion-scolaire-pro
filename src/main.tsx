@@ -7,7 +7,9 @@ import { initSentry } from "./lib/sentry";
 
 const enableBootstrapDebug =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_BOOTSTRAP_DEBUG === "true";
-const forceServiceWorkerReset = import.meta.env.VITE_FORCE_SW_RESET === "true";
+const forceServiceWorkerReset =
+  import.meta.env.VITE_FORCE_SW_RESET === "true" ||
+  (!import.meta.env.DEV && window.location.hostname.endsWith("onrender.com"));
 
 function debugLog(...args: unknown[]) {
   if (enableBootstrapDebug) {
@@ -56,6 +58,10 @@ if (forceServiceWorkerReset && "serviceWorker" in navigator) {
       debugLog("[SchoolFlow] unregistered service worker", registration.scope);
     }
   });
+
+  if (window.caches) {
+    window.caches.keys().then((keys) => Promise.all(keys.map((key) => window.caches.delete(key))));
+  }
 }
 
 const rootElement = document.getElementById("root");

@@ -44,8 +44,32 @@ function authDebug(...args: unknown[]) {
   }
 }
 
+function isLocalHost(value: string): boolean {
+  return /localhost|127\.0\.0\.1/.test(value);
+}
+
+function resolveKeycloakAuthority(rawValue?: string): string {
+  const trimmed = rawValue?.trim();
+  const isBrowserLocal = /localhost|127\.0\.0\.1/.test(window.location.hostname);
+
+  let base = trimmed;
+  if (!base) {
+    base = isBrowserLocal ? "http://localhost:8080" : "/keycloak";
+  } else if (!isBrowserLocal && isLocalHost(base)) {
+    base = "/keycloak";
+  }
+
+  if (base.startsWith("/")) {
+    return `${window.location.origin}${base}`.replace(/\/$/, "");
+  }
+
+  return base.replace(/\/$/, "");
+}
+
+const KEYCLOAK_AUTHORITY = resolveKeycloakAuthority(import.meta.env.VITE_KEYCLOAK_URL);
+
 const oidcConfig = {
-  authority: `${import.meta.env.VITE_KEYCLOAK_URL}/realms/${import.meta.env.VITE_KEYCLOAK_REALM}`,
+  authority: `${KEYCLOAK_AUTHORITY}/realms/${import.meta.env.VITE_KEYCLOAK_REALM}`,
   client_id: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
   redirect_uri: window.location.origin,
   automaticSilentRenew: true,
