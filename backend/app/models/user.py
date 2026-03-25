@@ -1,6 +1,5 @@
 """User model"""
-from sqlalchemy import Column, String, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Boolean
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, UUIDMixin, TimestampMixin, TenantMixin
@@ -9,11 +8,12 @@ from app.models.base import Base, UUIDMixin, TimestampMixin, TenantMixin
 class User(Base, UUIDMixin, TimestampMixin, TenantMixin):
     __tablename__ = "users"
     
-    # Keycloak user ID (sub claim from JWT)
+    # Legacy external identity id kept for backward compatibility during migration
     keycloak_id = Column(String(255), unique=True, nullable=False, index=True)
     
     email = Column(String(255), unique=True, nullable=False, index=True)
     username = Column(String(100), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=True)
     first_name = Column(String(100))
     last_name = Column(String(100))
     phone = Column(String(20))
