@@ -10,19 +10,11 @@ services:
     envVars:
       - key: VITE_API_URL
         value: /api-proxy
-      - key: VITE_KEYCLOAK_URL
-        value: /keycloak
-      - key: VITE_KEYCLOAK_REALM
-        value: schoolflow
-      - key: VITE_KEYCLOAK_CLIENT_ID
-        value: schoolflow-frontend
       - key: VITE_ENABLE_BOOTSTRAP_DEBUG
         value: "false"
       - key: VITE_ENABLE_AUTH_DEBUG
         value: "false"
       - key: API_PUBLIC_BASE_URL
-        sync: false
-      - key: KEYCLOAK_PUBLIC_BASE_URL
         sync: false
 
   - type: web
@@ -47,16 +39,6 @@ services:
         value: "True"
       - key: LOG_LEVEL
         value: INFO
-      - key: KEYCLOAK_EXTERNAL_HOSTNAME
-        sync: false
-      - key: KEYCLOAK_REALM
-        value: schoolflow
-      - key: KEYCLOAK_CLIENT_ID
-        value: schoolflow-frontend
-      - key: KEYCLOAK_CLIENT_SECRET
-        value: ""
-      - key: KEYCLOAK_AUDIENCE
-        value: schoolflow-frontend
       - key: REDIS_URL
         fromService:
           name: schoolflow-redis
@@ -78,24 +60,6 @@ services:
         value: schoolflow
 
   - type: web
-    name: schoolflow-keycloak
-    runtime: image
-    plan: free
-    image:
-      url: quay.io/keycloak/keycloak:26.0
-    dockerCommand: /opt/keycloak/bin/kc.sh start-dev --http-port 10000 --hostname-strict=false --proxy-headers=xforwarded --http-relative-path=/keycloak
-    healthCheckPath: /keycloak/realms/master
-    envVars:
-      - key: KC_BOOTSTRAP_ADMIN_USERNAME
-        value: admin
-      - key: KC_BOOTSTRAP_ADMIN_PASSWORD
-        sync: false
-      - key: KC_HTTP_RELATIVE_PATH
-        value: /keycloak
-      - key: KC_PROXY_HEADERS
-        value: xforwarded
-
-  - type: web
     name: schoolflow-minio
     runtime: image
     plan: free
@@ -113,7 +77,6 @@ services:
     name: schoolflow-redis
     plan: free
     ipAllowList: []
-
 
 databases:
   - name: schoolflow-db
