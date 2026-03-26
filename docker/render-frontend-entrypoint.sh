@@ -2,12 +2,10 @@
 set -eu
 
 : "${API_PUBLIC_BASE_URL:?API_PUBLIC_BASE_URL is required}"
-: "${KEYCLOAK_PUBLIC_BASE_URL:?KEYCLOAK_PUBLIC_BASE_URL is required}"
 
 export API_PUBLIC_BASE_URL
-export KEYCLOAK_PUBLIC_BASE_URL
 
-envsubst '${API_PUBLIC_BASE_URL} ${KEYCLOAK_PUBLIC_BASE_URL}' \
+envsubst '${API_PUBLIC_BASE_URL}' \
   < /etc/nginx/templates/default.conf.template \
   > /etc/nginx/conf.d/default.conf
 
