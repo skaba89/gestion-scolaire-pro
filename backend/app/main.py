@@ -22,18 +22,15 @@ from app.middlewares.quota import QuotaMiddleware
 from app.api.v1.router import api_router
 from fastapi.exceptions import HTTPException
 
-# ─── Logging ───────────────────────────────────────────────────────────────────
 setup_logging(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
-# ─── Rate Limiter ──────────────────────────────────────────────────────────────
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["100/minute"],
-    headers_enabled=True,   # X-RateLimit-* headers dans les réponses
+    headers_enabled=True,
 )
 
-# ─── Application FastAPI ───────────────────────────────────────────────────────
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="""
@@ -43,7 +40,7 @@ A comprehensive REST API for managing schools, students, teachers, grades,
 attendance, messaging, admissions and more.
 
 ### Authentication
-All endpoints require a valid JWT Bearer token (Keycloak) except public endpoints.
+All protected endpoints require a valid native JWT Bearer token except public endpoints.
 
 ### Multi-Tenancy
 SchoolFlow Pro is fully multi-tenant. Every request is automatically scoped to
@@ -87,32 +84,19 @@ Every response includes an `X-Request-ID` header for distributed tracing.
     redoc_url="/redoc" if settings.DEBUG else None,
 )
 
-# ─── Exception Handlers ────────────────────────────────────────────────────────
 app.add_exception_handler(SchoolFlowException, schoolflow_exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(Exception, unhandled_exception_handler)  # type: ignore[arg-type]
 
-# Attacher le limiter à l'état de l'app
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ─── Middlewares (order matters — first added = last executed) ─────────────────
-# 1. Request ID — must be outermost so all handlers have request_id
 app.add_middleware(RequestIDMiddleware)
-
-# 2. Prometheus metrics
 app.add_middleware(MetricsMiddleware)
-
-# 3. Slow API rate limiter
 app.add_middleware(SlowAPIMiddleware)
-
-# 4. Tenant resolution
 app.add_middleware(TenantMiddleware)
-
-# 5. Quota enforcement (needs tenant in request.state)
 app.add_middleware(QuotaMiddleware)
 
-# 6. CORS — must be outermost (added last) to handle all responses
 origins = []
 if settings.BACKEND_CORS_ORIGINS:
     if isinstance(settings.BACKEND_CORS_ORIGINS, str):
@@ -120,7 +104,6 @@ if settings.BACKEND_CORS_ORIGINS:
     else:
         origins = [str(o) for o in settings.BACKEND_CORS_ORIGINS]
 
-# En production, on restreint. En dev, on est souple mais on doit supporter les credentials
 allow_all = settings.DEBUG and not origins
 
 app.add_middleware(
@@ -133,27 +116,18 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# CORS was moved to the top of the stack
-
-# ─── Routes de base ────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 def root():
     return {"message": "SchoolFlow Pro API", "version": settings.APP_VERSION, "docs": "/docs"}
 
-
 @app.get("/health/", tags=["health"], summary="Health check")
 def health_check():
-    """Returns 200 OK when the service is running."""
     return {"status": "healthy", "version": settings.APP_VERSION}
-
 
 @app.get("/metrics/", include_in_schema=False)
 async def prometheus_metrics(request: Request):
-    """Prometheus metrics endpoint."""
     return await metrics_endpoint(request)
 
-
-# ─── Router API v1 ─────────────────────────────────────────────────────────────
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 logger.info(
