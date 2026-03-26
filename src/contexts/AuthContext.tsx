@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { AuthProvider as OIDCProvider, useAuth as useOIDCAuth } from "react-oidc-context";
 import type { User } from "oidc-client-ts";
 
-import { apiClient } from "@/api/client";
+import { apiClient, TOKEN_STORAGE_KEY } from "@/api/client";
 import type { AppRole, Profile, Tenant } from "@/lib/types";
 
 interface AuthenticatedUser {
@@ -97,17 +97,7 @@ function extractRealmRoles(user: User | null): AppRole[] {
     | undefined;
 
   return (tokenRoles?.roles || []).filter((role): role is AppRole =>
-    [
-      "SUPER_ADMIN",
-      "TENANT_ADMIN",
-      "DIRECTOR",
-      "DEPARTMENT_HEAD",
-      "TEACHER",
-      "STUDENT",
-      "PARENT",
-      "ACCOUNTANT",
-      "STAFF",
-    ].includes(role),
+    ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "DEPARTMENT_HEAD", "TEACHER", "STUDENT", "PARENT", "ACCOUNTANT", "STAFF"].includes(role),
   );
 }
 
@@ -118,187 +108,157 @@ function AuthStateProvider({ children }: { children: React.ReactNode }) {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [appUser, setAppUser] = useState<AuthenticatedUser | null>(null);
 
-  useEffect(() => {
-    if (auth.isAuthenticated && auth.user) {
-      authDebug("Authenticated, fetching profile from API");
-      apiClient
-        .get("/users/me/")
-        .then((response) => {
-          const data = response.data;
-
-          if (data.user) {
-            setAppUser(toAuthenticatedUser(data.user));
-          }
-
-          if (data.profile) {
-            setProfile({
-              id: data.user.id,
-              tenant_id: data.tenant?.id,
-              email: data.user.email,
-              first_name: data.profile.first_name,
-              last_name: data.profile.last_name,
-              avatar_url: data.profile.avatar_url,
-              is_current: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-          }
-
-          if (data.roles) {
-            setRoles(data.roles as AppRole[]);
-          }
-
-          if (data.tenant) {
-            setTenant(data.tenant as Tenant);
-            if (data.tenant.id) {
-              localStorage.setItem("last_tenant_id", data.tenant.id);
-            }
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to fetch user profile from API", error);
-          setRoles(extractRealmRoles(auth.user));
-          setAppUser(toAuthenticatedUser(auth.user.profile));
-        });
-    } else {
-      setAppUser(null);
-      setProfile(null);
-      setRoles([]);
-      setTenant(null);
+  const applyProfileData = useCallback((data: any) => {
+    if (data.user) {
+      setAppUser(toAuthenticatedUser(data.user));
     }
-  }, [auth.isAuthenticated, auth.user]);
+    if (data.profile) {
+      setProfile({
+        id: data.user.id,
+        tenant_id: data.tenant?.id,
+        email: data.user.email,
+        first_name: data.profile.first_name,
+        last_name: data.profile.last_name,
+        avatar_url: data.profile.avatar_url,
+        is_current: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+    if (data.roles) {
+      setRoles(data.roles as AppRole[]);
+    }
+    if (data.tenant) {
+      setTenant(data.tenant as Tenant);
+      if (data.tenant.id) {
+        localStorage.setItem("last_tenant_id", data.tenant.id);
+      }
+    }
+  }, []);
+
+  const clearLocalAuth = useCallback(() => {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    setAppUser(null);
+    setProfile(null);
+    setRoles([]);
+    setTenant(null);
+  }, []);
+
+  useEffect(() => {
+    const localToken = localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY);
+
+    if (auth.isAuthenticated && auth.user) {
+      authDebug("OIDC authenticated, fetching profile from API");
+      apiClient.get("/users/me/").then((response) => {
+        applyProfileData(response.data);
+      }).catch((error) => {
+        console.error("Failed to fetch OIDC user profile from API", error);
+        setRoles(extractRealmRoles(auth.user));
+        setAppUser(toAuthenticatedUser(auth.user.profile));
+      });
+      return;
+    }
+
+    if (localToken) {
+      authDebug("Local JWT detected, fetching profile from API");
+      apiClient.get("/users/me/").then((response) => {
+        applyProfileData(response.data);
+      }).catch((error) => {
+        console.error("Failed to fetch JWT user profile from API", error);
+        clearLocalAuth();
+      });
+      return;
+    }
+
+    setAppUser(null);
+    setProfile(null);
+    setRoles([]);
+    setTenant(null);
+  }, [auth.isAuthenticated, auth.user, applyProfileData, clearLocalAuth]);
 
   const refreshProfile = useCallback(async () => {
-    if (!auth.isAuthenticated || !auth.user) {
+    const localToken = localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    if (!auth.isAuthenticated && !localToken) {
       return;
     }
 
     try {
       authDebug("Refreshing profile from API");
       const response = await apiClient.get("/users/me/");
-      const data = response.data;
-
-      if (data.user) {
-        setAppUser(toAuthenticatedUser(data.user));
-      }
-
-      if (data.profile) {
-        setProfile({
-          id: data.user.id,
-          tenant_id: data.tenant?.id,
-          email: data.user.email,
-          first_name: data.profile.first_name,
-          last_name: data.profile.last_name,
-          avatar_url: data.profile.avatar_url,
-          is_current: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      }
-
-      if (data.roles) {
-        setRoles(data.roles as AppRole[]);
-      }
-
-      if (data.tenant) {
-        setTenant(data.tenant as Tenant);
-        if (data.tenant.id) {
-          localStorage.setItem("last_tenant_id", data.tenant.id);
-        }
-      }
+      applyProfileData(response.data);
     } catch (error) {
       console.error("Manual profile refresh failed", error);
+      if (localToken) {
+        clearLocalAuth();
+      }
     }
-  }, [auth.isAuthenticated, auth.user]);
+  }, [auth.isAuthenticated, applyProfileData, clearLocalAuth]);
 
   const rememberCurrentPath = useCallback(() => {
     const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     window.sessionStorage.setItem(AUTH_RETURN_TO_KEY, currentPath || "/");
   }, []);
 
-  const signIn = useCallback(async () => {
-    rememberCurrentPath();
-    await auth.signinRedirect();
-    return { error: null };
-  }, [auth, rememberCurrentPath]);
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      const body = new URLSearchParams();
+      body.set("username", email);
+      body.set("password", password);
+      const response = await apiClient.post("/auth/login/", body, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      const token = response.data?.access_token;
+      if (!token) {
+        throw new Error("No access token returned by API");
+      }
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      await refreshProfile();
+      return { error: null };
+    } catch (error) {
+      clearLocalAuth();
+      return { error: error instanceof Error ? error : new Error("Authentication failed") };
+    }
+  }, [clearLocalAuth, refreshProfile]);
 
   const signInWithKeycloak = useCallback(async () => {
     rememberCurrentPath();
-    await auth.signinRedirect();
-    return { error: null };
-  }, [auth, rememberCurrentPath]);
+    return { error: new Error("Keycloak SSO has been removed. Use native login.") };
+  }, [rememberCurrentPath]);
 
-  const signUp = useCallback(async () => {
-    rememberCurrentPath();
-    await auth.signinRedirect({
-      extraQueryParams: { kc_action: "register" },
-    });
-    return { error: null };
-  }, [auth, rememberCurrentPath]);
-
+  const signUp = useCallback(async () => ({ error: new Error("Registration is not available yet") }), []);
   const signOut = useCallback(async () => {
-    await auth.signoutRedirect({
-      post_logout_redirect_uri: window.location.origin,
-    });
-  }, [auth]);
-
-  const signOutAllDevices = useCallback(async () => {
-    await auth.signoutRedirect({
-      post_logout_redirect_uri: window.location.origin,
-    });
-  }, [auth]);
-
-  const verifyMfa = useCallback(async () => {
-    return { success: auth.isAuthenticated };
-  }, [auth.isAuthenticated]);
-
+    clearLocalAuth();
+    if (auth.isAuthenticated) {
+      await auth.signoutRedirect({ post_logout_redirect_uri: window.location.origin });
+    }
+  }, [auth, clearLocalAuth]);
+  const signOutAllDevices = useCallback(async () => { clearLocalAuth(); }, [clearLocalAuth]);
+  const verifyMfa = useCallback(async () => ({ success: auth.isAuthenticated || !!appUser }), [auth.isAuthenticated, appUser]);
   const hasRole = useCallback((role: AppRole) => roles.includes(role), [roles]);
-  const isAdmin = useCallback(
-    () => roles.some((role) => ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR"].includes(role)),
-    [roles],
-  );
+  const isAdmin = useCallback(() => roles.some((role) => ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR"].includes(role)), [roles]);
   const isSuperAdmin = useCallback(() => roles.includes("SUPER_ADMIN"), [roles]);
 
-  const contextValue = useMemo(
-    () => ({
-      user: appUser,
-      session: auth.user ?? null,
-      profile,
-      roles,
-      tenant,
-      isLoading: auth.isLoading,
-      mustChangePassword: false,
-      isMfaVerified: true,
-      signIn,
-      signInWithKeycloak,
-      verifyMfa,
-      signUp,
-      signOut,
-      signOutAllDevices,
-      hasRole,
-      isAdmin,
-      isSuperAdmin,
-      refreshProfile,
-    }),
-    [
-      appUser,
-      auth.user,
-      profile,
-      roles,
-      tenant,
-      auth.isLoading,
-      signIn,
-      signInWithKeycloak,
-      verifyMfa,
-      signUp,
-      signOut,
-      signOutAllDevices,
-      hasRole,
-      isAdmin,
-      isSuperAdmin,
-      refreshProfile,
-    ],
-  );
+  const contextValue = useMemo(() => ({
+    user: appUser,
+    session: auth.user ?? null,
+    profile,
+    roles,
+    tenant,
+    isLoading: auth.isLoading,
+    mustChangePassword: false,
+    isMfaVerified: true,
+    signIn,
+    signInWithKeycloak,
+    verifyMfa,
+    signUp,
+    signOut,
+    signOutAllDevices,
+    hasRole,
+    isAdmin,
+    isSuperAdmin,
+    refreshProfile,
+  }), [appUser, auth.user, profile, roles, tenant, auth.isLoading, signIn, signInWithKeycloak, verifyMfa, signUp, signOut, signOutAllDevices, hasRole, isAdmin, isSuperAdmin, refreshProfile]);
 
   if (auth.isLoading) {
     return <div>Loading Auth...</div>;
@@ -308,11 +268,7 @@ function AuthStateProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  return (
-    <OIDCProvider {...oidcConfig}>
-      <AuthStateProvider>{children}</AuthStateProvider>
-    </OIDCProvider>
-  );
+  return <OIDCProvider {...oidcConfig}><AuthStateProvider>{children}</AuthStateProvider></OIDCProvider>;
 }
 
 export function useAuth() {
