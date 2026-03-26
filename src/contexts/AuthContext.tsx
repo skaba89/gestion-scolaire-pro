@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { User } from "oidc-client-ts";
 import { apiClient, TOKEN_STORAGE_KEY } from "@/api/client";
 import type { AppRole, Profile, Tenant } from "@/lib/types";
 
@@ -13,7 +12,7 @@ type AuthenticatedUser = {
 
 type AuthContextType = {
   user: AuthenticatedUser | null;
-  session: User | null;
+  session: null;
   profile: Profile | null;
   roles: AppRole[];
   tenant: Tenant | null;
