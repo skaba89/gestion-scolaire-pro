@@ -107,3 +107,26 @@ These are all setting the column to `NULL` and cannot be renamed without an Alem
 2. Run `python -m scripts.create_admin` to seed the initial admin user
 3. Update any frontend Keycloak configuration references
 4. Remove Keycloak from docker-compose if present
+---
+Task ID: 1
+Agent: Super Z (main)
+Task: Fix academic_years 'code' column missing from database causing 500 on tenant creation
+
+Work Log:
+- Analyzed the error: `psycopg2.errors.UndefinedColumn column "code" of relation "academic_years" does not exist`
+- Found that the SQLAlchemy model `AcademicYear` defines `code = Column(String, nullable=False)` but NO migration ever added this column to the DB
+- The initial migration `20260218_2220` creates `academic_years` without a `code` column
+- Both tenant creation endpoints (`POST /tenants/` and `POST /tenants/create-with-admin/`) create `AcademicYear()` objects without providing `code`
+- Created migration `20260406_add_academic_year_code.py` that:
+  - Adds `code` VARCHAR column (nullable initially)
+  - Backfills existing rows with `code = name`
+  - Sets NOT NULL constraint
+- Fixed both tenant endpoints to generate `code=f"AY{start}-{end}"` (e.g., "AY2025-2026")
+- Committed and pushed to GitHub
+
+Stage Summary:
+- Root cause: Model/DB mismatch - `code` column existed in Python model but never migrated to PostgreSQL
+- Files changed: `backend/alembic/versions/20260406_add_academic_year_code.py` (new), `backend/app/api/v1/endpoints/core/tenants.py` (modified)
+- All 3 AcademicYear instantiation sites verified to include `code` parameter
+- Commit: d8cb0ab pushed to origin/main
+- User needs to run `alembic upgrade head` in the backend container to apply the migration
