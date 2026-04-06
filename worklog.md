@@ -780,3 +780,51 @@ Task: Audit remaining pages and modules — Grades, Attendance, Students, Enroll
 
 ## Verification
 - TypeScript type check (`tsc --noEmit`): ✅ **passed** with zero errors
+
+---
+Task ID: 8
+Agent: Super Z (main) + 3 sub-agents
+Task: Full audit of remaining modules — Academic, Finance, Auth, Operational — fix ALL bugs
+
+Work Log:
+- Launched 3 parallel sub-agents to audit all remaining backend + frontend modules
+- Academic module: 12 bugs found and fixed (CRITICAL: grades.py non-existent columns, assessments.py wrong JOIN table)
+- Finance module: 9 bugs found and fixed (CRITICAL: payment status mismatch, student field path)
+- Auth module: 1 bug found and fixed (HIGH: no tenant active check on login)
+- Operational modules: 25 bugs found and fixed (CRITICAL: SQL injection in parents.py and departments.py, audit log data loss in admissions.py)
+- Fixed BOM characters in config.py and alembic/env.py
+- Final verification: 160 Python files pass ast.parse(), TypeScript tsc --noEmit passes with 0 errors
+
+Stage Summary:
+- Total: 46 bugs found and fixed across 4 module groups
+- 5 CRITICAL bugs (SQL injection x2, non-existent model columns, wrong JOIN table, audit data loss)
+- 19 HIGH bugs (tenant_id None guards, missing permissions, wrong field names, commit order)
+- 22 MEDIUM bugs (trailing slashes, type mismatches, validation)
+- Key files changed:
+  - backend/app/crud/grade.py — Fixed non-existent model columns
+  - backend/app/api/v1/endpoints/academic/assessments.py — Complete rewrite (class_id, JOINs, filters)
+  - backend/app/api/v1/endpoints/academic/teachers.py — Fixed teacher_id JOIN
+  - backend/app/api/v1/endpoints/academic/attendance.py — Fixed classrooms JOIN, registration_number
+  - backend/app/api/v1/endpoints/academic/students.py — tenant_id guards
+  - backend/app/api/v1/endpoints/academic/grades.py — tenant_id guards
+  - backend/app/api/v1/endpoints/finance/payments.py — tenant_id guard + audit logs for 9 mutations
+  - backend/app/api/v1/endpoints/core/auth.py — tenant active check on login
+  - backend/app/api/v1/endpoints/operational/parents.py — SQL injection fix
+  - backend/app/api/v1/endpoints/operational/departments.py — SQL injection fix
+  - backend/app/api/v1/endpoints/operational/admissions.py — audit commit order fix
+  - backend/app/api/v1/endpoints/operational/schedule.py — delete order fix + audit
+  - backend/app/api/v1/endpoints/operational/school_life.py — tenant_id guards
+  - backend/app/api/v1/endpoints/operational/communication.py — tenant_id guards
+  - backend/app/api/v1/endpoints/operational/alumni.py — tenant_id guards
+  - backend/app/api/v1/endpoints/operational/inventory.py — tenant_id guards
+  - backend/app/api/v1/endpoints/operational/library.py — tenant_id guards
+  - backend/app/api/v1/endpoints/operational/clubs.py — tenant_id guards
+  - backend/app/api/v1/endpoints/operational/incidents.py — tenant_id guards
+  - backend/app/api/v1/endpoints/operational/surveys.py — tenant_id guards + validation
+  - backend/app/core/security.py — Added settings:read, admissions, inventory, hr permissions
+  - src/features/finance/components/PaymentHistory.tsx — status + student field fixes
+  - src/features/finance/components/FinanceDashboard.tsx — trailing slash fix
+  - src/features/finance/types.ts — Payment status type fix
+  - src/pages/admin/Grades.tsx — undefined termsLabel fix
+  - backend/app/core/config.py — BOM removed
+  - backend/alembic/env.py — BOM removed
