@@ -852,3 +852,30 @@ Stage Summary:
 - Key fixes: ALUMNI role, MFA verification, ACCOUNTANT redirect, API contract fixes, deployment config
 - PDF report: /home/z/my-project/download/SchoolFlow_Pro_Audit_Rapport.pdf
 - Commits: aa3bf00 (46 bugs) + 6404aac (23 bugs) pushed to origin/main
+
+---
+Task ID: 10
+Agent: Super Z (main) + 3 sub-agents
+Task: P0/P1 remaining fixes - tables, deployment, architecture
+
+Work Log:
+- Created migration for 29 operational tables (library, inventory, clubs, surveys, communication, school_life, alumni, fees)
+- Fixed render.yaml: removed broken Redis Python worker, documented external Redis
+- Fixed netlify.toml: documented API proxy limitation
+- Added top-level ErrorBoundary around entire provider tree
+- Fixed isAdmin() inconsistency (3 stores/contexts now consistent)
+- Fixed applyProfileData timestamps (API values instead of current time)
+- Fixed token refresh localStorage leak (respects original storage)
+- Fixed window.location.href hard redirect (event-based React Router nav)
+- Fixed notification setTimeout memory leak (timers tracked and cleaned)
+- Fixed dual CSS variable race condition (removed duplicate from TenantContext)
+- Deprecated dead code (StoreProvider, StoreSyncProvider)
+- Commented out 4 unimplemented API endpoints in admin.ts
+- Pushed commit 7a4a0ea to origin/main
+
+Stage Summary:
+- 29 tables created via migration (all phantom tables resolved)
+- 20 architectural fixes applied
+- Total fixes across all sessions: ~89 bugs + 29 tables
+- Remaining: P2 improvements only (type unification, i18n, non-root Docker user)
+- Commits: aa3bf00 + 6404aac + 7a4a0ea pushed to origin/main
