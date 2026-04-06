@@ -902,3 +902,30 @@ Stage Summary:
 - Frontend audit: 12 pages audited, 1 bug fixed
 - Project compilation: Python 160 files OK, TypeScript 0 errors
 - 5 commits pushed: aa3bf00, 6404aac, 7a4a0ea, a6594b0, da6f878
+
+---
+Task ID: 8
+Agent: Super Z (main)
+Task: Fix SECRET_KEY env + Groq AI Docker integration + frontend/backend response alignment
+
+Work Log:
+- Discovered no .env file exists in gestion-scolaire-pro/ — SECRET_KEY auto-generated on every restart in debug mode, invalidating all sessions
+- Found GROQ_API_KEY missing from docker-compose.yml API service environment — AI feature returns fallback in Docker
+- Found GROQ_API_KEY missing from .env.docker.example — users deploying with Docker dont know about this variable
+- Found critical frontend/backend type mismatch: ChatResponse expects {response, conversation_id} but backend returns {content, model, tokens} — AI chat showed undefined
+- Found AuditResponse expects {analysis, recommendations, score} but backend returns same {content, model, tokens} — audit showed undefined
+
+Fixes applied:
+1. Created .env with generated 64-char SECRET_KEY (stable across restarts), GROQ_API_KEY placeholder, and all required env vars
+2. Added GROQ_API_KEY, GROQ_MODEL, GROQ_MAX_TOKENS to docker-compose.yml API service environment
+3. Added Groq AI section to .env.docker.example with GROQ_API_KEY, GROQ_MODEL, GROQ_MAX_TOKENS
+4. Fixed backend ai.py /chat endpoint: wraps {content, model, tokens} into frontend-expected {response, conversation_id, model, tokens}
+5. Fixed backend ai.py /audit endpoint: wraps into frontend-expected {analysis, recommendations, score, model, tokens}
+
+Stage Summary:
+- 5 fixes applied across 4 files
+- TypeScript compiles clean (tsc --noEmit = 0 errors)
+- Commit: 2b03261 (local, no remote configured in this session)
+- AI chat and audit will now correctly display responses instead of undefined
+- Groq API key can now be configured via Docker environment
+
