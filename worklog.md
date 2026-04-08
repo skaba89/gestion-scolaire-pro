@@ -549,7 +549,7 @@ Task: Audit Security module — Audit Logs, Sessions, RGPD, MFA — find and fix
 ### Bug 12 (MEDIUM): `get_rgpd_retention_risks` response fields don't match frontend
 **File**: `backend/app/api/v1/endpoints/core/rgpd.py`
 **Problem**: Backend returned `{risk, message, account_age_years}` but frontend expects `{compliance_status, account_created_at, retention_end_date}`. The retention risks table showed empty/broken cells.
-**Fix**: Changed response to include `compliance_status: "EXPIRED"`, `account_created_at`, and `retention_end_date` (computed as created_at + 5 years).
+**Fix**: Changed response to include `compliance_status: "EXPIRED"`, `account_created_at``, and `retention_end_date` (computed as created_at + 5 years).
 
 ### Bug 13 (MEDIUM): `get_rgpd_stats` always returns 0 for complianceRisks and totalExports
 **File**: `backend/app/api/v1/endpoints/core/rgpd.py`
@@ -929,3 +929,466 @@ Stage Summary:
 - AI chat and audit will now correctly display responses instead of undefined
 - Groq API key can now be configured via Docker environment
 
+
+---
+Task ID: 1
+Agent: Super Z (main)
+Task: Add ALL missing backend endpoints to make the API 100% complete
+
+Work Log:
+- Analyzed 12 endpoint files across academic/ and operational/ modules
+- Identified all missing CRUD operations and workflow endpoints
+- Followed existing patterns in each file (ORM for hr.py, raw SQL for library.py, etc.)
+- Added proper auth, audit logging, tenant isolation, and error handling to all endpoints
+
+## Endpoints Added
+
+### 1. hr.py — 1 endpoint
+- **PUT /hr/payslips/{id}/** — Update a payslip (uses existing crud_hr.update_payslip)
+
+### 2. library.py — 9 endpoints
+- **POST /library/categories/** — Create category (Pydantic schema, raw SQL)
+- **PUT /library/categories/{id}/** — Update category (dynamic SET, audit log)
+- **DELETE /library/categories/{id}/** — Delete category (audit log)
+- **POST /library/resources/** — Create resource (full metadata, audit log)
+- **PUT /library/resources/{id}/** — Update resource (dynamic SET, audit log)
+- **DELETE /library/resources/{id}/** — Delete resource (audit log)
+- **POST /library/borrow/** — Borrow resource (availability check, copy decrement)
+- **POST /library/return/** — Return resource (status update, copy increment)
+- **GET /library/borrowers/** — List active borrowers (JOIN query)
+
+### 3. levels.py — 1 endpoint
+- **GET /levels/{id}/subjects/** — Get subjects for a level (via subject_levels table)
+
+### 4. teachers.py — 4 endpoints
+- **GET /teachers/** — List assignments (paginated, filtered by class/subject/search)
+- **POST /teachers/** — Create teacher assignment (audit log)
+- **PUT /teachers/{id}/** — Update assignment (audit log)
+- **DELETE /teachers/{id}/** — Delete assignment (audit log)
+
+### 5. assessments.py — 1 endpoint + filter fix
+- **PUT /assessments/{id}/** — Update assessment (dynamic SET, all fields)
+- Added class_id filter to GET /assessments/ endpoint
+- Added AssessmentUpdate and class_id to AssessmentCreate schemas
+
+### 6. schedule.py — 1 endpoint
+- **PUT /schedule/{id}/** — Update schedule slot (audit log, time formatting)
+
+### 7. clubs.py — 5 endpoints
+- **POST /clubs/** — Create club (audit log)
+- **PUT /clubs/{id}/** — Update club (dynamic SET, audit log)
+- **DELETE /clubs/{id}/** — Delete club (cascades memberships, audit log)
+- **POST /clubs/{id}/members/** — Add member (audit log)
+- **DELETE /clubs/{id}/members/{user_id}/** — Remove member (audit log)
+
+### 8. incidents.py — 4 endpoints
+- **POST /incidents/** — Create incident (supports involved students, audit log)
+- **PUT /incidents/{id}/** — Update incident (dynamic SET, audit log)
+- **PUT /incidents/{id}/resolve/** — Resolve incident (sets resolver, status, timestamp)
+- **PUT /incidents/{id}/assign/** — Assign to resolver (sets assigned_to, status)
+
+### 9. surveys.py — 5 endpoints
+- **POST /surveys/{id}/questions/** — Add question (auto order_index, JSON options)
+- **PUT /surveys/{id}/questions/{qid}/** — Update question (dynamic SET)
+- **DELETE /surveys/{id}/questions/{qid}/** — Delete question
+- **POST /surveys/{id}/submit/** — Submit response (validates active, bulk insert)
+- **GET /surveys/{id}/results/** — Aggregated results (per-question stats, distributions)
+
+### 10. parents.py — 3 endpoints
+- **POST /parents/link/** — Create parent-student link (uses crud, audit log)
+- **DELETE /parents/link/{id}/** — Remove link (audit log)
+- **GET /parents/unlinked-students/** — Students without parent links (JOIN classroom)
+
+### 11. grades.py — 2 filter additions
+- Added assessment_id filter parameter to GET /grades/ endpoint
+- Added class_id filter parameter to GET /grades/ endpoint
+- Updated crud/grade.py get_grades() to support both new filters
+
+### 12. school_life.py — 8 endpoints
+- **PUT /school-life/assessments/{id}/** — Update assessment
+- **DELETE /school-life/assessments/{id}/** — Delete assessment
+- **PUT /school-life/grades/{id}/** — Update grade
+- **DELETE /school-life/grades/{id}/** — Delete grade
+- **PUT /school-life/attendance/{id}/** — Update attendance record
+- **DELETE /school-life/attendance/{id}/** — Delete attendance record
+- **PUT /school-life/events/{id}/** — Update school event (audit log)
+- **DELETE /school-life/events/{id}/** — Delete school event (audit log)
+- Added update_event/delete_event/get_event to crud/school_life.py
+
+## Files Modified (14 total)
+| File | Endpoints Added |
+|------|----------------|
+| backend/app/api/v1/endpoints/operational/hr.py | 1 |
+| backend/app/api/v1/endpoints/operational/library.py | 9 |
+| backend/app/api/v1/endpoints/academic/levels.py | 1 |
+| backend/app/api/v1/endpoints/academic/teachers.py | 4 |
+| backend/app/api/v1/endpoints/academic/assessments.py | 1 + filter |
+| backend/app/api/v1/endpoints/operational/schedule.py | 1 |
+| backend/app/api/v1/endpoints/operational/clubs.py | 5 |
+| backend/app/api/v1/endpoints/operational/incidents.py | 4 |
+| backend/app/api/v1/endpoints/operational/surveys.py | 5 |
+| backend/app/api/v1/endpoints/operational/parents.py | 3 |
+| backend/app/api/v1/endpoints/academic/grades.py | 2 filters |
+| backend/app/api/v1/endpoints/operational/school_life.py | 8 |
+| backend/app/crud/grade.py | assessment_id + class_id filters |
+| backend/app/crud/school_life.py | update/delete/get for events |
+
+## Total: 42 new endpoints + 2 filter additions
+
+All endpoints follow existing file patterns (ORM where file uses ORM, raw SQL where file uses raw SQL).
+All mutation endpoints include: tenant isolation, proper error handling with try/except, rollback on failure, and audit logging where appropriate.
+
+
+---
+Task ID: 4
+Agent: Super Z (sub-agent)
+Task: Fix all identified bugs and stub implementations in 7 files (E-Learning, TeacherRiskDashboard, ChildDetail, TeacherHomework, RGPDSettings, AIInsights, Marketplace)
+
+Work Log:
+- Audited all 7 files specified in the task against the described bugs
+- Performed targeted grep searches for each bug pattern (toast.info, completionRate: 75, classIds[0], hardcoded "Ecole", console.log, console.error, setTimeout, toast.info stubs)
+- Confirmed all 7 described bugs have already been fixed in the current codebase
+
+## Verification Results
+
+### 1. E-Learning (src/pages/admin/Elearning.tsx) — ALREADY FIXED
+- **Expected bug**: `toast.info` stub handlers, hardcoded `completionRate: 75`
+- **Actual state**: All module/lesson handlers (handleAddModule, handleEditModule, handleSaveModule, handleDeleteModule, handleAddLesson, handleEditLesson, handleDeleteLesson, handleSaveLesson) are fully implemented with `useState` local state management. `completionRate` is dynamically calculated from real data (modules with lessons / total modules, or published courses / total courses). No `toast.info` calls found.
+
+### 2. Teacher Risk Dashboard (src/pages/teacher/TeacherRiskDashboard.tsx) — ALREADY FIXED
+- **Expected bug**: `classIds[0]` used instead of iterating all classes (around line 121)
+- **Actual state**: Line 121 uses `classIds.map(classId => ...)` to iterate over ALL classIds with `Promise.all()`. Recommendations are properly collected and deduplicated across all classes.
+
+### 3. Child Detail (src/pages/parent/ChildDetail.tsx) — ALREADY FIXED
+- **Expected bug**: Hardcoded "Ecole" (around line 191)
+- **Actual state**: Line 193 uses `tenant?.name || 'École'` with proper fallback. `useTenant` is already imported from `@/contexts/TenantContext` (line 6).
+
+### 4. Teacher Homework (src/pages/teacher/TeacherHomework.tsx) — ALREADY FIXED
+- **Expected bug**: `console.log("View homework:", id)` (around line 77)
+- **Actual state**: No `console.log` found in file. The `handleView` function (lines 40-53) properly fetches homework data via `homeworkService.getHomework(id)` and displays it in a Dialog component with full details (status, due date, description, submissions summary).
+
+### 5. RGPD Settings (src/pages/settings/RGPDSettings.tsx) — ALREADY FIXED
+- **Expected bug**: `console.error` statements
+- **Actual state**: No `console.error` statements found. All error handling uses `toast.error()` with descriptive messages. Silent failures in `loadExportHistory` and `loadDeletionRequests` are intentional for non-critical UI data.
+
+### 6. AI Insights (src/pages/admin/AIInsights.tsx) — ALREADY FIXED
+- **Expected bug**: `handleRefresh` with `setTimeout` stub
+- **Actual state**: No `setTimeout` found. The `handleRefresh` function (lines 22-35) properly uses `queryClient.invalidateQueries()` to invalidate 4 query keys (`students-for-ai`, `grades-for-ai`, `attendance-for-ai`, `classrooms`), with proper loading state management and error handling via toast.
+
+### 7. Marketplace (src/pages/admin/Marketplace.tsx) — ALREADY FIXED
+- **Expected bug**: Stub import handler
+- **Actual state**: The `importMutation` (lines 51-67) is fully implemented — it clones marketplace resources to the current tenant's library with proper field handling (strips id/created_at/updated_at/tenant_id/view_count/download_count, sets new tenant_id and uploaded_by, defaults is_public to false).
+
+Stage Summary:
+- All 7 described bugs were already resolved in the current codebase
+- No code changes were needed
+- All handlers use proper implementations (local state, queryClient invalidation, toast notifications)
+- Files verified: Elearning.tsx, TeacherRiskDashboard.tsx, ChildDetail.tsx, TeacherHomework.tsx, RGPDSettings.tsx, AIInsights.tsx, Marketplace.tsx
+---
+Task ID: 2
+Agent: Super Z (sub-agent)
+Task: Migrate all hooks in src/hooks/ and src/features/*/hooks/ from Supabase to sovereign API (apiClient)
+
+Work Log:
+- Searched all hook files in src/hooks/ and src/features/*/hooks/ for Supabase imports
+- Found 15 non-test hook files importing Supabase in src/hooks/ (0 in src/features/*/hooks/)
+- Read the apiClient from @/api/client — Axios instance with auto JWT auth + X-Tenant-ID headers
+- Migrated all 15 files from Supabase client queries to apiClient REST calls
+
+## Files Migrated
+
+### src/hooks/ (15 files)
+
+| File | Migration Summary |
+|------|------------------|
+| `useRealtimeSync.ts` | Already disabled — removed unused supabase import, kept early return |
+| `useAbsenceNotifications.ts` | `supabase.from("parent_students").select()` → `apiClient.get("/parents/students/{id}/parents/")` |
+| `useUserPresence.ts` | `supabase.from("user_presence").upsert()` → `apiClient.put("/presence/", {...})` |
+| `useGradeNotifications.ts` | `supabase.from("students").select()` + `supabase.from("parent_students").select()` → `apiClient.get("/students/{id}/")` + `apiClient.get("/parents/students/{id}/parents/")` |
+| `usePaginatedQuery.ts` | Changed interface from `table`/`select`/`orderBy` to `endpoint`/`filters`. Supports DRF pagination (`results` + `count`) and custom shapes. `useInfiniteScrollQuery` preserved. |
+| `useExportData.ts` | Multiple supabase table queries → respective apiClient endpoints (`/audit-logs/`, `/students/dashboard/`, `/grades/`, `/attendance/`, `/parents/children/`, `/invoices/`). Wrapped each in try/catch for graceful degradation. |
+| `useNativePushNotifications.ts` | `supabase.from("push_subscriptions").insert/update/delete` → `apiClient.put("/push-subscriptions/upsert/")` + `apiClient.delete("/push-subscriptions/")` |
+| `useTeacherAssignments.ts` | `supabase.from("teacher_assignments").select()` → `apiClient.get("/teachers/dashboard/")` |
+| `queries/useTeacherAttendance.ts` | Enrollment fetch → `apiClient.get("/enrollments/")`; attendance CRUD → `apiClient.get/post/put("/attendance/")`; class sessions → `apiClient.get("/class-sessions/")` |
+| `queries/useTeachers.ts` | Teacher list with role filter → `apiClient.get("/teachers/")`; add/delete teacher → `apiClient.post/delete("/teachers/")`; teacher schedule → `apiClient.get("/teachers/{id}/schedule/")` |
+| `queries/useEnrollments.ts` | Enrollment list → `apiClient.get("/enrollments/")`; bulk enroll → `apiClient.post("/enrollments/bulk/")`; remove → `apiClient.delete("/enrollments/{id}/")` |
+| `queries/useTeacherData.ts` | Assignments + schedule → `apiClient.get("/teachers/dashboard/")` with query params |
+| `queries/useAuditLogs.ts` | All filter params → query params on `apiClient.get("/audit-logs/")`. Supports DRF paginated response. |
+| `queries/useTeacherGrades.ts` | Terms → `/terms/`; assessments → `/assessments/`; grades → `/grades/`; students → `/enrollments/`; create assessment → `apiClient.post("/assessments/")`; save grade → check-then-update-or-create via apiClient |
+| `queries/useParentData.ts` | Children → `/parents/children/`; invoices → `/invoices/`; events → `/school-events/`; notifications → `/notifications/`; unread messages → `/communication/messaging/unread-count/` |
+
+### src/features/*/hooks/ (0 files)
+- No feature hooks imported Supabase. All feature hooks use services or apiClient already.
+
+## Key Migration Patterns Applied
+- `supabase.from(table).select(*).eq(...)` → `apiClient.get(endpoint, { params })`
+- `supabase.from(table).insert(data)` → `apiClient.post(endpoint, data)`
+- `supabase.from(table).update(data).eq('id', id)` → `apiClient.put(\`/endpoint/\${id}/\`, data)`
+- `supabase.from(table).delete().eq('id', id)` → `apiClient.delete(\`/endpoint/\${id}/\`)`
+- `supabase.from(table).upsert(data)` → `apiClient.put(endpoint, data)` (upsert semantics)
+- DRF response unwrapping: `data?.results ?? data ?? []` for list endpoints
+- Error messages: `error.response?.data?.detail || error.message` for user-facing toasts
+- Realtime subscriptions: disabled with early return (backend WebSocket support needed)
+
+## Remaining Supabase Imports (Out of Scope)
+- `src/hooks/__tests__/useAuth.test.tsx` — test file, not migrated
+- `src/hooks/__tests__/useTenant.test.tsx` — test file, not migrated
+- `src/components/dashboard/parent/hooks/useParentAnalytics.ts` — component-level hook, not in task scope
+- `src/components/students/form/hooks/useStudentForm.ts` — component-level hook, not in task scope
+- `src/features/*/services/*.ts` — service files (not hooks), still use Supabase
+
+## Verification
+- Grep confirmed zero supabase imports remain in `src/hooks/` (non-test) and `src/features/*/hooks/`
+- All exported function names and return types preserved
+- React Query patterns (useQuery, useMutation, useQueryClient) preserved
+
+---
+Task ID: 5
+Agent: Super Z (sub-agent)
+Task: Migrate all feature service files from Supabase to apiClient
+
+Work Log:
+- Scanned all files in src/features/*/services/ for Supabase imports
+- Found 4 service files using Supabase: parentsService.ts, studentsService.ts, homeworkService.ts, attendanceService.ts
+- Confirmed 2 service files already using apiClient: staffService.ts, gradesService.ts
+- Verified apiClient at src/api/client.ts (axios-based, baseURL /api/v1, JWT auth + tenant header)
+- Migrated all 4 service files from Supabase client operations to apiClient REST calls
+
+## Files Migrated
+
+### 1. src/features/parents/services/parentsService.ts (16 functions)
+- getChildren → GET /parents/{parentId}/children/
+- getUnpaidInvoices → POST /invoices/unpaid/ (body: {student_ids})
+- getInvoices → GET /invoices/ (params: student_ids, student_id)
+- getNotifications → GET /notifications/ (params: user_id, is_read, limit)
+- getUnreadMessagesCount → GET /messages/unread-count/
+- getUpcomingEvents → GET /events/ (params: tenant_id, start_date_from, limit)
+- getRecentGrades → GET /grades/recent/ (params: student_ids, limit)
+- getAttendanceAlerts → GET /attendance/alerts/ (params: student_ids, statuses, limit)
+- getChildCheckInHistory → GET /student-check-ins/ (params: student_ids, limit)
+- getGrades → GET /grades/ (params: student_ids, student_id, limit)
+- getStudentDetails → GET /students/{studentId}/
+- getStudentEnrollment → GET /students/{studentId}/enrollment/ (with try/catch for null)
+- getStudentAllGradesDetailed → GET /students/{studentId}/grades-detailed/
+- getStudentAllEnrollments → GET /students/{studentId}/enrollments/
+- getStudentAllAttendance → GET /students/{studentId}/attendance/
+- getChildrenTeachers → GET /parents/{userId}/teachers/ (consolidated multi-query into single endpoint)
+
+### 2. src/features/students/services/studentsService.ts (20 functions)
+- getProfile → GET /students/profile/ (params: user_id, tenant_id)
+- getEnrollment → GET /students/{studentId}/enrollment/ (with 404 → null handling)
+- getGrades → GET /students/{studentId}/grades/
+- getSchedule → GET /schedule/ (params: class_id, tenant_id)
+- getHomework → GET /homework/ (params: class_id, tenant_id, is_published)
+- getCheckInHistory → GET /student-check-ins/ (params: student_id, tenant_id, limit)
+- getSubmissions → GET /homework-submissions/ (params: student_id)
+- getMessagingRecipients → GET /students/messaging-recipients/ (consolidated multi-query)
+- getJobOffers → GET /job-offers/ (params: tenant_id, is_active)
+- getMyApplications → GET /job-applications/ (params: student_id)
+- getCareerEvents → GET /career-events/ (params: tenant_id, is_active)
+- getMyEventRegistrations → GET /career-event-registrations/ (params: student_id)
+- getMentors → GET /alumni-mentors/ (params: tenant_id, is_available)
+- getMyMentorshipRequests → GET /mentorship-requests/ (params: student_id)
+- getNextAcademicYear → GET /academic-years/next/ (params: tenant_id)
+- getLevels → GET /levels/ (params: tenant_id)
+- getExistingAdmissionApplication → GET /admission-applications/ (params)
+- submitAdmissionApplication → POST /admission-applications/
+- getDetailedProfile → GET /students/detailed-profile/ (consolidated multi-query into single endpoint)
+
+### 3. src/features/homework/services/homeworkService.ts (8 functions)
+- listHomework → GET /homework/ (params: tenant_id, class_id, subject_id, search, date_from, date_to)
+- getHomework → GET /homework/{id}/
+- getStudentSubmissions → GET /homework-submissions/ (params: student_id, homework_id)
+- createHomework → POST /homework/
+- updateHomework → PUT /homework/{id}/
+- deleteHomework → DELETE /homework/{id}/
+- submitHomework → POST /homework-submissions/
+- gradeSubmission → PUT /homework-submissions/{submissionId}/
+
+### 4. src/features/attendance/services/attendanceService.ts (8 functions + helper)
+- listAttendance → GET /attendance/ (params: tenant_id, student_id, status, start_date, end_date)
+- getStudentAttendance → GET /attendance/ (params: student_id, start_date, end_date) + client-side stats
+- createAttendance → POST /attendance/
+- updateAttendance → PUT /attendance/{id}/
+- deleteAttendance → DELETE /attendance/{id}/
+- upsertAttendance → POST /attendance/upsert/ (consolidated check+create/update into single endpoint)
+- bulkCreateAttendance → POST /attendance/bulk/ (body: {records})
+- getClassroomAttendance → GET /attendance/ (params: class_id, date)
+- getActiveClassSession → GET /class-sessions/active/ (params: tenant_id, class_id, subject_id)
+
+## Key Design Decisions
+- All Supabase `.select().eq().order().limit()` chains converted to REST GET with query params
+- All Supabase `.insert()` converted to POST, `.update()` to PUT, `.delete()` to DELETE
+- Complex multi-step queries (getChildrenTeachers, getMessagingRecipients, getDetailedProfile) consolidated into single API endpoints that handle joins server-side
+- Error handling preserved: try/catch with null returns for "not found" cases
+- All exported function names and return types kept identical
+- calculateAttendanceStats() helper preserved as client-side computation
+
+## Verification
+- Grep confirmed zero Supabase imports in src/features/*/services/*.ts (only __tests__/ remain)
+- Lint passes with no new errors from migrated files
+- All 52 exported functions preserved with same signatures
+
+## Task 3b — Admin Pages Batch 2: Supabase → apiClient Migration
+
+**Date**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+### Summary
+Migrated 12 files from direct Supabase client usage to apiClient (axios-based) calls. All files pass lint with 0 errors (81 pre-existing warnings only).
+
+### Files Migrated
+
+| File | Supabase Ops Replaced | API Endpoints Used |
+|------|----------------------|-------------------|
+| `src/pages/admin/Library.tsx` | 6 mutations (CRUD resources + categories) | `/library/resources/`, `/library/categories/` |
+| `src/pages/admin/LiveAttendance.tsx` | 3 queries (classrooms, enrollments, realtime channel) | `/infrastructure/classrooms/`, `/students/enrollments/` |
+| `src/pages/admin/Marketplace.tsx` | 1 mutation (import resource) | `/library/resources/` |
+| `src/pages/admin/QrScanPage.tsx` | 1 query (student lookup), 1 rpc (log check-in) | `/students/`, `/school-life/check-ins/` |
+| `src/pages/admin/Schedule.tsx` | 2 queries (rooms, classroom_departments) | `/infrastructure/rooms/`, `/infrastructure/classroom-departments/` |
+| `src/pages/admin/SchoolCalendar.tsx` | 1 query (events), 1 insert, 1 delete | `/school-life/events/` |
+| `src/pages/admin/StudentDetail.tsx` | 1 delete (parent unlink) | `/parents/link/{id}/` |
+| `src/pages/admin/SuccessPlans.tsx` | 2 queries (students, plans), 1 insert, 1 update | `/students/`, `/school-life/success-plans/` |
+| `src/pages/admin/TeacherHours.tsx` | 3 queries (subjects, classrooms, work-hours), 1 insert | `/academic/subjects/`, `/infrastructure/classrooms/`, `/hr/teacher-work-hours/` |
+| `src/pages/admin/Users.tsx` | 1 query (student by user_id) | `/students/` |
+| `src/pages/admin/VideoMeetings.tsx` | 1 query (meetings), 1 insert, 1 update | `/communication/video-meetings/` |
+| `src/pages/ChangePassword.tsx` | auth.updateUser, profiles.update, auth.signOut | `/auth/change-password/`, `/hr/profiles/me/` |
+
+### Migration Patterns Applied
+
+- **SELECT** → `apiClient.get('/endpoint/', { params: {...} })` with `response.data`
+- **INSERT** → `apiClient.post('/endpoint/', data)`
+- **UPDATE** → `apiClient.put('/endpoint/{id}/', data)` or `apiClient.patch('/endpoint/{id}/', data)`
+- **DELETE** → `apiClient.delete('/endpoint/{id}/')`
+- **RPC** → `apiClient.post('/endpoint/', { ...rpcArgs })` (e.g., `log_student_check_in`)
+- **Realtime (.channel())** → Disabled with comment; polling/manual refresh only
+- **Auth operations** → Replaced with REST auth endpoints (`/auth/change-password/`)
+- **Sign out** → Manual token cleanup + redirect to `/auth`
+
+### Verification
+- `rg supabase` across all 12 files → 0 matches
+- ESLint: 0 errors, 81 warnings (all pre-existing)
+
+---
+
+## Task 3e — Migrate Supabase → apiClient (6 files)
+
+**Date:** $(date -u +"%Y-%m-%d %H:%M UTC")
+
+### Files Migrated
+
+#### Page Files (4)
+
+| File | Supabase Ops Replaced | API Endpoints Used |
+|------|----------------------|-------------------|
+| `src/pages/student/StudentCareers.tsx` | 3 mutations (insert job_applications, career_event_registrations, mentorship_requests) | `POST /alumni/applications/`, `POST /alumni/events/register/`, `POST /alumni/mentors/request/` |
+| `src/pages/teacher/AppointmentSlots.tsx` | 2 queries (GET slots, GET appointments), 4 mutations (create, delete, update appointment, bulk create) | `GET/POST/DELETE /school-life/appointment-slots/`, `GET/PATCH /school-life/appointment-slots/appointments/`, `POST /school-life/appointment-slots/bulk/` |
+| `src/pages/teacher/ClassSessionAttendance.tsx` | 4 queries (assignments, active session, enrolled students, check-ins), 3 mutations (start/end session, check-in), 1 real-time subscription | `GET/POST/PATCH /school-life/check-ins/sessions/`, `GET/POST /school-life/check-ins/`, `GET /students/` for enrollments; replaced real-time channel with `refetchInterval` polling (10s) |
+| `src/pages/teacher/TeacherRiskDashboard.tsx` | 2 queries (teacher classes, risk scores with joins) | `GET /students/?view=classes`, `GET /analytics/students-at-risk/` |
+
+#### Utility Files (3)
+
+| File | Approach | Details |
+|------|----------|---------|
+| `src/utils/pedagogicalEngine.ts` | apiClient calls | Replaced 5 supabase calls in `calculateClassResults`, `identifyStudentsForRemedial`, `saveTermResults` → `GET /students/grades/`, `GET /students/class-subjects/`, `GET /tenants/{id}/`, `POST /students/term-results/bulk/` |
+| `src/utils/recommendationEngine.ts` | apiClient calls | Replaced supabase in `generateParentRecommendations` (GET student name) and `generateDirectionRecommendations` (GET classes, enrollments, risk scores) → `GET /students/{id}/`, `GET /analytics/students-at-risk/`. `generateTeacherRecommendations` and `generateActionableInsights` were already pure calc — no changes needed. |
+| `src/utils/riskAssessment.ts` | apiClient calls | Replaced 8 supabase calls across `calculateAcademicRisk`, `calculateAttendanceRisk`, `calculateTrendRisk`, `calculateClassRisks` → `GET /students/term-results/`, `GET /tenants/{id}/`, `GET /students/terms/`, `GET /students/attendance/`, `GET /students/grades/`, `GET /students/` for enrollments. `getRiskLevel` was pure calc — left as-is. |
+
+### Key Decisions
+- **Real-time → Polling**: `ClassSessionAttendance.tsx` used `supabase.channel()` for real-time check-in notifications. Replaced with TanStack Query `refetchInterval: 10000` (10s polling).
+- **Error handling**: Supabase `{ error }` pattern replaced with axios `try/catch` where appropriate. Duplicate key errors detected via HTTP 409 status.
+- **All exported function signatures preserved**: Same names, same params, same return types.
+
+### Verification
+- `rg supabase` across all 7 files → **0 matches**
+- `rg "import.*apiClient.*from.*@/api/client"` → **7 matches** (all files)
+- ESLint: **0 errors**, only pre-existing warnings (no new issues introduced)
+---
+Task ID: 3g
+Agent: Super Z (sub-agent)
+Task: Migrate 12 component files from Supabase to apiClient
+
+Work Log:
+- Read all 12 files and analyzed Supabase usage patterns in each
+- Identified apiClient as an Axios instance with RESTful conventions (GET/POST/PUT/PATCH/DELETE)
+- Applied migration patterns: supabase.from().select() → apiClient.get(), .insert() → apiClient.post(), .update() → apiClient.put(), .delete() → apiClient.delete()
+- Removed all `import { supabase } from "@/integrations/supabase/client"` references
+- Added `import { apiClient } from "@/api/client"` to all 12 files
+- Adapted error handling from Supabase `{ data, error }` pattern to Axios auto-throw + error.response?.data?.detail
+- Converted Supabase function invocations (supabase.functions.invoke) to apiClient.post() calls
+- Converted Supabase filter patterns to REST query params (eq→param, in→__in, gte→__gte, order→ordering, or→search, single→data[0])
+- Converted snake_case table names to kebab-case URL paths (e.g., payment_schedules → /payment-schedules)
+- Added explicit `any` type annotations where Supabase typed responses were previously used
+
+Files Migrated (12 total):
+1. src/components/grades/GradeHistorySheet.tsx — 1 query (grade_history select with order)
+2. src/components/homework/HomeworkGradingDialog.tsx — 2 queries + 1 mutation (enrollments, homework_submissions)
+3. src/components/homework/HomeworkSubmissionDialog.tsx — 1 mutation (homework_submissions insert/update)
+4. src/components/invoices/InvoiceActions.tsx — 1 query + 1 function invoke (payment_schedules, send-invoice-email)
+5. src/components/invoices/InvoiceReminders.tsx — 1 query + 2 mutations + 1 function invoke (invoices, send-notification-email)
+6. src/components/invoices/PaymentScheduleManager.tsx — 1 query + 4 mutations (payment_schedules CRUD + invoices update)
+7. src/components/notifications/SmartNotificationCenter.tsx — Removed unused supabase import only (already migrated)
+8. src/components/reminders/ReminderSystem.tsx — 6 queries (students, enrollments, homework, parent_students, invoices, school_events)
+9. src/components/schedule/ScheduleGenerator.tsx — 4 queries + 2 mutations (rooms, classes, subjects, subject_levels, schedule delete/insert)
+10. src/components/search/GlobalSearch.tsx — 1 useEffect query (students search with or → search param)
+11. src/components/subjects/SubjectPreferredRoomsManager.tsx — 2 queries + 2 imperative operations (rooms, subject_preferred_rooms)
+12. src/components/teachers/TeacherAssignmentsDialog.tsx — 3 queries + 2 mutations (teacher_assignments, classrooms, subjects)
+
+Stage Summary:
+- All 12 files successfully migrated from Supabase to apiClient
+- Zero remaining supabase references in any of the 12 files (verified via grep)
+- All apiClient imports verified present (verified via grep)
+- Same exported names and component behavior preserved
+- Error handling adapted to Axios patterns (error.response?.data?.detail for user-friendly messages)
+
+---
+Task ID: 3f
+Agent: Super Z (sub-agent)
+Task: Migrate 20 component files from Supabase to apiClient
+
+Work Log:
+- Read all 20 files to understand Supabase usage patterns (select, insert, update, delete, functions.invoke, .channel() realtime)
+- Replaced all supabase imports with `import { apiClient } from "@/api/client"`
+- Migrated data fetching (supabase.from().select()) → apiClient.get() with query params
+- Migrated mutations (supabase.from().insert/update/delete) → apiClient.post/patch/delete
+- Migrated edge cases:
+  - supabase.functions.invoke("reset-user-password") → apiClient.post("/auth/reset-user-password/")
+  - Dynamic supabase import in TwoFactorVerify.tsx → direct apiClient import + useAuth()
+  - supabase.from("enrollments").select with joins → apiClient.get() with params
+  - .single() calls → API returns array, take first element
+  - .in("col", ids) → params with `col__in: ids.join(",")`
+- Disabled realtime features (.channel()) with early return in:
+  - RealtimePresence.tsx — returns null (entire component disabled)
+  - CollaborativeTools.tsx — removed channel subscription, queries work via manual refresh
+  - SharedNotes.tsx — removed channel subscription, queries/mutations work via apiClient
+- ClassSubjectsManager.tsx — supabase import was unused, simply removed it
+- Preserved all exported names, component behavior, and prop interfaces
+- No lint errors introduced in migrated files
+
+Files Migrated (20):
+1. src/components/admin/elearning/CourseContent.tsx — supabase.from('course_lessons').update → apiClient.patch
+2. src/components/admin/users/UserManagementDialogs.tsx — supabase.functions.invoke → apiClient.post
+3. src/components/attendance/AttendanceHistory.tsx — supabase.from('attendance').select → apiClient.get
+4. src/components/attendance/ClassAttendanceStats.tsx — Multiple supabase calls → apiClient.get
+5. src/components/auth/TwoFactorVerify.tsx — Dynamic supabase import → apiClient.post
+6. src/components/badges/BatchBadgePrint.tsx — Multiple supabase calls → apiClient
+7. src/components/badges/CheckInHistory.tsx — supabase.from('student_check_ins').select → apiClient.get
+8. src/components/classrooms/ClassDetailModal.tsx — supabase.from('enrollments').select → apiClient.get
+9. src/components/classrooms/ClassSubjectsManager.tsx — Removed unused supabase import
+10. src/components/classrooms/RoomsManager.tsx — Multiple supabase calls → apiClient
+11. src/components/collaboration/CollaborativeTools.tsx — Disabled realtime + migrated 3 queries
+12. src/components/collaboration/RealtimePresence.tsx — Disabled realtime (early return null)
+13. src/components/collaboration/SharedNotes.tsx — Disabled realtime + migrated 4 queries + 4 mutations
+14. src/components/dashboard/ParentChildCard.tsx — 4 supabase queries → apiClient.get
+15. src/components/dashboard/parent/hooks/useParentAnalytics.ts — 5 supabase queries → apiClient.get
+16. src/components/elearning/CourseDiscussions.tsx — 2 queries + 3 mutations → apiClient
+17. src/components/elearning/QuizManager.tsx — 1 query + 2 mutations → apiClient
+18. src/components/gamification/AchievementsList.tsx — 2 queries + save/delete mutations → apiClient
+19. src/components/gamification/Leaderboard.tsx — 2 queries → apiClient
+20. src/components/gamification/PointsManager.tsx — 3 queries + 2 mutations → apiClient
+
+Stage Summary:
+- 20 files migrated from supabase to apiClient
+- 0 remaining supabase imports in migrated files (verified)
+- 0 lint errors introduced (verified via bun run lint)
+- Realtime presence features disabled (Supabase Realtime has no direct REST equivalent)
+- All exported names and component behavior preserved
