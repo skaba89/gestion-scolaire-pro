@@ -87,3 +87,23 @@ Stage Summary:
 - Zero new TypeScript errors introduced by our changes
 - PDF audit report generated at /home/z/my-project/download/SchoolFlow_Pro_Audit_Complet.pdf
 - Remaining preexisting TS errors: type exports (Student), ALUMNI role, test files (~147 non-test errors)
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Corriger toutes les erreurs console (404, 405, 422) et préparer audit complet
+
+Work Log:
+- Analysé les erreurs console: 9 erreurs identifiées (6x 404, 1x 405, 2x 422)
+- Découvert que 8 fichiers backend modifiés localement n'étaient pas poussés sur git/Render
+- Ajouté endpoint GET /tenants/INFOS/ dans tenants.py (corrige 422)
+- Rendu le schéma AI chat flexible: accepte 3 formats (message, messages[], query)
+- Confirmé les alias routers rooms, classrooms, schedule-slots dans aliases.py
+- Confirmé les endpoints audit-logs, parents POST dans les fichiers existants
+- Committed et poussé: commit ffabda2 sur main
+
+Stage Summary:
+- Commit ffabda2 poussé avec 10 fichiers modifiés (+381/-25 lignes)
+- Toutes les routes manquantes sont maintenant enregistrées dans router.py
+- AI chat endpoint accepte les formats useAIStream.ts et queries/ai.ts
+- GROQ_API_KEY: variable d'environnement à configurer sur Render pour activer l'IA
