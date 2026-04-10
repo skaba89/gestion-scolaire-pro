@@ -1,0 +1,26 @@
+-- Create parent_students table to link parents and students
+CREATE TABLE IF NOT EXISTS public.parent_students (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  parent_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  relationship VARCHAR(50) DEFAULT 'parent', -- parent, guardian, etc
+  is_primary BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(student_id, parent_id)
+);
+
+-- Create indexes
+CREATE INDEX idx_parent_students_student_id ON public.parent_students(student_id);
+CREATE INDEX idx_parent_students_parent_id ON public.parent_students(parent_id);
+
+-- Enable RLS
+ALTER TABLE public.parent_students ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies deferred to 99-add-remaining-auth-fks.sql
+
+-- Grant permissions
+GRANT SELECT ON public.parent_students TO anon, authenticated;
+GRANT INSERT ON public.parent_students TO authenticated;
+GRANT UPDATE ON public.parent_students TO authenticated;
+GRANT DELETE ON public.parent_students TO authenticated;

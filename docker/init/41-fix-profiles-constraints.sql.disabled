@@ -1,0 +1,28 @@
+-- Fix profiles table constraints that cause 400 errors
+-- Make sure tenant_id can be NULL and is not too restrictive
+
+ALTER TABLE IF EXISTS public.profiles DROP CONSTRAINT IF EXISTS profiles_tenant_id_fkey CASCADE;
+
+-- Make tenant_id nullable if it isn't already
+ALTER TABLE public.profiles 
+ALTER COLUMN tenant_id DROP NOT NULL;
+
+-- Re-add FK with proper cascade
+ALTER TABLE public.profiles
+ADD CONSTRAINT profiles_tenant_id_fkey 
+FOREIGN KEY (tenant_id) 
+REFERENCES public.tenants(id) 
+ON DELETE SET NULL
+DEFERRABLE INITIALLY DEFERRED;
+
+-- Ensure RLS policies are correct
+DROP POLICY IF EXISTS "allow_all_for_profiles" ON public.profiles;
+CREATE POLICY "allow_all_for_profiles" ON public.profiles
+FOR ALL USING (true)
+WITH CHECK (true);
+
+-- Grant permissions
+GRANT ALL ON public.profiles TO anon, authenticated, service_role, postgres;
+
+-- Refresh schema to ensure PostgREST recognizes changes
+NOTIFY pgrst, 'reload schema';

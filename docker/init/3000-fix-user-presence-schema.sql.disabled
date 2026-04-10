@@ -1,0 +1,109 @@
+-- Fix user_presence schema to match frontend expectations
+-- This resolves 404 errors and enables WebSocket connections
+
+-- Add missing columns
+ALTER TABLE public.user_presence 
+  ADD COLUMN IF NOT EXISTS is_typing BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS current_conversation_id UUID REFERENCES public.conversations(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+-- Transform status column to is_online boolean
+ALTER TABLE public.user_presence 
+  ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT false;
+
+-- Migrate existing data
+UPDATE public.user_presence 
+  SET is_online = (status = 'online')
+  WHERE status IS NOT NULL;
+
+-- Drop old status column
+ALTER TABLE public.user_presence 
+  DROP COLUMN IF EXISTS status CASCADE;
+
+-- Rename last_seen to last_seen_at for consistency
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'user_presence' 
+    AND column_name = 'last_seen'
+  ) THEN
+    ALTER TABLE public.user_presence 
+      RENAME COLUMN last_seen TO last_seen_at;
+  END IF;
+END $$;
+
+-- Update RLS policies for tenant isolation
+DROP POLICY IF EXISTS "Users can view all presence status" ON public.user_presence;
+DROP POLICY IF EXISTS "Users can insert their own presence" ON public.user_presence;
+DROP POLICY IF EXISTS "Users can update their own presence" ON public.user_presence;
+DROP POLICY IF EXISTS "Users can delete their own presence" ON public.user_presence;
+
+-- Recreate policies with tenant awareness
+-- Recreate policies with tenant awareness
+DO $$ 
+BEGIN 
+  DROP POLICY IF EXISTS "Users can view presence in their tenant" ON public.user_presence;
+  CREATE POLICY "Users can view presence in their tenant"
+  ON public.user_presence
+  FOR SELECT
+  TO authenticated
+  USING (
+    tenant_id IN (
+      SELECT tenant_id FROM public.user_roles WHERE user_id = auth.uid()
+    )
+  );
+
+  DROP POLICY IF EXISTS "Users can insert their own presence" ON public.user_presence;
+  CREATE POLICY "Users can insert their own presence"
+  ON public.user_presence
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    auth.uid() = user_id
+    AND tenant_id IN (
+      SELECT tenant_id FROM public.user_roles WHERE user_id = auth.uid()
+    )
+  );
+END $$;
+
+CREATE POLICY "Users can update their own presence"
+  ON public.user_presence
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own presence"
+  ON public.user_presence
+  FOR DELETE
+  TO authenticated
+  USING (auth.uid() = user_id);
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_user_presence_user_id 
+  ON public.user_presence(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_user_presence_tenant_online 
+  ON public.user_presence(tenant_id, is_online) 
+  WHERE is_online = true;
+
+CREATE INDEX IF NOT EXISTS idx_user_presence_conversation 
+  ON public.user_presence(current_conversation_id) 
+  WHERE current_conversation_id IS NOT NULL;
+
+-- Enable realtime for WebSocket subscriptions
+-- Enable realtime safely
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.user_presence;
+END
+$$;
+
+-- Grant permissions
+GRANT ALL ON public.user_presence TO authenticated;
+GRANT ALL ON public.user_presence TO service_role;

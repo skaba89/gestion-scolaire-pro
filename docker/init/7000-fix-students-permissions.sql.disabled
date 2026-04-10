@@ -1,0 +1,25 @@
+-- Fix permissions for students table
+BEGIN;
+
+-- Enable RLS
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+
+-- Grant permissions
+GRANT ALL ON public.students TO postgres;
+GRANT ALL ON public.students TO anon;
+GRANT ALL ON public.students TO authenticated;
+GRANT ALL ON public.students TO service_role;
+
+-- Drop existing policies to avoid conflicts
+DROP POLICY IF EXISTS "allow_all_students" ON public.students;
+DROP POLICY IF EXISTS "allow_all_for_students" ON public.students;
+DROP POLICY IF EXISTS "Enable read access for all users" ON public.students;
+DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.students;
+
+-- Create permissive policy
+CREATE POLICY "allow_all_students" ON public.students
+FOR ALL
+USING (true)
+WITH CHECK (true);
+
+COMMIT;

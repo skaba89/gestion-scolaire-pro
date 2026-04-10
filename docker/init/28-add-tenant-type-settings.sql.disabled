@@ -1,0 +1,4 @@
+-- Add additional missing columns to tenants table
+ALTER TABLE public.tenants 
+ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'school',
+ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}';

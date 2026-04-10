@@ -1,0 +1,67 @@
+-- Script pour attribuer un rôle TENANT_ADMIN à tous les utilisateurs sans rôle
+-- Cela corrige le problème de redirection après connexion
+
+-- 1. Identifier les utilisateurs sans rôle
+SELECT 'Utilisateurs sans rôle:' AS info;
+SELECT u.id, u.email, p.tenant_id
+FROM auth.users u
+LEFT JOIN public.user_roles ur ON u.id = ur.user_id
+LEFT JOIN public.profiles p ON u.id = p.id
+WHERE ur.role IS NULL;
+
+-- 2. Attribuer le rôle TENANT_ADMIN aux utilisateurs sans rôle
+-- (uniquement s'ils ont un tenant_id dans leur profil)
+INSERT INTO public.user_roles (user_id, tenant_id, role)
+SELECT u.id, p.tenant_id, 'TENANT_ADMIN'::text
+FROM auth.users u
+JOIN public.profiles p ON u.id = p.id
+LEFT JOIN public.user_roles ur ON u.id = ur.user_id
+WHERE ur.role IS NULL
+  AND p.tenant_id IS NOT NULL
+ON CONFLICT (user_id, tenant_id, role) DO NOTHING;
+
+-- 3. Pour les utilisateurs sans tenant_id, créer un tenant par défaut
+-- (si nécessaire)
+DO $$
+DECLARE
+    v_user_id UUID;
+    v_email TEXT;
+    v_tenant_id UUID;
+    v_default_tenant_id UUID;
+BEGIN
+    -- Récupérer le premier tenant existant comme tenant par défaut
+    SELECT id INTO v_default_tenant_id FROM public.tenants WHERE is_active = true LIMIT 1;
+    
+    IF v_default_tenant_id IS NULL THEN
+        RAISE NOTICE 'Aucun tenant actif trouvé. Création impossible.';
+        RETURN;
+    END IF;
+
+    -- Pour chaque utilisateur sans tenant_id
+    FOR v_user_id, v_email IN 
+        SELECT u.id, u.email
+        FROM auth.users u
+        JOIN public.profiles p ON u.id = p.id
+        WHERE p.tenant_id IS NULL
+    LOOP
+        RAISE NOTICE 'Attribution du tenant % à l''utilisateur %', v_default_tenant_id, v_email;
+        
+        -- Mettre à jour le profil avec le tenant par défaut
+        UPDATE public.profiles 
+        SET tenant_id = v_default_tenant_id 
+        WHERE id = v_user_id;
+        
+        -- Attribuer le rôle TENANT_ADMIN
+        INSERT INTO public.user_roles (user_id, tenant_id, role)
+        VALUES (v_user_id, v_default_tenant_id, 'TENANT_ADMIN')
+        ON CONFLICT (user_id, tenant_id, role) DO NOTHING;
+    END LOOP;
+END $$;
+
+-- 4. Vérifier le résultat
+SELECT 'Résultat final:' AS info;
+SELECT u.email, ur.role, t.name as tenant_name
+FROM auth.users u
+LEFT JOIN public.user_roles ur ON u.id = ur.user_id
+LEFT JOIN public.tenants t ON ur.tenant_id = t.id
+ORDER BY u.created_at DESC;

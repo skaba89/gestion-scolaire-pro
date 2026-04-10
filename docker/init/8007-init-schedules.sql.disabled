@@ -1,0 +1,36 @@
+-- Initialize rooms for "La Source" tenant
+WITH source_tenant AS (SELECT id FROM tenants WHERE slug = 'la-source')
+INSERT INTO public.rooms (tenant_id, name, capacity, type)
+SELECT 
+    source_tenant.id, 
+    r.name, 
+    r.capacity, 
+    r.type
+FROM source_tenant, (VALUES 
+    ('Salle A101', 35, 'classroom'),
+    ('Salle A102', 30, 'classroom'),
+    ('Salle B201', 40, 'classroom'),
+    ('Labo Sciences', 25, 'lab'),
+    ('Amphi Principal', 150, 'amphitheater')
+) AS r(name, capacity, type)
+WHERE NOT EXISTS (
+    SELECT 1 FROM rooms WHERE name = r.name AND tenant_id = source_tenant.id
+);
+
+-- Add some default schedule slots for testing if not present
+WITH source_tenant AS (SELECT id FROM tenants WHERE slug = 'la-source'),
+     first_class AS (SELECT id FROM classrooms WHERE tenant_id = (SELECT id FROM source_tenant) LIMIT 1),
+     first_subject AS (SELECT id FROM subjects WHERE tenant_id = (SELECT id FROM source_tenant) LIMIT 1)
+INSERT INTO public.schedule_slots (tenant_id, classroom_id, subject_id, day_of_week, start_time, end_time, room_name)
+SELECT 
+    source_tenant.id,
+    first_class.id,
+    first_subject.id,
+    1, -- Monday
+    '08:00:00',
+    '10:00:00',
+    'Salle B201'
+FROM source_tenant, first_class, first_subject
+WHERE first_class.id IS NOT NULL 
+  AND first_subject.id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM schedule_slots WHERE classroom_id = first_class.id);

@@ -1,0 +1,43 @@
+-- Add RLS policies for parent_students table to allow parents to see their linked children
+
+-- Allow parents to view their own parent_students links
+CREATE POLICY parent_students_select_own ON public.parent_students
+  FOR SELECT
+  USING (
+    parent_id = auth.uid()
+    OR 
+    -- Also allow if user is the student (students can see who their parents are)
+    student_id IN (
+      SELECT id FROM public.students WHERE user_id = auth.uid()
+    )
+  );
+
+-- Allow parents to insert their own parent_students links
+CREATE POLICY parent_students_insert_own ON public.parent_students
+  FOR INSERT
+  WITH CHECK (
+    -- Only allow authenticated users to insert
+    auth.uid() IS NOT NULL
+    AND
+    -- Only if they're inserting themselves as a parent
+    (parent_id = auth.uid() OR parent_id IN (
+      SELECT id FROM public.profiles WHERE id = auth.uid()
+    ))
+  );
+
+-- Allow parents to update their own parent_students links
+CREATE POLICY parent_students_update_own ON public.parent_students
+  FOR UPDATE
+  USING (parent_id = auth.uid())
+  WITH CHECK (parent_id = auth.uid());
+
+-- Allow deletion of own parent_students links
+CREATE POLICY parent_students_delete_own ON public.parent_students
+  FOR DELETE
+  USING (parent_id = auth.uid());
+
+-- Also allow service_role and authenticated users with proper permissions
+CREATE POLICY parent_students_all_authenticated ON public.parent_students
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);

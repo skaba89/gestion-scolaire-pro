@@ -1,0 +1,536 @@
+-- Créer les utilisateurs de test pour les tests E2E
+-- Ce script doit être exécuté APRÈS que le système soit en place
+
+-- ==========================================
+-- 1. CRÉER LES UTILISATEURS DANS auth.users
+-- ==========================================
+
+-- ADMIN TEST
+INSERT INTO auth.users (
+  id,
+  instance_id,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  last_sign_in_at,
+  is_super_admin,
+  confirmed_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  '00000000-0000-0000-0000-000000000000'::uuid,
+  'admin@test.local',
+  crypt('Password123!', gen_salt('bf')),
+  now(),
+  '{"provider": "email", "providers": ["email"]}',
+  '{}',
+  now(),
+  now(),
+  now(),
+  false,
+  now()
+) ON CONFLICT (email) DO NOTHING;
+
+-- TEACHER TEST
+INSERT INTO auth.users (
+  id,
+  instance_id,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  last_sign_in_at,
+  is_super_admin,
+  confirmed_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000002'::uuid,
+  '00000000-0000-0000-0000-000000000000'::uuid,
+  'teacher@test.local',
+  crypt('Password123!', gen_salt('bf')),
+  now(),
+  '{"provider": "email", "providers": ["email"]}',
+  '{}',
+  now(),
+  now(),
+  now(),
+  false,
+  now()
+) ON CONFLICT (email) DO NOTHING;
+
+-- PARENT TEST
+INSERT INTO auth.users (
+  id,
+  instance_id,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  last_sign_in_at,
+  is_super_admin,
+  confirmed_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000003'::uuid,
+  '00000000-0000-0000-0000-000000000000'::uuid,
+  'parent@test.local',
+  crypt('Password123!', gen_salt('bf')),
+  now(),
+  '{"provider": "email", "providers": ["email"]}',
+  '{}',
+  now(),
+  now(),
+  now(),
+  false,
+  now()
+) ON CONFLICT (email) DO NOTHING;
+
+-- STUDENT TEST
+INSERT INTO auth.users (
+  id,
+  instance_id,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  last_sign_in_at,
+  is_super_admin,
+  confirmed_at
+) VALUES (
+  '00000000-0000-0000-0000-000000000004'::uuid,
+  '00000000-0000-0000-0000-000000000000'::uuid,
+  'student@test.local',
+  crypt('Password123!', gen_salt('bf')),
+  now(),
+  '{"provider": "email", "providers": ["email"]}',
+  '{}',
+  now(),
+  now(),
+  now(),
+  false,
+  now()
+) ON CONFLICT (email) DO NOTHING;
+
+-- ==========================================
+-- 2. CRÉER UN TENANT DE TEST
+-- ==========================================
+
+INSERT INTO public.tenants (
+  id,
+  name,
+  slug,
+  address,
+  phone,
+  email,
+  website,
+  type,
+  is_active,
+  created_by,
+  created_at,
+  updated_at
+) VALUES (
+  '10000000-0000-0000-0000-000000000001'::uuid,
+  'Établissement Test',
+  'etablissement-test',
+  '123 Rue de Test, 75000 Paris',
+  '+33 1 23 45 67 89',
+  'contact@test-school.local',
+  'https://test-school.local',
+  'primary',
+  true,
+  '00000000-0000-0000-0000-000000000001'::uuid,
+  now(),
+  now()
+) ON CONFLICT (slug) DO NOTHING;
+
+-- ==========================================
+-- 3. CRÉER LES PROFILS DES UTILISATEURS
+-- ==========================================
+
+INSERT INTO public.profiles (
+  id,
+  tenant_id,
+  email,
+  first_name,
+  last_name,
+  phone,
+  is_active,
+  created_at,
+  updated_at
+) VALUES
+  ('00000000-0000-0000-0000-000000000001'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'admin@test.local', 'Admin', 'Test', '+33 1 11 11 11 11', true, now(), now()),
+  ('00000000-0000-0000-0000-000000000002'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'teacher@test.local', 'Jean', 'Dupont', '+33 1 22 22 22 22', true, now(), now()),
+  ('00000000-0000-0000-0000-000000000003'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'parent@test.local', 'Marie', 'Dupont', '+33 1 33 33 33 33', true, now(), now()),
+  ('00000000-0000-0000-0000-000000000004'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'student@test.local', 'Pierre', 'Dupont', '+33 1 44 44 44 44', true, now(), now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 4. ASSIGNER LES RÔLES
+-- ==========================================
+
+INSERT INTO public.user_roles (
+  user_id,
+  tenant_id,
+  role,
+  assigned_at
+) VALUES
+  ('00000000-0000-0000-0000-000000000001'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'TENANT_ADMIN', now()),
+  ('00000000-0000-0000-0000-000000000002'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'TEACHER', now()),
+  ('00000000-0000-0000-0000-000000000003'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'PARENT', now()),
+  ('00000000-0000-0000-0000-000000000004'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'STUDENT', now())
+ON CONFLICT (user_id, tenant_id, role) DO NOTHING;
+
+-- ==========================================
+-- 5. CRÉER LES NIVEAUX
+-- ==========================================
+
+INSERT INTO public.levels (
+  id,
+  tenant_id,
+  name,
+  order_number,
+  created_at
+) VALUES
+  ('20000000-0000-0000-0000-000000000001'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Sixième', 1, now()),
+  ('20000000-0000-0000-0000-000000000002'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Cinquième', 2, now()),
+  ('20000000-0000-0000-0000-000000000003'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Quatrième', 3, now()),
+  ('20000000-0000-0000-0000-000000000004'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Troisième', 4, now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 6. CRÉER LES CLASSES
+-- ==========================================
+
+INSERT INTO public.classrooms (
+  id,
+  tenant_id,
+  name,
+  level_id,
+  teacher_id,
+  max_capacity,
+  created_at
+) VALUES
+  ('30000000-0000-0000-0000-000000000001'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '6ème A', '20000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000002'::uuid, 30, now()),
+  ('30000000-0000-0000-0000-000000000002'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '6ème B', '20000000-0000-0000-0000-000000000001'::uuid, '00000000-0000-0000-0000-000000000002'::uuid, 28, now()),
+  ('30000000-0000-0000-0000-000000000003'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '5ème A', '20000000-0000-0000-0000-000000000002'::uuid, '00000000-0000-0000-0000-000000000002'::uuid, 32, now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 7. CRÉER LES MATIÈRES
+-- ==========================================
+
+INSERT INTO public.subjects (
+  id,
+  tenant_id,
+  name,
+  code,
+  description,
+  created_at
+) VALUES
+  ('40000000-0000-0000-0000-000000000001'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Mathématiques', 'MATH', 'Algèbre, Géométrie, Statistiques', now()),
+  ('40000000-0000-0000-0000-000000000002'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Français', 'FR', 'Littérature, Grammaire, Orthographe', now()),
+  ('40000000-0000-0000-0000-000000000003'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Anglais', 'EN', 'Langue vivante 1', now()),
+  ('40000000-0000-0000-0000-000000000004'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Histoire-Géographie', 'HG', 'Histoire et Géographie', now()),
+  ('40000000-0000-0000-0000-000000000005'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'Sciences Physiques', 'SP', 'Physique et Chimie', now()),
+  ('40000000-0000-0000-0000-000000000006'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, 'SVT', 'SVT', 'Sciences de la Vie et de la Terre', now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 8. CRÉER LES ANNÉES ACADÉMIQUES
+-- ==========================================
+
+INSERT INTO public.academic_years (
+  id,
+  tenant_id,
+  name,
+  start_date,
+  end_date,
+  is_current,
+  created_at
+) VALUES
+  ('50000000-0000-0000-0000-000000000001'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '2024-2025', '2024-09-01'::date, '2025-06-30'::date, true, now()),
+  ('50000000-0000-0000-0000-000000000002'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '2023-2024', '2023-09-01'::date, '2024-06-30'::date, false, now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 9. CRÉER LES TRIMESTRES
+-- ==========================================
+
+INSERT INTO public.terms (
+  id,
+  tenant_id,
+  academic_year_id,
+  name,
+  start_date,
+  end_date,
+  order_number,
+  created_at
+) VALUES
+  ('60000000-0000-0000-0000-000000000001'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '50000000-0000-0000-0000-000000000001'::uuid, 'Trimestre 1', '2024-09-01'::date, '2024-12-20'::date, 1, now()),
+  ('60000000-0000-0000-0000-000000000002'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '50000000-0000-0000-0000-000000000001'::uuid, 'Trimestre 2', '2025-01-06'::date, '2025-04-04'::date, 2, now()),
+  ('60000000-0000-0000-0000-000000000003'::uuid, '10000000-0000-0000-0000-000000000001'::uuid, '50000000-0000-0000-0000-000000000001'::uuid, 'Trimestre 3', '2025-04-07'::date, '2025-06-30'::date, 3, now())
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 10. CRÉER LES ÉLÈVES DE TEST
+-- ==========================================
+
+INSERT INTO public.students (
+  id,
+  tenant_id,
+  user_id,
+  first_name,
+  last_name,
+  email,
+  date_of_birth,
+  gender,
+  nationality,
+  address,
+  postal_code,
+  city,
+  state,
+  country,
+  registration_number,
+  admission_date,
+  level_id,
+  classroom_id,
+  academic_year_id,
+  is_minor,
+  guardian_type,
+  guardian_first_name,
+  guardian_last_name,
+  guardian_phone,
+  guardian_email,
+  created_at,
+  updated_at
+) VALUES
+  (
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000004'::uuid,
+    'Pierre',
+    'Dupont',
+    'pierre.dupont@test.local',
+    '2010-05-15'::date,
+    'MALE',
+    'Française',
+    '123 Rue de Test',
+    '75000',
+    'Paris',
+    'Île-de-France',
+    'France',
+    'REG-2024-001',
+    '2024-09-01'::date,
+    '20000000-0000-0000-0000-000000000001'::uuid,
+    '30000000-0000-0000-0000-000000000001'::uuid,
+    '50000000-0000-0000-0000-000000000001'::uuid,
+    true,
+    'PARENT',
+    'Marie',
+    'Dupont',
+    '+33 1 33 33 33 33',
+    'parent@test.local',
+    now(),
+    now()
+  ),
+  (
+    '70000000-0000-0000-0000-000000000002'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    NULL,
+    'Jean',
+    'Martin',
+    'jean.martin@test.local',
+    '2010-03-20'::date,
+    'MALE',
+    'Française',
+    '456 Avenue de Test',
+    '75000',
+    'Paris',
+    'Île-de-France',
+    'France',
+    'REG-2024-002',
+    '2024-09-01'::date,
+    '20000000-0000-0000-0000-000000000001'::uuid,
+    '30000000-0000-0000-0000-000000000001'::uuid,
+    '50000000-0000-0000-0000-000000000001'::uuid,
+    true,
+    'PARENT',
+    'Luc',
+    'Martin',
+    '+33 1 55 55 55 55',
+    'luc.martin@test.local',
+    now(),
+    now()
+  ),
+  (
+    '70000000-0000-0000-0000-000000000003'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    NULL,
+    'Sophie',
+    'Bernard',
+    'sophie.bernard@test.local',
+    '2010-07-10'::date,
+    'FEMALE',
+    'Française',
+    '789 Boulevard de Test',
+    '75000',
+    'Paris',
+    'Île-de-France',
+    'France',
+    'REG-2024-003',
+    '2024-09-01'::date,
+    '20000000-0000-0000-0000-000000000001'::uuid,
+    '30000000-0000-0000-0000-000000000002'::uuid,
+    '50000000-0000-0000-0000-000000000001'::uuid,
+    true,
+    'PARENT',
+    'Anne',
+    'Bernard',
+    '+33 1 66 66 66 66',
+    'anne.bernard@test.local',
+    now(),
+    now()
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 11. CRÉER LES LIENS PARENT-ÉLÈVE
+-- ==========================================
+
+INSERT INTO public.parent_student_links (
+  id,
+  tenant_id,
+  parent_id,
+  student_id,
+  relationship_type,
+  is_primary_contact,
+  created_at,
+  updated_at
+) VALUES
+  (
+    '80000000-0000-0000-0000-000000000001'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    '00000000-0000-0000-0000-000000000003'::uuid,
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    'PARENT',
+    true,
+    now(),
+    now()
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 12. CRÉER QUELQUES NOTES DE TEST
+-- ==========================================
+
+INSERT INTO public.grades (
+  id,
+  tenant_id,
+  student_id,
+  subject_id,
+  academic_year_id,
+  term_id,
+  mark,
+  max_mark,
+  assessment_type,
+  assessment_date,
+  description,
+  created_by,
+  created_at,
+  updated_at
+) VALUES
+  (
+    '90000000-0000-0000-0000-000000000001'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    '40000000-0000-0000-0000-000000000001'::uuid,
+    '50000000-0000-0000-0000-000000000001'::uuid,
+    '60000000-0000-0000-0000-000000000001'::uuid,
+    18,
+    20,
+    'EXAM',
+    now()::date,
+    'Examen Trimestre 1 - Algèbre',
+    '00000000-0000-0000-0000-000000000002'::uuid,
+    now(),
+    now()
+  ),
+  (
+    '90000000-0000-0000-0000-000000000002'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    '40000000-0000-0000-0000-000000000002'::uuid,
+    '50000000-0000-0000-0000-000000000001'::uuid,
+    '60000000-0000-0000-0000-000000000001'::uuid,
+    16,
+    20,
+    'HOMEWORK',
+    now()::date,
+    'Devoir Maison - Littérature',
+    '00000000-0000-0000-0000-000000000002'::uuid,
+    now(),
+    now()
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- 13. CRÉER DES PRÉSENCES DE TEST
+-- ==========================================
+
+INSERT INTO public.attendance (
+  id,
+  tenant_id,
+  student_id,
+  date,
+  status,
+  marked_by,
+  created_at
+) VALUES
+  (
+    'a0000000-0000-0000-0000-000000000001'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    now()::date,
+    'PRESENT',
+    '00000000-0000-0000-0000-000000000002'::uuid,
+    now()
+  ),
+  (
+    'a0000000-0000-0000-0000-000000000002'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    (now() - interval '1 day')::date,
+    'PRESENT',
+    '00000000-0000-0000-0000-000000000002'::uuid,
+    now()
+  ),
+  (
+    'a0000000-0000-0000-0000-000000000003'::uuid,
+    '10000000-0000-0000-0000-000000000001'::uuid,
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    (now() - interval '2 days')::date,
+    'LATE',
+    '00000000-0000-0000-0000-000000000002'::uuid,
+    now()
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- Fin du script de test
+-- ==========================================
+
+SELECT 
+  'Test data créées avec succès!' as message,
+  COUNT(*) as profiles_count
+FROM public.profiles
+WHERE email LIKE '%@test.local';

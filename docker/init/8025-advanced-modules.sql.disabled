@@ -1,0 +1,89 @@
+-- Phase 5: Advanced Modules (LMD, Discipline, Attendance 2.0)
+
+-- 1. University Structure (LMD)
+CREATE TABLE IF NOT EXISTS public.course_units (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    program_id UUID REFERENCES public.programs(id) ON DELETE SET NULL,
+    code VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    credits NUMERIC DEFAULT 0, -- ECTS
+    is_optional BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(tenant_id, code)
+);
+
+-- Link existing courses to UE (optionally)
+ALTER TABLE public.courses ADD COLUMN IF NOT EXISTS course_unit_id UUID REFERENCES public.course_units(id) ON DELETE SET NULL;
+
+-- 2. Discipline Module (SaaS-Sérieux)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'discipline_severity') THEN
+        CREATE TYPE public.discipline_severity AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'discipline_status') THEN
+        CREATE TYPE public.discipline_status AS ENUM ('PENDING', 'INVESTIGATING', 'SANCTIONNED', 'DISMISSED', 'APPEALED');
+    END IF;
+END $$;
+
+-- Table already exists in some forms (incidents), let's enhance or create a robust one
+CREATE TABLE IF NOT EXISTS public.discipline_cases (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    student_id UUID REFERENCES public.students(id) ON DELETE CASCADE,
+    reported_by UUID REFERENCES auth.users(id),
+    incident_date TIMESTAMPTZ DEFAULT now(),
+    type VARCHAR NOT NULL, -- 'BULLYING', 'CHEATING', 'LATE', etc.
+    description TEXT,
+    severity public.discipline_severity DEFAULT 'LOW',
+    status public.discipline_status DEFAULT 'PENDING',
+    sanction_details TEXT,
+    evidence_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 3. Attendance 2.0 (Justification Workflow)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'attendance_status') THEN
+        -- Standardize: PRESENT, LATE, ABSENT_UNJUSTIFIED, ABSENT_JUSTIFIED, EXCUSED
+        CREATE TYPE public.attendance_status AS ENUM ('PRESENT', 'LATE', 'ABSENT', 'ABSENT_JUSTIFIED', 'EXCUSED');
+    END IF;
+END $$;
+
+-- Enhance existing attendance table
+ALTER TABLE public.attendance 
+ADD COLUMN IF NOT EXISTS justification_text TEXT,
+ADD COLUMN IF NOT EXISTS justification_url TEXT,
+ADD COLUMN IF NOT EXISTS validated_by UUID REFERENCES auth.users(id),
+ADD COLUMN IF NOT EXISTS validated_at TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS internal_notes TEXT;
+
+-- Business Rule: Justification deadline (trigger)
+CREATE OR REPLACE FUNCTION public.check_attendance_justification_deadline()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_deadline INTEGER;
+BEGIN
+    -- Get deadline from school settings
+    SELECT justification_deadline_days INTO v_deadline FROM public.school_settings WHERE tenant_id = NEW.tenant_id;
+    v_deadline := COALESCE(v_deadline, 7); -- Default 7 days
+    
+    IF OLD.status = 'ABSENT' AND NEW.status = 'ABSENT_JUSTIFIED' THEN
+        IF (now() - OLD.date) > (v_deadline * interval '1 day') THEN
+            RAISE NOTICE 'Justification tardive (hors délai de % jours)', v_deadline;
+            -- We could block it or just flag it. Let's flag it in internal_notes.
+            NEW.internal_notes := COALESCE(NEW.internal_notes, '') || ' [Justification tardive]';
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_attendance_justification_deadline ON public.attendance;
+CREATE TRIGGER tr_attendance_justification_deadline
+BEFORE UPDATE OF status ON public.attendance
+FOR EACH ROW EXECUTE FUNCTION public.check_attendance_justification_deadline();

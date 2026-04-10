@@ -1,0 +1,91 @@
+# =============================================================================
+# SchoolFlow Pro — Render Blueprint (render.yaml)
+# =============================================================================
+# Deploy to Render with:  render blueprint apply
+# Documentation: https://render.com/docs/blueprint-spec
+# =============================================================================
+#
+# DEPLOIEMENT MANUEL (recommande pour la premiere fois) :
+#
+#   1. Base de donnees PostgreSQL :
+#      - Dashboard Render → New → PostgreSQL
+#      - Database Name: schoolflow
+#      - Region: Frankfurt (EU)
+#      - Plan: Free (ou Starter $7/mo)
+#      - Notez l'External Database URL fournie par Render
+#
+#   2. Backend API (FastAPI) :
+#      - Dashboard Render → New → Web Service
+#      - Connectez votre repo GitHub (skaba89/gestion-scolaire-pro)
+#      - Root Directory: backend
+#      - Build Command:  pip install -r requirements.txt
+#      - Start Command:  uvicorn app.main:app --host 0.0.0.0 --port $PORT
+#      - Plan: Free (ou Starter $7/mo)
+#      - Environment Variables (voir ci-dessous)
+#
+#   3. Frontend (deja deploye — mettre a jour VITE_API_URL) :
+#      - Dans le service frontend existant sur Render
+#      - Environment → VITE_API_URL = https://schoolflow-api-xxxx.onrender.com
+#      - Ou editez dist/config.js dans le Shell Render
+#
+# =============================================================================
+
+databases:
+  # ─── PostgreSQL (Render Managed) ─────────────────────────────────────────
+  # Utilise le PostgreSQL gere par Render (plus simple et plus fiable).
+  # Plan Free = 90 jours, Starter = $7/mo (persistant).
+  - name: schoolflow-db
+    databaseName: schoolflow
+    region: frankfurt
+    plan: starter
+
+services:
+  # ─── Backend API (FastAPI) ───────────────────────────────────────────────
+  - type: web
+    name: schoolflow-api
+    runtime: python
+    region: frankfurt
+    plan: free                # Utiliser "starter" ($7/mo) pour production
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: ./backend
+    envVars:
+      # --- Database (auto-linked par Render) ---
+      - key: DATABASE_URL
+        fromDatabase:
+          name: schoolflow-db
+          property: connectionString
+      - key: DATABASE_URL_ASYNC
+        fromDatabase:
+          name: schoolflow-db
+          property: connectionString
+      - key: DATABASE_URL_SYNC
+        fromDatabase:
+          name: schoolflow-db
+          property: connectionString
+
+      # --- Application ---
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: PORT
+        value: "8000"
+
+      # --- CORS (IMPORTANT: ajoutez l'URL de votre frontend) ---
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
+      # Apres le 1er deploiement, mettez la valeur:
+      #   https://gestion-scolaire-pro.onrender.com
+
+      # --- Redis (optionnel — le backend fonctionne sans) ---
+      - key: REDIS_URL
+        sync: false
+
+      # --- AI (optionnel) ---
+      - key: GROQ_API_KEY
+        sync: false

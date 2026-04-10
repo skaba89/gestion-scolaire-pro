@@ -1,0 +1,32 @@
+-- Simplified Final Seed
+BEGIN;
+
+DO $$
+DECLARE
+    v_tenant_id UUID;
+BEGIN
+    SELECT id INTO v_tenant_id FROM public.tenants LIMIT 1;
+    
+    IF v_tenant_id IS NOT NULL THEN
+        -- 1. Campus (Delete existing to be sure and recreate one)
+        DELETE FROM public.campuses WHERE tenant_id = v_tenant_id;
+        INSERT INTO public.campuses (id, name, address, is_main, tenant_id)
+        VALUES (gen_random_uuid(), 'Campus Principal', 'Adresse Principale', true, v_tenant_id);
+
+        -- 2. Academic Year
+        -- Deactivate others
+        UPDATE public.academic_years SET is_current = false WHERE tenant_id = v_tenant_id;
+        -- Create or update one
+        IF EXISTS (SELECT 1 FROM public.academic_years WHERE name = '2025-2026' AND tenant_id = v_tenant_id) THEN
+            UPDATE public.academic_years SET is_current = true WHERE name = '2025-2026' AND tenant_id = v_tenant_id;
+        ELSE
+            INSERT INTO public.academic_years (id, name, start_date, end_date, is_current, tenant_id)
+            VALUES (gen_random_uuid(), '2025-2026', '2025-09-01', '2026-06-30', true, v_tenant_id);
+        END IF;
+        
+        -- 3. Update profiles
+        UPDATE public.profiles SET tenant_id = v_tenant_id WHERE tenant_id IS NULL;
+    END IF;
+END $$;
+
+COMMIT;

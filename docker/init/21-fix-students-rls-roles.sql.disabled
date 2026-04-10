@@ -1,0 +1,38 @@
+-- Fix RLS Policies for students table - Apply to all roles
+-- These policies will be updated in file 99-add-remaining-auth-fks.sql after auth schema is initialized
+-- For now, just enable RLS and create a permissive policy
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "View students" ON public.students;
+DROP POLICY IF EXISTS "Create students" ON public.students;
+DROP POLICY IF EXISTS "Update students" ON public.students;
+DROP POLICY IF EXISTS "Delete students" ON public.students;
+
+-- New policy: Allow SELECT for all users accessing active tenants
+CREATE POLICY "View students" ON public.students
+  FOR SELECT
+  USING (
+    tenant_id IN (SELECT id FROM public.tenants WHERE is_active = true)
+  );
+
+-- New policy: Allow INSERT for all authenticated users with tenant check
+CREATE POLICY "Create students" ON public.students
+  FOR INSERT
+  WITH CHECK (
+    tenant_id IN (SELECT id FROM public.tenants WHERE is_active = true)
+  );
+
+-- New policy: Allow UPDATE for all authenticated users with tenant check
+CREATE POLICY "Update students" ON public.students
+  FOR UPDATE
+  USING (
+    tenant_id IN (SELECT id FROM public.tenants WHERE is_active = true)
+  )
+  WITH CHECK (
+    tenant_id IN (SELECT id FROM public.tenants WHERE is_active = true)
+  );
+
+-- New policy: Allow DELETE (will be restricted in 99-add-remaining-auth-fks.sql)
+CREATE POLICY "Delete students" ON public.students
+  FOR DELETE
+  USING (true);

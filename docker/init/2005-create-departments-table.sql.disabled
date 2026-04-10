@@ -1,0 +1,27 @@
+-- Create departments table
+CREATE TABLE IF NOT EXISTS public.departments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    code VARCHAR(50), -- For matricule generation (e.g., INFO for Informatique)
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Add index on tenant_id
+CREATE INDEX IF NOT EXISTS idx_departments_tenant_id ON public.departments(tenant_id);
+
+-- Enable RLS
+ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
+
+-- Add RLS policies
+DROP POLICY IF EXISTS "allow_all_departments" ON public.departments;
+CREATE POLICY "allow_all_departments" ON public.departments FOR ALL USING (true) WITH CHECK (true);
+
+-- Grant permissions
+GRANT ALL ON public.departments TO anon, authenticated, service_role;
+
+-- Add department_id to students if not exists
+ALTER TABLE public.students 
+ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES public.departments(id) ON DELETE SET NULL;

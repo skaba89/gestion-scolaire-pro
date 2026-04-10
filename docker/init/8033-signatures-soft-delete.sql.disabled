@@ -1,0 +1,7 @@
+-- Phase 8 Revision 2: Add deleted_at for Soft Delete compliance
+
+ALTER TABLE public.document_signatories 
+ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- Re-run test cleanup for a fresh start
+DELETE FROM public.electronic_documents WHERE title = 'Test Doc';

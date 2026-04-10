@@ -1,0 +1,30 @@
+FROM node:20-slim AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY . .
+
+ARG VITE_API_URL=/api-proxy
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+RUN npm run build
+
+FROM nginx:alpine
+RUN apk add --no-cache gettext
+COPY docker/nginx.render.conf.template /etc/nginx/templates/default.conf.template
+COPY docker/render-frontend-entrypoint.sh /usr/local/bin/render-frontend-entrypoint.sh
+RUN chmod +x /usr/local/bin/render-frontend-entrypoint.sh
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Ensure proper ownership for nginx user
+RUN chown -R nginx:nginx /usr/share/nginx/html && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid
+
+EXPOSE 10000
+CMD ["/usr/local/bin/render-frontend-entrypoint.sh"]

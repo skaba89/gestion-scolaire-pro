@@ -1,0 +1,18 @@
+-- Add missing RPC functions
+-- This file is kept minimal to avoid policy conflicts
+
+-- Create the is_account_locked RPC function
+-- This function is called by the auth system to check if an account is locked
+-- The function takes an email parameter (p_email) as expected by the frontend
+CREATE OR REPLACE FUNCTION public.is_account_locked(p_email VARCHAR)
+RETURNS BOOLEAN AS $$
+BEGIN
+  -- For now, accounts are never locked
+  -- In production, you would check a locked_until timestamp or similar
+  RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant permission to authenticated users to call this function
+GRANT EXECUTE ON FUNCTION public.is_account_locked(VARCHAR) TO authenticated, anon, service_role;
+

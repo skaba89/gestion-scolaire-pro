@@ -1,0 +1,22 @@
+-- These columns are now created directly in 05-create-app-schema.sql
+-- This file ensures backward compatibility if migration is run against existing databases
+ALTER TABLE public.tenants
+ADD COLUMN IF NOT EXISTS type VARCHAR(50),
+ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+ADD COLUMN IF NOT EXISTS phone VARCHAR(20),
+ADD COLUMN IF NOT EXISTS address TEXT,
+ADD COLUMN IF NOT EXISTS website VARCHAR(255),
+ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+-- Add tenant_id to all tables that need it (if not already present)
+-- This ensures proper tenant isolation
+
+-- Update existing tenants to have is_active = true
+UPDATE public.tenants SET is_active = true WHERE is_active IS NULL;
+
+-- Add tenant_id to tables that reference tenants but might be missing the foreign key
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE public.academic_years ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE public.campuses ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE public.levels ADD COLUMN IF NOT EXISTS tenant_id UUID;
+ALTER TABLE public.subjects ADD COLUMN IF NOT EXISTS tenant_id UUID;

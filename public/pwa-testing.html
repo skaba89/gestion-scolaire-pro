@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#3b82f6">
+    <title>PHASE 3C: PWA Testing - SchoolFlow Pro</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+        }
+        
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #667eea;
+        }
+        
+        .test-result {
+            background: #f8fafc;
+            border-left: 4px solid #e2e8f0;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        
+        .test-result.success {
+            background: #ecfdf5;
+            border-left-color: #10b981;
+            color: #065f46;
+        }
+        
+        .test-result.warning {
+            background: #fffbeb;
+            border-left-color: #f59e0b;
+            color: #92400e;
+        }
+        
+        .test-result.error {
+            background: #fef2f2;
+            border-left-color: #ef4444;
+            color: #7f1d1d;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        .status-badge.ready {
+            background: #ecfdf5;
+            color: #065f46;
+        }
+        
+        .status-badge.testing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .metric-card .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin: 8px 0;
+        }
+        
+        .metric-card .label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .footer {
+            background: #f8fafc;
+            padding: 20px 30px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        #console-output {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.5;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 PHASE 3C: PWA Testing</h1>
+            <p>Validation complète de l'application Progressive Web App - SchoolFlow Pro</p>
+        </div>
+        
+        <div class="content">
+            <!-- Installation Section -->
+            <div class="test-section">
+                <div class="test-title">📱 Installation PWA</div>
+                <button class="btn-primary" id="install-btn">Installer l'application</button>
+                <span class="status-badge ready" id="install-status">Prêt pour l'installation</span>
+            </div>
+            
+            <!-- Tests Section -->
+            <div class="test-section">
+                <div class="test-title">🧪 Tests Automatiques</div>
+                <button class="btn-primary" id="run-tests-btn">Lancer tous les tests</button>
+                <div id="tests-output"></div>
+            </div>
+            
+            <!-- Metrics Section -->
+            <div class="test-section">
+                <div class="test-title">📊 Métriques de Performance</div>
+                <div class="metrics">
+                    <div class="metric-card">
+                        <div class="label">First Paint</div>
+                        <div class="value" id="metric-fp">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">First Contentful Paint</div>
+                        <div class="value" id="metric-fcp">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">Service Workers</div>
+                        <div class="value" id="metric-sw">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="label">Cache Size</div>
+                        <div class="value" id="metric-cache">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Manual Tests Section -->
+            <div class="test-section">
+                <div class="test-title">✅ Tests Manuels</div>
+                <div class="test-result warning">
+                    <strong>Mode Hors Ligne:</strong><br>
+                    1. Appuyer sur F12 pour ouvrir DevTools<br>
+                    2. Aller à "Application" > "Service Workers"<br>
+                    3. Cocher "Offline"<br>
+                    4. Recharger la page (F5)<br>
+                    5. Vérifier que l'app fonctionne
+                </div>
+            </div>
+            
+            <!-- Console Output -->
+            <div class="test-section">
+                <div class="test-title">📝 Journaux de Test</div>
+                <div id="console-output"></div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="button-group">
+                <button class="btn-primary" id="test-offline-btn">Tester Mode Hors Ligne</button>
+                <button class="btn-primary" id="clear-cache-btn">Vider le Cache</button>
+                <button class="btn-secondary" id="export-btn">Exporter Rapport</button>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <strong>PHASE 3C Status:</strong> PWA Testing in Progress | 
+            <strong>Date:</strong> January 27, 2026 | 
+            <strong>Environment:</strong> Development (localhost:8080)
+        </div>
+    </div>
+    
+    <script>
+        // Capture console logs
+        const consoleOutput = document.getElementById('console-output');
+        const originalLog = console.log;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const line = args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ');
+            const timestamp = new Date().toLocaleTimeString('fr-FR');
+            consoleOutput.innerHTML += `<div>[${timestamp}] ${line}</div>`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        };
+        
+        // Install PWA Handler
+        document.getElementById('install-btn').addEventListener('click', async () => {
+            if (window.deferredPrompt) {
+                window.deferredPrompt.prompt();
+                const { outcome } = await window.deferredPrompt.userChoice;
+                console.log(`✅ Installation: ${outcome === 'accepted' ? 'Acceptée' : 'Refusée'}`);
+            } else {
+                console.log('ℹ️ Installation: Pas de prompt disponible (testez sur un vrai appareil)');
+            }
+        });
+        
+        // Run all tests
+        document.getElementById('run-tests-btn').addEventListener('click', () => {
+            console.log('\n🧪 PHASE 3C: Lancement des tests PWA...\n');
+            runAllTests();
+        });
+        
+        // Run all tests function
+        async function runAllTests() {
+            // Test 1: Manifest
+            console.log('📋 TEST 1: Manifest PWA');
+            try {
+                const manifest = await fetch('/manifest.json').then(r => r.json());
+                console.log(`✅ Manifest trouvé: ${manifest.name}`);
+            } catch (e) {
+                console.log(`❌ Erreur Manifest: ${e.message}`);
+            }
+            
+            // Test 2: Service Worker
+            console.log('\n📋 TEST 2: Service Worker');
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                console.log(`✅ Service Workers: ${regs.length} enregistré(s)`);
+            }
+            
+            // Test 3: Cache
+            console.log('\n📋 TEST 3: Cache Storage');
+            if ('caches' in window) {
+                const names = await caches.keys();
+                console.log(`✅ Caches trouvés: ${names.length}`);
+            }
+            
+            // Test 4: IndexedDB
+            console.log('\n📋 TEST 4: IndexedDB');
+            if ('indexedDB' in window) {
+                const dbs = await indexedDB.databases();
+                console.log(`✅ IndexedDB disponible (${dbs.length} DB)`);
+            }
+            
+            console.log('\n✅ Tous les tests complétés!');
+        }
+        
+        // Clear cache
+        document.getElementById('clear-cache-btn').addEventListener('click', async () => {
+            const cacheNames = await caches.keys();
+            for (const name of cacheNames) {
+                await caches.delete(name);
+                console.log(`🗑️  Cache supprimé: ${name}`);
+            }
+            console.log('✅ Cache complètement vide');
+        });
+        
+        // Export report
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const report = consoleOutput.innerText;
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pwa-test-${new Date().toISOString()}.txt`;
+            a.click();
+            console.log('📄 Rapport exporté');
+        });
+        
+        // Load metrics on page load
+        window.addEventListener('load', () => {
+            // Get FCP
+            if ('PerformanceObserver' in window) {
+                const observer = new PerformanceObserver((list) => {
+                    for (const entry of list.getEntries()) {
+                        if (entry.name === 'first-contentful-paint') {
+                            document.getElementById('metric-fcp').textContent = Math.round(entry.startTime) + 'ms';
+                        }
+                    }
+                });
+                observer.observe({ entryTypes: ['paint'] });
+            }
+            
+            // Count service workers
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(regs => {
+                    document.getElementById('metric-sw').textContent = regs.length;
+                });
+            }
+            
+            console.log('🚀 PHASE 3C PWA Testing Interface - Prêt');
+        });
+        
+        // Auto-run tests on page load
+        setTimeout(() => {
+            console.log('\n📊 Auto-running tests...\n');
+            runAllTests();
+        }, 1000);
+    </script>
+</body>
+</html>

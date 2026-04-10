@@ -1,0 +1,15 @@
+[Unit]
+Description=SchoolFlow Pro Database Backup
+After=postgresql.service docker.service
+
+[Service]
+Type=oneshot
+User=postgres
+# Ensure this path matches the actual installation
+EnvironmentFile=/etc/schoolflow/backup.env
+ExecStart=/bin/bash /opt/schoolflow-pro/scripts/backup-database.sh
+StandardOutput=append:/var/log/schoolflow-backup.log
+StandardError=append:/var/log/schoolflow-backup.log
+
+[Install]
+WantedBy=multi-user.target

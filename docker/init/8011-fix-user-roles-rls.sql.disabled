@@ -1,0 +1,65 @@
+-- Fix user_roles Infinite Recursion
+DROP POLICY IF EXISTS "Users can view roles in their tenant" ON public.user_roles;
+DROP POLICY IF EXISTS "Admins or delegated staff can manage roles" ON public.user_roles;
+DROP POLICY IF EXISTS "allow_all_for_user_roles" ON public.user_roles;
+
+-- 1. Everyone can view their OWN roles (No recursion)
+CREATE POLICY "Users can view their own roles" ON public.user_roles
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+-- 2. Everyone can view roles of others IN the same tenant
+-- (Join on profiles instead of user_roles to avoid recursion on the same table)
+CREATE POLICY "Users can view tenant roles" ON public.user_roles
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.id = auth.uid()
+            AND p.tenant_id = user_roles.tenant_id
+        )
+    );
+
+-- 3. Management policy (INSERT/UPDATE/DELETE)
+-- We need to check if the current user is an admin.
+-- To avoid recursion, we can't query user_roles directly in the USING clause if we want to be safe.
+-- However, we can use a subquery that specifically targets ADMINS and check the role.
+-- BUT it's safer to use the user's role from a source that doesn't trigger the same policy.
+-- One way is to check the JWT or a specific function.
+-- Here, we'll use a subquery but ensure it's not self-referencing in a way that recurses infinitely.
+-- Or better: just allow Admins to do everything.
+
+CREATE POLICY "Admins can manage roles" ON public.user_roles
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles p
+            JOIN public.user_roles admin_role ON admin_role.user_id = p.id
+            WHERE p.id = auth.uid()
+            AND admin_role.tenant_id = user_roles.tenant_id
+            AND admin_role.role IN ('TENANT_ADMIN', 'SUPER_ADMIN')
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.profiles p
+            JOIN public.user_roles admin_role ON admin_role.user_id = p.id
+            WHERE p.id = auth.uid()
+            AND admin_role.tenant_id = user_roles.tenant_id
+            AND admin_role.role IN ('TENANT_ADMIN', 'SUPER_ADMIN')
+        )
+    );
+
+-- 4. Delegated Staff Policy
+CREATE POLICY "Staff delegation for roles" ON public.user_roles
+    FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.tenant_security_settings tss
+            JOIN public.user_roles staff_role ON staff_role.tenant_id = tss.tenant_id
+            WHERE staff_role.user_id = auth.uid()
+            AND staff_role.role = 'STAFF'
+            AND tss.staff_can_manage_roles = true
+            AND tss.tenant_id = user_roles.tenant_id
+        )
+    );

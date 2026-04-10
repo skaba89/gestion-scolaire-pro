@@ -1,0 +1,25 @@
+-- Fix student_badges RLS Policies
+
+-- Ensure RLS is active
+ALTER TABLE public.student_badges ENABLE ROW LEVEL SECURITY;
+
+-- 1. Read Policy (Already exists but let's make sure it's correct)
+DROP POLICY IF EXISTS "Tenant users can read badges" ON public.student_badges;
+CREATE POLICY "Tenant users can read badges" ON public.student_badges
+    FOR SELECT USING (tenant_id = public.get_user_tenant(auth.uid()));
+
+-- 2. Management Policy for Admins/Directors
+DROP POLICY IF EXISTS "Admins can manage badges" ON public.student_badges;
+CREATE POLICY "Admins can manage badges" ON public.student_badges
+    FOR ALL USING (
+        tenant_id = public.get_user_tenant(auth.uid())
+        AND (
+            public.has_role(auth.uid(), 'TENANT_ADMIN') 
+            OR public.has_role(auth.uid(), 'SUPER_ADMIN')
+            OR public.has_role(auth.uid(), 'DIRECTOR')
+        )
+    );
+
+-- 3. Grants
+GRANT ALL ON public.student_badges TO authenticated;
+GRANT ALL ON public.student_badges TO service_role;

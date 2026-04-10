@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>EduManager - Plateforme de Gestion Scolaire</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/pwa-192x192.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+  <meta name="description"
+    content="Plateforme SaaS multi-tenant de gestion scolaire complète. Gérez admissions, élèves, notes, finances et communications." />
+  <meta name="author" content="EduManager" />
+
+  <!-- Content Security Policy -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
+             script-src 'self' 'unsafe-inline' https://*.supabase.co https://browser.sentry-cdn.com; 
+             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+             font-src 'self' https://fonts.gstatic.com; 
+             img-src 'self' data: https://*.supabase.co https://img.clerk.com http://*:8000 http://localhost:* https://schoolflow-api-z6wt.onrender.com;
+             connect-src 'self' https://*.supabase.co https://*.sentry.io https://*.onrender.com wss://*.supabase.co http://*:8000 ws://*:8000 http://localhost:* ws://localhost:*; 
+             frame-src 'self'; 
+             object-src 'none';">
+
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#1e40af" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="EduManager" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- iOS Icons -->
+  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="512x512" href="/pwa-512x512.png" />
+
+  <!-- Splash Screen for iOS -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="EduManager - Gestion Scolaire" />
+  <meta property="og:description" content="Solution complète pour écoles, collèges, lycées et universités." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+</head>
+
+<body>
+  <div id="root"></div>
+  <!-- Runtime config: loaded before app, NOT bundled by Vite. Edit dist/config.js on server. -->
+  <script src="/config.js"></script>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

@@ -1,0 +1,11 @@
+[Unit]
+Description=SchoolFlow Pro Daily Backup Timer
+Requires=schoolflow-backup.service
+
+[Timer]
+OnCalendar=daily
+# Ensure backup runs even if the machine was off
+Persistent=true
+
+[Install]
+WantedBy=timers.target

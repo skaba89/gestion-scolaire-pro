@@ -1,0 +1,36 @@
+-- Harden user_roles Table
+DROP POLICY IF EXISTS "allow_all_for_user_roles" ON public.user_roles;
+
+-- Allow SELECT for all members of the tenant
+CREATE POLICY "Users can view roles in their tenant" ON public.user_roles
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles
+            WHERE id = auth.uid()
+            AND tenant_id = user_roles.tenant_id
+        )
+    );
+
+-- Allow INSERT/UPDATE/DELETE for authorized users only
+CREATE POLICY "Admins or delegated staff can manage roles" ON public.user_roles
+    FOR ALL
+    USING (
+        EXISTS (
+            -- Case 1: Is Tenant Admin or Super Admin
+            SELECT 1 FROM public.user_roles ur
+            WHERE ur.user_id = auth.uid()
+            AND ur.tenant_id = user_roles.tenant_id
+            AND ur.role IN ('TENANT_ADMIN', 'SUPER_ADMIN')
+        )
+        OR 
+        EXISTS (
+            -- Case 2: Is Staff AND delegation is enabled
+            SELECT 1 FROM public.user_roles ur
+            JOIN public.tenant_security_settings tss ON tss.tenant_id = ur.tenant_id
+            WHERE ur.user_id = auth.uid()
+            AND ur.tenant_id = user_roles.tenant_id
+            AND ur.role = 'STAFF'
+            AND tss.staff_can_manage_roles = true
+        )
+    );

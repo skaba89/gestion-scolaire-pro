@@ -1,0 +1,60 @@
+-- Phase 5: Course Catalog 2.0 (LMD/Scolaire Separation)
+
+-- 1. Courses Table (The instance of a subject for a class in a specific year)
+CREATE TABLE IF NOT EXISTS public.courses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    subject_id UUID REFERENCES public.subjects(id) ON DELETE CASCADE,
+    classroom_id UUID REFERENCES public.classrooms(id) ON DELETE CASCADE,
+    academic_year_id UUID REFERENCES public.academic_years(id) ON DELETE CASCADE,
+    credits NUMERIC DEFAULT 0, -- ECTS or Weight
+    status VARCHAR DEFAULT 'ACTIVE', -- 'ACTIVE', 'LOCKED', 'ARCHIVED'
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(tenant_id, subject_id, classroom_id, academic_year_id)
+);
+
+-- 2. Enhance Teacher Assignments with Academic Year (for backward compatibility and future courses migration)
+ALTER TABLE public.teacher_assignments 
+ADD COLUMN IF NOT EXISTS academic_year_id UUID REFERENCES public.academic_years(id) ON DELETE CASCADE,
+ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE;
+
+-- 3. Trigger to auto-create academic_year_id in teacher_assignments if missing
+CREATE OR REPLACE FUNCTION public.fill_teacher_assignment_year()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.academic_year_id IS NULL THEN
+        SELECT id INTO NEW.academic_year_id 
+        FROM public.academic_years 
+        WHERE tenant_id = NEW.tenant_id AND status = 'ACTIVE'
+        LIMIT 1;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_fill_assignment_year ON public.teacher_assignments;
+CREATE TRIGGER tr_fill_assignment_year
+BEFORE INSERT ON public.teacher_assignments
+FOR EACH ROW EXECUTE FUNCTION public.fill_teacher_assignment_year();
+
+-- 4. Course-Based Locking Rule
+CREATE OR REPLACE FUNCTION public.check_course_writable()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_course_id UUID;
+    v_status VARCHAR;
+BEGIN
+    -- If the table has a course_id, we check its status
+    v_course_id := NEW.course_id;
+    
+    IF v_course_id IS NOT NULL THEN
+        SELECT status INTO v_status FROM public.courses WHERE id = v_course_id;
+        IF v_status = 'LOCKED' THEN
+            RAISE EXCEPTION 'Ce cours est verrouillé. Aucune modification (notes/absences) n''est autorisée.';
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;

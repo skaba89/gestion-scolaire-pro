@@ -1,0 +1,11 @@
+-- Standardize currency settings for all tenants
+UPDATE public.tenants 
+SET settings = COALESCE(settings, '{}'::jsonb) || '{"currency": "XOF", "currencySymbol": "FCFA"}'::jsonb
+WHERE settings->>'currency' IS NULL;
+
+-- Also add some dummy establishment details if missing for the demo
+UPDATE public.tenants
+SET address = COALESCE(address, 'Dakar, Sénégal'),
+    phone = COALESCE(phone, '+221 33 000 00 00'),
+    email = COALESCE(email, 'contact@schoolflow.pro')
+WHERE address IS NULL;

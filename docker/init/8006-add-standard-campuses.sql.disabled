@@ -1,0 +1,16 @@
+-- Add standard campuses for "La Source" tenant
+WITH source_tenant AS (SELECT id FROM tenants WHERE slug = 'la-source')
+INSERT INTO public.campuses (tenant_id, name, address, phone, is_main)
+SELECT 
+    source_tenant.id, 
+    c.name, 
+    c.address, 
+    c.phone, 
+    c.is_main
+FROM source_tenant, (VALUES 
+    ('Campus Annexe Plateau', 'Dakar Plateau, Immeuble Horizon', '+221 33 800 11 22', false),
+    ('Campus Almadies', 'Point E, Angle Rue 10', '+221 33 800 33 44', false)
+) AS c(name, address, phone, is_main)
+WHERE NOT EXISTS (
+    SELECT 1 FROM campuses WHERE name = c.name AND tenant_id = source_tenant.id
+);

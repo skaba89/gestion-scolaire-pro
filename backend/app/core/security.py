@@ -1,0 +1,224 @@
+import logging
+from datetime import datetime, timedelta, timezone
+
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
+import jwt
+from jwt.exceptions import InvalidTokenError as JWTError
+from passlib.context import CryptContext
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login/")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def verify_password(plain_password: str, hashed_password: str | None) -> bool:
+    if not hashed_password:
+        return False
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        return jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"verify_sub": True},
+        )
+    except JWTError as exc:
+        logger.info("JWT validation failed: %s", exc)
+        raise credentials_exception
+
+def get_current_user(request: Request, token: dict = Depends(verify_token)) -> dict:
+    """
+    Dependency that returns the current authenticated user from the native JWT payload.
+    Enriched with database roles and tenant_id for authorization.
+
+    For SUPER_ADMIN users without a tenant_id, the X-Tenant-ID header from the
+    frontend is injected as tenant_id so that all tenant-scoped endpoints work
+    when a super admin accesses a specific tenant's dashboard.
+    """
+    from app.core.database import SessionLocal
+    from app.models.user import User
+    from app.models.user_role import UserRole
+
+    user_id = token.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing subject",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    with SessionLocal() as db:
+        user_db = db.query(User).filter(User.id == user_id).first()
+        if not user_db:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authenticated user not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        db_roles = [
+            role
+            for (role,) in db.query(UserRole.role)
+            .filter(UserRole.user_id == user_db.id)
+            .all()
+        ]
+
+        token_roles = token.get("roles", []) or []
+        roles = list(dict.fromkeys([*token_roles, *db_roles]))
+
+        resolved_tenant_id = str(user_db.tenant_id) if user_db.tenant_id else None
+
+        # SUPER_ADMIN without a tenant: inject X-Tenant-ID header if present
+        if resolved_tenant_id is None and "SUPER_ADMIN" in roles:
+            header_tid = request.headers.get("X-Tenant-ID")
+            if header_tid:
+                resolved_tenant_id = header_tid
+
+        return {
+            "id": str(user_db.id),
+            "email": user_db.email,
+            "first_name": user_db.first_name,
+            "last_name": user_db.last_name,
+            "username": user_db.username,
+            "roles": roles,
+            "tenant_id": resolved_tenant_id,
+        }
+
+ROLE_PERMISSIONS: dict = {
+    "SUPER_ADMIN": ["*"],
+    "TENANT_ADMIN": [
+        # Users & Auth
+        "users:read", "users:write", "users:delete",
+        "auth:manage",
+        # Academic
+        "students:read", "students:write", "students:delete",
+        "grades:read", "grades:write",
+        "attendance:read", "attendance:write",
+        "homework:read", "homework:write",
+        "assessments:read", "assessments:write",
+        # Academic structure
+        "academic_years:read", "academic_years:write",
+        "terms:read", "terms:write",
+        "levels:read", "levels:write",
+        "subjects:read", "subjects:write",
+        "departments:read", "departments:write",
+        "campuses:read", "campuses:write",
+        "classrooms:read", "classrooms:write",
+        # Finance
+        "payments:read", "payments:write",
+        "invoices:read", "invoices:write",
+        "fees:read", "fees:write",
+        # Infrastructure
+        "rooms:read", "rooms:write",
+        "schedule:read", "schedule:write",
+        # Operational
+        "hr:read", "hr:write",
+        "school_life:read", "school_life:write",
+        "communications:read", "communications:write",
+        "notifications:read", "notifications:write",
+        "library:read", "library:write",
+        "inventory:read", "inventory:write",
+        "clubs:read", "clubs:write",
+        "surveys:read", "surveys:write",
+        "incidents:read", "incidents:write",
+        "parents:read", "parents:write",
+        "admissions:read", "admissions:write",
+        "analytics:read",
+        "audit:read",
+        # Settings (but NOT RGPD deletion)
+        "settings:read", "settings:write",
+        # MFA
+        "mfa:manage",
+        # EXPLICITLY EXCLUDED: "rgpd:delete", "tenants:write", "tenants:delete"
+    ],
+    "DIRECTOR": [
+        "users:read", "users:write",
+        "students:read", "students:write",
+        "grades:read", "grades:write",
+        "attendance:read", "attendance:write",
+        "settings:read", "settings:write",
+        "analytics:read", "reports:read", "finance:read",
+        "audit:read", "audit:write",
+        "rgpd:read", "rgpd:write",
+        "admissions:read", "admissions:write",
+        "inventory:read", "inventory:write",
+        "hr:read", "hr:write",
+    ],
+    "DEPARTMENT_HEAD": [
+        "users:read",
+        "students:read",
+        "grades:read", "grades:write",
+        "attendance:read", "attendance:write",
+        "subjects:read", "subjects:write",
+        "settings:read",
+        "schedule:read", "schedule:write",
+        "admissions:read",
+    ],
+    "TEACHER": [
+        "users:read",
+        "students:read", "grades:read", "grades:write",
+        "attendance:read", "attendance:write",
+        "subjects:read", "settings:read",
+        "schedule:read",
+    ],
+    "STUDENT": ["me:read", "grades:read", "attendance:read", "schedule:read", "settings:read"],
+    "PARENT": ["me:read", "students:read", "grades:read", "attendance:read", "settings:read"],
+    "ALUMNI": ["students:read", "grades:read", "attendance:read", "schedule:read", "subjects:read"],
+    "STAFF": ["users:read", "students:read", "students:write", "attendance:read",
+              "settings:read",
+              "admissions:read", "admissions:write", "inventory:read", "inventory:write"],
+    "ACCOUNTANT": ["finance:read", "finance:write", "students:read", "payments:read", "payments:write",
+                    "inventory:read", "settings:read"],
+    "SECRETARY": ["users:read", "students:read", "students:write", "attendance:read", "attendance:write",
+                  "grades:read", "settings:read",
+                  "admissions:read", "admissions:write",
+                  "enrollments:read", "enrollments:write",
+                  "certificates:read", "certificates:write",
+                  "inventory:read", "inventory:write"],
+}
+
+def require_permission(permission: str):
+    def decorator(current_user: dict = Depends(get_current_user)):
+        user_roles = current_user.get("roles", [])
+        user_permissions: set[str] = set()
+
+        for role in user_roles:
+            perms = ROLE_PERMISSIONS.get(role, [])
+            user_permissions.update(perms)
+
+        if "*" in user_permissions or permission in user_permissions:
+            return current_user
+
+        resource = permission.split(":")[0]
+        if f"{resource}:*" in user_permissions:
+            return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission refusée: {permission}",
+        )
+
+    return decorator

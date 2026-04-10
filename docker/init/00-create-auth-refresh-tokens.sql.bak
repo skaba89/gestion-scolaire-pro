@@ -1,0 +1,21 @@
+-- Create refresh_tokens table for GoTrue
+-- This is required by Supabase GoTrue authentication service
+
+CREATE SCHEMA IF NOT EXISTS auth;
+
+CREATE TABLE IF NOT EXISTS auth.refresh_tokens (
+  instance_id uuid,
+  id bigserial primary key,
+  token text unique,
+  user_id uuid references auth.users on delete cascade,
+  revoked boolean,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  intents text[],
+  expires_at timestamp with time zone
+);
+
+CREATE INDEX IF NOT EXISTS refresh_tokens_instance_id_idx on auth.refresh_tokens (instance_id);
+CREATE INDEX IF NOT EXISTS refresh_tokens_instance_id_user_id_idx on auth.refresh_tokens (instance_id, user_id);
+CREATE INDEX IF NOT EXISTS refresh_tokens_token_idx on auth.refresh_tokens (token);
+CREATE INDEX IF NOT EXISTS refresh_tokens_updated_at_idx on auth.refresh_tokens (updated_at desc);
