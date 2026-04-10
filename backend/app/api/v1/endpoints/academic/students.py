@@ -1,3 +1,4 @@
+import logging
 """Student endpoints"""
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
