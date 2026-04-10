@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
         host: "localhost",
       },
       headers: {
-        "Content-Security-Policy": "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co https://cdn.tailwindcss.com; object-src 'self'"
+        "Content-Security-Policy": "script-src 'self' 'unsafe-inline'; object-src 'self'"
       },
       proxy: {
         // Proxy /api-proxy/* to backend in dev (used when VITE_API_URL=/api-proxy)

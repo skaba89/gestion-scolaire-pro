@@ -6,6 +6,7 @@ Each router below maps a frontend-called URL to existing backend logic
 (CRUD functions, SQLAlchemy queries, etc.) so we avoid code duplication
 while fixing 404s.
 """
+import logging
 from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -404,7 +407,8 @@ def create_student_parent_link(
         return result
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create parent-student link: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @student_parents_router.delete("/")
@@ -444,7 +448,8 @@ def delete_student_parent_link(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to delete parent-student link: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 # ─── 8. Student Subjects (/student-subjects/) ─────────────────────────────────
@@ -492,7 +497,8 @@ def assign_subjects_to_student(
         return {"assigned": assigned, "total": len(assigned)}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to assign subjects to student: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 # ─── 9. Push Subscriptions alias (/push-subscriptions/) ───────────────────────
@@ -611,7 +617,8 @@ def update_presence(
         return {"user_id": body.user_id, "status": body.status, "updated_at": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to update presence: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 
 # ─── 13. Rooms at root (/rooms/) ─────────────────────────────────────────────
@@ -640,8 +647,12 @@ def list_rooms_alias(
     results = crud.get_rooms(db, tenant_id=tid)
     rooms_list = [{k: str(v) if isinstance(v, UUID) else v for k, v in r.__dict__.items() if not k.startswith('_')} for r in results]
     if ordering:
+        # SECURITY: Whitelist allowed ordering fields to prevent injection
+        ALLOWED_ROOM_ORDER_FIELDS = {"name", "capacity", "created_at", "type", "campus_id"}
         reverse = ordering.startswith('-')
         field = ordering.lstrip('-')
+        if field not in ALLOWED_ROOM_ORDER_FIELDS:
+            field = "name"  # Default to safe ordering
         rooms_list.sort(key=lambda x: x.get(field, ''), reverse=reverse)
     return rooms_list
 

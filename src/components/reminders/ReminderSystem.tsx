@@ -34,6 +34,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useCurrency } from "@/hooks/useCurrency";
 
+// SECURITY: Prevent open redirect attacks by validating URLs before navigation
+function isSafeRedirect(url: string): boolean {
+  if (!url) return false;
+  // Only allow relative URLs or same-origin URLs
+  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 interface Reminder {
   id: string;
   type: "homework" | "payment" | "event" | "exam";
@@ -440,7 +453,11 @@ interface ReminderItemProps {
 const ReminderItem = ({ reminder, getIcon, getTypeColor, onDismiss }: ReminderItemProps) => {
   const handleClick = () => {
     if (reminder.link) {
-      window.location.href = reminder.link;
+      if (isSafeRedirect(reminder.link)) {
+        window.location.href = reminder.link;
+      } else {
+        console.warn('Blocked unsafe redirect:', reminder.link);
+      }
     }
   };
 

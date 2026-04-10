@@ -34,8 +34,8 @@ def read_assessments(
         return crud_sl.get_assessments(db, tenant_id=current_user.get("tenant_id"))
     except Exception as e:
         db.rollback()
-        logger.error(f"Error reading assessments: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Error reading assessments: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Operation failed. Please try again.")
 
 @router.post("/assessments/", response_model=Assessment)
 def create_assessment(
@@ -48,8 +48,8 @@ def create_assessment(
         return crud_sl.create_assessment(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating assessment: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Error creating assessment: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create resource. Please check your input and try again.")
 
 @router.put("/assessments/{assessment_id}/", response_model=Assessment)
 def update_assessment(
@@ -100,8 +100,8 @@ def read_grades(
         return crud_sl.get_grades(db, tenant_id=current_user.get("tenant_id"), student_id=student_id)
     except Exception as e:
         db.rollback()
-        logger.error(f"Error reading grades: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Error reading grades: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Operation failed. Please try again.")
 
 @router.post("/grades/", response_model=Grade)
 def create_grade(
@@ -114,8 +114,8 @@ def create_grade(
         return crud_sl.create_grade(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating grade: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Error creating grade: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create resource. Please check your input and try again.")
 
 @router.put("/grades/{grade_id}/", response_model=Grade)
 def update_grade(
@@ -167,8 +167,8 @@ def read_attendance(
         return crud_sl.get_attendance(db, tenant_id=current_user.get("tenant_id"), student_ids=student_ids)
     except Exception as e:
         db.rollback()
-        logger.error(f"Error reading attendance: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Error reading attendance: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Operation failed. Please try again.")
 
 @router.post("/attendance/", response_model=Attendance)
 def create_attendance(
@@ -181,8 +181,8 @@ def create_attendance(
         return crud_sl.create_attendance(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating attendance: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Error creating attendance: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create resource. Please check your input and try again.")
 
 @router.put("/attendance/{attendance_id}/", response_model=Attendance)
 def update_attendance(
@@ -215,7 +215,8 @@ def update_attendance(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 @router.delete("/attendance/{attendance_id}/")
 def delete_attendance(
@@ -245,7 +246,8 @@ def delete_attendance(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 # --- Events ---
 
@@ -260,7 +262,8 @@ def read_events(
     except Exception as e:
         db.rollback()
         logger.error(f"Error reading events: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/events/", response_model=SchoolEvent)
 def create_event(
@@ -274,7 +277,8 @@ def create_event(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating event: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.put("/events/{event_id}/", response_model=SchoolEvent)
 def update_event(
@@ -303,7 +307,8 @@ def update_event(
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating school event: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 @router.delete("/events/{event_id}/")
 def delete_event(
@@ -329,7 +334,8 @@ def delete_event(
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting school event: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 # --- Appointment Slots ---
 
@@ -393,7 +399,8 @@ def list_appointment_slots(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing appointment slots: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/appointment-slots/")
@@ -441,7 +448,8 @@ def create_appointment_slot(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating appointment slot: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.delete("/appointment-slots/{slot_id}/")
@@ -477,7 +485,8 @@ def delete_appointment_slot(
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting appointment slot: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # --- Check-Ins ---
@@ -533,7 +542,8 @@ def list_check_in_sessions(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing check-in sessions: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/check-ins/sessions/")
@@ -575,7 +585,8 @@ def create_check_in_session(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating check-in session: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/check-ins/assignments/")
@@ -646,7 +657,8 @@ def list_check_in_assignments(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing check-in assignments: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/check-ins/", response_model=List[StudentCheckIn])
@@ -660,7 +672,8 @@ def read_check_ins(
     except Exception as e:
         db.rollback()
         logger.error(f"Error reading check-ins: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/check-ins/", response_model=StudentCheckIn)
 def create_check_in(
@@ -674,7 +687,8 @@ def create_check_in(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating check-in: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 # --- Badges ---
 
@@ -699,7 +713,8 @@ def list_badges(db: Session = Depends(get_db), current_user: dict = Depends(get_
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing badges: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/students-without-badges/")
 def students_without_badges(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -720,7 +735,8 @@ def students_without_badges(db: Session = Depends(get_db), current_user: dict = 
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing students without badges: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/event-registrations/")
 def list_event_registrations(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -733,7 +749,8 @@ def list_event_registrations(db: Session = Depends(get_db), current_user: dict =
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing event registrations: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/gamification/stats/")
 def get_gamification_stats(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -758,4 +775,5 @@ def get_gamification_stats(db: Session = Depends(get_db), current_user: dict = D
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting gamification stats: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")

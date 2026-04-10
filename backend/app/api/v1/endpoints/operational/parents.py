@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -8,6 +9,8 @@ from pydantic import BaseModel
 import math
 import secrets
 import json
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -103,7 +106,8 @@ def create_parent(
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create parent: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 # --- Existing endpoints ---
@@ -161,7 +165,8 @@ def create_parent_student_link(
         return result
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create parent-student link: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.delete("/link/{link_id}/")
@@ -189,7 +194,8 @@ def remove_parent_student_link(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to delete parent-student link: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 @router.get("/unlinked-students/")
@@ -577,7 +583,8 @@ def create_parent_payment(
         return {"id": str(payment_id), "reference": reference, "status": new_status, "paid_amount": new_paid}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create payment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 
 # --- POST /parents/report-cards/generate/ --- Generate report card (stub) ---
@@ -876,7 +883,8 @@ def create_parent_appointment(
         return {"id": appointment_id, "status": body.status, "message": "Appointment request created"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create appointment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 # --- GET /parents/appointment-slots/ --- List available appointment slots ---
@@ -981,4 +989,5 @@ def create_parent_appointment_slot(
         return {"id": slot_id, "message": "Appointment slot created"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create appointment slot: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")

@@ -13,6 +13,9 @@ from datetime import date, datetime
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.utils.audit import log_audit
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

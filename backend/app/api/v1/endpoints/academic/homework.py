@@ -245,8 +245,8 @@ def create_homework(
         return {"id": str(result), "message": "Homework created"}
     except Exception as e:
         db.rollback()
-        logger.error("create_homework failed: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("create_homework failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 # ─── PUT /homework/{homework_id} ────────────────────────────────────────────
@@ -341,7 +341,8 @@ def submit_homework(
         return {"id": str(result), "message": "Homework submitted"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("submit_homework failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 
 # ─── POST /homework/submissions/{submission_id}/grade ───────────────────────

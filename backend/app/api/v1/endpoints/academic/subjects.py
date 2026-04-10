@@ -7,6 +7,9 @@ from app.core.database import get_db
 from app.core.security import require_permission
 from app.crud import academic as crud_academic
 from app.schemas.academic import Subject, SubjectCreate, SubjectUpdate
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

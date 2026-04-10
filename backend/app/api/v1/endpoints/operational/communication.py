@@ -51,7 +51,8 @@ def get_announcements(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting announcements: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/announcements/")
 def create_announcement(
@@ -94,7 +95,8 @@ def create_announcement(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating announcement: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.delete("/announcements/{announcement_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_announcement(
@@ -113,7 +115,8 @@ def delete_announcement(
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting announcement: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Messaging Helper endpoints ───────────────────────────────────────────────
@@ -133,7 +136,8 @@ def get_messaging_users(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting messaging users: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/messaging/teacher-recipients/")
 def get_teacher_recipients(
@@ -173,7 +177,8 @@ def get_teacher_recipients(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting teacher recipients: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Conversations ────────────────────────────────────────────────────────────
@@ -232,7 +237,8 @@ def list_conversations(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing conversations: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/conversations/", status_code=status.HTTP_201_CREATED)
@@ -288,7 +294,8 @@ def create_or_find_conversation(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating conversation: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Messages ─────────────────────────────────────────────────────────────────
@@ -360,7 +367,8 @@ def get_messages(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting messages: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/conversations/{conversation_id}/messages/", status_code=status.HTTP_201_CREATED)
@@ -406,7 +414,8 @@ def send_message(
     except Exception as e:
         db.rollback()
         logger.error(f"Error sending message: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/messaging/unread-count/")
@@ -425,7 +434,8 @@ def get_unread_count(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting unread count: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/messaging/poll/")
@@ -460,7 +470,8 @@ def poll_new_messages(
     except Exception as e:
         db.rollback()
         logger.error(f"Error polling messages: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 # --- Forums ---
 
@@ -480,7 +491,8 @@ def list_forums(db: Session = Depends(get_db), current_user: dict = Depends(get_
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing forums: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/forums/post-counts/")
 def get_forum_post_counts(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -498,7 +510,8 @@ def get_forum_post_counts(db: Session = Depends(get_db), current_user: dict = De
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting forum post counts: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/forums/")
 def create_forum(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -523,7 +536,8 @@ def create_forum(body: dict, db: Session = Depends(get_db), current_user: dict =
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating forum: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.patch("/forums/{forum_id}/")
 def update_forum(forum_id: UUID, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -547,7 +561,8 @@ def update_forum(forum_id: UUID, body: dict, db: Session = Depends(get_db), curr
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating forum: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.delete("/forums/{forum_id}/")
 def delete_forum(forum_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -563,4 +578,5 @@ def delete_forum(forum_id: UUID, db: Session = Depends(get_db), current_user: di
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting forum: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")

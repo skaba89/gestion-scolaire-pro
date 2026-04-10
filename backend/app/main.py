@@ -241,6 +241,55 @@ app.add_middleware(TenantMiddleware)
 app.add_middleware(QuotaMiddleware)
 
 
+# ─── Token Version Validation Middleware ────────────────────────────────
+@app.middleware("http")
+async def token_version_middleware(request: Request, call_next):
+    """Validate JWT token version for authenticated requests.
+
+    After a user calls logout-all, their token version is bumped in Redis.
+    This middleware checks every authenticated request's token version
+    against Redis, rejecting stale tokens with 401 Unauthorized.
+    This ensures logout-all is enforced globally without modifying each endpoint.
+    """
+    # Skip non-API paths and health/docs
+    path = request.url.path
+    if not path.startswith(settings.API_V1_STR):
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token_str = auth_header.split(" ")[1]
+        try:
+            import jwt as jwt_lib
+            payload = jwt_lib.decode(
+                token_str,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_exp": False},  # Don't check expiry here (done by endpoint deps)
+            )
+            token_version = payload.get("tv", 0)
+            user_id = payload.get("sub")
+            if token_version and token_version > 0 and user_id:
+                from app.core.security import _get_token_version_from_redis
+                current_version = await _get_token_version_from_redis(user_id)
+                if current_version > token_version:
+                    logger.info(
+                        "Token version rejected via middleware: token=%d, current=%d, user=%s",
+                        token_version, current_version, user_id,
+                    )
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(
+                        status_code=401,
+                        content={"detail": "Token has been invalidated (logged out from all devices)"},
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+        except Exception:
+            # Token parsing failed — let the endpoint dependency handle it
+            pass
+
+    return await call_next(request)
+
+
 # ─── Security Headers Middleware ──────────────────────────────────────────
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):

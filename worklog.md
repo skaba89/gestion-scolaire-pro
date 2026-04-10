@@ -400,3 +400,22 @@ Stage Summary:
 - All 401 errors should be resolved with real refresh token flow
 - CORS properly configured for production
 - No more createContext errors from chunk splitting
+
+---
+Task ID: frontend-fixes
+Agent: security-hardening
+Task: Fix frontend security issues (open redirects, password leaks, ordering whitelist, Redis TLS, CSP)
+
+Work Log:
+- Fixed 3 open redirect vectors by adding `isSafeRedirect()` validation to NotificationBell.tsx, ReminderSystem.tsx, and useNativePushNotifications.ts
+- Fixed 2 generated_password leaks in users.py (create_user and convert_to_account) — passwords now stored in Redis with 5-min TTL and retrieval_key pattern
+- Added room ordering field whitelist in aliases.py (ALLOWED_ROOM_ORDER_FIELDS: name, capacity, created_at, type, campus_id)
+- Fixed Redis ssl_cert_reqs in cache.py — now uses "required" when SSL is enforced for external Redis
+- Cleaned Vite dev CSP in vite.config.ts — removed 'unsafe-eval' and third-party CDN domains
+
+Stage Summary:
+- No more open redirect vectors
+- Passwords never returned in API responses
+- Room ordering validated against whitelist
+- Redis TLS properly configured
+- Dev CSP tightened to prevent eval and external script injection

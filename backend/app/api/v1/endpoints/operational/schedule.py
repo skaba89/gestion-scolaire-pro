@@ -1,9 +1,12 @@
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import uuid
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -148,7 +151,8 @@ def update_schedule_slot(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to update schedule slot: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 @router.delete("/{slot_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule_slot(

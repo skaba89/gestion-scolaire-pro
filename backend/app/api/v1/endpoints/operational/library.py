@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -5,6 +6,8 @@ from typing import List, Optional
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -63,7 +66,8 @@ def create_category(
         return result
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create library category: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.put("/categories/{category_id}/")
@@ -109,7 +113,8 @@ def update_category(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to update library category: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 
 @router.delete("/categories/{category_id}/")
@@ -136,7 +141,8 @@ def delete_category(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to delete library category: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 # --- Resources CRUD ---
@@ -245,7 +251,8 @@ def create_resource(
         return result
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create library resource: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.put("/resources/{resource_id}/")
@@ -299,7 +306,8 @@ def update_resource(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to update library resource: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 
 @router.delete("/resources/{resource_id}/")
@@ -326,7 +334,8 @@ def delete_resource(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to delete library resource: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 # --- Borrowing ---
@@ -392,7 +401,8 @@ def borrow_resource(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to borrow resource: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 
 @router.post("/return/")
@@ -434,7 +444,8 @@ def return_resource(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to return resource: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 
 @router.get("/borrowers/")

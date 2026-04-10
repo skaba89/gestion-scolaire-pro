@@ -5,6 +5,19 @@ import { apiClient } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 
+// SECURITY: Prevent open redirect attacks by validating URLs before navigation
+function isSafeRedirect(url: string): boolean {
+  if (!url) return false;
+  // Only allow relative URLs or same-origin URLs
+  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export interface NativePushState {
   isSupported: boolean;
   isRegistered: boolean;
@@ -114,7 +127,11 @@ export const useNativePushNotifications = () => {
       // Handle notification tap
       const data = notification.notification.data;
       if (data?.url) {
-        window.location.href = data.url;
+        if (isSafeRedirect(data.url)) {
+          window.location.href = data.url;
+        } else {
+          console.warn('Blocked unsafe redirect:', data.url);
+        }
       }
     });
   }, [user?.id, currentTenant?.id]);

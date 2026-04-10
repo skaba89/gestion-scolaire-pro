@@ -30,7 +30,7 @@ class RedisClient:
                 encoding="utf-8",
                 decode_responses=True,
                 ssl=ssl_required,
-                ssl_cert_reqs="none",  # Allow self-signed certs (common with managed Redis)
+                ssl_cert_reqs="required" if ssl_required else "none",
             )
         return self._client
 

@@ -191,7 +191,7 @@ def create_payment_schedules(
     except Exception as e:
         db.rollback()
         logger.error("create_payment_schedules failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Échec de la création: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create payment schedules.")
 
 
 @router.get("/{schedule_id}")

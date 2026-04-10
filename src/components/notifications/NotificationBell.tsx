@@ -18,6 +18,19 @@ import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
+// SECURITY: Prevent open redirect attacks by validating URLs before navigation
+function isSafeRedirect(url: string): boolean {
+  if (!url) return false;
+  // Only allow relative URLs or same-origin URLs
+  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 interface Notification {
   id: string;
   title: string;
@@ -167,7 +180,11 @@ export const NotificationBell = () => {
       markAsReadMutation.mutate(notification.id);
     }
     if (notification.link) {
-      window.location.href = notification.link;
+      if (isSafeRedirect(notification.link)) {
+        window.location.href = notification.link;
+      } else {
+        console.warn('Blocked unsafe redirect:', notification.link);
+      }
     }
     setIsOpen(false);
   };

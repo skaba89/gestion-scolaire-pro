@@ -144,8 +144,8 @@ class Settings(BaseSettings):
     MINIO_EXTERNAL_HOSTNAME: str = _MINIO_EXTERNAL_HOSTNAME
     BACKEND_URL: str = get_secret("BACKEND_URL", "")
     MINIO_ENDPOINT: str = get_secret("MINIO_ENDPOINT", _DEFAULT_MINIO_ENDPOINT)
-    MINIO_ACCESS_KEY: str = get_secret("MINIO_ACCESS_KEY", "minioadmin")
-    MINIO_SECRET_KEY: str = get_secret("MINIO_SECRET_KEY", "minioadmin")
+    MINIO_ACCESS_KEY: str = get_secret("MINIO_ACCESS_KEY", "")
+    MINIO_SECRET_KEY: str = get_secret("MINIO_SECRET_KEY", "")
     MINIO_SECURE: bool = True  # SECURITY: Default to HTTPS for MinIO connections
     MINIO_BUCKET: str = get_secret("MINIO_BUCKET", "schoolflow")
 

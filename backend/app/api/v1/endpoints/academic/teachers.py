@@ -122,8 +122,8 @@ def create_teacher_assignment(
         return result
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating teacher assignment: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error creating teacher assignment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.put("/{assignment_id}/")
@@ -166,8 +166,8 @@ def update_teacher_assignment(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating teacher assignment: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error updating teacher assignment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 
 @router.delete("/{assignment_id}/")
@@ -195,8 +195,8 @@ def delete_teacher_assignment(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting teacher assignment: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error deleting teacher assignment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 # --- Teacher Dashboard (existing) ---

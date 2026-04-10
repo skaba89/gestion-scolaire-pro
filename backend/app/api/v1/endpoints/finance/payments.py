@@ -518,8 +518,8 @@ def list_fees(
                   "created_at": r.created_at.isoformat() if r.created_at else None} for r in rows]
         return {"items": items, "total": len(items)}
     except Exception as e:
-        logger.error("list_fees failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Fees table not available: {e}")
+        logger.error("list_fees failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Operation failed. Please try again.")
 
 
 @router.post("/fees/", status_code=status.HTTP_201_CREATED)
@@ -552,8 +552,8 @@ def create_fee(
         return {"id": str(fee_id), "name": body.name, "amount": body.amount}
     except Exception as e:
         db.rollback()
-        logger.error("create_fee failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to create fee: {e}")
+        logger.error("create_fee failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.put("/fees/{fee_id}/")
@@ -597,8 +597,8 @@ def update_fee(
         raise
     except Exception as e:
         db.rollback()
-        logger.error("update_fee failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to update fee: {e}")
+        logger.error("update_fee failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update resource. Please check your input and try again.")
 
 
 @router.delete("/fees/{fee_id}/", status_code=status.HTTP_204_NO_CONTENT)
@@ -631,8 +631,8 @@ def delete_fee(
         raise
     except Exception as e:
         db.rollback()
-        logger.error("delete_fee failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to delete fee: {e}")
+        logger.error("delete_fee failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to delete resource. Please try again.")
 
 
 # ─── Payment Intent (Mobile Money) ───────────────────────────────────────────

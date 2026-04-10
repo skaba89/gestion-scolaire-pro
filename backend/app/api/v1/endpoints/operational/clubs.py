@@ -92,8 +92,8 @@ def create_club(
         return result
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating club: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error creating club: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.put("/{club_id}/")
@@ -140,8 +140,8 @@ def update_club(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating club: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error updating club: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 
 @router.delete("/{club_id}/")
@@ -170,8 +170,8 @@ def delete_club(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting club: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error deleting club: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 # --- Memberships ---
@@ -220,8 +220,8 @@ def add_club_member(
         return result
     except Exception as e:
         db.rollback()
-        logger.error(f"Error adding club member: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error adding club member: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.delete("/{club_id}/members/{user_id}/")
@@ -251,5 +251,5 @@ def remove_club_member(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error removing club member: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error removing club member: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")

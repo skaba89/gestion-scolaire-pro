@@ -45,7 +45,8 @@ def list_categories(db: Session = Depends(get_db), current_user: dict = Depends(
         return db.execute(text("SELECT * FROM inventory_categories WHERE tenant_id = :tid ORDER BY name"), {"tid": tenant_id}).mappings().all()
     except Exception as e:
         logger.error("list_categories failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Inventory categories table not available: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/categories/")
 def create_category(name: str, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
@@ -59,7 +60,8 @@ def create_category(name: str, db: Session = Depends(get_db), current_user: dict
     except Exception as e:
         db.rollback()
         logger.error("create_category failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to create category: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/items/")
 def list_items(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -77,7 +79,8 @@ def list_items(db: Session = Depends(get_db), current_user: dict = Depends(get_c
         return [{**dict(r._mapping), "category": {"id": r.category_id, "name": r.category_name}} for r in rows]
     except Exception as e:
         logger.error("list_items failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Inventory items table not available: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/items/")
 def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
@@ -97,7 +100,8 @@ def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), curren
     except Exception as e:
         db.rollback()
         logger.error("create_item failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to create item: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.patch("/items/{item_id}/")
 def update_item(item_id: str, item: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
@@ -120,7 +124,8 @@ def update_item(item_id: str, item: dict, db: Session = Depends(get_db), current
     except Exception as e:
         db.rollback()
         logger.error("update_item failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to update item: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.delete("/items/{item_id}/")
 def delete_item(item_id: str, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
@@ -134,7 +139,8 @@ def delete_item(item_id: str, db: Session = Depends(get_db), current_user: dict 
     except Exception as e:
         db.rollback()
         logger.error("delete_item failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to delete item: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/transactions/")
 def list_transactions(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -151,7 +157,8 @@ def list_transactions(db: Session = Depends(get_db), current_user: dict = Depend
         """), {"tid": tenant_id}).mappings().all()
     except Exception as e:
         logger.error("list_transactions failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Inventory transactions table not available: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/adjust/")
 def adjust_stock(body: AdjustmentBody, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
@@ -176,7 +183,8 @@ def adjust_stock(body: AdjustmentBody, db: Session = Depends(get_db), current_us
     except Exception as e:
         db.rollback()
         logger.error("adjust_stock failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to adjust stock: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/orders/")
 def list_orders(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -194,7 +202,8 @@ def list_orders(db: Session = Depends(get_db), current_user: dict = Depends(get_
         return [{**dict(r._mapping), "student": {"id": r.student_id, "first_name": r.first_name, "last_name": r.last_name, "registration_number": r.registration_number}} for r in rows]
     except Exception as e:
         logger.error("list_orders failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Orders table not available: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/orders/")
 def create_order(body: OrderCreateBody, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
@@ -227,4 +236,5 @@ def create_order(body: OrderCreateBody, db: Session = Depends(get_db), current_u
     except Exception as e:
         db.rollback()
         logger.error("create_order failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to create order: {e}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")

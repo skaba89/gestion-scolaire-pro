@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -5,6 +6,8 @@ from typing import List, Optional
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -199,7 +202,8 @@ def create_attendance(
         return dict(result)
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create attendance: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 # ─── POST /attendance/bulk ────────────────────────────────────────────────────
@@ -235,7 +239,8 @@ def create_attendance_bulk(
         return {"inserted": len(inserted), "records": inserted}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Failed to create bulk attendance: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 # ─── PATCH /attendance/{id} ───────────────────────────────────────────────────

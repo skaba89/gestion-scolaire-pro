@@ -128,8 +128,8 @@ def create_incident(
         }
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating incident: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error creating incident: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 # --- Update Incident ---
@@ -182,8 +182,8 @@ def update_incident(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating incident: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error updating incident: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 
 # --- Resolve Incident ---
@@ -230,8 +230,8 @@ def resolve_incident(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error resolving incident: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error resolving incident: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 
 # --- Assign Incident ---
@@ -272,5 +272,5 @@ def assign_incident(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error assigning incident: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error assigning incident: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")

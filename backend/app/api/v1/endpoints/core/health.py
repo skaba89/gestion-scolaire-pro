@@ -9,6 +9,8 @@ import redis
 from app.core.database import get_db
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 

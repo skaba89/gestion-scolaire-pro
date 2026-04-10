@@ -208,6 +208,9 @@ def clear_read_notifications(
 
 from pydantic import BaseModel
 from typing import Any, Dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ParentAlertRequest(BaseModel):
     type: str  # 'absence' | 'low_grade'

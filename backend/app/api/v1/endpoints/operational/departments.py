@@ -83,7 +83,8 @@ def get_my_department(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting my department: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Dashboard ─────────────────────────────────────────────────────
@@ -189,7 +190,8 @@ def department_dashboard(
     except Exception as e:
         db.rollback()
         logger.error(f"Error in department dashboard: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Classrooms ────────────────────────────────────────────────────
@@ -228,7 +230,8 @@ def department_classrooms(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing department classrooms: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Students ──────────────────────────────────────────────────────
@@ -298,7 +301,8 @@ def department_students(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing department students: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Teachers ──────────────────────────────────────────────────────
@@ -368,7 +372,8 @@ def department_teachers(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing department teachers: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Attendance ────────────────────────────────────────────────────
@@ -461,7 +466,8 @@ def department_attendance(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting department attendance: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Exams ─────────────────────────────────────────────────────────
@@ -536,7 +542,8 @@ def department_exams(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing department exams: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/exams/", status_code=status.HTTP_201_CREATED)
@@ -580,7 +587,8 @@ def create_exam(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating exam: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.put("/exams/{exam_id}/")
@@ -624,7 +632,8 @@ def update_exam(
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating exam: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.delete("/exams/{exam_id}/", status_code=status.HTTP_204_NO_CONTENT)
@@ -655,7 +664,8 @@ def delete_exam(
     except Exception as e:
         db.rollback()
         logger.error(f"Error deleting exam: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Schedule ──────────────────────────────────────────────────────
@@ -707,7 +717,8 @@ def department_schedule(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting department schedule: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Department Reports ───────────────────────────────────────────────────────
@@ -780,4 +791,5 @@ def department_grades_report(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting department grades report: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")

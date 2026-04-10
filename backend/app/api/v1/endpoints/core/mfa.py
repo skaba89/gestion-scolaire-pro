@@ -120,7 +120,8 @@ def generate_backup_codes(
     try:
         _ensure_mfa_tables(db)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database setup failed: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
     user_id = current_user.get("id")
     tenant_id = current_user.get("tenant_id")
@@ -158,7 +159,8 @@ def generate_backup_codes(
     except Exception as e:
         db.rollback()
         logger.error("Failed to generate backup codes: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to generate backup codes: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/backup-codes/verify/")
@@ -202,7 +204,8 @@ def verify_backup_code(
     except Exception as e:
         db.rollback()
         logger.error("Failed to verify backup code: %s", e)
-        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/backup-codes/")
@@ -289,7 +292,8 @@ def request_otp(
     try:
         _ensure_mfa_tables(db)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database setup failed: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
     import random, string
     from datetime import timedelta
@@ -345,7 +349,8 @@ def request_otp(
     except Exception as e:
         db.rollback()
         logger.error("Failed to request OTP: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to request OTP: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/otp/verify/")
@@ -462,4 +467,5 @@ def toggle_mfa(
     except Exception as e:
         db.rollback()
         logger.error("Failed to toggle MFA: %s", e)
-        raise HTTPException(status_code=500, detail=f"Failed to toggle MFA: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")

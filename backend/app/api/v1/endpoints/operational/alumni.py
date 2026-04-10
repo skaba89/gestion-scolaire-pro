@@ -101,7 +101,8 @@ def alumni_dashboard(
     except Exception as e:
         db.rollback()
         logger.error(f"Error in alumni_dashboard: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Document Requests ────────────────────────────────────────────────────────
@@ -144,7 +145,8 @@ def list_document_requests(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing document requests: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/document-requests/", status_code=status.HTTP_201_CREATED)
@@ -193,7 +195,8 @@ def create_document_request(
     except Exception as e:
         db.rollback()
         logger.error(f"Error creating document request: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.patch("/document-requests/{request_id}/cancel/")
@@ -233,7 +236,8 @@ def cancel_document_request(
     except Exception as e:
         db.rollback()
         logger.error(f"Error cancelling document request: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/document-requests/{request_id}/history/")
@@ -277,7 +281,8 @@ def get_request_history(
     except Exception as e:
         db.rollback()
         logger.error(f"Error getting request history: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Careers ──────────────────────────────────────────────────────────────────
@@ -312,7 +317,8 @@ def alumni_job_offers(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing job offers: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/careers/mentors/")
@@ -343,7 +349,8 @@ def alumni_mentors(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing mentors: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/careers/events/")
@@ -376,7 +383,8 @@ def alumni_career_events(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing career events: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Messaging recipients (staff for alumni to contact) ───────────────────────
@@ -420,7 +428,8 @@ def alumni_staff_recipients(
     except Exception as e:
         db.rollback()
         logger.error(f"Error listing staff recipients: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 # ─── Admin Endpoints ─────────────────────────────────────────────────────────
 
@@ -441,7 +450,8 @@ def admin_list_mentors(
     except Exception as e:
         db.rollback()
         logger.error(f"Error admin listing mentors: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/admin/mentorship-requests/")
 def admin_list_mentorship_requests(
@@ -473,7 +483,8 @@ def admin_list_mentorship_requests(
     except Exception as e:
         db.rollback()
         logger.error(f"Error admin listing mentorship requests: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/admin/document-requests/")
 def admin_list_document_requests(
@@ -492,7 +503,8 @@ def admin_list_document_requests(
     except Exception as e:
         db.rollback()
         logger.error(f"Error admin listing document requests: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/admin/job-applications/")
 def admin_list_job_applications(
@@ -523,7 +535,8 @@ def admin_list_job_applications(
     except Exception as e:
         db.rollback()
         logger.error(f"Error admin listing job applications: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/admin/event-registrations/")
 def admin_list_event_registrations(
@@ -541,4 +554,5 @@ def admin_list_event_registrations(
     except Exception as e:
         db.rollback()
         logger.error(f"Error admin listing event registrations: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {str(e)}")
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")

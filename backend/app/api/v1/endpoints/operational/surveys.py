@@ -176,8 +176,8 @@ def add_survey_question(
         return result
     except Exception as e:
         db.rollback()
-        logger.error(f"Error adding survey question: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error adding survey question: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.put("/{survey_id}/questions/{qid}/")
@@ -230,8 +230,8 @@ def update_survey_question(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating survey question: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error updating survey question: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
 
 
 @router.delete("/{survey_id}/questions/{qid}/")
@@ -260,8 +260,8 @@ def delete_survey_question(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting survey question: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error deleting survey question: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 # --- Response Submission ---
@@ -308,8 +308,8 @@ def submit_survey_response(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error submitting survey response: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error submitting survey response: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
 
 # --- Survey Results ---
@@ -393,5 +393,5 @@ def get_survey_results(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching survey results: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error fetching survey results: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Operation failed. Please try again.")

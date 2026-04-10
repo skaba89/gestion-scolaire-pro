@@ -146,7 +146,9 @@ async def _reset_login_attempts(user_id: str) -> None:
     """Clear failed login attempts after a successful login."""
     try:
         from app.core.cache import redis_client
-        await redis_client.delete(f"login_attempts:{user_id}")
+        client = await redis_client.client
+        # SECURITY: Use raw key with sfp: prefix to match _record_failed_login key format
+        await client.delete(f"sfp:login_attempts:{user_id}")
     except Exception:
         pass
 
@@ -272,6 +274,7 @@ async def refresh_token(request: Request, current_user: dict = Depends(get_curre
 
 
 @router.post("/logout/")
+@limiter.limit("20/minute")
 async def logout(request: Request, current_user: dict = Depends(get_current_user)):
     # Blacklist the current token so it cannot be reused
     auth_header = request.headers.get("Authorization", "")
@@ -343,6 +346,7 @@ async def change_password(
 
 
 @router.post("/logout-all/")
+@limiter.limit("5/minute")
 async def logout_all_devices(request: Request, current_user: dict = Depends(get_current_user)):
     """Logout from all devices by invalidating all tokens.
 
@@ -484,6 +488,14 @@ def bootstrap_admin(
     admin_password = settings.ADMIN_DEFAULT_PASSWORD
     steps = []
 
+    # SECURITY: Refuse to create admin with empty/weak password
+    if not admin_password or len(admin_password) < 12:
+        logger.warning("Bootstrap rejected: admin password is empty or too short (min 12 chars)")
+        raise HTTPException(
+            status_code=400,
+            detail="ADMIN_DEFAULT_PASSWORD must be at least 12 characters. Set it in your environment.",
+        )
+
     try:
         # Step 1: Ensure is_superuser column exists (PostgreSQL)
         try:
@@ -613,9 +625,11 @@ def bootstrap_admin(
             db.rollback()
         except Exception:
             pass
+        # SECURITY: Log internal error details server-side only
+        logger.error("Bootstrap failed: %s", e, exc_info=True)
         return {
             "status": "error",
-            "message": str(e),
+            "message": "An internal error occurred during bootstrap. Check server logs for details.",
             "steps": steps,
         }
 

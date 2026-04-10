@@ -160,8 +160,8 @@ def create_assessment(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating assessment: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error creating assessment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
 
 
 @router.delete("/{id}/")
@@ -186,8 +186,8 @@ def delete_assessment(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting assessment: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error deleting assessment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
 @router.put("/{id}/")
@@ -255,5 +255,5 @@ def update_assessment(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating assessment: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error updating assessment: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")

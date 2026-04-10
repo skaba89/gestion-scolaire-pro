@@ -65,6 +65,9 @@ def list_students(
 from sqlalchemy import text
 from fastapi.responses import JSONResponse
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 @router.get("/dashboard/")
 def get_student_dashboard(

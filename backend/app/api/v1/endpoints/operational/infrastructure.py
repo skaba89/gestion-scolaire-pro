@@ -9,6 +9,10 @@ from fastapi import Query
 from app.crud import academic as crud
 from app.models.associations import subject_levels, classroom_departments, class_subjects
 from sqlalchemy import text
+import logging
+
+logger = logging.getLogger(__name__)
+
 from app.schemas.academic import (
     Room, RoomCreate,
     Classroom, ClassroomCreate, ClassroomUpdate,

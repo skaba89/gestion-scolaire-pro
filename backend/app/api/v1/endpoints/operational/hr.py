@@ -12,6 +12,9 @@ from app.schemas.hr import (
     Payslip, PayslipCreate, PayslipUpdate
 )
 from app.crud import hr as crud_hr
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

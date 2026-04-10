@@ -10,6 +10,9 @@ from app.utils.audit import log_audit
 from app.models.audit_log import AuditLog
 import uuid
 from datetime import datetime, timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

@@ -7,6 +7,9 @@ from sqlalchemy import text
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.schemas.audit import AuditLog
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

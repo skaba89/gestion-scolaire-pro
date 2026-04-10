@@ -10,6 +10,9 @@ import math
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.utils.audit import log_audit
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -686,10 +689,42 @@ def create_user(
 
     db.commit()
 
+    # SECURITY: Store generated password in Redis instead of returning in response body.
+    # This prevents the password from being logged in access logs, proxy logs, etc.
+    if not body.password and raw_password:
+        import hashlib
+        retrieval_key = hashlib.sha256(f"create_pw:{new_id}:{secrets.token_hex(8)}".encode()).hexdigest()[:16]
+        try:
+            import asyncio
+            from app.core.cache import redis_client
+            loop = asyncio.get_event_loop()
+            if not loop.is_running():
+                loop.run_until_complete(
+                    redis_client.set(f"temp_pw:{retrieval_key}", raw_password, expire=300)
+                )
+                return {
+                    "id": new_id,
+                    "email": body.email,
+                    "retrieval_key": retrieval_key,
+                    "expires_in": 300,
+                    "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
+                }
+            else:
+                return {
+                    "id": new_id,
+                    "email": body.email,
+                    "_password_available_via_redis": True,
+                }
+        except Exception:
+            return {
+                "id": new_id,
+                "email": body.email,
+                "_security_warning": "Redis unavailable — password stored but retrieval key not generated",
+            }
+
     return {
         "id": new_id,
         "email": body.email,
-        "generated_password": raw_password if not body.password else None,
     }
 
 
@@ -805,7 +840,40 @@ def convert_to_account(
     )
 
     db.commit()
-    return {"userId": new_user_id, "email": body.email, "generated_password": raw_password if not body.password else None}
+
+    # SECURITY: Store generated password in Redis instead of returning in response body.
+    if not body.password and raw_password:
+        import hashlib
+        retrieval_key = hashlib.sha256(f"convert_pw:{new_user_id}:{secrets.token_hex(8)}".encode()).hexdigest()[:16]
+        try:
+            import asyncio
+            from app.core.cache import redis_client
+            loop = asyncio.get_event_loop()
+            if not loop.is_running():
+                loop.run_until_complete(
+                    redis_client.set(f"temp_pw:{retrieval_key}", raw_password, expire=300)
+                )
+                return {
+                    "userId": new_user_id,
+                    "email": body.email,
+                    "retrieval_key": retrieval_key,
+                    "expires_in": 300,
+                    "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
+                }
+            else:
+                return {
+                    "userId": new_user_id,
+                    "email": body.email,
+                    "_password_available_via_redis": True,
+                }
+        except Exception:
+            return {
+                "userId": new_user_id,
+                "email": body.email,
+                "_security_warning": "Redis unavailable — password stored but retrieval key not generated",
+            }
+
+    return {"userId": new_user_id, "email": body.email}
 
 
 # ─── Profile update endpoint ──────────────────────────────────────────────────
