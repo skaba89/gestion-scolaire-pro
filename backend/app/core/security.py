@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -39,7 +40,7 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
     )
 
     try:
-        return jwt.decode(
+        payload = jwt.decode(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
@@ -49,7 +50,24 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
         logger.info("JWT validation failed: %s", exc)
         raise credentials_exception
 
-def get_current_user(request: Request, token: dict = Depends(verify_token)) -> dict:
+    return payload
+
+
+async def _get_token_version_from_redis(user_id: str) -> int:
+    """Async helper to check current token version from Redis."""
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        current = await client.get(f"sfp:user_token_version:{user_id}")
+        return int(current) if current else 0
+    except Exception:
+        return 0
+
+
+def get_current_user(
+    request: Request,
+    token: dict = Depends(verify_token),
+) -> dict:
     """
     Dependency that returns the current authenticated user from the native JWT payload.
     Enriched with database roles and tenant_id for authorization.
@@ -57,6 +75,9 @@ def get_current_user(request: Request, token: dict = Depends(verify_token)) -> d
     For SUPER_ADMIN users without a tenant_id, the X-Tenant-ID header from the
     frontend is injected as tenant_id so that all tenant-scoped endpoints work
     when a super admin accesses a specific tenant's dashboard.
+
+    Note: Token version validation (logout-all) is handled by the calling
+    async endpoint via ``validate_token_version()`` since Redis access is async.
     """
     from app.core.database import SessionLocal
     from app.models.user import User
@@ -95,6 +116,22 @@ def get_current_user(request: Request, token: dict = Depends(verify_token)) -> d
         if resolved_tenant_id is None and "SUPER_ADMIN" in roles:
             header_tid = request.headers.get("X-Tenant-ID")
             if header_tid:
+                # SECURITY: Validate the header is a proper UUID format
+                try:
+                    UUID(header_tid)
+                except ValueError:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid X-Tenant-ID format: must be a valid UUID",
+                    )
+                # Verify the tenant exists in the database
+                from app.models.tenant import Tenant
+                tenant_obj = db.query(Tenant).filter(Tenant.id == header_tid).first()
+                if not tenant_obj:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Specified tenant does not exist",
+                    )
                 resolved_tenant_id = header_tid
 
         return {
@@ -105,7 +142,30 @@ def get_current_user(request: Request, token: dict = Depends(verify_token)) -> d
             "username": user_db.username,
             "roles": roles,
             "tenant_id": resolved_tenant_id,
+            "_token_version": token.get("tv", 0),
         }
+
+
+async def validate_token_version(user_id: str, token_version: int) -> None:
+    """Validate that the token's version matches the current Redis version.
+
+    Call this from async endpoints that need to enforce logout-all.
+    Raises HTTPException 401 if the token version is stale.
+    """
+    if not token_version or token_version <= 0:
+        return  # Legacy tokens without version — allow through
+
+    current_version = await _get_token_version_from_redis(user_id)
+    if current_version > token_version:
+        logger.info(
+            "Token rejected: version mismatch (token=%d, current=%d) for user %s",
+            token_version, current_version, user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated (logged out from all devices)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 ROLE_PERMISSIONS: dict = {
     "SUPER_ADMIN": ["*"],

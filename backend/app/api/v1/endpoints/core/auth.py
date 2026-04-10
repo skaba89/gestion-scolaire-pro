@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
@@ -20,11 +20,66 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 
+# ─── Token Blacklist Helpers ─────────────────────────────────────────────
+
+async def blacklist_token(token_jti: str, expires_in_seconds: int) -> None:
+    """Add a token to the blacklist in Redis until it naturally expires.
+
+    Uses the token's JTI (or a hash if JTI is absent) as the key, with an
+    expiry matching the remaining token lifetime so Redis auto-cleans.
+    """
+    try:
+        from app.core.cache import redis_client
+        key = f"token_blacklist:{token_jti}"
+        await redis_client.set(key, "1", expire=expires_in_seconds)
+    except Exception as exc:
+        # Redis unavailable — log but don't block the request
+        logger.warning("Failed to blacklist token (Redis unavailable): %s", exc)
+
+
+async def is_token_blacklisted(token_jti: str) -> bool:
+    """Check if a token has been blacklisted."""
+    try:
+        from app.core.cache import redis_client
+        key = f"token_blacklist:{token_jti}"
+        return await redis_client.exists(key)
+    except Exception:
+        # Redis unavailable — allow the token through (fail-open)
+        return False
+
+
+async def blacklist_all_user_tokens(user_id: str, except_jti: str = None) -> int:
+    """Blacklist all active tokens for a user by incrementing their token version.
+
+    Instead of tracking individual tokens, we use a 'token_version' counter.
+    Each time a token is created, it includes the current version.
+    When logout-all is called, we increment the version, invalidating
+    all tokens with older versions.
+
+    Returns the new token version number.
+    """
+    try:
+        from app.core.cache import redis_client
+        key = f"user_token_version:{user_id}"
+        # Atomically increment the version
+        import asyncio
+        client = await redis_client.client
+        new_version = await client.incr(f"sfp:{key}")
+        # Set a long expiry so it doesn't disappear
+        await client.expire(f"sfp:{key}", 86400 * 30)  # 30 days
+        logger.info("Token version for user %s bumped to %d", user_id, new_version)
+        return new_version
+    except Exception as exc:
+        logger.warning("Failed to bump token version (Redis unavailable): %s", exc)
+        return 0
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
     refresh_token: str | None = None
     expires_in: int
+    token_version: int | None = None
 
 
 class UserInfo(BaseModel):
@@ -33,6 +88,67 @@ class UserInfo(BaseModel):
     username: str
     roles: list[str]
     tenant_id: str | None
+
+
+# ─── Login Rate Limiting Constants ────────────────────────────────────────
+MAX_LOGIN_ATTEMPTS = 5          # Max failed attempts before lockout
+LOGIN_LOCKOUT_DURATION = 900    # Lockout duration in seconds (15 minutes)
+
+
+async def _check_account_lockout(user_id: str) -> tuple[bool, int]:
+    """Check if an account is locked due to too many failed login attempts.
+
+    Returns (is_locked, remaining_attempts).
+    Uses Redis to track per-account failed attempts.
+    """
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+
+        key = f"sfp:login_attempts:{user_id}"
+        attempts_str = await client.get(key)
+
+        if attempts_str:
+            attempts = int(attempts_str)
+            if attempts >= MAX_LOGIN_ATTEMPTS:
+                # Check if lockout has expired
+                ttl = await client.ttl(key)
+                if ttl and ttl > 0:
+                    return True, 0  # Account is locked
+                else:
+                    # Lockout expired — reset counter
+                    await client.delete(key)
+                    return False, MAX_LOGIN_ATTEMPTS
+            return False, MAX_LOGIN_ATTEMPTS - attempts
+        return False, MAX_LOGIN_ATTEMPTS
+    except Exception:
+        # Redis unavailable — skip lockout check (fail-open)
+        return False, MAX_LOGIN_ATTEMPTS
+
+
+async def _record_failed_login(user_id: str) -> int:
+    """Record a failed login attempt. Returns the new attempt count."""
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+
+        key = f"sfp:login_attempts:{user_id}"
+        new_count = await client.incr(key)
+        if new_count == 1:
+            # First failure — set expiry
+            await client.expire(key, LOGIN_LOCKOUT_DURATION)
+        return new_count
+    except Exception:
+        return 0
+
+
+async def _reset_login_attempts(user_id: str) -> None:
+    """Clear failed login attempts after a successful login."""
+    try:
+        from app.core.cache import redis_client
+        await redis_client.delete(f"login_attempts:{user_id}")
+    except Exception:
+        pass
 
 
 @router.post("/login/", response_model=Token)
@@ -44,8 +160,24 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         .first()
     )
 
+    # SECURITY: Check per-account lockout (prevents distributed brute-force)
+    if user:
+        is_locked, remaining = await _check_account_lockout(str(user.id))
+        if is_locked:
+            logger.warning("Login blocked: account %s is locked due to too many failed attempts", user.email)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Account temporarily locked. Too many failed login attempts. Try again in {LOGIN_LOCKOUT_DURATION // 60} minutes.",
+                headers={"WWW-Authenticate": "Bearer", "Retry-After": str(LOGIN_LOCKOUT_DURATION)},
+            )
+
     if not user or not user.is_active or not verify_password(form_data.password, getattr(user, "password_hash", None)):
-        logger.info("Native login failed for user '%s'", form_data.username)
+        # Record failed attempt
+        if user:
+            attempts = await _record_failed_login(str(user.id))
+            logger.info("Native login failed for user '%s' (attempt %d/%d)", form_data.username, attempts, MAX_LOGIN_ATTEMPTS)
+        else:
+            logger.info("Native login failed for unknown user '%s'", form_data.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -64,6 +196,21 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             )
 
     roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
+
+    # Fetch current token version from Redis (for logout-all invalidation)
+    token_version = 0
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        version_str = await client.get(f"sfp:user_token_version:{user.id}")
+        if version_str:
+            token_version = int(version_str)
+    except Exception:
+        pass
+
+    import hashlib
+    token_jti = hashlib.sha256(f"{user.id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
+
     access_token = create_access_token(
         {
             "sub": str(user.id),
@@ -71,19 +218,39 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             "preferred_username": user.username,
             "tenant_id": str(user.tenant_id) if user.tenant_id else None,
             "roles": roles,
+            "jti": token_jti,
+            "tv": token_version,
         }
     )
+
+    # SECURITY: Clear failed login attempts on successful login
+    await _reset_login_attempts(str(user.id))
+
     return Token(
         access_token=access_token,
         token_type="bearer",
         refresh_token=None,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        token_version=token_version,
     )
 
 
 @router.post("/refresh/", response_model=Token)
 @limiter.limit("20/minute")
 async def refresh_token(request: Request, current_user: dict = Depends(get_current_user)):
+    import hashlib
+    token_jti = hashlib.sha256(f"{current_user['id']}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
+
+    token_version = 0
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        version_str = await client.get(f"sfp:user_token_version:{current_user['id']}")
+        if version_str:
+            token_version = int(version_str)
+    except Exception:
+        pass
+
     access_token = create_access_token(
         {
             "sub": current_user["id"],
@@ -91,6 +258,8 @@ async def refresh_token(request: Request, current_user: dict = Depends(get_curre
             "preferred_username": current_user.get("username"),
             "tenant_id": current_user.get("tenant_id"),
             "roles": current_user.get("roles", []),
+            "jti": token_jti,
+            "tv": token_version,
         }
     )
     return Token(
@@ -98,12 +267,22 @@ async def refresh_token(request: Request, current_user: dict = Depends(get_curre
         token_type="bearer",
         refresh_token=None,
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        token_version=token_version,
     )
 
 
 @router.post("/logout/")
-async def logout(current_user: dict = Depends(get_current_user)):
-    logger.info("User '%s' logged out", current_user.get("email"))
+async def logout(request: Request, current_user: dict = Depends(get_current_user)):
+    # Blacklist the current token so it cannot be reused
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token_str = auth_header.split(" ")[1]
+        # Use the token string hash as JTI for blacklisting
+        import hashlib
+        token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
+        await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+
+    logger.info("User '%s' logged out (token blacklisted)", current_user.get("email"))
     return {"message": "Successfully logged out"}
 
 
@@ -162,7 +341,7 @@ async def change_password(
     validate_password_strength(body.new_password)
 
     user.password_hash = get_password_hash(body.new_password)
-    user.updated_at = datetime.utcnow()
+    user.updated_at = datetime.now(timezone.utc)
     db.commit()
 
     logger.info("User '%s' changed their password", current_user.get("email"))
@@ -170,15 +349,28 @@ async def change_password(
 
 
 @router.post("/logout-all/")
-async def logout_all_devices(current_user: dict = Depends(get_current_user)):
+async def logout_all_devices(request: Request, current_user: dict = Depends(get_current_user)):
+    """Logout from all devices by invalidating all tokens.
+
+    Increments the user's token version in Redis. All future token
+    validations will reject tokens with older version numbers.
+    Also blacklists the current token immediately.
     """
-    Logout from all devices.
-    In a JWT-only setup, the server cannot revoke existing tokens.
-    This endpoint is provided for API compatibility — clients should
-    clear all local tokens. Future implementation may use a token blacklist.
-    """
-    logger.info("User '%s' logged out from all devices", current_user.get("email"))
-    return {"message": "Logged out from all devices"}
+    user_id = current_user.get("id")
+
+    # Blacklist current token immediately
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token_str = auth_header.split(" ")[1]
+        import hashlib
+        token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
+        await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+
+    # Bump token version — invalidates all existing tokens for this user
+    new_version = await blacklist_all_user_tokens(user_id)
+
+    logger.info("User '%s' logged out from all devices (token version bumped to %d)", current_user.get("email"), new_version)
+    return {"message": "Logged out from all devices", "token_version": new_version}
 
 
 class RegisterRequest(BaseModel):
@@ -188,6 +380,17 @@ class RegisterRequest(BaseModel):
     last_name: str = ""
     role: str = "PARENT"
     tenant_slug: Optional[str] = None
+
+    @classmethod
+    def validate_role(cls, role: str) -> str:
+        """Only allow safe, non-privileged roles for public registration."""
+        ALLOWED_PUBLIC_ROLES = {"PARENT", "STUDENT", "ALUMNI"}
+        if role not in ALLOWED_PUBLIC_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Rôle non autorisé pour l'inscription publique. Rôles acceptés : {', '.join(sorted(ALLOWED_PUBLIC_ROLES))}",
+            )
+        return role
 
 
 @router.post("/register/", status_code=status.HTTP_201_CREATED)
@@ -212,6 +415,9 @@ async def register(
             status_code=status.HTTP_409_CONFLICT,
             detail="Un utilisateur avec cet email existe déjà.",
         )
+
+    # 2b. Validate role — prevent privilege escalation
+    safe_role = RegisterRequest.validate_role(body.role)
 
     # 3. Resolve tenant if tenant_slug is provided
     tenant_id = None
@@ -241,23 +447,23 @@ async def register(
     db.add(new_user)
     db.flush()  # flush to get the id before creating role
 
-    # 5. Assign default role
+    # 5. Assign validated role (safe — never from raw user input)
     user_role = UserRole(
         user_id=new_user.id,
         tenant_id=tenant_id,
-        role=body.role,
+        role=safe_role,
     )
     db.add(user_role)
     db.commit()
 
-    logger.info("New user registered: %s (role=%s)", body.email, body.role)
+    logger.info("New user registered: %s (role=%s)", body.email, safe_role)
 
     return {
         "id": new_id,
         "email": body.email,
         "first_name": body.first_name,
         "last_name": body.last_name,
-        "role": body.role,
+        "role": safe_role,
         "tenant_id": str(tenant_id) if tenant_id else None,
     }
 
@@ -267,7 +473,10 @@ def bootstrap_admin(
     bootstrap_key: str = Query(None, description="Secret key required in production"),
     db: Session = Depends(get_db),
 ):
-    if not settings.DEBUG and (not bootstrap_key or bootstrap_key != settings.BOOTSTRAP_SECRET):
+    # SECURITY: ALWAYS require the bootstrap secret, even in DEBUG mode.
+    # In production, BOOTSTRAP_SECRET must be set. In debug, it defaults to empty
+    # which means the endpoint is blocked unless explicitly configured.
+    if not bootstrap_key or bootstrap_key != settings.BOOTSTRAP_SECRET:
         raise HTTPException(status_code=403, detail="Access denied")
 
     """Public endpoint to create or reset the super admin account.

@@ -225,10 +225,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "X-Tenant-ID", "Content-Type", "X-Request-ID", "Accept"],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "X-Request-ID"],
 )
+
+# Store allowed origins on app state so exception handlers can use them for CORS
+app.state._cors_allowed_origins = origins
 
 # ─── Application middlewares (inner layers) ───────────────────────────────
 app.add_middleware(RequestIDMiddleware)
@@ -236,6 +239,28 @@ app.add_middleware(MetricsMiddleware)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(TenantMiddleware)
 app.add_middleware(QuotaMiddleware)
+
+
+# ─── Security Headers Middleware ──────────────────────────────────────────
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to every response.
+
+    - Strict-Transport-Security (HSTS): Force HTTPS for 1 year, include subdomains
+    - X-Content-Type-Options: Prevent MIME type sniffing
+    - X-Frame-Options: Prevent clickjacking (DENY = never allow framing)
+    - X-XSS-Protection: Legacy XSS filter for older browsers
+    - Referrer-Policy: Limit referrer leakage
+    - Permissions-Policy: Restrict browser features
+    """
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
 
 @app.get("/", include_in_schema=False)
 def root():

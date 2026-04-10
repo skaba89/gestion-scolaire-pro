@@ -86,14 +86,24 @@ class ServiceUnavailableError(SchoolFlowException):
 
 # ─── FastAPI Exception Handlers ───────────────────────────────────────────────
 
-def _cors_headers() -> dict:
-    """Return CORS headers so the browser can read error responses."""
-    return {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "*",
-        "Access-Control-Allow-Headers": "*",
-        "Access-Control-Expose-Headers": "*",
-    }
+def _cors_headers(request: Request) -> dict:
+    """Return CORS headers so the browser can read error responses.
+
+    SECURITY: Only echo back the request Origin if it matches an allowed
+    origin. Never use wildcard '*' which bypasses all CORS restrictions.
+    """
+    origin = request.headers.get("origin", "")
+    allowed_origins = getattr(request.app.state, "_cors_allowed_origins", [])
+
+    if origin and origin in allowed_origins:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin",
+        }
+    # No matching origin — return empty dict (no CORS headers on errors from
+    # untrusted origins). The CORSMiddleware already handles normal requests.
+    return {}
 
 
 async def schoolflow_exception_handler(
@@ -113,7 +123,7 @@ async def schoolflow_exception_handler(
     return JSONResponse(
         status_code=exc.status_code,
         content={**exc.to_dict(), "request_id": request_id},
-        headers=_cors_headers(),
+        headers=_cors_headers(request),
     )
 
 
@@ -130,7 +140,7 @@ async def http_exception_handler(
             "detail": exc.detail if isinstance(exc.detail, str) else str(exc.detail),
             "request_id": request_id,
         },
-        headers=_cors_headers(),
+        headers=_cors_headers(request),
     )
 
 
@@ -153,5 +163,5 @@ async def unhandled_exception_handler(
             "detail": "An unexpected error occurred",
             "request_id": request_id,
         },
-        headers=_cors_headers(),
+        headers=_cors_headers(request),
     )

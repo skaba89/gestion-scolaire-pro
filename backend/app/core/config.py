@@ -146,7 +146,7 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: str = get_secret("MINIO_ENDPOINT", _DEFAULT_MINIO_ENDPOINT)
     MINIO_ACCESS_KEY: str = get_secret("MINIO_ACCESS_KEY", "minioadmin")
     MINIO_SECRET_KEY: str = get_secret("MINIO_SECRET_KEY", "minioadmin")
-    MINIO_SECURE: bool = False
+    MINIO_SECURE: bool = True  # SECURITY: Default to HTTPS for MinIO connections
     MINIO_BUCKET: str = get_secret("MINIO_BUCKET", "schoolflow")
 
     REDIS_URL: str = get_secret("REDIS_URL", "redis://localhost:6379/0")

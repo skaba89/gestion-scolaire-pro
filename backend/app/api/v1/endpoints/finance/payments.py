@@ -565,8 +565,12 @@ def update_fee(
 ):
     """Update an existing fee."""
     tenant_id = _get_tenant_id(current_user)
+    # SECURITY: Whitelist allowed column names to prevent SQL injection
+    ALLOWED_FEE_FIELDS = {"name", "description", "amount"}
     try:
         updates = body.model_dump(exclude_unset=True)
+        # Filter to only allowed fields (defense in depth)
+        updates = {k: v for k, v in updates.items() if k in ALLOWED_FEE_FIELDS}
         if not updates:
             raise HTTPException(status_code=400, detail="No fields to update")
         set_clause = ", ".join([f"{k} = :{k}" for k in updates])

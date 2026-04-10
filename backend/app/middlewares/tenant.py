@@ -1,8 +1,14 @@
+import logging
+import jwt
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.core.config import settings
 from app.core.database import tenant_context
+
+logger = logging.getLogger(__name__)
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -36,18 +42,26 @@ class TenantMiddleware(BaseHTTPMiddleware):
         tenant_id = request.headers.get("X-Tenant-ID")
 
         # Try to get tenant from JWT claim (Auth context authority)
+        # SECURITY: Always verify the JWT signature to prevent token forgery
         auth_header = request.headers.get("Authorization")
         user_roles = []
 
         if not tenant_id and auth_header and auth_header.startswith("Bearer "):
             try:
-                import jwt
                 token = auth_header.split(" ")[1]
-                payload = jwt.decode(token, options={"verify_signature": False})
+                payload = jwt.decode(
+                    token,
+                    settings.SECRET_KEY,
+                    algorithms=[settings.ALGORITHM],
+                )
                 if payload.get("tenant_id"):
                     tenant_id = payload.get("tenant_id")
                 user_roles = payload.get("roles", []) or []
-            except Exception:
+            except jwt.ExpiredSignatureError:
+                # Token expired — allow downstream to handle 401
+                pass
+            except jwt.InvalidTokenError as exc:
+                logger.warning("Tenant middleware: invalid JWT skipped: %s", exc)
                 pass
 
         # SUPER_ADMIN bypass: no tenant required for platform-level operations

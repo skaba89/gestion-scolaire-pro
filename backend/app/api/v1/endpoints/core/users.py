@@ -526,7 +526,12 @@ def reset_user_password(
     """
     Reset a user's password by generating a temporary password and saving
     the bcrypt hash to the user's password_hash column.
-    Returns the temporary password (admin should communicate it securely).
+
+    SECURITY: The temporary password is stored in Redis with a short TTL (5 min)
+    and a one-time retrieval key is returned instead. The admin must retrieve the
+    password via a separate endpoint within the TTL window.
+
+    Falls back to direct response if Redis is unavailable (with a warning).
     """
     import secrets
     import string
@@ -536,11 +541,13 @@ def reset_user_password(
 
     # Verify user exists
     row = db.execute(
-        text("SELECT id FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
+        text("SELECT id, email FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
         {"user_id": user_id, "tenant_id": tenant_id}
     ).fetchone()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    target_email = row[1]
 
     # Generate a temporary password
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
@@ -564,7 +571,40 @@ def reset_user_password(
 
     db.commit()
 
-    return {"message": "Password reset successfully", "temp_password": temp_password}
+    # SECURITY: Store temp password in Redis instead of returning in response body.
+    # This prevents the password from being logged in access logs, proxy logs, etc.
+    # Use a one-time retrieval key that the admin can use within 5 minutes.
+    import hashlib
+    retrieval_key = hashlib.sha256(f"reset_pw:{user_id}:{secrets.token_hex(8)}".encode()).hexdigest()[:16]
+    try:
+        import asyncio
+        from app.core.cache import redis_client
+        # Try to store in Redis
+        loop = asyncio.get_event_loop()
+        if not loop.is_running():
+            loop.run_until_complete(
+                redis_client.set(f"temp_pw:{retrieval_key}", temp_password, expire=300)
+            )
+            return {
+                "message": "Password reset successfully",
+                "retrieval_key": retrieval_key,
+                "expires_in": 300,
+                "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
+            }
+    except Exception:
+        pass
+
+    # Fallback: Redis unavailable — return with a security warning
+    logger.warning(
+        "Password reset for user %s: Redis unavailable, temp_password returned directly. "
+        "This is less secure — consider enabling Redis for secure password delivery.",
+        user_id,
+    )
+    return {
+        "message": "Password reset successfully",
+        "temp_password": temp_password,
+        "_security_warning": "Redis unavailable — password returned in response body. Enable Redis for secure delivery.",
+    }
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
