@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
@@ -226,21 +227,31 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     )
 
     # SECURITY: Enforce MFA check for privileged roles before issuing token
+    # Controlled by ENFORCE_MFA env var (default: disabled to avoid locking out
+    # bootstrap super admin who is created with mfa_enabled=False).
     PRIVILEGED_ROLES_REQUIRING_MFA = {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT"}
     user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
 
     if user_privileged_roles:
-        # Check if user has MFA enabled
         mfa_enabled = getattr(user, "mfa_enabled", False)
+        enforce_mfa = os.getenv("ENFORCE_MFA", "false").lower() == "true"
+
         if not mfa_enabled:
-            logger.warning(
-                "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled",
-                user.email, user_privileged_roles
-            )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
-            )
+            if enforce_mfa:
+                logger.warning(
+                    "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled (ENFORCE_MFA=true)",
+                    user.email, user_privileged_roles
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
+                )
+            else:
+                logger.warning(
+                    "MFA not enabled for user '%s' with privileged roles %s. "
+                    "Set ENFORCE_MFA=true to require MFA for privileged accounts.",
+                    user.email, user_privileged_roles
+                )
 
     # SECURITY: Clear failed login attempts on successful login
     await _reset_login_attempts(str(user.id))
