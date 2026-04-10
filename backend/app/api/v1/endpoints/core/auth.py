@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import or_
@@ -225,6 +225,23 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         }
     )
 
+    # SECURITY: Enforce MFA check for privileged roles before issuing token
+    PRIVILEGED_ROLES_REQUIRING_MFA = {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT"}
+    user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
+
+    if user_privileged_roles:
+        # Check if user has MFA enabled
+        mfa_enabled = getattr(user, "mfa_enabled", False)
+        if not mfa_enabled:
+            logger.warning(
+                "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled",
+                user.email, user_privileged_roles
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
+            )
+
     # SECURITY: Clear failed login attempts on successful login
     await _reset_login_attempts(str(user.id))
 
@@ -241,21 +258,36 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 @limiter.limit("20/minute")
 async def refresh_token(request: Request, current_user: dict = Depends(get_current_user)):
     import hashlib
-    token_jti = hashlib.sha256(f"{current_user['id']}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
+    user_id = current_user['id']
+    token_jti = hashlib.sha256(f"{user_id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
 
     token_version = 0
     try:
         from app.core.cache import redis_client
         client = await redis_client.client
-        version_str = await client.get(f"sfp:user_token_version:{current_user['id']}")
+        version_str = await client.get(f"sfp:user_token_version:{user_id}")
         if version_str:
             token_version = int(version_str)
-    except Exception:
-        pass
+        # SECURITY: Track active sessions — enforce max concurrent sessions (5)
+        session_key = f"sfp:active_sessions:{user_id}"
+        current_sessions = await client.smembers(session_key)
+        if len(current_sessions) >= 5:
+            logger.warning("Refresh blocked: user %s has too many active sessions (%d)", user_id, len(current_sessions))
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many active sessions. Please log out from other devices.",
+            )
+        # Register this session with 30-min TTL
+        await client.sadd(session_key, token_jti)
+        await client.expire(session_key, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Session tracking failed (Redis unavailable): %s", exc)
 
     access_token = create_access_token(
         {
-            "sub": current_user["id"],
+            "sub": user_id,
             "email": current_user.get("email"),
             "preferred_username": current_user.get("username"),
             "tenant_id": current_user.get("tenant_id"),
@@ -337,6 +369,35 @@ async def change_password(
 
     validate_password_strength(body.new_password)
 
+    # SECURITY: Check password history to prevent reuse
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        import hashlib
+        # Check last 5 password hashes
+        for i in range(5):
+            hist_key = f"sfp:pw_history:{user_id}:{i}"
+            old_hash = await client.get(hist_key)
+            if old_hash and verify_password(body.new_password, old_hash):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Ce mot de passe a été utilisé récemment. Veuillez en choisir un différent."
+                )
+        # Rotate password history
+        # Shift entries: slot 4→delete, 3→4, 2→3, 1→2, 0→1
+        for i in range(4, 0, -1):
+            old = await client.get(f"sfp:pw_history:{user_id}:{i-1}")
+            if old:
+                await client.set(f"sfp:pw_history:{user_id}:{i}", old, expire=86400*365)
+        # Store current hash in slot 0
+        current_hash = getattr(user, "password_hash", None)
+        if current_hash:
+            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, expire=86400*365)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Password history check failed (Redis unavailable): %s", exc)
+
     user.password_hash = get_password_hash(body.new_password)
     user.updated_at = datetime.now(timezone.utc)
     db.commit()
@@ -367,6 +428,14 @@ async def logout_all_devices(request: Request, current_user: dict = Depends(get_
     # Bump token version — invalidates all existing tokens for this user
     new_version = await blacklist_all_user_tokens(user_id)
 
+    # SECURITY: Clear all active sessions for this user
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        await client.delete(f"sfp:active_sessions:{user_id}")
+    except Exception:
+        pass
+
     logger.info("User '%s' logged out from all devices (token version bumped to %d)", current_user.get("email"), new_version)
     return {"message": "Logged out from all devices", "token_version": new_version}
 
@@ -374,21 +443,21 @@ async def logout_all_devices(request: Request, current_user: dict = Depends(get_
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    first_name: str = ""
-    last_name: str = ""
+    first_name: str = Field(default="", max_length=255)
+    last_name: str = Field(default="", max_length=255)
     role: str = "PARENT"
     tenant_slug: Optional[str] = None
 
+    @field_validator("role")
     @classmethod
-    def validate_role(cls, role: str) -> str:
+    def validate_role(cls, v: str) -> str:
         """Only allow safe, non-privileged roles for public registration."""
         ALLOWED_PUBLIC_ROLES = {"PARENT", "STUDENT", "ALUMNI"}
-        if role not in ALLOWED_PUBLIC_ROLES:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Rôle non autorisé pour l'inscription publique. Rôles acceptés : {', '.join(sorted(ALLOWED_PUBLIC_ROLES))}",
+        if v not in ALLOWED_PUBLIC_ROLES:
+            raise ValueError(
+                f"Rôle non autorisé pour l'inscription publique. Rôles acceptés : {', '.join(sorted(ALLOWED_PUBLIC_ROLES))}"
             )
-        return role
+        return v
 
 
 @router.post("/register/", status_code=status.HTTP_201_CREATED)
@@ -414,8 +483,8 @@ async def register(
             detail="Un utilisateur avec cet email existe déjà.",
         )
 
-    # 2b. Validate role — prevent privilege escalation
-    safe_role = RegisterRequest.validate_role(body.role)
+    # 2b. Role is already validated by Pydantic field_validator on RegisterRequest
+    safe_role = body.role
 
     # 3. Resolve tenant if tenant_slug is provided
     tenant_id = None

@@ -25,6 +25,15 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    """Create a signed JWT access token.
+
+    SECURITY NOTES:
+    - Uses HS256 (symmetric) signing with SECRET_KEY
+    - For high-security deployments, consider RS256 (asymmetric) signing
+    - Key rotation: Set SECRET_KEY_ROTATION env var with comma-separated old keys
+      to accept tokens signed with previous keys during grace period
+    - Always use a minimum 32-character SECRET_KEY in production
+    """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

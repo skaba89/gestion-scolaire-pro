@@ -383,8 +383,7 @@ def check_super_admin(env_path: Path, database_url: Optional[str]) -> Optional[d
                     """
                     SELECT u.id::text, u.email, u.username, u.is_active,
                            u.password_hash IS NOT NULL AS has_password,
-                           u.tenant_id IS NULL AS is_platform_level,
-                           LEFT(u.password_hash, 10) AS hash_prefix
+                           u.tenant_id IS NULL AS is_platform_level
                     FROM users u
                     JOIN user_roles ur ON ur.user_id = u.id AND ur.role = 'SUPER_ADMIN'
                     LIMIT 1
@@ -395,11 +394,11 @@ def check_super_admin(env_path: Path, database_url: Optional[str]) -> Optional[d
             if not row:
                 _fail("No SUPER_ADMIN user found in database")
                 _remediate("Create the super admin: cd backend && python -m scripts.create_admin")
-                _info("Default credentials: admin@schoolflow.local / Admin@123456")
+                _info("Default credentials: admin@schoolflow.local (see ADMIN_DEFAULT_EMAIL/ADMIN_DEFAULT_PASSWORD in .env)")
                 engine.dispose()
                 return None
 
-            admin_id, email, username, is_active, has_password, is_platform, hash_prefix = row
+            admin_id, email, username, is_active, has_password, is_platform = row
             _ok(f"SUPER_ADMIN found: {email} (id={admin_id[:8]}...)")
 
             flags = []
@@ -407,9 +406,6 @@ def check_super_admin(env_path: Path, database_url: Optional[str]) -> Optional[d
             flags.append("has_password" if has_password else "NO_PASSWORD")
             flags.append("platform_level" if is_platform else "tenant_scoped")
             _info(f"Flags: {', '.join(flags)}")
-
-            if hash_prefix:
-                _info(f"Password hash prefix: {hash_prefix}...")
 
             if not is_active:
                 _warn("Admin account is INACTIVE — login will be denied")
@@ -431,7 +427,6 @@ def check_super_admin(env_path: Path, database_url: Optional[str]) -> Optional[d
                 "is_active": bool(is_active),
                 "has_password": bool(has_password),
                 "is_platform": bool(is_platform),
-                "hash_prefix": hash_prefix,
             }
 
     except Exception as exc:
@@ -449,13 +444,8 @@ def check_bcrypt(env_path: Path, database_url: Optional[str], admin_info: Option
         _warn("Cannot verify bcrypt — no password_hash stored")
         return
 
-    if not admin_info["hash_prefix"] or "$2" not in admin_info["hash_prefix"]:
-        _warn(f"Password hash does not look like bcrypt (prefix: {admin_info['hash_prefix']})")
-        _remediate("The hash should start with $2b$ or $2a$. Regenerate it.")
-        return
-
     # Verify the known password against the stored hash
-    test_password = "Admin@123456"
+    test_password = "CHANGE_ME_TEST_PASSWORD"
 
     try:
         from sqlalchemy import create_engine, text
@@ -484,7 +474,7 @@ def check_bcrypt(env_path: Path, database_url: Optional[str], admin_info: Option
                 _ok(f"bcrypt verification passed for '{admin_info['email']}'")
             else:
                 _fail(f"bcrypt verification FAILED for '{admin_info['email']}' — password mismatch")
-                _remediate("The stored password hash does not match 'Admin@123456'")
+                _remediate("The stored password hash does not match the configured ADMIN_DEFAULT_PASSWORD")
                 _remediate("Run: cd backend && python -m scripts.create_admin  (it will skip if already exists, so reset manually)")
 
     except ImportError:
@@ -501,7 +491,7 @@ def check_login_api(env_path: Path) -> Optional[str]:
     login_url = f"http://localhost:{port}/api/v1/auth/login/"
 
     login_email = "admin@schoolflow.local"
-    login_password = "Admin@123456"
+    login_password = "CHANGE_ME_TEST_PASSWORD"
 
     form_data = urllib.parse.urlencode({
         "username": login_email,
@@ -541,7 +531,7 @@ def check_login_api(env_path: Path) -> Optional[str]:
 
     if status == 401:
         _remediate("1. Verify the admin user exists and is active (Step 5)")
-        _remediate("2. Check the password is correct: admin@schoolflow.local / Admin@123456")
+        _remediate("2. Check the password is correct (see ADMIN_DEFAULT_EMAIL/ADMIN_DEFAULT_PASSWORD in .env)")
         _remediate("3. Ensure password_hash is set (not NULL) for the admin user")
         _remediate("4. Check bcrypt hash is valid: the hash must start with $2b$")
     elif status == 403:

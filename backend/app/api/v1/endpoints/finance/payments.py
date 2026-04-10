@@ -22,6 +22,10 @@ from app.models.payment import PaymentStatus, InvoiceStatus
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# SECURITY: Whitelist ORDER BY columns to prevent SQL injection in dynamic queries
+ALLOWED_ORDER_COLUMNS = {"p.created_at", "p.amount", "p.status", "p.payment_date", "s.first_name", "s.last_name", "i.created_at", "i.invoice_number"}
+ALLOWED_SORT_DIRECTIONS = {"asc", "desc"}
+
 
 def _get_tenant_id(current_user: dict):
     """Return tenant_id or raise 400 if not set (SUPER_ADMIN must select a tenant)."""

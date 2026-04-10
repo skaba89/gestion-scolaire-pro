@@ -1,14 +1,14 @@
 """Users endpoints — full CRUD + role management"""
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
 import math
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import get_current_user, require_permission, ROLE_PERMISSIONS
 from app.utils.audit import log_audit
 import logging
 
@@ -35,18 +35,18 @@ class UserOut(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    first_name: str
-    last_name: str
+    first_name: str = Field(max_length=255)
+    last_name: str = Field(max_length=255)
     password: Optional[str] = None
     roles: List[str] = []
 
 
 class UserUpdate(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    first_name: Optional[str] = Field(default=None, max_length=255)
+    last_name: Optional[str] = Field(default=None, max_length=255)
     email: Optional[EmailStr] = None
     is_active: Optional[bool] = None
-    avatar_url: Optional[str] = None
+    avatar_url: Optional[str] = Field(default=None, max_length=500)
 
 
 class RoleUpdateRequest(BaseModel):
@@ -363,6 +363,20 @@ def update_user_roles(
     """Replace all roles for a user (within the current tenant)."""
     tenant_id = current_user.get("tenant_id")
 
+    # SECURITY: Validate roles — prevent privilege escalation
+    ALLOWED_ROLES = set(ROLE_PERMISSIONS.keys())
+    PRIVILEGED_ROLES = {"SUPER_ADMIN", "TENANT_ADMIN"}
+    current_roles_set = set(current_user.get("roles", []))
+
+    for role in body.roles:
+        if role not in ALLOWED_ROLES:
+            raise HTTPException(status_code=422, detail=f"Unknown role: {role}")
+        if role in PRIVILEGED_ROLES and "SUPER_ADMIN" not in current_roles_set:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Only SUPER_ADMIN can assign the '{role}' role"
+            )
+
     # Verify user exists in tenant
     check = db.execute(
         text("SELECT id FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
@@ -414,6 +428,19 @@ def assign_role(
 ):
     """Assign a single role to a user."""
     tenant_id = current_user.get("tenant_id")
+
+    # SECURITY: Validate role — prevent privilege escalation
+    ALLOWED_ROLES = set(ROLE_PERMISSIONS.keys())
+    PRIVILEGED_ROLES = {"SUPER_ADMIN", "TENANT_ADMIN"}
+    current_roles_set = set(current_user.get("roles", []))
+
+    if body.role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=422, detail=f"Unknown role: {body.role}")
+    if body.role in PRIVILEGED_ROLES and "SUPER_ADMIN" not in current_roles_set:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Only SUPER_ADMIN can assign the '{body.role}' role"
+        )
 
     # Verify user exists in tenant
     check = db.execute(
@@ -627,6 +654,20 @@ def create_user(
     3. Assign roles.
     """
     tenant_id = current_user.get("tenant_id")
+
+    # SECURITY: Validate roles — prevent privilege escalation
+    ALLOWED_ROLES = set(ROLE_PERMISSIONS.keys())
+    PRIVILEGED_ROLES = {"SUPER_ADMIN", "TENANT_ADMIN"}
+    current_roles = set(current_user.get("roles", []))
+
+    for role in body.roles:
+        if role not in ALLOWED_ROLES:
+            raise HTTPException(status_code=422, detail=f"Unknown role: {role}")
+        if role in PRIVILEGED_ROLES and "SUPER_ADMIN" not in current_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Only SUPER_ADMIN can assign the '{role}' role"
+            )
 
     # Check if user exists
     check = db.execute(
@@ -879,12 +920,12 @@ def convert_to_account(
 # ─── Profile update endpoint ──────────────────────────────────────────────────
 
 class ProfileUpdate(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    first_name: Optional[str] = Field(default=None, max_length=255)
+    last_name: Optional[str] = Field(default=None, max_length=255)
     email: Optional[EmailStr] = None
-    avatar_url: Optional[str] = None
-    phone: Optional[str] = None
-    bio: Optional[str] = None
+    avatar_url: Optional[str] = Field(default=None, max_length=500)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    bio: Optional[str] = Field(default=None, max_length=2000)
 
 
 @router.patch("/profiles/{user_id}/")

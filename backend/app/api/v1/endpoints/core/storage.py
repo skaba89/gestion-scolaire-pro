@@ -1,5 +1,7 @@
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.core.security import get_current_user
 from app.core.storage import storage_client
 import uuid
@@ -8,6 +10,7 @@ import os
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 ALLOWED_EXTENSIONS = {
     "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp",
@@ -18,7 +21,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 @router.post("/upload/")
-async def upload_file(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def upload_file(request: Request, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     try:
         # Validate filename
         if not file.filename:
@@ -87,7 +91,7 @@ async def upload_file(file: UploadFile = File(...), current_user: dict = Depends
 async def get_presigned_url(object_name: str, current_user: dict = Depends(get_current_user)):
     try:
         # Authorization check: user can only access their own files, unless SUPER_ADMIN
-        if not object_name.startswith(current_user['id']):
+        if not object_name.startswith(f"{current_user['id']}/"):
             roles = current_user.get('roles', [])
             if 'SUPER_ADMIN' not in roles:
                 raise HTTPException(status_code=403, detail="Access denied: you can only access your own files")

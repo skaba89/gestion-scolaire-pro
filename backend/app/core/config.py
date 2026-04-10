@@ -94,7 +94,16 @@ def build_external_service_url(hostname: str, suffix: str = "") -> str:
     return f"{base}{suffix}"
 
 
-_BASE_DATABASE_URL = get_secret("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
+_BASE_DATABASE_URL = get_secret("DATABASE_URL", "")
+
+# Startup validation: DATABASE_URL must be set in production
+if not _BASE_DATABASE_URL and not os.getenv("DEBUG", "False").lower() == "true":
+    logger.critical(
+        "DATABASE_URL is not configured and DEBUG is not enabled. "
+        "The application will not function correctly without a database connection. "
+        "Please set the DATABASE_URL environment variable before deploying."
+    )
+
 _MINIO_EXTERNAL_HOSTNAME = get_secret("MINIO_EXTERNAL_HOSTNAME", "")
 _DEFAULT_MINIO_ENDPOINT = build_external_service_url(_MINIO_EXTERNAL_HOSTNAME) or "localhost:9000"
 

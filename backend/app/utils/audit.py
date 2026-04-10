@@ -1,7 +1,10 @@
 """Utilities for audit logging"""
+import logging
 from sqlalchemy.orm import Session
 from app.models.audit_log import AuditLog
 from typing import Optional, Any
+
+logger = logging.getLogger(__name__)
 
 def log_audit(
     db: Session,
@@ -30,4 +33,4 @@ def log_audit(
         db.flush() # Ensure it's prepared within the transaction
     except Exception as e:
         # We don't want audit logging to crash the main operation
-        print(f"Error recording audit log: {e}")
+        logger.error("Error recording audit log: %s", e)

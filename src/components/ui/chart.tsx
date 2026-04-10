@@ -61,6 +61,12 @@ ChartContainer.displayName = "Chart";
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(([_, config]) => config.theme || config.color);
 
+  // SECURITY: Validate id to prevent CSS injection via dangerouslySetInnerHTML
+  if (!id || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+    console.warn(`[Security] Invalid chart ID rejected: ${id}`);
+    return null;
+  }
+
   if (!colorConfig.length) {
     return null;
   }

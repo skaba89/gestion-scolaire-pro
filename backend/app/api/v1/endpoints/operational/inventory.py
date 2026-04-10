@@ -109,11 +109,13 @@ def update_item(item_id: str, item: dict, db: Session = Depends(get_db), current
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
-        # Dynamic update
+        # SECURITY: Only allow whitelisted column names in dynamic UPDATE to prevent SQL injection
+        ALLOWED_INVENTORY_COLUMNS = {"name", "description", "unit_price", "stock_quantity", "category_id"}
         cols = []
         params = {"tid": tenant_id, "iid": item_id}
         for k, v in item.items():
-            if k in ["name", "unit_price", "stock_quantity", "category_id"]:
+            # SECURITY: Filter keys against whitelist (defense in depth)
+            if k in ALLOWED_INVENTORY_COLUMNS:
                 cols.append(f"{k} = :{k}")
                 params[k] = v
         if not cols: return {"message": "No fields to update"}

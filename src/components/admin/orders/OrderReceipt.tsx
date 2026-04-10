@@ -6,6 +6,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Student } from "@/queries/students";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 interface ReceiptItem {
     item_name: string;
@@ -40,6 +41,9 @@ export const OrderReceipt = ({ isOpen, onClose, order, student, items }: OrderRe
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
+        // SECURITY: Sanitize innerHTML before injecting into new document
+        const sanitizedHtml = sanitizeHtml(printContent.innerHTML);
+
         printWindow.document.write(`
             <html>
                 <head>
@@ -60,7 +64,7 @@ export const OrderReceipt = ({ isOpen, onClose, order, student, items }: OrderRe
                     </style>
                 </head>
                 <body>
-                    ${printContent.innerHTML}
+                    ${sanitizedHtml}
                     <script>
                         window.onload = function() { window.print(); window.close(); };
                     </script>

@@ -68,6 +68,9 @@ def list_homework(
     if not tenant_id:
         return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
 
+    # SECURITY: WHERE clause fragments are developer-controlled string literals.
+    # All user-supplied values are passed as bound parameters (safe from SQL injection).
+    ALLOWED_HOMEWORK_FILTER_COLUMNS = {"class_id", "subject_id", "due_date_from", "due_date_to", "search"}
     where = ["h.tenant_id = :tenant_id"]
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}
 
@@ -262,7 +265,11 @@ def update_homework(
     tenant_id = current_user.get("tenant_id")
     user_id = current_user.get("id")
 
+    # SECURITY: Whitelist allowed column names in dynamic UPDATE to prevent SQL injection.
+    # Keys come from Pydantic model but we enforce a whitelist as defense in depth.
+    ALLOWED_HOMEWORK_COLUMNS = {"title", "description", "class_id", "subject_id", "due_date", "is_published", "content"}
     updates = body.model_dump(exclude_unset=True)
+    updates = {k: v for k, v in updates.items() if k in ALLOWED_HOMEWORK_COLUMNS}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 

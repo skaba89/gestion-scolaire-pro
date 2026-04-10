@@ -17,7 +17,8 @@ export default defineConfig(({ mode }) => {
       'process.env': {},
     },
     server: {
-      host: "0.0.0.0",
+      // SECURITY: Default to localhost; use 0.0.0.0 only when network access is explicitly needed
+      host: "localhost",
       port: 3000,
       strictPort: true,
       hmr: {

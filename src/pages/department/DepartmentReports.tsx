@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, subDays, startOfWeek, endOfWeek, subMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Download, FileText, AlertTriangle, Filter, Bell, FileSpreadsheet, Mail, Loader2 } from "lucide-react";
+import { sanitizeHtml } from "@/lib/sanitize";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
@@ -305,7 +306,8 @@ export default function DepartmentReports() {
       return;
     }
 
-    const content = reportRef.current.innerHTML;
+    // SECURITY: Sanitize innerHTML before injecting into new document
+    const content = sanitizeHtml(reportRef.current.innerHTML);
     const departmentName = (userDepartment?.departments as any)?.name || 'Département';
 
     printWindow.document.write(`

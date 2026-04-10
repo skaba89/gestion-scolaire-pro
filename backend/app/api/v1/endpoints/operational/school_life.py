@@ -364,6 +364,8 @@ def list_appointment_slots(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
+        # SECURITY: WHERE clauses built from developer-controlled literals, not user-supplied SQL.
+        # All filter values are passed as bound parameters (safe from injection).
         conditions = ["tenant_id = :tid"]
         params: Dict[str, Any] = {"tid": tenant_id}
         if teacher_id:
@@ -510,6 +512,8 @@ def list_check_in_sessions(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
+        # SECURITY: WHERE clauses built from developer-controlled literals, not user-supplied SQL.
+        # All filter values are passed as bound parameters (safe from injection).
         conditions = ["tenant_id = :tid"]
         params: Dict[str, Any] = {"tid": tenant_id}
         if teacher_id:
@@ -604,6 +608,9 @@ def list_check_in_assignments(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
+        # SECURITY: Filter values are whitelisted to prevent SQL injection.
+        # All column literals are developer-controlled; user values use bound params.
+        ALLOWED_ASSIGNMENT_STATUSES = {"PENDING", "COMPLETED", "SKIPPED", "ABSENT"}
         conditions = ["ca.tenant_id = :tid"]
         params: Dict[str, Any] = {"tid": tenant_id}
         if session_id:
@@ -613,6 +620,9 @@ def list_check_in_assignments(
             conditions.append("ca.student_id = :student_id")
             params["student_id"] = student_id
         if status:
+            # SECURITY: Validate status against whitelist to prevent invalid values
+            if status not in ALLOWED_ASSIGNMENT_STATUSES:
+                raise HTTPException(400, detail=f"Invalid filter value: {status}")
             conditions.append("ca.status = :status")
             params["status"] = status
 

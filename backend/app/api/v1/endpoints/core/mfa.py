@@ -4,16 +4,19 @@ import hashlib
 import uuid
 import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.security import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 NUM_CODES = 10
 CODE_LENGTH = 8  # characters per segment (format: XXXX-XXXX)
@@ -280,7 +283,9 @@ class OTPVerifyRequest(BaseModel):
     code: str
 
 @router.post("/otp/request/")
+@limiter.limit("10/minute")
 def request_otp(
+    request: Request,
     body: OTPRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -443,9 +448,13 @@ def get_mfa_status(
         return {"enabled": False}
 
 
+class MFAToggleRequest(BaseModel):
+    enabled: bool
+
+
 @router.post("/toggle/")
 def toggle_mfa(
-    body: dict,  # {"enabled": bool}
+    body: MFAToggleRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -454,7 +463,7 @@ def toggle_mfa(
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    enabled = body.get("enabled", False)
+    enabled = body.enabled
 
     try:
         _ensure_mfa_tables(db)

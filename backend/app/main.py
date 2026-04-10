@@ -198,7 +198,7 @@ Every response includes an `X-Request-ID` header for distributed tracing.
         {"name": "analytics", "description": "Analytics and reporting"},
         {"name": "audit", "description": "Audit log"},
     ],
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.DEBUG else None,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
 )
@@ -214,7 +214,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # In Starlette, the first middleware added is the outermost — it processes
 # every request before any other middleware can interfere.  CORS *must*
 # handle OPTIONS preflight requests at the outermost layer.
-origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:3002"]  # Dev defaults
+origins = []
 if settings.BACKEND_CORS_ORIGINS:
     if isinstance(settings.BACKEND_CORS_ORIGINS, str):
         origins = [o.strip() for o in settings.BACKEND_CORS_ORIGINS.split(",") if o.strip()]
@@ -308,6 +308,7 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 
@@ -326,6 +327,13 @@ async def prometheus_metrics(request: Request):
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # ─── Serve locally uploaded files ──────────────────────────────────────────
+# SECURITY: Uploaded files should have proper Content-Disposition headers
+# to prevent MIME sniffing on user-uploaded content. Consider adding a
+# custom middleware or custom StaticFiles subclass that sets:
+#   Content-Disposition: attachment; filename="<sanitized-name>"
+# for non-image file types to prevent inline execution of uploaded scripts.
+# The security_headers_middleware above already sets X-Content-Type-Options: nosniff
+# which mitigates MIME sniffing, but Content-Disposition adds a defense-in-depth layer.
 _upload_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(_upload_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=_upload_dir), name="uploads")
