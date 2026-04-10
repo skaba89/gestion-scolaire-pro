@@ -4,7 +4,7 @@ from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -79,7 +79,7 @@ def update_category(
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
         sets = []
-        params = {"cid": str(category_id), "tid": tenant_id, "now": datetime.utcnow()}
+        params = {"cid": str(category_id), "tid": tenant_id, "now": datetime.now(timezone.utc)}
         if category.name is not None:
             sets.append("name = :name")
             params["name"] = category.name
@@ -261,7 +261,7 @@ def update_resource(
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
         sets = []
-        params = {"rid": str(resource_id), "tid": tenant_id, "now": datetime.utcnow()}
+        params = {"rid": str(resource_id), "tid": tenant_id, "now": datetime.now(timezone.utc)}
         field_map = {
             "title": resource.title,
             "description": resource.description,

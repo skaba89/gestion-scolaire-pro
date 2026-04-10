@@ -16,13 +16,15 @@
 
   <!-- Content Security Policy -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
-             script-src 'self' 'unsafe-inline' https://*.supabase.co https://browser.sentry-cdn.com; 
+             script-src 'self' 'unsafe-inline' https://browser.sentry-cdn.com; 
              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
              font-src 'self' https://fonts.gstatic.com; 
-             img-src 'self' data: https://*.supabase.co https://img.clerk.com http://*:8000 http://localhost:* https://schoolflow-api-z6wt.onrender.com;
-             connect-src 'self' https://*.supabase.co https://*.sentry.io https://*.onrender.com wss://*.supabase.co http://*:8000 ws://*:8000 http://localhost:* ws://localhost:*; 
-             frame-src 'self'; 
-             object-src 'none';">
+             img-src 'self' data: blob: https:; 
+             connect-src 'self' https://*.sentry.io https://*.onrender.com https:; 
+             frame-src 'none'; 
+             object-src 'none';
+             base-uri 'self';
+             form-action 'self';">
 
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />

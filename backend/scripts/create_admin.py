@@ -58,7 +58,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ADMIN_EMAIL = "admin@schoolflow.local"
-ADMIN_PASSWORD = "Admin@123456"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@123456")
 
 
 def _datetime_now(db):

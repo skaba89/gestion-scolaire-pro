@@ -5,7 +5,7 @@ from sqlalchemy import text
 from typing import List, Optional, Any
 from pydantic import BaseModel
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -205,7 +205,7 @@ def resolve_incident(
             "resolver": current_user.get("id"),
             "resolution": resolve.resolution,
             "action_taken": resolve.action_taken,
-            "now": datetime.utcnow(),
+            "now": datetime.now(timezone.utc),
         }
         result = db.execute(text("""
             UPDATE incidents SET status = 'RESOLVED', resolved_by = :resolver,

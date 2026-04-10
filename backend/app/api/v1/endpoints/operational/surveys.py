@@ -5,7 +5,7 @@ from sqlalchemy import text
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from app.core.database import get_db
@@ -288,7 +288,7 @@ def submit_survey_response(
             raise HTTPException(status_code=400, detail="Survey is not active")
 
         response_id = str(UUID())
-        submitted_at = datetime.utcnow().isoformat()
+        submitted_at = datetime.now(timezone.utc).isoformat()
 
         for resp in submission.responses:
             db.execute(text("""

@@ -167,7 +167,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             logger.warning("Login blocked: account %s is locked due to too many failed attempts", user.email)
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Account temporarily locked. Too many failed login attempts. Try again in {LOGIN_LOCKOUT_DURATION // 60} minutes.",
+                detail="Account temporarily locked due to too many failed login attempts. Please try again later.",
                 headers={"WWW-Authenticate": "Bearer", "Retry-After": str(LOGIN_LOCKOUT_DURATION)},
             )
 
@@ -294,35 +294,29 @@ class ChangePasswordRequest(BaseModel):
 def validate_password_strength(password: str) -> None:
     """Validate password meets minimum security requirements."""
     import re
+    errors = []
     if len(password) < 8:
-        raise HTTPException(
-            status_code=422,
-            detail="Le mot de passe doit contenir au moins 8 caractères."
-        )
+        errors.append("8+ chars")
     if not re.search(r'[A-Z]', password):
-        raise HTTPException(
-            status_code=422,
-            detail="Le mot de passe doit contenir au moins une majuscule."
-        )
+        errors.append("uppercase")
     if not re.search(r'[a-z]', password):
-        raise HTTPException(
-            status_code=422,
-            detail="Le mot de passe doit contenir au moins une minuscule."
-        )
+        errors.append("lowercase")
     if not re.search(r'[0-9]', password):
-        raise HTTPException(
-            status_code=422,
-            detail="Le mot de passe doit contenir au moins un chiffre."
-        )
+        errors.append("digit")
     if not re.search(r'[^A-Za-z0-9]', password):
+        errors.append("special char")
+    if errors:
+        # Generic message — don't reveal exact policy to attackers
         raise HTTPException(
             status_code=422,
-            detail="Le mot de passe doit contenir au moins un caractère spécial."
+            detail="Le mot de passe ne respecte pas les critères de sécurité requis."
         )
 
 
 @router.post("/change-password/")
+@limiter.limit("5/minute")
 async def change_password(
+    request: Request,
     body: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -629,7 +623,7 @@ def bootstrap_admin(
 @router.get("/diag/")
 def diagnostics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("users:read")),
+    current_user: dict = Depends(require_permission("*")),  # SUPER_ADMIN only
 ):
     """Public diagnostic endpoint — check database state."""
     import sqlalchemy
@@ -649,7 +643,6 @@ def diagnostics(
             "email": u.email,
             "username": u.username,
             "is_active": getattr(u, "is_active", None),
-            "has_password": bool(getattr(u, "password_hash", None)),
             "tenant_id": str(u.tenant_id) if u.tenant_id else None,
         }
         for u in users
@@ -662,7 +655,6 @@ def diagnostics(
         "tables": [t[0] for t in tables],
         "users": user_list,
         "roles": role_list,
-        "db_url_prefix": settings.DATABASE_URL_SYNC[:50] + "...",
     }
 
 

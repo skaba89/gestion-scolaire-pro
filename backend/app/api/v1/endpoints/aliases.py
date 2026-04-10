@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -608,7 +608,7 @@ def update_presence(
             "metadata": __import__("json").dumps(body.metadata) if body.metadata else None,
         })
         db.commit()
-        return {"user_id": body.user_id, "status": body.status, "updated_at": datetime.utcnow().isoformat()}
+        return {"user_id": body.user_id, "status": body.status, "updated_at": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))

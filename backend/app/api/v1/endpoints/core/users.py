@@ -262,6 +262,10 @@ def update_user(
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
 
+    # SECURITY: Whitelist allowed column names to prevent SQL injection
+    ALLOWED_USER_UPDATE_FIELDS = {"first_name", "last_name", "email", "username", "avatar_url", "is_active", "phone", "bio"}
+    updates = {k: v for k, v in updates.items() if k in ALLOWED_USER_UPDATE_FIELDS}
+
     # If email is being changed, check uniqueness
     if "email" in updates:
         existing = db.execute(
@@ -840,6 +844,10 @@ def update_user_profile(
     updates = body.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
+
+    # SECURITY: Whitelist allowed profile fields
+    ALLOWED_PROFILE_FIELDS = {"first_name", "last_name", "bio", "avatar_url", "phone", "date_of_birth", "address", "city", "country"}
+    updates = {k: v for k, v in updates.items() if k in ALLOWED_PROFILE_FIELDS}
 
     # If email is being changed, check uniqueness
     if "email" in updates:
