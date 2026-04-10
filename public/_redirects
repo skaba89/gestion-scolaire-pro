@@ -1,1 +1,21 @@
-/*    /index.html   200
+# SPA Fallback — all non-file routes serve index.html for client-side routing
+# Render / Netlify compatible format
+
+# Explicit super-admin routes (must be before catch-all)
+/super-admin           /index.html   200
+/super-admin/*         /index.html   200
+
+# Auth routes
+/auth                  /index.html   200
+/change-password        /index.html   200
+/install                /index.html   200
+
+# Public slug routes (/:tenantSlug patterns)
+/annuaire              /index.html   200
+/demo                   /index.html   200
+/demo/admissions       /index.html   200
+/privacy                /index.html   200
+/terms                  /index.html   200
+
+# Catch-all SPA fallback
+/*                     /index.html   200

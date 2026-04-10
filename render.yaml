@@ -89,3 +89,22 @@ services:
       # --- AI (optionnel) ---
       - key: GROQ_API_KEY
         sync: false
+
+  # ─── Frontend (React SPA — Static Site) ────────────────────────────────────
+  # Deployed as a static site with SPA routing support.
+  # The public/_redirects file handles client-side routing (all paths → index.html).
+  - type: web
+    name: gestion-scolaire-pro
+    runtime: node
+    region: frankfurt
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npx serve dist -s -l $PORT
+    rootDir: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VITE_API_URL
+        sync: false
+      # Apres le 1er deploiement, mettez la valeur:
+      #   https://schoolflow-api-xxxx.onrender.com

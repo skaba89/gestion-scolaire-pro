@@ -221,6 +221,16 @@ if settings.BACKEND_CORS_ORIGINS:
     else:
         origins = [str(o) for o in settings.BACKEND_CORS_ORIGINS]
 
+# SECURITY: In production, BACKEND_CORS_ORIGINS MUST be explicitly configured.
+# The empty list below is only used as a fallback — API calls will fail with CORS
+# errors until the admin configures the correct frontend URL(s).
+if not origins:
+    logger.warning(
+        "CORS origins list is empty — API will reject all cross-origin requests. "
+        "Set BACKEND_CORS_ORIGINS env var to your frontend URL(s), e.g. "
+        "https://gestion-scolaire-pro.onrender.com"
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
