@@ -35,6 +35,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const TenantLanding = lazy(() => import("./pages/public/TenantLanding"));
 const SuperAdminDashboard = lazy(() => import("./pages/superadmin/SuperAdminDashboard"));
 const CreateTenantWithAdmin = lazy(() => import("./pages/superadmin/CreateTenantWithAdmin"));
+const TenantAuth = lazy(() => import("./pages/TenantAuth"));
 
 const PageLoader = () => (
     <div className="flex items-center justify-center min-h-screen">
@@ -173,6 +174,10 @@ const AppContent = memo(() => {
 
               {/* 2. Specific Public Routes */}
               {PublicRoutes()}
+
+              {/* 2b. Tenant-branded login page */}
+              <Route path="/:tenantSlug/auth" element={<TenantAuth />} />
+              <Route path="/:tenantSlug/login" element={<TenantAuth />} />
 
               {/* 3. ROOT Tenant Slug Fallback (Matches /isc-paris, /lasource, etc.) */}
               <Route path="/:tenantSlug" element={<TenantLanding />} />

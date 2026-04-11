@@ -180,7 +180,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                   Candidater
                 </Link>
                 <Link
-                  to={`/${slug}/student`}
+                  to={`/${slug}/login`}
                   className="px-5 py-2.5 rounded-lg text-sm font-medium border-2 hover:bg-gray-50 transition-colors"
                   style={{ color: deepColor, borderColor: deepColor }}
                 >
@@ -221,7 +221,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                     Candidater
                   </Link>
                   <Link
-                    to={`/${slug}/student`}
+                    to={`/${slug}/login`}
                     className="block px-4 py-3 rounded-lg text-sm font-medium text-center border-2"
                     style={{ color: deepColor, borderColor: deepColor }}
                     onClick={() => setMobileOpen(false)}
@@ -309,7 +309,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                   Candidater {currentYear}/{currentYear + 1}
                 </Link>
                 <Link
-                  to={`/${slug}/student`}
+                  to={`/${slug}/login`}
                   className="inline-flex items-center gap-2 px-10 py-4 rounded-xl font-semibold bg-white hover:bg-gray-50 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                   style={{ color: deepColor }}
                 >
@@ -880,7 +880,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                       <ArrowRight className="w-4 h-4" />
                     </Link>
                     <Link
-                      to={`/${slug}/student`}
+                      to={`/${slug}/login`}
                       className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold border-2 border-white/30 text-white hover:bg-white/10 transition-colors"
                     >
                       <LogIn className="w-4 h-4" />
@@ -984,7 +984,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                   </li>
                   <li>
                     <Link
-                      to={`/${slug}/student`}
+                      to={`/${slug}/login`}
                       className="text-white/60 hover:text-white text-sm transition-colors"
                     >
                       Espace étudiant

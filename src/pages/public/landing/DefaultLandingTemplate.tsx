@@ -53,7 +53,7 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
     { label: 'Contact', href: `/ecole/${slug}#contact` },
   ];
 
-  const loginUrl = `${window.location.origin}/${slug}/student`;
+  const loginUrl = `/${slug}/login`;
 
   return (
     <>

@@ -166,7 +166,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                   Pré-inscription
                 </Link>
                 <Link
-                  to={`/${slug}/student`}
+                  to={`/${slug}/login`}
                   className="px-4 py-2 rounded-lg text-sm font-medium border-2 hover:bg-gray-50 transition-colors"
                   style={{ color: navyColor, borderColor: navyColor }}
                 >
@@ -212,7 +212,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                     Pré-inscription
                   </Link>
                   <Link
-                    to={`/${slug}/student`}
+                    to={`/${slug}/login`}
                     className="block px-4 py-3 rounded-lg text-sm font-medium text-center border-2"
                     style={{ color: navyColor, borderColor: navyColor }}
                     onClick={() => setMobileOpen(false)}
@@ -293,7 +293,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                   Pré-inscription {currentYear}/{currentYear + 1}
                 </Link>
                 <Link
-                  to={`/${slug}/student`}
+                  to={`/${slug}/login`}
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg font-semibold text-white border-2 border-white/30 hover:bg-white/10 transition-colors"
                 >
                   <LogIn className="w-5 h-5" />
@@ -319,7 +319,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                 icon: <GraduationCap className="w-7 h-7" />,
                 label: 'Espace Élèves',
                 desc: 'Notes, emplois du temps, résultats',
-                href: `/${slug}/student`,
+                href: `/${slug}/login`,
                 color: navyColor,
                 bg: '#eef2ff',
               },
@@ -327,7 +327,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                 icon: <Users className="w-7 h-7" />,
                 label: 'Espace Parents',
                 desc: 'Suivi de la scolarité de votre enfant',
-                href: `/${slug}/student`,
+                href: `/${slug}/login`,
                 color: '#059669',
                 bg: '#ecfdf5',
               },
