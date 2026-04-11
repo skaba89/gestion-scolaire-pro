@@ -9,6 +9,7 @@ import math
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, ROLE_PERMISSIONS
+from app.core.config import settings
 from app.utils.audit import log_audit
 import logging
 
@@ -68,9 +69,10 @@ def read_users_me(
     user_id = current_user.get("id")
     
     # 1. Fetch user data from DB (lenient on tenant_id for first login)
+    # Use CAST() instead of ::text for SQLite compatibility
     sql_user = text("""
         SELECT 
-            u.id::text, u.email, u.first_name, u.last_name, 
+            CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name, 
             u.is_active, u.avatar_url, u.created_at, u.tenant_id,
             t.slug as tenant_slug, t.name as tenant_name,
             t.settings as tenant_settings, t.type as tenant_type
@@ -142,8 +144,9 @@ def list_users(
     params: dict = {"tenant_id": tenant_id}
 
     if search:
+        # Use LOWER() + LIKE for SQLite compatibility (ILIKE is PostgreSQL-only)
         where_clauses.append(
-            "(u.first_name ILIKE :search OR u.last_name ILIKE :search OR u.email ILIKE :search)"
+            "(LOWER(u.first_name) LIKE LOWER(:search) OR LOWER(u.last_name) LIKE LOWER(:search) OR LOWER(u.email) LIKE LOWER(:search))"
         )
         params["search"] = f"%{search}%"
 
@@ -172,7 +175,7 @@ def list_users(
 
     users_sql = text(f"""
         SELECT
-            u.id::text,
+            CAST(u.id AS VARCHAR),
             u.email,
             u.first_name,
             u.last_name,
@@ -182,6 +185,27 @@ def list_users(
             COALESCE(
                 ARRAY_AGG(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL),
                 ARRAY[]::text[]
+            ) AS roles
+        FROM users u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        {role_join}
+        WHERE {where_sql}
+        GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
+        ORDER BY u.last_name ASC, u.first_name ASC
+        LIMIT :limit OFFSET :offset
+    """  if not settings.is_sqlite else f"""
+        SELECT
+            CAST(u.id AS VARCHAR),
+            u.email,
+            u.first_name,
+            u.last_name,
+            u.is_active,
+            u.avatar_url,
+            u.created_at,
+            COALESCE(
+                (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',') 
+                 FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
+                ''
             ) AS roles
         FROM users u
         LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
@@ -206,6 +230,11 @@ def list_users(
         }
         for r in rows
     ]
+    # SQLite returns roles as comma-separated string via GROUP_CONCAT
+    if settings.is_sqlite:
+        for u in users:
+            if isinstance(u["roles"], str):
+                u["roles"] = [r for r in u["roles"].split(",") if r] if u["roles"] else []
 
     return {
         "items": users,
@@ -226,7 +255,7 @@ def get_user(
     tenant_id = current_user.get("tenant_id")
     sql = text("""
         SELECT
-            u.id::text, u.email, u.first_name, u.last_name,
+            CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
             u.is_active, u.avatar_url, u.created_at,
             COALESCE(
                 ARRAY_AGG(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL),
@@ -236,10 +265,26 @@ def get_user(
         LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
         WHERE u.id = :user_id AND u.tenant_id = :tenant_id
         GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
+    """ if not settings.is_sqlite else text("""
+        SELECT
+            CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
+            u.is_active, u.avatar_url, u.created_at,
+            COALESCE(
+                (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',') 
+                 FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
+                ''
+            ) AS roles
+        FROM users u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        WHERE u.id = :user_id AND u.tenant_id = :tenant_id
+        GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
     """)
     row = db.execute(sql, {"user_id": user_id, "tenant_id": tenant_id}).fetchone()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    roles_val = list(row.roles) if row.roles else []
+    if settings.is_sqlite and isinstance(roles_val, str):
+        roles_val = [r for r in roles_val.split(",") if r] if roles_val else []
     return {
         "id": row.id,
         "email": row.email,
@@ -248,7 +293,7 @@ def get_user(
         "is_active": row.is_active,
         "avatar_url": row.avatar_url,
         "created_at": row.created_at.isoformat() if row.created_at else None,
-        "roles": list(row.roles) if row.roles else [],
+        "roles": roles_val,
     }
 
 

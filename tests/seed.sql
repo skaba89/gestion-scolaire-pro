@@ -18,27 +18,49 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ─── USERS ────────────────────────────────────────────────────────────────────
+-- All test users share the default password: Test@123456
+-- bcrypt hash generated via passlib.
 
-INSERT INTO users (id, tenant_id, email, username, first_name, last_name, is_active, is_verified, created_at, updated_at)
+INSERT INTO users (id, tenant_id, email, username, first_name, last_name, password_hash, is_active, is_verified, created_at, updated_at)
 VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111',
-   'admin@test.local', 'admin_test', 'Admin', 'Test', true, true, NOW(), NOW()),
+   'admin@test.local', 'admin_test', 'Admin', 'Test',
+   '$2b$12$FRuwv.sZ7N64wpqdMK3uQeP5KbZaOVIMFnhlUGtVZiT59L0JdpUku',
+   true, true, NOW(), NOW()),
 
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111',
-   'teacher@test.local', 'teacher_test', 'Jean', 'Dupont', true, true, NOW(), NOW()),
+   'teacher@test.local', 'teacher_test', 'Jean', 'Dupont',
+   '$2b$12$FRuwv.sZ7N64wpqdMK3uQeP5KbZaOVIMFnhlUGtVZiT59L0JdpUku',
+   true, true, NOW(), NOW()),
 
   ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111',
-   'parent@test.local', 'parent_test', 'Marie', 'Dupont', true, true, NOW(), NOW()),
+   'parent@test.local', 'parent_test', 'Marie', 'Dupont',
+   '$2b$12$FRuwv.sZ7N64wpqdMK3uQeP5KbZaOVIMFnhlUGtVZiT59L0JdpUku',
+   true, true, NOW(), NOW()),
 
   ('dddddddd-dddd-dddd-dddd-dddddddddddd', '11111111-1111-1111-1111-111111111111',
-   'student@test.local', 'student_test', 'Pierre', 'Dupont', true, true, NOW(), NOW()),
+   'student@test.local', 'student_test', 'Pierre', 'Dupont',
+   '$2b$12$FRuwv.sZ7N64wpqdMK3uQeP5KbZaOVIMFnhlUGtVZiT59L0JdpUku',
+   true, true, NOW(), NOW()),
 
   ('ee000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222',
-   'admin@sorbonne.fr', 'admin_sorbonne', 'Admin', 'Sorbonne', true, true, NOW(), NOW()),
+   'admin@sorbonne.fr', 'admin_sorbonne', 'Admin', 'Sorbonne',
+   '$2b$12$FRuwv.sZ7N64wpqdMK3uQeP5KbZaOVIMFnhlUGtVZiT59L0JdpUku',
+   true, true, NOW(), NOW()),
 
   ('ee000000-0000-0000-0000-000000000002', '22222222-2222-2222-2222-222222222222',
-   'prof.martin@sorbonne.fr', 'prof_martin', 'Martin', 'Prof', true, true, NOW(), NOW())
+   'prof.martin@sorbonne.fr', 'prof_martin', 'Martin', 'Prof',
+   '$2b$12$FRuwv.sZ7N64wpqdMK3uQeP5KbZaOVIMFnhlUGtVZiT59L0JdpUku',
+   true, true, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
+
+-- Also update any existing users that were inserted WITHOUT password_hash
+UPDATE users SET password_hash = '$2b$12$FRuwv.sZ7N64wpqdMK3uQeP5KbZaOVIMFnhlUGtVZiT59L0JdpUku'
+WHERE password_hash IS NULL
+AND email IN (
+  'admin@test.local', 'teacher@test.local', 'parent@test.local',
+  'student@test.local', 'admin@sorbonne.fr', 'prof.martin@sorbonne.fr'
+);
 
 -- ─── USER ROLES ───────────────────────────────────────────────────────────────
 

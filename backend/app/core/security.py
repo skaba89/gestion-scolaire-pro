@@ -42,6 +42,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
+    """Decode and validate a JWT access token (with expiry check)."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -59,6 +60,29 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
         logger.info("JWT validation failed: %s", exc)
         raise credentials_exception
 
+    return payload
+
+
+def verify_token_raw(token: str) -> dict:
+    """Decode a JWT token WITHOUT checking expiry.
+
+    Used by the refresh endpoint to accept an expired access token
+    and issue a new one.  Still validates the signature and subject.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"verify_sub": True, "verify_exp": False},
+        )
+    except JWTError as exc:
+        logger.info("JWT raw decode failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or malformed token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return payload
 
 

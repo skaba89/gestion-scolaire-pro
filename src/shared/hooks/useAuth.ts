@@ -1,17 +1,8 @@
 /**
- * useAuth - Hook to access auth context
- * Provides access to user, roles, and auth utilities
+ * useAuth - Re-export from AuthContext for centralized access.
+ *
+ * DEPRECATED: Import directly from "@/contexts/AuthContext" instead.
+ * This re-export is kept for backward compatibility.
  */
 
-import { useContext } from "react";
-import { AuthContext } from "@/contexts/AuthContext";
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-
-  return context;
-}
+export { useAuth } from "@/contexts/AuthContext";

@@ -249,6 +249,8 @@ if settings.BACKEND_CORS_ORIGINS:
 
 # SECURITY: In production, BACKEND_CORS_ORIGINS MUST be explicitly configured.
 # If empty, fall back to permissive "*" so the frontend can reach the API.
+# NOTE: When using wildcard "*", allow_credentials MUST be False (browser restriction).
+# The auth flow uses Bearer tokens (not cookies), so credentials=False is safe.
 if not origins:
     logger.warning(
         "CORS origins list is empty — falling back to allow all origins (\"*\"). "
@@ -257,10 +259,15 @@ if not origins:
     )
     origins = ["*"]
 
+# SECURITY: When origins=["*"], browsers reject allow_credentials=True.
+# Since SchoolFlow uses Bearer tokens (Authorization header) and not cookies,
+# setting allow_credentials=False is safe and avoids browser CORS errors.
+allow_credentials = len(origins) > 1 or (len(origins) == 1 and origins[0] != "*")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-Tenant-ID", "Content-Type", "X-Request-ID", "Accept"],
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "X-Request-ID"],

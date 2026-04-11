@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, get_current_user, require_permission, verify_password
+from app.core.security import create_access_token, get_current_user, require_permission, verify_password, verify_token_raw
 from app.models.user import User
 from app.models.user_role import UserRole
 
@@ -293,11 +293,57 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     )
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str | None = None
+
+
 @router.post("/refresh/", response_model=Token)
 @limiter.limit("20/minute")
-async def refresh_token(request: Request, current_user: dict = Depends(get_current_user)):
+async def refresh_token(request: Request, db: Session = Depends(get_db)):
+    """Refresh an access token.
+
+    Accepts the (possibly expired) access token via Authorization header,
+    decodes it WITHOUT checking expiry, validates the user still exists,
+    and issues a new access token.
+    """
     import hashlib
-    user_id = current_user['id']
+
+    # 1. Extract token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token_str = auth_header.split(" ", 1)[1]
+
+    # 2. Decode token WITHOUT expiry check
+    payload = verify_token_raw(token_str)
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token missing subject",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 3. Verify user still exists and is active
+    from app.models.user import User
+    user_db = db.query(User).filter(User.id == user_id).first()
+    if not user_db or not user_db.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 4. Fetch current roles from DB
+    roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user_id).all()]
+    token_roles = payload.get("roles", []) or []
+    all_roles = list(dict.fromkeys([*token_roles, *roles]))
+
+    # 5. Generate new token
     token_jti = hashlib.sha256(f"{user_id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
 
     token_version = 0
@@ -327,10 +373,10 @@ async def refresh_token(request: Request, current_user: dict = Depends(get_curre
     access_token = create_access_token(
         {
             "sub": user_id,
-            "email": current_user.get("email"),
-            "preferred_username": current_user.get("username"),
-            "tenant_id": current_user.get("tenant_id"),
-            "roles": current_user.get("roles", []),
+            "email": user_db.email,
+            "preferred_username": user_db.username,
+            "tenant_id": str(user_db.tenant_id) if user_db.tenant_id else None,
+            "roles": all_roles,
             "jti": token_jti,
             "tv": token_version,
         }
@@ -782,8 +828,11 @@ def diagnostics(
     }
 
 
-@router.get("/me/", response_model=UserInfo)
+# NOTE: /auth/me/ is deprecated — use /users/me/ instead.
+# Kept for backward compatibility with older frontend versions.
+@router.get("/me/", response_model=UserInfo, deprecated=True)
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """Legacy endpoint — prefer GET /users/me/ which returns richer profile data."""
     return UserInfo(
         id=current_user.get("id", ""),
         email=current_user.get("email", ""),
