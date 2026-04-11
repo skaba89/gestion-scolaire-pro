@@ -21,9 +21,10 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useTenant } from "@/contexts/TenantContext";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
-  Eye, UserPlus, Shield, ExternalLink, School
+  Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle
 } from "lucide-react";
 
 interface TenantStat {
@@ -64,6 +65,7 @@ const getTypeBadge = (type: string) => {
 const SuperAdminDashboard = () => {
   const { hasRole } = useAuth();
   const navigate = useNavigate();
+  const { switchTenant } = useTenant();
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: tenants = [], isLoading, refetch } = useQuery<TenantStat[]>({
@@ -268,11 +270,20 @@ const SuperAdminDashboard = () => {
                             <div className="flex items-center justify-end gap-1">
                               <TenantDetailDialog tenant={tenant} />
                               <AddAdminDialog tenant={tenant} onSuccess={() => refetch()} />
+                              <TenantToggleDialog tenant={tenant} onSuccess={() => refetch()} />
+                              <TenantDeleteDialog tenant={tenant} onSuccess={() => refetch()} />
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => navigate(`/${tenant.slug}/admin`)}
-                                title="Accéder au tableau de bord"
+                                onClick={async () => {
+                                  await switchTenant(tenant.id);
+                                  window.open(
+                                    window.location.origin + `/${tenant.slug}/admin`,
+                                    "_blank",
+                                    "noopener"
+                                  );
+                                }}
+                                title="Ouvrir l'établissement dans un nouvel onglet"
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </Button>
@@ -449,6 +460,225 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Tenant Toggle Status Dialog ────────────────────────────────────────────
+
+function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleToggle = async () => {
+    setLoading(true);
+    try {
+      await apiClient.patch(`/tenants/${tenant.id}/toggle-status/`);
+      toast.success(
+        tenant.is_active
+          ? `Établissement ${tenant.name} désactivé. Toutes les sessions ont été révoquées.`
+          : `Établissement ${tenant.name} réactivé.`
+      );
+      setOpen(false);
+      onSuccess();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || "Erreur lors du changement de statut";
+      toast.error(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          size="sm"
+          variant="ghost"
+          title={tenant.is_active ? "Désactiver l'établissement" : "Réactiver l'établissement"}
+        >
+          <Power className={`w-4 h-4 ${tenant.is_active ? "text-orange-500" : "text-green-500"}`} />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Power className={`w-5 h-5 ${tenant.is_active ? "text-orange-500" : "text-green-500"}`} />
+            {tenant.is_active ? "Désactiver" : "Réactiver"} l'établissement
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {tenant.is_active ? (
+            <>
+              <div className="flex items-start gap-3 p-4 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
+                <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-orange-800 dark:text-orange-200">Attention</p>
+                  <p className="text-orange-700 dark:text-orange-300 mt-1">
+                    Tous les utilisateurs de l'établissement <strong>{tenant.name}</strong> seront
+                    immédiatement déconnectés et ne pourront plus se reconnecter tant que l'établissement
+                    est désactivé.
+                  </p>
+                </div>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <p><strong>Établissement :</strong> {tenant.name}</p>
+                <p><strong>Utilisateurs concernés :</strong> {tenant.user_count}</p>
+                <p><strong>Élèves concernés :</strong> {tenant.student_count}</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Vous pourrez réactiver cet établissement à tout moment depuis ce tableau de bord.
+              </p>
+            </>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              <p>
+                Voulez-vous réactiver l'établissement <strong>{tenant.name}</strong> ?
+                Les utilisateurs pourront à nouveau se connecter.
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button
+              variant={tenant.is_active ? "destructive" : "default"}
+              disabled={loading}
+              onClick={handleToggle}
+            >
+              {loading
+                ? "Chargement..."
+                : tenant.is_active
+                  ? "Désactiver"
+                  : "Réactiver"}
+            </Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Tenant Delete Dialog ────────────────────────────────────────────────────
+
+function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [confirmStep, setConfirmStep] = useState(0); // 0 = not confirmed, 1 = first confirm, 2 = second confirm
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      await apiClient.delete(`/tenants/${tenant.id}/`);
+      toast.success(`Établissement ${tenant.name} supprimé définitivement.`);
+      setOpen(false);
+      setConfirmStep(0);
+      onSuccess();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || "Erreur lors de la suppression";
+      toast.error(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetAndClose = () => {
+    setOpen(false);
+    setConfirmStep(0);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetAndClose(); else setOpen(true); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" title="Supprimer l'établissement">
+          <Trash2 className="w-4 h-4 text-red-500" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            Supprimer l'établissement
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {confirmStep === 0 && (
+            <>
+              <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-red-800 dark:text-red-200">Action irréversible</p>
+                  <p className="text-red-700 dark:text-red-300 mt-1">
+                    La suppression de l'établissement <strong>{tenant.name}</strong> entraînera
+                    la suppression définitive de toutes les données associées.
+                  </p>
+                </div>
+              </div>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p><strong>Établissement :</strong> {tenant.name}</p>
+                <p><strong>Utilisateurs :</strong> {tenant.user_count}</p>
+                <p><strong>Élèves :</strong> {tenant.student_count}</p>
+              </div>
+              <ul className="text-sm text-red-600 dark:text-red-400 list-disc list-inside space-y-1">
+                <li>Tous les utilisateurs et leurs comptes</li>
+                <li>Toutes les notes et évaluations</li>
+                <li>Tous les paiements et factures</li>
+                <li>Toutes les données de présence</li>
+                <li>Tous les messages et annonces</li>
+              </ul>
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => setConfirmStep(1)}
+              >
+                Je comprends les risques — Continuer
+              </Button>
+            </>
+          )}
+          {confirmStep === 1 && (
+            <>
+              <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  Veuillez taper le nom de l'établissement pour confirmer.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Tapez <strong>{tenant.name}</strong> pour confirmer :</Label>
+                <Input
+                  placeholder={tenant.name}
+                  onChange={(e) => {
+                    if (e.target.value === tenant.name) setConfirmStep(2);
+                    else setConfirmStep(1);
+                  }}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={resetAndClose}>Annuler</Button>
+              </DialogFooter>
+            </>
+          )}
+          {confirmStep === 2 && (
+            <>
+              <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
+                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                  Dernière chance — Cette action est irréversible.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={resetAndClose}>Annuler</Button>
+                <Button
+                  variant="destructive"
+                  disabled={loading}
+                  onClick={handleDelete}
+                >
+                  {loading ? "Suppression en cours..." : "Supprimer définitivement"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
