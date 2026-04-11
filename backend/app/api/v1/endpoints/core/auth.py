@@ -574,34 +574,36 @@ async def register(
     }
 
 
-@router.get("/bootstrap/")
+@router.post("/bootstrap/")
 def bootstrap_admin(
-    bootstrap_key: str = Query(None, description="Secret key required in production"),
+    bootstrap_key: str = Query(None, description="Secret key required"),
+    new_password: str = Query(None, description="New admin password (min 8 chars, overrides ADMIN_DEFAULT_PASSWORD)"),
     db: Session = Depends(get_db),
 ):
-    # SECURITY: ALWAYS require the bootstrap secret, even in DEBUG mode.
-    # In production, BOOTSTRAP_SECRET must be set. In debug, it defaults to empty
-    # which means the endpoint is blocked unless explicitly configured.
+    """Create or reset the super admin account.
+
+    Requires BOOTSTRAP_SECRET. Optionally accepts a new_password parameter
+    to override ADMIN_DEFAULT_PASSWORD from env.
+    """
+    # SECURITY: ALWAYS require the bootstrap secret
     if not bootstrap_key or bootstrap_key != settings.BOOTSTRAP_SECRET:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    """Public endpoint to create or reset the super admin account.
-    Uses raw SQL for maximum reliability. Called to ensure at least one admin exists.
-    """
     import sqlalchemy
     import uuid as _uuid
     from app.core.security import get_password_hash
 
     admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
-    admin_password = settings.ADMIN_DEFAULT_PASSWORD
+    # new_password param takes priority over env var
+    admin_password = new_password or settings.ADMIN_DEFAULT_PASSWORD
     steps = []
 
-    # SECURITY: Refuse to create admin with empty/weak password
-    if not admin_password or len(admin_password) < 12:
-        logger.warning("Bootstrap rejected: admin password is empty or too short (min 12 chars)")
+    # SECURITY: Refuse to create admin with weak password
+    if not admin_password or len(admin_password) < 8:
+        logger.warning("Bootstrap rejected: admin password is empty or too short (min 8 chars)")
         raise HTTPException(
             status_code=400,
-            detail="ADMIN_DEFAULT_PASSWORD must be at least 12 characters. Set it in your environment.",
+            detail="Password must be at least 8 characters. Provide new_password or set ADMIN_DEFAULT_PASSWORD.",
         )
 
     try:
