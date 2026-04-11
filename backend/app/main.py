@@ -1026,9 +1026,10 @@ def _ensure_operational_tables(engine):
         for stmt in _DDL:
             try:
                 conn.execute(text(stmt))
+                conn.commit()
             except Exception as exc:
-                logger.debug("Operational table DDL skipped: %s (%s)", stmt[:80], exc)
-        conn.commit()
+                conn.rollback()
+                logger.warning("Operational DDL skipped: %s (%s)", stmt[:80], exc)
 
 
 
