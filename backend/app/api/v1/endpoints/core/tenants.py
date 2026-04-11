@@ -888,6 +888,113 @@ async def get_super_admin_tenant_stats(
     return result
 
 
+@router.patch("/{tenant_id}/toggle-status/", response_model=TenantResponse)
+async def toggle_tenant_status(
+    tenant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("tenants:write"))
+):
+    """
+    Toggle tenant is_active flag. When deactivating, all user sessions for this
+    tenant are revoked by incrementing the Redis token_version for every user.
+    """
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement non trouvé")
+
+    tenant.is_active = not tenant.is_active
+    tenant.updated_at = datetime.now()
+    db.commit()
+    db.refresh(tenant)
+
+    acting_user_id = current_user.get("id")
+
+    if not tenant.is_active:
+        # --- DEACTIVATION ---
+        log_audit(
+            db,
+            user_id=acting_user_id,
+            tenant_id=str(tenant.id),
+            action="DEACTIVATE_TENANT",
+            resource_type="TENANT",
+            resource_id=str(tenant.id),
+            details={"name": tenant.name, "slug": tenant.slug, "is_active": False},
+            severity="WARNING",
+        )
+
+        # Revoke all sessions for every user belonging to this tenant
+        tenant_users = db.query(User.id).filter(User.tenant_id == tenant.id).all()
+        if tenant_users:
+            try:
+                from app.core.cache import redis_client
+                redis_async = await redis_client.client
+                for (uid,) in tenant_users:
+                    key = f"sfp:user_token_version:{uid}"
+                    await redis_async.incr(key)
+                logger.info(
+                    "Revoked sessions for %d users of tenant %s",
+                    len(tenant_users), tenant.id,
+                )
+            except Exception as exc:
+                logger.warning("Failed to revoke Redis sessions for tenant %s: %s", tenant.id, exc)
+    else:
+        # --- ACTIVATION ---
+        log_audit(
+            db,
+            user_id=acting_user_id,
+            tenant_id=str(tenant.id),
+            action="ACTIVATE_TENANT",
+            resource_type="TENANT",
+            resource_id=str(tenant.id),
+            details={"name": tenant.name, "slug": tenant.slug, "is_active": True},
+            severity="INFO",
+        )
+
+    return tenant
+
+
+@router.delete("/{tenant_id}/", status_code=status.HTTP_200_OK)
+async def delete_tenant(
+    tenant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("tenants:delete"))
+):
+    """
+    Hard-delete a tenant and all related data (ON DELETE CASCADE handles FKs).
+    SUPER_ADMIN only — the ``tenants:delete`` permission is exclusive to SUPER_ADMIN
+    (TENANT_ADMIN explicitly excludes it).
+    """
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement non trouvé")
+
+    tenant_name = tenant.name
+
+    # Optional safety check: warn if active users remain
+    user_count = db.query(User.id).filter(User.tenant_id == tenant.id).count()
+    if user_count > 0:
+        logger.warning(
+            "Deleting tenant '%s' (%s) which still has %d active user(s)",
+            tenant_name, tenant.id, user_count,
+        )
+
+    log_audit(
+        db,
+        user_id=current_user.get("id"),
+        tenant_id=str(tenant.id),
+        action="DELETE_TENANT",
+        resource_type="TENANT",
+        resource_id=str(tenant.id),
+        details={"name": tenant_name, "user_count": user_count},
+        severity="WARNING",
+    )
+
+    db.delete(tenant)
+    db.commit()
+
+    return {"detail": "Établissement supprimé définitivement"}
+
+
 @router.get("/{tenant_id}/", response_model=TenantResponse)
 async def get_tenant(
     tenant_id: UUID,  # Enforce UUID type to avoid matching static routes like "settings"

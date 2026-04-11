@@ -11,8 +11,6 @@ self.addEventListener('activate', (e) => {
                 })
             );
         }).then(() => {
-            return self.clients.claim();
-        }).then(() => {
             return self.registration.unregister();
         })
     );
