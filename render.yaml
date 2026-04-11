@@ -90,16 +90,16 @@ services:
       - key: GROQ_API_KEY
         sync: false
 
-  # ─── Frontend (React SPA — Static Site) ────────────────────────────────────
-  # Deployed as a static site with SPA routing support.
-  # The public/_redirects file handles client-side routing (all paths → index.html).
+  # ─── Frontend (React SPA — Web Service) ────────────────────────────────────
+  # Uses a custom Node.js server (server.mjs) for reliable SPA routing.
+  # All non-file routes fall back to index.html for client-side routing.
   - type: web
     name: gestion-scolaire-pro
     runtime: node
     region: frankfurt
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npx serve dist -s -l $PORT
+    startCommand: node server.mjs
     rootDir: .
     envVars:
       - key: NODE_ENV

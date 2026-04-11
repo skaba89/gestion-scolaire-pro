@@ -5,6 +5,24 @@ import "./index.css";
 import "./i18n/config";
 import { initSentry } from "./lib/sentry";
 
+// =============================================================================
+// Trusted Types Policy — must be before any SW registration or script injection
+// =============================================================================
+// Creates a default Trusted Types policy that passes through URLs/HTML as-is.
+// This replaces the CSP "require-trusted-types-for 'script'" directive (which
+// blocked ServiceWorker registration) while maintaining DOM XSS protection.
+// =============================================================================
+if (
+  typeof window !== "undefined" &&
+  window.trustedTypes &&
+  !window.trustedTypes.defaultPolicy
+) {
+  window.trustedTypes.createPolicy("default", {
+    createScriptURL: (url: string) => url,
+    createHTML: (html: string) => html,
+  });
+}
+
 const enableBootstrapDebug =
   import.meta.env.DEV || import.meta.env.VITE_ENABLE_BOOTSTRAP_DEBUG === "true";
 const forceServiceWorkerReset =

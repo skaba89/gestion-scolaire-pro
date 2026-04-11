@@ -17,7 +17,8 @@
   <!-- Content Security Policy -->
   <!-- SECURITY: unsafe-inline removed from script-src — all scripts are external (src attribute).
        style-src retains unsafe-inline (needed for Google Fonts & CSS-in-JS).
-       require-trusted-types-for prevents DOM-based XSS via innerHTML assignments. -->
+       Note: require-trusted-types-for removed to allow ServiceWorker registration.
+       Trusted Types policy is created programmatically in src/main.tsx instead. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
              script-src 'self' https://browser.sentry-cdn.com; 
              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
@@ -27,8 +28,7 @@
              frame-src 'none'; 
              object-src 'none';
              base-uri 'self';
-             form-action 'self';
-             require-trusted-types-for 'script';">
+             form-action 'self';">
 
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
