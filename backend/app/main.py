@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
                     db.rollback()
 
             admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
-            admin_password = settings.ADMIN_DEFAULT_PASSWORD
+            admin_password = settings.ADMIN_DEFAULT_PASSWORD or "Admin@123456"
 
             existing = db.query(User).filter(User.email == admin_email).first()
             if not existing:

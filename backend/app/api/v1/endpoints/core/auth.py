@@ -163,24 +163,52 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         .first()
     )
 
-    # SECURITY: Check per-account lockout (prevents distributed brute-force)
-    if user:
-        is_locked, remaining = await _check_account_lockout(str(user.id))
-        if is_locked:
-            logger.warning("Login blocked: account %s is locked due to too many failed attempts", user.email)
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Account temporarily locked due to too many failed login attempts. Please try again later.",
-                headers={"WWW-Authenticate": "Bearer", "Retry-After": str(LOGIN_LOCKOUT_DURATION)},
-            )
+    if not user:
+        logger.warning("Login failed: no user found for '%s'", form_data.username)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    if not user or not user.is_active or not verify_password(form_data.password, getattr(user, "password_hash", None)):
-        # Record failed attempt
-        if user:
-            attempts = await _record_failed_login(str(user.id))
-            logger.info("Native login failed for user '%s' (attempt %d/%d)", form_data.username, attempts, MAX_LOGIN_ATTEMPTS)
-        else:
-            logger.info("Native login failed for unknown user '%s'", form_data.username)
+    # Check per-account lockout (prevents distributed brute-force)
+    is_locked, remaining = await _check_account_lockout(str(user.id))
+    if is_locked:
+        logger.warning("Login blocked: account %s is locked due to too many failed attempts", user.email)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Account temporarily locked due to too many failed login attempts. Please try again later.",
+            headers={"WWW-Authenticate": "Bearer", "Retry-After": str(LOGIN_LOCKOUT_DURATION)},
+        )
+
+    # Check user is active
+    if not user.is_active:
+        logger.warning("Login failed: user '%s' (id=%s) is inactive", user.email, user.id)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is disabled. Contact an administrator.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check password_hash is set
+    stored_hash = getattr(user, "password_hash", None)
+    if not stored_hash:
+        logger.error(
+            "Login failed: user '%s' (id=%s) has NULL/empty password_hash. "
+            "This user cannot log in until a password is set. "
+            "Use ADMIN_DEFAULT_PASSWORD env var or /auth/bootstrap/ endpoint.",
+            user.email, user.id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No password set for this account. Contact an administrator to reset it.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verify password
+    if not verify_password(form_data.password, stored_hash):
+        attempts = await _record_failed_login(str(user.id))
+        logger.info("Login failed: wrong password for '%s' (attempt %d/%d)", user.email, attempts, MAX_LOGIN_ATTEMPTS)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",

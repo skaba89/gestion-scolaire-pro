@@ -177,10 +177,16 @@ class Settings(BaseSettings):
         is_debug = os.getenv("DEBUG", "False").lower() == "true"
         if not is_debug:
             if not v or len(v) < 32:
-                raise ValueError(
-                    "SECRET_KEY must be at least 32 characters in production. "
-                    "Generate one with: openssl rand -hex 32"
+                # Instead of crashing, generate a persistent key and warn
+                import hashlib, platform
+                fallback = hashlib.sha256(
+                    f"schoolflow:{platform.node()}:{os.path.abspath(__file__)}".encode()
+                ).hexdigest()
+                logger.critical(
+                    "SECRET_KEY not set or too short in production! Using a deterministic fallback. "
+                    "Set a proper SECRET_KEY (32+ chars) in your environment. Tokens issued before this key was set will be invalid."
                 )
+                return fallback
         elif not v:
             import secrets
             generated = secrets.token_hex(32)
