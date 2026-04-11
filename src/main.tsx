@@ -70,6 +70,18 @@ if (enableBootstrapDebug) {
 }
 
 if (forceServiceWorkerReset && "serviceWorker" in navigator) {
+  // Register the killer SW to replace any leftover Workbox/PWA SW.
+  // It will skipWaiting(), claim clients, clear all caches, and self-unregister.
+  navigator.serviceWorker
+    .register("/sw.js", { scope: "/" })
+    .then((reg) => {
+      debugLog("[SchoolFlow] killer SW registered, will clean up caches");
+    })
+    .catch(() => {
+      // If registration fails, fall through to manual cleanup
+    });
+
+  // Also directly unregister all existing SWs as a fallback
   navigator.serviceWorker.getRegistrations().then((registrations) => {
     for (const registration of registrations) {
       registration.unregister();
