@@ -76,6 +76,14 @@ services:
       - key: PORT
         value: "8000"
 
+      # --- Admin (IMPORTANT: changez le mot de passe apres le 1er deploiement) ---
+      - key: ADMIN_DEFAULT_EMAIL
+        value: admin@schoolflow.local
+      - key: ADMIN_DEFAULT_PASSWORD
+        generateValue: true
+      - key: BOOTSTRAP_SECRET
+        generateValue: true
+
       # --- CORS (IMPORTANT: ajoutez l'URL de votre frontend) ---
       - key: BACKEND_CORS_ORIGINS
         sync: false

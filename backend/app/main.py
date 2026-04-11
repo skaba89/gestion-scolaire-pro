@@ -90,36 +90,62 @@ async def lifespan(app: FastAPI):
 
             existing = db.query(User).filter(User.email == admin_email).first()
             if not existing:
-                admin_id = str(uuid.uuid4())
-                admin = User(
-                    id=admin_id,
-                    email=admin_email,
-                    username="admin",
-                    password_hash=get_password_hash(admin_password),
-                    first_name="Super",
-                    last_name="Admin",
-                    is_active=True,
-                    is_superuser=True,
-                    tenant_id=None,
-                )
-                db.add(admin)
-                db.flush()
-                db.execute(
-                    text("INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
-                         "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW())"),
-                    {"id": str(uuid.uuid4()), "uid": admin_id}
-                )
-                db.commit()
-                logger.info("Auto-created super admin: admin@schoolflow.local")
+                if not admin_password or len(admin_password) < 8:
+                    logger.warning(
+                        "ADMIN_DEFAULT_PASSWORD not set or too short (< 8 chars). "
+                        "Super admin not created. Set this env var and restart."
+                    )
+                else:
+                    admin_id = str(uuid.uuid4())
+                    admin = User(
+                        id=admin_id,
+                        email=admin_email,
+                        username="admin",
+                        password_hash=get_password_hash(admin_password),
+                        first_name="Super",
+                        last_name="Admin",
+                        is_active=True,
+                        is_superuser=True,
+                        tenant_id=None,
+                    )
+                    db.add(admin)
+                    db.flush()
+                    db.execute(
+                        text("INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
+                             "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW())"),
+                        {"id": str(uuid.uuid4()), "uid": admin_id}
+                    )
+                    db.commit()
+                    logger.info("Auto-created super admin: %s", admin_email)
             else:
+                # Fix admin if password_hash is NULL, empty, or if ADMIN_DEFAULT_PASSWORD changed
+                needs_update = False
                 if not existing.password_hash:
+                    needs_update = True
+                    logger.info("Super admin has NULL password_hash, resetting...")
+                elif admin_password and len(admin_password) >= 8:
+                    # Check if the stored hash matches the configured password
+                    from passlib.context import CryptContext
+                    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+                    if not pwd_context.verify(admin_password, existing.password_hash):
+                        needs_update = True
+                        logger.info(
+                            "Super admin password differs from ADMIN_DEFAULT_PASSWORD, resetting..."
+                        )
+
+                if needs_update and admin_password and len(admin_password) >= 8:
                     existing.password_hash = get_password_hash(admin_password)
                     existing.is_active = True
                     existing.is_superuser = True
                     db.commit()
-                    logger.info("Fixed super admin: reset NULL password_hash")
+                    logger.info("Super admin password updated successfully")
+                elif needs_update:
+                    logger.warning(
+                        "Super admin needs password reset but ADMIN_DEFAULT_PASSWORD is not set "
+                        "or too short. Use the /api/v1/auth/bootstrap/ endpoint."
+                    )
                 else:
-                    logger.info("Super admin already exists, skipping creation")
+                    logger.info("Super admin already exists, password OK, skipping")
         finally:
             db.close()
     except Exception as admin_err:
