@@ -75,6 +75,7 @@ const Onboarding = lazy(() => import("@/pages/admin/Onboarding"));
 const MinistryDashboard = lazy(() => import("@/pages/admin/MinistryDashboard"));
 const LandingPageEditor = lazy(() => import("@/pages/admin/LandingPageEditor"));
 const CreateTenant = lazy(() => import("@/pages/admin/CreateTenant"));
+const PublicPagesManager = lazy(() => import("@/pages/admin/PublicPagesManager"));
 
 export const AdminRoutes = () => {
     return (
@@ -152,6 +153,7 @@ export const AdminRoutes = () => {
             <Route path="ministry-reporting" element={<MinistryDashboard />} />
             <Route path="landing" element={<LandingPageEditor />} />
             <Route path="create-tenant" element={<CreateTenant />} />
+            <Route path="public-pages" element={<PublicPagesManager />} />
         </>
     );
 };

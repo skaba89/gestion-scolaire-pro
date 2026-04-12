@@ -675,17 +675,16 @@ def reset_user_password(
     except Exception:
         pass
 
-    # Fallback: Redis unavailable — return with a security warning
-    logger.warning(
-        "Password reset for user %s: Redis unavailable, temp_password returned directly. "
-        "This is less secure — consider enabling Redis for secure password delivery.",
+    # Fallback: Redis unavailable — refuse to reset password for security
+    logger.error(
+        "Password reset for user %s: Redis unavailable. Refusing to perform reset "
+        "to avoid returning temp password in response body.",
         user_id,
     )
-    return {
-        "message": "Password reset successfully",
-        "temp_password": temp_password,
-        "_security_warning": "Redis unavailable — password returned in response body. Enable Redis for secure delivery.",
-    }
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Password reset temporarily unavailable. Redis is required for secure password delivery. Please try again later.",
+    )
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)

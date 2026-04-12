@@ -453,7 +453,9 @@ class MFAToggleRequest(BaseModel):
 
 
 @router.post("/toggle/")
+@limiter.limit("5/minute")
 def toggle_mfa(
+    request: Request,
     body: MFAToggleRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),

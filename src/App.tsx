@@ -33,6 +33,7 @@ import { TenantRoute } from "@/components/TenantRoute";
 // Lazy-loaded pages
 const NotFound = lazy(() => import("./pages/NotFound"));
 const TenantLanding = lazy(() => import("./pages/public/TenantLanding"));
+const PublicPageView = lazy(() => import("./pages/public/PublicPageView"));
 const SuperAdminDashboard = lazy(() => import("./pages/superadmin/SuperAdminDashboard"));
 const CreateTenantWithAdmin = lazy(() => import("./pages/superadmin/CreateTenantWithAdmin"));
 const TenantAuth = lazy(() => import("./pages/TenantAuth"));
@@ -175,7 +176,10 @@ const AppContent = memo(() => {
               {/* 2. Specific Public Routes */}
               {PublicRoutes()}
 
-              {/* 2b. Tenant-branded login page */}
+              {/* 2b. Public pages (must be before the catch-all) */}
+              <Route path="/:tenantSlug/pages/:pageSlug" element={<PublicPageView />} />
+
+              {/* 2c. Tenant-branded login page */}
               <Route path="/:tenantSlug/auth" element={<TenantAuth />} />
               <Route path="/:tenantSlug/login" element={<TenantAuth />} />
 

@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, LogIn, ChevronRight, FileText, GraduationCap } from 'lucide-react';
 import { usePublicTenant, useTenantByDomain } from '@/hooks/usePublicTenant';
+import { usePublicPages } from '@/hooks/usePublicPages';
 import { getLandingSettings } from '@/types/tenant';
+import { resolveUploadUrl } from '@/utils/url';
 import { UniversityTemplate } from './landing/UniversityTemplate';
 import { HighSchoolTemplate } from './landing/HighSchoolTemplate';
 import { DefaultLandingTemplate } from './landing/DefaultLandingTemplate';
@@ -171,19 +173,27 @@ function TenantRedirect({ website, name }: { website: string; name: string }) {
 const TenantLanding = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const customDomain = detectCustomDomain();
+  const effectiveSlug = customDomain ? undefined : tenantSlug;
 
   // If on a custom domain, resolve by domain; otherwise resolve by slug from URL
-  const slugQuery = usePublicTenant(customDomain ? undefined : tenantSlug);
+  const slugQuery = usePublicTenant(effectiveSlug);
   const domainQuery = useTenantByDomain(customDomain);
 
   const { data: tenant, isLoading, isError, error } = customDomain ? domainQuery : slugQuery;
 
-  // Redirect to tenant's external website if configured
+  // Fetch public pages (separate query, no blocking)
+  const pagesSlug = customDomain ? undefined : tenantSlug;
+  const pagesQuery = usePublicPages(pagesSlug);
+  const publicPages = pagesQuery.data || [];
+  const hasPublicPages = publicPages.length > 0;
+  const pagesLoading = pagesQuery.isLoading;
+
+  // Redirect to tenant's external website ONLY if no public pages exist
   useEffect(() => {
-    if (tenant?.website) {
+    if (tenant?.website && !pagesLoading && !hasPublicPages) {
       window.location.href = tenant.website;
     }
-  }, [tenant?.website]);
+  }, [tenant?.website, pagesLoading, hasPublicPages]);
 
   if (isLoading) {
     return <LandingSkeleton />;
@@ -201,12 +211,38 @@ const TenantLanding = () => {
 
   if (!tenant) return <TenantNotFound />;
 
-  // If tenant has a website, redirect to it
-  if (tenant.website) {
+  const settings = getLandingSettings(tenant);
+  const primaryColor = settings.primary_color || '#1e3a5f';
+
+  // If tenant has an external website and NO public pages, redirect
+  if (tenant.website && !pagesLoading && !hasPublicPages) {
     return <TenantRedirect website={tenant.website} name={tenant.name} />;
   }
 
-  const settings = getLandingSettings(tenant);
+  // If tenant has public pages, show the pages directory
+  if (hasPublicPages) {
+    const homePage = publicPages.find((p) => p.is_home);
+    const otherPages = publicPages.filter((p) => !p.is_home);
+
+    // If there's a home page, redirect to it
+    if (homePage) {
+      window.location.href = `/${tenantSlug}/pages/${homePage.slug}`;
+      return <LandingSkeleton />;
+    }
+
+    // Otherwise show a pages directory
+    return (
+      <TenantPagesDirectory
+        tenant={tenant}
+        settings={settings}
+        primaryColor={primaryColor}
+        pages={publicPages}
+        tenantSlug={tenantSlug!}
+      />
+    );
+  }
+
+  // Fallback to legacy template-based landing
   const template = selectTemplate(tenant.type);
 
   switch (template) {
@@ -220,5 +256,173 @@ const TenantLanding = () => {
       return <DefaultLandingTemplate tenant={tenant} settings={settings} />;
   }
 };
+
+// Pages directory: shown when tenant has public pages but no home page
+function TenantPagesDirectory({
+  tenant,
+  settings,
+  primaryColor,
+  pages,
+  tenantSlug,
+}: {
+  tenant: any;
+  settings: any;
+  primaryColor: string;
+  pages: any[];
+  tenantSlug: string;
+}) {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Navbar */}
+      <nav className="sticky top-0 z-50 bg-white shadow-sm border-b border-gray-100">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="flex items-center justify-between h-16 md:h-20">
+            <Link to={`/${tenantSlug}`} className="flex items-center gap-3">
+              {settings.logo_url ? (
+                <img
+                  src={resolveUploadUrl(settings.logo_url)}
+                  alt={tenant.name}
+                  className="h-10 md:h-12 w-auto object-contain"
+                />
+              ) : (
+                <div
+                  className="h-10 md:h-12 w-10 md:w-12 rounded-xl flex items-center justify-center text-white"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+              )}
+              <span className="font-bold text-lg" style={{ color: primaryColor }}>
+                {tenant.name}
+              </span>
+            </Link>
+            <Link
+              to={`/${tenantSlug}/auth`}
+              className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
+              style={{ backgroundColor: primaryColor }}
+            >
+              <span className="inline-flex items-center gap-2">
+                <LogIn className="w-4 h-4" />
+                Se connecter
+              </span>
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero banner */}
+      <header
+        className="relative py-20 md:py-28 overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, ${primaryColor} 0%, ${settings.secondary_color || primaryColor} 100%)`,
+        }}
+      >
+        <div className="absolute inset-0 opacity-5">
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
+              backgroundSize: '40px 40px',
+            }}
+          />
+        </div>
+        <div className="container mx-auto px-4 sm:px-6 relative z-10 text-center">
+          {settings.logo_url ? (
+            <img
+              src={resolveUploadUrl(settings.logo_url)}
+              alt={tenant.name}
+              className="h-20 w-auto mx-auto mb-6 object-contain brightness-0 invert"
+            />
+          ) : (
+            <div className="h-20 w-20 rounded-2xl flex items-center justify-center mx-auto mb-6 bg-white/20">
+              <GraduationCap className="w-10 h-10 text-white" />
+            </div>
+          )}
+          <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">{tenant.name}</h1>
+          {settings.tagline && (
+            <p className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto">{settings.tagline}</p>
+          )}
+        </div>
+      </header>
+
+      {/* Pages grid */}
+      <section className="py-12 md:py-20">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-3">
+              Nos pages
+            </h2>
+            <p className="text-gray-500 text-center mb-10">
+              Explorez les différentes pages de notre établissement
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {pages.map((page: any) => (
+                <Link
+                  key={page.id}
+                  to={`/${tenantSlug}/pages/${page.slug}`}
+                  className="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                >
+                  {page.hero_image ? (
+                    <div className="h-40 overflow-hidden">
+                      <img
+                        src={resolveUploadUrl(page.hero_image)}
+                        alt={page.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className="h-40 flex items-center justify-center"
+                      style={{ backgroundColor: `${primaryColor}08` }}
+                    >
+                      <FileText className="w-12 h-12" style={{ color: `${primaryColor}30` }} />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <h3 className="font-bold text-gray-900 text-lg mb-2 group-hover:text-blue-600 transition-colors">
+                      {page.title}
+                    </h3>
+                    {page.meta_description && (
+                      <p className="text-gray-500 text-sm line-clamp-2 leading-relaxed">
+                        {page.meta_description}
+                      </p>
+                    )}
+                    <div className="mt-4 flex items-center gap-1 text-sm font-semibold" style={{ color: primaryColor }}>
+                      Lire la page
+                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            {/* External website link */}
+            {tenant.website && (
+              <div className="mt-10 text-center">
+                <a
+                  href={tenant.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-6 py-3 text-gray-600 hover:text-gray-900 transition-colors font-medium"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Visiter le site officiel
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer
+        className="py-8 text-center text-sm text-gray-400 border-t border-gray-100 bg-white"
+      >
+        <p>© {new Date().getFullYear()} {tenant.name} — Propulsé par SchoolFlow Pro</p>
+      </footer>
+    </div>
+  );
+}
 
 export default TenantLanding;

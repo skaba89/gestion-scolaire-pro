@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -580,6 +580,11 @@ async def register(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Tenant '{body.tenant_slug}' not found.",
             )
+        if not tenant.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Tenant '{body.tenant_slug}' is not active. Registration is disabled for this tenant.",
+            )
         tenant_id = tenant.id
 
     # 4. Create user with hashed password
@@ -620,10 +625,16 @@ async def register(
     }
 
 
+class BootstrapRequest(BaseModel):
+    bootstrap_key: str
+    new_password: Optional[str] = None
+
+
 @router.post("/bootstrap/")
+@limiter.limit("5/minute")
 def bootstrap_admin(
-    bootstrap_key: str = Query(None, description="Secret key required"),
-    new_password: str = Query(None, description="New admin password (min 8 chars, overrides ADMIN_DEFAULT_PASSWORD)"),
+    request: Request,
+    body: BootstrapRequest,
     db: Session = Depends(get_db),
 ):
     """Create or reset the super admin account.
@@ -632,7 +643,7 @@ def bootstrap_admin(
     to override ADMIN_DEFAULT_PASSWORD from env.
     """
     # SECURITY: ALWAYS require the bootstrap secret
-    if not bootstrap_key or bootstrap_key != settings.BOOTSTRAP_SECRET:
+    if not body.bootstrap_key or body.bootstrap_key != settings.BOOTSTRAP_SECRET:
         raise HTTPException(status_code=403, detail="Access denied")
 
     import sqlalchemy
@@ -641,7 +652,7 @@ def bootstrap_admin(
 
     admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
     # new_password param takes priority over env var
-    admin_password = new_password or settings.ADMIN_DEFAULT_PASSWORD
+    admin_password = body.new_password or settings.ADMIN_DEFAULT_PASSWORD
     steps = []
 
     # SECURITY: Refuse to create admin with weak password
@@ -651,6 +662,9 @@ def bootstrap_admin(
             status_code=400,
             detail="Password must be at least 8 characters. Provide new_password or set ADMIN_DEFAULT_PASSWORD.",
         )
+
+    # SECURITY: Validate full password strength
+    validate_password_strength(admin_password)
 
     try:
         # Step 1: Ensure is_superuser column exists (PostgreSQL)

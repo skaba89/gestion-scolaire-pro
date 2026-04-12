@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai
+from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages
 from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys
@@ -73,6 +73,14 @@ api_router.include_router(clubs.router, prefix="/clubs", tags=["Clubs"])
 api_router.include_router(incidents.router, prefix="/incidents", tags=["Incidents"])
 api_router.include_router(surveys.router, prefix="/surveys", tags=["Surveys"])
 
+# Public Pages routes
+# Admin CRUD (requires auth)
+from app.api.v1.endpoints.core.public_pages import admin_router as public_pages_admin_router
+from app.api.v1.endpoints.core.public_pages import public_router as public_pages_public_router
+api_router.include_router(public_pages_admin_router, prefix="/public-pages", tags=["Public Pages (Admin)"])
+# Public read endpoints (no auth required)
+api_router.include_router(public_pages_public_router, prefix="/tenants/public", tags=["Public Pages"])
+
 # ─── Alias routes (frontend compatibility) ───────────────────────────────────
 # These provide the URL paths the frontend expects, delegating to existing logic.
 
@@ -118,3 +126,6 @@ api_router.include_router(classrooms_alias_router, prefix="/classrooms", tags=["
 
 # 16. Schedule Slots at root — mirrors /schedule/
 api_router.include_router(schedule_slots_alias_router, prefix="/schedule-slots", tags=["Schedule Slots"])
+
+# 17. Public Pages admin routes registered above under /public-pages
+# 18. Public Pages public routes registered above under /tenants/public

@@ -32,3 +32,4 @@ from app.models.parent_student import ParentStudent
 from app.models.admission import AdmissionApplication, AdmissionStatus
 from app.models.schedule import ScheduleSlot
 from app.models.associations import subject_levels, subject_departments, classroom_departments, class_subjects
+from app.models.public_page import PublicPage

@@ -29,7 +29,7 @@ enrollments_alias_router = APIRouter()
 @enrollments_alias_router.get("/", response_model=List[dict])
 def list_enrollments_alias(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("enrollments:read")),
 ):
     """GET /enrollments/ — mirrors GET /infrastructure/enrollments/"""
     from app.crud import academic as crud
@@ -49,7 +49,7 @@ class EnrollmentCreateAlias(BaseModel):
 def create_enrollment_alias(
     obj_in: EnrollmentCreateAlias,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("enrollments:write")),
 ):
     """POST /enrollments/ — mirrors POST /infrastructure/enrollments/"""
     from app.crud import academic as crud
@@ -661,7 +661,7 @@ def list_rooms_alias(
 def create_room_alias(
     obj_in: RoomCreateAlias,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("rooms:write")),
 ):
     """POST /rooms/ — mirrors POST /infrastructure/rooms/"""
     from app.crud import academic as crud
@@ -730,7 +730,7 @@ def list_classrooms_alias(
 def create_classroom_alias(
     obj_in: ClassroomCreateAlias,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("classrooms:write")),
 ):
     """POST /classrooms/ — mirrors POST /infrastructure/classrooms/"""
     from app.crud import academic as crud

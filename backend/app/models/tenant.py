@@ -31,3 +31,4 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     # Relationships
     users = relationship("User", back_populates="tenant")
     students = relationship("Student", back_populates="tenant")
+    public_pages = relationship("PublicPage", back_populates="tenant", order_by="PublicPage.sort_order")
