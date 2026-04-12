@@ -29,7 +29,7 @@ export const PrivacySettings = () => {
         setIsExporting(true);
         try {
             const data = await gdprService.exportUserData(user.id);
-            gdprService.downloadDataAsJson(data, `schoolflow-data-${new Date().toISOString().split('T')[0]}.json`);
+            gdprService.downloadDataAsJson(data, `donnees-${new Date().toISOString().split('T')[0]}.json`);
             toast({
                 title: "Export réussi",
                 description: "Vos données ont été téléchargées.",

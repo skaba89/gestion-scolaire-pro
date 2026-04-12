@@ -511,7 +511,7 @@ export function generatePayslipPDF(payslip: PayslipData, tenant: TenantData): js
     doc.setFontSize(7);
     doc.setTextColor(120, 120, 120);
     doc.text("Ce bulletin de paie est établi conformément à la législation en vigueur.", pageWidth / 2, pageHeight - 15, { align: "center" });
-    doc.text(`Document généré par SchoolFlow PRO - ${config.name}`, pageWidth / 2, pageHeight - 10, { align: "center" });
+    doc.text(`Document généré par ${config.name}`, pageWidth / 2, pageHeight - 10, { align: "center" });
 
     return doc;
 }

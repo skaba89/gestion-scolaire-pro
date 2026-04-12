@@ -85,7 +85,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              Pour commencer à utiliser SchoolFlow, créez votre établissement.
+              Pour commencer, configurez votre établissement.
             </p>
             <Link to={getTenantUrl("/admin/create-tenant")}>
               <Button size="lg">

@@ -263,7 +263,7 @@ export function generateCDIContract(contract: ContractData, tenant: TenantData):
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7);
     doc.setTextColor(150, 150, 150);
-    doc.text("Document généré par SchoolFlow PRO - Logiciel de gestion scolaire", pageWidth / 2, pageHeight - 10, { align: "center" });
+    doc.text(`Document généré par ${tenant.name || "Mon Établissement"} - Logiciel de gestion scolaire`, pageWidth / 2, pageHeight - 10, { align: "center" });
     doc.text(`Contrat N° ${contract.contract_number}`, pageWidth / 2, pageHeight - 6, { align: "center" });
 
     return doc;
@@ -477,7 +477,7 @@ export function generateCDDContract(contract: ContractData, tenant: TenantData):
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7);
     doc.setTextColor(150, 150, 150);
-    doc.text("Document généré par SchoolFlow PRO - Logiciel de gestion scolaire", pageWidth / 2, pageHeight - 10, { align: "center" });
+    doc.text(`Document généré par ${tenant.name || "Mon Établissement"} - Logiciel de gestion scolaire`, pageWidth / 2, pageHeight - 10, { align: "center" });
     doc.text(`Contrat N° ${contract.contract_number}`, pageWidth / 2, pageHeight - 6, { align: "center" });
 
     return doc;

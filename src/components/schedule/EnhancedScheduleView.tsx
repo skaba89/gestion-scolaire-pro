@@ -83,7 +83,7 @@ export const EnhancedScheduleView = ({ slots, className, isLoading }: EnhancedSc
 
   const handleExport = () => {
     // Generate iCal format
-    let ical = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//SchoolFlow Pro//Schedule//FR\n";
+    let ical = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//SchoolFlow//Schedule//FR\n";
 
     slots.forEach((slot) => {
       const dayOffset = slot.day_of_week - 1;

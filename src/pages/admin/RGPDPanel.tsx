@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { gdprService, DeletionRequest, DeletionAction } from '@/lib/gdpr-service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +44,7 @@ interface UserLegalData {
 
 export default function AdminRGPDPanel() {
     const { user, hasRole } = useAuth();
+    const { tenant } = useTenant();
 
     // Check admin permission
     const isAdmin = hasRole('SUPER_ADMIN') || hasRole('TENANT_ADMIN') || hasRole('DIRECTOR');
@@ -221,7 +223,7 @@ export default function AdminRGPDPanel() {
         setIsGeneratingReport(true);
         try {
             const logs = await gdprService.getComplianceAuditLogs();
-            await gdprService.generateComplianceReportPDF(logs);
+            await gdprService.generateComplianceReportPDF(logs, tenant?.name);
             toast.success('Rapport de conformité généré');
         } catch (error: any) {
             toast.error('Erreur lors de la génération du rapport', {

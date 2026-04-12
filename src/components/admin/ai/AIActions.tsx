@@ -26,7 +26,7 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
             // Header
             doc.setFontSize(20);
             doc.setTextColor(41, 128, 185);
-            doc.text("Rapport d'Analyse IA - SchoolFlow Pro", pageWidth / 2, 15, { align: "center" });
+            doc.text(`Rapport d'Analyse IA - ${tenantName || "Établissement"}`, pageWidth / 2, 15, { align: "center" });
 
             doc.setFontSize(10);
             doc.setTextColor(100);
@@ -105,7 +105,7 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
                 doc.setPage(i);
                 doc.setFontSize(8);
                 doc.setTextColor(150);
-                doc.text('Généré automatiquement par SchoolFlow Pro AI', pageWidth / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+                doc.text(`Généré automatiquement par ${tenantName || 'l\'IA'}`, pageWidth / 2, doc.internal.pageSize.height - 10, { align: 'center' });
             }
 
             doc.save(`rapport-ia-${format(new Date(), "yyyy-MM-dd")}.pdf`);

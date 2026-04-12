@@ -244,7 +244,7 @@ const TenantAuthPage = () => {
             {/* Name & Type */}
             <div className="flex flex-col items-center lg:items-start gap-2">
               <h1 className="text-3xl xl:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                {tenantName || "SchoolFlow Pro"}
+                {tenantName}
               </h1>
               <span
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-white/90 bg-white/15 backdrop-blur-sm border border-white/20"
@@ -322,7 +322,7 @@ const TenantAuthPage = () => {
         {/* Bottom branding */}
         <div className="absolute bottom-6 left-0 right-0 text-center">
           <p className="text-[11px] text-white/40 tracking-wide">
-            Propulsé par <span className="font-semibold text-white/50">SchoolFlow Pro</span> — Gestion scolaire intelligente
+            Propulsé par <span className="font-semibold text-white/50">{tenantName}</span>
           </p>
         </div>
       </div>
@@ -358,7 +358,7 @@ const TenantAuthPage = () => {
               </div>
             )}
             <div className="text-center">
-              <h2 className="text-xl font-bold" style={{ color: pColor }}>{tenantName || "SchoolFlow Pro"}</h2>
+              <h2 className="text-xl font-bold" style={{ color: pColor }}>{tenantName}</h2>
               <p className="text-xs text-muted-foreground mt-0.5">{typeLabel}</p>
             </div>
           </div>
@@ -488,7 +488,7 @@ const TenantAuthPage = () => {
           {/* Footer info */}
           <div className="space-y-3 text-center">
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité de SchoolFlow Pro.
+              En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité.
             </p>
             <div className="flex items-center justify-center gap-4 text-[11px] text-slate-400">
               {contactEmail && (

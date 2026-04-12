@@ -43,7 +43,7 @@ export function PayslipActions({ payslip, onEdit, onDelete }: PayslipActionsProp
 
             // Préparer les données du tenant
             const tenantData = {
-                name: tenant?.name || "SchoolFlow PRO",
+                name: tenant?.name || "Mon Établissement",
                 address: tenant?.address,
                 phone: tenant?.phone,
                 email: tenant?.email,

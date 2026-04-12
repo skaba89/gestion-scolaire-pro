@@ -105,7 +105,7 @@ export function generateDashboardPDF(data: DashboardData) {
         doc.setFontSize(8);
         doc.setTextColor(150);
         doc.text(
-            `Page ${i} de ${pageCount} - SchoolFlow PRO`,
+            `Page ${i} de ${pageCount} - ${tenant.name || "Établissement"}`,
             pageWidth / 2,
             doc.internal.pageSize.height - 10,
             { align: "center" }

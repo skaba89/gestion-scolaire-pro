@@ -63,7 +63,7 @@ export const AIChatWidget = () => {
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       const userName = profile?.first_name;
-      const institutionName = tenant?.name || "SchoolFlow Pro";
+      const institutionName = tenant?.name || "votre établissement";
       const greeting = userName
         ? `Bonjour ${userName} ! 👋`
         : "Bonjour ! 👋";
@@ -71,7 +71,7 @@ export const AIChatWidget = () => {
       setMessages([
         {
           role: "assistant",
-          content: `${greeting}\n\nJe suis votre assistant IA SchoolFlow Pro pour ${institutionName}. Je peux vous aider avec :\n\n• La gestion des étudiants et inscriptions\n• Les notes et bulletins\n• La planification et calendrier\n• Les finances et paiements\n• Toute question sur la plateforme\n\nComment puis-je vous aider ?`,
+          content: `${greeting}\n\nJe suis votre assistant IA pour ${institutionName}. Je peux vous aider avec :\n\n• La gestion des étudiants et inscriptions\n• Les notes et bulletins\n• La planification et calendrier\n• Les finances et paiements\n• Toute question sur la plateforme\n\nComment puis-je vous aider ?`,
         },
       ]);
     }
@@ -139,7 +139,7 @@ export const AIChatWidget = () => {
 
   const clearChat = () => {
     const userName = profile?.first_name;
-    const institutionName = tenant?.name || "SchoolFlow Pro";
+    const institutionName = tenant?.name || "votre établissement";
     const greeting = userName
       ? `Bonjour ${userName} ! 👋`
       : "Bonjour ! 👋";
@@ -147,7 +147,7 @@ export const AIChatWidget = () => {
     setMessages([
       {
         role: "assistant",
-        content: `${greeting}\n\nJe suis votre assistant IA SchoolFlow Pro pour ${institutionName}. Comment puis-je vous aider ?`,
+        content: `${greeting}\n\nJe suis votre assistant IA pour ${institutionName}. Comment puis-je vous aider ?`,
       },
     ]);
     toast.success("Conversation effacée.");
@@ -218,7 +218,7 @@ export const AIChatWidget = () => {
           <CardHeader className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-t-lg py-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base font-medium">
               <Sparkles className="h-5 w-5" />
-              <span>Assistant IA SchoolFlow</span>
+              <span>Assistant IA</span>
             </CardTitle>
             <div className="flex items-center gap-1">
               <Button

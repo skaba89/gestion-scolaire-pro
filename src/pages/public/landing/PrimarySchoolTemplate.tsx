@@ -714,7 +714,7 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
               <p className="text-white/60 text-sm">
                 © {new Date().getFullYear()} {tenant.name}. Tous droits réservés.
               </p>
-              <p className="text-white/40 text-xs">Propulsé par SchoolFlow Pro</p>
+              <p className="text-white/40 text-xs">{tenant.name}</p>
             </div>
           </div>
         </footer>

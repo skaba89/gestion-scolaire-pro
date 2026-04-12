@@ -14,7 +14,7 @@ export function TenantBranding({ showName = true, subtitle, size = "md" }: Tenan
 
   // Get dynamic branding settings with fallback to tenant data
   const logo_url = useSetting("logo_url", tenant?.logo_url);
-  const name = useSetting("name", tenant?.name || "SchoolFlow Pro");
+  const name = useSetting("name", tenant?.name || "Mon Établissement");
   const show_logo_text = useSetting("show_logo_text", true);
 
   const sizeClasses = {
@@ -58,7 +58,7 @@ export function TenantBranding({ showName = true, subtitle, size = "md" }: Tenan
           {subtitle && (
             <p className={`${classes.subtitle} text-muted-foreground`}>{subtitle}</p>
           )}
-          <p className="text-[10px] text-muted-foreground/50 italic mt-1 font-light tracking-tight">Propulsé par <span className="font-semibold text-primary/60">SchoolFlow Pro</span></p>
+          <p className="text-[10px] text-muted-foreground/50 italic mt-1 font-light tracking-tight">{name}</p>
         </div>
       )}
     </div>

@@ -196,7 +196,7 @@ const Settings = () => {
           </div>
           <h3 className="text-lg font-semibold mb-2">Guide de Configuration</h3>
           <p className="text-muted-foreground mb-4">
-            Pour commencer à utiliser SchoolFlow Pro, configurez dans l'ordre :
+            Pour commencer, configurez dans l'ordre :
           </p>
           <ol className="text-sm text-muted-foreground space-y-1 text-left max-w-md mx-auto">
             <li className="flex items-center gap-2">

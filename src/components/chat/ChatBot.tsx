@@ -58,7 +58,7 @@ export const ChatBot = () => {
   // Initialize with welcome message
   useEffect(() => {
     if (messages.length === 0) {
-      const institutionName = tenant?.name || "SchoolFlow Pro";
+      const institutionName = tenant?.name || "votre établissement";
       const greeting = profile?.first_name
         ? `${t("dashboard.welcome")} ${profile.first_name} ! 👋`
         : `${t("dashboard.welcome")} ! 👋`;
@@ -190,7 +190,7 @@ export const ChatBot = () => {
   };
 
   const clearChat = () => {
-    const institutionName = tenant?.name || "SchoolFlow Pro";
+    const institutionName = tenant?.name || "votre établissement";
     setMessages([{
       role: "assistant",
       content: `${t("dashboard.welcome")}${profile?.first_name ? ` ${profile.first_name}` : ''} ! 👋\n\n${t("chatbot.welcome")}\n\n${institutionName}`,
@@ -233,7 +233,7 @@ export const ChatBot = () => {
           <CardHeader className="bg-primary text-primary-foreground rounded-t-lg py-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <Sparkles className="h-5 w-5" aria-hidden="true" />
-              {t("chatbot.title")} - {tenant?.name || "SchoolFlow Pro"}
+              {t("chatbot.title")} - {tenant?.name || "Assistant"}
             </CardTitle>
             <Button
               variant="ghost"

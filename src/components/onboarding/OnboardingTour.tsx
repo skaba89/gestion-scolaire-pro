@@ -29,7 +29,7 @@ interface OnboardingStep {
 const defaultSteps: OnboardingStep[] = [
   {
     id: 'welcome',
-    title: 'Bienvenue sur SchoolFlow Pro !',
+    title: 'Bienvenue sur votre espace !',
     description: 'Découvrez comment gérer efficacement votre établissement scolaire avec notre plateforme complète.',
     icon: <Sparkles className="h-8 w-8 text-primary" />,
     position: 'center'

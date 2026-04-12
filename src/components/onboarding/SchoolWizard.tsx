@@ -100,7 +100,7 @@ export const SchoolWizard = () => {
                 {/* Header */}
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-display font-bold text-foreground mb-2">
-                        Bienvenue sur SchoolFlow Pro
+                        Bienvenue sur votre plateforme
                     </h1>
                     <p className="text-lg text-muted-foreground">
                         Configurons votre établissement en quelques étapes simples

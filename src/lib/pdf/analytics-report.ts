@@ -29,7 +29,7 @@ export const generateAnalyticsReport = async (data: ReportData) => {
     // --- Header ---
     doc.setFontSize(20);
     doc.setTextColor(40);
-    doc.text("Rapport Analytique SchoolFlow Pro", pageWidth / 2, 20, { align: "center" });
+    doc.text(`Rapport Analytique - ${data.tenantName || "Établissement"}`, pageWidth / 2, 20, { align: "center" });
 
     doc.setFontSize(12);
     doc.text(`Établissement : ${data.tenantName}`, 14, 30);
@@ -141,7 +141,7 @@ export const generateAnalyticsReport = async (data: ReportData) => {
         doc.setFontSize(10);
         doc.setTextColor(150);
         doc.text(
-            `Page ${i} sur ${totalPages} - Confidentiel - SchoolFlow Pro`,
+            `Page ${i} sur ${totalPages} - Confidentiel - ${data.tenantName || "Établissement"}`,
             14,
             doc.internal.pageSize.getHeight() - 10
         );

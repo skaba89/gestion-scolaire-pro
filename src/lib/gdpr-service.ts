@@ -176,7 +176,7 @@ export const gdprService = {
     /**
      * Admin: Generate a formal PDF compliance report
      */
-    async generateComplianceReportPDF(logs: any[]) {
+    async generateComplianceReportPDF(logs: any[], tenantName?: string) {
         const doc = new jsPDF();
         const now = new Date().toLocaleString();
 
@@ -188,7 +188,7 @@ export const gdprService = {
         doc.setFontSize(10);
         doc.setTextColor(100);
         doc.text(`Généré le : ${now}`, 20, 30);
-        doc.text(`Établissement : SchoolFlow Pro`, 20, 35);
+        doc.text(`Établissement : ${tenantName || "Mon Établissement"}`, 20, 35);
 
         doc.setDrawColor(0, 51, 102);
         doc.line(20, 40, 190, 40);

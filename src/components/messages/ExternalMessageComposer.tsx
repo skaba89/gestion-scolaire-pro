@@ -129,7 +129,7 @@ export default function ExternalMessageComposer() {
         recipients: recipientEmails,
         subject,
         message,
-        tenant_name: tenant?.name || "SchoolFlow Pro",
+        tenant_name: tenant?.name || "Mon Établissement",
       });
 
       toast({

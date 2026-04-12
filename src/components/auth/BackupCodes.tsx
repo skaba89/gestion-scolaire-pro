@@ -15,7 +15,7 @@ export const BackupCodes = ({ codes, onRegenerate }: BackupCodesProps) => {
     const { toast } = useToast();
 
     const handleDownload = () => {
-        const content = `CODES DE RÉCUPÉRATION SCHOOLFLOW PRO
+        const content = `CODES DE RÉCUPÉRATION
 =====================================
 
 ⚠️  IMPORTANT : Conservez ces codes en lieu sûr !

@@ -33,7 +33,7 @@ export default function RGPDSettings() {
         setIsExporting(true);
         try {
             const data = await gdprService.exportUserData(user.id);
-            gdprService.downloadDataAsJson(data as Record<string, unknown>, `mes-donnees-schoolflow-${new Date().toISOString().split('T')[0]}.json`);
+            gdprService.downloadDataAsJson(data as Record<string, unknown>, `mes-donnees-${new Date().toISOString().split('T')[0]}.json`);
             toast.success('Vos données ont été exportées avec succès', { description: 'Le fichier JSON a été téléchargé' });
             loadExportHistory();
         } catch (error: any) {

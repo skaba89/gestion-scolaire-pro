@@ -218,7 +218,7 @@ export const usePushNotifications = () => {
       return;
     }
 
-    showNotification("Test de notification SchoolFlow Pro", {
+    showNotification("Test de notification", {
       body: "Les notifications fonctionnent correctement ! 🎉",
       tag: "test-notification",
     });

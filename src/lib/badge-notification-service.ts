@@ -73,7 +73,7 @@ export async function shareNotification(
     if (navigator.share && platform !== "clipboard") {
       await navigator.share({
         title: "I just earned a badge!",
-        text: "Check out my new achievement on SchoolFlow Pro",
+        text: "Check out my new achievement!",
         url: window.location.href,
       });
       await logNotification("", badgeId, "shared");

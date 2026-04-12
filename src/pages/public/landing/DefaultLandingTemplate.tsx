@@ -58,7 +58,7 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
   return (
     <>
       <Helmet>
-        <title>{tenant.name} — SchoolFlow Pro</title>
+        <title>{tenant.name}</title>
         <meta
           name="description"
           content={
@@ -844,7 +844,7 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
               <p className="text-white/60 text-sm">
                 © {new Date().getFullYear()} {tenant.name}. Tous droits réservés.
               </p>
-              <p className="text-white/40 text-xs">Propulsé par SchoolFlow Pro</p>
+              <p className="text-white/40 text-xs">{tenant.name}</p>
             </div>
           </div>
         </footer>

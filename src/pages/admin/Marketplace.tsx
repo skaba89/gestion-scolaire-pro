@@ -82,7 +82,7 @@ export default function Marketplace() {
                         Marketplace Éducatif
                     </h1>
                     <p className="text-muted-foreground">
-                        Découvrez et importez des ressources partagées par la communauté SchoolFlow
+                        Découvrez et importez des ressources partagées par la communauté éducative
                     </p>
                 </div>
             </div>
@@ -105,7 +105,7 @@ export default function Marketplace() {
                     <div key={resource.id} className="bg-card border rounded-lg overflow-hidden flex flex-col group p-4 border-primary/20 bg-primary/5">
                         <div className="flex justify-between items-start mb-2">
                             <Badge variant="outline" className="bg-background">
-                                {resource.tenant?.name || "Institution SchoolFlow"}
+                                {resource.tenant?.name || "Établissement"}
                             </Badge>
                             <div className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Download className="h-3 w-3" />

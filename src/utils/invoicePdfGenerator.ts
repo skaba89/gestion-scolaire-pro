@@ -310,7 +310,7 @@ export function generateInvoicePDF(invoice: InvoiceData, tenant: TenantData): js
     doc.setFont("helvetica", "italic");
     doc.setFontSize(7);
     doc.setTextColor(180, 180, 180);
-    doc.text("Document généré par SchoolFlow PRO - Logiciel de gestion scolaire cloud", pageWidth / 2, pageHeight - 10, { align: "center" });
+    doc.text(`Document généré par ${tenant.name || "Mon Établissement"} - Logiciel de gestion scolaire cloud`, pageWidth / 2, pageHeight - 10, { align: "center" });
 
     return doc;
 }
