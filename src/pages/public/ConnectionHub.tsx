@@ -13,8 +13,11 @@ import {
   ExternalLink,
   X,
   ChevronRight,
+  ShieldCheck,
+  Lock,
 } from "lucide-react";
 import { usePublicTenants } from "@/hooks/usePublicTenant";
+import { useAuth } from "@/contexts/AuthContext";
 import { resolveUploadUrl } from "@/utils/url";
 
 // ---------------------------------------------------------------------------
@@ -222,6 +225,45 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
 }
 
 // ---------------------------------------------------------------------------
+// Access Denied component (shown to non-super-admin users)
+// ---------------------------------------------------------------------------
+
+function AccessDenied() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full text-center space-y-6">
+        <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+          <Lock className="w-9 h-9 text-red-400" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900">Accès restreint</h1>
+        <p className="text-gray-500 text-sm leading-relaxed">
+          Cette page est réservée aux administrateurs de la plateforme.
+          Seul le Super Administrateur peut accéder à la liste de tous les établissements.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            onClick={() => navigate("/auth")}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm"
+          >
+            <LogIn className="w-4 h-4" />
+            Se connecter
+          </button>
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+            Retour à l'accueil
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Filter tabs
 // ---------------------------------------------------------------------------
 
@@ -241,9 +283,16 @@ export default function ConnectionHub() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const { isSuperAdmin, isLoading: authLoading } = useAuth();
 
   // Load tenants from the public API
   const { data: apiTenants, isLoading } = usePublicTenants();
+
+  // ─── Access Control: Only SUPER_ADMIN can see all establishments ───
+  // Wait for auth to finish loading before deciding
+  if (!authLoading && !isSuperAdmin()) {
+    return <AccessDenied />;
+  }
 
   // Filter
   const filtered = useMemo(() => {
@@ -292,25 +341,31 @@ export default function ConnectionHub() {
           {/* Logo + brand */}
           <div className="flex items-center justify-center gap-3 mb-6">
             <div className="w-12 h-12 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20">
-              <LogIn className="w-6 h-6 text-white" />
+              <ShieldCheck className="w-6 h-6 text-white" />
             </div>
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-4 leading-tight">
-            Espace de connexion
+            Administration des établissements
           </h1>
           <p className="text-blue-200 text-lg max-w-2xl mx-auto leading-relaxed">
-            Sélectionnez votre établissement pour accéder à votre espace personnalisé.
-            Chaque établissement dispose de sa propre page de connexion sécurisée.
+            Panneau de gestion de tous les établissements de la plateforme SchoolFlow Pro.
+            Accès réservé au Super Administrateur.
           </p>
+
+          {/* Super admin badge */}
+          <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 backdrop-blur-sm text-amber-200 text-sm font-medium rounded-full border border-amber-400/30">
+            <ShieldCheck className="w-4 h-4" />
+            Super Administrateur
+          </div>
 
           {/* Quick action: generic login */}
           <button
             onClick={() => navigate("/auth")}
-            className="mt-8 inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white text-sm font-medium rounded-xl border border-white/20 hover:bg-white/20 transition-all"
+            className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white text-sm font-medium rounded-xl border border-white/20 hover:bg-white/20 transition-all"
           >
             <LogIn className="w-4 h-4" />
-            Connexion générique
+            Connexion en tant qu'admin
             <ChevronRight className="w-4 h-4 opacity-60" />
           </button>
         </div>
@@ -328,7 +383,7 @@ export default function ConnectionHub() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher votre établissement par nom, ville..."
+              placeholder="Rechercher un établissement par nom, ville..."
               className="w-full pl-11 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
               autoFocus
             />
@@ -402,27 +457,28 @@ export default function ConnectionHub() {
       </div>
 
       {/* ================================================================ */}
-      {/* HELP FOOTER                                                      */}
+      {/* FOOTER                                                           */}
       {/* ================================================================ */}
       {!isLoading && apiTenants && apiTenants.length > 0 && (
         <div className="bg-white border-t border-gray-100 py-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mx-auto text-center flex flex-col items-center gap-5">
             <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center">
-              <School className="w-7 h-7 text-blue-600" />
+              <ShieldCheck className="w-7 h-7 text-blue-600" />
             </div>
             <h2 className="text-xl font-bold text-[#1e3a5f]">
-              Vous ne trouvez pas votre établissement ?
+              Administration plateforme
             </h2>
             <p className="text-gray-500 text-sm max-w-md">
-              Si votre établissement utilise SchoolFlow Pro mais n&apos;apparaît pas dans cette liste,
-              contactez votre administrateur pour obtenir le lien de connexion direct.
+              Vous êtes connecté en tant que Super Administrateur. Vous pouvez gérer tous les établissements
+              depuis cette interface.
             </p>
             <button
-              onClick={() => navigate("/")}
-              className="flex items-center gap-2 text-blue-700 font-semibold text-sm hover:gap-3 transition-all duration-200"
+              onClick={() => navigate("/super-admin")}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm"
             >
-              <ArrowRight className="w-4 h-4 rotate-180" />
-              Retour à l&apos;accueil
+              <ShieldCheck className="w-4 h-4" />
+              Accéder au tableau de bord
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -443,11 +499,11 @@ export default function ConnectionHub() {
               Revenez plus tard ou contactez-nous pour en savoir plus.
             </p>
             <button
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/super-admin/create-tenant")}
               className="flex items-center gap-2 text-blue-700 font-semibold text-sm hover:gap-3 transition-all duration-200"
             >
-              <ArrowRight className="w-4 h-4 rotate-180" />
-              Retour à l&apos;accueil
+              Créer un établissement
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>

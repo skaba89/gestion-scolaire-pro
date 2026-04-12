@@ -471,24 +471,18 @@ const TenantAuthPage = () => {
           </div>
 
           {/* Quick links */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {tenantSlug && (
               <a
-                href={`/${tenantSlug}`}
+                href={website || `/${tenantSlug}`}
+                target={website ? "_blank" : undefined}
+                rel={website ? "noopener noreferrer" : undefined}
                 className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200"
               >
                 <Globe className="w-3.5 h-3.5" />
-                Page de l'établissement
+                {website ? "Retour à l'accueil" : "Page de l'établissement"}
               </a>
             )}
-            <a
-              href="/auth"
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium text-white transition-all duration-200 hover:opacity-90 shadow-sm"
-              style={{ background: `linear-gradient(135deg, ${sColor}, ${darkenHex(sColor, 10)})` }}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Connexion générale
-            </a>
           </div>
 
           {/* Footer info */}

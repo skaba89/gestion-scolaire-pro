@@ -444,11 +444,11 @@ export default function SchoolFlowHomePage() {
                 </button>
               ))}
               <button
-                onClick={() => window.open('/connexion', '_blank', 'noopener,noreferrer')}
+                onClick={() => navigate('/auth')}
                 className="ml-2 px-4 py-2 text-[#1e3a5f] font-medium text-sm rounded-lg hover:bg-blue-50 transition-all flex items-center gap-1.5"
               >
                 Se connecter
-                <ExternalLink className="w-3.5 h-3.5" />
+                <LogIn className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => navigate("/admin/create-tenant")}
@@ -481,7 +481,7 @@ export default function SchoolFlowHomePage() {
                 </button>
               ))}
               <button
-                onClick={() => { setMobileMenuOpen(false); window.open('/connexion', '_blank', 'noopener,noreferrer'); }}
+                onClick={() => { setMobileMenuOpen(false); navigate('/auth'); }}
                 className="text-left px-4 py-2.5 text-gray-700 font-medium text-sm flex items-center gap-2"
               >
                 Se connecter
@@ -526,10 +526,10 @@ export default function SchoolFlowHomePage() {
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button
-                onClick={() => window.open("/connexion", "_blank", "noopener,noreferrer")}
+                onClick={() => navigate("/auth")}
                 className="flex items-center justify-center gap-2 px-6 py-3.5 bg-[#1e3a5f] text-white font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 transform"
               >
-                <ExternalLink className="w-4 h-4" />
+                <LogIn className="w-4 h-4" />
                 Se connecter
               </button>
               <button

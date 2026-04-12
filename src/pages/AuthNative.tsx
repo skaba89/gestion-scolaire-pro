@@ -304,14 +304,7 @@ const AuthNative = () => {
           </div>
 
           {/* Quick links */}
-          <div className="grid grid-cols-2 gap-3">
-            <a
-              href="/connexion"
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200"
-            >
-              <Users className="w-3.5 h-3.5" />
-              Trouver mon établissement
-            </a>
+          <div className="grid grid-cols-1 gap-3">
             <a
               href="/"
               className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium text-white transition-all duration-200 hover:opacity-90 shadow-sm bg-gradient-to-r from-slate-600 to-slate-700"
