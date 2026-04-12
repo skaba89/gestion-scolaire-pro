@@ -129,9 +129,20 @@ async def chat(
         req = request
         stream = req.stream
 
+    # Determine the platform name to use in AI responses
+    # If tenant name is provided (tenant context), use it instead of "SchoolFlow Pro"
+    platform_name = "SchoolFlow Pro"
+    if isinstance(request, ChatRequestV2) and request.tenantName:
+        platform_name = request.tenantName
+
+    # Also check current_user tenant if available
+    if platform_name == "SchoolFlow Pro" and current_user.get("tenant_name"):
+        platform_name = current_user["tenant_name"]
+
     logger.info(
-        "AI chat request from user=%s (stream=%s)",
+        "AI chat request from user=%s platform=%s (stream=%s)",
         current_user.get("email"),
+        platform_name,
         stream,
     )
 
@@ -144,6 +155,7 @@ async def chat(
             message=req.message,
             history=history_dicts,
             stream=True,
+            platform_name=platform_name,
         )
 
         async def event_generator():
@@ -153,7 +165,7 @@ async def chat(
                 yield "data: [DONE]\n\n"
             except Exception as exc:
                 logger.exception("Error in chat stream")
-                yield f"data: ❌ Erreur de streaming : {exc}\n\n"
+                yield f"data: Erreur de streaming : {exc}\n\n"
 
         return StreamingResponse(
             event_generator(),
@@ -168,6 +180,7 @@ async def chat(
         message=req.message,
         history=history_dicts,
         stream=False,
+        platform_name=platform_name,
     )
     # Wrap backend response in frontend-expected format
     return {

@@ -100,7 +100,7 @@ const Install = () => {
             </div>
             <CardTitle className="text-2xl">Application installée !</CardTitle>
             <CardDescription>
-              Vous utilisez déjà SchoolFlow Pro en mode application.
+              Vous utilisez déjà l'application en mode application.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -147,7 +147,7 @@ const Install = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4">
       <div className="max-w-4xl mx-auto py-12">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-white mb-4">Installer SchoolFlow Pro</h1>
+          <h1 className="text-4xl font-bold text-white mb-4">Installer l'application</h1>
           <p className="text-xl text-blue-200">
             Accédez rapidement à votre espace depuis votre écran d'accueil
           </p>
@@ -271,7 +271,7 @@ const Install = () => {
                 </div>
                 <h3 className="font-medium mb-1">Accès rapide</h3>
                 <p className="text-sm text-muted-foreground">
-                  Lancez SchoolFlow Pro directement depuis votre écran d'accueil
+                  Lancez l'application directement depuis votre écran d'accueil
                 </p>
               </div>
               <div className="text-center">

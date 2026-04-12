@@ -116,7 +116,7 @@ function TenantNotFound() {
           Établissement introuvable
         </h1>
         <p className="text-gray-500 mb-8 leading-relaxed">
-          L'URL demandée ({window.location.pathname}) ne correspond à aucun établissement enregistré sur SchoolFlow Pro.
+          L'URL demandée ne correspond à aucun établissement enregistré.
           Vérifiez l'adresse ou revenez à l'accueil.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -419,7 +419,7 @@ function TenantPagesDirectory({
       <footer
         className="py-8 text-center text-sm text-gray-400 border-t border-gray-100 bg-white"
       >
-        <p>© {new Date().getFullYear()} {tenant.name} — Propulsé par SchoolFlow Pro</p>
+        <p>© {new Date().getFullYear()} {tenant.name} — Plateforme de gestion scolaire</p>
       </footer>
     </div>
   );

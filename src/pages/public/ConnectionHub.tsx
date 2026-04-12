@@ -349,7 +349,7 @@ export default function ConnectionHub() {
             Administration des établissements
           </h1>
           <p className="text-blue-200 text-lg max-w-2xl mx-auto leading-relaxed">
-            Panneau de gestion de tous les établissements de la plateforme SchoolFlow Pro.
+            Panneau de gestion de tous les établissements de la plateforme.
             Accès réservé au Super Administrateur.
           </p>
 

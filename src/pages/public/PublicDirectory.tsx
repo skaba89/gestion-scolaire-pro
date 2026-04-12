@@ -372,7 +372,7 @@ export default function PublicDirectory() {
             Annuaire des établissements
           </h1>
           <p className="text-blue-200 text-lg max-w-2xl mx-auto">
-            Découvrez les établissements scolaires et universitaires qui utilisent SchoolFlow Pro.
+            Découvrez les établissements scolaires et universitaires de notre plateforme.
             Consultez leur page publique, programmes et informations.
           </p>
         </div>
@@ -494,7 +494,7 @@ export default function PublicDirectory() {
             Votre établissement n&apos;est pas dans l&apos;annuaire&nbsp;?
           </h2>
           <p className="text-gray-500 text-sm">
-            Inscrivez votre établissement gratuitement et rejoignez la communauté SchoolFlow Pro.
+            Inscrivez votre établissement gratuitement et rejoignez notre plateforme de gestion scolaire.
           </p>
           <a
             href="/admin/create-tenant"

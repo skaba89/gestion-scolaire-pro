@@ -171,7 +171,7 @@
     "dataAvailable": "缓存数据可用"
   },
   "pwa": {
-    "installTitle": "安装 SchoolFlow Pro",
+    "installTitle": "安装应用",
     "installDescription": "从主屏幕快速访问",
     "alreadyInstalled": "应用已安装！",
     "installNow": "立即安装",

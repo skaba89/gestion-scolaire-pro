@@ -19,20 +19,22 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 CHAT_SYSTEM_PROMPT = (
-    "Tu es un assistant intelligent pour SchoolFlow Pro, une plateforme de gestion "
+    "Tu es un assistant intelligent pour {platform_name}, une plateforme de gestion "
     "scolaire complète. Tu aides les utilisateurs (administrateurs, enseignants, "
     "parents, élèves, personnel) à naviguer et utiliser le système efficacement.\n\n"
     "Règles :\n"
     "- Réponds TOUJOURS en français.\n"
     "- Sois concis, professionnel et bienveillant.\n"
     "- Si on te pose une question hors du contexte scolaire, redirige poliment.\n"
-    "- Quand c'est pertinent, suggère des fonctionnalités de SchoolFlow Pro "
+    "- Quand c'est pertinent, suggère des fonctionnalités de {platform_name} "
     "(notes, présences, paiements, emploi du temps, communication, etc.).\n"
+    "- Quand tu mentionnes la plateforme, utilise TOUJOURS le nom \"{platform_name}\" "
+    "et JAMAIS \"SchoolFlow Pro\".\n"
     "- Ne divulgue jamais d'informations sensibles sur les élèves ou le personnel."
 )
 
 AUDIT_SYSTEM_PROMPT = (
-    "Tu es un auditeur scolaire expert intégré à SchoolFlow Pro. Tu analyses les "
+    "Tu es un auditeur scolaire expert intégré à {platform_name}. Tu analyses les "
     "données opérationnelles et financières d'un établissement scolaire pour "
     "fournir des rapports d'audit clairs et actionnables.\n\n"
     "Règles :\n"
@@ -166,20 +168,23 @@ class GroqService:
         history: Optional[list[dict[str, str]]] = None,
         *,
         stream: bool = False,
+        platform_name: str = "SchoolFlow Pro",
     ):
         """
-        General-purpose chat for SchoolFlow Pro support.
+        General-purpose chat for school management support.
 
         Args:
             message: The user message.
             history: Optional list of prior ``{"role": ..., "content": ...}`` dicts.
             stream: If True, returns an async generator of text chunks.
+            platform_name: The display name of the platform (tenant or "SchoolFlow Pro").
 
         Returns:
             A structured dict (stream=False) or an async generator (stream=True).
         """
+        system_prompt = CHAT_SYSTEM_PROMPT.format(platform_name=platform_name)
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": CHAT_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
         ]
         if history:
             messages.extend(history)
@@ -196,6 +201,7 @@ class GroqService:
         data: Any,
         *,
         stream: bool = False,
+        platform_name: str = "SchoolFlow Pro",
     ):
         """
         Audit analysis endpoint.
@@ -218,8 +224,9 @@ class GroqService:
             "Fournis un rapport d'audit structuré en français."
         )
 
+        audit_prompt = AUDIT_SYSTEM_PROMPT.format(platform_name=platform_name)
         messages: list[dict[str, str]] = [
-            {"role": "system", "content": AUDIT_SYSTEM_PROMPT},
+            {"role": "system", "content": audit_prompt},
             {"role": "user", "content": user_message},
         ]
 

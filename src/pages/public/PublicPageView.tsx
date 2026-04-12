@@ -516,15 +516,7 @@ function PublicFooter({
         <div className="py-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-white/50">
           <p>© {currentYear} {tenantName}. Tous droits réservés.</p>
           <p>
-            Propulsé par{' '}
-            <a
-              href="https://schoolflow.pro"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/70 hover:text-white transition-colors font-medium"
-            >
-              SchoolFlow Pro
-            </a>
+            Plateforme de gestion scolaire
           </p>
         </div>
       </div>
@@ -1438,7 +1430,7 @@ const PublicPageView = () => {
 
   useEffect(() => {
     if (page) {
-      const title = page.meta_title || `${page.title} — ${tenant?.name || 'SchoolFlow'}`;
+      const title = page.meta_title || `${page.title} — ${tenant?.name || 'Établissement'}`;
       document.title = title;
 
       // Meta description
