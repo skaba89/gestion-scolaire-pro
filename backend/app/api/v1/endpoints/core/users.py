@@ -173,48 +173,45 @@ def list_users(
     params["limit"] = page_size
     params["offset"] = offset
 
-    users_sql = text(f"""
-        SELECT
-            CAST(u.id AS VARCHAR),
-            u.email,
-            u.first_name,
-            u.last_name,
-            u.is_active,
-            u.avatar_url,
-            u.created_at,
-            COALESCE(
-                ARRAY_AGG(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL),
-                ARRAY[]::text[]
-            ) AS roles
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
-        {role_join}
-        WHERE {where_sql}
-        GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
-        ORDER BY u.last_name ASC, u.first_name ASC
-        LIMIT :limit OFFSET :offset
-    """  if not settings.is_sqlite else f"""
-        SELECT
-            CAST(u.id AS VARCHAR),
-            u.email,
-            u.first_name,
-            u.last_name,
-            u.is_active,
-            u.avatar_url,
-            u.created_at,
-            COALESCE(
-                (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',') 
-                 FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
-                ''
-            ) AS roles
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
-        {role_join}
-        WHERE {where_sql}
-        GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
-        ORDER BY u.last_name ASC, u.first_name ASC
-        LIMIT :limit OFFSET :offset
-    """)
+    # Build SQL based on database type (PostgreSQL vs SQLite)
+    if settings.is_sqlite:
+        users_sql_raw = f"""
+            SELECT
+                CAST(u.id AS VARCHAR),
+                u.email, u.first_name, u.last_name,
+                u.is_active, u.avatar_url, u.created_at,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',')
+                     FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
+                    ''
+                ) AS roles
+            FROM users u
+            LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            {role_join}
+            WHERE {where_sql}
+            GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
+            ORDER BY u.last_name ASC, u.first_name ASC
+            LIMIT :limit OFFSET :offset
+        """
+    else:
+        users_sql_raw = f"""
+            SELECT
+                CAST(u.id AS VARCHAR),
+                u.email, u.first_name, u.last_name,
+                u.is_active, u.avatar_url, u.created_at,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL),
+                    ARRAY[]::text[]
+                ) AS roles
+            FROM users u
+            LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            {role_join}
+            WHERE {where_sql}
+            GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
+            ORDER BY u.last_name ASC, u.first_name ASC
+            LIMIT :limit OFFSET :offset
+        """
+    users_sql = text(users_sql_raw)
     rows = db.execute(users_sql, params).fetchall()
 
     users = [
@@ -253,32 +250,37 @@ def get_user(
 ):
     """Get a single user by ID."""
     tenant_id = current_user.get("tenant_id")
-    sql = text("""
-        SELECT
-            CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
-            u.is_active, u.avatar_url, u.created_at,
-            COALESCE(
-                ARRAY_AGG(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL),
-                ARRAY[]::text[]
-            ) AS roles
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
-        WHERE u.id = :user_id AND u.tenant_id = :tenant_id
-        GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
-    """ if not settings.is_sqlite else text("""
-        SELECT
-            CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
-            u.is_active, u.avatar_url, u.created_at,
-            COALESCE(
-                (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',') 
-                 FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
-                ''
-            ) AS roles
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
-        WHERE u.id = :user_id AND u.tenant_id = :tenant_id
-        GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
-    """)
+    # Build SQL based on database type (PostgreSQL vs SQLite)
+    if settings.is_sqlite:
+        sql_raw = """
+            SELECT
+                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
+                u.is_active, u.avatar_url, u.created_at,
+                COALESCE(
+                    (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',')
+                     FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
+                    ''
+                ) AS roles
+            FROM users u
+            LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            WHERE u.id = :user_id AND u.tenant_id = :tenant_id
+            GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
+        """
+    else:
+        sql_raw = """
+            SELECT
+                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
+                u.is_active, u.avatar_url, u.created_at,
+                COALESCE(
+                    ARRAY_AGG(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL),
+                    ARRAY[]::text[]
+                ) AS roles
+            FROM users u
+            LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            WHERE u.id = :user_id AND u.tenant_id = :tenant_id
+            GROUP BY u.id, u.email, u.first_name, u.last_name, u.is_active, u.avatar_url, u.created_at
+        """
+    sql = text(sql_raw)
     row = db.execute(sql, {"user_id": user_id, "tenant_id": tenant_id}).fetchone()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
