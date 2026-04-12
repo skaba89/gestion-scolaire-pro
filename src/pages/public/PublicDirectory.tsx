@@ -10,6 +10,8 @@ import {
   GraduationCap,
   BookOpen,
   Users,
+  LogIn,
+  ExternalLink,
 } from "lucide-react";
 import { usePublicTenants } from "@/hooks/usePublicTenant";
 import { resolveUploadUrl } from "@/utils/url";
@@ -263,15 +265,29 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
         </p>
       )}
 
-      {/* CTA */}
-      <button
-        onClick={() => navigate(`/ecole/${tenant.slug}`)}
-        className="flex items-center gap-2 text-blue-700 font-semibold text-sm group-hover:gap-3 transition-all duration-200 mt-auto"
-        aria-label={`Voir l'établissement ${tenant.name}`}
-      >
-        Voir l&apos;établissement
-        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-      </button>
+      {/* Action buttons */}
+      <div className="flex gap-2 mt-auto pt-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(`${window.location.origin}/${tenant.slug}/login`, "_blank", "noopener,noreferrer");
+          }}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm hover:shadow-md"
+        >
+          <LogIn className="w-4 h-4" />
+          Se connecter
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(`/${tenant.slug}`, "_blank", "noopener,noreferrer");
+          }}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
+        >
+          <ExternalLink className="w-4 h-4" />
+          <span className="hidden sm:inline">Page publique</span>
+        </button>
+      </div>
     </div>
   );
 }

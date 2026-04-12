@@ -13,6 +13,8 @@ import {
   Zap,
   Menu,
   X,
+  ExternalLink,
+  LogIn,
 } from "lucide-react";
 import { useState } from "react";
 import { resolveUploadUrl } from "@/utils/url";
@@ -262,13 +264,22 @@ function SchoolCard({ school }: { school: PublicTenant }) {
       {school.description && (
         <p className="text-gray-600 text-sm line-clamp-2 flex-1">{school.description}</p>
       )}
-      <button
-        onClick={() => navigate(`/ecole/${school.slug}`)}
-        className="flex items-center gap-2 text-blue-700 font-medium text-sm hover:gap-3 transition-all duration-200 group"
-      >
-        Voir l&apos;établissement
-        <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => window.open(`${window.location.origin}/${school.slug}/login`, "_blank", "noopener,noreferrer")}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm"
+        >
+          <LogIn className="w-4 h-4" />
+          Se connecter
+        </button>
+        <button
+          onClick={() => navigate(`/ecole/${school.slug}`)}
+          className="flex items-center gap-2 text-blue-700 font-medium text-sm hover:gap-3 transition-all duration-200 group"
+        >
+          <ExternalLink className="w-4 h-4" />
+          <span className="hidden sm:inline">Détails</span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -433,10 +444,11 @@ export default function SchoolFlowHomePage() {
                 </button>
               ))}
               <button
-                onClick={() => navigate("/auth")}
-                className="ml-2 px-4 py-2 text-[#1e3a5f] font-medium text-sm rounded-lg hover:bg-blue-50 transition-all"
+                onClick={() => window.open('/connexion', '_blank', 'noopener,noreferrer')}
+                className="ml-2 px-4 py-2 text-[#1e3a5f] font-medium text-sm rounded-lg hover:bg-blue-50 transition-all flex items-center gap-1.5"
               >
                 Se connecter
+                <ExternalLink className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => navigate("/admin/create-tenant")}
@@ -469,10 +481,11 @@ export default function SchoolFlowHomePage() {
                 </button>
               ))}
               <button
-                onClick={() => { setMobileMenuOpen(false); navigate("/auth"); }}
-                className="text-left px-4 py-2.5 text-gray-700 font-medium text-sm"
+                onClick={() => { setMobileMenuOpen(false); window.open('/connexion', '_blank', 'noopener,noreferrer'); }}
+                className="text-left px-4 py-2.5 text-gray-700 font-medium text-sm flex items-center gap-2"
               >
                 Se connecter
+                <ExternalLink className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => { setMobileMenuOpen(false); navigate("/admin/create-tenant"); }}
@@ -513,11 +526,11 @@ export default function SchoolFlowHomePage() {
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button
-                onClick={() => navigate("/ecole/lasource")}
+                onClick={() => window.open("/connexion", "_blank", "noopener,noreferrer")}
                 className="flex items-center justify-center gap-2 px-6 py-3.5 bg-[#1e3a5f] text-white font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 transform"
               >
-                Démo gratuite
-                <ArrowRight className="w-4 h-4" />
+                <ExternalLink className="w-4 h-4" />
+                Se connecter
               </button>
               <button
                 onClick={() => navigate("/annuaire")}

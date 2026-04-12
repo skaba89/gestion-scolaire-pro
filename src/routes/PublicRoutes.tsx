@@ -17,12 +17,16 @@ const TermsOfService = lazy(() => import("@/pages/public/Terms"));
 const CreateTenant = lazy(() => import("@/pages/admin/CreateTenant"));
 const SchoolFlowHomePage = lazy(() => import("@/pages/public/SchoolFlowHomePage"));
 const PublicDirectory = lazy(() => import("@/pages/public/PublicDirectory"));
+const ConnectionHub = lazy(() => import("@/pages/public/ConnectionHub"));
 
 export const PublicRoutes = () => {
     return (
         <>
             {/* SchoolFlow Pro marketing homepage */}
             <Route path="/" element={<SchoolFlowHomePage />} />
+
+            {/* Connection hub — search school & open branded login */}
+            <Route path="/connexion" element={<ConnectionHub />} />
 
             {/* Institution directory */}
             <Route path="/annuaire" element={<PublicDirectory />} />
