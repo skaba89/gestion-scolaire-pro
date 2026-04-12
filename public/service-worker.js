@@ -1,7 +1,7 @@
 // =============================================================================
 // SchoolFlow Pro — Service Worker Killer (alias)
 // =============================================================================
-// Identical to sw.js. Some browsers/registerations may reference this filename.
+// Identical to sw.js. Some browsers/registrations may reference this filename.
 // =============================================================================
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -18,6 +18,4 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-self.addEventListener("fetch", (event) => {
-  event.respondWith(fetch(event.request));
-});
+// NO fetch handler — see sw.js for explanation.

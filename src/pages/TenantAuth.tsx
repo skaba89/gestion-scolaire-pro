@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Loader2, Users, BookOpen, MapPin, Globe, Calendar, ShieldCheck, ArrowRight } from "lucide-react";
 import { getTenantTypeLabel } from "@/types/tenant";
+import { resolveUploadUrl } from "@/utils/url";
 
 // ─────────────────────────────────────────────
 // Color utilities
@@ -95,10 +96,11 @@ const TenantAuthPage = () => {
   // Branding data
   const primaryColor = tenantData?.landing?.primary_color || tenantData?.settings?.primary_color || "#1e3a5f";
   const secondaryColor = tenantData?.landing?.secondary_color || tenantData?.settings?.secondary_color || "#64748b";
-  const logoUrl = tenantData?.landing?.logo_url || tenantData?.settings?.logo_url || null;
+  const rawLogoUrl = tenantData?.landing?.logo_url || tenantData?.settings?.logo_url || null;
+  const logoUrl = rawLogoUrl ? resolveUploadUrl(rawLogoUrl) : null;
+  const bannerUrl = resolveUploadUrl(tenantData?.landing?.banner_url || null);
   const tenantName = tenantData?.name || "";
   const description = tenantData?.landing?.description || "";
-  const bannerUrl = tenantData?.landing?.banner_url || null;
   const type = tenantData?.type || "";
   const tagline = tenantData?.landing?.tagline || "";
   const schoolMotto = tenantData?.landing?.school_motto || "";

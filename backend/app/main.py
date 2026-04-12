@@ -351,7 +351,17 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    # CSP: Allow API responses to include image URLs from any origin (logos, uploads)
+    # while still blocking framing (clickjacking protection via frame-ancestors).
+    # The backend serves JSON + static uploads, not HTML, so default-src 'none' is
+    # too restrictive — it blocks browsers from loading images from our own /uploads/.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "img-src 'self' data: https: http:; "
+        "frame-ancestors 'none'; "
+        "connect-src 'self'; "
+        "style-src 'self' 'unsafe-inline'"
+    )
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
 

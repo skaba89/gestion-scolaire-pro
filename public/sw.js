@@ -29,9 +29,9 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Pass-through fetch handler: don't intercept any requests.
-// This prevents "no-response" errors from Workbox strategies.
-self.addEventListener("fetch", (event) => {
-  // Let the browser handle the request normally (no caching, no interception)
-  event.respondWith(fetch(event.request));
-});
+// NO fetch event listener!
+// The previous version had event.respondWith(fetch(event.request)) which
+// intercepted all requests and caused "Failed to fetch" errors, especially
+// during Render cold starts or when the SW was in an intermediate state.
+// By not registering a fetch handler at all, the browser will handle all
+// requests normally (bypassing the SW entirely for fetches).
