@@ -54,11 +54,21 @@ Base = declarative_base()
 
 
 def get_db():
-    """Dependency to get database session with RLS tenant_id set (PostgreSQL only)."""
+    """Dependency to get database session with RLS tenant_id set (PostgreSQL only).
+
+    SECURITY: Always resets the RLS context to prevent connection pool leaks.
+    Without this reset, a connection previously used for tenant A would
+    retain app.current_tenant_id = A, causing tenant B's queries to be
+    silently filtered (or blocked) by the wrong RLS policy.
+    """
     db = SessionLocal()
 
     if not settings.is_sqlite:
-        # PostgreSQL Row Level Security: set tenant_id in the session
+        # ALWAYS reset RLS context first to prevent connection pool leaks
+        db.execute(
+            text("SELECT set_config('app.current_tenant_id', '', false)")
+        )
+        # Then set the correct tenant_id if available
         tenant_id = tenant_context.get()
         if tenant_id:
             db.execute(

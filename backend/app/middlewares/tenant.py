@@ -23,11 +23,13 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         public_paths = [
             "/docs", "/openapi.json", "/health", "/health/", "/", "/auth/login",
-            "/auth/refresh", "/auth/logout", "/users/me", "/favicon.ico", "/favicon.png", "/redoc"
+            "/auth/refresh", "/auth/logout", "/users/me", "/users/me/",
+            "/favicon.ico", "/favicon.png", "/redoc"
         ]
 
         if (request.method == "OPTIONS" or
             check_path in public_paths or
+            check_path.rstrip("/") in public_paths or
             check_path.startswith("/health") or
             check_path.startswith("/auth/") or
             check_path.startswith("/tenants/slug/") or

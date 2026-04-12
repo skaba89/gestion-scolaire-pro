@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
+from sqlalchemy import text
 
 from app.core.config import settings
 
@@ -125,6 +126,12 @@ def get_current_user(
         )
 
     with SessionLocal() as db:
+        # SECURITY: Reset RLS context on this independent session to prevent
+        # connection pool leaks. Without this, the query could be filtered by
+        # a stale tenant_id from a previous request on the same connection.
+        if not settings.is_sqlite:
+            db.execute(text("SELECT set_config('app.current_tenant_id', '', false)"))
+
         user_db = db.query(User).filter(User.id == user_id).first()
         if not user_db:
             raise HTTPException(

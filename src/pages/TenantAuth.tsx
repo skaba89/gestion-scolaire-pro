@@ -134,6 +134,7 @@ const TenantAuthPage = () => {
       const { error, profileData } = await signIn(email, password);
       if (error) {
         const msg = error.message || "Identifiants incorrects";
+        console.error("[TenantAuth] Login failed:", msg);
         let description = msg;
         if (msg.includes("401") || msg.includes("identifiant") || msg.includes("credential")) {
           description = "Email ou mot de passe incorrect. Veuillez vérifier vos identifiants.";
@@ -141,7 +142,10 @@ const TenantAuthPage = () => {
           description = "Impossible de joindre le serveur. Vérifiez que l'API est lancée.";
         } else if (msg.includes("403") || msg.includes("désactivé") || msg.includes("deactivated")) {
           description = "Votre établissement est actuellement désactivé. Contactez un administrateur.";
+        } else if (msg.includes("429")) {
+          description = "Trop de tentatives de connexion. Veuillez attendre quelques minutes avant de réessayer.";
         }
+        // En production, show user-friendly message; the raw msg is already in console
         toast({ title: "Erreur de connexion", description, variant: "destructive" });
         return;
       }

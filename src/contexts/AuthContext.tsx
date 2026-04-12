@@ -161,9 +161,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profileResponse = await apiClient.get("/users/me/");
       applyProfileData(profileResponse.data);
       return { error: null, profileData: profileResponse.data };
-    } catch (error) {
+    } catch (error: any) {
       clearAuth();
-      return { error: error instanceof Error ? error : new Error("Authentication failed") };
+      // Enrich error with backend detail for better diagnostics
+      const detail = error?.response?.data?.detail || error?.response?.data?.message;
+      const status = error?.response?.status;
+      const url = error?.config?.url;
+      const msg = detail
+        ? `${detail} (HTTP ${status} on ${url})`
+        : (error instanceof Error ? error.message : "Authentication failed");
+      return { error: new Error(msg) };
     } finally {
       setIsLoading(false);
     }
