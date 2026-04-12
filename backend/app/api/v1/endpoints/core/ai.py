@@ -59,6 +59,10 @@ class AuditRequest(BaseModel):
         description="Données à analyser (objet JSON, texte, etc.)",
     )
     stream: bool = Field(False, description="Activer le streaming de la réponse")
+    platform_name: Optional[str] = Field(
+        None,
+        description="Nom de l'établissement à utiliser dans les réponses IA (remplace 'SchoolFlow Pro')",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -202,10 +206,16 @@ async def audit(
     Accepts a module description and data payload, returns a structured
     audit report in French. Supports streaming via SSE when `stream=true`.
     """
+    # Determine platform name for branded audit responses
+    platform_name = req.platform_name or "SchoolFlow Pro"
+    if platform_name == "SchoolFlow Pro" and current_user.get("tenant_name"):
+        platform_name = current_user["tenant_name"]
+
     logger.info(
-        "AI audit request from user=%s module=%s (stream=%s)",
+        "AI audit request from user=%s module=%s platform=%s (stream=%s)",
         current_user.get("email"),
         req.module_description,
+        platform_name,
         req.stream,
     )
 
@@ -214,6 +224,7 @@ async def audit(
             module_description=req.module_description,
             data=req.data,
             stream=True,
+            platform_name=platform_name,
         )
 
         async def event_generator():
@@ -238,6 +249,7 @@ async def audit(
         module_description=req.module_description,
         data=req.data,
         stream=False,
+        platform_name=platform_name,
     )
     # Wrap backend response in frontend-expected format
     return {

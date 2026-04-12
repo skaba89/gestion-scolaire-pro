@@ -101,7 +101,12 @@ export const AIChatWidget = () => {
         .filter((m) => !m.isError)
         .map((m) => ({ role: m.role, content: m.content })) as ChatMessage[];
 
-      const result = await chatWithAI(messageText, history);
+      // Pass tenant context so AI uses establishment name instead of platform name
+      const result = await chatWithAI(messageText, history, {
+        tenantId: tenant?.id,
+        tenantName: tenant?.name,
+        userId: profile?.id,
+      });
 
       setMessages((prev) => [
         ...prev,
@@ -363,7 +368,11 @@ export const AIChatWidget = () => {
                                 content: m.content,
                               })) as ChatMessage[];
 
-                            chatWithAI(suggestion, history)
+                            chatWithAI(suggestion, history, {
+                              tenantId: tenant?.id,
+                              tenantName: tenant?.name,
+                              userId: profile?.id,
+                            })
                               .then((result) => {
                                 setMessages((prev) => [
                                   ...prev,

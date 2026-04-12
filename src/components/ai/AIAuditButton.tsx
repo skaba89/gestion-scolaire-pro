@@ -14,6 +14,7 @@ import { Brain, Loader2, AlertTriangle, Lightbulb, CheckCircle2 } from "lucide-r
 import { toast } from "sonner";
 import { auditModule, type AuditResponse } from "@/queries/ai";
 import { cn } from "@/lib/utils";
+import { useTenant } from "@/contexts/TenantContext";
 
 // ── Props ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ export const AIAuditButton = ({
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AuditResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { tenant } = useTenant();
 
   const handleAudit = async () => {
     setIsLoading(true);
@@ -55,7 +57,7 @@ export const AIAuditButton = ({
     setResult(null);
 
     try {
-      const auditResult = await auditModule(module, data);
+      const auditResult = await auditModule(module, data, tenant?.name);
       setResult(auditResult);
     } catch (err: unknown) {
       const message =

@@ -174,6 +174,17 @@ def get_current_user(
                     )
                 resolved_tenant_id = header_tid
 
+        # Resolve tenant name for AI branding (used by chat/audit endpoints)
+        tenant_name = None
+        if resolved_tenant_id:
+            try:
+                from app.models.tenant import Tenant
+                tenant_obj = db.query(Tenant).filter(Tenant.id == resolved_tenant_id).first()
+                if tenant_obj:
+                    tenant_name = tenant_obj.name
+            except Exception:
+                pass
+
         return {
             "id": str(user_db.id),
             "email": user_db.email,
@@ -182,6 +193,7 @@ def get_current_user(
             "username": user_db.username,
             "roles": roles,
             "tenant_id": resolved_tenant_id,
+            "tenant_name": tenant_name,
             "_token_version": token.get("tv", 0),
         }
 
