@@ -54,9 +54,12 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
     if (!user) {
       const from = `${location.pathname}${location.search}${location.hash}`;
-      routeDebug("Redirecting unauthenticated user to /auth", from);
+      // Redirect to the tenant-specific auth page if we're under a /:slug/ path
+      const tenantMatch = location.pathname.match(/^\/([^/]+)\/.+/);
+      const authPath = tenantMatch ? `/${tenantMatch[1]}/auth` : "/auth";
+      routeDebug("Redirecting unauthenticated user to", authPath, from);
       navigationRef.current = navigationKey;
-      navigate("/auth", { state: { from }, replace: true });
+      navigate(authPath, { state: { from }, replace: true });
       return;
     }
 
@@ -70,9 +73,11 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     if (allowedRoles && allowedRoles.length > 0) {
       // If user has no roles at all, redirect to auth — something is wrong
       if (roles.length === 0) {
-        routeDebug("No roles found, redirecting to /auth");
+        routeDebug("No roles found, redirecting to auth");
+        const tenantMatch = location.pathname.match(/^\/([^/]+)\/.+/);
+        const authPath = tenantMatch ? `/${tenantMatch[1]}/auth` : "/auth";
         navigationRef.current = navigationKey;
-        navigate("/auth", { state: { from: `${location.pathname}${location.search}${location.hash}` } }, { replace: true });
+        navigate(authPath, { state: { from: `${location.pathname}${location.search}${location.hash}` } }, { replace: true });
         return;
       }
       const hasAllowedRole = allowedRoles.some((role) => hasRole(role));

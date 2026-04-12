@@ -125,8 +125,13 @@ apiClient.interceptors.response.use(
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       sessionStorage.removeItem(TOKEN_STORAGE_KEY);
 
-      if (window.location.pathname !== '/auth') {
-        window.dispatchEvent(new Event('auth:logout'));
+      // Determine the correct login page based on current URL
+      // If we're on a /:slug/* path, redirect to /:slug/auth instead of /auth
+      const currentPath = window.location.pathname;
+      const tenantMatch = currentPath.match(/^\/([^/]+)\/.+/);
+      const targetAuthPath = tenantMatch ? `/${tenantMatch[1]}/auth` : '/auth';
+      if (currentPath !== targetAuthPath) {
+        window.dispatchEvent(new CustomEvent('auth:logout', { detail: { redirectPath: targetAuthPath } }));
       }
     }
 

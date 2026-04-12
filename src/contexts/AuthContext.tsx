@@ -133,9 +133,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for auth:logout events from the API interceptor (outside React tree)
   useEffect(() => {
-    const handleAuthLogout = () => {
+    const handleAuthLogout = (event: Event) => {
       clearAuth();
-      navigate('/auth', { replace: true });
+      // Use the redirect path from the event detail, or default to /auth
+      const customEvent = event as CustomEvent<{ redirectPath?: string }>;
+      const redirectPath = customEvent.detail?.redirectPath || '/auth';
+      navigate(redirectPath, { replace: true });
     };
     window.addEventListener('auth:logout', handleAuthLogout);
     return () => window.removeEventListener('auth:logout', handleAuthLogout);
