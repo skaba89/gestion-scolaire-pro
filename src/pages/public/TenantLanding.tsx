@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { usePublicTenant, useTenantByDomain } from '@/hooks/usePublicTenant';
 import { getLandingSettings } from '@/types/tenant';
 import { UniversityTemplate } from './landing/UniversityTemplate';
@@ -136,6 +137,37 @@ function TenantNotFound() {
   );
 }
 
+// Redirect page shown briefly before sending user to external website
+function TenantRedirect({ website, name }: { website: string; name: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center max-w-md px-4">
+        <div className="w-24 h-24 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-6">
+          <ExternalLink className="w-10 h-10 text-blue-500" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-3">
+          {name}
+        </h1>
+        <p className="text-gray-500 mb-2 leading-relaxed">
+          Vous allez être redirigé vers le site officiel de l'établissement.
+        </p>
+        <p className="text-sm text-blue-600 font-medium mb-6">
+          {website}
+        </p>
+        <a
+          href={website}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+        >
+          Accéder au site
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
 const TenantLanding = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const customDomain = detectCustomDomain();
@@ -145,6 +177,13 @@ const TenantLanding = () => {
   const domainQuery = useTenantByDomain(customDomain);
 
   const { data: tenant, isLoading, isError, error } = customDomain ? domainQuery : slugQuery;
+
+  // Redirect to tenant's external website if configured
+  useEffect(() => {
+    if (tenant?.website) {
+      window.location.href = tenant.website;
+    }
+  }, [tenant?.website]);
 
   if (isLoading) {
     return <LandingSkeleton />;
@@ -161,6 +200,11 @@ const TenantLanding = () => {
   }
 
   if (!tenant) return <TenantNotFound />;
+
+  // If tenant has a website, redirect to it
+  if (tenant.website) {
+    return <TenantRedirect website={tenant.website} name={tenant.name} />;
+  }
 
   const settings = getLandingSettings(tenant);
   const template = selectTemplate(tenant.type);
