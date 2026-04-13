@@ -31,6 +31,11 @@ else:
     if "sslmode=require" in _db_url or "sslmode" in _db_url:
         _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "require"
 
+    # SECURITY: Force SSL for PostgreSQL in non-DEBUG environments.
+    # Prevents accidental plaintext database connections in production.
+    if not settings.DEBUG and not settings.is_sqlite:
+        _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "require"
+
 # Create SQLAlchemy engine
 engine = create_engine(settings.DATABASE_URL_SYNC, **_engine_kwargs)
 

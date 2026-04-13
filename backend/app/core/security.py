@@ -40,6 +40,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
+    # SECURITY: Add issuer and audience claims for token binding to this deployment
+    to_encode.update({"iss": "schoolflow-pro", "aud": "schoolflow-api"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
@@ -55,7 +57,9 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            options={"verify_sub": True},
+            options={"verify_sub": True, "verify_iss": True, "verify_aud": True},
+            issuer="schoolflow-pro",
+            audience="schoolflow-api",
         )
     except JWTError as exc:
         logger.info("JWT validation failed: %s", exc)

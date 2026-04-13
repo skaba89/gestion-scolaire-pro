@@ -148,20 +148,14 @@ async def lifespan(app: FastAPI):
                     db.commit()
                     logger.info("Auto-created super admin: %s", admin_email)
             else:
-                # Fix admin if password_hash is NULL, empty, or if ADMIN_DEFAULT_PASSWORD changed
+                # SECURITY: Only reset password if hash is NULL/empty (initial setup).
+                # Do NOT auto-reset on subsequent startups — an admin may have changed
+                # their password intentionally. Auto-reset defeats the purpose of
+                # password changes and creates a single point of failure.
                 needs_update = False
                 if not existing.password_hash:
                     needs_update = True
                     logger.info("Super admin has NULL password_hash, resetting...")
-                elif admin_password and len(admin_password) >= 8:
-                    # Check if the stored hash matches the configured password
-                    from passlib.context import CryptContext
-                    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-                    if not pwd_context.verify(admin_password, existing.password_hash):
-                        needs_update = True
-                        logger.info(
-                            "Super admin password differs from ADMIN_DEFAULT_PASSWORD, resetting..."
-                        )
 
                 if needs_update and admin_password and len(admin_password) >= 8:
                     existing.password_hash = get_password_hash(admin_password)
