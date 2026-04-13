@@ -1,9 +1,0 @@
--- Grant permissions to anon and authenticated roles on students table
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT SELECT ON public.students TO anon, authenticated;
-GRANT INSERT ON public.students TO authenticated;
-GRANT UPDATE ON public.students TO authenticated;
-GRANT DELETE ON public.students TO authenticated;
-
--- Also grant on sequences if any
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;

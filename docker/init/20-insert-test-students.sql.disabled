@@ -1,8 +1,0 @@
--- Test student inserts deferred - requires tenant to exist first
--- INSERT INTO public.students (tenant_id, first_name, last_name, email, phone, date_of_birth, gender, status, is_archived, created_at, updated_at)
--- VALUES 
---   ('34245b19-12e5-4646-9564-29f8ae7847c8', 'Ahmed', 'Ben Salem', 'ahmed.bensalem@example.com', '+216123456789', '2008-05-15', 'M', 'active', false, NOW(), NOW()),
---   ('34245b19-12e5-4646-9564-29f8ae7847c8', 'Fatima', 'Oueslati', 'fatima.oueslati@example.com', '+216987654321', '2008-09-22', 'F', 'active', false, NOW(), NOW()),
---   ('34245b19-12e5-4646-9564-29f8ae7847c8', 'Mohamed', 'Trabelsi', 'mohamed.trabelsi@example.com', '+216111222333', '2009-01-10', 'M', 'active', false, NOW(), NOW()),
---   ('34245b19-12e5-4646-9564-29f8ae7847c8', 'Leila', 'Khaled', 'leila.khaled@example.com', '+216444555666', '2008-07-03', 'F', 'active', false, NOW(), NOW()),
---   ('34245b19-12e5-4646-9564-29f8ae7847c8', 'Ali', 'Driss', 'ali.driss@example.com', '+216777888999', '2009-03-28', 'M', 'active', false, NOW(), NOW());

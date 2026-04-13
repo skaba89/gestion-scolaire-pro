@@ -66,7 +66,6 @@ const ElectronicSignatures = lazy(() => import("@/pages/admin/ElectronicSignatur
 const VideoMeetings = lazy(() => import("@/pages/admin/VideoMeetings"));
 const ClassLists = lazy(() => import("@/pages/admin/ClassLists"));
 const DataQuality = lazy(() => import("@/pages/admin/DataQuality"));
-const TestingDashboard = lazy(() => import("@/pages/TestingDashboard"));
 const AcademicRules = lazy(() => import("@/pages/admin/AcademicRules"));
 const Marketplace = lazy(() => import("@/pages/admin/Marketplace"));
 const DecisionDashboard = lazy(() => import("@/pages/admin/DecisionDashboard"));
@@ -145,7 +144,6 @@ export const AdminRoutes = () => {
             <Route path="electronic-signatures" element={<ElectronicSignatures />} />
             <Route path="video-meetings" element={<VideoMeetings />} />
             <Route path="data-quality" element={<DataQuality />} />
-            <Route path="testing" element={<TestingDashboard />} />
             <Route path="academic-rules" element={<AcademicRules />} />
             <Route path="marketplace" element={<Marketplace />} />
             <Route path="decision-support" element={<DecisionDashboard />} />

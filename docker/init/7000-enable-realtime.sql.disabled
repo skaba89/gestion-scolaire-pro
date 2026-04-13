@@ -1,6 +1,0 @@
--- Enable Realtime for core tables
-BEGIN;
--- Drop if exists and recreate publication
-DROP PUBLICATION IF EXISTS supabase_realtime;
-CREATE PUBLICATION supabase_realtime FOR TABLE students, classrooms, enrollments, attendance, grades, notifications, messages;
-COMMIT;

@@ -81,7 +81,6 @@ export const useNativePushNotifications = () => {
 
     // On success, we should be able to receive notifications
     await PushNotifications.addListener('registration', async (token: Token) => {
-      console.log('Push registration success, token:', token.value);
       setState(prev => ({
         ...prev,
         isRegistered: true,
@@ -117,13 +116,11 @@ export const useNativePushNotifications = () => {
       }));
     });
 
-    await PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
-      console.log('Push notification received:', notification);
+    await PushNotifications.addListener('pushNotificationReceived', (_notification: PushNotificationSchema) => {
       // Handle foreground notification
     });
 
     await PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
-      console.log('Push notification action performed:', notification);
       // Handle notification tap
       const data = notification.notification.data;
       if (data?.url) {

@@ -1,5 +1,0 @@
--- Delete test data - keep only the empty table structure
-DELETE FROM public.students WHERE tenant_id = '34245b19-12e5-4646-9564-29f8ae7847c8';
-
--- Verify students table is now empty
-SELECT COUNT(*) as remaining_students FROM public.students;

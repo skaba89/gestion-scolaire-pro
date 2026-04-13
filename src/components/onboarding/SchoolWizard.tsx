@@ -82,7 +82,6 @@ export const SchoolWizard = () => {
         setIsSubmitting(true);
         try {
             // La logique de création sera gérée par FinalStep
-            console.log("Wizard completed with data:", data);
             // Redirection sera gérée par FinalStep après succès
         } catch (error) {
             console.error("Error completing wizard:", error);

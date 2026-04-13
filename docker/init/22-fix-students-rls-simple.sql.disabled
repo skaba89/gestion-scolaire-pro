@@ -1,8 +1,0 @@
--- Fix RLS Policies for students table - Simpler approach without role specification
--- Drop existing policies
-DROP POLICY IF EXISTS "View students" ON public.students;
-DROP POLICY IF EXISTS "Create students" ON public.students;
-DROP POLICY IF EXISTS "Update students" ON public.students;
-DROP POLICY IF EXISTS "Delete students" ON public.students;
-
--- RLS policies deferred to file 99 or 51

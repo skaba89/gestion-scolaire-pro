@@ -1,3 +1,0 @@
--- Fix RLS Policies for students table
--- RLS Policies deferred to 99-add-remaining-auth-fks.sql
--- (Cannot use auth.role() before auth schema is initialized)

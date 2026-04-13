@@ -29,7 +29,6 @@ function resolveApiBaseUrl(rawValue?: string): string {
   if (runtimeCfg?.API_URL && typeof runtimeCfg.API_URL === 'string') {
     const runtimeUrl = runtimeCfg.API_URL.trim();
     if (runtimeUrl) {
-      console.info('[SchoolFlow] Using runtime API_URL:', runtimeUrl);
       return runtimeUrl;
     }
   }

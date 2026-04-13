@@ -123,8 +123,6 @@ export const usePushNotifications = () => {
         applicationServerKey: vapidPublicKey,
       });
 
-      console.log("Push Subscription received:", subscription);
-
       const subJSON = subscription.toJSON();
 
       if (!subJSON.endpoint || !subJSON.keys?.p256dh || !subJSON.keys?.auth) {

@@ -59,12 +59,8 @@ export const useNativeApp = () => {
     });
 
     // Handle app state changes
-    const stateListener = App.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) {
-        console.log('App has become active');
-      } else {
-        console.log('App has become inactive');
-      }
+    const stateListener = App.addListener('appStateChange', () => {
+      // App state changed (active/inactive)
     });
 
     // Handle back button on Android

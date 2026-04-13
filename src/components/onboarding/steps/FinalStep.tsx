@@ -23,7 +23,6 @@ export const FinalStep = ({ allData, onFinish }: FinalStepProps) => {
 
     const handleCreate = async () => {
         setIsCreating(true);
-        console.log("[Onboarding] Starting establishment creation with sovereign API:", allData);
 
         try {
             // Defensive check for school name

@@ -24,8 +24,6 @@ export function initializeBadgeNotifications(
 
   // In API architecture, realtime is replaced by polling or WebSocket
   // The caller should poll /school-life/badges/ for changes
-  console.info(`Badge notifications initialized for user ${_userId} (polling mode)`);
-
   return () => {
     notificationListeners.delete(listenerId);
   };

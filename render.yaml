@@ -82,11 +82,12 @@ services:
       - key: BOOTSTRAP_SECRET
         generateValue: true
 
-      # --- CORS (IMPORTANT: ajoutez l'URL de votre frontend) ---
+      # --- CORS (auto-resolved from frontend service URL on Render) ---
       - key: BACKEND_CORS_ORIGINS
-        sync: false
-      # Apres le 1er deploiement, mettez la valeur:
-      #   https://gestion-scolaire-pro.onrender.com
+        fromService:
+          name: gestion-scolaire-pro
+          type: web
+          property: host
 
       # --- Redis (optionnel — le backend fonctionne sans) ---
       - key: REDIS_URL
@@ -110,7 +111,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # --- API URL: auto-resolved from backend service URL on Render ---
+      # server.mjs will generate dist/config.js at startup with this URL
       - key: VITE_API_URL
-        sync: false
-      # Apres le 1er deploiement, mettez la valeur:
-      #   https://schoolflow-api-xxxx.onrender.com
+        fromService:
+          name: schoolflow-api
+          type: web
+          property: host
