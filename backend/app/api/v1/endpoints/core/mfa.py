@@ -364,6 +364,7 @@ def request_otp(
 @router.post("/otp/verify/")
 @limiter.limit("10/minute")  # SECURITY: Rate limit to prevent OTP brute-force
 def verify_otp(
+    request: Request,
     body: OTPVerifyRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
