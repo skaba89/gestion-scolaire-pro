@@ -66,8 +66,11 @@ def get_db():
     if not settings.is_sqlite:
         try:
             # ALWAYS reset RLS context first to prevent connection pool leaks
+            # FIX: Use NULL instead of empty string — ''::uuid cast throws
+            # "invalid input syntax for type uuid" in strict RLS policies.
+            # NULL::uuid is valid in PostgreSQL (returns NULL).
             db.execute(
-                text("SELECT set_config('app.current_tenant_id', '', false)")
+                text("SELECT set_config('app.current_tenant_id', NULL::text, false)")
             )
             # Then set the correct tenant_id if available
             tenant_id = tenant_context.get()

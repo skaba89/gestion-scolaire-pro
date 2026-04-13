@@ -131,7 +131,8 @@ def get_current_user(
         # a stale tenant_id from a previous request on the same connection.
         if not settings.is_sqlite:
             try:
-                db.execute(text("SELECT set_config('app.current_tenant_id', '', false)"))
+                # FIX: Use NULL instead of '' to avoid ''::uuid cast error in strict RLS
+                db.execute(text("SELECT set_config('app.current_tenant_id', NULL::text, false)"))
             except Exception:
                 pass  # RLS not configured yet — connection still usable
 
