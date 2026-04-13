@@ -114,8 +114,12 @@ export const usePushNotifications = () => {
       // 2. Get Service Worker registration
       const registration = await navigator.serviceWorker.ready;
 
-      // 3. Define VAPID public key (from env or fallback to default for dev)
-      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || "BL90rHSaRgLs4RKADdqEOHx55lY17HvgM-3jdUFNtxRGSGXIvIj5PiFIjDa7cTaTzFym3viLzP2J2_-Sv59w0iE";
+      // 3. Define VAPID public key (from env — no hardcoded fallback for security)
+      const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+      if (!vapidPublicKey) {
+        if (import.meta.env.DEV) console.warn('[Push] VITE_VAPID_PUBLIC_KEY not configured');
+        return;
+      }
 
       // 4. Subscribe to Push Manager
       const subscription = await registration.pushManager.subscribe({

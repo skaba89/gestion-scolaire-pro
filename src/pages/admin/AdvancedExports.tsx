@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { format as formatDate } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Users, GraduationCap, CreditCard, BarChart3, Calendar } from "lucide-react";
-import { sanitizeForCSV } from "@/lib/security";
+import { sanitizeForCSV, escapeHTML } from "@/lib/security";
 
 import { adminQueries } from "@/queries/admin";
 
@@ -314,7 +314,7 @@ export default function AdvancedExports() {
           </head>
           <body>
             <div class="header">
-              <h1>${tenant?.name || "Export"} - ${exportConfigs[exportType].label}</h1>
+              <h1>${escapeHTML(tenant?.name || "Export")} - ${exportConfigs[exportType].label}</h1>
               <span class="date">Généré le ${formatDate(new Date(), "dd MMMM yyyy à HH:mm", { locale: fr })}</span>
             </div>
             <div class="stats">
@@ -326,10 +326,9 @@ export default function AdvancedExports() {
                 <tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>
               </thead>
               <tbody>
-                ${data.map((row) => `<tr>${headers.map((h) => `<td>${row[h] || ""}</td>`).join("")}</tr>`).join("")}
+                ${data.map((row) => `<tr>${headers.map((h) => `<td>${escapeHTML(String(row[h] ?? ""))}</td>`).join("")}</tr>`).join("")}
               </tbody>
             </table>
-            <script>window.print();</script>
           </body>
           </html>
         `;
@@ -338,6 +337,7 @@ export default function AdvancedExports() {
         if (printWindow) {
           printWindow.document.write(htmlContent);
           printWindow.document.close();
+          printWindow.onload = () => { printWindow.print(); };
         }
         toast.success("Document prêt pour impression/PDF");
       }

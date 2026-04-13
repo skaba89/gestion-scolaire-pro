@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
@@ -42,7 +42,7 @@ def _get_tenant_id(current_user: dict):
 
 class RegisterPaymentRequest(BaseModel):
     invoice_id: str
-    amount: float
+    amount: float = Field(..., gt=0, le=10_000_000)
     method: str
     reference: Optional[str] = None
     notes: Optional[str] = None
@@ -53,12 +53,12 @@ class ReversePaymentRequest(BaseModel):
 class FeeCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    amount: float
+    amount: float = Field(..., gt=0, le=10_000_000)
 
 class FeeUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    amount: Optional[float] = None
+    amount: Optional[float] = Field(None, gt=0, le=10_000_000)
 
 class InvoiceReminderRequest(BaseModel):
     invoice_ids: Optional[List[str]] = None  # None = tous les impayés
@@ -314,12 +314,12 @@ def list_invoices(
 class InvoiceCreateBody(BaseModel):
     student_id: str
     invoice_number: Optional[str] = None
-    total_amount: float
+    total_amount: float = Field(..., gt=0, le=10_000_000)
     items: Optional[Any] = None
     due_date: Optional[str] = None
     notes: Optional[str] = None
     has_payment_plan: bool = False
-    installments_count: int = 1
+    installments_count: int = Field(1, ge=1, le=60)
 
 @router.post("/invoices/", status_code=status.HTTP_201_CREATED)
 def create_invoice_atomic(
@@ -645,7 +645,7 @@ def delete_fee(
 
 @router.post("/intent/")
 def create_payment_intent(
-    amount: float = Query(...),
+    amount: float = Query(..., gt=0, le=10_000_000),
     method: str = Query(..., description="MOBILE_MONEY, CARD, CASH"),
     invoice_id: Optional[UUID] = None,
     current_user: dict = Depends(require_permission("payments:write")),

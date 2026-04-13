@@ -113,8 +113,8 @@ const Invoices = () => {
         method,
       });
 
-      if (data?.url) {
-        window.open(data.url, "_blank");
+      if (data?.url && /^https?:\/\//.test(data.url)) {
+        window.open(data.url, "_blank", "noopener,noreferrer");
       } else {
         throw new Error("URL de paiement non reçue");
       }

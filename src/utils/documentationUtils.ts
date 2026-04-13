@@ -1,4 +1,5 @@
 import { ModuleDoc, CATEGORY_IMAGES } from "@/data/documentation";
+import { escapeHTML } from '@/lib/security';
 
 interface GeneratePDFParams {
   modules: ModuleDoc[];
@@ -105,7 +106,7 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
             <li>Module Administration</li>
             <li>Portail Enseignant</li>
             <li>Portail Parent</li>
-            <li>Portail ${studentLabel.charAt(0).toUpperCase() + studentLabel.slice(1)}</li>
+            <li>Portail ${escapeHTML(studentLabel.charAt(0).toUpperCase() + studentLabel.slice(1))}</li>
             <li>Espace Alumni</li>
             <li>Gestion Département</li>
           </ul>
@@ -116,9 +117,9 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
         <h2>📑 Table des matières</h2>
         ${categories.map(cat => `
           <div class="toc-section">
-            <div class="toc-section-title">${cat.label}</div>
+            <div class="toc-section-title">${escapeHTML(cat.label)}</div>
             <ul>
-              ${modules.filter(m => m.category === cat.id).map(m => `<li>• ${m.title}</li>`).join('')}
+              ${modules.filter(m => m.category === cat.id).map(m => `<li>• ${escapeHTML(m.title)}</li>`).join('')}
             </ul>
           </div>
         `).join('')}
@@ -126,24 +127,24 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
 
       ${categories.map(cat => `
         <div class="category">
-          <h2 class="category-title">📋 ${cat.label}</h2>
+          <h2 class="category-title">📋 ${escapeHTML(cat.label)}</h2>
           ${loadedImages[cat.id] ? `
-            <img src="${loadedImages[cat.id]}" alt="Aperçu ${cat.label}" class="category-image" />
-            <p class="category-image-caption">Aperçu de l'interface ${cat.label}</p>
+            <img src="${escapeHTML(loadedImages[cat.id])}" alt="Aperçu ${escapeHTML(cat.label)}" class="category-image" />
+            <p class="category-image-caption">Aperçu de l'interface ${escapeHTML(cat.label)}</p>
           ` : ''}
           ${modules.filter(m => m.category === cat.id).map(module => `
             <div class="module">
               <div class="module-header">
                 <div class="module-icon">📌</div>
-                <h3 class="module-title">${module.title}</h3>
+                <h3 class="module-title">${escapeHTML(module.title)}</h3>
               </div>
-              <p class="module-desc">${module.description}</p>
+              <p class="module-desc">${escapeHTML(module.description)}</p>
               
               ${module.prerequisites ? `
                 <div class="section" style="background: #fef3c7; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
                   <h4 class="section-title" style="color: #92400e;">⚠️ Prérequis</h4>
                   <ul style="margin-left: 15px;">
-                    ${module.prerequisites.map(p => `<li style="color: #78350f;">${p}</li>`).join('')}
+                    ${module.prerequisites.map(p => `<li style="color: #78350f;">${escapeHTML(p)}</li>`).join('')}
                   </ul>
                 </div>
               ` : ''}
@@ -151,7 +152,7 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
               <div class="section">
                 <h4 class="section-title">✨ Fonctionnalités</h4>
                 <ul>
-                  ${module.features.map(f => `<li>✓ ${f}</li>`).join('')}
+                  ${module.features.map(f => `<li>✓ ${escapeHTML(f)}</li>`).join('')}
                 </ul>
               </div>
 
@@ -161,12 +162,12 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
                   ${module.stepByStep.map(guide => `
                     <div style="margin-bottom: 20px;">
                       <h5 style="font-size: 14px; font-weight: 600; color: #15803d; margin-bottom: 10px; border-bottom: 1px solid #bbf7d0; padding-bottom: 5px;">
-                        ▶ ${guide.title}
+                        ▶ ${escapeHTML(guide.title)}
                       </h5>
                       <ol style="margin-left: 20px; counter-reset: step-detail;">
                         ${guide.steps.map(step => `
                           <li style="margin-bottom: 6px; padding-left: 25px; position: relative; font-size: 13px; color: #166534;">
-                            ${step}
+                            ${escapeHTML(step)}
                           </li>
                         `).join('')}
                       </ol>
@@ -177,7 +178,7 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
                 <div class="section">
                   <h4 class="section-title">📝 Comment utiliser</h4>
                   <ol>
-                    ${module.howToUse.map(step => `<li>${step}</li>`).join('')}
+                    ${module.howToUse.map(step => `<li>${escapeHTML(step)}</li>`).join('')}
                   </ol>
                 </div>
               `}
@@ -185,7 +186,7 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
               <div class="tip">
                 <div class="tip-title">💡 Conseils pratiques</div>
                 <ul>
-                  ${module.tips.map(t => `<li>${t}</li>`).join('')}
+                  ${module.tips.map(t => `<li>${escapeHTML(t)}</li>`).join('')}
                 </ul>
               </div>
             </div>
@@ -197,14 +198,12 @@ export const generateDocumentationPDF = async ({ modules, categories, onComplete
         <p>© ${new Date().getFullYear()} - Plateforme de Gestion Scolaire - Tous droits réservés</p>
       </div>
 
-      <script>
-        window.onload = function() { window.print(); }
-      </script>
     </body>
     </html>
   `;
 
   printWindow.document.write(htmlContent);
   printWindow.document.close();
+  printWindow.onload = () => { printWindow.print(); };
   onComplete();
 };

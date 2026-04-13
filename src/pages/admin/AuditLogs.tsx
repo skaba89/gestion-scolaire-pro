@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAuditLogs } from "@/hooks/queries/useAuditLogs";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { escapeHTML } from '@/lib/security';
 
 // Modular components
 import { AuditLogHeader } from "@/components/admin/audit/AuditLogHeader";
@@ -157,11 +158,11 @@ const AuditLogs = () => {
               <tbody>
                 ${logs.map(log => `
                   <tr>
-                    <td>${log.created_at ? format(new Date(log.created_at), "dd/MM/yyyy HH:mm") : "-"}</td>
-                    <td>${log.user_name || log.user_email || "Système"}</td>
-                    <td>${getActionInfo(log.action_type || log.action).label}</td>
-                    <td>${TABLE_LABELS[log.entity_type || ""] || log.entity_type || "-"}</td>
-                    <td>${JSON.stringify(log.new_values || {}).slice(0, 50)}...</td>
+                    <td>${log.created_at ? escapeHTML(format(new Date(log.created_at), "dd/MM/yyyy HH:mm")) : "-"}</td>
+                    <td>${escapeHTML(log.user_name || log.user_email || "Système")}</td>
+                    <td>${escapeHTML(getActionInfo(log.action_type || log.action).label)}</td>
+                    <td>${escapeHTML(TABLE_LABELS[log.entity_type || ""] || log.entity_type || "-")}</td>
+                    <td>${escapeHTML(JSON.stringify(log.new_values || {}).slice(0, 50))}...</td>
                   </tr>
                 `).join("")}
               </tbody>

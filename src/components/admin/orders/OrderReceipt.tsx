@@ -65,13 +65,11 @@ export const OrderReceipt = ({ isOpen, onClose, order, student, items }: OrderRe
                 </head>
                 <body>
                     ${sanitizedHtml}
-                    <script>
-                        window.onload = function() { window.print(); window.close(); };
-                    </script>
                 </body>
             </html>
         `);
         printWindow.document.close();
+        printWindow.onload = () => { printWindow.print(); printWindow.close(); };
     };
 
     const getPaymentMethodLabel = (method: string) => {

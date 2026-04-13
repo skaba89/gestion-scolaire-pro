@@ -73,10 +73,18 @@ export const useCreateUser = (tenantId: string) => {
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["users", tenantId] });
             if (data.generated_password) {
-                toast.warning(
-                    `Compte créé. Mot de passe temporaire (à communiquer) : ${data.generated_password}`,
-                    { duration: 15000 }
-                );
+                // SECURITY: Copy password to clipboard instead of showing in toast
+                navigator.clipboard.writeText(data.generated_password).then(() => {
+                    toast.success(
+                        "Compte créé. Le mot de passe temporaire a été copié dans le presse-papiers.",
+                        { duration: 8000 }
+                    );
+                }).catch(() => {
+                    toast.warning(
+                        "Compte créé. Le mot de passe est dans la réponse API.",
+                        { duration: 8000 }
+                    );
+                });
             } else {
                 toast.success("Compte créé avec succès");
             }
@@ -330,9 +338,19 @@ export const useConvertToAccount = (tenantId: string) => {
             queryClient.invalidateQueries({ queryKey: ["users", "pending", tenantId] });
             // Use the backend-returned generated_password if available, else the one we sent
             const password = data.generated_password || data.generatedPassword;
-            toast.success(`Compte créé. Mot de passe temporaire : ${password}`, {
-                duration: 15000
-            });
+            // SECURITY: Copy password to clipboard instead of showing in toast
+            if (password) {
+                navigator.clipboard.writeText(password).then(() => {
+                    toast.success(
+                        "Compte créé. Le mot de passe temporaire a été copié dans le presse-papiers.",
+                        { duration: 8000 }
+                    );
+                }).catch(() => {
+                    toast.success("Compte créé avec succès");
+                });
+            } else {
+                toast.success("Compte créé avec succès");
+            }
         },
         onError: (error: any) => {
             toast.error("Erreur lors de la création du compte: " + error.message);

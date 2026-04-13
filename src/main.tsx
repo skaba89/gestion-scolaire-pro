@@ -25,7 +25,14 @@ if (
       }
       throw new Error(`Trusted Types: blocked script URL: ${url}`);
     },
-    createHTML: (html: string) => html,
+    createHTML: (html: string) => {
+      // SECURITY: Sanitize HTML through DOMPurify when available to prevent XSS
+      if (window.DOMPurify) {
+        return window.DOMPurify.sanitize(html, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+      }
+      // Fallback: strip all tags if DOMPurify is not loaded
+      return html.replace(/<[^>]*>/g, '');
+    },
   });
 }
 

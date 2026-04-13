@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import math
@@ -29,10 +29,10 @@ def _get_tenant_id(current_user: dict):
 # ─── Schemas ──────────────────────────────────────────────────────────────────
 
 class PaymentScheduleCreate(BaseModel):
-    tenant_id: Optional[str] = None
+    # SECURITY: tenant_id removed — always derived from current_user to prevent cross-tenant injection
     invoice_id: str
     installment_number: int
-    amount: float
+    amount: float = Field(0.0, ge=0, le=10_000_000)
     due_date: str
     status: str = "PENDING"
     notes: Optional[str] = None
@@ -41,11 +41,18 @@ class PaymentScheduleCreate(BaseModel):
 
 class PaymentScheduleUpdate(BaseModel):
     installment_number: Optional[int] = None
-    amount: Optional[float] = None
+    amount: Optional[float] = Field(None, ge=0, le=10_000_000)
     due_date: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
     paid_date: Optional[str] = None
+
+    @classmethod
+    def validate_amounts(cls, values):
+        """Ensure amount is non-negative if provided."""
+        if values.get('amount') is not None and values['amount'] < 0:
+            raise ValueError('amount must be non-negative')
+        return values
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -154,7 +161,7 @@ def create_payment_schedules(
 
     try:
         for schedule in body:
-            sched_tenant_id = schedule.tenant_id or tenant_id
+            # SECURITY: Always use tenant_id from current_user, never from request body
             sid = db.execute(text("""
                 INSERT INTO payment_schedules
                     (tenant_id, invoice_id, installment_number, amount, due_date,
@@ -164,7 +171,7 @@ def create_payment_schedules(
                      :paid_date::timestamptz, :status, :notes, NOW(), NOW())
                 RETURNING id
             """), {
-                "tenant_id": sched_tenant_id,
+                "tenant_id": tenant_id,
                 "invoice_id": schedule.invoice_id,
                 "installment_number": schedule.installment_number,
                 "amount": schedule.amount,

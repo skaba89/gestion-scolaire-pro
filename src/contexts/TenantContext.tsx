@@ -20,6 +20,11 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 const tenantCache = new Map<string, { data: Tenant; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// SECURITY: Clear in-memory tenant cache on logout to prevent data leakage between users
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth:clear-cache', () => { tenantCache.clear(); });
+}
+
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const { profile, isLoading: authLoading, tenant: authTenant, isSuperAdmin } = useAuth();
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);

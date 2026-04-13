@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Award, FileText, Download, Search, Printer } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { escapeHTML } from '@/lib/security';
 
 interface Student {
   id: string;
@@ -136,9 +137,9 @@ const Certificates = () => {
     };
 
     const certificateContent: Record<CertificateType, string> = {
-      enrollment: `est régulièrement inscrit(e) dans notre établissement pour l'année académique ${enrollment.academic_year.name} en classe de ${enrollment.classroom.name}${enrollment.level ? ` (${enrollment.level.name})` : ""}.`,
-      attendance: `est régulièrement scolarisé(e) dans notre établissement au titre de l'année académique ${enrollment.academic_year.name}. L'${studentLabel} est actuellement en classe de ${enrollment.classroom.name}${enrollment.level ? ` (${enrollment.level.name})` : ""}.`,
-      level: `a atteint le niveau ${enrollment.level?.name || enrollment.classroom.name} au cours de l'année académique ${enrollment.academic_year.name} dans notre établissement.`
+      enrollment: `est régulièrement inscrit(e) dans notre établissement pour l'année académique ${escapeHTML(enrollment.academic_year.name)} en classe de ${escapeHTML(enrollment.classroom.name)}${enrollment.level ? ` (${escapeHTML(enrollment.level.name)})` : ""}.`,
+      attendance: `est régulièrement scolarisé(e) dans notre établissement au titre de l'année académique ${escapeHTML(enrollment.academic_year.name)}. L'${studentLabel} est actuellement en classe de ${escapeHTML(enrollment.classroom.name)}${enrollment.level ? ` (${escapeHTML(enrollment.level.name)})` : ""}.`,
+      level: `a atteint le niveau ${escapeHTML(enrollment.level?.name || enrollment.classroom.name)} au cours de l'année académique ${escapeHTML(enrollment.academic_year.name)} dans notre établissement.`
     };
 
     const today = new Date().toLocaleDateString("fr-FR", {
@@ -338,27 +339,27 @@ const Certificates = () => {
       <body>
         <div class="page">
           <div class="header">
-            ${tenant.logo_url ? `<img src="${tenant.logo_url}" alt="Logo" class="school-logo" />` : ''}
-            <div class="school-name">${tenant.name}</div>
+            ${tenant.logo_url ? `<img src="${escapeHTML(tenant.logo_url)}" alt="Logo" class="school-logo" />` : ''}
+            <div class="school-name">${escapeHTML(tenant.name)}</div>
             <div class="school-info">
-              ${tenant.address || ""}
-              ${tenant.phone ? ` • Tél: ${tenant.phone}` : ""}
-              ${tenant.email ? ` • ${tenant.email}` : ""}
+              ${escapeHTML(tenant.address || "")}
+              ${tenant.phone ? ` • Tél: ${escapeHTML(tenant.phone)}` : ""}
+              ${tenant.email ? ` • ${escapeHTML(tenant.email)}` : ""}
             </div>
           </div>
 
           <div class="title">${certificateTitles[certificateType]}</div>
 
           <div class="content">
-            <p>Je soussigné(e), <strong>${directorName}</strong>, Directeur/Directrice de l'établissement <strong>${tenant.name}</strong>, atteste par la présente que :</p>
+            <p>Je soussigné(e), <strong>${escapeHTML(directorName)}</strong>, Directeur/Directrice de l'établissement <strong>${escapeHTML(tenant.name)}</strong>, atteste par la présente que :</p>
             
             <div class="student-info">
-              <span class="student-name">${selectedStudent.last_name} ${selectedStudent.first_name}</span>
+              <span class="student-name">${escapeHTML(selectedStudent.last_name)} ${escapeHTML(selectedStudent.first_name)}</span>
             </div>
             
             <div class="details">
-              <strong>Date de naissance :</strong> ${birthDate}<br>
-              ${selectedStudent.registration_number ? `<strong>N° Enregistrement :</strong> ${selectedStudent.registration_number}` : ""}
+              <strong>Date de naissance :</strong> ${escapeHTML(birthDate)}<br>
+              ${selectedStudent.registration_number ? `<strong>N° Enregistrement :</strong> ${escapeHTML(selectedStudent.registration_number)}` : ""}
             </div>
             
             <p>${certificateContent[certificateType]}</p>
@@ -370,17 +371,17 @@ const Certificates = () => {
 
           <div class="footer">
             <div class="date-location">
-              Fait à ${tenantData.city || "_______________"}, le ${today}
+              Fait à ${escapeHTML(tenantData.city || "_______________")}, le ${escapeHTML(today)}
             </div>
             
             <div class="signatures">
               <div class="signature-block">
                 <div class="signature-title">Le/La Secrétaire Général(e)</div>
                 ${secretarySignature
-        ? `<img src="${secretarySignature}" alt="Signature" class="signature-image" />`
+        ? `<img src="${escapeHTML(secretarySignature)}" alt="Signature" class="signature-image" />`
         : '<div class="signature-placeholder"></div>'
       }
-                <div class="signature-name">${secretaryName}</div>
+                <div class="signature-name">${escapeHTML(secretaryName)}</div>
               </div>
               
               <div class="stamp-area">Cachet</div>
@@ -388,10 +389,10 @@ const Certificates = () => {
               <div class="signature-block">
                 <div class="signature-title">Le/La Directeur(trice)</div>
                 ${directorSignature
-        ? `<img src="${directorSignature}" alt="Signature" class="signature-image" />`
+        ? `<img src="${escapeHTML(directorSignature)}" alt="Signature" class="signature-image" />`
         : '<div class="signature-placeholder"></div>'
       }
-                <div class="signature-name">${directorName}</div>
+                <div class="signature-name">${escapeHTML(directorName)}</div>
               </div>
             </div>
             

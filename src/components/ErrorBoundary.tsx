@@ -55,8 +55,11 @@ export class ErrorBoundary extends Component<Props, State> {
     // Send error to monitoring service (e.g., Sentry)
     // This is where you'd integrate error tracking
     if (import.meta.env.PROD) {
-      // Report to error tracking service
-      console.error('Production error:', {
+      // SECURITY: Only log minimal info in production — no stack traces
+      console.error('UI Error:', error.message);
+      // Full error details sent to Sentry via sentry.ts beforeSend hook
+    } else {
+      console.error('Development error:', {
         message: error.message,
         stack: error.stack,
         componentStack: errorInfo.componentStack,
