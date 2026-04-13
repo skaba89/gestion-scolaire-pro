@@ -217,7 +217,6 @@ class ParentAlertRequest(BaseModel):
     type: str  # 'absence' | 'low_grade'
     student_id: str
     student_name: str
-    tenant_id: str
     details: Dict[str, Any] = {}
 
 @router.post("/send-parent-alert/")

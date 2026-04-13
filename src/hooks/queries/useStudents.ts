@@ -127,7 +127,6 @@ export const useStudents = (
             }
             const { data } = await apiClient.post('/users/', {
                 email: student.email,
-                password: undefined,
                 first_name: student.first_name,
                 last_name: student.last_name,
                 roles: ["STUDENT"],

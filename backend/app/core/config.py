@@ -225,6 +225,9 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+if not settings.BOOTSTRAP_SECRET:
+    logger.warning("BOOTSTRAP_SECRET is empty — bootstrap endpoint will reject all requests")
+
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

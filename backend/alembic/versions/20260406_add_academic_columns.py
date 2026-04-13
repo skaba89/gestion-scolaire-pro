@@ -8,7 +8,7 @@ The academic audit found these model changes that need a migration:
 All columns are nullable with sensible defaults for existing rows.
 
 Revision ID: 20260406_add_academic_columns
-Revises: 20260406_add_academic_year_code
+Revises: 9b2c54f5d1aa
 Create Date: 2026-04-06
 
 """
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '20260406_add_academic_columns'
-down_revision = '20260406_add_academic_year_code'
+down_revision = '9b2c54f5d1aa'
 branch_labels = None
 depends_on = None
 

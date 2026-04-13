@@ -18,7 +18,13 @@ if (
   !window.trustedTypes.defaultPolicy
 ) {
   window.trustedTypes.createPolicy("default", {
-    createScriptURL: (url: string) => url,
+    createScriptURL: (url: string) => {
+      // Only allow same-origin and localhost script URLs
+      if (url.startsWith('/') || url.startsWith(window.location.origin) || /^https?:\/\/localhost(:\d+)?\//.test(url)) {
+        return url;
+      }
+      throw new Error(`Trusted Types: blocked script URL: ${url}`);
+    },
     createHTML: (html: string) => html,
   });
 }

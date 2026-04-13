@@ -10,7 +10,7 @@ This migration applies the operations from both Branch B files:
   - 20260311_add_mfa_tables
 
 Revision ID: 20260406_merge_mfa_perf
-Revises: 20260406_drop_keycloak_id
+Revises: 20260406_add_academic_year_code
 Create Date: 2026-04-06
 
 """
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '20260406_merge_mfa_perf'
-down_revision = '20260406_drop_keycloak_id'
+down_revision = '20260406_add_academic_year_code'
 branch_labels = None
 depends_on = None
 

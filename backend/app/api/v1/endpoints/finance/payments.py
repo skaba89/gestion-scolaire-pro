@@ -338,17 +338,19 @@ def create_invoice_atomic(
 
     invoice_id = db.execute(text("""
         INSERT INTO invoices (tenant_id, student_id, invoice_number, total_amount, paid_amount,
-                              items, due_date, notes, has_payment_plan, installments_count,
-                              status, issue_date, created_at, updated_at)
+                              subtotal, tax_amount, discount_amount,
+                              items, due_date, issue_date, notes, has_payment_plan, installments_count,
+                              status, created_at, updated_at)
         VALUES (:tenant_id, :student_id, :invoice_number, :total_amount, 0,
-                :items, :due_date, :notes, :has_payment_plan, :installments_count,
-                'PENDING', NOW(), NOW(), NOW())
+                :total_amount, 0, 0,
+                :items, :due_date, COALESCE(:due_date, CURRENT_DATE), :notes, :has_payment_plan, :installments_count,
+                'PENDING', NOW(), NOW())
         RETURNING id
     """), {
         "tenant_id": tenant_id, "student_id": body.student_id,
         "invoice_number": invoice_number, "total_amount": body.total_amount,
         "items": json.dumps(body.items) if body.items else None,
-        "due_date": body.due_date if body.due_date else None,
+        "due_date": body.due_date or None,
         "notes": body.notes,
         "has_payment_plan": body.has_payment_plan,
         "installments_count": body.installments_count

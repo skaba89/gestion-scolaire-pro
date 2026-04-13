@@ -2,6 +2,9 @@ import axios from 'axios';
 
 const TOKEN_STORAGE_KEY = 'schoolflow:access_token';
 
+// Mutex for token refresh — prevents concurrent refresh calls
+let refreshPromise: Promise<string> | null = null;
+
 function isLocalHost(value: string): boolean {
   return /localhost|127\.0\.0\.1/.test(value);
 }
@@ -87,17 +90,19 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshResponse = await axios.post(
-          `${apiClient.defaults.baseURL}/auth/refresh/`,
-          {},
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY)}`,
-            },
-          }
-        );
-
-        const newToken = refreshResponse.data?.access_token;
+        // Use a shared promise to prevent concurrent refresh calls (race condition fix)
+        if (!refreshPromise) {
+          refreshPromise = axios.post(
+            `${apiClient.defaults.baseURL}/auth/refresh/`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY)}`,
+              },
+            }
+          ).then((r) => r.data?.access_token).finally(() => { refreshPromise = null; });
+        }
+        const newToken = await refreshPromise;
         if (newToken) {
           // Determine which storage originally held the token and write back there only
           const wasInLocalStorage = !!localStorage.getItem(TOKEN_STORAGE_KEY);

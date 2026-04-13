@@ -11,6 +11,7 @@ class Grade(Base, UUIDMixin, TimestampMixin, TenantMixin):
     student_id = Column(GUID(), ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
     assessment_id = Column(GUID(), ForeignKey("assessments.id", ondelete="CASCADE"), nullable=True) # Optional for manual grades
     subject_id = Column(GUID(), ForeignKey("subjects.id", ondelete="SET NULL"), nullable=True)
+    academic_year_id = Column(GUID(), ForeignKey("academic_years.id", ondelete="SET NULL"), nullable=True)
     
     score = Column(Float, nullable=False)
     max_score = Column(Float, default=20.0, nullable=False)

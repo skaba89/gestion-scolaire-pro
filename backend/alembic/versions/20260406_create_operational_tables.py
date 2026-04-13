@@ -19,7 +19,7 @@ Tables created (grouped by module):
   Finance:          fees
 
 Revision ID: 20260406_create_operational_tables
-Revises: 20260406_super_admin_platform
+Revises: 20260406_add_term_is_active
 Create Date: 2026-04-06
 
 """
@@ -29,7 +29,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "20260406_create_operational_tables"
-down_revision = "20260406_super_admin_platform"
+down_revision = "20260406_add_term_is_active"
 branch_labels = None
 depends_on = None
 

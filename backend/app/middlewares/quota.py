@@ -43,19 +43,18 @@ class QuotaMiddleware(BaseHTTPMiddleware):
         if not quota_key:
             return await call_next(request)
 
-        tenant = getattr(request.state, "tenant", None)
-        if not tenant:
+        tenant_id = getattr(request.state, "tenant_id", None)
+        if not tenant_id:
             return await call_next(request)
 
         try:
-            exceeded, current, limit = await self._check_quota(request, tenant, quota_key)
+            exceeded, current, limit = await self._check_quota(request, tenant_id, quota_key)
             if exceeded:
                 request_id = getattr(request.state, "request_id", "-")
-                tenant_id = str(getattr(tenant, "id", "-"))
                 logger.warning(
                     "Quota exceeded",
                     extra={
-                        "tenant_id": tenant_id,
+                        "tenant_id": str(tenant_id),
                         "quota_key": quota_key,
                         "current": current,
                         "limit": limit,
@@ -83,37 +82,35 @@ class QuotaMiddleware(BaseHTTPMiddleware):
 
     # ------------------------------------------------------------------
     async def _check_quota(
-        self, request: Request, tenant: object, quota_key: str
+        self, request: Request, tenant_id: str, quota_key: str
     ) -> tuple[bool, int, int]:
         """Return ``(is_exceeded, current_count, limit)``."""
-        settings: dict = {}
-        raw = getattr(tenant, "settings", None)
-        if isinstance(raw, dict):
-            settings = raw
+        # Fetch tenant settings to get quota limits
+        from app.core.database import SessionLocal as _SL
+        from app.models.tenant import Tenant as _Tenant
+        from sqlalchemy import select as _sel
 
-        quotas: dict = settings.get("quotas", {})
-        limit: int = int(quotas.get(quota_key, DEFAULT_QUOTAS.get(quota_key, 99_999)))
+        limit: int = DEFAULT_QUOTAS.get(quota_key, 99_999)
+        try:
+            with _SL() as _db:
+                _tenant = _db.execute(_sel(_Tenant).where(_Tenant.id == tenant_id)).scalar_one_or_none()
+                if _tenant and isinstance(getattr(_tenant, "settings", None), dict):
+                    _quotas = _tenant.settings.get("quotas", {})
+                    limit = int(_quotas.get(quota_key, DEFAULT_QUOTAS.get(quota_key, 99_999)))
+        except Exception:
+            pass  # Fail open with default quotas
 
-        db = getattr(request.state, "db", None)
-        if db is None:
-            # _count_resources now creates its own session, so db=None is fine
-            pass
-
-        current = await self._count_resources(tenant, quota_key)
+        current = await self._count_resources(tenant_id, quota_key)
         return current >= limit, current, limit
 
     @staticmethod
-    async def _count_resources(tenant: object, quota_key: str) -> int:
+    async def _count_resources(tenant_id: str, quota_key: str) -> int:
         """Count existing tenant resources for the given quota key.
 
         Uses its own DB session to avoid depending on middleware-injected state.
         """
         from sqlalchemy import select, func  # noqa: PLC0415
         from app.core.database import SessionLocal  # noqa: PLC0415
-
-        tenant_id = getattr(tenant, "id", None)
-        if tenant_id is None:
-            return 0
 
         try:
             if quota_key == "max_students":

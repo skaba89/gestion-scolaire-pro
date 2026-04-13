@@ -226,7 +226,7 @@ export const SentryMonitoring = {
 
                 // If it's a DB operation, track slow queries
                 if (op === 'db' || op === 'rpc') {
-                    this.trackSlowQuery(name, end - start);
+                    SentryMonitoring.trackSlowQuery(name, end - start);
                 }
 
                 return result;

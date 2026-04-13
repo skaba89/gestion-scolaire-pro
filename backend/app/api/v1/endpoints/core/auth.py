@@ -797,11 +797,10 @@ def bootstrap_admin(
             pass
         # SECURITY: Log internal error details server-side only
         logger.error("Bootstrap failed: %s", e, exc_info=True)
-        return {
-            "status": "error",
-            "message": "An internal error occurred during bootstrap. Check server logs for details.",
-            "steps": steps,
-        }
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred during bootstrap. Check server logs for details.",
+        )
 
 
 @router.get("/diag/")

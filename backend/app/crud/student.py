@@ -39,6 +39,7 @@ def get_students(
     
     # Apply filters
     if search:
+        search = search.replace('%', r'\%').replace('_', r'\_')
         search_filter = or_(
             Student.first_name.ilike(f"%{search}%"),
             Student.last_name.ilike(f"%{search}%"),

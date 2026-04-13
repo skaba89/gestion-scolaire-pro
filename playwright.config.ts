@@ -6,6 +6,8 @@ import { defineConfig, devices } from '@playwright/test';
  * Docs: https://playwright.dev/docs/intro
  */
 export default defineConfig({
+  globalSetup: require.resolve('./tests/e2e/global-setup'),
+  globalTeardown: require.resolve('./tests/e2e/global-teardown'),
   testDir: './tests/e2e',
   /* Exécuter les tests un par un */
   fullyParallel: true,

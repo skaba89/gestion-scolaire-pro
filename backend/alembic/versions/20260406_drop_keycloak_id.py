@@ -1,7 +1,7 @@
 """Drop legacy keycloak_id column from users table
 
 Revision ID: 20260406_drop_keycloak_id
-Revises: 20260325_0845_9b2c54f5d1aa
+Revises: 20260406_create_operational_tables
 Create Date: 2026-04-06 00:00:00.000000
 
 """
@@ -9,7 +9,7 @@ from alembic import op
 
 # revision identifiers
 revision = '20260406_drop_keycloak_id'
-down_revision = '9b2c54f5d1aa'
+down_revision = '20260406_create_operational_tables'
 branch_labels = None
 depends_on = None
 

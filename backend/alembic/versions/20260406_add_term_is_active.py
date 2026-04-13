@@ -5,7 +5,7 @@ migration ever created this column. This migration adds it with a server
 default of false so existing rows are handled correctly.
 
 Revision ID: 20260406_add_term_is_active
-Revises: 20260406_add_academic_columns
+Revises: 20260406_merge_mfa_perf
 Create Date: 2026-04-06
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '20260406_add_term_is_active'
-down_revision = '20260406_add_academic_columns'
+down_revision = '20260406_merge_mfa_perf'
 branch_labels = None
 depends_on = None
 

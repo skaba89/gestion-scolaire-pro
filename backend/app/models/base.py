@@ -3,7 +3,7 @@
 Provides mixins for UUID primary keys, timestamps, and tenant isolation.
 Works with both PostgreSQL and SQLite backends.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, DateTime, String, ForeignKey, TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 import uuid
@@ -48,8 +48,8 @@ class GUID(TypeDecorator):
 
 class TimestampMixin:
     """Mixin for created_at and updated_at timestamps"""
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=datetime.now, nullable=False)
 
 
 class UUIDMixin:

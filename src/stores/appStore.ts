@@ -188,7 +188,13 @@ export const useAppStore = create<AppState>()(
         permissions: data.permissions,
       }),
 
-      reset: () => set(initialState),
+      reset: () => {
+        // Clear all pending notification timers before resetting state
+        const timers = get()._notificationTimers;
+        timers.forEach((timer) => clearTimeout(timer));
+        timers.clear();
+        set(initialState);
+      },
     }),
     { name: "AppStore" }
   )

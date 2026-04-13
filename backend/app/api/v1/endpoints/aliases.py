@@ -596,7 +596,7 @@ def update_presence(
     # Only allow updating own presence (or admin)
     if body.user_id != user_id:
         roles = current_user.get("roles", [])
-        if "ADMIN" not in roles and "SUPER_ADMIN" not in roles:
+        if "TENANT_ADMIN" not in roles and "SUPER_ADMIN" not in roles:
             raise HTTPException(status_code=403, detail="Can only update your own presence")
 
     try:

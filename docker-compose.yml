@@ -82,7 +82,7 @@ services:
       GROQ_MAX_TOKENS: ${GROQ_MAX_TOKENS:-4096}
     ports:
       - "${API_PORT:-8000}:8000"
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["bash", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
     networks:
       - schoolflow-network
     mem_limit: 512m
@@ -96,7 +96,14 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:
-      - api
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     networks:
       - schoolflow-network
     mem_limit: 128m

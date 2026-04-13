@@ -564,7 +564,7 @@ def remove_role(
 def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("users:write")),
+    current_user: dict = Depends(require_permission("users:delete")),
 ):
     """Permanently delete a user from the tenant."""
     tenant_id = current_user.get("tenant_id")

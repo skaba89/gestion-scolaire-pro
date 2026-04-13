@@ -74,8 +74,11 @@ const ChangePassword = () => {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
       sessionStorage.removeItem(TOKEN_STORAGE_KEY);
 
-      // Navigate to auth
-      navigate("/auth", { replace: true });
+      // Navigate to tenant-aware auth page
+      const currentPath = window.location.pathname;
+      const tenantMatch = currentPath.match(/^\/([^/]+)\/.+/);
+      const authPath = tenantMatch ? `/${tenantMatch[1]}/auth` : '/auth';
+      navigate(authPath, { replace: true });
     } catch (error: any) {
       console.error("Error changing password:", error);
       toast({

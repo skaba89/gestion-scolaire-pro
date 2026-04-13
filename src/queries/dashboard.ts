@@ -12,8 +12,8 @@ export const dashboardQueries = {
             };
 
             const [academic, financial] = await Promise.all([
-                apiClient.get("/analytics/academic-kpis/").catch(() => ({ data: {} })),
-                apiClient.get("/analytics/financial-kpis/").catch(() => ({ data: {} }))
+                apiClient.get("/analytics/academic-kpis/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: {} }; }),
+                apiClient.get("/analytics/financial-kpis/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: {} }; })
             ]);
 
             return {
@@ -35,8 +35,8 @@ export const dashboardQueries = {
             };
 
             const [academicStats, operational] = await Promise.all([
-                apiClient.get("/analytics/academic-stats/").catch(() => ({ data: { byClass: [] } })),
-                apiClient.get("/analytics/operational-kpis/").catch(() => ({ data: {} }))
+                apiClient.get("/analytics/academic-stats/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: { byClass: [] } }; }),
+                apiClient.get("/analytics/operational-kpis/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: {} }; })
             ]);
 
             const attendanceRate = operational.data.studentAttendanceRate || 0;

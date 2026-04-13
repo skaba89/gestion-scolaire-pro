@@ -5,7 +5,7 @@ initial migration never created this column. This migration adds it and
 backfills existing rows with a generated code.
 
 Revision ID: 20260406_add_academic_year_code
-Revises: 20260406_super_admin_platform
+Revises: 20260406_add_academic_columns
 Create Date: 2026-04-06
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '20260406_add_academic_year_code'
-down_revision = '20260406_super_admin_platform'
+down_revision = '20260406_add_academic_columns'
 branch_labels = None
 depends_on = None
 

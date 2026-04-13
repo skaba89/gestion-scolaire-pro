@@ -8,5 +8,5 @@ class UserRole(Base, UUIDMixin, TimestampMixin):
     # tenant_id nullable — SUPER_ADMIN role is not tenant-scoped
     tenant_id = Column(GUID(), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
 
-    user_id = Column(GUID(), ForeignKey("users.id"), nullable=False)
+    user_id = Column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
     role = Column(String(50), nullable=False)

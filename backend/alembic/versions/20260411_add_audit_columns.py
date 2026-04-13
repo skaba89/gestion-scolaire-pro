@@ -1,14 +1,14 @@
 """add severity and user_agent columns to audit_logs
 
 Revision ID: 20260411_add_audit_columns
-Revises: 20260406_add_mfa_and_perf_indexes
+Revises: 20260406_super_admin_platform
 Create Date: 2025-04-11
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "20260411_add_audit_columns"
-down_revision = "20260406_add_mfa_and_perf_indexes"
+down_revision = "20260406_super_admin_platform"
 branch_labels = None
 depends_on = None
 

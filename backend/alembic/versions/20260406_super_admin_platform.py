@@ -4,7 +4,7 @@ A SUPER_ADMIN user should NOT be tied to a specific tenant.
 They operate at the platform level and can manage all tenants.
 
 Revision ID: 20260406_super_admin_platform
-Revises: 20260406_merge_mfa_perf
+Revises: 20260406_payment_enums
 Create Date: 2026-04-06
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '20260406_super_admin_platform'
-down_revision = '20260406_merge_mfa_perf'
+down_revision = '20260406_payment_enums'
 branch_labels = None
 depends_on = None
 

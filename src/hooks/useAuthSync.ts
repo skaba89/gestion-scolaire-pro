@@ -13,27 +13,28 @@ export function useAuthSync() {
   const store = useAppStore();
 
   useEffect(() => {
-    // Sync user
+    // Sync user — map to Zustand store User interface (first_name, last_name, avatar_url)
     if (auth.user && auth.profile) {
       store.setUser({
         id: auth.user.id,
         email: auth.user.email || '',
-        firstName: auth.profile.first_name || '',
-        lastName: auth.profile.last_name || '',
-        avatar: auth.profile.avatar_url || null,
-        role: auth.roles[0] || 'STUDENT',
+        first_name: auth.profile.first_name || '',
+        last_name: auth.profile.last_name || '',
+        avatar_url: auth.profile.avatar_url || undefined,
+        is_active: true,
+        created_at: auth.profile.created_at,
       });
     } else {
       store.setUser(null);
     }
 
-    // Sync tenant
+    // Sync tenant — map to Zustand store Tenant interface (logo_url, not logo)
     if (auth.tenant) {
       store.setCurrentTenant({
         id: auth.tenant.id,
         name: auth.tenant.name,
         slug: auth.tenant.slug,
-        logo: auth.tenant.logo_url || null,
+        logo_url: auth.tenant.logo_url || undefined,
       });
     } else {
       store.setCurrentTenant(null);

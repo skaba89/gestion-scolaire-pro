@@ -4,6 +4,7 @@
  * Replaces the Supabase channel subscription.
  */
 import { useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,6 +17,7 @@ export const useRealtimeMessages = () => {
   const { user } = useAuth();
   const { currentTenant } = useTenant();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const lastSeenRef = useRef<string>(new Date().toISOString());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -50,7 +52,7 @@ export const useRealtimeMessages = () => {
               onClick: () => {
                 // Navigate to messages page
                 if (currentTenant?.slug) {
-                  window.location.href = `/${currentTenant.slug}/messages`;
+                  navigate(`/${currentTenant.slug}/messages`);
                 }
               },
             },

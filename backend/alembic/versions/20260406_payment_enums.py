@@ -1,14 +1,14 @@
 """Add PENDING/PARTIAL to InvoiceStatus, REVERSED to PaymentStatus, and invoice columns
 
 Revision ID: 20260406_payment_enums
-Revises: 20260406_add_academic_year_code
+Revises: 20260406_drop_keycloak_id
 Create Date: 2026-04-06
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "20260406_payment_enums"
-down_revision = "20260406_add_academic_year_code"
+down_revision = "20260406_drop_keycloak_id"
 branch_labels = None
 depends_on = None
 
