@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => {
-  const enablePwa = process.env.VITE_ENABLE_PWA === 'true';
+  const enablePwa = mode === 'production' && import.meta.env.VITE_ENABLE_PWA === 'true';
 
   return {
     define: {

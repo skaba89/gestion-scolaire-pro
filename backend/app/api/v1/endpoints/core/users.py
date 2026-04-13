@@ -660,18 +660,30 @@ def reset_user_password(
     try:
         import asyncio
         from app.core.cache import redis_client
-        # Try to store in Redis
-        loop = asyncio.get_event_loop()
-        if not loop.is_running():
+        # FIX: Use asyncio.create_task + event loop polling instead of get_event_loop()
+        # which crashes in ASGI context where the loop is already running.
+        try:
+            loop = asyncio.get_running_loop()
+            # We're inside an async-capable context — use nest_asyncio or skip
+            logger.warning("Cannot store temp pw in Redis: sync endpoint called from async event loop. Refusing reset.")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Password reset temporarily unavailable. Please try again.",
+            )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
             loop.run_until_complete(
                 redis_client.set(f"temp_pw:{retrieval_key}", temp_password, expire=300)
             )
+            loop.close()
             return {
                 "message": "Password reset successfully",
                 "retrieval_key": retrieval_key,
                 "expires_in": 300,
                 "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
             }
+    except HTTPException:
+        raise
     except Exception:
         pass
 
@@ -784,23 +796,25 @@ def create_user(
         try:
             import asyncio
             from app.core.cache import redis_client
-            loop = asyncio.get_event_loop()
-            if not loop.is_running():
+            try:
+                loop = asyncio.get_running_loop()
+                return {
+                    "id": new_id,
+                    "email": body.email,
+                    "_password_available_via_redis": True,
+                }
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
                 loop.run_until_complete(
                     redis_client.set(f"temp_pw:{retrieval_key}", raw_password, expire=300)
                 )
+                loop.close()
                 return {
                     "id": new_id,
                     "email": body.email,
                     "retrieval_key": retrieval_key,
                     "expires_in": 300,
                     "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
-                }
-            else:
-                return {
-                    "id": new_id,
-                    "email": body.email,
-                    "_password_available_via_redis": True,
                 }
         except Exception:
             return {
@@ -935,23 +949,25 @@ def convert_to_account(
         try:
             import asyncio
             from app.core.cache import redis_client
-            loop = asyncio.get_event_loop()
-            if not loop.is_running():
+            try:
+                loop = asyncio.get_running_loop()
+                return {
+                    "userId": new_user_id,
+                    "email": body.email,
+                    "_password_available_via_redis": True,
+                }
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
                 loop.run_until_complete(
                     redis_client.set(f"temp_pw:{retrieval_key}", raw_password, expire=300)
                 )
+                loop.close()
                 return {
                     "userId": new_user_id,
                     "email": body.email,
                     "retrieval_key": retrieval_key,
                     "expires_in": 300,
                     "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
-                }
-            else:
-                return {
-                    "userId": new_user_id,
-                    "email": body.email,
-                    "_password_available_via_redis": True,
                 }
         except Exception:
             return {
@@ -990,7 +1006,7 @@ def update_user_profile(
 
     # Permission check: own profile or admin
     roles = current_user.get("roles", [])
-    if user_id != auth_id and "ADMIN" not in roles and "SUPER_ADMIN" not in roles:
+    if user_id != auth_id and "TENANT_ADMIN" not in roles and "SUPER_ADMIN" not in roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only update your own profile"

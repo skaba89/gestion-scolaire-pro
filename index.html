@@ -23,8 +23,8 @@
              script-src 'self' 'unsafe-inline' https://browser.sentry-cdn.com; 
              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
              font-src 'self' https://fonts.gstatic.com; 
-             img-src 'self' data: blob: https:; 
-             connect-src 'self' https://*.sentry.io https://*.onrender.com https:; 
+             img-src 'self' data: blob: https: http:; 
+             connect-src 'self' https://*.sentry.io https://*.onrender.com; 
              frame-src 'none'; 
              object-src 'none';
              base-uri 'self';
@@ -37,18 +37,14 @@
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#1e40af" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="EduManager" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="format-detection" content="telephone=no" />
 
   <!-- iOS Icons -->
-  <link rel="apple-touch-icon" href="/pwa-192x192.png" />
   <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
   <link rel="apple-touch-icon" sizes="512x512" href="/pwa-512x512.png" />
-
-  <!-- Splash Screen for iOS -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
   <!-- Open Graph -->
   <meta property="og:title" content="EduManager - Gestion Scolaire" />

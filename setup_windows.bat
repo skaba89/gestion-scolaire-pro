@@ -8,7 +8,14 @@ echo ============================================================
 echo.
 
 REM ─── Votre base de donnees Neon ─────────────────────────────────
-set NEON_DB_URL=postgresql://neondb_owner:npg_ZI0TV9FAsRSK@ep-aged-mud-anuj0b0l-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require
+REM IMPORTANT: Remplacez par votre propre URL Neon PostgreSQL.
+REM Inscrivez-vous sur https://neon.tech pour obtenir une base gratuite.
+set NEON_DB_URL=
+if "%NEON_DB_URL%"=="" (
+    echo [ERROR] Veuillez configurer votre URL Neon PostgreSQL dans ce fichier.
+    echo         Editez setup_windows.bat et remplacez la variable NEON_DB_URL.
+    goto :EOF
+)
 
 echo [INFO] Base de donnees : Neon PostgreSQL (cloud)
 echo.
@@ -59,7 +66,7 @@ if exist ".env" (
         echo DATABASE_POOL_SIZE=10
         echo DATABASE_MAX_OVERFLOW=20
         echo.
-        echo SECRET_KEY=134d4e0a82d65f8f63549c15c84035eb79675fc3130c55e1a083a36b4a1d5805
+        echo SECRET_KEY=CHANGE_ME_generate_a_32_char_secret_key_here
         echo ALGORITHM=HS256
         echo ACCESS_TOKEN_EXPIRE_MINUTES=30
         echo.
@@ -126,10 +133,10 @@ echo   Frontend :  http://localhost:3000
 echo   Backend  :  http://localhost:8000
 echo   API Docs :  http://localhost:8000/docs
 echo.
-echo   Login    :  admin@schoolflow.local
-echo   Password :  Admin@123456
+echo   Login    :  (defini via ADMIN_DEFAULT_EMAIL dans .env)
+echo   Password :  (defini via ADMIN_DEFAULT_PASSWORD dans .env)
 echo.
-echo   IMPORTANT : Changez le mot de passe apres la 1ere connexion !
+echo   IMPORTANT : Configurez vos identifiants dans le fichier .env avant le 1er lancement !
 echo ============================================================
 echo.
 

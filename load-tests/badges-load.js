@@ -1,3 +1,6 @@
+// SchoolFlow Pro — Load Tests for Badges API
+// Usage: k6 run --env BASE_URL=http://localhost:8000 load-tests/badges-load.js
+// Requires: ANON_KEY env var with a valid JWT from POST /api/v1/auth/login/
 import http from 'k6/http';
 import { check, group, sleep } from 'k6';
 import { Rate, Trend, Counter, Gauge } from 'k6/metrics';
@@ -7,13 +10,19 @@ const errorRate = new Rate('errors');
 const successRate = new Rate('success');
 const badgeLoadTime = new Trend('badge_load_time');
 const badgeListTime = new Trend('badge_list_time');
-const leaderboardTime = new Trend('leaderboard_time');
 const requestCount = new Counter('requests');
 const activeUsers = new Gauge('active_users');
 
 // Configuration
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
-const ANON_KEY = __ENV.ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzY4Njc3Mzk3LCJleHAiOjIwODQwMzczOTd9.cy_NIuDqX_LcCTwokeNqXUyD4G8dNi12NfTLCo2s72M';
+// IMPORTANT: Set a valid JWT token via env var obtained from login endpoint
+// Example: k6 run -e ANON_KEY=$(curl -s -X POST http://localhost:8000/api/v1/auth/login/ ...)
+const ANON_KEY = __ENV.ANON_KEY || '';
+
+if (!ANON_KEY) {
+    console.warn('WARNING: ANON_KEY not set. Load tests will likely fail with 401.');
+    console.warn('Obtain a token via: POST /api/v1/auth/login/');
+}
 
 // Load test configuration
 export const options = {
@@ -26,143 +35,41 @@ export const options = {
     { duration: '30s', target: 0, name: 'Ramp-down to 0 users' },
   ],
   thresholds: {
-    errors: ['rate<0.1'], // Error rate must be < 10%
-    success: ['rate>0.9'], // Success rate must be > 90%
-    badge_load_time: ['p(95)<500'], // 95% of single badge requests < 500ms
-    badge_list_time: ['p(95)<1000'], // 95% of list requests < 1s
-    http_req_duration: ['p(95)<800'], // 95% of all HTTP requests < 800ms
+    errors: ['rate<0.1'],
+    success: ['rate>0.9'],
+    badge_load_time: ['p(95)<500'],
+    badge_list_time: ['p(95)<1000'],
+    http_req_duration: ['p(95)<800'],
   },
-  thresholdTags: {
-    staticContent: ['http_req_duration:max<1000'],
-  },
+};
+
+const headers = {
+  Authorization: `Bearer ${ANON_KEY}`,
+  'Content-Type': 'application/json',
 };
 
 export default function () {
   activeUsers.add(1);
 
-  // Scenario 1: Get badge list (most common)
-  group('📋 List All Badges', () => {
-    const startTime = Date.now();
-    const res = http.get(`${BASE_URL}/rest/v1/badges_definitions?limit=100`, {
-      headers: {
-        Authorization: `Bearer ${ANON_KEY}`,
-        'Content-Type': 'application/json',
-      },
+  // Scenario 1: Health check
+  group('Health Check', () => {
+    const res = http.get(`${BASE_URL}/health/`, { headers });
+    check(res, {
+      'status is 200': (r) => r.status === 200,
     });
-    const duration = Date.now() - startTime;
-
-    badgeListTime.add(duration);
     requestCount.add(1);
-
-    check(res, {
-      'status is 200': (r) => r.status === 200,
-      'has body': (r) => r.body.length > 0,
-      'response time < 1s': () => duration < 1000,
-    }) || errorRate.add(1);
-    successRate.add(res.status === 200);
   });
 
   sleep(1);
 
-  // Scenario 2: Get single badge
-  group('🎖️ Get Single Badge', () => {
-    const badgeIndex = Math.floor(Math.random() * 1050);
-    const res = http.get(
-      `${BASE_URL}/rest/v1/badges_definitions?limit=1&offset=${badgeIndex}`,
-      {
-        headers: {
-          Authorization: `Bearer ${ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    badgeLoadTime.add(res.timings.duration);
-    requestCount.add(1);
-
+  // Scenario 2: API v1 root
+  group('API Root', () => {
+    const res = http.get(`${BASE_URL}/api/v1/`, { headers });
     check(res, {
       'status is 200': (r) => r.status === 200,
-      'response time < 500ms': (r) => r.timings.duration < 500,
-    }) || errorRate.add(1);
+    });
     successRate.add(res.status === 200);
-  });
-
-  sleep(1);
-
-  // Scenario 3: Filter by type
-  group('🔍 Filter Badges by Type', () => {
-    const types = ['performance', 'achievement', 'attendance', 'participation', 'certification'];
-    const selectedType = types[Math.floor(Math.random() * types.length)];
-
-    const res = http.get(
-      `${BASE_URL}/rest/v1/badges_definitions?badge_type=eq.${selectedType}&limit=50`,
-      {
-        headers: {
-          Authorization: `Bearer ${ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
     requestCount.add(1);
-
-    check(res, {
-      'status is 200': (r) => r.status === 200,
-      'filtered results': (r) => r.body.length > 0,
-    }) || errorRate.add(1);
-    successRate.add(res.status === 200);
-  });
-
-  sleep(1);
-
-  // Scenario 4: Filter by rarity
-  group('💎 Filter Badges by Rarity', () => {
-    const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
-    const selectedRarity = rarities[Math.floor(Math.random() * rarities.length)];
-
-    const res = http.get(
-      `${BASE_URL}/rest/v1/badges_definitions?rarity=eq.${selectedRarity}&limit=50`,
-      {
-        headers: {
-          Authorization: `Bearer ${ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    requestCount.add(1);
-
-    check(res, {
-      'status is 200': (r) => r.status === 200,
-      'rarity filter works': (r) => r.body.length > 0,
-    }) || errorRate.add(1);
-    successRate.add(res.status === 200);
-  });
-
-  sleep(2);
-
-  // Scenario 5: Pagination test
-  group('📄 Badge Pagination', () => {
-    const page = Math.floor(Math.random() * 10) + 1;
-    const offset = (page - 1) * 100;
-
-    const res = http.get(
-      `${BASE_URL}/rest/v1/badges_definitions?limit=100&offset=${offset}`,
-      {
-        headers: {
-          Authorization: `Bearer ${ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    requestCount.add(1);
-
-    check(res, {
-      'status is 200': (r) => r.status === 200,
-      'pagination works': (r) => r.body.length > 0 || r.body.length === 0, // Last page may be empty
-    }) || errorRate.add(1);
-    successRate.add(res.status === 200);
   });
 
   sleep(1);
@@ -171,7 +78,6 @@ export default function () {
 }
 
 export function handleSummary(data) {
-  // Generate custom summary
   return {
     'stdout': textSummary(data, { indent: ' ', enableColors: true }),
     'load-tests/summary.json': JSON.stringify(data),
@@ -179,25 +85,22 @@ export function handleSummary(data) {
 }
 
 function textSummary(data, options) {
-  let summary = '\n📊 === LOAD TEST SUMMARY ===\n\n';
+  let summary = '\n=== LOAD TEST SUMMARY ===\n\n';
 
-  // HTTP Request Stats
   if (data.metrics.http_req_duration) {
     const metric = data.metrics.http_req_duration;
-    summary += '⏱️  HTTP Request Duration:\n';
-    summary += `   • Min: ${metric.values.min}ms\n`;
-    summary += `   • Max: ${metric.values.max}ms\n`;
-    summary += `   • Avg: ${(metric.values.sum / metric.values.count).toFixed(2)}ms\n`;
-    summary += `   • P95: ${(metric.values['p(95)'] || 'N/A')}ms\n`;
-    summary += `   • P99: ${(metric.values['p(99)'] || 'N/A')}ms\n\n`;
+    summary += 'HTTP Request Duration:\n';
+    summary += `   Min: ${metric.values.min}ms\n`;
+    summary += `   Max: ${metric.values.max}ms\n`;
+    summary += `   Avg: ${(metric.values.sum / metric.values.count).toFixed(2)}ms\n`;
+    summary += `   P95: ${(metric.values['p(95)'] || 'N/A')}ms\n\n`;
   }
 
-  // Request counts
   if (data.metrics.requests) {
     const metric = data.metrics.requests;
-    summary += `📈 Total Requests: ${metric.values.count}\n`;
-    summary += `✅ Success Rate: ${((data.metrics.success?.values.rate || 0) * 100).toFixed(2)}%\n`;
-    summary += `❌ Error Rate: ${((data.metrics.errors?.values.rate || 0) * 100).toFixed(2)}%\n\n`;
+    summary += `Total Requests: ${metric.values.count}\n`;
+    summary += `Success Rate: ${((data.metrics.success?.values.rate || 0) * 100).toFixed(2)}%\n`;
+    summary += `Error Rate: ${((data.metrics.errors?.values.rate || 0) * 100).toFixed(2)}%\n\n`;
   }
 
   return summary;

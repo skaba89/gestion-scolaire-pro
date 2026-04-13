@@ -20,5 +20,5 @@ window.__SCHOOLFLOW_CONFIG__ = {
    *   to bypass the /api-proxy and call the API directly.
    * - Set to "" (empty) to use the /api-proxy path (requires nginx proxy).
    */
-  API_URL: "https://schoolflow-api-z6wt.onrender.com",
+  API_URL: "",  // Set your backend API URL here after deployment (e.g. "https://schoolflow-api-xxxx.onrender.com")
 };

@@ -106,8 +106,17 @@ class LocalStorageClient:
     def upload_file(self, file_data, object_name: str, content_type: str = None):
         """Save uploaded file to local disk."""
         # object_name may contain subdirectories like "user_id/uuid.ext"
-        safe_name = object_name.replace("..", "").lstrip("/")
+        # SECURITY: Properly sanitize path to prevent traversal attacks.
+        # Normalize first (resolves .. and /), then ensure result stays within _UPLOAD_DIR
+        safe_name = os.path.normpath(object_name).lstrip("/").lstrip("\\")
+        # Double-check: reject any path component that looks like traversal
+        if ".." in safe_name.split(os.sep):
+            raise ValueError(f"Invalid file path: path traversal detected in '{object_name}'")
         file_path = os.path.join(_UPLOAD_DIR, safe_name)
+        # Final safety: ensure resolved path is within _UPLOAD_DIR
+        resolved = os.path.realpath(file_path)
+        if not resolved.startswith(os.path.realpath(_UPLOAD_DIR)):
+            raise ValueError(f"Invalid file path: resolved path escapes upload directory")
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
         with open(file_path, "wb") as f:

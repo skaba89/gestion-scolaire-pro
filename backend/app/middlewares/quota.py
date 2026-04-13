@@ -96,15 +96,20 @@ class QuotaMiddleware(BaseHTTPMiddleware):
 
         db = getattr(request.state, "db", None)
         if db is None:
-            return False, 0, limit
+            # _count_resources now creates its own session, so db=None is fine
+            pass
 
-        current = await self._count_resources(db, tenant, quota_key)
+        current = await self._count_resources(tenant, quota_key)
         return current >= limit, current, limit
 
     @staticmethod
-    async def _count_resources(db: object, tenant: object, quota_key: str) -> int:
-        """Count existing tenant resources for the given quota key."""
+    async def _count_resources(tenant: object, quota_key: str) -> int:
+        """Count existing tenant resources for the given quota key.
+
+        Uses its own DB session to avoid depending on middleware-injected state.
+        """
         from sqlalchemy import select, func  # noqa: PLC0415
+        from app.core.database import SessionLocal  # noqa: PLC0415
 
         tenant_id = getattr(tenant, "id", None)
         if tenant_id is None:
@@ -114,14 +119,25 @@ class QuotaMiddleware(BaseHTTPMiddleware):
             if quota_key == "max_students":
                 from app.models.student import Student  # noqa: PLC0415
 
-                result = await db.execute(  # type: ignore[union-attr]
-                    select(func.count()).where(Student.tenant_id == tenant_id)
-                )
-                return int(result.scalar() or 0)
+                with SessionLocal() as db:
+                    result = db.execute(
+                        select(func.count()).where(Student.tenant_id == tenant_id)
+                    )
+                    return int(result.scalar() or 0)
 
             if quota_key == "max_teachers":
                 # No Teacher model exists yet; return 0
                 return 0
+
+            if quota_key == "max_staff":
+                # No dedicated staff model; count users with STAFF role
+                from sqlalchemy import text  # noqa: PLC0415
+                with SessionLocal() as db:
+                    result = db.execute(
+                        text("SELECT COUNT(*) FROM user_roles WHERE role = 'STAFF' AND tenant_id = :tid"),
+                        {"tid": tenant_id},
+                    )
+                    return int(result.scalar() or 0)
 
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not count resources for quota check: %s", exc)

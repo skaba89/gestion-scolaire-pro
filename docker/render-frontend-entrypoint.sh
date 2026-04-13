@@ -1,24 +1,19 @@
-#!/bin/sh
-set -eu
+#!/bin/bash
+# ─── Render Frontend Entrypoint ────────────────────────────────────────────
+# Substitutes environment variables into config.js at runtime (after build).
+# This allows the same Docker image to work across environments without rebuild.
+# ─────────────────────────────────────────────────────────────────────────────
 
-# ─── API_PUBLIC_BASE_URL is optional ────────────────────────────────────────
-# If set, nginx will proxy /api-proxy/* to the backend.
-# If NOT set, /api-proxy will return 404 — use config.js for direct API calls.
-if [ -z "${API_PUBLIC_BASE_URL:-}" ]; then
-    export API_PUBLIC_BASE_URL="http://localhost:8000"
-    echo "[WARN] API_PUBLIC_BASE_URL not set — /api-proxy disabled."
-    echo "       Use config.js or VITE_API_URL for direct API calls."
+CONFIG_FILE="/usr/share/nginx/html/config.js"
+
+if [ -f "$CONFIG_FILE" ]; then
+    # Replace placeholder API_URL with the actual runtime value
+    if [ -n "$VITE_API_URL" ]; then
+        sed -i "s|API_URL:.*|API_URL: \"$VITE_API_URL\"|g" "$CONFIG_FILE"
+        echo "[entrypoint] config.js API_URL set to: $VITE_API_URL"
+    fi
 fi
 
-# ─── PORT is required by Render ─────────────────────────────────────────────
-export PORT="${PORT:-10000}"
-
-# ─── Generate nginx config from template ────────────────────────────────────
-envsubst '${PORT} ${API_PUBLIC_BASE_URL}' \
-    < /etc/nginx/templates/default.conf.template \
-    > /etc/nginx/conf.d/default.conf
-
-echo "[INFO] Starting nginx on port ${PORT}"
-echo "[INFO] API proxy → ${API_PUBLIC_BASE_URL}"
-
-nginx -g 'daemon off;'
+# Generate CSRF-safe nonce for inline scripts if needed
+echo "[entrypoint] Starting nginx..."
+exec nginx -g "daemon off;"
