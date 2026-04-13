@@ -833,6 +833,8 @@ def create_user(
 def list_pending_users(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1),
 ):
     """List students and parents who don't have a linked user account yet."""
     tenant_id = current_user.get("tenant_id")
@@ -866,7 +868,15 @@ def list_pending_users(
         for r in (list(students) + list(parents))
     ]
 
-    return combined
+    if page_size >= 100:
+        # Default behaviour: return ALL results as a plain list (backward-compatible)
+        return combined
+
+    # Explicit pagination requested (page_size < 100)
+    total = len(combined)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {"items": combined[start:end], "total": total}
 
 
 class ConvertRequest(BaseModel):

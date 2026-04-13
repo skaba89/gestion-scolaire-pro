@@ -1,5 +1,5 @@
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
@@ -238,13 +238,24 @@ async def create_tenant(
 @router.get("/", response_model=List[TenantResponse])
 async def list_tenants(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("tenants:read"))
+    current_user: dict = Depends(require_permission("tenants:read")),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1),
 ):
     """List all tenants (Super Admin only usually)."""
     # require_permission check is already checking if user has tenants:read
     # For now, let's just returns all active tenants
-    tenants = db.query(Tenant).filter(Tenant.is_active == True).order_by(Tenant.name).all()
-    return tenants
+    query = db.query(Tenant).filter(Tenant.is_active == True).order_by(Tenant.name)
+
+    if page_size >= 100:
+        # Default behaviour: return ALL results as a plain list (backward-compatible)
+        return query.all()
+
+    # Explicit pagination requested (page_size < 100)
+    total = query.count()
+    offset = (page - 1) * page_size
+    tenants = query.offset(offset).limit(page_size).all()
+    return {"items": tenants, "total": total}
 
 @router.get("/INFOS/", response_model=dict)
 async def get_tenant_infos(
@@ -478,14 +489,24 @@ async def update_security_settings(
 @router.get("/public/", response_model=List[TenantPublicCard])
 async def list_public_tenants(
     db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1),
 ):
     """Public directory listing — returns all active tenants as lightweight cards."""
-    tenants = (
+    query = (
         db.query(Tenant)
         .filter(Tenant.is_active == True)
         .order_by(Tenant.name)
-        .all()
     )
+
+    if page_size >= 100:
+        # Default behaviour: return ALL results as a plain list (backward-compatible)
+        tenants = query.all()
+    else:
+        # Explicit pagination requested (page_size < 100)
+        offset = (page - 1) * page_size
+        tenants = query.offset(offset).limit(page_size).all()
+
     cards: List[TenantPublicCard] = []
     for t in tenants:
         landing_raw = (t.settings or {}).get("landing", {}) if isinstance(t.settings, dict) else {}
@@ -503,7 +524,13 @@ async def list_public_tenants(
                 primary_color=landing_raw.get("primary_color", "#1e3a5f"),
             )
         )
-    return cards
+
+    if page_size >= 100:
+        return cards
+
+    # Explicit pagination: wrap in paginated envelope
+    total = query.count()
+    return {"items": cards, "total": total}
 
 
 def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
@@ -559,24 +586,38 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
             text("SELECT id, name, description FROM departments WHERE tenant_id = :tid ORDER BY name"),
             {"tid": tenant.id},
         ).fetchall()
-        for d in dept_rows:
-            dept_id = str(d[0])
-            # Fetch subjects for this department (Filiaires)
-            subject_rows = db.execute(
+
+        if dept_rows:
+            # Batch-fetch all subjects for all departments in ONE query (avoids N+1)
+            dept_ids = [str(d[0]) for d in dept_rows]
+            placeholders = ", ".join(f":did_{i}" for i in range(len(dept_ids)))
+            bind_params = {f"did_{i}": did for i, did in enumerate(dept_ids)}
+
+            all_subject_rows = db.execute(
                 text(
-                    "SELECT s.id, s.name FROM subjects s "
-                    "JOIN subject_departments sd ON sd.subject_id = s.id "
-                    "WHERE sd.department_id = :did ORDER BY s.name"
+                    f"SELECT sd.department_id, s.id, s.name FROM subjects s "
+                    f"JOIN subject_departments sd ON sd.subject_id = s.id "
+                    f"WHERE sd.department_id IN ({placeholders}) ORDER BY s.name"
                 ),
-                {"did": dept_id},
+                bind_params,
             ).fetchall()
-            subjects = [{"id": str(s[0]), "name": s[1]} for s in subject_rows]
-            departments.append({
-                "id": dept_id,
-                "name": d[1],
-                "description": d[2],
-                "subjects": subjects
-            })
+
+            # Group subjects by department_id using a dict
+            subjects_by_dept: Dict[str, list] = {}
+            for sr in all_subject_rows:
+                did = str(sr[0])
+                if did not in subjects_by_dept:
+                    subjects_by_dept[did] = []
+                subjects_by_dept[did].append({"id": str(sr[1]), "name": sr[2]})
+
+            for d in dept_rows:
+                dept_id = str(d[0])
+                departments.append({
+                    "id": dept_id,
+                    "name": d[1],
+                    "description": d[2],
+                    "subjects": subjects_by_dept.get(dept_id, [])
+                })
     except Exception:
         pass
 
@@ -856,20 +897,25 @@ async def get_super_admin_tenant_stats(
     _require_super_admin(current_user)
 
     tenants = db.query(Tenant).order_by(Tenant.name).all()
+
+    # Batch queries — 3 queries instead of 3N (one per tenant)
+    student_rows = db.execute(
+        text("SELECT tenant_id, COUNT(*) FROM students GROUP BY tenant_id")
+    ).fetchall()
+    student_counts = {row[0]: row[1] for row in student_rows}
+
+    user_rows = db.execute(
+        text("SELECT tenant_id, COUNT(*) FROM users GROUP BY tenant_id")
+    ).fetchall()
+    user_counts = {row[0]: row[1] for row in user_rows}
+
+    admin_rows = db.execute(
+        text("SELECT tenant_id, COUNT(*) FROM user_roles WHERE role = 'TENANT_ADMIN' GROUP BY tenant_id")
+    ).fetchall()
+    admin_counts = {row[0]: row[1] for row in admin_rows}
+
     result = []
     for t in tenants:
-        student_count = db.execute(
-            text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid"), {"tid": t.id}
-        ).scalar() or 0
-        user_count = db.execute(
-            text("SELECT COUNT(*) FROM users WHERE tenant_id = :tid"), {"tid": t.id}
-        ).scalar() or 0
-        admin_count = db.execute(
-            text("""
-                SELECT COUNT(*) FROM user_roles ur
-                WHERE ur.tenant_id = :tid AND ur.role = 'TENANT_ADMIN'
-            """), {"tid": t.id}
-        ).scalar() or 0
         result.append({
             "id": str(t.id),
             "name": t.name,
@@ -881,9 +927,9 @@ async def get_super_admin_tenant_stats(
             "address": t.address,
             "website": t.website,
             "created_at": t.created_at.isoformat() if t.created_at else None,
-            "student_count": student_count,
-            "user_count": user_count,
-            "admin_count": admin_count,
+            "student_count": student_counts.get(t.id, 0),
+            "user_count": user_counts.get(t.id, 0),
+            "admin_count": admin_counts.get(t.id, 0),
         })
     return result
 

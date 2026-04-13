@@ -44,6 +44,10 @@
 # Steps to configure:
 #   1. Replace YOUR_API_URL in the three redirect rules below
 #   2. Example: https://schoolflow-api-xxxx.onrender.com
+# ⚠️ DEPLOY_TODO: Replace YOUR_API_URL below with your actual backend URL
+#    e.g. https://schoolflow-api-xxxx.onrender.com
+#    Netlify redirects do NOT support environment variable substitution,
+#    so these placeholder values must be set manually before deploying.
 [[redirects]]
   from = "/api/*"
   to = "https://YOUR_API_URL/api/:splat"
@@ -51,6 +55,7 @@
   force = true
 
 # Proxy /health to the backend
+# ⚠️ DEPLOY_TODO: Replace YOUR_API_URL below
 [[redirects]]
   from = "/api-proxy/health"
   to = "https://YOUR_API_URL/health/"
@@ -58,6 +63,7 @@
   force = true
 
 # Proxy /api-proxy/* to the backend (for compatibility with existing nginx setup)
+# ⚠️ DEPLOY_TODO: Replace YOUR_API_URL below
 [[redirects]]
   from = "/api-proxy/*"
   to = "https://YOUR_API_URL/:splat"
