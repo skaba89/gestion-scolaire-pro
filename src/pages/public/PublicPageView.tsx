@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { sanitizeHtml } from '@/lib/sanitize';
 import {
   Menu,
   X,
@@ -690,7 +691,7 @@ function TextSection({
                 textColor === 'white' ? 'prose-invert' : ''
               }`}
               style={textColor === 'white' ? { color: 'rgba(255,255,255,0.8)' } : undefined}
-              dangerouslySetInnerHTML={{ __html: section.content }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content) }}
             />
           )}
         </div>
@@ -1358,7 +1359,7 @@ function CustomHTMLSection({ section }: { section: PublicPageSection }) {
         {section.title && (
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8 text-center">{section.title}</h2>
         )}
-        <div dangerouslySetInnerHTML={{ __html: section.content || '' }} />
+        <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.content || '') }} />
       </div>
     </section>
   );

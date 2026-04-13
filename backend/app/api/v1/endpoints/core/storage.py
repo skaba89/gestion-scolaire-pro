@@ -13,7 +13,7 @@ router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
 ALLOWED_EXTENSIONS = {
-    "jpg", "jpeg", "png", "gif", "webp", "svg", "bmp",
+    "jpg", "jpeg", "png", "gif", "webp", "bmp",
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
     "txt", "csv", "zip", "rar",
 }
@@ -53,7 +53,7 @@ async def upload_file(request: Request, file: UploadFile = File(...), current_us
             mime_type = file.content_type or "application/octet-stream"
 
         ALLOWED_MIME_TYPES = {
-            "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/bmp",
+            "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp",
             "application/pdf",
             "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

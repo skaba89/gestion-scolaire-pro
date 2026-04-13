@@ -35,10 +35,8 @@ const forceServiceWorkerReset =
   import.meta.env.VITE_FORCE_SW_RESET === "true" ||
   (!import.meta.env.DEV && window.location.hostname.endsWith("onrender.com"));
 
-function debugLog(...args: unknown[]) {
-  if (enableBootstrapDebug) {
-    console.log(...args);
-  }
+function debugLog(..._args: unknown[]): void {
+  // intentionally empty — debug logging removed
 }
 
 function renderRuntimeOverlay(message: string) {

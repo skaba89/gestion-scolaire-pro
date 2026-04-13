@@ -14,13 +14,7 @@ interface Metric {
 }
 
 function reportMetric(metric: Metric): void {
-  if (import.meta.env.DEV) {
-    const emoji =
-      metric.rating === "good" ? "✅" : metric.rating === "needs-improvement" ? "⚠️" : "❌";
-    console.log(
-      `[WebVitals] ${emoji} ${metric.name}: ${metric.value.toFixed(1)}ms (${metric.rating})`
-    );
-  }
+  // Dev-only console logging removed
 
   // Forward to Sentry in production
   if (!import.meta.env.DEV) {

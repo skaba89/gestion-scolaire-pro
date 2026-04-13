@@ -25,6 +25,7 @@ __pycache__
 .env.*
 !.env.example
 !.env.docker.example
+.env.sqlite
 infra/backups
 backups
 load-tests

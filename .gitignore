@@ -21,6 +21,9 @@ migration_error.txt
 .env.*.local
 .env.docker
 .env.docker.local
+.env.sqlite
+.env.production
+.env.staging
 backend/.env
 !.env.example
 !.env.docker.example

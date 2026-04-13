@@ -44,8 +44,9 @@ async def is_token_blacklisted(token_jti: str) -> bool:
         from app.core.cache import redis_client
         key = f"token_blacklist:{token_jti}"
         return await redis_client.exists(key)
-    except Exception:
-        # Redis unavailable — allow the token through (fail-open)
+    except Exception as exc:
+        # Redis unavailable — log WARNING and fail-open to avoid blocking all requests
+        logger.warning("Redis unavailable during blacklist check (fail-open): %s", exc)
         return False
 
 
@@ -124,6 +125,7 @@ async def _check_account_lockout(user_id: str) -> tuple[bool, int]:
         return False, MAX_LOGIN_ATTEMPTS
     except Exception:
         # Redis unavailable — skip lockout check (fail-open)
+        logger.warning("Redis unavailable during lockout check (fail-open)")
         return False, MAX_LOGIN_ATTEMPTS
 
 
@@ -401,6 +403,15 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
         import hashlib
         token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
         await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+
+        # SECURITY: Clean up active session tracking to prevent slot accumulation
+        try:
+            from app.core.cache import redis_client
+            client = await redis_client.client
+            session_key = f"sfp:active_sessions:{current_user.get('id', '')}"
+            await client.srem(session_key, token_jti)
+        except Exception as exc:
+            logger.warning("Failed to clean up active session on logout: %s", exc)
 
     logger.info("User '%s' logged out (token blacklisted)", current_user.get("email"))
     return {"message": "Successfully logged out"}
@@ -808,7 +819,7 @@ def diagnostics(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("*")),  # SUPER_ADMIN only
 ):
-    """Public diagnostic endpoint — check database state."""
+    """Diagnostic endpoint — returns aggregate counts only (no user PII)."""
     import sqlalchemy
 
     tables = db.execute(
@@ -819,25 +830,20 @@ def diagnostics(
         sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     ).fetchall()
 
-    users = db.query(User).all()
-    user_list = [
-        {
-            "id": u.id,
-            "email": u.email,
-            "username": u.username,
-            "is_active": getattr(u, "is_active", None),
-            "tenant_id": str(u.tenant_id) if u.tenant_id else None,
-        }
-        for u in users
-    ]
-
-    roles = db.query(UserRole).all()
-    role_list = [{"user_id": r.user_id, "role": r.role} for r in roles]
+    # SECURITY: Return only aggregate counts, never individual user PII
+    total_users = db.query(User).count()
+    active_users = db.query(User).filter(getattr(User, 'is_active', True) == True).count() if hasattr(User, 'is_active') else total_users
+    total_roles = db.query(UserRole).count()
+    tenants_count = db.query(db.query(User.tenant_id).distinct().subquery()).count() if hasattr(User, 'tenant_id') else 0
 
     return {
         "tables": [t[0] for t in tables],
-        "users": user_list,
-        "roles": role_list,
+        "stats": {
+            "total_users": total_users,
+            "active_users": active_users,
+            "total_role_assignments": total_roles,
+            "tenants_with_users": tenants_count,
+        },
     }
 
 

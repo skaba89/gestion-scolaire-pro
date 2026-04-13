@@ -8,9 +8,10 @@ import json
 import traceback
 
 # Configuration
-DATABASE_URL = "postgresql://schoolflow:postgres@localhost:5432/schoolflow"
-if "DATABASE_URL" in os.environ:
-    DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if not DATABASE_URL:
+    print("ERROR: DATABASE_URL environment variable is required.", file=sys.stderr)
+    sys.exit(1)
 
 _IS_SQLITE = DATABASE_URL.startswith("sqlite:")
 

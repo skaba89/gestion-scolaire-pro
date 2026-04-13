@@ -1,8 +1,9 @@
 # =============================================================================
-# SchoolFlow Pro — Continuous Integration
+# SchoolFlow Pro — Continuous Integration Pipeline
 # =============================================================================
 # Runs on push to main and pull_request to main.
-# Two independent jobs: frontend (Node 20) and backend (Python 3.11).
+# Three independent jobs: frontend (lint+typecheck+build), backend (syntax+security),
+# and secret scanning.
 # Designed to complete in under 5 minutes.
 # =============================================================================
 
@@ -19,7 +20,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Frontend: lint + build ────────────────────────────────────────────────
+  # ── Frontend: lint + type-check + build ─────────────────────────────────
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -38,6 +39,9 @@ jobs:
 
       - name: Lint (ESLint)
         run: npm run lint --max-warnings 50
+
+      - name: Type-check (TypeScript)
+        run: npm run type-check
         continue-on-error: true
 
       - name: Build (Vite)
@@ -45,7 +49,7 @@ jobs:
         env:
           CI: true
 
-  # ── Backend: syntax + import validation ────────────────────────────────────
+  # ── Backend: syntax + import + security validation ───────────────────────
   backend:
     name: Backend
     runs-on: ubuntu-latest
@@ -63,12 +67,108 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
-      - name: Validate Python syntax
+      - name: Validate Python syntax (all app files)
         run: |
-          python -m py_compile backend/app/main.py && echo "main.py OK"
-          python -m py_compile backend/app/core/config.py && echo "config.py OK"
-          python -m py_compile backend/app/core/security.py && echo "security.py OK"
-          python -m py_compile backend/app/core/database.py && echo "database.py OK"
+          ERRORS=0
+          for f in $(find backend/app -name "*.py"); do
+            if ! python -m py_compile "$f" 2>/dev/null; then
+              echo "FAIL: $f"
+              ERRORS=$((ERRORS + 1))
+            fi
+          done
+          echo "Checked all Python files. Errors: $ERRORS"
+          exit $ERRORS
 
-      - name: Validate imports
-        run: python -c "from backend.app.main import app; print('All imports OK')" || true
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Scanning for hardcoded secrets in backend..."
+          SECRETS_FOUND=0
+          # Check for common secret patterns in Python files
+          if rg -l 'password\s*=\s*["\x27][^"\x27]{4,}["\x27]' backend/app/ --type py 2>/dev/null; then
+            echo "WARNING: Possible hardcoded password found"
+            SECRETS_FOUND=1
+          fi
+          if rg -l 'SECRET.*=\s*["\x27][^"\x27]{8,}["\x27]' backend/app/ --type py 2>/dev/null; then
+            echo "WARNING: Possible hardcoded secret found"
+            SECRETS_FOUND=1
+          fi
+          if [ $SECRETS_FOUND -eq 0 ]; then
+            echo "No hardcoded secrets detected"
+          fi
+
+      - name: Check for dangerous patterns
+        run: |
+          echo "Scanning for dangerous patterns..."
+          # eval() usage
+          if rg -l '\beval\s*\(' backend/app/ --type py 2>/dev/null; then
+            echo "WARNING: eval() found in backend code"
+          fi
+          # exec() usage with user input risk
+          if rg -l '\bexec\s*\(' backend/app/ --type py 2>/dev/null; then
+            echo "WARNING: exec() found in backend code"
+          fi
+          # pickle deserialization
+          if rg -l 'pickle\.load' backend/app/ --type py 2>/dev/null; then
+            echo "WARNING: pickle.load (insecure deserialization) found"
+          fi
+          # subprocess shell=True
+          if rg -l 'shell\s*=\s*True' backend/app/ --type py 2>/dev/null; then
+            echo "WARNING: subprocess with shell=True found"
+          fi
+
+  # ── Security: dependency vulnerability scan ─────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high --json || true
+        continue-on-error: true
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit on backend
+        run: pip-audit -r backend/requirements.txt --desc || true
+        continue-on-error: true
+
+      - name: Check for .env files in git
+        run: |
+          echo "Checking for committed .env files..."
+          ENV_FILES=$(git ls-files | grep -E '\.env$|\.env\.' | grep -v '.env.example' | grep -v '.env.docker.example' | grep -v '.env.production.template' || true)
+          if [ -n "$ENV_FILES" ]; then
+            echo "ERROR: .env files committed to git:"
+            echo "$ENV_FILES"
+            exit 1
+          else
+            echo "No .env files committed to git"
+          fi
+
+      - name: Check for credential files
+        run: |
+          echo "Checking for committed credential files..."
+          CRED_FILES=$(git ls-files | grep -iE 'credentials|password|secret.*\.txt|\.pem$|\.key$' || true)
+          if [ -n "$CRED_FILES" ]; then
+            echo "ERROR: Possible credential files committed:"
+            echo "$CRED_FILES"
+            exit 1
+          else
+            echo "No credential files committed to git"
+          fi

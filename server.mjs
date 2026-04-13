@@ -99,6 +99,7 @@ async function serveFile(filePath, res) {
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "strict-origin-when-cross-origin",
       "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
     });
     res.end(content);
   } catch (err) {

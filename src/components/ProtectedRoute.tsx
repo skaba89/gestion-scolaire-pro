@@ -11,12 +11,8 @@ interface ProtectedRouteProps {
   allowedRoles?: AppRole[];
 }
 
-const DEBUG_ROUTE_GUARDS = import.meta.env.DEV || import.meta.env.VITE_ENABLE_ROUTE_DEBUG === "true";
-
-function routeDebug(...args: unknown[]) {
-  if (DEBUG_ROUTE_GUARDS) {
-    console.log("[RouteGuard]", ...args);
-  }
+function routeDebug(..._args: unknown[]): void {
+  // intentionally empty — debug logging removed
 }
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
