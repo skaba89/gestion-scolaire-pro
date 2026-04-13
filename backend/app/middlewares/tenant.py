@@ -64,15 +64,17 @@ class TenantMiddleware(BaseHTTPMiddleware):
                     token,
                     settings.SECRET_KEY,
                     algorithms=[settings.ALGORITHM],
+                    options={"verify_exp": False},  # Don't reject expired tokens here — let downstream auth handle 401
+                    audience="schoolflow-api",
+                    issuer="schoolflow-pro",
                 )
                 tenant_id = payload.get("tenant_id")
                 user_roles = payload.get("roles", []) or []
-            except jwt.ExpiredSignatureError:
-                # Token expired — allow downstream to handle 401
-                pass
             except jwt.InvalidTokenError as exc:
-                logger.warning("Tenant middleware: invalid JWT skipped: %s", exc)
-                pass
+                # JWT decode failed (invalid signature, wrong key, etc.)
+                # Pass through so downstream verify_token can return proper 401
+                logger.warning("Tenant middleware: JWT decode failed, passing through: %s", exc)
+                return await call_next(request)
 
         # SUPER_ADMIN cross-tenant: only trust X-Tenant-ID header for super admins
         if "SUPER_ADMIN" in user_roles and not tenant_id:
