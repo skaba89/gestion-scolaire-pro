@@ -103,12 +103,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
               {/* Error Title */}
               <h2 className="text-2xl font-bold text-center text-slate-900 dark:text-white mb-2">
-                Oops! Something went wrong
+                Une erreur est survenue
               </h2>
 
               {/* Error Message */}
               <p className="text-center text-slate-600 dark:text-slate-300 mb-6">
-                We encountered an unexpected error. Please try one of the options below.
+                Nous avons rencontré une erreur inattendue. Veuillez essayer l'une des options ci-dessous.
               </p>
 
               {/* Error Details (Development Only) */}
@@ -130,7 +130,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  Try Again
+                  Réessayer
                 </Button>
 
                 <Button
@@ -139,13 +139,13 @@ export class ErrorBoundary extends Component<Props, State> {
                   className="w-full flex items-center justify-center gap-2"
                 >
                   <Home className="w-4 h-4" />
-                  Go Home
+                  Retour à l'accueil
                 </Button>
               </div>
 
               {/* Help Text */}
               <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-6">
-                If the problem persists, please contact support or clear your browser cache.
+                Si le problème persiste, veuillez contacter le support ou vider le cache de votre navigateur.
               </p>
             </div>
           </div>

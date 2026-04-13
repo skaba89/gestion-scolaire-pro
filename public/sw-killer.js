@@ -8,10 +8,18 @@ if ('serviceWorker' in navigator) {
     for (var i = 0; i < regs.length; i++) {
       regs[i].unregister();
     }
+  }).catch(function() {
+    // Silently ignore unregister failures — non-critical cleanup
   });
   if (window.caches) {
     caches.keys().then(function(names) {
-      return Promise.all(names.map(function(n) { return caches.delete(n); }));
+      return Promise.all(names.map(function(n) {
+        return caches.delete(n).catch(function() {
+          // Silently ignore individual cache deletion failures
+        });
+      }));
+    }).catch(function() {
+      // Silently ignore cache cleanup failures — non-critical
     });
   }
 }

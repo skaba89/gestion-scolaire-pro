@@ -59,10 +59,6 @@ export const useUpdateAdmissionStatus = (tenantId: string) => {
             tenantName?: string;
         }) => {
             await apiClient.patch(`/admissions/${id}/status`, { status });
-
-            // Notification logic should ideally be on the backend
-            // But for compatibility with existing flow if not yet in backend:
-            console.log("Admission status updated to:", status);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["admissions", tenantId] });

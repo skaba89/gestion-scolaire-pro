@@ -101,10 +101,10 @@ class GroqService:
                     yield delta.content
         except GroqError as exc:
             logger.error("Groq API error during streaming: %s", exc)
-            yield f"❌ Erreur de connexion au service IA : {exc}"
+            yield "Erreur de connexion au service IA. Veuillez réessayer."
         except Exception as exc:
             logger.exception("Unexpected error during Groq streaming")
-            yield f"❌ Erreur inattendue : {exc}"
+            yield "Erreur de connexion au service IA. Veuillez réessayer."
 
     async def _full_completion(
         self,
@@ -147,15 +147,15 @@ class GroqService:
             logger.error("Groq API error: %s", exc)
             return {
                 **fallback,
-                "content": f"❌ Erreur de connexion au service IA : {exc}",
-                "error": str(exc),
+                "content": "Erreur de connexion au service IA. Veuillez réessayer.",
+                "error": "groq_api_error",
             }
         except Exception as exc:
             logger.exception("Unexpected error during Groq completion")
             return {
                 **fallback,
-                "content": f"❌ Erreur inattendue : {exc}",
-                "error": str(exc),
+                "content": "Erreur de connexion au service IA. Veuillez réessayer.",
+                "error": "unexpected_error",
             }
 
     # ------------------------------------------------------------------

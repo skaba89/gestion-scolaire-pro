@@ -31,8 +31,7 @@ export async function trackLogin(params: TrackLoginParams): Promise<TrackLoginRe
           success: true,
         },
       }).catch(() => {
-        // Non-blocking — log locally if API fails
-        console.log("Login tracked locally:", params);
+        // Non-blocking — API call failed silently
       });
     } else if (!params.success) {
       // Failed login — log as audit warning
@@ -45,7 +44,7 @@ export async function trackLogin(params: TrackLoginParams): Promise<TrackLoginRe
           failure_reason: params.failureReason || "invalid_credentials",
         },
       }).catch(() => {
-        console.log("Failed login tracked locally:", params.email);
+        // Non-blocking — API call failed silently
       });
     }
     return { success: true };

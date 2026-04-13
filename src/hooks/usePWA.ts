@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, SyncOperation } from '@/lib/db';
 import { toast } from 'sonner';
 
@@ -6,6 +6,11 @@ export const usePWA = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [isSyncing, setIsSyncing] = useState(false);
     const [pendingCount, setPendingCount] = useState(0);
+    const mountedRef = useRef(true);
+
+    useEffect(() => {
+        return () => { mountedRef.current = false; };
+    }, []);
 
     const updatePendingCount = useCallback(async () => {
         const count = await db.syncQueue.count();
@@ -52,16 +57,14 @@ export const usePWA = () => {
         const count = await db.syncQueue.count();
         if (count === 0) return;
 
+        if (!mountedRef.current) return;
         setIsSyncing(true);
         const operations = await db.syncQueue.toArray();
 
         try {
             for (const op of operations) {
                 try {
-                    // Here we would call the actual API / Supabase
-                    // For now, it's a placeholder for the logic
-                    console.log(`Syncing ${op.action} on ${op.table}`, op.data);
-
+                    // Here we would call the actual API
                     // If successful, remove from queue
                     await db.syncQueue.delete(op.id!);
                 } catch (error) {
@@ -76,7 +79,9 @@ export const usePWA = () => {
                 toast.success("Synchronisation terminée avec succès.");
             }
         } finally {
-            setIsSyncing(false);
+            if (mountedRef.current) {
+                setIsSyncing(false);
+            }
         }
     };
 

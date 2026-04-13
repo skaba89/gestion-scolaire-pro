@@ -6,7 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchBadgeDefinitions,
   fetchUserBadges,
@@ -208,6 +208,8 @@ export function useBadgeNotifications(
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<BadgeNotification[]>([]);
 
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   useEffect(() => {
     if (!user?.id) {
       return;
@@ -228,14 +230,19 @@ export function useBadgeNotifications(
       }
 
       // Auto-dismiss after 10 seconds
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setNotifications((prev) =>
           prev.filter((n) => n.id !== notification.id)
         );
       }, 10000);
+      timersRef.current.push(timer);
     });
 
-    return unsubscribe;
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+      unsubscribe();
+    };
   }, [user?.id, onNewBadge]);
 
   return {

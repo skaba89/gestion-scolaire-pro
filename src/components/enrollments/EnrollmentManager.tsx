@@ -62,17 +62,9 @@ export const EnrollmentManager = () => {
   const unenrolledStudents = useMemo(() => {
     if (!selectedYear) return [];
 
-    // Debug info
-    console.log("EnrollmentManager Debug:");
-    console.log("- Selected Year:", selectedYear);
-    console.log("- Total Students:", students?.length);
-    console.log("- All Year Enrollments:", allYearEnrollments?.length);
-
     const enrolledIdsInYear = new Set(allYearEnrollments.map(e => e.student_id));
-    console.log("- Enrolled IDs Count:", enrolledIdsInYear.size);
 
     let filtered = (students || []).filter(s => !enrolledIdsInYear.has(s.id));
-    console.log("- Unenrolled after filter:", filtered.length);
 
     if (selectedDepartment !== "all") {
       filtered = filtered.filter(s => s.department_id === selectedDepartment);

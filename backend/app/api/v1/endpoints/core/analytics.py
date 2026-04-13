@@ -728,6 +728,7 @@ def get_cash_flow_forecast(
     """
     tenant_id = str(current_user.get("tenant_id"))
     months_ahead = body.get("months_ahead", 3)
+    months_ahead = max(1, min(24, int(months_ahead)))  # clamp to 1-24
     # Mock response for now
     return {
         "labels": ["M+1", "M+2", "M+3"],

@@ -23,17 +23,14 @@ const Index = () => {
 
   // Si l'utilisateur est connecté, le rediriger immédiatement
   if (!isLoading && user) {
-    console.log("Index: Authenticated user detected. Roles:", roles);
     const path = getRedirectPathForRoles(roles, contextTenant?.slug);
 
     // Si on a un chemin métier valide différent de l'accueil
     if (path && path !== "/") {
-      console.log("Index: Redirecting to business path:", path);
       return <Navigate to={path} replace />;
     } else {
       // Connecté mais sans rôle métier -> vers création d'établissement (Onboarding)
       const onboardingPath = getTenantUrl("/admin/create-tenant");
-      console.log("Index: No business roles found. Redirecting to onboarding:", onboardingPath);
       return <Navigate to={onboardingPath} replace />;
     }
   }

@@ -19,7 +19,15 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        request_id = request.headers.get("X-Request-ID")
+        if request_id:
+            try:
+                uuid.UUID(request_id)  # validate format
+            except (ValueError, TypeError, AttributeError):
+                logger.warning("Invalid X-Request-ID header received, generating new UUID")
+                request_id = str(uuid.uuid4())
+        else:
+            request_id = str(uuid.uuid4())
         request.state.request_id = request_id
 
         response = await call_next(request)

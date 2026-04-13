@@ -61,7 +61,6 @@ export const CookieConsentBanner = () => {
 
         // Here we would actually initialize or disable trackers based on prefs
         if (prefs.analytics) {
-            console.log("Initializing analytics...");
             // window.gtag('consent', 'update', { ... })
         }
     };

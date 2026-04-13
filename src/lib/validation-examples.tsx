@@ -16,12 +16,12 @@ const apiClient = {
 
 // Mock toast for demonstration
 const toast = {
-    error: (msg: string) => console.log('Toast error:', msg),
-    success: (msg: string) => console.log('Toast success:', msg),
+    error: (_msg: string) => { /* toast placeholder */ },
+    success: (_msg: string) => { /* toast placeholder */ },
 };
 
 // Mock createStudent for demonstration
-const createStudent = async (data: any) => console.log('Creating student:', data);
+const createStudent = async (_data: any) => { /* createStudent placeholder */ };
 
 // ============================================================================
 // Example 1: Student Form Validation
@@ -71,8 +71,6 @@ export function StudentFormWithZod() {
     });
 
     const onSubmit = async (data: any) => {
-        console.log('Valid student data:', data);
-
         const { error } = await apiClient.post('/students', data);
 
         if (error) {

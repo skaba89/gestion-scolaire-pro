@@ -36,7 +36,6 @@ export const useEnrollments = (tenantId: string, academicYearId?: string, classr
             const { data } = await apiClient.get("/enrollments/", { params });
             const results = data?.results ?? data ?? [];
 
-            console.log(`Fetched ${results.length} enrollments for year ${academicYearId}`);
             return results as unknown as Enrollment[];
         },
         enabled: !!tenantId && !!academicYearId,

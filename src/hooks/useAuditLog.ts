@@ -88,13 +88,6 @@ export const useAuditLog = () => {
 
     try {
       // Sovereign architecture handles critical audit logs on the server side.
-      // Frontend client logs are for debugging purposes.
-      console.log(`[AUDIT] ${actionType} on ${entityType || tableName} (${entityId || recordId})`, {
-        old: sanitizedOld,
-        new: sanitizedNew,
-        classification: dataClassification || "INTERNAL"
-      });
-
       // Optional: Call a sovereign API endpoint for audit if needed in the future
       // await apiClient.post('/audit/logs', { ... })
     } catch (error) {

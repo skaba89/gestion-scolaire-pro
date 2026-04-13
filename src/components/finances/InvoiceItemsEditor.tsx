@@ -28,10 +28,7 @@ interface InvoiceItemsEditorProps {
 
 export function InvoiceItemsEditor({ items, fees, onItemsChange }: InvoiceItemsEditorProps) {
   const { formatCurrency } = useCurrency();
-  console.log("InvoiceItemsEditor render: items count =", items.length);
-
   const addItem = () => {
-    console.log("Adding new invoice item line...");
     try {
       const newItem: InvoiceItem = {
         id: Math.random().toString(36).substr(2, 9),
@@ -41,7 +38,6 @@ export function InvoiceItemsEditor({ items, fees, onItemsChange }: InvoiceItemsE
         total: 0,
       };
       onItemsChange([...items, newItem]);
-      console.log("Item added successfully:", newItem);
     } catch (error) {
       console.error("Error adding invoice item:", error);
     }

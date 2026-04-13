@@ -73,7 +73,6 @@ const SaaSSettings = () => {
             }
 
             if (settingsData) {
-                console.log("School settings loaded:", settingsData);
                 setSettings({
                     education_mode: settingsData.education_mode || "SCHOOL",
                     grading_system: settingsData.grading_system || "NUMERIC",
