@@ -34,7 +34,8 @@ router = APIRouter()
 async def create_tenant(
     tenant_in: TenantCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    _perm: None = Depends(lambda: require_permission("tenants:write"))
 ):
     """
     Create a new tenant and initialize default data (academic year, campus, levels, subjects).

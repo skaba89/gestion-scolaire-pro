@@ -167,6 +167,7 @@ def generate_backup_codes(
 
 
 @router.post("/backup-codes/verify/")
+@limiter.limit("10/minute")  # SECURITY: Rate limit to prevent brute-force
 def verify_backup_code(
     body: VerifyCodeRequest,
     db: Session = Depends(get_db),
@@ -360,6 +361,7 @@ def request_otp(
 
 
 @router.post("/otp/verify/")
+@limiter.limit("10/minute")  # SECURITY: Rate limit to prevent OTP brute-force
 def verify_otp(
     body: OTPVerifyRequest,
     db: Session = Depends(get_db),

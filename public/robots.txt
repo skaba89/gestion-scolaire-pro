@@ -12,3 +12,8 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /super-admin/
+Disallow: /auth/
+Disallow: /install/
+Disallow: /change-password
+Disallow: /api/
