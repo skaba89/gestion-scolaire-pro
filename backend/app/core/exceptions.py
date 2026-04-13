@@ -90,17 +90,28 @@ def _cors_headers(request: Request) -> dict:
     """Return CORS headers so the browser can read error responses.
 
     SECURITY: Only echo back the request Origin if it matches an allowed
-    origin. Never use wildcard '*' which bypasses all CORS restrictions.
+    origin or if the allowed list contains the wildcard '*'.
     """
     origin = request.headers.get("origin", "")
+    if not origin:
+        return {}
+
     allowed_origins = getattr(request.app.state, "_cors_allowed_origins", [])
 
-    if origin and origin in allowed_origins:
+    # Wildcard: allow any origin (but browsers reject credentials with '*')
+    if "*" in allowed_origins:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Vary": "Origin",
+        }
+
+    if origin in allowed_origins:
         return {
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
             "Vary": "Origin",
         }
+
     # No matching origin — return empty dict (no CORS headers on errors from
     # untrusted origins). The CORSMiddleware already handles normal requests.
     return {}

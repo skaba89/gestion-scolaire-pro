@@ -27,13 +27,23 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/favicon.ico", "/favicon.png", "/redoc"
         ]
 
-        if (request.method == "OPTIONS" or
-            check_path in public_paths or
-            check_path.rstrip("/") in public_paths or
-            check_path.startswith("/health") or
-            check_path.startswith("/auth/") or
-            check_path.startswith("/tenants/slug/") or
-            check_path.startswith("/tenants/public/") or
+        # Public prefixes that never require tenant identification
+        public_prefixes = [
+            "/health",
+            "/auth/",
+            "/tenants/slug/",
+            "/tenants/public/",
+            "/tenants/by-domain/",
+        ]
+
+        is_public = (
+            request.method == "OPTIONS"
+            or check_path in public_paths
+            or check_path.rstrip("/") in public_paths
+            or any(check_path.startswith(p) for p in public_prefixes)
+        )
+
+        if (is_public or
             (request.method == "POST" and (check_path == "/tenants" or check_path == "/tenants/")) or
             (request.method == "POST" and check_path.startswith("/tenants/create-with-admin")) or
             (request.method == "GET" and check_path.startswith("/tenants/super-admin")) or
@@ -77,9 +87,22 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 # Allow proceeding, the endpoint will handle missing tenant_id via current_user
                 return await call_next(request)
 
+            # Include CORS headers so the browser can read the error response.
+            # BaseHTTPMiddleware returning directly may bypass CORSMiddleware.
+            origin = request.headers.get("origin", "")
+            allowed_origins = getattr(request.app.state, "_cors_allowed_origins", [])
+            cors_hdrs = {}
+            if origin:
+                if "*" in allowed_origins or origin in allowed_origins:
+                    cors_hdrs = {
+                        "Access-Control-Allow-Origin": origin,
+                        "Vary": "Origin",
+                    }
+
             return JSONResponse(
                 status_code=400,
-                content={"detail": "Identification du tenant manquante (X-Tenant-ID ou JWT claim)"}
+                content={"detail": "Identification du tenant manquante (X-Tenant-ID ou JWT claim)"},
+                headers=cors_hdrs,
             )
 
         request.state.tenant_id = tenant_id
