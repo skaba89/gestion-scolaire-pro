@@ -79,7 +79,10 @@ services:
         value: admin@schoolflow.local
       - key: ADMIN_DEFAULT_PASSWORD
         generateValue: true
+      # --- Security ---
       - key: BOOTSTRAP_SECRET
+        generateValue: true
+      - key: METRICS_SECRET
         generateValue: true
 
       # --- CORS (auto-resolved from frontend service URL on Render) ---

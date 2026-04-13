@@ -27,4 +27,8 @@ RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /var/run/nginx.pid
 
 EXPOSE 10000
+
+# SECURITY: Run as non-root nginx user
+USER nginx
+
 CMD ["/usr/local/bin/render-frontend-entrypoint.sh"]

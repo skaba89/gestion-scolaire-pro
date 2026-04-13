@@ -177,7 +177,7 @@ def adjust_stock(body: AdjustmentBody, db: Session = Depends(get_db), current_us
         elif body.type == "OUT": new_qty -= body.quantity
         elif body.type == "ADJUST": new_qty = body.quantity
         
-        db.execute(text("UPDATE inventory_items SET stock_quantity = :qty WHERE id = :iid"), {"qty": new_qty, "iid": body.item_id})
+        db.execute(text("UPDATE inventory_items SET stock_quantity = :qty WHERE id = :iid AND tenant_id = :tid"), {"qty": new_qty, "iid": body.item_id, "tid": tenant_id})
         db.commit()
         return {"stock_quantity": new_qty}
     except HTTPException:
@@ -231,7 +231,7 @@ def create_order(body: OrderCreateBody, db: Session = Depends(get_db), current_u
             })
             # Stock adjustment
             if item.get("item_id"):
-                db.execute(text("UPDATE inventory_items SET stock_quantity = stock_quantity - :qty WHERE id = :iid"), {"qty": item.get("quantity"), "iid": item.get("item_id")})
+                db.execute(text("UPDATE inventory_items SET stock_quantity = stock_quantity - :qty WHERE id = :iid AND tenant_id = :tid"), {"qty": item.get("quantity"), "iid": item.get("item_id"), "tid": tenant_id})
 
         db.commit()
         return {"id": str(order_id), "message": "Order created"}

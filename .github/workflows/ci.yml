@@ -134,8 +134,16 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Run npm audit
-        run: npm audit --audit-level=high --json || true
-        continue-on-error: true
+        run: |
+          npm audit --audit-level=high --json > audit-results.json 2>&1 || true
+          # Fail if HIGH or CRITICAL vulnerabilities found
+          HIGH_COUNT=$(python3 -c "import json; d=json.load(open('audit-results.json')); print(sum(1 for v in d.get('vulnerabilities',{}).values() if v.get('severity') in ('high','critical'))" 2>/dev/null || echo 0)
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "::error::$HIGH_COUNT high/critical npm vulnerabilities found"
+            npm audit --audit-level=high
+            exit 1
+          fi
+          echo "No high/critical vulnerabilities"
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
@@ -146,8 +154,12 @@ jobs:
         run: pip install pip-audit
 
       - name: Run pip-audit on backend
-        run: pip-audit -r backend/requirements.txt --desc || true
-        continue-on-error: true
+        run: |
+          pip-audit -r backend/requirements.txt --desc 2>&1 | tee pip-audit-results.txt
+          if grep -E "^\[\]\s+(vulnerable|unsuitable)" pip-audit-results.txt; then
+            echo "::error::Vulnerable Python dependencies found"
+            exit 1
+          fi
 
       - name: Check for .env files in git
         run: |

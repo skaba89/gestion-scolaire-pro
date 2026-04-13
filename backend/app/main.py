@@ -28,8 +28,20 @@ from fastapi.exceptions import HTTPException
 setup_logging(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
+def _get_client_ip(request: Request) -> str:
+    """Extract real client IP, respecting X-Forwarded-For from trusted proxies.
+
+    Render and Cloudflare set X-Forwarded-For. Using get_remote_address alone
+    would rate-limit all traffic by the proxy IP, not the real client IP.
+    """
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        # X-Forwarded-For: client, proxy1, proxy2 — first entry is the client
+        return forwarded.split(",")[0].strip()
+    return get_remote_address(request)
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=_get_client_ip,
     default_limits=["100/minute"],
     headers_enabled=True,
 )
@@ -400,8 +412,59 @@ def root():
 def health_check():
     return {"status": "healthy", "version": settings.APP_VERSION}
 
+
+def _cors_headers_for(request: Request) -> dict:
+    """Lightweight CORS header generator for error responses in main.py.
+
+    Reuses the allowed origins stored on app.state by the CORS middleware setup.
+    """
+    origin = request.headers.get("origin", "")
+    if not origin:
+        return {}
+    allowed = getattr(request.app.state, "_cors_allowed_origins", [])
+    if "*" in allowed or origin in allowed:
+        return {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+    return {}
+
 @app.get("/metrics/", include_in_schema=False)
 async def prometheus_metrics(request: Request):
+    """Prometheus metrics — protected by METRICS_SECRET env var in production.
+
+    In production (DEBUG=false), requires a METRICS_SECRET to be configured
+    and passed as a query parameter or Authorization header.
+    This prevents information leakage about endpoint patterns, error rates,
+    and active connections to unauthenticated observers.
+    """
+    # In debug mode, allow unrestricted access for local development
+    if settings.DEBUG:
+        return await metrics_endpoint(request)
+
+    # In production, require METRICS_SECRET
+    metrics_secret = os.getenv("METRICS_SECRET", "")
+    if not metrics_secret:
+        # If no secret configured, deny access rather than allowing open access
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Metrics endpoint disabled. Set METRICS_SECRET env var."},
+            headers=_cors_headers_for(request) if hasattr(request.app.state, '_cors_allowed_origins') else {},
+        )
+
+    # Accept secret via query param (?secret=...) or Authorization header
+    import hmac as _hmac
+    query_secret = request.query_params.get("secret", "")
+    auth_header = request.headers.get("Authorization", "")
+    bearer_secret = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else ""
+
+    if not (_hmac.compare_digest(query_secret, metrics_secret) or
+            _hmac.compare_digest(bearer_secret, metrics_secret)):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or missing metrics secret"},
+            headers=_cors_headers_for(request) if hasattr(request.app.state, '_cors_allowed_origins') else {},
+        )
+
     return await metrics_endpoint(request)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
@@ -416,9 +479,11 @@ class _SafeStaticFiles(_BaseStaticFiles):
     """StaticFiles subclass that adds Content-Disposition: attachment
     for non-image file types to prevent XSS via uploaded HTML/SVG files."""
 
+    # SECURITY: SVG removed from inline extensions — SVG can contain JavaScript
+    # for XSS. All SVGs are served with Content-Disposition: attachment.
     _INLINE_EXTENSIONS = frozenset({
-        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".ico",
-        ".webp", ".woff", ".woff2", ".ttf", ".otf", ".eot",
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico",
+        ".woff", ".woff2", ".ttf", ".otf", ".eot",
     })
 
     async def __call__(self, scope, receive, send):

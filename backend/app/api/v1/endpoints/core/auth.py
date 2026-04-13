@@ -330,6 +330,15 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # SECURITY: Check if token is blacklisted (logout was called)
+    token_jti = payload.get("jti")
+    if token_jti and await is_token_blacklisted(token_jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # 3. Verify user still exists and is active
     from app.models.user import User
     user_db = db.query(User).filter(User.id == user_id).first()
@@ -653,8 +662,10 @@ def bootstrap_admin(
     Requires BOOTSTRAP_SECRET. Optionally accepts a new_password parameter
     to override ADMIN_DEFAULT_PASSWORD from env.
     """
-    # SECURITY: ALWAYS require the bootstrap secret
-    if not body.bootstrap_key or body.bootstrap_key != settings.BOOTSTRAP_SECRET:
+    # SECURITY: ALWAYS require the bootstrap secret — use timing-safe comparison
+    # to prevent timing attacks that could leak the secret character by character.
+    import hmac
+    if not body.bootstrap_key or not hmac.compare_digest(body.bootstrap_key, settings.BOOTSTRAP_SECRET):
         raise HTTPException(status_code=403, detail="Access denied")
 
     import sqlalchemy

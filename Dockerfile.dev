@@ -45,5 +45,8 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 80
 
+# SECURITY: Run as non-root nginx user
+USER nginx
+
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
