@@ -521,6 +521,9 @@ async def change_password(
     user.updated_at = datetime.now(timezone.utc)
     db.commit()
 
+    # SECURITY: Invalidate all other sessions after password change
+    await blacklist_all_user_tokens(str(user_id))
+
     logger.info("User '%s' changed their password", current_user.get("email"))
     return {"message": "Password changed successfully"}
 
@@ -557,6 +560,68 @@ async def logout_all_devices(request: Request, current_user: dict = Depends(get_
 
     logger.info("User '%s' logged out from all devices (token version bumped to %d)", current_user.get("email"), new_version)
     return {"message": "Logged out from all devices", "token_version": new_version}
+
+
+class ForcedPasswordChangeRequest(BaseModel):
+    new_password: str
+
+
+@router.post("/reset-forced-password/")
+@limiter.limit("5/minute")
+async def reset_forced_password(
+    request: Request,
+    body: ForcedPasswordChangeRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reset password when forced change is required (no current password needed).
+
+    Used when an admin has set must_change_password=True on a user account.
+    The user must be authenticated but does not need to provide the old password.
+    """
+    from app.core.security import get_password_hash
+
+    user_id = current_user.get("id")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    validate_password_strength(body.new_password)
+
+    # SECURITY: Check password history to prevent reuse
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        import hashlib
+        for i in range(5):
+            hist_key = f"sfp:pw_history:{user_id}:{i}"
+            old_hash = await client.get(hist_key)
+            if old_hash and verify_password(body.new_password, old_hash):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Ce mot de passe a été utilisé récemment. Veuillez en choisir un différent."
+                )
+        for i in range(4, 0, -1):
+            old = await client.get(f"sfp:pw_history:{user_id}:{i-1}")
+            if old:
+                await client.set(f"sfp:pw_history:{user_id}:{i}", old, expire=86400*365)
+        current_hash = getattr(user, "password_hash", None)
+        if current_hash:
+            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, expire=86400*365)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Password history check failed (Redis unavailable): %s", exc)
+
+    user.password_hash = get_password_hash(body.new_password)
+    user.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    # SECURITY: Invalidate all sessions after forced password change
+    await blacklist_all_user_tokens(str(user_id))
+
+    logger.info("User '%s' reset their forced password", current_user.get("email"))
+    return {"message": "Password changed successfully"}
 
 
 class RegisterRequest(BaseModel):

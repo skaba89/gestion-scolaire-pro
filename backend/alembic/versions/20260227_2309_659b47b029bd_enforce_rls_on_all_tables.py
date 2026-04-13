@@ -48,13 +48,9 @@ def upgrade() -> None:
             CREATE POLICY {table_name}_tenant_isolation ON {table_name}
             AS PERMISSIVE FOR ALL
             USING (
-                current_setting('app.current_tenant_id', true) IS NULL OR
-                current_setting('app.current_tenant_id', true) = '' OR
                 tenant_id = (current_setting('app.current_tenant_id', true))::uuid
             )
             WITH CHECK (
-                current_setting('app.current_tenant_id', true) IS NULL OR
-                current_setting('app.current_tenant_id', true) = '' OR
                 tenant_id = (current_setting('app.current_tenant_id', true))::uuid
             )
         """))

@@ -26,6 +26,7 @@ const ChangePassword = () => {
     { label: "Au moins une majuscule", check: /[A-Z]/.test(password) },
     { label: "Au moins une minuscule", check: /[a-z]/.test(password) },
     { label: "Au moins un chiffre", check: /[0-9]/.test(password) },
+    { label: "Au moins un caractère spécial", check: /[^A-Za-z0-9]/.test(password) },
   ];
 
   const isPasswordValid = passwordRequirements.every((req) => req.check);
@@ -38,7 +39,7 @@ const ChangePassword = () => {
     if (!isPasswordValid) {
       toast({
         title: "Mot de passe invalide",
-        description: "Le mot de passe doit respecter toutes les conditions (8 car., majuscule, minuscule, chiffre).",
+        description: "Le mot de passe doit respecter toutes les conditions (8 car., majuscule, minuscule, chiffre, caractère spécial).",
         variant: "destructive"
       });
       return;
@@ -56,7 +57,7 @@ const ChangePassword = () => {
     setIsSubmitting(true);
     try {
       // Update password via API
-      await apiClient.post("/auth/change-password/", {
+      await apiClient.post("/auth/reset-forced-password/", {
         new_password: password,
       });
 

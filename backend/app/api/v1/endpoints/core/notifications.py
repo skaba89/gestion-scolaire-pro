@@ -7,7 +7,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
-from app.models import Notification, PushSubscription
+from app.models import Notification, PushSubscription, User
 from app.schemas.push_subscription import PushSubscriptionCreate, PushSubscriptionInDB
 from app.schemas.notification import NotificationResponse, NotificationCreate, NotificationBulkCreate, NotificationUpdate
 
@@ -135,7 +135,15 @@ def create_bulk_notifications(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID missing")
         
+    # SECURITY: Validate that all target user_ids belong to the current tenant
     for n in bulk_in.notifications:
+        if n.user_id:
+            target_user = db.query(User).filter(User.id == n.user_id).first()
+            if target_user and target_user.tenant_id != tenant_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"L'utilisateur cible {n.user_id} n'appartient pas à votre tenant.",
+                )
         db_obj = Notification(
             **n.dict(),
             tenant_id=tenant_id

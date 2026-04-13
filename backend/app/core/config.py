@@ -243,6 +243,20 @@ if not settings.BOOTSTRAP_SECRET:
         raise SystemExit(1)
     else:
         logger.warning("BOOTSTRAP_SECRET is empty — bootstrap endpoint will reject all requests")
+elif len(settings.BOOTSTRAP_SECRET) < 32:
+    if not settings.DEBUG:
+        logger.critical(
+            "BOOTSTRAP_SECRET is too short (%d chars, minimum 32 required) and DEBUG is False — refusing to start. "
+            "Set a strong BOOTSTRAP_SECRET (at least 32 characters) in your environment.",
+            len(settings.BOOTSTRAP_SECRET),
+        )
+        raise SystemExit(1)
+    else:
+        logger.warning(
+            "BOOTSTRAP_SECRET is too short (%d chars, minimum 32 required). "
+            "Set a stronger secret for production.",
+            len(settings.BOOTSTRAP_SECRET),
+        )
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),

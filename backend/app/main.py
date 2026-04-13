@@ -350,7 +350,7 @@ async def token_version_middleware(request: Request, call_next):
                 token_str,
                 settings.SECRET_KEY,
                 algorithms=[settings.ALGORITHM],
-                options={"verify_exp": False},  # Don't check expiry here (done by endpoint deps)
+                options={"verify_exp": True},  # Always verify token expiry
             )
             token_version = payload.get("tv", 0)
             user_id = payload.get("sub")

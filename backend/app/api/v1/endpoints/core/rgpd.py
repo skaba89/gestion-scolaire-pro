@@ -149,8 +149,17 @@ def get_rgpd_stats(
     from sqlalchemy import text as sql_text
 
     total_consents = 0 # Placeholder for consent management
-    anonymized_users = db.query(User).filter(User.is_active == False).count()
-    pending_requests = db.query(AccountDeletionRequest).filter(AccountDeletionRequest.status == "PENDING").count()
+    tenant_id = current_user.get("tenant_id")
+
+    anonymized_query = db.query(User).filter(User.is_active == False)
+    if tenant_id:
+        anonymized_query = anonymized_query.filter(User.tenant_id == tenant_id)
+    anonymized_users = anonymized_query.count()
+
+    pending_query = db.query(AccountDeletionRequest).filter(AccountDeletionRequest.status == "PENDING")
+    if tenant_id:
+        pending_query = pending_query.filter(AccountDeletionRequest.tenant_id == tenant_id)
+    pending_requests = pending_query.count()
 
     # Count actual retention risks (inactive > 5 years)
     risks_count = db.execute(sql_text(

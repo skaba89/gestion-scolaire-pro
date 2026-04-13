@@ -842,6 +842,19 @@ async def create_tenant_admin_user(
     if not tenant:
         raise HTTPException(status_code=404, detail="Établissement non trouvé")
 
+    # SECURITY: Validate role against ROLE_PERMISSIONS and forbid SUPER_ADMIN
+    from app.core.security import ROLE_PERMISSIONS
+    if body.role == "SUPER_ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Le rôle SUPER_ADMIN ne peut pas être assigné via cet endpoint. Utilisez le bootstrap ou la console d'administration.",
+        )
+    if body.role not in ROLE_PERMISSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Rôle invalide: '{body.role}'. Rôles autorisés: {', '.join(sorted(ROLE_PERMISSIONS.keys()))}",
+        )
+
     # Check email uniqueness
     existing_user = db.query(User).filter(User.email == body.email).first()
     if existing_user:

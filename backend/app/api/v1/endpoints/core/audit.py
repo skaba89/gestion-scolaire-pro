@@ -62,14 +62,11 @@ def list_audit_logs(
 # ─── Audit log creation (POST /audit/ and POST /audit/log) ────────────────────
 
 class AuditLogCreate(BaseModel):
-    user_id: Optional[str] = None
     action: str
     severity: Optional[str] = "INFO"
     resource_type: Optional[str] = None
     resource_id: Optional[str] = None
     details: Optional[Dict[str, Any]] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
 
 
 @router.post("/", status_code=201)
@@ -81,7 +78,7 @@ def create_audit_log(
     """Create a new audit log entry. POST /audit/"""
     import json
     tenant_id = current_user.get("tenant_id")
-    user_id = body.user_id or current_user.get("id")
+    user_id = current_user.get("id")
     row = db.execute(text("""
         INSERT INTO audit_logs (tenant_id, user_id, action, severity, resource_type, resource_id, details, ip_address, user_agent, created_at)
         VALUES (:tenant_id, :user_id, :action, :severity, :resource_type, :resource_id, :details, :ip_address, :user_agent, NOW())
@@ -94,8 +91,8 @@ def create_audit_log(
         "resource_type": body.resource_type,
         "resource_id": body.resource_id,
         "details": json.dumps(body.details) if body.details else None,
-        "ip_address": body.ip_address,
-        "user_agent": body.user_agent,
+        "ip_address": None,
+        "user_agent": None,
     }).mappings().first()
     db.commit()
     return dict(row)
@@ -110,7 +107,7 @@ def create_audit_log_alias(
     """Create a new audit log entry. POST /audit/log — alias for POST /audit/"""
     import json
     tenant_id = current_user.get("tenant_id")
-    user_id = body.user_id or current_user.get("id")
+    user_id = current_user.get("id")
     row = db.execute(text("""
         INSERT INTO audit_logs (tenant_id, user_id, action, severity, resource_type, resource_id, details, ip_address, user_agent, created_at)
         VALUES (:tenant_id, :user_id, :action, :severity, :resource_type, :resource_id, :details, :ip_address, :user_agent, NOW())
@@ -123,8 +120,8 @@ def create_audit_log_alias(
         "resource_type": body.resource_type,
         "resource_id": body.resource_id,
         "details": json.dumps(body.details) if body.details else None,
-        "ip_address": body.ip_address,
-        "user_agent": body.user_agent,
+        "ip_address": None,
+        "user_agent": None,
     }).mappings().first()
     db.commit()
     return dict(row)

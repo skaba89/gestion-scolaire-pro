@@ -86,10 +86,23 @@ class TenantMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if not tenant_id:
-            # Final attempt: Check if we can proceed without it (e.g. user is logged in and we can get it later)
+            # SECURITY: Reject authenticated requests without tenant_id
             if auth_header and auth_header.startswith("Bearer "):
-                # Allow proceeding, the endpoint will handle missing tenant_id via current_user
-                return await call_next(request)
+                origin = request.headers.get("origin", "")
+                allowed_origins = getattr(request.app.state, "_cors_allowed_origins", [])
+                cors_hdrs = {}
+                if origin:
+                    if "*" in allowed_origins or origin in allowed_origins:
+                        cors_hdrs = {
+                            "Access-Control-Allow-Origin": origin,
+                            "Vary": "Origin",
+                        }
+
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "Identifiant du tenant manquant dans le jeton JWT. Contactez un administrateur."},
+                    headers=cors_hdrs,
+                )
 
             # Include CORS headers so the browser can read the error response.
             # BaseHTTPMiddleware returning directly may bypass CORSMiddleware.

@@ -29,10 +29,10 @@ from passlib.context import CryptContext
 # ---------------------------------------------------------------------------
 # Database connection
 # ---------------------------------------------------------------------------
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/postgres",
-)
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    print("[ERROR] DATABASE_URL environment variable is required.")
+    sys.exit(1)
 
 _IS_SQLITE = DATABASE_URL.startswith("sqlite:")
 
@@ -58,7 +58,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ADMIN_EMAIL = "admin@schoolflow.local"
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Admin@123456")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    print("[ERROR] ADMIN_PASSWORD environment variable is required.")
+    sys.exit(1)
 
 
 def _datetime_now(db):
@@ -178,7 +181,6 @@ def main():
         print("\n=== Summary ===")
         print(f"  Role   : SUPER_ADMIN (platform level — no tenant)")
         print(f"  Email  : {ADMIN_EMAIL}")
-        print(f"  Password: {ADMIN_PASSWORD}")
         print("  IMPORTANT: Change this password after first login!")
         print("  NOTE: This user has NO tenant. Create establishments from the dashboard.\n")
 
