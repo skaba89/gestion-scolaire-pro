@@ -166,9 +166,13 @@ async def unhandled_exception_handler(
         exc_info=exc,
         extra={"request_id": request_id, "path": str(request.url.path)},
     )
-    # Include error type and message in response for easier debugging.
-    # In production, this helps identify issues without server log access.
-    error_msg = f"{type(exc).__name__}: {str(exc)}"
+    # SECURITY: In production, hide internal error details to prevent information leakage.
+    # Only show the exception type and message when DEBUG is enabled.
+    from app.core.config import settings
+    if settings.DEBUG:
+        error_msg = f"{type(exc).__name__}: {str(exc)}"
+    else:
+        error_msg = "An unexpected error occurred. Contact support with the request ID."
     return JSONResponse(
         status_code=500,
         content={

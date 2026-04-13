@@ -50,15 +50,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
             any(check_path.endswith(ext) for ext in [".ico", ".png", ".jpg", ".jpeg", ".svg", ".css", ".js"])):
             return await call_next(request)
 
-        # Try to get tenant from X-Tenant-ID header
-        tenant_id = request.headers.get("X-Tenant-ID")
-
-        # Try to get tenant from JWT claim (Auth context authority)
-        # SECURITY: Always verify the JWT signature to prevent token forgery
+        # SECURITY: Always prefer JWT claim over the X-Tenant-ID header for tenant resolution.
+        # The header is user-controlled and can be spoofed to set RLS context to another tenant.
+        # Only use header as fallback for SUPER_ADMIN cross-tenant access.
+        tenant_id = None
         auth_header = request.headers.get("Authorization")
         user_roles = []
 
-        if not tenant_id and auth_header and auth_header.startswith("Bearer "):
+        if auth_header and auth_header.startswith("Bearer "):
             try:
                 token = auth_header.split(" ")[1]
                 payload = jwt.decode(
@@ -66,8 +65,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
                     settings.SECRET_KEY,
                     algorithms=[settings.ALGORITHM],
                 )
-                if payload.get("tenant_id"):
-                    tenant_id = payload.get("tenant_id")
+                tenant_id = payload.get("tenant_id")
                 user_roles = payload.get("roles", []) or []
             except jwt.ExpiredSignatureError:
                 # Token expired — allow downstream to handle 401
@@ -75,6 +73,12 @@ class TenantMiddleware(BaseHTTPMiddleware):
             except jwt.InvalidTokenError as exc:
                 logger.warning("Tenant middleware: invalid JWT skipped: %s", exc)
                 pass
+
+        # SUPER_ADMIN cross-tenant: only trust X-Tenant-ID header for super admins
+        if "SUPER_ADMIN" in user_roles and not tenant_id:
+            header_tenant = request.headers.get("X-Tenant-ID")
+            if header_tenant:
+                tenant_id = header_tenant
 
         # SUPER_ADMIN bypass: no tenant required for platform-level operations
         # The endpoint will use X-Tenant-ID header if provided for cross-tenant access

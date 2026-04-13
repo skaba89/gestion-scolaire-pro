@@ -28,16 +28,25 @@ from fastapi.exceptions import HTTPException
 setup_logging(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
+# Render/Cloudflare proxy IPs — only trust X-Forwarded-For from these
+_TRUSTED_PROXY_IPS = {
+    "127.0.0.1",
+    "::1",
+    # Render internal proxy ranges
+    "10.0.0.0", "172.16.0.0", "192.168.0.0",
+}
+
 def _get_client_ip(request: Request) -> str:
     """Extract real client IP, respecting X-Forwarded-For from trusted proxies.
 
-    Render and Cloudflare set X-Forwarded-For. Using get_remote_address alone
-    would rate-limit all traffic by the proxy IP, not the real client IP.
+    SECURITY: Only trust X-Forwarded-For when the direct connection comes from
+    a known proxy. Otherwise, clients can spoof this header to bypass rate limiting.
     """
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        # X-Forwarded-For: client, proxy1, proxy2 — first entry is the client
-        return forwarded.split(",")[0].strip()
+    client_host = request.client.host if request.client else None
+    if client_host and any(client_host.startswith(prefix) for prefix in _TRUSTED_PROXY_IPS):
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
     return get_remote_address(request)
 
 limiter = Limiter(
@@ -319,8 +328,8 @@ app.state._cors_allowed_origins = origins
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(MetricsMiddleware)
 app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(TenantMiddleware)
 app.add_middleware(QuotaMiddleware)
+app.add_middleware(TenantMiddleware)
 
 
 # ─── Token Version Validation Middleware ────────────────────────────────

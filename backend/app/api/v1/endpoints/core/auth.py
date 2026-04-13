@@ -408,10 +408,24 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token_str = auth_header.split(" ")[1]
-        # Use the token string hash as JTI for blacklisting
+        # SECURITY: Extract JTI from the token payload (not from hash of token string).
+        # The login sets JTI = sha256("user_id:timestamp")[:16], so we must match that.
         import hashlib
-        token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
-        await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+        try:
+            import jwt as jwt_lib
+            payload = jwt_lib.decode(
+                token_str,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_exp": False},
+            )
+            token_jti = payload.get("jti")
+            if token_jti:
+                await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+        except Exception:
+            # Fallback: blacklist by token hash if payload extraction fails
+            token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
+            await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
 
         # SECURITY: Clean up active session tracking to prevent slot accumulation
         try:

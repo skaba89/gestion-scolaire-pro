@@ -175,12 +175,20 @@ class Settings(BaseSettings):
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
         is_debug = os.getenv("DEBUG", "False").lower() == "true"
-        if not is_debug:
+        env = os.getenv("ENVIRONMENT", "").lower()
+        # SECURITY: Even if DEBUG=true, refuse to start in production/staging environments
+        is_prod = env in ("production", "prod", "staging")
+        if is_prod:
             if not v or len(v) < 32:
                 logger.critical(
-                    "SECRET_KEY not set or too short in production (got %d chars). "
-                    "Refusing to start. Set a proper SECRET_KEY (32+ chars) in your environment.",
-                    len(v) if v else 0,
+                    "SECRET_KEY not set or too short. Refusing to start in %s environment.",
+                    env,
+                )
+                os._exit(1)
+        elif not is_debug:
+            if not v or len(v) < 32:
+                logger.critical(
+                    "SECRET_KEY not set or too short. Refusing to start.",
                 )
                 os._exit(1)
         elif not v:
