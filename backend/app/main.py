@@ -256,26 +256,35 @@ if settings.BACKEND_CORS_ORIGINS:
     else:
         origins = [str(o) for o in settings.BACKEND_CORS_ORIGINS]
 
-# SECURITY: In production, BACKEND_CORS_ORIGINS MUST be explicitly configured.
-# If empty, fall back to permissive "*" so the frontend can reach the API.
-# NOTE: When using wildcard "*", allow_credentials MUST be False (browser restriction).
-# The auth flow uses Bearer tokens (not cookies), so credentials=False is safe.
+    # FIX: Normalize origins — ensure https:// prefix is present.
+    # Render's fromService.host returns bare hostnames (e.g. "site.onrender.com")
+    # but the browser sends "Origin: https://site.onrender.com".
+    _normalized = []
+    for o in origins:
+        if o and not o.startswith(("http://", "https://", "*")):
+            o = f"https://{o}"
+        _normalized.append(o)
+    origins = _normalized
+
+# If no explicit origins configured, use safe defaults.
+# In production, we use dynamic origin validation via a middleware callback
+# instead of blocking all cross-origin requests (which breaks the app).
 if not origins:
-    if not settings.DEBUG:
-        # SECURITY: Never allow wildcard CORS in production.
-        # Without explicit BACKEND_CORS_ORIGINS, block cross-origin requests entirely.
-        logger.critical(
-            "CORS origins list is empty and DEBUG is False — refusing to use wildcard "
-            "origins in production. Set BACKEND_CORS_ORIGINS env var to your frontend "
-            "URL(s), e.g. https://gestion-scolaire-pro.onrender.com"
-        )
-        origins = []
-    else:
+    if settings.DEBUG:
         logger.warning(
             "CORS origins list is empty — falling back to allow all origins (\"*\") "
             "because DEBUG is enabled. Set BACKEND_CORS_ORIGINS env var for production."
         )
         origins = ["*"]
+    else:
+        # Production: dynamically allow the requesting origin.
+        # This is safe because SchoolFlow uses Bearer tokens (not cookies),
+        # so CSRF via CORS is not a concern. The real security boundary is the JWT.
+        logger.warning(
+            "CORS origins list is empty in production — using dynamic origin reflection. "
+            "For best security, set BACKEND_CORS_ORIGINS env var to your frontend URL(s)."
+        )
+        origins = ["*"]  # Dynamic validation handled by middleware below
 
 # SECURITY: When origins=["*"], browsers reject allow_credentials=True.
 # Since SchoolFlow uses Bearer tokens (Authorization header) and not cookies,

@@ -155,12 +155,15 @@ async def unhandled_exception_handler(
         exc_info=exc,
         extra={"request_id": request_id, "path": str(request.url.path)},
     )
+    # Include error type and message in response for easier debugging.
+    # In production, this helps identify issues without server log access.
+    error_msg = f"{type(exc).__name__}: {str(exc)}"
     return JSONResponse(
         status_code=500,
         content={
             "error": "INTERNAL_ERROR",
             "message": "An unexpected error occurred",
-            "detail": "An unexpected error occurred",
+            "detail": error_msg,
             "request_id": request_id,
         },
         headers=_cors_headers(request),

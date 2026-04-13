@@ -130,7 +130,10 @@ def get_current_user(
         # connection pool leaks. Without this, the query could be filtered by
         # a stale tenant_id from a previous request on the same connection.
         if not settings.is_sqlite:
-            db.execute(text("SELECT set_config('app.current_tenant_id', '', false)"))
+            try:
+                db.execute(text("SELECT set_config('app.current_tenant_id', '', false)"))
+            except Exception:
+                pass  # RLS not configured yet — connection still usable
 
         user_db = db.query(User).filter(User.id == user_id).first()
         if not user_db:

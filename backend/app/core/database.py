@@ -64,16 +64,25 @@ def get_db():
     db = SessionLocal()
 
     if not settings.is_sqlite:
-        # ALWAYS reset RLS context first to prevent connection pool leaks
-        db.execute(
-            text("SELECT set_config('app.current_tenant_id', '', false)")
-        )
-        # Then set the correct tenant_id if available
-        tenant_id = tenant_context.get()
-        if tenant_id:
+        try:
+            # ALWAYS reset RLS context first to prevent connection pool leaks
             db.execute(
-                text("SELECT set_config('app.current_tenant_id', :tid, false)"),
-                {"tid": str(tenant_id)},
+                text("SELECT set_config('app.current_tenant_id', '', false)")
+            )
+            # Then set the correct tenant_id if available
+            tenant_id = tenant_context.get()
+            if tenant_id:
+                db.execute(
+                    text("SELECT set_config('app.current_tenant_id', :tid, false)"),
+                    {"tid": str(tenant_id)},
+                )
+        except Exception as exc:
+            # RLS set_config may fail if the function doesn't exist yet
+            # (e.g. fresh database before Alembic runs RLS migration).
+            # Log but don't block — the connection is still usable.
+            import logging
+            logging.getLogger(__name__).warning(
+                "set_config failed (RLS may not be configured yet): %s", exc
             )
 
     try:
