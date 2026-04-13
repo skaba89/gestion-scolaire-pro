@@ -184,34 +184,46 @@ def check_legal_retention(
     """
     Check legal data retention requirements before deletion.
     Queries actual counts from DB for grades, attendance, payments, invoices.
+    SECURITY FIX: All queries are now scoped to the current user's tenant
+    to prevent cross-tenant data leakage.
     """
     from sqlalchemy import text as sql_text
 
     uid = str(user_id)
+    # SECURITY FIX: Enforce tenant isolation — require tenant_id from current user context
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenant context found. Cannot check retention data."
+        )
+    tid = str(tenant_id)
 
-    # Students linked to this user (by user_id FK or profile)
+    # Students linked to this user (by user_id FK or profile), scoped to tenant
     student_row = db.execute(sql_text(
-        "SELECT id FROM students WHERE user_id = :uid LIMIT 1"
-    ), {"uid": uid}).mappings().first()
+        "SELECT id FROM students WHERE user_id = :uid AND tenant_id = :tid LIMIT 1"
+    ), {"uid": uid, "tid": tid}).mappings().first()
     student_id = str(student_row["id"]) if student_row else None
 
     grades_count = 0
     attendance_count = 0
     if student_id:
+        # SECURITY FIX: Tenant-scoped queries for grades and attendance
         grades_count = db.execute(sql_text(
-            "SELECT COUNT(*) FROM grades WHERE student_id = :sid"
-        ), {"sid": student_id}).scalar() or 0
+            "SELECT COUNT(*) FROM grades WHERE student_id = :sid AND tenant_id = :tid"
+        ), {"sid": student_id, "tid": tid}).scalar() or 0
         attendance_count = db.execute(sql_text(
-            "SELECT COUNT(*) FROM attendance WHERE student_id = :sid"
-        ), {"sid": student_id}).scalar() or 0
+            "SELECT COUNT(*) FROM attendance WHERE student_id = :sid AND tenant_id = :tid"
+        ), {"sid": student_id, "tid": tid}).scalar() or 0
 
+    # SECURITY FIX: Tenant-scoped queries for payments and invoices
     payments_count = db.execute(sql_text(
-        "SELECT COUNT(*) FROM payments WHERE user_id = :uid"
-    ), {"uid": uid}).scalar() or 0
+        "SELECT COUNT(*) FROM payments WHERE user_id = :uid AND tenant_id = :tid"
+    ), {"uid": uid, "tid": tid}).scalar() or 0
 
     invoices_count = db.execute(sql_text(
-        "SELECT COUNT(*) FROM invoices WHERE user_id = :uid"
-    ), {"uid": uid}).scalar() or 0
+        "SELECT COUNT(*) FROM invoices WHERE user_id = :uid AND tenant_id = :tid"
+    ), {"uid": uid, "tid": tid}).scalar() or 0
 
     has_permanent_data = grades_count > 0
 
@@ -239,9 +251,21 @@ def search_users_for_rgpd(
 ):
     """
     Search for a user by email for RGPD actions.
+    SECURITY FIX: Results are scoped to the current user's tenant
+    to prevent cross-tenant data access.
     """
+    # SECURITY FIX: Enforce tenant isolation on user search
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenant context found. Cannot search users."
+        )
     safe_email = email.replace('%', r'\%').replace('_', r'\_')
-    user = db.query(User).filter(User.email.ilike(f"%{safe_email}%")).first()
+    query = db.query(User).filter(User.email.ilike(f"%{safe_email}%"))
+    # SECURITY FIX: Only return users from the same tenant
+    query = query.filter(User.tenant_id == tenant_id)
+    user = query.first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -272,15 +296,36 @@ def direct_delete_user(
 ):
     """
     Directly delete/anonymize a user (admin action).
+    SECURITY FIX: tenant_id is REQUIRED for non-SUPER_ADMIN users.
+    The target user must belong to the same tenant as the caller.
     """
     reason = (body.dict() if body else {}).get("reason", "Direct admin action")
     tenant_id = current_user.get("tenant_id")
+    roles = current_user.get("roles", [])
+
+    # SECURITY FIX: Require tenant_id for all non-SUPER_ADMIN users
+    is_super_admin = "SUPER_ADMIN" in roles
+    if not tenant_id and not is_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tenant context found. Direct deletion requires a valid tenant."
+        )
+
     query = db.query(User).filter(User.id == user_id)
     if tenant_id:
+        # SECURITY FIX: Always scope to tenant — even SUPER_ADMIN with a tenant
+        # should not be able to delete users from other tenants
         query = query.filter(User.tenant_id == tenant_id)
     user_to_delete = query.first()
     if not user_to_delete:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # SECURITY FIX: Validate that the target user belongs to the same tenant
+    if tenant_id and user_to_delete.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Target user does not belong to your tenant."
+        )
         
     # Reuse the same logic as process_deletion_request
     user_to_delete.email = f"deleted_{str(user_to_delete.id)[:8]}@schoolflow.deleted"

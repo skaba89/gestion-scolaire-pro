@@ -6,7 +6,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_permission
 from app.models import Notification, PushSubscription
 from app.schemas.push_subscription import PushSubscriptionCreate, PushSubscriptionInDB
 from app.schemas.notification import NotificationResponse, NotificationCreate, NotificationBulkCreate, NotificationUpdate
@@ -100,15 +100,23 @@ def read_notifications(
 def create_notification(
     notification_in: NotificationCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("notifications:write"))
 ):
     """Create a new notification (usually internal)."""
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID missing")
-        
+
+    # SECURITY: Non-admin users can only create notifications for themselves.
+    # Ignore any user_id supplied in the request body.
+    user_roles = current_user.get("roles", [])
+    is_admin = any(r in ("SUPER_ADMIN", "ADMIN", "MANAGER") for r in user_roles)
+    notification_data = notification_in.dict()
+    if not is_admin:
+        notification_data["user_id"] = current_user.get("id")
+
     db_obj = Notification(
-        **notification_in.dict(),
+        **notification_data,
         tenant_id=tenant_id
     )
     db.add(db_obj)
@@ -120,7 +128,7 @@ def create_notification(
 def create_bulk_notifications(
     bulk_in: NotificationBulkCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("notifications:write"))
 ):
     """Create multiple notifications at once."""
     tenant_id = current_user.get("tenant_id")

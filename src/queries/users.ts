@@ -32,7 +32,7 @@ export const userQueries = {
 
             // The backend returns a paginated object: { items: [], total: ... }
             return {
-                users: response.data.items as UserWithRoles[] || [],
+                users: (response.data?.items || []) as UserWithRoles[],
                 totalCount: response.data.total || 0
             };
         },

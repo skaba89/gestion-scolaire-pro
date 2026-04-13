@@ -1,4 +1,4 @@
-import { Suspense, lazy, memo } from "react";
+import { Suspense, lazy, memo, useEffect } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -37,6 +37,7 @@ const PublicPageView = lazy(() => import("./pages/public/PublicPageView"));
 const SuperAdminDashboard = lazy(() => import("./pages/superadmin/SuperAdminDashboard"));
 const CreateTenantWithAdmin = lazy(() => import("./pages/superadmin/CreateTenantWithAdmin"));
 const TenantAuth = lazy(() => import("./pages/TenantAuth"));
+const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 
 const PageLoader = () => (
     <div className="flex items-center justify-center min-h-screen">
@@ -68,6 +69,15 @@ const queryClient = new QueryClient({
 });
 
 const AppContent = memo(() => {
+  // Clear React Query cache on auth logout/clear events
+  useEffect(() => {
+    const handleClearCache = () => {
+      queryClient.clear();
+    };
+    window.addEventListener('auth:clear-cache', handleClearCache);
+    return () => window.removeEventListener('auth:clear-cache', handleClearCache);
+  }, []);
+
   return (
     <>
       <Toaster />
@@ -182,6 +192,15 @@ const AppContent = memo(() => {
               {/* 2c. Tenant-branded login page */}
               <Route path="/:tenantSlug/auth" element={<TenantAuth />} />
               <Route path="/:tenantSlug/login" element={<TenantAuth />} />
+
+              {/* 2d. Tenant-scoped change-password (must be before catch-all) */}
+              <Route path="/:tenantSlug/change-password" element={
+                <TenantRoute>
+                  <ProtectedRoute>
+                    <ChangePassword />
+                  </ProtectedRoute>
+                </TenantRoute>
+              } />
 
               {/* 3. ROOT Tenant Slug Fallback (Matches /isc-paris, /lasource, etc.) */}
               <Route path="/:tenantSlug" element={<TenantLanding />} />

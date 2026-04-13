@@ -61,6 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setTenant(null);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    // Signal React Query to clear all cached data on logout
+    window.dispatchEvent(new CustomEvent('auth:clear-cache'));
   }, []);
 
   const applyProfileData = useCallback((data: any) => {

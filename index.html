@@ -20,11 +20,11 @@
        Note: require-trusted-types-for removed to allow ServiceWorker registration.
        Trusted Types policy is created programmatically in src/main.tsx instead. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; 
-             script-src 'self' 'unsafe-inline' https://browser.sentry-cdn.com; 
+             script-src 'self' https://browser.sentry-cdn.com; 
              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
              font-src 'self' https://fonts.gstatic.com; 
              img-src 'self' data: blob: https: http:; 
-             connect-src 'self' https://*.sentry.io https://*.onrender.com; 
+             connect-src 'self' https: https://*.sentry.io; 
              frame-src 'none'; 
              object-src 'none';
              base-uri 'self';
@@ -59,20 +59,7 @@
        Removes leftover Workbox/PWA service workers from previous
        deployments that cause 'no-response' errors.
        ============================================================ -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs) {
-        for (var i = 0; i < regs.length; i++) {
-          regs[i].unregister();
-        }
-      });
-      if (window.caches) {
-        caches.keys().then(function(names) {
-          return Promise.all(names.map(function(n) { return caches.delete(n); }));
-        });
-      }
-    }
-  </script>
+  <script src="/sw-killer.js"></script>
   <div id="root"></div>
   <!-- Runtime config: loaded before app, NOT bundled by Vite. Edit dist/config.js on server. -->
   <script src="/config.js"></script>

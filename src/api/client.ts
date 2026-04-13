@@ -102,6 +102,9 @@ apiClient.interceptors.response.use(
           ).then((r) => r.data?.access_token).finally(() => { refreshPromise = null; });
         }
         const newToken = await refreshPromise;
+        if (!newToken) {
+          console.error('[Auth] Token refresh succeeded but returned no access_token');
+        }
         if (newToken) {
           // Determine which storage originally held the token and write back there only
           const wasInLocalStorage = !!localStorage.getItem(TOKEN_STORAGE_KEY);

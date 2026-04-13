@@ -9,7 +9,8 @@ export const financeQueries = {
             const response = await apiClient.get<any[]>("/students/", {
                 params: { is_archived: false }
             });
-            return response.data;
+            // The backend may return { items: [...] } or a direct array
+            return response.data?.items || response.data || [];
         },
         enabled: !!tenantId,
     }),

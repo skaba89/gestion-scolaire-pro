@@ -63,11 +63,16 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
       return;
     }
 
-    if (mustChangePassword && location.pathname !== "/change-password") {
-      routeDebug("Redirecting user to /change-password");
-      navigationRef.current = navigationKey;
-      navigate("/change-password", { replace: true });
-      return;
+    if (mustChangePassword) {
+      // Compute tenant-aware change-password path
+      const tenantMatch = location.pathname.match(/^\/([^/]+)\/.+/);
+      const changePwPath = tenantMatch ? `/${tenantMatch[1]}/change-password` : "/change-password";
+      if (location.pathname !== changePwPath) {
+        routeDebug("Redirecting user to", changePwPath);
+        navigationRef.current = navigationKey;
+        navigate(changePwPath, { replace: true });
+        return;
+      }
     }
 
     if (allowedRoles && allowedRoles.length > 0) {
@@ -121,8 +126,12 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     return null;
   }
 
-  if (mustChangePassword && location.pathname !== "/change-password") {
-    return null;
+  if (mustChangePassword) {
+    const tenantMatch = location.pathname.match(/^\/([^/]+)\/.+/);
+    const changePwPath = tenantMatch ? `/${tenantMatch[1]}/change-password` : "/change-password";
+    if (location.pathname !== changePwPath) {
+      return null;
+    }
   }
 
   if (!isMfaVerified) {

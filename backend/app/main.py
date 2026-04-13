@@ -86,14 +86,23 @@ async def lifespan(app: FastAPI):
                     db.rollback()
 
             admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
-            admin_password = settings.ADMIN_DEFAULT_PASSWORD or "Admin@123456"
+            admin_password = settings.ADMIN_DEFAULT_PASSWORD
+            # SECURITY FIX: Refuse to use a hardcoded fallback password.
+            # If no password is configured or it's too weak, skip admin creation.
+            if not admin_password or len(admin_password) < 8:
+                logger.critical(
+                    "ADMIN_DEFAULT_PASSWORD not set or too short (min 8 chars). "
+                    "Refusing to create admin user."
+                )
+                # Don't exit — just skip admin creation, the bootstrap endpoint can create one later
+                admin_password = None
 
             existing = db.query(User).filter(User.email == admin_email).first()
             if not existing:
-                if not admin_password or len(admin_password) < 8:
+                if not admin_password:
                     logger.warning(
-                        "ADMIN_DEFAULT_PASSWORD not set or too short (< 8 chars). "
-                        "Super admin not created. Set this env var and restart."
+                        "ADMIN_DEFAULT_PASSWORD not configured. "
+                        "Super admin not created. Use the /api/v1/auth/bootstrap/ endpoint."
                     )
                 else:
                     admin_id = str(uuid.uuid4())
@@ -252,12 +261,21 @@ if settings.BACKEND_CORS_ORIGINS:
 # NOTE: When using wildcard "*", allow_credentials MUST be False (browser restriction).
 # The auth flow uses Bearer tokens (not cookies), so credentials=False is safe.
 if not origins:
-    logger.warning(
-        "CORS origins list is empty — falling back to allow all origins (\"*\"). "
-        "Set BACKEND_CORS_ORIGINS env var to your frontend URL(s) for production, e.g. "
-        "https://gestion-scolaire-pro.onrender.com"
-    )
-    origins = ["*"]
+    if not settings.DEBUG:
+        # SECURITY: Never allow wildcard CORS in production.
+        # Without explicit BACKEND_CORS_ORIGINS, block cross-origin requests entirely.
+        logger.critical(
+            "CORS origins list is empty and DEBUG is False — refusing to use wildcard "
+            "origins in production. Set BACKEND_CORS_ORIGINS env var to your frontend "
+            "URL(s), e.g. https://gestion-scolaire-pro.onrender.com"
+        )
+        origins = []
+    else:
+        logger.warning(
+            "CORS origins list is empty — falling back to allow all origins (\"*\") "
+            "because DEBUG is enabled. Set BACKEND_CORS_ORIGINS env var for production."
+        )
+        origins = ["*"]
 
 # SECURITY: When origins=["*"], browsers reject allow_credentials=True.
 # Since SchoolFlow uses Bearer tokens (Authorization header) and not cookies,

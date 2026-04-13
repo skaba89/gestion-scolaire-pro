@@ -226,7 +226,15 @@ class Settings(BaseSettings):
 settings = Settings()
 
 if not settings.BOOTSTRAP_SECRET:
-    logger.warning("BOOTSTRAP_SECRET is empty — bootstrap endpoint will reject all requests")
+    if not settings.DEBUG:
+        logger.critical(
+            "BOOTSTRAP_SECRET is empty and DEBUG is False — refusing to start. "
+            "The bootstrap endpoint could be used to create a super-admin account "
+            "without authentication. Set BOOTSTRAP_SECRET in your environment."
+        )
+        raise SystemExit(1)
+    else:
+        logger.warning("BOOTSTRAP_SECRET is empty — bootstrap endpoint will reject all requests")
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),

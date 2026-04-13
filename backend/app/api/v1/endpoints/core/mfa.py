@@ -300,7 +300,8 @@ def request_otp(
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
-    import random, string
+    # SECURITY FIX: Use cryptographically secure secrets module instead of random for OTP generation
+    import string  # secrets is already imported at module level
     from datetime import timedelta
 
     user_id = current_user.get("id")
@@ -321,8 +322,8 @@ def request_otp(
         if used >= max_attempts:
             raise HTTPException(status_code=429, detail="Limite atteinte. Veuillez attendre 1 heure avant de demander un nouveau code.")
 
-        # Generate 6-digit code
-        code = "".join(random.choices(string.digits, k=6))
+        # Generate 6-digit code using cryptographically secure secrets.choice
+        code = "".join(secrets.choice(string.digits) for _ in range(6))
         code_hash = _hash_code(code)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 

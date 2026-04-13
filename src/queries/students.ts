@@ -14,7 +14,7 @@ export const studentQueries = {
                 }
             });
             // Adapt API response to frontend interface
-            return response.data.items as Student[];
+            return (response.data?.items || []) as Student[];
         },
         enabled: !!tenantId,
     }),

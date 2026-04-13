@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { apiClient } from "../api/client";
 
 interface Message {
   role: "user" | "assistant";
@@ -10,17 +11,9 @@ interface UseAIStreamOptions {
   onError?: (error: string) => void;
 }
 
-// Resolve API base URL (same logic as apiClient)
-function resolveApiBaseUrl(): string {
-  const runtimeCfg = (window as any).__SCHOOLFLOW_CONFIG__;
-  if (runtimeCfg?.API_URL) return runtimeCfg.API_URL.trim();
-  const buildUrl = import.meta.env.VITE_API_URL?.trim();
-  if (buildUrl && !/localhost|127\.0\.0\.1/.test(buildUrl)) return buildUrl;
-  if (/localhost|127\.0\.0\.1/.test(window.location.hostname)) return 'http://localhost:8000';
-  return '/api-proxy';
-}
-
-const CHAT_URL = `${resolveApiBaseUrl()}/api/v1/ai/chat`;
+// Reuse the fully-resolved base URL from apiClient (runtime config + build-time env + defaults)
+// This avoids duplicating URL resolution logic and ensures AI streaming uses the same host.
+const CHAT_URL = `${apiClient.defaults.baseURL}/ai/chat`;
 
 export function useAIStream(options: UseAIStreamOptions = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
