@@ -169,6 +169,7 @@ def generate_backup_codes(
 @router.post("/backup-codes/verify/")
 @limiter.limit("10/minute")  # SECURITY: Rate limit to prevent brute-force
 def verify_backup_code(
+    request: Request,
     body: VerifyCodeRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
