@@ -80,6 +80,8 @@ def verify_token_raw(token: str) -> dict:
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
             options={"verify_sub": True, "verify_exp": False},
+            audience="schoolflow-api",
+            issuer="schoolflow-pro",
         )
     except JWTError as exc:
         logger.info("JWT raw decode failed: %s", exc)

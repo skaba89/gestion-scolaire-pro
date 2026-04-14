@@ -31,6 +31,8 @@ async def websocket_endpoint(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
+            audience="schoolflow-api",
+            issuer="schoolflow-pro",
         )
     except jwt.ExpiredSignatureError:
         await websocket.close(code=4001, reason="Token expired")

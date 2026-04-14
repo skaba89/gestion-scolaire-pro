@@ -418,6 +418,8 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
                 settings.SECRET_KEY,
                 algorithms=[settings.ALGORITHM],
                 options={"verify_exp": False},
+                audience="schoolflow-api",
+                issuer="schoolflow-pro",
             )
             token_jti = payload.get("jti")
             if token_jti:

@@ -120,8 +120,15 @@ async function generateRuntimeConfig() {
     process.env.RENDER_EXTERNAL_URL,
   ].filter(Boolean);
 
-  // If VITE_API_URL is a full backend URL, use it directly
-  const apiUrl = apiUrls.find(u => u.startsWith('http')) || '';
+  // If VITE_API_URL is a full backend URL, use it directly.
+  // If it's a bare hostname (e.g. from Render's fromService.host), prepend https://
+  let apiUrl = apiUrls.find(u => u.startsWith('http')) || '';
+  if (!apiUrl) {
+    const bareHost = apiUrls.find(u => u.includes('.'));
+    if (bareHost) {
+      apiUrl = `https://${bareHost.replace(/^https?:\/\//, '')}`;
+    }
+  }
 
   if (apiUrl) {
     const configPath = join(DIST_DIR, 'config.js');

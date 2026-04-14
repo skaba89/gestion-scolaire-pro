@@ -351,6 +351,8 @@ async def token_version_middleware(request: Request, call_next):
                 settings.SECRET_KEY,
                 algorithms=[settings.ALGORITHM],
                 options={"verify_exp": True},  # Always verify token expiry
+                audience="schoolflow-api",
+                issuer="schoolflow-pro",
             )
             token_version = payload.get("tv", 0)
             user_id = payload.get("sub")
