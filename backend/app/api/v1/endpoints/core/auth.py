@@ -941,6 +941,7 @@ def diagnostics(
 
 # ─── TEMPORARY: Hard Reset Endpoint (REMOVE AFTER USE) ───────────────────
 @router.post("/hard-reset/")
+@limiter.limit("2/hour")
 async def hard_reset_database(request: Request, db: Session = Depends(get_db)):
     """TEMPORARY endpoint — drops ALL data and recreates fresh admin.
 
