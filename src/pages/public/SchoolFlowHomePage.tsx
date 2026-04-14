@@ -122,7 +122,7 @@ const SAMPLE_SCHOOLS: PublicTenant[] = [
 const PRICING = [
   {
     tier: "Starter",
-    price: "30€",
+    price: "30,99€",
     period: "/ mois",
     description: "Pour les petites écoles guinéennes",
     features: ["Jusqu'à 50 élèves", "Gestion des inscriptions", "Support email", "1 administrateur"],
@@ -131,7 +131,7 @@ const PRICING = [
   },
   {
     tier: "Standard",
-    price: "250€",
+    price: "500€",
     period: "/ mois",
     description: "Pour les établissements en croissance",
     features: [
@@ -145,7 +145,7 @@ const PRICING = [
   },
   {
     tier: "Premium",
-    price: "750€",
+    price: "900,99€",
     period: "/ mois",
     description: "Pour les grandes écoles et universités",
     features: [
