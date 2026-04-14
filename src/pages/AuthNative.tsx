@@ -116,7 +116,7 @@ const AuthNative = () => {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
       {/* ═══════════════════════════════════════
-          LEFT PANEL — SchoolFlow Pro Branding
+          LEFT PANEL — Academy Guinéenne Branding
           ═══════════════════════════════════════ */}
       <div
         className="relative w-full lg:w-[55%] xl:w-[60%] min-h-[320px] lg:min-h-screen flex flex-col justify-center items-center p-8 lg:p-12 xl:p-16 overflow-hidden"
@@ -146,13 +146,13 @@ const AuthNative = () => {
 
             <div className="flex flex-col items-center lg:items-start gap-2">
               <h1 className="text-3xl xl:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                SchoolFlow Pro
+                Academy Guinéenne
               </h1>
               <span
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-white/90 bg-white/15 backdrop-blur-sm border border-white/20"
               >
                 <Shield className="w-3.5 h-3.5" />
-                Plateforme de gestion scolaire
+                La modernité de l'enseignement guinéenne
               </span>
             </div>
           </div>
@@ -186,7 +186,7 @@ const AuthNative = () => {
         {/* Bottom branding */}
         <div className="absolute bottom-6 left-0 right-0 text-center">
           <p className="text-[11px] text-white/40 tracking-wide">
-            SchoolFlow Pro — Gestion scolaire intelligente
+            Academy Guinéenne — L'excellence éducative
           </p>
         </div>
       </div>
@@ -205,8 +205,8 @@ const AuthNative = () => {
               <GraduationCap className="w-7 h-7 text-white" />
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-bold text-slate-900">SchoolFlow Pro</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Plateforme de gestion scolaire</p>
+              <h2 className="text-xl font-bold text-slate-900">Academy Guinéenne</h2>
+              <p className="text-xs text-slate-500 mt-0.5">La modernité de l'enseignement guinéenne</p>
             </div>
           </div>
 
@@ -214,7 +214,7 @@ const AuthNative = () => {
           <div className="space-y-2">
             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Connexion</h2>
             <p className="text-sm text-slate-500 leading-relaxed">
-              Accédez à la plateforme SchoolFlow Pro. Entrez vos identifiants pour continuer.
+              Accédez à la plateforme Academy Guinéenne. Entrez vos identifiants pour continuer.
             </p>
           </div>
 
@@ -317,7 +317,7 @@ const AuthNative = () => {
           {/* Footer */}
           <div className="text-center">
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité de SchoolFlow Pro.
+              En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité de Academy Guinéenne.
             </p>
           </div>
         </div>

@@ -58,7 +58,7 @@ limiter = Limiter(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──
-    logger.info("SchoolFlow Pro API starting up...")
+    logger.info("Academy Guinéenne API starting up...")
 
     # Auto-run pending Alembic migrations
     from app.core.database import Base, engine
@@ -176,14 +176,14 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Super admin auto-creation skipped: {admin_err}")
 
     logger.info(
-        "SchoolFlow Pro API started",
+        "Academy Guinéenne API started",
         extra={"debug": settings.DEBUG, "log_level": settings.LOG_LEVEL},
     )
 
     yield  # App is running
 
     # ── SHUTDOWN ──
-    logger.info("SchoolFlow Pro API shutting down...")
+    logger.info("Academy Guinéenne API shutting down...")
     try:
         from app.core.cache import redis_client
         if redis_client._client is not None:
@@ -196,14 +196,14 @@ async def lifespan(app: FastAPI):
         logger.info("Database engine disposed")
     except Exception as e:
         logger.warning("Database shutdown cleanup failed: %s", e)
-    logger.info("SchoolFlow Pro API shutdown complete")
+    logger.info("Academy Guinéenne API shutdown complete")
 
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     lifespan=lifespan,
     description="""
-## SchoolFlow Pro — School Management System API
+## Academy Guinéenne — School Management System API
 
 A comprehensive REST API for managing schools, students, teachers, grades,
 attendance, messaging, admissions and more.
@@ -212,7 +212,7 @@ attendance, messaging, admissions and more.
 All protected endpoints require a valid native JWT Bearer token except public endpoints.
 
 ### Multi-Tenancy
-SchoolFlow Pro is fully multi-tenant. Every request is automatically scoped to
+Academy Guinéenne is fully multi-tenant. Every request is automatically scoped to
 the authenticated user's tenant via the `X-Tenant-ID` header.
 
 ### Rate Limiting
@@ -225,7 +225,7 @@ Every response includes an `X-Request-ID` header for distributed tracing.
     """,
     version=settings.APP_VERSION,
     contact={
-        "name": "SchoolFlow Pro Support",
+        "name": "Academy Guinéenne Support",
         "url": "https://schoolflowpro.com/support",
     },
     license_info={"name": "Proprietary"},
@@ -411,7 +411,7 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 def root():
-    return {"message": "SchoolFlow Pro API", "version": settings.APP_VERSION, "docs": "/docs"}
+    return {"message": "Academy Guinéenne API", "version": settings.APP_VERSION, "docs": "/docs"}
 
 @app.get("/health/", tags=["health"], summary="Health check")
 def health_check():

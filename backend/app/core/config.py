@@ -109,7 +109,7 @@ _DEFAULT_MINIO_ENDPOINT = build_external_service_url(_MINIO_EXTERNAL_HOSTNAME) o
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "SchoolFlow Pro"
+    PROJECT_NAME: str = "Academy Guinéenne"
     API_V1_STR: str = "/api/v1"
 
     LOG_LEVEL: str = "INFO"
@@ -161,7 +161,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = get_secret("REDIS_URL", "redis://localhost:6379/0")
 
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
-    APP_NAME: str = "SchoolFlow Pro API"
+    APP_NAME: str = "Academy Guinéenne API"
     APP_VERSION: str = "1.0.0"
 
     ADMIN_DEFAULT_EMAIL: str = get_secret("ADMIN_DEFAULT_EMAIL", "admin@schoolflow.local")

@@ -313,7 +313,7 @@ export default function ConnectionHub() {
     }
 
     // Sort A-Z
-    result.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+    result.sort((a, b) => (a.name || "").localeCompare(b.name || "", "fr"));
 
     return result;
   }, [apiTenants, activeTab, search]);

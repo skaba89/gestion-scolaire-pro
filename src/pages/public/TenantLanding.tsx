@@ -419,7 +419,7 @@ function TenantPagesDirectory({
       <footer
         className="py-8 text-center text-sm text-gray-400 border-t border-gray-100 bg-white"
       >
-        <p>© {new Date().getFullYear()} {tenant.name} — Plateforme de gestion scolaire</p>
+        <p>© {new Date().getFullYear()} {tenant.name} — La modernité de l'enseignement guinéenne</p>
       </footer>
     </div>
   );

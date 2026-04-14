@@ -517,7 +517,7 @@ function PublicFooter({
         <div className="py-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-white/50">
           <p>© {currentYear} {tenantName}. Tous droits réservés.</p>
           <p>
-            Plateforme de gestion scolaire
+            La modernité de l'enseignement guinéenne
           </p>
         </div>
       </div>

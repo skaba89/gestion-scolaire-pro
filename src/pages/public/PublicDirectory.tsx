@@ -341,7 +341,7 @@ export default function PublicDirectory() {
 
     // Sort
     if (sort === "az") {
-      result.sort((a, b) => a.name.localeCompare(b.name, "fr"));
+      result.sort((a, b) => (a.name || "").localeCompare(b.name || "", "fr"));
     } else {
       result.sort(
         (a, b) =>

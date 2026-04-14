@@ -122,50 +122,50 @@ const SAMPLE_SCHOOLS: PublicTenant[] = [
 const PRICING = [
   {
     tier: "Starter",
-    price: "Gratuit",
-    period: "",
-    description: "Pour les petits établissements qui débutent",
-    features: ["Jusqu'à 20 élèves", "Modules de base", "Support email", "1 administrateur"],
-    cta: "Commencer gratuitement",
+    price: "30€",
+    period: "/ mois",
+    description: "Pour les petites écoles guinéennes",
+    features: ["Jusqu'à 50 élèves", "Gestion des inscriptions", "Support email", "1 administrateur"],
+    cta: "Commencer avec Starter",
     highlight: false,
   },
   {
-    tier: "Pro 500",
-    price: "500€",
+    tier: "Standard",
+    price: "250€",
     period: "/ mois",
     description: "Pour les établissements en croissance",
     features: [
-      "Jusqu'à 500 élèves",
+      "Jusqu'à 300 élèves",
       "Tous les modules",
-      "Analytics avancés",
+      "Bulletins en ligne",
       "Support prioritaire",
     ],
-    cta: "Choisir Pro 500",
+    cta: "Choisir Standard",
     highlight: false,
   },
   {
-    tier: "Pro 1000",
-    price: "800€",
+    tier: "Premium",
+    price: "750€",
     period: "/ mois",
-    description: "Pour les grandes structures",
+    description: "Pour les grandes écoles et universités",
     features: [
       "Jusqu'à 1000 élèves",
-      "Analytics prédictifs",
+      "Analytics avancés",
       "Support dédié",
       "API complète",
     ],
-    cta: "Essayer Pro 1000",
+    cta: "Choisir Premium",
     highlight: true,
   },
   {
     tier: "Enterprise",
-    price: "1500€",
+    price: "2 500€",
     period: "/ mois",
-    description: "Pour les réseaux et groupes scolaires",
+    description: "Pour les réseaux et ministères éducatifs",
     features: [
       "Multi-établissements",
       "SLA garanti",
-      "Déploiement on-premise",
+      "Déploiement sur site",
       "Formation incluse",
     ],
     cta: "Nous contacter",
@@ -178,14 +178,14 @@ const TESTIMONIALS = [
     name: "Dr. Marie Leclerc",
     role: "Directrice, Institut Polytechnique",
     content:
-      "SchoolFlow Pro a transformé notre gestion administrative. Nous économisons 15h par semaine sur les tâches répétitives.",
+      "Academy Guinéenne a transformé notre gestion administrative. Nous économisons 15h par semaine sur les tâches répétitives.",
     rating: 5,
   },
   {
     name: "Thomas Renard",
     role: "Proviseur, Lycée Jean Moulin",
     content:
-      "La conformité RGPD était notre plus grand défi. Avec SchoolFlow, tout est géré nativement. Un vrai soulagement.",
+      "La conformité RGPD était notre plus grand défi. Avec Academy Guinéenne, tout est géré nativement. Un vrai soulagement.",
     rating: 5,
   },
   {
@@ -428,7 +428,7 @@ export default function SchoolFlowHomePage() {
                 <School className="w-4 h-4 text-white" />
               </div>
               <span className="font-bold text-[#1e3a5f] text-lg tracking-tight">
-                SchoolFlow <span className="text-blue-600">Pro</span>
+                Academy Guinéenne
               </span>
             </button>
 
@@ -697,7 +697,7 @@ export default function SchoolFlowHomePage() {
               Des offres pour chaque taille d&apos;établissement
             </h2>
             <p className="text-gray-500 text-lg max-w-xl mx-auto">
-              Commencez gratuitement et évoluez selon vos besoins. Pas de frais cachés.
+              Des solutions adaptées à chaque établissement guinéen. Pas de frais cachés.
             </p>
           </div>
 
@@ -775,7 +775,7 @@ export default function SchoolFlowHomePage() {
             Prêt à moderniser votre établissement&nbsp;?
           </h2>
           <p className="text-blue-200 text-lg max-w-xl leading-relaxed">
-            Rejoignez les établissements qui font confiance à SchoolFlow Pro. Déployez en 10 minutes,
+            Rejoignez les établissements qui font confiance à Academy Guinéenne. Déployez en 10 minutes,
             sans engagement, sans carte bancaire.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
@@ -810,7 +810,7 @@ export default function SchoolFlowHomePage() {
                 <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                   <School className="w-4 h-4 text-white" />
                 </div>
-                <span className="font-bold text-white text-base">SchoolFlow Pro</span>
+                <span className="font-bold text-white text-base">Academy Guinéenne</span>
               </div>
               <p className="text-sm leading-relaxed">
                 La plateforme SaaS tout-en-un pour les établissements scolaires et universitaires.
@@ -870,7 +870,7 @@ export default function SchoolFlowHomePage() {
 
           <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm">
-              &copy; 2025 SchoolFlow Pro. Tous droits réservés.
+              &copy; 2025 Academy Guinéenne. Tous droits réservés.
             </p>
             <div className="flex items-center gap-2 text-xs">
               <Shield className="w-3.5 h-3.5 text-green-400" />

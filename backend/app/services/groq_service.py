@@ -1,5 +1,5 @@
 """
-Groq AI Service for SchoolFlow Pro.
+Groq AI Service for Academy Guinéenne.
 
 Provides chat completion and audit analysis capabilities
 powered by Groq's fast inference API.
@@ -29,7 +29,7 @@ CHAT_SYSTEM_PROMPT = (
     "- Quand c'est pertinent, suggère des fonctionnalités de {platform_name} "
     "(notes, présences, paiements, emploi du temps, communication, etc.).\n"
     "- Quand tu mentionnes la plateforme, utilise TOUJOURS le nom \"{platform_name}\" "
-    "et JAMAIS \"SchoolFlow Pro\".\n"
+    "et JAMAIS \"Academy Guinéenne\".\n"
     "- Ne divulgue jamais d'informations sensibles sur les élèves ou le personnel."
 )
 
@@ -49,7 +49,7 @@ AUDIT_SYSTEM_PROMPT = (
 
 
 class GroqService:
-    """Thin wrapper around the Groq client for SchoolFlow Pro AI features."""
+    """Thin wrapper around the Groq client for Academy Guinéenne AI features."""
 
     def __init__(self) -> None:
         api_key = settings.GROQ_API_KEY
@@ -168,7 +168,7 @@ class GroqService:
         history: Optional[list[dict[str, str]]] = None,
         *,
         stream: bool = False,
-        platform_name: str = "SchoolFlow Pro",
+        platform_name: str = "Academy Guinéenne",
     ):
         """
         General-purpose chat for school management support.
@@ -177,7 +177,7 @@ class GroqService:
             message: The user message.
             history: Optional list of prior ``{"role": ..., "content": ...}`` dicts.
             stream: If True, returns an async generator of text chunks.
-            platform_name: The display name of the platform (tenant or "SchoolFlow Pro").
+            platform_name: The display name of the platform (tenant or "Academy Guinéenne").
 
         Returns:
             A structured dict (stream=False) or an async generator (stream=True).
@@ -201,7 +201,7 @@ class GroqService:
         data: Any,
         *,
         stream: bool = False,
-        platform_name: str = "SchoolFlow Pro",
+        platform_name: str = "Academy Guinéenne",
     ):
         """
         Audit analysis endpoint.
