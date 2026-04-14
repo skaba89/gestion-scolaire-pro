@@ -939,6 +939,102 @@ def diagnostics(
     }
 
 
+# ─── TEMPORARY: Hard Reset Endpoint (REMOVE AFTER USE) ───────────────────
+@router.post("/hard-reset/")
+async def hard_reset_database(request: Request, db: Session = Depends(get_db)):
+    """TEMPORARY endpoint — drops ALL data and recreates fresh admin.
+
+    SECURITY: This endpoint MUST be removed after initial setup.
+    It is only intended for development/testing database reset.
+    """
+    import sqlalchemy
+    import uuid as _uuid
+    from app.core.security import get_password_hash
+
+    try:
+        # 1. Drop all tables except alembic_version
+        tables = db.execute(sqlalchemy.text(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+        )).fetchall()
+        for (table,) in tables:
+            if table != "alembic_version":
+                db.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
+        db.commit()
+        logger.warning("HARD RESET: All tables dropped")
+
+        # 2. Recreate all tables via SQLAlchemy
+        from app.core.database import Base, engine
+        import app.models  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+        logger.warning("HARD RESET: All tables recreated via create_all")
+
+        # 3. Ensure operational tables
+        try:
+            from app.main import _ensure_operational_tables
+            _ensure_operational_tables(engine)
+        except Exception as e:
+            logger.warning("HARD RESET: operational tables failed: %s", e)
+
+        # 4. Ensure is_superuser column
+        try:
+            if not settings.is_sqlite:
+                db.execute(sqlalchemy.text(
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE"
+                ))
+                db.commit()
+        except Exception:
+            db.rollback()
+
+        # 5. Ensure user_roles tenant_id nullable
+        try:
+            if not settings.is_sqlite:
+                nullable_check = db.execute(sqlalchemy.text(
+                    "SELECT is_nullable FROM information_schema.columns "
+                    "WHERE table_name='user_roles' AND column_name='tenant_id'"
+                )).first()
+                if nullable_check and nullable_check[0] == "NO":
+                    db.execute(sqlalchemy.text(
+                        "ALTER TABLE user_roles ALTER COLUMN tenant_id DROP NOT NULL"
+                    ))
+                    db.commit()
+        except Exception:
+            db.rollback()
+
+        # 6. Create admin with KNOWN credentials
+        admin_id = str(_uuid.uuid4())
+        admin_email = "admin@academyguinee.com"
+        admin_password = "Admin@2026!"
+
+        db.execute(sqlalchemy.text(
+            "INSERT INTO users (id, email, username, password_hash, first_name, last_name, "
+            "is_active, is_superuser, tenant_id, created_at, updated_at, is_verified, mfa_enabled) "
+            "VALUES (:id, :email, :username, :pw, 'Super', 'Admin', TRUE, TRUE, NULL, NOW(), NOW(), FALSE, FALSE)"
+        ), {"id": admin_id, "email": admin_email, "username": "admin", "pw": get_password_hash(admin_password)})
+        db.commit()
+
+        db.execute(sqlalchemy.text(
+            "INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
+            "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW())"
+        ), {"id": str(_uuid.uuid4()), "uid": admin_id})
+        db.commit()
+
+        logger.warning("HARD RESET: Admin created — %s", admin_email)
+
+        return {
+            "status": "ok",
+            "message": "Base de données réinitialisée avec succès",
+            "admin": {
+                "email": admin_email,
+                "password": admin_password,
+            },
+            "dropped_tables": len(tables),
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error("HARD RESET failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Reset failed: {e}")
+
+
 # NOTE: /auth/me/ is deprecated — use /users/me/ instead.
 # Kept for backward compatibility with older frontend versions.
 @router.get("/me/", response_model=UserInfo, deprecated=True)
