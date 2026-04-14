@@ -943,83 +943,73 @@ def diagnostics(
 @router.post("/hard-reset/")
 @limiter.limit("2/hour")
 async def hard_reset_database(request: Request, db: Session = Depends(get_db)):
-    """TEMPORARY endpoint — drops ALL data and recreates fresh admin.
+    """TEMPORARY endpoint — resets admin credentials and cleans test data.
 
     SECURITY: This endpoint MUST be removed after initial setup.
-    It is only intended for development/testing database reset.
     """
     import sqlalchemy
     import uuid as _uuid
     from app.core.security import get_password_hash
 
     try:
-        # 1. Drop all tables except alembic_version
-        tables = db.execute(sqlalchemy.text(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
-        )).fetchall()
-        for (table,) in tables:
-            if table != "alembic_version":
-                db.execute(sqlalchemy.text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))
+        # 1. Delete all non-admin users and their data
+        db.execute(sqlalchemy.text("DELETE FROM user_roles WHERE role != 'SUPER_ADMIN'"))
         db.commit()
-        logger.warning("HARD RESET: All tables dropped")
+        db.execute(sqlalchemy.text("DELETE FROM users WHERE is_superuser IS NOT TRUE"))
+        db.commit()
 
-        # 2. Recreate all tables via SQLAlchemy
-        from app.core.database import Base, engine
-        import app.models  # noqa: F401
-        Base.metadata.create_all(bind=engine)
-        logger.warning("HARD RESET: All tables recreated via create_all")
+        # 2. Delete all tenant-related data
+        for table in ["students", "grades", "attendance", "payments", "invoices",
+                       "enrollments", "subjects", "classrooms", "terms", "academic_years",
+                       "parents", "announcements", "notifications", "audit_logs"]:
+            try:
+                db.execute(sqlalchemy.text(f'DELETE FROM "{table}"'))
+            except Exception:
+                pass
+        db.commit()
 
-        # 3. Ensure operational tables
+        # 3. Delete tenants
         try:
-            from app.main import _ensure_operational_tables
-            _ensure_operational_tables(engine)
-        except Exception as e:
-            logger.warning("HARD RESET: operational tables failed: %s", e)
-
-        # 4. Ensure is_superuser column
-        try:
-            if not settings.is_sqlite:
-                db.execute(sqlalchemy.text(
-                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE"
-                ))
-                db.commit()
+            db.execute(sqlalchemy.text("DELETE FROM tenants"))
+            db.commit()
         except Exception:
-            db.rollback()
+            pass
 
-        # 5. Ensure user_roles tenant_id nullable
-        try:
-            if not settings.is_sqlite:
-                nullable_check = db.execute(sqlalchemy.text(
-                    "SELECT is_nullable FROM information_schema.columns "
-                    "WHERE table_name='user_roles' AND column_name='tenant_id'"
-                )).first()
-                if nullable_check and nullable_check[0] == "NO":
-                    db.execute(sqlalchemy.text(
-                        "ALTER TABLE user_roles ALTER COLUMN tenant_id DROP NOT NULL"
-                    ))
-                    db.commit()
-        except Exception:
-            db.rollback()
-
-        # 6. Create admin with KNOWN credentials
-        admin_id = str(_uuid.uuid4())
+        # 4. Create/reset admin with KNOWN credentials
         admin_email = "admin@academyguinee.com"
         admin_password = "Admin@2026!"
+        hashed_pw = get_password_hash(admin_password)
 
-        db.execute(sqlalchemy.text(
-            "INSERT INTO users (id, email, username, password_hash, first_name, last_name, "
-            "is_active, is_superuser, tenant_id, created_at, updated_at, is_verified, mfa_enabled) "
-            "VALUES (:id, :email, :username, :pw, 'Super', 'Admin', TRUE, TRUE, NULL, NOW(), NOW(), FALSE, FALSE)"
-        ), {"id": admin_id, "email": admin_email, "username": "admin", "pw": get_password_hash(admin_password)})
-        db.commit()
+        existing = db.execute(
+            sqlalchemy.text("SELECT id FROM users WHERE email = :email"),
+            {"email": admin_email}
+        ).first()
 
-        db.execute(sqlalchemy.text(
-            "INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
-            "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW())"
-        ), {"id": str(_uuid.uuid4()), "uid": admin_id})
-        db.commit()
+        if existing:
+            admin_id = str(existing[0])
+            db.execute(sqlalchemy.text(
+                "UPDATE users SET email = :email, username = :username, "
+                "password_hash = :pw, first_name = 'Super', last_name = 'Admin', "
+                "is_active = TRUE, is_superuser = TRUE, tenant_id = NULL "
+                "WHERE id = :id"
+            ), {"id": admin_id, "email": admin_email, "username": "admin", "pw": hashed_pw})
+            db.commit()
+        else:
+            admin_id = str(_uuid.uuid4())
+            db.execute(sqlalchemy.text(
+                "INSERT INTO users (id, email, username, password_hash, first_name, last_name, "
+                "is_active, is_superuser, tenant_id, created_at, updated_at, is_verified, mfa_enabled) "
+                "VALUES (:id, :email, :username, :pw, 'Super', 'Admin', TRUE, TRUE, NULL, NOW(), NOW(), FALSE, FALSE)"
+            ), {"id": admin_id, "email": admin_email, "username": "admin", "pw": hashed_pw})
+            db.commit()
 
-        logger.warning("HARD RESET: Admin created — %s", admin_email)
+            db.execute(sqlalchemy.text(
+                "INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
+                "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW()) ON CONFLICT DO NOTHING"
+            ), {"id": str(_uuid.uuid4()), "uid": admin_id})
+            db.commit()
+
+        logger.warning("HARD RESET: Admin ready — %s", admin_email)
 
         return {
             "status": "ok",
@@ -1028,7 +1018,6 @@ async def hard_reset_database(request: Request, db: Session = Depends(get_db)):
                 "email": admin_email,
                 "password": admin_password,
             },
-            "dropped_tables": len(tables),
         }
     except Exception as e:
         db.rollback()
