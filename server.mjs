@@ -53,15 +53,16 @@ async function proxyRequest(req, res, urlPath) {
     return;
   }
 
-  // Build the backend URL: strip /api/ or /api-proxy/ prefix
+  // Build the backend URL: only strip /api-proxy/ prefix.
+  // Do NOT strip /api/ — the backend routes ARE under /api/v1/... so the
+  // full /api/v1/... path must be forwarded as-is.
   let backendPath = urlPath;
-  if (backendPath.startsWith("/api/")) {
-    backendPath = backendPath.slice(4); // remove "/api"
-  } else if (backendPath.startsWith("/api-proxy/")) {
+  if (backendPath.startsWith("/api-proxy/")) {
     backendPath = backendPath.slice(11); // remove "/api-proxy"
-  } else if (backendPath === "/api" || backendPath === "/api-proxy") {
+  } else if (backendPath === "/api-proxy") {
     backendPath = "/";
   }
+  // /api/* paths are forwarded as-is (e.g. /api/v1/auth/login/)
 
   // Ensure path starts with /
   if (!backendPath.startsWith("/")) {
