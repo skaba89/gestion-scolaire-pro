@@ -115,9 +115,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await apiClient.get("/users/me/");
       applyProfileData(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Profile refresh failed", error);
-      clearAuth();
+      // Only clear auth on explicit 401 (token expired/invalid).
+      // For network errors or server errors, keep the token so the user
+      // retains their session when connectivity is restored.
+      if (error?.response?.status === 401) {
+        clearAuth();
+      }
+      // For transient errors (network, 500, etc.), keep existing session
     }
   }, [applyProfileData, clearAuth]);
 

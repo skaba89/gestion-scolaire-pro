@@ -2,8 +2,8 @@
 # SchoolFlow Pro — Continuous Integration Pipeline
 # =============================================================================
 # Runs on push to main and pull_request to main.
-# Three independent jobs: frontend (lint+typecheck+build), backend (syntax+security),
-# and secret scanning.
+# Four independent jobs: frontend (lint+typecheck+build), backend (syntax+security+pytest),
+# backend-tests (PostgreSQL integration), and security (dependency + secret scanning).
 # Designed to complete in under 5 minutes.
 # =============================================================================
 
@@ -38,11 +38,10 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Lint (ESLint)
-        run: npm run lint --max-warnings 50
+        run: npm run lint --max-warnings 30
 
       - name: Type-check (TypeScript)
         run: npm run type-check
-        continue-on-error: true
 
       - name: Build (Vite)
         run: npm run build
@@ -115,6 +114,62 @@ jobs:
           if rg -l 'shell\s*=\s*True' backend/app/ --type py 2>/dev/null; then
             echo "WARNING: subprocess with shell=True found"
           fi
+
+      - name: Run backend tests (SQLite)
+        run: cd backend && python -m pytest tests/ -v --tb=short
+        env:
+          DATABASE_URL: sqlite:///./test.db
+          DEBUG: "true"
+          SECRET_KEY: test-secret-key-for-ci-min-32-chars
+          BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
+
+  # ── Backend Tests: PostgreSQL integration ──────────────────────────────
+  backend-tests:
+    name: Backend Tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start PostgreSQL service
+        run: |
+          docker compose -f docker-compose.yml up postgres -d --wait
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: schoolflow_test
+          POSTGRES_USER: schoolflow
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -f docker-compose.yml exec -T postgres pg_isready -U schoolflow -d schoolflow_test > /dev/null 2>&1; then
+              echo "PostgreSQL is ready"
+              break
+            fi
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 2
+          done
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run backend tests (PostgreSQL)
+        run: cd backend && python -m pytest tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
+          SECRET_KEY: test-secret-key-for-ci-min-32-chars
+          BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
+
+      - name: Stop PostgreSQL service
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
 
   # ── Security: dependency vulnerability scan ─────────────────────────────
   security:

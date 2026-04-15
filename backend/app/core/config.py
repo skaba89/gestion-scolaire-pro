@@ -169,7 +169,7 @@ class Settings(BaseSettings):
     BOOTSTRAP_SECRET: str = get_secret("BOOTSTRAP_SECRET", "")
     SECRET_KEY: str = get_secret("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     @field_validator("SECRET_KEY", mode="after")
     @classmethod

@@ -18,6 +18,7 @@ const CreateTenant = lazy(() => import("@/pages/admin/CreateTenant"));
 const SchoolFlowHomePage = lazy(() => import("@/pages/public/SchoolFlowHomePage"));
 const PublicDirectory = lazy(() => import("@/pages/public/PublicDirectory"));
 const ConnectionHub = lazy(() => import("@/pages/public/ConnectionHub"));
+const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
 
 export const PublicRoutes = () => {
     return (
@@ -60,6 +61,9 @@ export const PublicRoutes = () => {
                     <CreateTenant />
                 </ProtectedRoute>
             } />
+
+            {/* Bootstrap — initial super admin setup */}
+            <Route path="/bootstrap" element={<Bootstrap />} />
         </>
     );
 };

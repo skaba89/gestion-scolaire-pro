@@ -1,8 +1,7 @@
 // =============================================================================
 // SchoolFlow Pro — Production SPA Server for Render
 // =============================================================================
-// Serves the Vite build output with reliable SPA fallback.
-// Replaces "npx serve dist -s" which has intermittent routing issues.
+// Serves the Vite build output with reliable SPA fallback AND API proxy.
 // Usage: node server.mjs
 // =============================================================================
 
@@ -12,6 +11,9 @@ import { join, extname, posix } from "path";
 
 const DIST_DIR = new URL("./dist", import.meta.url).pathname;
 const PORT = process.env.PORT || 3000;
+
+// Backend API URL (resolved from env or Render service discovery)
+let BACKEND_URL = "";
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -39,6 +41,104 @@ const MIME_TYPES = {
 
 const FALLBACK = join(DIST_DIR, "index.html");
 
+// ─── API Proxy ───────────────────────────────────────────────────────────────
+// Proxy /api/* and /api-proxy/* requests to the backend.
+// This avoids CORS issues when the frontend and API are on different domains.
+
+async function proxyRequest(req, res, urlPath) {
+  if (!BACKEND_URL) {
+    // No backend URL configured — return 502
+    res.writeHead(502, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ detail: "Backend API not configured. Set VITE_API_URL environment variable." }));
+    return;
+  }
+
+  // Build the backend URL: strip /api/ or /api-proxy/ prefix
+  let backendPath = urlPath;
+  if (backendPath.startsWith("/api/")) {
+    backendPath = backendPath.slice(4); // remove "/api"
+  } else if (backendPath.startsWith("/api-proxy/")) {
+    backendPath = backendPath.slice(11); // remove "/api-proxy"
+  } else if (backendPath === "/api" || backendPath === "/api-proxy") {
+    backendPath = "/";
+  }
+
+  // Ensure path starts with /
+  if (!backendPath.startsWith("/")) {
+    backendPath = "/" + backendPath;
+  }
+
+  const targetUrl = new URL(backendPath, BACKEND_URL);
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    const headers = { ...req.headers };
+    delete headers.host;
+    // Remove accept-encoding so backend doesn't compress the response.
+    // Node.js fetch auto-decompresses, which causes Content-Encoding mismatch
+    // in the browser -> ERR_CONTENT_DECODING_FAILED.
+    delete headers["accept-encoding"];
+    // Forward original hostname so backend can generate correct CORS headers
+    headers["x-forwarded-host"] = req.headers.host || "";
+    headers["x-forwarded-proto"] = req.headers["x-forwarded-proto"] || "https";
+
+    const response = await fetch(targetUrl.toString(), {
+      method: req.method,
+      headers,
+      body: req.method !== "GET" && req.method !== "HEAD" ? await drainBody(req) : undefined,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    // Copy response headers
+    const respHeaders = {};
+    response.headers.forEach((value, key) => {
+      // Skip hop-by-hop headers AND content-encoding/content-length.
+      // Node.js fetch auto-decompresses the body, so content-encoding is stale
+      // and content-length no longer matches the decompressed body size.
+      // Sending them to the browser causes ERR_CONTENT_DECODING_FAILED.
+      if (!["connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade", "content-encoding", "content-length"].includes(key)) {
+        respHeaders[key] = value;
+      }
+    });
+
+    // Add CORS headers for the browser
+    const origin = req.headers.origin || "";
+    if (origin) {
+      respHeaders["access-control-allow-origin"] = origin;
+      respHeaders["vary"] = "Origin";
+      respHeaders["access-control-allow-credentials"] = "true";
+    }
+
+    res.writeHead(response.status, respHeaders);
+    const body = await response.arrayBuffer();
+    res.end(Buffer.from(body));
+  } catch (err) {
+    if (err.name === "AbortError") {
+      res.writeHead(504, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ detail: "Backend request timed out" }));
+    } else {
+      console.error(`[proxy] Error proxying ${req.method} ${urlPath}:`, err.message);
+      res.writeHead(502, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ detail: "Backend proxy error" }));
+    }
+  }
+}
+
+function drainBody(req) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", () => resolve(Buffer.alloc(0)));
+  });
+}
+
+// ─── Static File Server ───────────────────────────────────────────────────────
+
 async function serveStatic(req, res) {
   let urlPath = req.url.split("?")[0]; // strip query string
 
@@ -49,6 +149,33 @@ async function serveStatic(req, res) {
     // keep as-is if decode fails
   }
 
+  // ── Health check (Render / load balancers) ──────────────────────────────
+  if (urlPath === "/health" || urlPath === "/healthz") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", proxy: BACKEND_URL ? "configured" : "disabled" }));
+    return;
+  }
+
+  // ── API Proxy: intercept /api/* and /api-proxy/* ─────────────────────────
+  if (urlPath.startsWith("/api/") || urlPath.startsWith("/api-proxy")) {
+    // Handle CORS preflight
+    if (req.method === "OPTIONS") {
+      const origin = req.headers.origin || "*";
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, X-Tenant-ID, Content-Type, X-Request-ID, Accept",
+        "Access-Control-Max-Age": "86400",
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+      });
+      res.end();
+      return;
+    }
+    return proxyRequest(req, res, urlPath);
+  }
+
+  // ── Static Files ───────────────────────────────────────────────────────────
   // Prevent directory traversal
   const resolvedPath = posix.join("/", urlPath); // normalize to absolute path
   const filePath = join(DIST_DIR, resolvedPath);
@@ -109,45 +236,90 @@ async function serveFile(filePath, res) {
   }
 }
 
+// ─── Runtime Config ──────────────────────────────────────────────────────────
+
 /**
- * Auto-generate dist/config.js with the API URL from the environment.
- * This allows Render (or any platform) to set VITE_API_URL as an env var
- * and have it picked up at runtime without rebuilding.
+ * Resolve the backend API URL from environment variables.
+ * Supports: full URL, bare hostname, or Render service discovery.
+ * Also generates dist/config.js for the frontend runtime config.
  */
-async function generateRuntimeConfig() {
-  const apiUrls = [
+function resolveBackendUrl() {
+  // NOTE: Do NOT include RENDER_EXTERNAL_URL — it always resolves to the
+  // current service's own hostname, which would cause the proxy to loop.
+  const candidates = [
     process.env.VITE_API_URL,
-    process.env.RENDER_EXTERNAL_URL,
+    process.env.BACKEND_INTERNAL_URL,
   ].filter(Boolean);
 
-  // If VITE_API_URL is a full backend URL, use it directly.
-  // If it's a bare hostname (e.g. from Render's fromService.host), prepend https://
-  let apiUrl = apiUrls.find(u => u.startsWith('http')) || '';
-  if (!apiUrl) {
-    const bareHost = apiUrls.find(u => u.includes('.'));
+  // Priority 1: Full URL (starts with http)
+  let url = candidates.find(u => u.startsWith("http")) || "";
+
+  // Priority 2: Bare hostname (e.g. from Render fromService.host)
+  if (!url) {
+    const bareHost = candidates.find(u => u.includes("."));
     if (bareHost) {
-      apiUrl = `https://${bareHost.replace(/^https?:\/\//, '')}`;
+      url = `https://${bareHost.replace(/^https?:\/\//, "")}`;
     }
   }
 
-  if (apiUrl) {
-    const configPath = join(DIST_DIR, 'config.js');
+  // Strip trailing slash
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+
+  // SAFETY: Detect self-proxy loop — if the backend URL resolves to the
+  // current service, treat it as not configured to prevent infinite loops.
+  const selfHost = process.env.RENDER_EXTERNAL_URL
+    ? new URL(process.env.RENDER_EXTERNAL_URL).hostname
+    : "";
+  if (url && selfHost) {
+    try {
+      const backendHost = new URL(url).hostname;
+      if (backendHost === selfHost) {
+        console.warn(
+          `[config] WARNING: Backend URL (${url}) resolves to this service (${selfHost}). ` +
+          "Self-proxy detected — disabling API proxy. " +
+          "Make sure VITE_API_URL points to the BACKEND service (schoolflow-api), not the frontend."
+        );
+        url = "";
+      }
+    } catch {
+      // ignore URL parse errors
+    }
+  }
+
+  BACKEND_URL = url;
+  return url;
+}
+
+async function generateRuntimeConfig() {
+  const apiUrl = resolveBackendUrl();
+
+  // Also generate config.js for frontend runtime config (window.__SCHOOLFLOW_CONFIG__)
+  // Use /api as the API_URL so the frontend sends requests through our proxy
+  const configUrl = BACKEND_URL ? "/api" : "";
+
+  if (configUrl) {
+    const configPath = join(DIST_DIR, "config.js");
     const content = `// Auto-generated by server.mjs at startup — do not edit manually
 window.__SCHOOLFLOW_CONFIG__ = {
-  API_URL: "${apiUrl}",
+  API_URL: "${configUrl}",
 };
 `;
-    await writeFile(configPath, content, 'utf-8');
-    console.log(`[config] Runtime API_URL set to: ${apiUrl}`);
+    await writeFile(configPath, content, "utf-8");
+    console.log(`[config] Runtime API_URL set to: ${configUrl} (backend proxy: ${BACKEND_URL})`);
   } else {
-    console.log('[config] No VITE_API_URL set — using default (build-time or /api-proxy)');
+    console.warn("[config] WARNING: No VITE_API_URL set — API calls will fail!");
   }
 }
+
+// ─── Server Startup ──────────────────────────────────────────────────────────
 
 const server = createServer(serveStatic);
 
 server.listen(PORT, "0.0.0.0", async () => {
   await generateRuntimeConfig();
   console.log(`SchoolFlow Pro frontend serving on http://0.0.0.0:${PORT}`);
+  console.log(`Backend proxy: ${BACKEND_URL || "(not configured)"}`);
   console.log(`SPA fallback enabled — all routes serve ${FALLBACK}`);
 });

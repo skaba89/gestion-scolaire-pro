@@ -103,6 +103,7 @@ async def lifespan(app: FastAPI):
             if not settings.is_sqlite:
                 try:
                     db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false"))
                     db.commit()
                 except Exception:
                     db.rollback()
@@ -149,14 +150,20 @@ async def lifespan(app: FastAPI):
                     db.commit()
                     logger.info("Auto-created super admin: %s", admin_email)
             else:
-                # SECURITY: Only reset password if hash is NULL/empty (initial setup).
-                # Do NOT auto-reset on subsequent startups — an admin may have changed
-                # their password intentionally. Auto-reset defeats the purpose of
-                # password changes and creates a single point of failure.
+                # Update admin password if ADMIN_DEFAULT_PASSWORD is explicitly set.
+                # Uses bcrypt check to avoid unnecessary hash rewrites when the
+                # password hasn't actually changed.
                 needs_update = False
                 if not existing.password_hash:
                     needs_update = True
                     logger.info("Super admin has NULL password_hash, resetting...")
+                elif admin_password and len(admin_password) >= 8:
+                    # Verify current hash matches ADMIN_DEFAULT_PASSWORD
+                    from passlib.context import CryptContext
+                    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+                    if not pwd_context.verify(admin_password, existing.password_hash):
+                        needs_update = True
+                        logger.info("Super admin password differs from ADMIN_DEFAULT_PASSWORD, updating...")
 
                 if needs_update and admin_password and len(admin_password) >= 8:
                     existing.password_hash = get_password_hash(admin_password)

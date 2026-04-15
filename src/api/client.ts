@@ -97,6 +97,7 @@ apiClient.interceptors.response.use(
             {
               headers: {
                 Authorization: `Bearer ${localStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem(TOKEN_STORAGE_KEY)}`,
+                'X-Tenant-ID': localStorage.getItem('last_tenant_id') || '',
               },
             }
           ).then((r) => r.data?.access_token).finally(() => { refreshPromise = null; });
