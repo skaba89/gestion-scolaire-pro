@@ -4,6 +4,7 @@ Utilise une base SQLite en mémoire pour isolation totale.
 """
 import pytest
 import uuid
+from contextlib import asynccontextmanager
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -16,6 +17,22 @@ os.environ.setdefault("DEBUG", "True")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
+
+
+# Shared no-op lifespan to skip DB/Redis startup in integration tests
+@asynccontextmanager
+async def _noop_lifespan(app):
+    yield
+
+
+def get_test_client():
+    """Create a TestClient with lifespan disabled. Use in integration tests."""
+    from app.main import app
+    original = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
+    client = TestClient(app, raise_server_exceptions=False)
+    client.__enter__()
+    return client
 
 
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test_schoolflow.db"
@@ -109,13 +126,22 @@ MOCK_JWT_TOKEN = {
 
 @pytest.fixture(scope="session")
 def client():
-    """Client FastAPI de test avec toutes les dépendances externes mockées."""
-    with patch("app.core.database.create_engine"), \
-         patch("app.core.cache.redis.Redis"):
+    """Client FastAPI de test avec lifespan mockée pour éviter les connexions DB/Redis."""
+    from contextlib import asynccontextmanager
 
-        from app.main import app
-        with TestClient(app) as c:
+    @asynccontextmanager
+    async def _noop_lifespan(app):
+        yield
+
+    from app.main import app
+    # Replace the lifespan to skip DB migrations, Redis connections, etc.
+    original_router_lifespan = app.router.lifespan_context
+    app.router.lifespan_context = _noop_lifespan
+    try:
+        with TestClient(app, raise_server_exceptions=False) as c:
             yield c
+    finally:
+        app.router.lifespan_context = original_router_lifespan
 
 
 @pytest.fixture

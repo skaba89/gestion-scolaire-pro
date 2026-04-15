@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages
 from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework
 from app.api.v1.endpoints.finance import payments, payment_schedules
@@ -31,7 +31,20 @@ api_router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
 api_router.include_router(rgpd.router, prefix="/rgpd", tags=["RGPD"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit Logs"])
-api_router.include_router(audit.router, prefix="/audit-logs", tags=["Audit Logs"])
+# /audit-logs is a legacy alias — use a lightweight redirect instead of double-registering
+# the same router (which duplicates all endpoints in OpenAPI).
+from starlette.responses import RedirectResponse
+from starlette.routing import Route
+
+audit_logs_redirect = APIRouter()
+
+@audit_logs_redirect.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
+async def audit_logs_alias(request: Request, path: str = ""):
+    """Redirect /audit-logs/* → /audit/* for backward compat."""
+    new_url = str(request.url).replace("/audit-logs/", "/audit/", 1)
+    return RedirectResponse(url=new_url, status_code=307)
+
+api_router.include_router(audit_logs_redirect, prefix="/audit-logs", tags=["Audit Logs (alias)"])
 api_router.include_router(mfa.router, prefix="/mfa", tags=["MFA"])
 api_router.include_router(storage.router, prefix="/storage", tags=["Storage"])
 api_router.include_router(realtime.router, prefix="/realtime", tags=["Realtime"])

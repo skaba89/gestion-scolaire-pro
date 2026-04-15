@@ -35,8 +35,9 @@ export const adminQueries = {
     eventRegistrations: (tenantId: string) => ({
         queryKey: ["event-registrations", tenantId] as const,
         queryFn: async () => {
-            // TODO: Implementation on backend if needed
-            return [];
+            if (!tenantId) return [];
+            const response = await apiClient.get("/school-life/event-registrations/");
+            return response.data;
         },
     }),
 
@@ -171,24 +172,14 @@ export const adminQueries = {
         },
     }),
 
-    // TODO: Backend endpoint /users/profiles/ not yet implemented
-    // alumniProfilesForRequests: (tenantId: string) => ({
-    //     queryKey: ["admin-alumni-profiles", tenantId] as const,
-    //     queryFn: async () => {
-    //         if (!tenantId) return [];
-    //         const response = await apiClient.get("/users/profiles/", {
-    //             params: { role: 'ALUMNI' }
-    //         });
-    //         return response.data || [];
-    //     },
-    // }),
     alumniProfilesForRequests: (tenantId: string) => ({
         queryKey: ["admin-alumni-profiles", tenantId] as const,
         queryFn: async () => {
             if (!tenantId) return [];
-            // TODO: Backend endpoint /users/profiles/ not yet implemented.
-            // Returning empty array until backend support is added.
-            return [];
+            const response = await apiClient.get("/users/", {
+                params: { role: 'ALUMNI', page_size: 100 }
+            });
+            return response.data?.items || response.data || [];
         },
     }),
 
