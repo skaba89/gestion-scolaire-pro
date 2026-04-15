@@ -102,6 +102,7 @@ async def lifespan(app: FastAPI):
             if not settings.is_sqlite:
                 try:
                     db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false"))
                     db.commit()
                 except Exception:
                     db.rollback()

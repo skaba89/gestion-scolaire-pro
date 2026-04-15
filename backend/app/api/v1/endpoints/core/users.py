@@ -69,20 +69,37 @@ def read_users_me(
     user_id = current_user.get("id")
     
     # 1. Fetch user data from DB (lenient on tenant_id for first login)
-    # Use CAST() instead of ::text for SQLite compatibility
-    sql_user = text("""
-        SELECT 
-            CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name, 
-            u.is_active, u.avatar_url, u.created_at, u.tenant_id,
-            t.slug as tenant_slug, t.name as tenant_name,
-            t.settings as tenant_settings, t.type as tenant_type,
-            u.mfa_enabled,
-            COALESCE(u.must_change_password, false) as must_change_password
-        FROM users u
-        LEFT JOIN tenants t ON t.id = u.tenant_id
-        WHERE u.id = :user_id
-    """)
-    row = db.execute(sql_user, {"user_id": user_id}).fetchone()
+    # NOTE: must_change_password may not exist yet (pending Alembic migration).
+    # Try full query first; fall back to query without that column.
+    try:
+        sql_user = text("""
+            SELECT 
+                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name, 
+                u.is_active, u.avatar_url, u.created_at, u.tenant_id,
+                t.slug as tenant_slug, t.name as tenant_name,
+                t.settings as tenant_settings, t.type as tenant_type,
+                u.mfa_enabled,
+                COALESCE(u.must_change_password, false) as must_change_password
+            FROM users u
+            LEFT JOIN tenants t ON t.id = u.tenant_id
+            WHERE u.id = :user_id
+        """)
+        row = db.execute(sql_user, {"user_id": user_id}).fetchone()
+    except Exception:
+        logger.warning("must_change_password column missing, using fallback query for /users/me/")
+        sql_user = text("""
+            SELECT 
+                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name, 
+                u.is_active, u.avatar_url, u.created_at, u.tenant_id,
+                t.slug as tenant_slug, t.name as tenant_name,
+                t.settings as tenant_settings, t.type as tenant_type,
+                u.mfa_enabled,
+                false as must_change_password
+            FROM users u
+            LEFT JOIN tenants t ON t.id = u.tenant_id
+            WHERE u.id = :user_id
+        """)
+        row = db.execute(sql_user, {"user_id": user_id}).fetchone()
     
     # 2. Fetch roles from user_roles table
     sql_roles = text("SELECT role FROM user_roles WHERE user_id = :user_id")

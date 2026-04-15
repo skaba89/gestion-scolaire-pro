@@ -616,6 +616,9 @@ async def reset_forced_password(
         logger.warning("Password history check failed (Redis unavailable): %s", exc)
 
     user.password_hash = get_password_hash(body.new_password)
+    # Clear the forced password change flag so the user is not prompted again
+    if hasattr(user, "must_change_password"):
+        user.must_change_password = False
     user.updated_at = datetime.now(timezone.utc)
     db.commit()
 
