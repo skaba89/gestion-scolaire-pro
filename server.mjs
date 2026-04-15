@@ -114,8 +114,18 @@ async function proxyRequest(req, res, urlPath) {
       respHeaders["access-control-allow-credentials"] = "true";
     }
 
-    res.writeHead(response.status, respHeaders);
     const body = await response.arrayBuffer();
+
+    // Log 5xx responses with body for debugging (but NOT the request body to avoid leaking passwords)
+    if (response.status >= 500) {
+      const bodyStr = Buffer.from(body).toString("utf-8");
+      console.error(
+        `[proxy] Backend returned ${response.status} for ${req.method} ${urlPath} → ${targetUrl}`,
+        `\n  Response body: ${bodyStr.substring(0, 500)}`
+      );
+    }
+
+    res.writeHead(response.status, respHeaders);
     res.end(Buffer.from(body));
   } catch (err) {
     if (err.name === "AbortError") {

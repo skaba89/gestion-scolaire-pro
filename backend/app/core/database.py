@@ -94,6 +94,18 @@ def get_db():
             )
 
     try:
+        # Verify database connection is alive before yielding
+        db.execute(text("SELECT 1"))
         yield db
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(
+            "Database connection failed in get_db(): %s", exc
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
     finally:
         db.close()

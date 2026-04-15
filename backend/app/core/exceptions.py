@@ -172,7 +172,8 @@ async def unhandled_exception_handler(
     if settings.DEBUG:
         error_msg = f"{type(exc).__name__}: {str(exc)}"
     else:
-        error_msg = "An unexpected error occurred. Contact support with the request ID."
+        # Include exception type (but NOT message) for easier debugging in production
+        error_msg = f"{type(exc).__name__}. Contact support with request ID {request_id}."
     return JSONResponse(
         status_code=500,
         content={

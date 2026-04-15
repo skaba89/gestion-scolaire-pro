@@ -159,140 +159,170 @@ async def _reset_login_attempts(user_id: str) -> None:
 @router.post("/login/", response_model=Token)
 @limiter.limit("5/minute")
 async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = (
-        db.query(User)
-        .filter(or_(User.email == form_data.username, User.username == form_data.username))
-        .first()
-    )
-
-    if not user:
-        logger.warning("Login failed: no user found for '%s'", form_data.username)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        user = (
+            db.query(User)
+            .filter(or_(User.email == form_data.username, User.username == form_data.username))
+            .first()
         )
 
-    # Check per-account lockout (prevents distributed brute-force)
-    is_locked, remaining = await _check_account_lockout(str(user.id))
-    if is_locked:
-        logger.warning("Login blocked: account %s is locked due to too many failed attempts", user.email)
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Account temporarily locked due to too many failed login attempts. Please try again later.",
-            headers={"WWW-Authenticate": "Bearer", "Retry-After": str(LOGIN_LOCKOUT_DURATION)},
-        )
-
-    # Check user is active
-    if not user.is_active:
-        logger.warning("Login failed: user '%s' (id=%s) is inactive", user.email, user.id)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Account is disabled. Contact an administrator.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Check password_hash is set
-    stored_hash = getattr(user, "password_hash", None)
-    if not stored_hash:
-        logger.error(
-            "Login failed: user '%s' (id=%s) has NULL/empty password_hash. "
-            "This user cannot log in until a password is set. "
-            "Use ADMIN_DEFAULT_PASSWORD env var or /auth/bootstrap/ endpoint.",
-            user.email, user.id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No password set for this account. Contact an administrator to reset it.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Verify password
-    if not verify_password(form_data.password, stored_hash):
-        attempts = await _record_failed_login(str(user.id))
-        logger.info("Login failed: wrong password for '%s' (attempt %d/%d)", user.email, attempts, MAX_LOGIN_ATTEMPTS)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Verify the user's tenant is active (if they belong to one)
-    if user.tenant_id:
-        from app.models.tenant import Tenant
-        tenant_obj = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
-        if not tenant_obj or not getattr(tenant_obj, "is_active", True):
-            logger.info("Login denied: tenant %s is inactive for user '%s'", user.tenant_id, form_data.username)
+        if not user:
+            logger.warning("Login failed: no user found for '%s'", form_data.username)
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your institution is currently deactivated. Please contact an administrator.",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
             )
 
-    roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
+        # Check per-account lockout (prevents distributed brute-force)
+        is_locked, remaining = await _check_account_lockout(str(user.id))
+        if is_locked:
+            logger.warning("Login blocked: account %s is locked due to too many failed attempts", user.email)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Account temporarily locked due to too many failed login attempts. Please try again later.",
+                headers={"WWW-Authenticate": "Bearer", "Retry-After": str(LOGIN_LOCKOUT_DURATION)},
+            )
 
-    # Fetch current token version from Redis (for logout-all invalidation)
-    token_version = 0
-    try:
-        from app.core.cache import redis_client
-        client = await redis_client.client
-        version_str = await client.get(f"sfp:user_token_version:{user.id}")
-        if version_str:
-            token_version = int(version_str)
-    except Exception:
-        pass
+        # Check user is active
+        if not user.is_active:
+            logger.warning("Login failed: user '%s' (id=%s) is inactive", user.email, user.id)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account is disabled. Contact an administrator.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-    import hashlib
-    token_jti = hashlib.sha256(f"{user.id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
+        # Check password_hash is set
+        stored_hash = getattr(user, "password_hash", None)
+        if not stored_hash:
+            logger.error(
+                "Login failed: user '%s' (id=%s) has NULL/empty password_hash. "
+                "This user cannot log in until a password is set. "
+                "Use ADMIN_DEFAULT_PASSWORD env var or /auth/bootstrap/ endpoint.",
+                user.email, user.id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No password set for this account. Contact an administrator to reset it.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-    access_token = create_access_token(
-        {
-            "sub": str(user.id),
-            "email": user.email,
-            "preferred_username": user.username,
-            "tenant_id": str(user.tenant_id) if user.tenant_id else None,
-            "roles": roles,
-            "jti": token_jti,
-            "tv": token_version,
-        }
-    )
+        # Verify password (wrap in try/except to handle malformed hashes gracefully)
+        try:
+            password_ok = verify_password(form_data.password, stored_hash)
+        except Exception as pw_err:
+            logger.error("Password verification crashed for user '%s': %s", user.email, pw_err, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Password verification error. Contact an administrator.",
+            )
 
-    # SECURITY: Enforce MFA check for privileged roles before issuing token
-    # Controlled by ENFORCE_MFA env var (default: disabled to avoid locking out
-    # bootstrap super admin who is created with mfa_enabled=False).
-    PRIVILEGED_ROLES_REQUIRING_MFA = {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT"}
-    user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
+        if not password_ok:
+            attempts = await _record_failed_login(str(user.id))
+            logger.info("Login failed: wrong password for '%s' (attempt %d/%d)", user.email, attempts, MAX_LOGIN_ATTEMPTS)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect username or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-    if user_privileged_roles:
-        mfa_enabled = getattr(user, "mfa_enabled", False)
-        enforce_mfa = os.getenv("ENFORCE_MFA", "false").lower() == "true"
-
-        if not mfa_enabled:
-            if enforce_mfa:
-                logger.warning(
-                    "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled (ENFORCE_MFA=true)",
-                    user.email, user_privileged_roles
-                )
+        # Verify the user's tenant is active (if they belong to one)
+        if user.tenant_id:
+            from app.models.tenant import Tenant
+            tenant_obj = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
+            if not tenant_obj or not getattr(tenant_obj, "is_active", True):
+                logger.info("Login denied: tenant %s is inactive for user '%s'", user.tenant_id, form_data.username)
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
-                )
-            else:
-                logger.warning(
-                    "MFA not enabled for user '%s' with privileged roles %s. "
-                    "Set ENFORCE_MFA=true to require MFA for privileged accounts.",
-                    user.email, user_privileged_roles
+                    detail="Your institution is currently deactivated. Please contact an administrator.",
                 )
 
-    # SECURITY: Clear failed login attempts on successful login
-    await _reset_login_attempts(str(user.id))
+        roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
 
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        refresh_token=None,
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        token_version=token_version,
-    )
+        # Fetch current token version from Redis (for logout-all invalidation)
+        token_version = 0
+        try:
+            from app.core.cache import redis_client
+            client = await redis_client.client
+            version_str = await client.get(f"sfp:user_token_version:{user.id}")
+            if version_str:
+                token_version = int(version_str)
+        except Exception:
+            pass
+
+        import hashlib
+        token_jti = hashlib.sha256(f"{user.id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
+
+        # Create access token (wrap in try/except to catch SECRET_KEY issues)
+        try:
+            access_token = create_access_token(
+                {
+                    "sub": str(user.id),
+                    "email": user.email,
+                    "preferred_username": user.username,
+                    "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+                    "roles": roles,
+                    "jti": token_jti,
+                    "tv": token_version,
+                }
+            )
+        except Exception as tok_err:
+            logger.error("Token creation failed: %s", tok_err, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Token generation error. The server may be misconfigured (check SECRET_KEY).",
+            )
+
+        # SECURITY: Enforce MFA check for privileged roles before issuing token
+        PRIVILEGED_ROLES_REQUIRING_MFA = {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT"}
+        user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
+
+        if user_privileged_roles:
+            mfa_enabled = getattr(user, "mfa_enabled", False)
+            enforce_mfa = os.getenv("ENFORCE_MFA", "false").lower() == "true"
+
+            if not mfa_enabled:
+                if enforce_mfa:
+                    logger.warning(
+                        "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled (ENFORCE_MFA=true)",
+                        user.email, user_privileged_roles
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
+                    )
+                else:
+                    logger.warning(
+                        "MFA not enabled for user '%s' with privileged roles %s. "
+                        "Set ENFORCE_MFA=true to require MFA for privileged accounts.",
+                        user.email, user_privileged_roles
+                    )
+
+        # SECURITY: Clear failed login attempts on successful login
+        await _reset_login_attempts(str(user.id))
+
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            refresh_token=None,
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            token_version=token_version,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Catch ALL unhandled exceptions and log full traceback
+        logger.error(
+            "Unhandled login error for username='%s': [%s] %s",
+            form_data.username, type(exc).__name__, exc,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login error: {type(exc).__name__}. Check server logs for details.",
+        )
 
 
 class RefreshRequest(BaseModel):
@@ -940,6 +970,164 @@ def diagnostics(
             "tenants_with_users": tenants_count,
         },
     }
+
+
+# ─── Public Login Diagnostics ─────────────────────────────────────────────
+# This endpoint is PUBLIC (no auth required) to help diagnose login 500 errors.
+# It tests all components needed for login: DB, admin user, password, Redis.
+# SECURITY: Does not expose passwords or secrets. Remove after debugging.
+
+@router.get("/login-diagnostics/")
+async def login_diagnostics(db: Session = Depends(get_db)):
+    """Public diagnostic endpoint to debug login 500 errors.
+
+    Tests database connectivity, admin user existence, password verification,
+    and Redis connectivity. Returns detailed status for each component.
+    Remove this endpoint after resolving deployment issues.
+    """
+    import sqlalchemy
+    import traceback
+
+    result = {
+        "status": "ok",
+        "components": {},
+        "errors": [],
+    }
+
+    # 1. Database connectivity
+    try:
+        db.execute(sqlalchemy.text("SELECT 1"))
+        result["components"]["database"] = {"status": "ok", "url_prefix": (settings.DATABASE_URL_SYNC or "")[:30] + "..."}
+    except Exception as e:
+        result["components"]["database"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}
+        result["errors"].append(f"Database: {e}")
+        result["status"] = "error"
+        return result
+
+    # 2. Check critical tables exist
+    required_tables = ["users", "user_roles"]
+    for table in required_tables:
+        try:
+            if settings.is_sqlite:
+                db.execute(sqlalchemy.text(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'"))
+            else:
+                db.execute(sqlalchemy.text(
+                    "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=:t"
+                ), {"t": table})
+            result["components"][f"table_{table}"] = {"status": "ok"}
+        except Exception as e:
+            result["components"][f"table_{table}"] = {"status": "error", "error": str(e)}
+            result["errors"].append(f"Table {table}: {e}")
+
+    # 3. Check admin user
+    admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
+    try:
+        admin_row = db.execute(
+            sqlalchemy.text("SELECT id, email, username, is_active, is_superuser, password_hash IS NOT NULL as has_password FROM users WHERE email = :email"),
+            {"email": admin_email}
+        ).first()
+
+        if admin_row:
+            result["components"]["admin_user"] = {
+                "status": "exists",
+                "id": str(admin_row[0]),
+                "email": admin_row[1],
+                "username": admin_row[2],
+                "is_active": bool(admin_row[3]),
+                "is_superuser": bool(admin_row[4]),
+                "has_password_hash": bool(admin_row[5]),
+            }
+
+            # Check admin roles
+            try:
+                roles = db.execute(
+                    sqlalchemy.text("SELECT role FROM user_roles WHERE user_id = :uid"),
+                    {"uid": str(admin_row[0])}
+                ).fetchall()
+                result["components"]["admin_user"]["roles"] = [r[0] for r in roles]
+            except Exception as e:
+                result["components"]["admin_user"]["roles_error"] = str(e)
+
+            # Test password verification
+            admin_password = settings.ADMIN_DEFAULT_PASSWORD
+            if admin_password and admin_row[5]:  # has_password
+                try:
+                    from app.core.security import verify_password
+                    pw_ok = verify_password(admin_password, admin_row[5]) if hasattr(admin_row, '__getitem__') else False
+                    # admin_row[5] is the result of "password_hash IS NOT NULL" (True/False)
+                    # We need to fetch the actual hash to test
+                    hash_row = db.execute(
+                        sqlalchemy.text("SELECT password_hash FROM users WHERE email = :email"),
+                        {"email": admin_email}
+                    ).first()
+                    if hash_row and hash_row[0]:
+                        pw_ok = verify_password(admin_password, hash_row[0])
+                    else:
+                        pw_ok = False
+                    result["components"]["admin_user"]["password_verification"] = "ok" if pw_ok else "MISMATCH"
+                    if not pw_ok:
+                        result["errors"].append("Admin password does not match ADMIN_DEFAULT_PASSWORD. Use /auth/bootstrap/ to reset.")
+                except Exception as e:
+                    result["components"]["admin_user"]["password_verification"] = f"error: {e}"
+                    result["errors"].append(f"Password verify: {e}")
+            elif not admin_password:
+                result["components"]["admin_user"]["password_verification"] = "skipped (ADMIN_DEFAULT_PASSWORD not set)"
+            else:
+                result["components"]["admin_user"]["password_verification"] = "skipped (no hash in DB)"
+        else:
+            result["components"]["admin_user"] = {
+                "status": "NOT_FOUND",
+                "expected_email": admin_email,
+                "hint": "Admin user not found. The startup bootstrap may have failed. Check Render logs.",
+            }
+            result["errors"].append(f"Admin user '{admin_email}' not found in database")
+    except Exception as e:
+        result["components"]["admin_user"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}
+        result["errors"].append(f"Admin check: {e}")
+
+    # 4. Check config
+    result["components"]["config"] = {
+        "ADMIN_DEFAULT_EMAIL": settings.ADMIN_DEFAULT_EMAIL or "(not set)",
+        "ADMIN_DEFAULT_PASSWORD": "SET" if settings.ADMIN_DEFAULT_PASSWORD else "NOT SET",
+        "ADMIN_DEFAULT_PASSWORD_LENGTH": len(settings.ADMIN_DEFAULT_PASSWORD) if settings.ADMIN_DEFAULT_PASSWORD else 0,
+        "SECRET_KEY": "SET" if settings.SECRET_KEY and len(settings.SECRET_KEY) >= 32 else "INVALID",
+        "SECRET_KEY_LENGTH": len(settings.SECRET_KEY) if settings.SECRET_KEY else 0,
+        "BOOTSTRAP_SECRET": "SET" if settings.BOOTSTRAP_SECRET else "NOT SET",
+        "BOOTSTRAP_SECRET_LENGTH": len(settings.BOOTSTRAP_SECRET) if settings.BOOTSTRAP_SECRET else 0,
+        "DEBUG": settings.DEBUG,
+        "DATABASE_URL_SET": bool(settings.DATABASE_URL),
+        "DATABASE_DRIVER": "sqlite" if settings.is_sqlite else "postgresql",
+    }
+
+    # 5. Redis check
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        await client.set("sfp:_diag_ping", "1", expire=10)
+        pong = await client.get("_diag_ping")
+        await client.delete("_diag_ping")
+        result["components"]["redis"] = {"status": "ok"}
+    except Exception as e:
+        result["components"]["redis"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}
+        result["components"]["redis"]["hint"] = "Redis is optional. Login will work without it (rate limiting disabled)."
+
+    # 6. Test actual login query (same as the login endpoint)
+    try:
+        test_user = db.query(User).filter(User.email == admin_email).first()
+        if test_user:
+            result["components"]["login_query"] = {
+                "status": "ok",
+                "user_found": True,
+                "user_email": test_user.email,
+                "user_active": test_user.is_active,
+            }
+        else:
+            result["components"]["login_query"] = {"status": "ok", "user_found": False}
+    except Exception as e:
+        result["components"]["login_query"] = {"status": "error", "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()}
+        result["errors"].append(f"Login query: {e}")
+
+    return result
 
 
 # NOTE: /auth/me/ is deprecated — use /users/me/ instead.
