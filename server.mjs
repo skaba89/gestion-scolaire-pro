@@ -149,6 +149,13 @@ async function serveStatic(req, res) {
     // keep as-is if decode fails
   }
 
+  // ── Health check (Render / load balancers) ──────────────────────────────
+  if (urlPath === "/health" || urlPath === "/healthz") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", proxy: BACKEND_URL ? "configured" : "disabled" }));
+    return;
+  }
+
   // ── API Proxy: intercept /api/* and /api-proxy/* ─────────────────────────
   if (urlPath.startsWith("/api/") || urlPath.startsWith("/api-proxy")) {
     // Handle CORS preflight
@@ -237,9 +244,10 @@ async function serveFile(filePath, res) {
  * Also generates dist/config.js for the frontend runtime config.
  */
 function resolveBackendUrl() {
+  // NOTE: Do NOT include RENDER_EXTERNAL_URL — it always resolves to the
+  // current service's own hostname, which would cause the proxy to loop.
   const candidates = [
     process.env.VITE_API_URL,
-    process.env.RENDER_EXTERNAL_URL,
     process.env.BACKEND_INTERNAL_URL,
   ].filter(Boolean);
 
@@ -257,6 +265,27 @@ function resolveBackendUrl() {
   // Strip trailing slash
   if (url.endsWith("/")) {
     url = url.slice(0, -1);
+  }
+
+  // SAFETY: Detect self-proxy loop — if the backend URL resolves to the
+  // current service, treat it as not configured to prevent infinite loops.
+  const selfHost = process.env.RENDER_EXTERNAL_URL
+    ? new URL(process.env.RENDER_EXTERNAL_URL).hostname
+    : "";
+  if (url && selfHost) {
+    try {
+      const backendHost = new URL(url).hostname;
+      if (backendHost === selfHost) {
+        console.warn(
+          `[config] WARNING: Backend URL (${url}) resolves to this service (${selfHost}). ` +
+          "Self-proxy detected — disabling API proxy. " +
+          "Make sure VITE_API_URL points to the BACKEND service (schoolflow-api), not the frontend."
+        );
+        url = "";
+      }
+    } catch {
+      // ignore URL parse errors
+    }
   }
 
   BACKEND_URL = url;
