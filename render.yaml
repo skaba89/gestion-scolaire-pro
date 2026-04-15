@@ -96,7 +96,9 @@ services:
     runtime: node
     region: frankfurt
     plan: free
-    buildCommand: npm install && npm run build
+    # NOTE: --include=dev is required because NODE_ENV=production (set below)
+    # causes npm to skip devDependencies. vite and plugins are in devDeps.
+    buildCommand: npm install --include=dev && npm run build
     startCommand: node server.mjs
     rootDir: .
     envVars:
