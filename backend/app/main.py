@@ -102,10 +102,23 @@ async def lifespan(app: FastAPI):
         try:
             if not settings.is_sqlite:
                 try:
+                    # Ensure all User model columns exist (some may have been added after initial migration)
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100)"))
                     db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE"))
-                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT false"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT false"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)"))
+                    # Backfill: set username = email prefix for any users with NULL username
+                    db.execute(text(
+                        "UPDATE users SET username = SPLIT_PART(email, '@', 1) "
+                        "WHERE username IS NULL AND email IS NOT NULL"
+                    ))
                     db.commit()
-                except Exception:
+                    logger.info("User table columns ensured")
+                except Exception as col_err:
+                    logger.warning("Column migration partial failure (may already exist): %s", col_err)
                     db.rollback()
 
             admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
@@ -164,6 +177,12 @@ async def lifespan(app: FastAPI):
                     if not pwd_context.verify(admin_password, existing.password_hash):
                         needs_update = True
                         logger.info("Super admin password differs from ADMIN_DEFAULT_PASSWORD, updating...")
+
+                # Fix users missing username (column added after initial migration)
+                if not getattr(existing, "username", None):
+                    existing.username = admin_email.split("@")[0]
+                    needs_update = True
+                    logger.info("Super admin username was NULL, set to '%s'", existing.username)
 
                 if needs_update and admin_password and len(admin_password) >= 8:
                     existing.password_hash = get_password_hash(admin_password)
