@@ -6,11 +6,12 @@
 # =============================================================================
 #
 # ARCHITECTURE on Render:
-#   - Frontend (server.mjs) → proxies /api/* to Backend
-#   - Backend (FastAPI) → PostgreSQL + optional Redis
-#   - VITE_API_URL is resolved via fromService (backend hostname)
-#   - server.mjs auto-generates config.js with /api as API_URL
-#     and proxies all /api/* requests to the backend
+#   - schoolflow-db   (PostgreSQL) — managed database
+#   - schoolflow-api  (FastAPI)    — backend API
+#   - gestion-scolaire-pro (Node)  — frontend SPA + API proxy
+#
+# The frontend proxies /api/* to the backend, so the browser only talks
+# to one domain. No CORS issues.
 #
 # =============================================================================
 
@@ -29,10 +30,14 @@ services:
     region: frankfurt
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: bash -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    # NOTE: Do NOT run "alembic upgrade head" here — alembic.ini has an empty
+    # sqlalchemy.url, so it would fail and block uvicorn via &&.
+    # The app's lifespan handler in main.py runs migrations automatically
+    # with the correct DATABASE_URL.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     rootDir: ./backend
     envVars:
-      # --- Database (auto-linked par Render) ---
+      # --- Database (auto-linked by Render from schoolflow-db) ---
       - key: DATABASE_URL
         fromDatabase:
           name: schoolflow-db
@@ -63,22 +68,21 @@ services:
         value: admin@schoolflow.local
       - key: ADMIN_DEFAULT_PASSWORD
         value: "Admin@123456"
+
       # --- Security ---
       - key: BOOTSTRAP_SECRET
         generateValue: true
       - key: METRICS_SECRET
         generateValue: true
 
-      # --- CORS: allow both the frontend domain and wildcard for Render ---
-      # The frontend proxy (server.mjs) sends requests server-side, so CORS
-      # is only needed for direct browser-to-backend calls.
+      # --- CORS ---
       - key: BACKEND_CORS_ORIGINS
         fromService:
           name: gestion-scolaire-pro
           type: web
           property: host
 
-      # --- Redis (optionnel — rate limiting / sessions sans Redis = mode degraded) ---
+      # --- Redis (optionnel) ---
       - key: REDIS_URL
         sync: false
 
@@ -86,17 +90,7 @@ services:
       - key: GROQ_API_KEY
         sync: false
 
-  # ─── Frontend (React SPA with built-in API proxy) ──────────────────────────
-  # Uses server.mjs which:
-  #   1. Serves static files from dist/
-  #   2. Proxies /api/* and /api-proxy/* to the backend (no CORS needed!)
-  #   3. Falls back to index.html for SPA routing
-  #   4. Auto-generates dist/config.js with API_URL=/api at startup
-  #
-  # IMPORTANT: VITE_API_URL is set to the backend hostname via fromService.
-  # server.mjs resolves this and uses it as the proxy target. The frontend
-  # runtime config will use /api (relative path) so all API calls go through
-  # the built-in proxy, avoiding CORS issues entirely.
+  # ─── Frontend (React SPA + API proxy via server.mjs) ─────────────────────
   - type: web
     name: gestion-scolaire-pro
     runtime: node
@@ -108,9 +102,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # --- Backend URL for the proxy (resolved at runtime by server.mjs) ---
-      # fromService.host gives the bare hostname (e.g. schoolflow-api-xxxx.onrender.com)
-      # server.mjs prepends https:// and uses it as the proxy target
+      # VITE_API_URL = backend hostname (resolved by Render via fromService).
+      # server.mjs prepends https:// and uses it as the proxy target.
       - key: VITE_API_URL
         fromService:
           name: schoolflow-api
