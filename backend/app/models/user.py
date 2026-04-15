@@ -23,6 +23,7 @@ class User(Base, UUIDMixin, TimestampMixin):
     is_superuser = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
+    must_change_password = Column(Boolean, default=False, nullable=False)
 
     # Relationships
     tenant = relationship("Tenant", back_populates="users", foreign_keys=[tenant_id])

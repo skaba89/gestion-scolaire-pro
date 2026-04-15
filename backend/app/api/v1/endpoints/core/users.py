@@ -75,7 +75,9 @@ def read_users_me(
             CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name, 
             u.is_active, u.avatar_url, u.created_at, u.tenant_id,
             t.slug as tenant_slug, t.name as tenant_name,
-            t.settings as tenant_settings, t.type as tenant_type
+            t.settings as tenant_settings, t.type as tenant_type,
+            u.mfa_enabled,
+            COALESCE(u.must_change_password, false) as must_change_password
         FROM users u
         LEFT JOIN tenants t ON t.id = u.tenant_id
         WHERE u.id = :user_id
@@ -96,11 +98,14 @@ def read_users_me(
             "user": {
                 "id": user_id,
                 "email": current_user.get("email"),
+                "mfa_enabled": False,
+                "must_change_password": False,
             },
             "profile": {
                 "first_name": "",
                 "last_name": "",
-                "avatar_url": None
+                "avatar_url": None,
+                "must_change_password": False,
             },
             "roles": all_roles,
             "tenant": None
@@ -110,11 +115,14 @@ def read_users_me(
         "user": {
             "id": row.id,
             "email": row.email,
+            "mfa_enabled": bool(row.mfa_enabled) if row.mfa_enabled is not None else False,
+            "must_change_password": bool(row.must_change_password) if row.must_change_password is not None else False,
         },
         "profile": {
             "first_name": row.first_name,
             "last_name": row.last_name,
             "avatar_url": row.avatar_url,
+            "must_change_password": bool(row.must_change_password) if row.must_change_password is not None else False,
         },
         "roles": all_roles,
         "tenant": {
