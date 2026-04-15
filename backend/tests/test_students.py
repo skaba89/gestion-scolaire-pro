@@ -1,7 +1,8 @@
 """Tests des endpoints étudiants — isolation multi-tenant."""
-import pytest
 import uuid
-from unittest.mock import patch, MagicMock
+from conftest import get_test_client
+
+client = get_test_client()
 
 
 class TestStudentEndpointsSecurity:
@@ -9,17 +10,11 @@ class TestStudentEndpointsSecurity:
 
     def test_list_students_without_auth_returns_401(self):
         """GET /students/ sans auth → 401."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
         resp = client.get("/api/v1/students/")
         assert resp.status_code == 401
 
     def test_create_student_without_auth_returns_401(self):
         """POST /students/ sans auth → 401."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
         resp = client.post(
             "/api/v1/students/",
             json={
@@ -32,25 +27,16 @@ class TestStudentEndpointsSecurity:
 
     def test_get_student_without_auth_returns_401(self):
         """GET /students/{id} sans auth → 401."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
         resp = client.get(f"/api/v1/students/{uuid.uuid4()}")
         assert resp.status_code == 401
 
     def test_delete_student_without_auth_returns_401(self):
         """DELETE /students/{id} sans auth → 401."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
         resp = client.delete(f"/api/v1/students/{uuid.uuid4()}")
         assert resp.status_code == 401
 
     def test_update_student_without_auth_returns_401(self):
         """PATCH /students/{id} sans auth → 401."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
         resp = client.patch(
             f"/api/v1/students/{uuid.uuid4()}",
             json={"first_name": "Jean-Pierre"},
@@ -63,10 +49,6 @@ class TestTenantIsolation:
 
     def test_request_without_tenant_header_gets_rejected(self):
         """Requête sans X-Tenant-ID sur endpoint tenant-aware → rejet."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
-        # Pas de header X-Tenant-ID, pas de token
         resp = client.get("/api/v1/students/")
         assert resp.status_code in (400, 401, 422)
 

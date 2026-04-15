@@ -2,9 +2,10 @@
 import pytest
 import uuid
 from unittest.mock import patch, MagicMock
-
+from conftest import get_test_client
 
 SAMPLE_TENANT_ID = str(uuid.uuid4())
+client = get_test_client()
 
 
 class MockTenant:
@@ -47,9 +48,6 @@ class TestPublicTenantEndpoints:
             mock_db.query.return_value = mock_query
             mock_get_db.return_value = iter([mock_db])
 
-            from fastapi.testclient import TestClient
-            from app.main import app
-            client = TestClient(app)
             resp = client.get("/api/v1/tenants/public")
             assert resp.status_code in (200, 500)  # 500 si DB pas dispo en test
 
@@ -63,9 +61,6 @@ class TestPublicTenantEndpoints:
             mock_db.query.return_value = mock_query
             mock_get_db.return_value = iter([mock_db])
 
-            from fastapi.testclient import TestClient
-            from app.main import app
-            client = TestClient(app)
             resp = client.get("/api/v1/tenants/public/non-existent-slug-xyz")
             assert resp.status_code in (404, 500)
 
@@ -78,25 +73,16 @@ class TestPublicTenantEndpoints:
             mock_db.execute.return_value = mock_execute
             mock_get_db.return_value = iter([mock_db])
 
-            from fastapi.testclient import TestClient
-            from app.main import app
-            client = TestClient(app)
             resp = client.get("/api/v1/tenants/by-domain/unknown-domain.com")
             assert resp.status_code in (404, 500)
 
     def test_private_tenant_list_requires_auth(self):
         """GET /tenants/ sans auth → 401."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
         resp = client.get("/api/v1/tenants/")
         assert resp.status_code == 401
 
     def test_create_tenant_requires_auth(self):
         """POST /tenants/ sans auth → 401."""
-        from fastapi.testclient import TestClient
-        from app.main import app
-        client = TestClient(app)
         resp = client.post(
             "/api/v1/tenants/",
             json={"name": "Test", "slug": "test", "type": "SCHOOL"},

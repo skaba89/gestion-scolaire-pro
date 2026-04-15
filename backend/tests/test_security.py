@@ -9,9 +9,14 @@ class TestRolePermissions:
         from app.core.security import ROLE_PERMISSIONS
         assert "*" in ROLE_PERMISSIONS["SUPER_ADMIN"]
 
-    def test_tenant_admin_has_all_permissions(self):
+    def test_tenant_admin_has_core_permissions(self):
         from app.core.security import ROLE_PERMISSIONS
-        assert "*" in ROLE_PERMISSIONS["TENANT_ADMIN"]
+        perms = ROLE_PERMISSIONS["TENANT_ADMIN"]
+        # TENANT_ADMIN has granular permissions, not wildcard (only SUPER_ADMIN has "*")
+        assert "users:read" in perms
+        assert "users:write" in perms
+        assert "students:read" in perms
+        assert "students:write" in perms
 
     def test_teacher_has_grade_write(self):
         from app.core.security import ROLE_PERMISSIONS
@@ -49,10 +54,15 @@ class TestConfigValidation:
             assert len(settings.SECRET_KEY) >= 32
 
     def test_prod_mode_rejects_empty_secret(self):
-        """En mode PRODUCTION, une clé vide doit lever ValueError."""
+        """En mode PRODUCTION, une clé vide doit provoquer os._exit(1)."""
         import os
-        from pydantic import ValidationError
-        with patch.dict(os.environ, {"DEBUG": "False", "SECRET_KEY": ""}):
-            with pytest.raises((ValueError, ValidationError)):
-                from app.core.config import Settings
-                Settings()
+        from unittest.mock import patch, MagicMock
+        # The validator calls os._exit(1) for empty SECRET_KEY when DEBUG=False.
+        # We mock os._exit to prevent it from killing the test process.
+        mock_exit = MagicMock(side_effect=SystemExit(1))
+        with patch.dict(os.environ, {"DEBUG": "False", "SECRET_KEY": "", "ENVIRONMENT": ""}):
+            with patch("os._exit", mock_exit):
+                with pytest.raises(SystemExit):
+                    from app.core.config import Settings
+                    Settings()
+                mock_exit.assert_called_once_with(1)

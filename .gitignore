@@ -29,6 +29,11 @@ backend/.env
 !.env.docker.example
 !.env.production.template
 
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
 # Backups & data
 infra/backups/
 backups/

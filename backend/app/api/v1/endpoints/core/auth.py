@@ -167,6 +167,10 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         )
 
         if not user:
+            # SECURITY: Perform a dummy password hash to prevent timing-based
+            # user enumeration. Without this, "user not found" returns faster
+            # than "wrong password" because bcrypt verification is skipped.
+            verify_password(form_data.password, "$2b$12$V2NPLcxm.TXE23pmyVwOKORVvLb7Fwt6prAeWA4nfhdYjoltWYDdy")
             logger.warning("Login failed: no user found for '%s'", form_data.username)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

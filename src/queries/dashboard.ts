@@ -11,14 +11,15 @@ export const dashboardQueries = {
                 currentAcademicYear: null
             };
 
-            const [academic, financial] = await Promise.all([
-                apiClient.get("/analytics/academic-kpis/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: {} }; }),
-                apiClient.get("/analytics/financial-kpis/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: {} }; })
+            const [academic, financial, admissions] = await Promise.all([
+                apiClient.get("/analytics/academic-kpis/").catch((err) => { console.error('[Dashboard] Failed to load academic KPIs:', err); return { data: {} }; }),
+                apiClient.get("/analytics/financial-kpis/").catch((err) => { console.error('[Dashboard] Failed to load financial KPIs:', err); return { data: {} }; }),
+                apiClient.get("/admissions/stats/").catch((err) => { console.error('[Dashboard] Failed to load admissions stats:', err); return { data: { SUBMITTED: 0, UNDER_REVIEW: 0 } }; }),
             ]);
 
             return {
                 totalStudents: academic.data.totalStudents || 0,
-                pendingAdmissions: 0, // TODO: integrate Admissions API
+                pendingAdmissions: (admissions.data.SUBMITTED || 0) + (admissions.data.UNDER_REVIEW || 0),
                 pendingInvoices: financial.data.pendingRevenue || 0,
                 currentAcademicYear: null, // fetched separately via academicYears query
             };
@@ -60,9 +61,11 @@ export const dashboardQueries = {
     teacherStats: (userId: string, tenantId: string) => ({
         queryKey: ['teacher-dashboard', 'stats', userId, tenantId] as const,
         queryFn: async () => {
-            // Placeholder for teacher specific stats
+            if (!tenantId || !userId) return { pendingHomework: 0 };
+            const homework = await apiClient.get("/homework/", { params: { teacher_id: userId, status: "ACTIVE" } })
+                .catch(() => ({ data: [] }));
             return {
-                pendingHomework: 0
+                pendingHomework: Array.isArray(homework.data) ? homework.data.length : 0,
             };
         },
         staleTime: 5 * 60 * 1000,

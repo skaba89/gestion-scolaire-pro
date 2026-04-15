@@ -88,13 +88,26 @@ async def upload_file(request: Request, file: UploadFile = File(...), current_us
 
 
 @router.get("/presigned-url/{object_name:path}/")
-async def get_presigned_url(object_name: str, current_user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def get_presigned_url(request: Request, object_name: str, current_user: dict = Depends(get_current_user)):
     try:
-        # Authorization check: user can only access their own files, unless SUPER_ADMIN
-        if not object_name.startswith(f"{current_user['id']}/"):
-            roles = current_user.get('roles', [])
-            if 'SUPER_ADMIN' not in roles:
-                raise HTTPException(status_code=403, detail="Access denied: you can only access your own files")
+        # SECURITY: Sanitize object_name to prevent path traversal
+        if ".." in object_name or object_name.startswith("/"):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+
+        # Authorization: user can only access their own files
+        user_id = current_user.get("id")
+        roles = current_user.get("roles", [])
+        tenant_id = current_user.get("tenant_id")
+
+        is_own_file = object_name.startswith(f"{user_id}/")
+        is_tenant_file = tenant_id and object_name.startswith(f"tenant/{tenant_id}/")
+        is_super_admin = "SUPER_ADMIN" in roles
+        is_admin = any(r in roles for r in ("TENANT_ADMIN", "DIRECTOR"))
+
+        if not (is_own_file or is_super_admin or (is_admin and is_tenant_file)):
+            raise HTTPException(status_code=403, detail="Access denied: you can only access your own files")
+
         url = storage_client.get_presigned_url(object_name)
         return {"url": url}
     except HTTPException:

@@ -214,10 +214,25 @@ async def validate_token_version(user_id: str, token_version: int) -> None:
     Call this from async endpoints that need to enforce logout-all.
     Raises HTTPException 401 if the token version is stale.
     """
-    if not token_version or token_version <= 0:
-        return  # Legacy tokens without version — allow through
-
     current_version = await _get_token_version_from_redis(user_id)
+
+    # If logout-all was used (current_version > 0), reject legacy tokens
+    # that don't carry a version claim — they were issued before the
+    # logout-all and must not be accepted.
+    if current_version > 0 and (not token_version or token_version <= 0):
+        logger.info(
+            "Token rejected: legacy token without version for user %s (current_version=%d)",
+            user_id, current_version,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated (logged out from all devices)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not token_version or token_version <= 0:
+        return  # No logout-all has ever been used, legacy token is fine
+
     if current_version > token_version:
         logger.info(
             "Token rejected: version mismatch (token=%d, current=%d) for user %s",
