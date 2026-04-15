@@ -76,6 +76,10 @@ async function proxyRequest(req, res, urlPath) {
 
     const headers = { ...req.headers };
     delete headers.host;
+    // Remove accept-encoding so backend doesn't compress the response.
+    // Node.js fetch auto-decompresses, which causes Content-Encoding mismatch
+    // in the browser -> ERR_CONTENT_DECODING_FAILED.
+    delete headers["accept-encoding"];
     // Forward original hostname so backend can generate correct CORS headers
     headers["x-forwarded-host"] = req.headers.host || "";
     headers["x-forwarded-proto"] = req.headers["x-forwarded-proto"] || "https";
@@ -92,8 +96,11 @@ async function proxyRequest(req, res, urlPath) {
     // Copy response headers
     const respHeaders = {};
     response.headers.forEach((value, key) => {
-      // Skip hop-by-hop headers
-      if (!["connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade"].includes(key)) {
+      // Skip hop-by-hop headers AND content-encoding/content-length.
+      // Node.js fetch auto-decompresses the body, so content-encoding is stale
+      // and content-length no longer matches the decompressed body size.
+      // Sending them to the browser causes ERR_CONTENT_DECODING_FAILED.
+      if (!["connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade", "content-encoding", "content-length"].includes(key)) {
         respHeaders[key] = value;
       }
     });
