@@ -76,11 +76,15 @@ async def lifespan(app: FastAPI):
         logger.info("Alembic auto-migration: upgrade head succeeded")
     except Exception as alembic_err:
         logger.warning(f"Alembic migration failed ({alembic_err}), falling back to create_all")
-        try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("Base.metadata.create_all succeeded")
-        except Exception as create_err:
-            logger.error(f"Table creation also failed: {create_err}")
+
+    # ALWAYS run create_all after Alembic — it uses checkfirst=True by default,
+    # so it safely creates any tables/columns that Alembic migrations missed
+    # without affecting tables that already exist correctly.
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Base.metadata.create_all succeeded (fills gaps from incomplete migrations)")
+    except Exception as create_err:
+        logger.error(f"Table creation failed: {create_err}")
 
     # Ensure operational tables that have NO SQLAlchemy models
     try:
@@ -103,7 +107,17 @@ async def lifespan(app: FastAPI):
             if not settings.is_sqlite:
                 try:
                     # Ensure all User model columns exist (some may have been added after initial migration)
+                    # Base columns from UUIDMixin/TimestampMixin
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"))
+                    # tenant_id — nullable for SUPER_ADMIN users (no FK constraint here to avoid
+                    # dependency on tenants table existing; create_all handles FK creation)
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id UUID"))
                     db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100)"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)"))
+                    db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"))
                     db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE"))
                     db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE"))
                     db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE"))
@@ -115,8 +129,12 @@ async def lifespan(app: FastAPI):
                         "UPDATE users SET username = SPLIT_PART(email, '@', 1) "
                         "WHERE username IS NULL AND email IS NOT NULL"
                     ))
+                    # Ensure user_roles table has all needed columns
+                    db.execute(text("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS tenant_id UUID"))
+                    db.execute(text("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()"))
+                    db.execute(text("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()"))
                     db.commit()
-                    logger.info("User table columns ensured")
+                    logger.info("User/user_roles table columns ensured")
                 except Exception as col_err:
                     logger.warning("Column migration partial failure (may already exist): %s", col_err)
                     db.rollback()
