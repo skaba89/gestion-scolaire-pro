@@ -947,7 +947,7 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 def root():
-    return {"message": "Academy Guinéenne API", "version": settings.APP_VERSION, "docs": "/docs", "deploy": "v3-plpgsql-fix"}
+    return {"message": "Academy Guinéenne API", "version": settings.APP_VERSION, "docs": "/docs", "deploy": "v4-fix-schema"}
 
 @app.get("/health/", tags=["health"], summary="Health check")
 def health_check():
