@@ -56,485 +56,501 @@ limiter = Limiter(
 )
 
 def _ensure_all_table_columns(db, text):
-    """Add ALL missing columns to ALL tables via ALTER TABLE ADD COLUMN IF NOT EXISTS.
+    """Add ALL missing columns to ALL tables via PL/pgSQL DO blocks.
 
-    Alembic migrations may fail partway through (large migrations, enum issues, etc.).
-    This function acts as a safety net: for each table that exists, it ensures every
-    column from the ORM model is present. Uses IF NOT EXISTS so it's idempotent.
+    Uses DO $$ BEGIN ... EXCEPTION WHEN OTHERS THEN NULL; END $$ per table
+    so that if a table doesn't exist, the error is caught internally by
+    PostgreSQL WITHOUT aborting the surrounding transaction.
     """
-    # Helper: run ALTER TABLE, skip silently if table doesn't exist
-    def _add(sql):
-        try:
-            db.execute(text(sql))
-        except Exception:
-            db.rollback()
+    # Each table's columns are wrapped in a DO block with EXCEPTION handler.
+    # If the table doesn't exist, PostgreSQL catches the error internally
+    # and the transaction continues cleanly.
+    table_migrations = {
+        "tenants": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "name VARCHAR(255)",
+            "slug VARCHAR(100)",
+            "type VARCHAR(50)",
+            "country VARCHAR(2) DEFAULT 'GN'",
+            "currency VARCHAR(3) DEFAULT 'GNF'",
+            "timezone VARCHAR(50) DEFAULT 'Africa/Conakry'",
+            "email VARCHAR(255)",
+            "phone VARCHAR(50)",
+            "address VARCHAR(500)",
+            "website VARCHAR(255)",
+            "is_active BOOLEAN DEFAULT TRUE",
+            "settings JSON",
+            "director_name VARCHAR(255)",
+            "director_signature_url VARCHAR(500)",
+            "secretary_name VARCHAR(255)",
+            "secretary_signature_url VARCHAR(500)",
+            "city VARCHAR(255)",
+        ],
+        "users": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "email VARCHAR(255)",
+            "username VARCHAR(100)",
+            "password_hash VARCHAR(255)",
+            "first_name VARCHAR(100)",
+            "last_name VARCHAR(100)",
+            "phone VARCHAR(20)",
+            "avatar_url VARCHAR(500)",
+            "is_active BOOLEAN DEFAULT TRUE",
+            "is_superuser BOOLEAN DEFAULT FALSE",
+            "is_verified BOOLEAN DEFAULT FALSE",
+            "mfa_enabled BOOLEAN DEFAULT FALSE",
+            "must_change_password BOOLEAN DEFAULT FALSE",
+        ],
+        "user_roles": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "user_id UUID",
+            "role VARCHAR(50)",
+        ],
+        "profiles": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "phone VARCHAR(50)",
+            "avatar_url VARCHAR(500)",
+        ],
+        "students": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "registration_number VARCHAR(50)",
+            "first_name VARCHAR(100)",
+            "last_name VARCHAR(100)",
+            "date_of_birth DATE",
+            "gender VARCHAR(20)",
+            "email VARCHAR(255)",
+            "phone VARCHAR(20)",
+            "address VARCHAR(500)",
+            "city VARCHAR(100)",
+            "level VARCHAR(50)",
+            "class_name VARCHAR(100)",
+            "academic_year VARCHAR(20)",
+            "status VARCHAR(20) DEFAULT 'ACTIVE'",
+            "photo_url VARCHAR(500)",
+            "parent_name VARCHAR(200)",
+            "parent_phone VARCHAR(20)",
+            "parent_email VARCHAR(255)",
+        ],
+        "academic_years": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "code VARCHAR(50)",
+            "start_date DATE",
+            "end_date DATE",
+            "is_current BOOLEAN DEFAULT FALSE",
+        ],
+        "terms": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "academic_year_id UUID",
+            "name VARCHAR(255)",
+            "start_date DATE",
+            "end_date DATE",
+            "sequence_number INTEGER DEFAULT 1",
+            "is_active BOOLEAN DEFAULT FALSE",
+        ],
+        "audit_logs": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "user_id VARCHAR(255)",
+            "action VARCHAR(50)",
+            "severity VARCHAR(20) DEFAULT 'INFO'",
+            "resource_type VARCHAR(50)",
+            "resource_id VARCHAR(255)",
+            "details JSON",
+            "ip_address VARCHAR(45)",
+            "user_agent TEXT",
+        ],
+        "grades": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "student_id UUID",
+            "assessment_id UUID",
+            "subject_id UUID",
+            "academic_year_id UUID",
+            "score FLOAT",
+            "max_score FLOAT DEFAULT 20.0",
+            "coefficient FLOAT DEFAULT 1.0",
+            "comments VARCHAR(500)",
+        ],
+        "invoices": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "student_id UUID",
+            "invoice_number VARCHAR(50)",
+            "issue_date DATE",
+            "due_date DATE",
+            "subtotal FLOAT",
+            "tax_amount FLOAT DEFAULT 0.0",
+            "discount_amount FLOAT DEFAULT 0.0",
+            "total_amount FLOAT",
+            "paid_amount FLOAT DEFAULT 0.0",
+            "currency VARCHAR(3) DEFAULT 'GNF'",
+            "status VARCHAR(20) DEFAULT 'DRAFT'",
+            "description VARCHAR(500)",
+            "notes VARCHAR(500)",
+            "items JSON",
+            "has_payment_plan BOOLEAN DEFAULT FALSE",
+            "installments_count INTEGER DEFAULT 1",
+            "pdf_url VARCHAR(500)",
+        ],
+        "payments": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "student_id UUID",
+            "invoice_id UUID",
+            "amount FLOAT",
+            "currency VARCHAR(3) DEFAULT 'GNF'",
+            "payment_date DATE",
+            "payment_method VARCHAR(20)",
+            "status VARCHAR(20) DEFAULT 'PENDING'",
+            "reference VARCHAR(100)",
+            "transaction_id VARCHAR(255)",
+            "notes VARCHAR(500)",
+            "receipt_url VARCHAR(500)",
+        ],
+        "departments": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "code VARCHAR(50)",
+            "description VARCHAR(500)",
+            "head_id UUID",
+        ],
+        "subjects": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "code VARCHAR(50)",
+            "coefficient FLOAT DEFAULT 1.0",
+            "ects FLOAT DEFAULT 0",
+            "cm_hours INTEGER DEFAULT 0",
+            "td_hours INTEGER DEFAULT 0",
+            "tp_hours INTEGER DEFAULT 0",
+            "description TEXT",
+        ],
+        "levels": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "code VARCHAR(50)",
+            "label VARCHAR(255)",
+            "order_index INTEGER DEFAULT 0",
+        ],
+        "campuses": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "address VARCHAR(500)",
+            "phone VARCHAR(50)",
+            "is_main BOOLEAN DEFAULT FALSE",
+        ],
+        "rooms": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "capacity INTEGER",
+            "campus_id UUID",
+        ],
+        "programs": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "code VARCHAR(50)",
+            "description VARCHAR(500)",
+        ],
+        "classes": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "capacity INTEGER",
+            "level_id UUID",
+            "campus_id UUID",
+            "program_id UUID",
+            "academic_year_id UUID",
+            "main_room_id UUID",
+        ],
+        "enrollments": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "student_id UUID",
+            "class_id UUID",
+            "academic_year_id UUID",
+            "enrollment_date DATE",
+            "status VARCHAR(50) DEFAULT 'ACTIVE'",
+        ],
+        "assessments": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "name VARCHAR(255)",
+            "max_score FLOAT DEFAULT 20.0",
+            "date TIMESTAMP",
+            "assessment_type VARCHAR(50)",
+            "subject_id UUID",
+            "academic_year_id UUID",
+            "term_id UUID",
+        ],
+        "attendance": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "date DATE",
+            "status VARCHAR(50)",
+            "reason TEXT",
+            "student_id UUID",
+            "subject_id UUID",
+            "classroom_id UUID",
+        ],
+        "employees": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "employee_number VARCHAR(50)",
+            "first_name VARCHAR(100)",
+            "last_name VARCHAR(100)",
+            "email VARCHAR(255)",
+            "phone VARCHAR(50)",
+            "job_title VARCHAR(100)",
+            "department VARCHAR(100)",
+            "hire_date DATE",
+            "is_active BOOLEAN DEFAULT TRUE",
+            "date_of_birth DATE",
+            "place_of_birth VARCHAR(100)",
+            "nationality VARCHAR(100)",
+            "social_security_number VARCHAR(100)",
+            "address VARCHAR(255)",
+            "city VARCHAR(100)",
+            "postal_code VARCHAR(20)",
+            "country VARCHAR(100)",
+            "bank_name VARCHAR(100)",
+            "bank_iban VARCHAR(100)",
+            "bank_bic VARCHAR(50)",
+            "emergency_contact_name VARCHAR(100)",
+            "emergency_contact_phone VARCHAR(50)",
+        ],
+        "employment_contracts": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "contract_number VARCHAR(50)",
+            "contract_type VARCHAR(50)",
+            "start_date DATE",
+            "end_date DATE",
+            "trial_period_end DATE",
+            "job_title VARCHAR(100)",
+            "gross_monthly_salary FLOAT",
+            "weekly_hours FLOAT DEFAULT 35.0",
+            "notes VARCHAR(1000)",
+            "is_current BOOLEAN DEFAULT TRUE",
+            "employee_id UUID",
+        ],
+        "leave_requests": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "leave_type VARCHAR(50)",
+            "start_date DATE",
+            "end_date DATE",
+            "total_days INTEGER",
+            "status VARCHAR(50) DEFAULT 'PENDING'",
+            "reason TEXT",
+            "reviewed_at DATE",
+            "employee_id UUID",
+        ],
+        "payslips": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "period_month INTEGER",
+            "period_year INTEGER",
+            "gross_salary FLOAT",
+            "net_salary FLOAT",
+            "pay_date DATE",
+            "is_final VARCHAR(50) DEFAULT 'false'",
+            "pdf_url VARCHAR(500)",
+            "employee_id UUID",
+        ],
+        "notifications": [
+            "user_id UUID",
+            "tenant_id UUID",
+            "title VARCHAR(255)",
+            "message TEXT",
+            "type VARCHAR(50) DEFAULT 'info'",
+            "link VARCHAR(255)",
+            "is_read BOOLEAN DEFAULT FALSE",
+            "created_at TIMESTAMPTZ DEFAULT NOW()",
+            "updated_at TIMESTAMPTZ DEFAULT NOW()",
+        ],
+        "school_events": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "title VARCHAR(255)",
+            "description TEXT",
+            "start_date TIMESTAMP",
+            "end_date TIMESTAMP",
+            "location VARCHAR(255)",
+            "is_all_day BOOLEAN DEFAULT FALSE",
+            "event_type VARCHAR(50)",
+        ],
+        "student_check_ins": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "checked_at TIMESTAMP",
+            "direction VARCHAR(20) DEFAULT 'IN'",
+            "source VARCHAR(50)",
+            "student_id UUID",
+        ],
+        "parent_students": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "parent_id UUID",
+            "student_id UUID",
+            "is_primary BOOLEAN DEFAULT FALSE",
+            "relation_type VARCHAR(50)",
+        ],
+        "admission_applications": [
+            "tenant_id UUID",
+            "academic_year_id UUID",
+            "level_id UUID",
+            "student_first_name VARCHAR(100)",
+            "student_last_name VARCHAR(100)",
+            "student_date_of_birth TIMESTAMP",
+            "student_gender VARCHAR(20)",
+            "student_address VARCHAR(500)",
+            "student_previous_school VARCHAR(255)",
+            "parent_first_name VARCHAR(100)",
+            "parent_last_name VARCHAR(100)",
+            "parent_email VARCHAR(255)",
+            "parent_phone VARCHAR(50)",
+            "parent_address VARCHAR(500)",
+            "parent_occupation VARCHAR(255)",
+            "status VARCHAR(20) DEFAULT 'DRAFT'",
+            "notes VARCHAR(1000)",
+            "documents JSON",
+            "submitted_at TIMESTAMP",
+            "reviewed_at TIMESTAMP",
+            "reviewed_by UUID",
+            "converted_student_id UUID",
+            "created_at TIMESTAMPTZ DEFAULT NOW()",
+            "updated_at TIMESTAMPTZ DEFAULT NOW()",
+        ],
+        "tenant_security_settings": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "mfa_required BOOLEAN DEFAULT FALSE",
+            "password_expiry_days INTEGER DEFAULT 90",
+            "session_timeout_minutes INTEGER DEFAULT 60",
+        ],
+        "account_deletion_requests": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "user_id UUID",
+            "reason TEXT",
+            "status VARCHAR(20) DEFAULT 'PENDING'",
+            "requested_at TIMESTAMP DEFAULT NOW()",
+            "processed_at TIMESTAMP",
+            "processed_by UUID",
+            "rejection_reason TEXT",
+        ],
+        "rgpd_logs": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "user_id UUID",
+            "action VARCHAR(255)",
+            "target_user_id UUID",
+            "details JSON",
+            "status VARCHAR(50) DEFAULT 'SUCCESS'",
+        ],
+        "push_subscriptions": [
+            "user_id UUID",
+            "tenant_id UUID",
+            "endpoint TEXT",
+            "p256dh VARCHAR(255)",
+            "auth VARCHAR(255)",
+            "platform VARCHAR(50) DEFAULT 'web'",
+            "is_active BOOLEAN DEFAULT TRUE",
+            "created_at TIMESTAMPTZ DEFAULT NOW()",
+            "updated_at TIMESTAMPTZ DEFAULT NOW()",
+        ],
+        "public_pages": [
+            "created_at TIMESTAMP DEFAULT NOW()",
+            "updated_at TIMESTAMP DEFAULT NOW()",
+            "tenant_id UUID",
+            "title VARCHAR(200)",
+            "slug VARCHAR(200)",
+            "page_type VARCHAR(50) DEFAULT 'CUSTOM'",
+            "content JSON",
+            "template VARCHAR(50) DEFAULT 'default'",
+            "primary_color VARCHAR(7)",
+            "secondary_color VARCHAR(7)",
+            "is_published BOOLEAN DEFAULT FALSE",
+            "sort_order INTEGER DEFAULT 0",
+            "meta_title VARCHAR(200)",
+            "meta_description TEXT",
+            "show_in_nav BOOLEAN DEFAULT TRUE",
+            "nav_label VARCHAR(100)",
+        ],
+        "schedule": [
+            "tenant_id UUID",
+            "class_id UUID",
+            "subject_id UUID",
+            "teacher_id UUID",
+            "day_of_week INTEGER",
+            "start_time TIME",
+            "end_time TIME",
+            "room_id UUID",
+            "created_at TIMESTAMPTZ DEFAULT NOW()",
+            "updated_at TIMESTAMPTZ DEFAULT NOW()",
+        ],
+    }
 
-    # ── tenants ──────────────────────────────────────────────────────────
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS slug VARCHAR(100)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS type VARCHAR(50)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country VARCHAR(2) DEFAULT 'GN'")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'GNF'")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'Africa/Conakry'")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS phone VARCHAR(50)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS address VARCHAR(500)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS website VARCHAR(255)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS settings JSON")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS director_name VARCHAR(255)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS director_signature_url VARCHAR(500)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS secretary_name VARCHAR(255)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS secretary_signature_url VARCHAR(500)")
-    _add("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS city VARCHAR(255)")
-
-    # ── users ────────────────────────────────────────────────────────────
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100)")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superuser BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE")
-
-    # ── user_roles ───────────────────────────────────────────────────────
-    _add("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS user_id UUID")
-    _add("ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS role VARCHAR(50)")
-
-    # ── profiles ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone VARCHAR(50)")
-    _add("ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)")
-
-    # ── students ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS registration_number VARCHAR(50)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS date_of_birth DATE")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS gender VARCHAR(20)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS phone VARCHAR(20)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS address VARCHAR(500)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS city VARCHAR(100)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS level VARCHAR(50)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS class_name VARCHAR(100)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS academic_year VARCHAR(20)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'ACTIVE'")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url VARCHAR(500)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_name VARCHAR(200)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(20)")
-    _add("ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255)")
-
-    # ── academic_years ───────────────────────────────────────────────────
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS code VARCHAR(50)")
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE")
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date DATE")
-    _add("ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS is_current BOOLEAN DEFAULT FALSE")
-
-    # ── terms ────────────────────────────────────────────────────────────
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS academic_year_id UUID")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS start_date DATE")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS end_date DATE")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS sequence_number INTEGER DEFAULT 1")
-    _add("ALTER TABLE terms ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT FALSE")
-
-    # ── audit_logs ───────────────────────────────────────────────────────
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_id VARCHAR(255)")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action VARCHAR(50)")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS severity VARCHAR(20) DEFAULT 'INFO'")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_type VARCHAR(50)")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_id VARCHAR(255)")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details JSON")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)")
-    _add("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT")
-
-    # ── grades ───────────────────────────────────────────────────────────
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS student_id UUID")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS assessment_id UUID")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS subject_id UUID")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS academic_year_id UUID")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS score FLOAT")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS max_score FLOAT DEFAULT 20.0")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS coefficient FLOAT DEFAULT 1.0")
-    _add("ALTER TABLE grades ADD COLUMN IF NOT EXISTS comments VARCHAR(500)")
-
-    # ── invoices ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS student_id UUID")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS invoice_number VARCHAR(50)")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS issue_date DATE")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS due_date DATE")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS subtotal FLOAT")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tax_amount FLOAT DEFAULT 0.0")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_amount FLOAT DEFAULT 0.0")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS total_amount FLOAT")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS paid_amount FLOAT DEFAULT 0.0")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'GNF'")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'DRAFT'")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS description VARCHAR(500)")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes VARCHAR(500)")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS items JSON")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS has_payment_plan BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS installments_count INTEGER DEFAULT 1")
-    _add("ALTER TABLE invoices ADD COLUMN IF NOT EXISTS pdf_url VARCHAR(500)")
-
-    # ── payments ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS student_id UUID")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS invoice_id UUID")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS amount FLOAT")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'GNF'")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_date DATE")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(20)")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING'")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS reference VARCHAR(100)")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(255)")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes VARCHAR(500)")
-    _add("ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_url VARCHAR(500)")
-
-    # ── departments ──────────────────────────────────────────────────────
-    _add("ALTER TABLE departments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE departments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE departments ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE departments ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE departments ADD COLUMN IF NOT EXISTS code VARCHAR(50)")
-    _add("ALTER TABLE departments ADD COLUMN IF NOT EXISTS description VARCHAR(500)")
-    _add("ALTER TABLE departments ADD COLUMN IF NOT EXISTS head_id UUID")
-
-    # ── subjects ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS code VARCHAR(50)")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS coefficient FLOAT DEFAULT 1.0")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS ects FLOAT DEFAULT 0")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS cm_hours INTEGER DEFAULT 0")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS td_hours INTEGER DEFAULT 0")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS tp_hours INTEGER DEFAULT 0")
-    _add("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS description TEXT")
-
-    # ── levels ───────────────────────────────────────────────────────────
-    _add("ALTER TABLE levels ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE levels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE levels ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE levels ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE levels ADD COLUMN IF NOT EXISTS code VARCHAR(50)")
-    _add("ALTER TABLE levels ADD COLUMN IF NOT EXISTS label VARCHAR(255)")
-    _add("ALTER TABLE levels ADD COLUMN IF NOT EXISTS order_index INTEGER DEFAULT 0")
-
-    # ── campuses ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE campuses ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE campuses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE campuses ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE campuses ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE campuses ADD COLUMN IF NOT EXISTS address VARCHAR(500)")
-    _add("ALTER TABLE campuses ADD COLUMN IF NOT EXISTS phone VARCHAR(50)")
-    _add("ALTER TABLE campuses ADD COLUMN IF NOT EXISTS is_main BOOLEAN DEFAULT FALSE")
-
-    # ── rooms ────────────────────────────────────────────────────────────
-    _add("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS capacity INTEGER")
-    _add("ALTER TABLE rooms ADD COLUMN IF NOT EXISTS campus_id UUID")
-
-    # ── programs ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE programs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE programs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE programs ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE programs ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE programs ADD COLUMN IF NOT EXISTS code VARCHAR(50)")
-    _add("ALTER TABLE programs ADD COLUMN IF NOT EXISTS description VARCHAR(500)")
-
-    # ── classes ───────────────────────────────────────────────────────────
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS capacity INTEGER")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS level_id UUID")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS campus_id UUID")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS program_id UUID")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS academic_year_id UUID")
-    _add("ALTER TABLE classes ADD COLUMN IF NOT EXISTS main_room_id UUID")
-
-    # ── enrollments ──────────────────────────────────────────────────────
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS student_id UUID")
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS class_id UUID")
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS academic_year_id UUID")
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS enrollment_date DATE")
-    _add("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'ACTIVE'")
-
-    # ── assessments ──────────────────────────────────────────────────────
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS name VARCHAR(255)")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS max_score FLOAT DEFAULT 20.0")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS date TIMESTAMP")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS assessment_type VARCHAR(50)")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS subject_id UUID")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS academic_year_id UUID")
-    _add("ALTER TABLE assessments ADD COLUMN IF NOT EXISTS term_id UUID")
-
-    # ── attendance ────────────────────────────────────────────────────────
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS date DATE")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS status VARCHAR(50)")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS reason TEXT")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS student_id UUID")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS subject_id UUID")
-    _add("ALTER TABLE attendance ADD COLUMN IF NOT EXISTS classroom_id UUID")
-
-    # ── employees ────────────────────────────────────────────────────────
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS employee_number VARCHAR(50)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS email VARCHAR(255)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS phone VARCHAR(50)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS job_title VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS department VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS hire_date DATE")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS date_of_birth DATE")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS place_of_birth VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS nationality VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS social_security_number VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS address VARCHAR(255)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS city VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS country VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_iban VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_bic VARCHAR(50)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_name VARCHAR(100)")
-    _add("ALTER TABLE employees ADD COLUMN IF NOT EXISTS emergency_contact_phone VARCHAR(50)")
-
-    # ── employment_contracts ─────────────────────────────────────────────
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS contract_number VARCHAR(50)")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS contract_type VARCHAR(50)")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS start_date DATE")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS end_date DATE")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS trial_period_end DATE")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS job_title VARCHAR(100)")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS gross_monthly_salary FLOAT")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS weekly_hours FLOAT DEFAULT 35.0")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS notes VARCHAR(1000)")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS is_current BOOLEAN DEFAULT TRUE")
-    _add("ALTER TABLE employment_contracts ADD COLUMN IF NOT EXISTS employee_id UUID")
-
-    # ── leave_requests ───────────────────────────────────────────────────
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_type VARCHAR(50)")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS start_date DATE")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS end_date DATE")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS total_days INTEGER")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'PENDING'")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS reason TEXT")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS reviewed_at DATE")
-    _add("ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS employee_id UUID")
-
-    # ── payslips ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS period_month INTEGER")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS period_year INTEGER")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS gross_salary FLOAT")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS net_salary FLOAT")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS pay_date DATE")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS is_final VARCHAR(50) DEFAULT 'false'")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS pdf_url VARCHAR(500)")
-    _add("ALTER TABLE payslips ADD COLUMN IF NOT EXISTS employee_id UUID")
-
-    # ── notifications ────────────────────────────────────────────────────
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS user_id UUID")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS title VARCHAR(255)")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS message TEXT")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'info'")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link VARCHAR(255)")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()")
-    _add("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()")
-
-    # ── school_events ────────────────────────────────────────────────────
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS title VARCHAR(255)")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS description TEXT")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS start_date TIMESTAMP")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS end_date TIMESTAMP")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS location VARCHAR(255)")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS is_all_day BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE school_events ADD COLUMN IF NOT EXISTS event_type VARCHAR(50)")
-
-    # ── student_check_ins ────────────────────────────────────────────────
-    _add("ALTER TABLE student_check_ins ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE student_check_ins ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE student_check_ins ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE student_check_ins ADD COLUMN IF NOT EXISTS checked_at TIMESTAMP")
-    _add("ALTER TABLE student_check_ins ADD COLUMN IF NOT EXISTS direction VARCHAR(20) DEFAULT 'IN'")
-    _add("ALTER TABLE student_check_ins ADD COLUMN IF NOT EXISTS source VARCHAR(50)")
-    _add("ALTER TABLE student_check_ins ADD COLUMN IF NOT EXISTS student_id UUID")
-
-    # ── parent_students ──────────────────────────────────────────────────
-    _add("ALTER TABLE parent_students ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE parent_students ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE parent_students ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE parent_students ADD COLUMN IF NOT EXISTS parent_id UUID")
-    _add("ALTER TABLE parent_students ADD COLUMN IF NOT EXISTS student_id UUID")
-    _add("ALTER TABLE parent_students ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE parent_students ADD COLUMN IF NOT EXISTS relation_type VARCHAR(50)")
-
-    # ── admission_applications ───────────────────────────────────────────
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS academic_year_id UUID")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS level_id UUID")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS student_first_name VARCHAR(100)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS student_last_name VARCHAR(100)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS student_date_of_birth TIMESTAMP")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS student_gender VARCHAR(20)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS student_address VARCHAR(500)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS student_previous_school VARCHAR(255)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_first_name VARCHAR(100)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_last_name VARCHAR(100)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_email VARCHAR(255)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(50)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_address VARCHAR(500)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS parent_occupation VARCHAR(255)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'DRAFT'")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS notes VARCHAR(1000)")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS documents JSON")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS reviewed_by UUID")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS converted_student_id UUID")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()")
-    _add("ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()")
-
-    # ── tenant_security_settings ─────────────────────────────────────────
-    _add("ALTER TABLE tenant_security_settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE tenant_security_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE tenant_security_settings ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE tenant_security_settings ADD COLUMN IF NOT EXISTS mfa_required BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE tenant_security_settings ADD COLUMN IF NOT EXISTS password_expiry_days INTEGER DEFAULT 90")
-    _add("ALTER TABLE tenant_security_settings ADD COLUMN IF NOT EXISTS session_timeout_minutes INTEGER DEFAULT 60")
-
-    # ── account_deletion_requests ────────────────────────────────────────
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS user_id UUID")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS reason TEXT")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'PENDING'")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS requested_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS processed_at TIMESTAMP")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS processed_by UUID")
-    _add("ALTER TABLE account_deletion_requests ADD COLUMN IF NOT EXISTS rejection_reason TEXT")
-
-    # ── rgpd_logs ────────────────────────────────────────────────────────
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS user_id UUID")
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS action VARCHAR(255)")
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS target_user_id UUID")
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS details JSON")
-    _add("ALTER TABLE rgpd_logs ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'SUCCESS'")
-
-    # ── push_subscriptions ───────────────────────────────────────────────
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_id UUID")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS endpoint TEXT")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS p256dh VARCHAR(255)")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS auth VARCHAR(255)")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS platform VARCHAR(50) DEFAULT 'web'")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()")
-    _add("ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()")
-
-    # ── public_pages ─────────────────────────────────────────────────────
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS title VARCHAR(200)")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS slug VARCHAR(200)")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS page_type VARCHAR(50) DEFAULT 'CUSTOM'")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS content JSON")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS template VARCHAR(50) DEFAULT 'default'")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS primary_color VARCHAR(7)")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS secondary_color VARCHAR(7)")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS meta_title VARCHAR(200)")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS meta_description TEXT")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS show_in_nav BOOLEAN DEFAULT TRUE")
-    _add("ALTER TABLE public_pages ADD COLUMN IF NOT EXISTS nav_label VARCHAR(100)")
-
-    # ── schedule ─────────────────────────────────────────────────────────
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS tenant_id UUID")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS class_id UUID")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS subject_id UUID")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS teacher_id UUID")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS day_of_week INTEGER")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS start_time TIME")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS end_time TIME")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS room_id UUID")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()")
-    _add("ALTER TABLE schedule ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()")
+    for table_name, columns in table_migrations.items():
+        alter_statements = "\n".join(
+            f"    ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col};"
+            for col in columns
+        )
+        plpgsql = f"""
+DO $$
+BEGIN
+{alter_statements}
+EXCEPTION WHEN undefined_table THEN
+    RAISE NOTICE 'Table {table_name} does not exist, skipping';
+WHEN OTHERS THEN
+    RAISE WARNING 'Column migration for {table_name} failed: %%', SQLERRM;
+END $$;
+"""
+        db.execute(text(plpgsql))
 
     logger.info("_ensure_all_table_columns completed for all 30+ tables")
 
