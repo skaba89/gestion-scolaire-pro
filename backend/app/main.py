@@ -831,14 +831,17 @@ if not origins:
         )
         origins = ["*"]
     else:
-        # Production: dynamically allow the requesting origin.
-        # This is safe because SchoolFlow uses Bearer tokens (not cookies),
-        # so CSRF via CORS is not a concern. The real security boundary is the JWT.
+        # Production: allow known deployment origins.
+        # SchoolFlow uses Bearer tokens (not cookies), so CSRF via CORS is not
+        # a concern. The real security boundary is the JWT.
+        origins = [
+            "https://gestion-scolaire-pro.onrender.com",
+            "https://schoolflow-api-s4gm.onrender.com",
+        ]
         logger.warning(
-            "CORS origins list is empty in production — using dynamic origin reflection. "
-            "For best security, set BACKEND_CORS_ORIGINS env var to your frontend URL(s)."
+            "CORS origins list is empty — using default Render origins: %s. "
+            "Set BACKEND_CORS_ORIGINS env var to customize.", origins
         )
-        origins = ["*"]  # Dynamic validation handled by middleware below
 
 # SECURITY: When origins=["*"], browsers reject allow_credentials=True.
 # Since SchoolFlow uses Bearer tokens (Authorization header) and not cookies,
@@ -947,7 +950,7 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 def root():
-    return {"message": "Academy Guinéenne API", "version": settings.APP_VERSION, "docs": "/docs", "deploy": "v5-middleware-fix"}
+    return {"message": "Academy Guinéenne API", "version": settings.APP_VERSION, "docs": "/docs"}
 
 @app.get("/health/", tags=["health"], summary="Health check")
 def health_check():

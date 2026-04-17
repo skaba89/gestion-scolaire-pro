@@ -307,8 +307,11 @@ async function generateRuntimeConfig() {
   const apiUrl = resolveBackendUrl();
 
   // Also generate config.js for frontend runtime config (window.__SCHOOLFLOW_CONFIG__)
-  // Use /api as the API_URL so the frontend sends requests through our proxy
-  const configUrl = BACKEND_URL ? "/api" : "";
+  // Use /api-proxy as the API_URL so the frontend sends requests through our proxy.
+  // The proxy strips the /api-proxy prefix before forwarding to the backend.
+  // IMPORTANT: Do NOT use "/api" here — the client appends "/api/v1" to this value,
+  // which would create a double prefix "/api/api/v1/..." that the backend rejects.
+  const configUrl = BACKEND_URL ? "/api-proxy" : "";
 
   if (configUrl) {
     const configPath = join(DIST_DIR, "config.js");
