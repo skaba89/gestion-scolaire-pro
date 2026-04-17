@@ -2,15 +2,15 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useTenant } from "@/contexts/TenantContext";
 import { useSettings } from "@/hooks/useSettings";
+import { resolveUploadUrl } from "@/utils/url";
 
 const PLATFORM_TITLE = "Academy Guinée";
 const DEFAULT_FAVICON = "/favicon.ico";
 
 /**
  * Dynamically sets the page <title> and favicon based on context:
- * - Landing / no tenant: "Academy Guinée"
- * - Inside a tenant (/:slug/*): the tenant slug (e.g. "uls")
- * - Favicon: tenant logo from settings, or default /favicon.ico
+ * - Landing / no tenant: "Academy Guinée" + default favicon
+ * - Inside a tenant (/:slug/*): slug as title + tenant logo as favicon
  */
 export function TenantHead() {
   const { tenant } = useTenant();
@@ -20,10 +20,8 @@ export function TenantHead() {
   // Update page title
   useEffect(() => {
     if (tenant?.slug) {
-      // Inside a tenant context — show the slug as tab title
       document.title = tenant.slug;
     } else {
-      // Landing page or no tenant — show platform name
       document.title = PLATFORM_TITLE;
     }
     return () => {
@@ -33,7 +31,8 @@ export function TenantHead() {
 
   // Update favicon with tenant logo
   useEffect(() => {
-    const faviconUrl = settings?.favicon_url || settings?.logo_url || tenant?.logo_url;
+    const rawUrl = settings?.favicon_url || settings?.logo_url || tenant?.logo_url;
+    const faviconUrl = rawUrl ? resolveUploadUrl(rawUrl) : DEFAULT_FAVICON;
 
     const updateFavicons = (url: string) => {
       const existingLinks = document.querySelectorAll<HTMLLinkElement>(
@@ -51,11 +50,7 @@ export function TenantHead() {
       }
     };
 
-    if (faviconUrl) {
-      updateFavicons(faviconUrl);
-    } else {
-      updateFavicons(DEFAULT_FAVICON);
-    }
+    updateFavicons(faviconUrl);
 
     return () => {
       updateFavicons(DEFAULT_FAVICON);
