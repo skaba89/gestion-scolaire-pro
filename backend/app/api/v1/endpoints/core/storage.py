@@ -48,8 +48,8 @@ async def upload_file(request: Request, file: UploadFile = File(...), current_us
         try:
             import magic
             mime_type = magic.from_buffer(content, mime=True)
-        except ImportError:
-            # python-magic not installed — fall back to basic content type check
+        except Exception:
+            # python-magic or libmagic not available — fall back to content type header
             mime_type = file.content_type or "application/octet-stream"
 
         ALLOWED_MIME_TYPES = {

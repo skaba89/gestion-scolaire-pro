@@ -37,6 +37,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/tenants/settings",       # endpoint handles its own auth + tenant resolution
             "/tenants/security-settings",
             "/tenants/onboarding",     # onboarding endpoints handle their own auth
+            "/storage/",               # file upload/download handles its own auth
         ]
 
         is_public = (
