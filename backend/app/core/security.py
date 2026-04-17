@@ -178,11 +178,10 @@ def get_current_user(
                 from app.models.tenant import Tenant
                 tenant_obj = db.query(Tenant).filter(Tenant.id == header_tid).first()
                 if not tenant_obj:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Specified tenant does not exist",
-                    )
-                resolved_tenant_id = header_tid
+                    # Tenant doesn't exist — don't block SUPER_ADMIN, just ignore the header
+                    logger.warning("X-Tenant-ID %s does not exist, ignoring for SUPER_ADMIN", header_tid)
+                else:
+                    resolved_tenant_id = header_tid
 
         # Resolve tenant name for AI branding (used by chat/audit endpoints)
         tenant_name = None
