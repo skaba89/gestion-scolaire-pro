@@ -34,6 +34,9 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/tenants/slug/",
             "/tenants/public/",
             "/tenants/by-domain/",
+            "/tenants/settings",       # endpoint handles its own auth + tenant resolution
+            "/tenants/security-settings",
+            "/tenants/onboarding",     # onboarding endpoints handle their own auth
         ]
 
         is_public = (

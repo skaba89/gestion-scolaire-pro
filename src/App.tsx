@@ -15,6 +15,7 @@ import { NativeAppProvider } from "@/components/native/NativeAppProvider";
 import { AuthSyncProvider } from "@/components/providers/AuthSyncProvider";
 import { SettingsProvider } from "@/components/providers/SettingsProvider";
 import { DynamicThemeProvider } from "@/components/providers/DynamicThemeProvider";
+import { TenantHead } from "@/components/providers/TenantHead";
 import { AIChatWidget } from "@/components/ai/AIChatWidget";
 
 // Components
@@ -251,6 +252,7 @@ const App = memo(() => (
                   <SettingsProvider>
                     <AuthSyncProvider>
                       <DynamicThemeProvider>
+                        <TenantHead />
                         <NativeAppProvider>
                           <AppContent />
                         </NativeAppProvider>
