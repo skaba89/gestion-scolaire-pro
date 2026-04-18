@@ -111,7 +111,7 @@ const AppContent = memo(() => {
                 path="/:tenantSlug/admin"
                 element={
                   <TenantRoute>
-                    <ProtectedRoute allowedRoles={["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "STAFF", "ACCOUNTANT"]}>
+                    <ProtectedRoute allowedRoles={["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "STAFF", "ACCOUNTANT", "SECRETARY"]}>
                       <AdminLayout />
                     </ProtectedRoute>
                   </TenantRoute>

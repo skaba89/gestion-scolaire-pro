@@ -130,6 +130,35 @@ window.addEventListener("error", (event) => {
   if (!enableBootstrapDebug) {
     return;
   }
-
   renderRuntimeOverlay(`Runtime error: ${event.message}`);
+});
+
+// ─── Global chunk/module load error handler ──────────────────────────────────
+// When the browser fails to fetch a lazy-loaded JS chunk (MIME type error,
+// network error, or 404 after a new Render deployment), we auto-reload ONCE
+// to fetch the fresh index.html and its new chunk hashes.
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  if (!reason) return;
+
+  const msg = (reason.message || String(reason) || "").toLowerCase();
+  const isChunkError =
+    msg.includes("failed to fetch dynamically imported module") ||
+    msg.includes("loading chunk") ||
+    msg.includes("mime type") ||
+    (reason instanceof TypeError && msg.includes("import"));
+
+  if (isChunkError && !sessionStorage.getItem("__chunk_reload_v2__")) {
+    sessionStorage.setItem("__chunk_reload_v2__", "1");
+    console.warn("[SchoolFlow] Chunk load failed — reloading for new deployment...");
+    // Clear caches then reload
+    if (window.caches) {
+      window.caches
+        .keys()
+        .then((keys) => Promise.all(keys.map((k) => window.caches.delete(k))))
+        .finally(() => window.location.reload());
+    } else {
+      window.location.reload();
+    }
+  }
 });

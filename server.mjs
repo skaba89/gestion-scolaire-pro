@@ -7,9 +7,15 @@
 
 import { createServer } from "http";
 import { readFile, stat, writeFile } from "fs/promises";
-import { join, extname, posix } from "path";
+import { join, extname, posix, resolve } from "path";
+import { fileURLToPath } from "url";
 
-const DIST_DIR = new URL("./dist", import.meta.url).pathname;
+// Compute DIST_DIR robustly:
+// - On Linux (Render): import.meta.url → file:///app/server.mjs → /app/dist ✓
+// - On Windows (local): import.meta.url → file:///C:/Users/... needs fileURLToPath
+const __dirname_server = fileURLToPath(new URL(".", import.meta.url));
+const DIST_DIR = resolve(__dirname_server, "dist");
+
 const PORT = process.env.PORT || 3000;
 
 // Backend API URL (resolved from env or Render service discovery)
