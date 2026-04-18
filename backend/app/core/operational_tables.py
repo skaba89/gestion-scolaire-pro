@@ -668,6 +668,21 @@ _DDL = [
     """CREATE INDEX IF NOT EXISTS ix_check_in_assignments_tenant_id ON check_in_assignments(tenant_id)""",
     """CREATE INDEX IF NOT EXISTS ix_check_in_assignments_session_id ON check_in_assignments(session_id)""",
 
+    # ── Webhooks ──────────────────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS webhooks (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        url TEXT NOT NULL,
+        events TEXT[] NOT NULL DEFAULT '{}',
+        description VARCHAR(500),
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        secret TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_webhooks_tenant_id ON webhooks(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_webhooks_tenant_active ON webhooks(tenant_id, is_active)""",
+
     # ── Tenant-scoped unique constraints ──────────────────────────────────
     """DO $$ BEGIN
         ALTER TABLE subjects ADD CONSTRAINT uq_subjects_tenant_name UNIQUE (tenant_id, name);

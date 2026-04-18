@@ -105,31 +105,35 @@ def list_admissions(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return {"items": [], "total": 0}
+    where = " WHERE a.tenant_id = :tenant_id"
+    params: dict = {"tenant_id": tenant_id}
+    if status:
+        where += " AND a.status = :status"
+        params["status"] = status.upper()
+    if academic_year_id:
+        where += " AND a.academic_year_id = :ay_id"
+        params["ay_id"] = academic_year_id
+    if level_id:
+        where += " AND a.level_id = :level_id"
+        params["level_id"] = level_id
+    if search:
+        where += """ AND (a.student_first_name ILIKE :search OR a.student_last_name ILIKE :search
+                   OR a.parent_email ILIKE :search OR a.parent_phone ILIKE :search)"""
+        params["search"] = f"%{search}%"
+
+    # Separate COUNT query for accurate total
+    count_q = "SELECT COUNT(*) FROM admission_applications a" + where
+    total = db.execute(text(count_q), params).scalar()
+
     q = """
         SELECT a.*, ay.name AS academic_year_name, l.name AS level_name
         FROM   admission_applications a
         LEFT JOIN academic_years ay ON a.academic_year_id = ay.id
         LEFT JOIN levels         l  ON a.level_id         = l.id
-        WHERE  a.tenant_id = :tenant_id
-    """
-    params: dict = {"tenant_id": tenant_id}
-    if status:
-        q += " AND a.status = :status"
-        params["status"] = status.upper()
-    if academic_year_id:
-        q += " AND a.academic_year_id = :ay_id"
-        params["ay_id"] = academic_year_id
-    if level_id:
-        q += " AND a.level_id = :level_id"
-        params["level_id"] = level_id
-    if search:
-        q += """ AND (a.student_first_name ILIKE :search OR a.student_last_name ILIKE :search
-                   OR a.parent_email ILIKE :search OR a.parent_phone ILIKE :search)"""
-        params["search"] = f"%{search}%"
-    q += " ORDER BY a.created_at DESC LIMIT :limit OFFSET :offset"
+    """ + where + " ORDER BY a.created_at DESC LIMIT :limit OFFSET :offset"
     params.update({"limit": limit, "offset": offset})
     rows = db.execute(text(q), params).mappings().all()
-    return {"items": [dict(r) for r in rows], "total": len(rows)}
+    return {"items": [dict(r) for r in rows], "total": total}
 
 
 # ─── GET /stats ───────────────────────────────────────────────────────────────

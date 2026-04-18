@@ -575,7 +575,7 @@ async def lifespan(app: FastAPI):
         command.upgrade(alembic_cfg, "head")
         logger.info("Alembic auto-migration: upgrade head succeeded")
     except Exception as alembic_err:
-        logger.warning(f"Alembic migration failed ({alembic_err}), falling back to create_all")
+        logger.warning("Alembic migration failed (%s), falling back to create_all", alembic_err)
 
     # ALWAYS run create_all after Alembic — it uses checkfirst=True by default,
     # so it safely creates any tables/columns that Alembic migrations missed
@@ -584,7 +584,7 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info("Base.metadata.create_all succeeded (fills gaps from incomplete migrations)")
     except Exception as create_err:
-        logger.error(f"Table creation failed: {create_err}")
+        logger.error("Table creation failed: %s", create_err)
 
     # Ensure operational tables that have NO SQLAlchemy models
     try:
@@ -592,7 +592,7 @@ async def lifespan(app: FastAPI):
         ensure_operational_tables(engine)
         logger.info("Operational tables ensured via raw SQL")
     except Exception as op_err:
-        logger.warning(f"Operational table creation failed: {op_err}")
+        logger.warning("Operational table creation failed: %s", op_err)
 
     # Ensure ALL missing columns on ALL tables (Alembic migrations may have failed partially)
     if not settings.is_sqlite:
@@ -712,7 +712,7 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
     except Exception as admin_err:
-        logger.warning(f"Super admin auto-creation skipped: {admin_err}")
+        logger.warning("Super admin auto-creation skipped: %s", admin_err)
 
     logger.info(
         "Academy Guinéenne API started",
@@ -950,11 +950,51 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 def root():
-    return {"message": "Academy Guinéenne API", "version": settings.APP_VERSION, "docs": "/docs"}
+    return {
+        "service": "SchoolFlow Pro API",
+        "version": settings.APP_VERSION,
+        "status": "operational",
+        "docs": "/docs" if settings.DEBUG else None,
+        "health": "/health/",
+        "api": settings.API_V1_STR,
+    }
 
-@app.get("/health/", tags=["health"], summary="Health check")
-def health_check():
-    return {"status": "healthy", "version": settings.APP_VERSION}
+@app.get("/health/", tags=["Health"], summary="Health check")
+async def health_check():
+    """Lightweight liveness + readiness probe for load balancers and monitoring."""
+    from app.core.database import SessionLocal
+    from sqlalchemy import text as sa_text
+
+    db_status = "unreachable"
+    try:
+        with SessionLocal() as _db:
+            _db.execute(sa_text("SELECT 1"))
+        db_status = "connected"
+    except Exception:
+        pass
+
+    redis_status = "unconfigured"
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        if client:
+            await client.ping()
+            redis_status = "connected"
+    except Exception:
+        redis_status = "unreachable"
+
+    healthy = db_status == "connected"
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={
+            "status": "healthy" if healthy else "degraded",
+            "version": settings.APP_VERSION,
+            "components": {
+                "database": db_status,
+                "cache": redis_status,
+            },
+        },
+    )
 
 
 def _cors_headers_for(request: Request) -> dict:

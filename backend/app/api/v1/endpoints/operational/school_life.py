@@ -261,7 +261,7 @@ def read_events(
         return crud_sl.get_events(db, tenant_id=current_user.get("tenant_id"), start_after=start_after)
     except Exception as e:
         db.rollback()
-        logger.error(f"Error reading events: {e}")
+        logger.error("Error reading events: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -276,7 +276,7 @@ def create_event(
         return crud_sl.create_event(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating event: {e}")
+        logger.error("Error creating event: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -306,7 +306,7 @@ def update_event(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating school event: {e}")
+        logger.error("Error updating school event: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
@@ -333,7 +333,7 @@ def delete_event(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting school event: {e}")
+        logger.error("Error deleting school event: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
 
@@ -400,7 +400,7 @@ def list_appointment_slots(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing appointment slots: {e}")
+        logger.error("Error listing appointment slots: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -449,7 +449,7 @@ def create_appointment_slot(
         return dict(row._mapping) if row else {"id": slot_id}
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating appointment slot: {e}")
+        logger.error("Error creating appointment slot: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -486,7 +486,7 @@ def delete_appointment_slot(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting appointment slot: {e}")
+        logger.error("Error deleting appointment slot: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -545,7 +545,7 @@ def list_check_in_sessions(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing check-in sessions: {e}")
+        logger.error("Error listing check-in sessions: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -588,7 +588,7 @@ def create_check_in_session(
         return dict(row._mapping) if row else {"id": session_id}
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating check-in session: {e}")
+        logger.error("Error creating check-in session: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -666,7 +666,7 @@ def list_check_in_assignments(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing check-in assignments: {e}")
+        logger.error("Error listing check-in assignments: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -681,7 +681,7 @@ def read_check_ins(
         return crud_sl.get_check_ins(db, tenant_id=current_user.get("tenant_id"), student_ids=student_ids)
     except Exception as e:
         db.rollback()
-        logger.error(f"Error reading check-ins: {e}")
+        logger.error("Error reading check-ins: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -696,7 +696,7 @@ def create_check_in(
         return crud_sl.create_check_in(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating check-in: {e}")
+        logger.error("Error creating check-in: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -722,7 +722,7 @@ def list_badges(db: Session = Depends(get_db), current_user: dict = Depends(get_
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing badges: {e}")
+        logger.error("Error listing badges: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -744,7 +744,7 @@ def students_without_badges(db: Session = Depends(get_db), current_user: dict = 
         return rows
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing students without badges: {e}")
+        logger.error("Error listing students without badges: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -758,7 +758,7 @@ def list_event_registrations(db: Session = Depends(get_db), current_user: dict =
         return db.execute(text("SELECT event_id, id FROM career_event_registrations WHERE tenant_id = :tid"), {"tid": tenant_id}).mappings().all()
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing event registrations: {e}")
+        logger.error("Error listing event registrations: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -784,6 +784,6 @@ def get_gamification_stats(db: Session = Depends(get_db), current_user: dict = D
         }
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting gamification stats: {e}")
+        logger.error("Error getting gamification stats: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")

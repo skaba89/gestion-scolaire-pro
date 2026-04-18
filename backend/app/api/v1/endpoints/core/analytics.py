@@ -93,7 +93,7 @@ def get_financial_kpis(
             "outstandingByClass": outstanding_by_class,
         }
     except Exception as e:
-        logger.error(f"Error in get_financial_kpis: {str(e)}", exc_info=True)
+        logger.error("Error in get_financial_kpis: %s", e, exc_info=True)
         return {
             "totalRevenue": 0,
             "paidRevenue": 0,
@@ -138,7 +138,7 @@ def get_revenue_trend(
             for r in rows
         ]
     except Exception as e:
-        logger.error(f"Error in get_revenue_trend: {str(e)}", exc_info=True)
+        logger.error("Error in get_revenue_trend: %s", e, exc_info=True)
         return []
 
 
@@ -184,7 +184,7 @@ def get_academic_kpis(
             "averageGrade": avg_grade,
         }
     except Exception as e:
-        logger.error(f"Error in get_academic_kpis: {str(e)}", exc_info=True)
+        logger.error("Error in get_academic_kpis: %s", e, exc_info=True)
         return {
             "overallSuccessRate": 0,
             "totalStudents": 0,
@@ -266,7 +266,7 @@ def get_academic_stats(
             ],
         }
     except Exception as e:
-        logger.error(f"Error in get_academic_stats: {str(e)}", exc_info=True)
+        logger.error("Error in get_academic_stats: %s", e, exc_info=True)
         return {"bySubject": [], "byClass": []}
 
 
@@ -328,7 +328,7 @@ def get_students_at_risk(
 
         return {"students": data, "summary": {"total": len(data), **counts}}
     except Exception as e:
-        logger.error(f"Error in get_students_at_risk: {str(e)}", exc_info=True)
+        logger.error("Error in get_students_at_risk: %s", e, exc_info=True)
         return {"students": [], "summary": {"total": 0, "critical": 0, "high": 0, "moderate": 0, "low": 0}}
 
 
@@ -409,7 +409,7 @@ def get_operational_kpis(
             "totalTeacherHours": total_teacher_hours,
         }
     except Exception as e:
-        logger.error(f"Error in get_operational_kpis: {str(e)}", exc_info=True)
+        logger.error("Error in get_operational_kpis: %s", e, exc_info=True)
         return {
             "studentAttendanceRate": 0,
             "teacherAttendanceRate": 0,
@@ -450,7 +450,7 @@ def get_debt_aging(
             for r in rows
         ]
     except Exception as e:
-        logger.error(f"Error in get_debt_aging: {str(e)}", exc_info=True)
+        logger.error("Error in get_debt_aging: %s", e, exc_info=True)
         return []
 
 
@@ -476,7 +476,7 @@ def get_revenue_by_category(
             for r in rows
         ]
     except Exception as e:
-        logger.error(f"Error in get_revenue_by_category: {str(e)}", exc_info=True)
+        logger.error("Error in get_revenue_by_category: %s", e, exc_info=True)
         return []
 
 @router.get("/attendance-trend/")
@@ -520,7 +520,7 @@ def get_attendance_trend(
             for r in rows
         ]
     except Exception as e:
-        logger.error(f"Error in get_attendance_trend: {str(e)}", exc_info=True)
+        logger.error("Error in get_attendance_trend: %s", e, exc_info=True)
         return []
 
 @router.get("/grades-distribution/")
@@ -555,7 +555,7 @@ def get_grades_distribution(
             {"range": k, "count": v} for k, v in distribution.items()
         ]
     except Exception as e:
-        logger.error(f"Error in get_grades_distribution: {str(e)}", exc_info=True)
+        logger.error("Error in get_grades_distribution: %s", e, exc_info=True)
         return []
 
 @router.get("/dashboard-kpis/")
@@ -624,7 +624,7 @@ def get_dashboard_kpis(
             "colleaguesCount": 0 # Placeholder
         }
     except Exception as e:
-        logger.error(f"Error in get_dashboard_kpis: {str(e)}", exc_info=True)
+        logger.error("Error in get_dashboard_kpis: %s", e, exc_info=True)
         return {
             "totalStudents": 0,
             "teacherCount": 0,
@@ -704,7 +704,7 @@ def get_ministry_kpis(
             "tenant_id": tenant_id
         }
     except Exception as e:
-        logger.error(f"Error in get_ministry_kpis: {str(e)}", exc_info=True)
+        logger.error("Error in get_ministry_kpis: %s", e, exc_info=True)
         return {
             "total_students": 0,
             "students_male": 0,

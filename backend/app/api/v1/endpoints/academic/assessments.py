@@ -79,7 +79,7 @@ def get_assessments(
     try:
         results = db.execute(text(query_str), params).mappings().all()
     except Exception as e:
-        logger.error(f"Error fetching assessments: {e}")
+        logger.error("Error fetching assessments: %s", e)
         return {"items": []}
 
     formatted_results = []

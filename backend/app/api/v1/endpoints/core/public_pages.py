@@ -140,7 +140,7 @@ async def create_public_page(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating public page: {e}\n{traceback.format_exc()}")
+        logger.error("Error creating public page: %s", e, exc_info=True)
         db.rollback()
         raise HTTPException(
             status_code=500,
@@ -285,7 +285,7 @@ async def update_public_page(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating public page: {e}\n{traceback.format_exc()}")
+        logger.error("Error updating public page: %s", e, exc_info=True)
         db.rollback()
         raise HTTPException(
             status_code=500,
@@ -377,7 +377,7 @@ async def reorder_public_pages(
             "updated_count": updated_count,
         }
     except Exception as e:
-        logger.error(f"Error reordering public pages: {e}\n{traceback.format_exc()}")
+        logger.error("Error reordering public pages: %s", e, exc_info=True)
         db.rollback()
         raise HTTPException(
             status_code=500,

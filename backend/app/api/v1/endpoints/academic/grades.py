@@ -2,7 +2,7 @@
 import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
@@ -192,6 +192,15 @@ class BulkGradeItem(BaseModel):
 class BulkGradesRequest(BaseModel):
     grades: List[BulkGradeItem]
 
+    @field_validator("grades")
+    @classmethod
+    def validate_grades_limit(cls, v):
+        if len(v) == 0:
+            raise ValueError("Au moins une note est requise")
+        if len(v) > 200:
+            raise ValueError("Maximum 200 notes par requête bulk")
+        return v
+
 
 @router.post("/bulk", status_code=status.HTTP_201_CREATED)
 def create_bulk_grades(
@@ -206,6 +215,14 @@ def create_bulk_grades(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
+
+    # Validate score ranges
+    for i, item in enumerate(body.grades):
+        if item.score is not None and (item.score < 0 or item.score > 100):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Note #{i+1}: le score doit être entre 0 et 100"
+            )
 
     created = []
     try:
@@ -222,8 +239,26 @@ def create_bulk_grades(
                 "comment": item.comment,
             }).mappings().first()
             created.append(dict(row))
+
+        # Audit log for bulk operation
+        try:
+            from app.utils.audit import log_audit
+            log_audit(
+                db,
+                user_id=current_user.get("id"),
+                tenant_id=tenant_id,
+                action="BULK_CREATE",
+                resource_type="GRADE",
+                resource_id=None,
+                details={"count": len(created), "assessment_ids": list(set(str(g.assessment_id) for g in body.grades))},
+            )
+        except Exception:
+            pass  # Don't fail the operation if audit logging fails
+
         db.commit()
         return {"created": len(created), "grades": created}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Failed to create bulk grades: %s", e, exc_info=True)

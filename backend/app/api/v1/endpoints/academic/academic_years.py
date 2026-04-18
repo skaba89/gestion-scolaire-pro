@@ -26,7 +26,7 @@ def list_academic_years(
     try:
         return crud_academic.get_academic_years(db, tenant_id=tenant_id)
     except Exception as e:
-        logger.error(f"Error listing academic years: {str(e)}", exc_info=True)
+        logger.error("Error listing academic years: %s", e, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch academic years"

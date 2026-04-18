@@ -20,6 +20,13 @@ class InventoryItemCreate(BaseModel):
     unit_price: float = 0.0
     stock_quantity: int = 0
 
+class InventoryItemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    unit_price: Optional[float] = None
+    stock_quantity: Optional[int] = None
+    category_id: Optional[str] = None
+
 class AdjustmentBody(BaseModel):
     item_id: str
     quantity: int
@@ -104,16 +111,17 @@ def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), curren
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.patch("/items/{item_id}/")
-def update_item(item_id: str, item: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+def update_item(item_id: str, item: InventoryItemUpdate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
         # SECURITY: Only allow whitelisted column names in dynamic UPDATE to prevent SQL injection
         ALLOWED_INVENTORY_COLUMNS = {"name", "description", "unit_price", "stock_quantity", "category_id"}
+        updates = item.model_dump(exclude_unset=True)
         cols = []
         params = {"tid": tenant_id, "iid": item_id}
-        for k, v in item.items():
+        for k, v in updates.items():
             # SECURITY: Filter keys against whitelist (defense in depth)
             if k in ALLOWED_INVENTORY_COLUMNS:
                 cols.append(f"{k} = :{k}")

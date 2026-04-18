@@ -38,6 +38,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/tenants/security-settings",
             "/tenants/onboarding",     # onboarding endpoints handle their own auth
             "/storage/",               # file upload/download handles its own auth
+            "/webhooks/events/",       # public endpoint to list available event types
         ]
 
         is_public = (

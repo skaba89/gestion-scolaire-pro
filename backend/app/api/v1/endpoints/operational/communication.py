@@ -50,7 +50,7 @@ def get_announcements(
         return result
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting announcements: {e}")
+        logger.error("Error getting announcements: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -94,7 +94,7 @@ def create_announcement(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating announcement: {e}")
+        logger.error("Error creating announcement: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -114,7 +114,7 @@ def delete_announcement(
         return None
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting announcement: {e}")
+        logger.error("Error deleting announcement: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -135,7 +135,7 @@ def get_messaging_users(
         return result
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting messaging users: {e}")
+        logger.error("Error getting messaging users: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -176,7 +176,7 @@ def get_teacher_recipients(
         return [fmt(r) for r in list(parents) + list(teachers)]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting teacher recipients: {e}")
+        logger.error("Error getting teacher recipients: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -236,7 +236,7 @@ def list_conversations(
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing conversations: {e}")
+        logger.error("Error listing conversations: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -293,7 +293,7 @@ def create_or_find_conversation(
         return {"conversation_id": str(conv_id)}
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating conversation: {e}")
+        logger.error("Error creating conversation: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -366,7 +366,7 @@ def get_messages(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting messages: {e}")
+        logger.error("Error getting messages: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -413,7 +413,7 @@ def send_message(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error sending message: {e}")
+        logger.error("Error sending message: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -433,7 +433,7 @@ def get_unread_count(
         return {"unread": int(count)}
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting unread count: {e}")
+        logger.error("Error getting unread count: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -469,7 +469,7 @@ def poll_new_messages(
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error polling messages: {e}")
+        logger.error("Error polling messages: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -490,7 +490,7 @@ def list_forums(db: Session = Depends(get_db), current_user: dict = Depends(get_
         """), {"tid": tenant_id}).mappings().all()
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing forums: {e}")
+        logger.error("Error listing forums: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -509,7 +509,7 @@ def get_forum_post_counts(db: Session = Depends(get_db), current_user: dict = De
         return {str(r["forum_id"]): r["count"] for r in rows}
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting forum post counts: {e}")
+        logger.error("Error getting forum post counts: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -535,7 +535,7 @@ def create_forum(body: dict, db: Session = Depends(get_db), current_user: dict =
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating forum: {e}")
+        logger.error("Error creating forum: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -560,7 +560,7 @@ def update_forum(forum_id: UUID, body: dict, db: Session = Depends(get_db), curr
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating forum: {e}")
+        logger.error("Error updating forum: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -577,6 +577,6 @@ def delete_forum(forum_id: UUID, db: Session = Depends(get_db), current_user: di
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting forum: {e}")
+        logger.error("Error deleting forum: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")

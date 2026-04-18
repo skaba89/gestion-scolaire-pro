@@ -45,7 +45,7 @@ def list_terms(
             result.append(term_dict)
         return result
     except Exception as e:
-        logger.error(f"Error fetching terms: {e}")
+        logger.error("Error fetching terms: %s", e)
         return []
 
 @router.get("/{term_id}/", response_model=Term)

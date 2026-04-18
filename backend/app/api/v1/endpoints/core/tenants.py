@@ -169,7 +169,7 @@ async def create_tenant(
                 # If it's not a valid UUID, searching by ID will crash Postgres on UUID columns.
                 user_id = UUID(user_id_str)
             except (ValueError, TypeError, AttributeError):
-                logger.warning(f"user_id_str '{user_id_str}' is not a valid UUID.")
+                logger.warning("user_id_str '%s' is not a valid UUID.", user_id_str)
                 user_id = None
 
         if not user_id_str:
@@ -228,7 +228,7 @@ async def create_tenant(
         return new_tenant
     except Exception as e:
         error_traceback = traceback.format_exc()
-        logger.error(f"Error creating tenant: {e}")
+        logger.error("Error creating tenant: %s", e)
         logger.error(error_traceback)
         db.rollback()
         
@@ -670,7 +670,7 @@ async def get_tenant_by_domain(
             {"domain": domain},
         ).fetchone()
     except Exception as exc:
-        logger.error(f"Domain lookup error: {exc}")
+        logger.error("Domain lookup error: %s", exc)
         raise HTTPException(status_code=500, detail="Domain lookup failed")
 
     if not result:
@@ -820,7 +820,7 @@ async def create_tenant_with_admin(
         raise
     except Exception as e:
         error_traceback = traceback.format_exc()
-        logger.error(f"Error creating tenant with admin: {e}")
+        logger.error("Error creating tenant with admin: %s", e)
         logger.error(error_traceback)
         db.rollback()
         raise HTTPException(status_code=500, detail="Erreur lors de la création du tenant")

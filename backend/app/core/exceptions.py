@@ -9,6 +9,60 @@ from starlette.requests import Request
 logger = logging.getLogger(__name__)
 
 
+# ─── Error Code Constants ─────────────────────────────────────────────────────
+
+class ErrorCode:
+    """Canonical error codes returned in API responses.
+
+    Use these instead of hard-coding strings so that both backend handlers and
+    frontend consumers can reference a single source of truth.
+    """
+
+    NOT_FOUND = "RESOURCE_NOT_FOUND"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    PERMISSION_DENIED = "PERMISSION_DENIED"
+    TENANT_REQUIRED = "TENANT_REQUIRED"
+    DUPLICATE_ENTRY = "DUPLICATE_ENTRY"
+    RATE_LIMITED = "RATE_LIMITED"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+    UNAUTHORIZED = "UNAUTHORIZED"
+    FORBIDDEN = "FORBIDDEN"
+    CONFLICT = "CONFLICT"
+    QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
+
+
+# ─── Structured Error Response Helper ─────────────────────────────────────────
+
+def api_error(
+    status_code: int,
+    message: str,
+    error_code: Optional[str] = None,
+    details: Optional[dict] = None,
+) -> HTTPException:
+    """Create a consistent API error response.
+
+    Returns a FastAPI ``HTTPException`` whose ``detail`` field is a structured
+    dict so that the global ``http_exception_handler`` can forward it as-is.
+
+    Usage::
+
+        raise api_error(404, "Student not found", ErrorCode.NOT_FOUND)
+        raise api_error(
+            422,
+            "Email already registered",
+            ErrorCode.DUPLICATE_ENTRY,
+            details={"field": "email"},
+        )
+    """
+    content: dict[str, Any] = {"message": message}
+    if error_code:
+        content["error_code"] = error_code
+    if details:
+        content["details"] = details
+    return HTTPException(status_code=status_code, detail=content)
+
+
 # ─── Base Exception ────────────────────────────────────────────────────────────
 
 class SchoolFlowException(Exception):
@@ -141,16 +195,38 @@ async def schoolflow_exception_handler(
 async def http_exception_handler(
     request: Request, exc: HTTPException
 ) -> JSONResponse:
-    """Handle FastAPI/Starlette HTTPException with a unified JSON format."""
+    """Handle FastAPI/Starlette HTTPException with a unified JSON format.
+
+    If ``exc.detail`` is already a structured dict (e.g. produced by
+    :func:`api_error`), it is merged into the response so that ``error_code``
+    and ``details`` propagate to the client.
+    """
     request_id = getattr(request.state, "request_id", "-")
+
+    if isinstance(exc.detail, dict):
+        # Structured detail produced by api_error() or similar
+        message = exc.detail.get("message", str(exc.detail))
+        error = exc.detail.get("error_code", "HTTP_ERROR")
+        content: dict[str, Any] = {
+            "error": error,
+            "message": message,
+            "detail": message,
+            "request_id": request_id,
+        }
+        if "details" in exc.detail:
+            content["details"] = exc.detail["details"]
+    else:
+        message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+        content = {
+            "error": "HTTP_ERROR",
+            "message": message,
+            "detail": message,
+            "request_id": request_id,
+        }
+
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "error": "HTTP_ERROR",
-            "message": exc.detail if isinstance(exc.detail, str) else str(exc.detail),
-            "detail": exc.detail if isinstance(exc.detail, str) else str(exc.detail),
-            "request_id": request_id,
-        },
+        content=content,
         headers=_cors_headers(request),
     )
 

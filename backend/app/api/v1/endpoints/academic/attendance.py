@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from uuid import UUID
 from datetime import date
 
@@ -26,6 +26,15 @@ class AttendanceCreate(BaseModel):
 
 class AttendanceBulkCreate(BaseModel):
     records: List[AttendanceCreate]
+
+    @field_validator("records")
+    @classmethod
+    def validate_records_limit(cls, v):
+        if len(v) == 0:
+            raise ValueError("Au moins un enregistrement est requis")
+        if len(v) > 500:
+            raise ValueError("Maximum 500 enregistrements par requête bulk")
+        return v
 
 
 class AttendanceUpdate(BaseModel):
@@ -235,8 +244,26 @@ def create_attendance_bulk(
                 "classroom_id": record.classroom_id,
             }).mappings().first()
             inserted.append(dict(result))
+
+        # Audit log for bulk operation
+        try:
+            from app.utils.audit import log_audit
+            log_audit(
+                db,
+                user_id=current_user.get("id"),
+                tenant_id=tenant_id,
+                action="BULK_CREATE",
+                resource_type="ATTENDANCE",
+                resource_id=None,
+                details={"count": len(inserted), "date": str(payload.records[0].date) if payload.records else None},
+            )
+        except Exception:
+            pass  # Don't fail the operation if audit logging fails
+
         db.commit()
         return {"inserted": len(inserted), "records": inserted}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Failed to create bulk attendance: %s", e, exc_info=True)

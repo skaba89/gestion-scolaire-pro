@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -976,21 +976,32 @@ def diagnostics(
     }
 
 
-# ─── Public Login Diagnostics ─────────────────────────────────────────────
-# This endpoint is PUBLIC (no auth required) to help diagnose login 500 errors.
-# It tests all components needed for login: DB, admin user, password, Redis.
-# SECURITY: Does not expose passwords or secrets. Remove after debugging.
+# ─── Login Diagnostics (protected by BOOTSTRAP_SECRET) ─────────────────────
+# This endpoint helps diagnose login issues but is protected in production.
+# Pass the BOOTSTRAP_SECRET as a query parameter to access it.
 
 @router.get("/login-diagnostics/")
-async def login_diagnostics(db: Session = Depends(get_db)):
-    """Public diagnostic endpoint to debug login 500 errors.
+async def login_diagnostics(
+    db: Session = Depends(get_db),
+    secret: str = Query(default="", description="BOOTSTRAP_SECRET for authorization"),
+):
+    """Protected diagnostic endpoint to debug login issues.
 
+    Requires BOOTSTRAP_SECRET as query parameter in production.
     Tests database connectivity, admin user existence, password verification,
     and Redis connectivity. Returns detailed status for each component.
     Remove this endpoint after resolving deployment issues.
     """
     import sqlalchemy
     import traceback
+
+    # SECURITY: Require BOOTSTRAP_SECRET in production
+    bootstrap_secret = settings.BOOTSTRAP_SECRET or os.environ.get("BOOTSTRAP_SECRET", "")
+    if not bootstrap_secret or secret != bootstrap_secret:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Provide valid BOOTSTRAP_SECRET as ?secret= query parameter."
+        )
 
     result = {
         "status": "ok",
@@ -1013,7 +1024,7 @@ async def login_diagnostics(db: Session = Depends(get_db)):
     for table in required_tables:
         try:
             if settings.is_sqlite:
-                db.execute(sqlalchemy.text(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'"))
+                db.execute(sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table' AND name=:t"), {"t": table})
             else:
                 db.execute(sqlalchemy.text(
                     "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=:t"

@@ -100,7 +100,7 @@ def alumni_dashboard(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error in alumni_dashboard: {e}")
+        logger.error("Error in alumni_dashboard: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -144,7 +144,7 @@ def list_document_requests(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing document requests: {e}")
+        logger.error("Error listing document requests: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -194,7 +194,7 @@ def create_document_request(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating document request: {e}")
+        logger.error("Error creating document request: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -235,7 +235,7 @@ def cancel_document_request(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error cancelling document request: {e}")
+        logger.error("Error cancelling document request: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -280,7 +280,7 @@ def get_request_history(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting request history: {e}")
+        logger.error("Error getting request history: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -316,7 +316,7 @@ def alumni_job_offers(
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing job offers: {e}")
+        logger.error("Error listing job offers: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -348,7 +348,7 @@ def alumni_mentors(
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing mentors: {e}")
+        logger.error("Error listing mentors: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -382,7 +382,7 @@ def alumni_career_events(
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing career events: {e}")
+        logger.error("Error listing career events: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -427,7 +427,7 @@ def alumni_staff_recipients(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing staff recipients: {e}")
+        logger.error("Error listing staff recipients: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -449,7 +449,7 @@ def admin_list_mentors(
         return rows
     except Exception as e:
         db.rollback()
-        logger.error(f"Error admin listing mentors: {e}")
+        logger.error("Error admin listing mentors: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -482,7 +482,7 @@ def admin_list_mentorship_requests(
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error admin listing mentorship requests: {e}")
+        logger.error("Error admin listing mentorship requests: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -502,7 +502,7 @@ def admin_list_document_requests(
         return rows
     except Exception as e:
         db.rollback()
-        logger.error(f"Error admin listing document requests: {e}")
+        logger.error("Error admin listing document requests: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -534,7 +534,7 @@ def admin_list_job_applications(
         } for r in rows]
     except Exception as e:
         db.rollback()
-        logger.error(f"Error admin listing job applications: {e}")
+        logger.error("Error admin listing job applications: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -553,6 +553,6 @@ def admin_list_event_registrations(
         return rows
     except Exception as e:
         db.rollback()
-        logger.error(f"Error admin listing event registrations: {e}")
+        logger.error("Error admin listing event registrations: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")

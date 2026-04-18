@@ -82,7 +82,7 @@ def get_my_department(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting my department: {e}")
+        logger.error("Error getting my department: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -189,7 +189,7 @@ def department_dashboard(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error in department dashboard: {e}")
+        logger.error("Error in department dashboard: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -229,7 +229,7 @@ def department_classrooms(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing department classrooms: {e}")
+        logger.error("Error listing department classrooms: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -300,7 +300,7 @@ def department_students(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing department students: {e}")
+        logger.error("Error listing department students: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -371,7 +371,7 @@ def department_teachers(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing department teachers: {e}")
+        logger.error("Error listing department teachers: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -465,7 +465,7 @@ def department_attendance(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting department attendance: {e}")
+        logger.error("Error getting department attendance: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -541,7 +541,7 @@ def department_exams(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error listing department exams: {e}")
+        logger.error("Error listing department exams: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -586,7 +586,7 @@ def create_exam(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error creating exam: {e}")
+        logger.error("Error creating exam: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -631,7 +631,7 @@ def update_exam(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error updating exam: {e}")
+        logger.error("Error updating exam: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -663,7 +663,7 @@ def delete_exam(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error deleting exam: {e}")
+        logger.error("Error deleting exam: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -716,7 +716,7 @@ def department_schedule(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting department schedule: {e}")
+        logger.error("Error getting department schedule: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -790,6 +790,6 @@ def department_grades_report(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Error getting department grades report: {e}")
+        logger.error("Error getting department grades report: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
