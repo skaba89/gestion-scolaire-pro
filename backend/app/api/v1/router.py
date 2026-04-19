@@ -19,6 +19,9 @@ from app.api.v1.endpoints.aliases import (
     rooms_alias_router,
     classrooms_alias_router,
     schedule_slots_alias_router,
+    achievement_router,
+    student_achievement_router,
+    gamification_router,
 )
 
 api_router = APIRouter()
@@ -144,3 +147,12 @@ api_router.include_router(schedule_slots_alias_router, prefix="/schedule-slots",
 
 # 17. Public Pages admin routes registered above under /public-pages
 # 18. Public Pages public routes registered above under /tenants/public
+
+# 19. Achievement definitions (gamification)
+api_router.include_router(achievement_router, prefix="/achievement-definitions", tags=["Gamification"])
+
+# 20. Student achievements
+api_router.include_router(student_achievement_router, prefix="/student-achievements", tags=["Gamification"])
+
+# 21. Gamification event processing
+api_router.include_router(gamification_router, prefix="/gamification", tags=["Gamification"])

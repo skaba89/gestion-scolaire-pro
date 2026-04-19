@@ -683,6 +683,88 @@ _DDL = [
     """CREATE INDEX IF NOT EXISTS ix_webhooks_tenant_id ON webhooks(tenant_id)""",
     """CREATE INDEX IF NOT EXISTS ix_webhooks_tenant_active ON webhooks(tenant_id, is_active)""",
 
+    # ── Achievement Definitions (Gamification) ────────────────────────────
+    """CREATE TABLE IF NOT EXISTS achievement_definitions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        icon VARCHAR(100),
+        category VARCHAR(50) DEFAULT 'general',
+        points_value INTEGER NOT NULL DEFAULT 10,
+        trigger_type VARCHAR(50) DEFAULT 'manual',
+        trigger_threshold INTEGER DEFAULT 1,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_achieve_def_tenant ON achievement_definitions(tenant_id)""",
+    """CREATE TABLE IF NOT EXISTS student_achievements (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        student_id UUID NOT NULL REFERENCES users(id),
+        achievement_id UUID NOT NULL REFERENCES achievement_definitions(id) ON DELETE CASCADE,
+        earned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        awarded_by UUID REFERENCES users(id),
+        UNIQUE(student_id, achievement_id)
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_student_achieve_tenant ON student_achievements(tenant_id)""",
+
+    # ── Data Quality Anomalies ────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS data_quality_anomalies (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        category VARCHAR(50) NOT NULL DEFAULT 'data',
+        severity VARCHAR(20) NOT NULL DEFAULT 'medium',
+        title VARCHAR(200) NOT NULL,
+        description TEXT,
+        resource_type VARCHAR(100),
+        resource_id UUID,
+        affected_count INTEGER NOT NULL DEFAULT 0,
+        is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+        resolved_by UUID REFERENCES users(id),
+        resolved_at TIMESTAMPTZ,
+        detected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_dq_tenant ON data_quality_anomalies(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_dq_tenant_resolved ON data_quality_anomalies(tenant_id, is_resolved)""",
+
+    # ── E-Learning Courses ────────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS elearning_courses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        description TEXT,
+        subject_id UUID REFERENCES subjects(id),
+        level_id UUID REFERENCES levels(id),
+        teacher_id UUID REFERENCES users(id),
+        status VARCHAR(20) NOT NULL DEFAULT 'draft',
+        is_published BOOLEAN NOT NULL DEFAULT FALSE,
+        thumbnail_url TEXT,
+        duration_hours NUMERIC(5,1),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_elearning_courses_tenant ON elearning_courses(tenant_id)""",
+    """CREATE TABLE IF NOT EXISTS elearning_modules (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id UUID NOT NULL REFERENCES elearning_courses(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        description TEXT,
+        order_index INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE TABLE IF NOT EXISTS elearning_enrollments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id UUID NOT NULL REFERENCES elearning_courses(id) ON DELETE CASCADE,
+        student_id UUID NOT NULL REFERENCES users(id),
+        enrolled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        progress_pct INTEGER NOT NULL DEFAULT 0,
+        completed_at TIMESTAMPTZ,
+        UNIQUE(course_id, student_id)
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_elearning_enroll_course ON elearning_enrollments(course_id)""",
+
     # ── Tenant-scoped unique constraints ──────────────────────────────────
     """DO $$ BEGIN
         ALTER TABLE subjects ADD CONSTRAINT uq_subjects_tenant_name UNIQUE (tenant_id, name);

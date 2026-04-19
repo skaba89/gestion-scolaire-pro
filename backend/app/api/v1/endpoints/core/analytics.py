@@ -736,3 +736,193 @@ def get_cash_flow_forecast(
         "expenses": [3000, 3100, 3200],
         "net": [2000, 2100, 2300]
     }
+
+
+# =============================================================================
+# E-LEARNING COURSES  /analytics/elearning/courses/
+# =============================================================================
+from pydantic import BaseModel
+
+class CourseCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    subject_id: Optional[str] = None
+    level_id: Optional[str] = None
+    status: str = "draft"
+    is_published: bool = False
+    duration_hours: Optional[float] = None
+
+
+class CourseUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    subject_id: Optional[str] = None
+    level_id: Optional[str] = None
+    status: Optional[str] = None
+    is_published: Optional[bool] = None
+    duration_hours: Optional[float] = None
+
+
+@router.get("/elearning/courses/")
+def list_elearning_courses(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:read")),
+):
+    """List all e-learning courses for the tenant."""
+    tenant_id = current_user.get("tenant_id")
+    rows = db.execute(text("""
+        SELECT c.id, c.tenant_id, c.title, c.description, c.subject_id, c.level_id,
+               c.teacher_id, c.status, c.is_published, c.thumbnail_url,
+               c.duration_hours, c.created_at, c.updated_at,
+               s.name as subject_name, l.name as level_name,
+               COALESCE(e.enrolled_count, 0) as enrolled_count
+        FROM elearning_courses c
+        LEFT JOIN subjects s ON s.id = c.subject_id
+        LEFT JOIN levels l ON l.id = c.level_id
+        LEFT JOIN (
+            SELECT course_id, COUNT(*) as enrolled_count FROM elearning_enrollments GROUP BY course_id
+        ) e ON e.course_id = c.id
+        WHERE c.tenant_id = :tid
+        ORDER BY c.created_at DESC
+    """), {"tid": tenant_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@router.post("/elearning/courses/", status_code=201)
+def create_elearning_course(
+    body: CourseCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:write")),
+):
+    """Create a new e-learning course."""
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    row = db.execute(text("""
+        INSERT INTO elearning_courses
+            (tenant_id, title, description, subject_id, level_id, teacher_id,
+             status, is_published, duration_hours, created_at)
+        VALUES
+            (:tid, :title, :desc, :subject_id, :level_id, :teacher_id,
+             :status, :is_published, :duration_hours, NOW())
+        RETURNING id, tenant_id, title, description, subject_id, level_id,
+                  teacher_id, status, is_published, duration_hours, created_at
+    """), {
+        "tid": tenant_id, "title": body.title, "desc": body.description,
+        "subject_id": body.subject_id, "level_id": body.level_id,
+        "teacher_id": str(user_id) if user_id else None,
+        "status": body.status, "is_published": body.is_published,
+        "duration_hours": body.duration_hours,
+    }).mappings().first()
+    db.commit()
+    return dict(row)
+
+
+@router.put("/elearning/courses/{course_id}/")
+def update_elearning_course(
+    course_id: str,
+    body: CourseUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:write")),
+):
+    """Update an e-learning course."""
+    from fastapi import HTTPException
+    tenant_id = current_user.get("tenant_id")
+    updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    set_clauses = ", ".join(f"{k} = :{k}" for k in updates)
+    updates.update({"id": course_id, "tid": tenant_id, "now": datetime.now(timezone.utc)})
+
+    row = db.execute(text(f"""
+        UPDATE elearning_courses
+        SET {set_clauses}, updated_at = :now
+        WHERE id = :id AND tenant_id = :tid
+        RETURNING id, title, status, is_published, updated_at
+    """), updates).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Course not found")
+    db.commit()
+    return dict(row)
+
+
+@router.delete("/elearning/courses/{course_id}/", status_code=204)
+def delete_elearning_course(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:write")),
+):
+    """Delete an e-learning course."""
+    tenant_id = current_user.get("tenant_id")
+    db.execute(text("DELETE FROM elearning_courses WHERE id = :id AND tenant_id = :tid"),
+               {"id": course_id, "tid": tenant_id})
+    db.commit()
+    return None
+
+
+@router.get("/elearning/courses/{course_id}/modules/")
+def list_course_modules(
+    course_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:read")),
+):
+    """List modules for a specific course."""
+    rows = db.execute(text("""
+        SELECT id, course_id, title, description, order_index, created_at
+        FROM elearning_modules
+        WHERE course_id = :cid
+        ORDER BY order_index ASC
+    """), {"cid": course_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@router.get("/elearning/enrollments/")
+def list_course_enrollments(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:read")),
+):
+    """List all course enrollments for the tenant."""
+    tenant_id = current_user.get("tenant_id")
+    rows = db.execute(text("""
+        SELECT e.id, e.course_id, e.student_id, e.enrolled_at, e.progress_pct,
+               e.completed_at, c.title as course_title
+        FROM elearning_enrollments e
+        JOIN elearning_courses c ON c.id = e.course_id
+        WHERE c.tenant_id = :tid
+        ORDER BY e.enrolled_at DESC
+    """), {"tid": tenant_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+# =============================================================================
+# ACHIEVEMENT DEFINITIONS  /analytics/achievement-definitions/ (alias)
+# =============================================================================
+
+@router.get("/risk-scores/")
+def get_analytics_risk_scores(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("analytics:read")),
+    student_ids: Optional[str] = Query(None),
+):
+    """Risk scores for students — wrapper around student_risk_scores table."""
+    tenant_id = current_user.get("tenant_id")
+    params: Dict[str, Any] = {"tid": tenant_id}
+    where = ["sr.tenant_id = :tid"]
+
+    if student_ids:
+        ids = [s.strip() for s in student_ids.split(",") if s.strip()]
+        if ids:
+            where.append("sr.student_id = ANY(:ids)")
+            params["ids"] = ids
+
+    rows = db.execute(text(f"""
+        SELECT sr.student_id, sr.risk_level, sr.risk_score, sr.risk_factors,
+               sr.calculated_at, u.first_name, u.last_name
+        FROM student_risk_scores sr
+        LEFT JOIN users u ON u.id = sr.student_id
+        WHERE {" AND ".join(where)}
+        ORDER BY sr.risk_score DESC
+        LIMIT 100
+    """), params).mappings().all()
+    return [dict(r) for r in rows]

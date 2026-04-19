@@ -832,3 +832,197 @@ def list_all_parents(
         ORDER BY p.last_name, p.first_name
     """), params).mappings().all()
     return rows
+
+
+# =============================================================================
+# Achievement Definitions  /achievement-definitions/
+# =============================================================================
+
+achievement_router = APIRouter()
+
+class AchievementDefCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    category: str = "general"
+    points_value: int = 10
+    trigger_type: str = "manual"
+    trigger_threshold: int = 1
+    is_active: bool = True
+
+
+@achievement_router.get("/")
+def list_achievement_definitions(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    rows = db.execute(text("""
+        SELECT id, tenant_id, name, description, icon, category, points_value,
+               trigger_type, trigger_threshold, is_active, created_at
+        FROM achievement_definitions
+        WHERE tenant_id = :tid ORDER BY created_at DESC
+    """), {"tid": tenant_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@achievement_router.post("/", status_code=201)
+def create_achievement_definition(
+    body: AchievementDefCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    row = db.execute(text("""
+        INSERT INTO achievement_definitions
+            (tenant_id, name, description, icon, category, points_value, trigger_type, trigger_threshold, is_active)
+        VALUES (:tid, :name, :desc, :icon, :cat, :pts, :ttype, :thresh, :active)
+        RETURNING id, name, description, icon, category, points_value, trigger_type, trigger_threshold, is_active, created_at
+    """), {
+        "tid": tenant_id, "name": body.name, "desc": body.description,
+        "icon": body.icon, "cat": body.category, "pts": body.points_value,
+        "ttype": body.trigger_type, "thresh": body.trigger_threshold,
+        "active": body.is_active,
+    }).mappings().first()
+    db.commit()
+    return dict(row)
+
+
+@achievement_router.patch("/{achievement_id}/")
+def update_achievement_definition(
+    achievement_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    allowed = {"name", "description", "icon", "category", "points_value", "trigger_type", "trigger_threshold", "is_active"}
+    updates = {k: v for k, v in body.items() if k in allowed}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No valid fields")
+    set_clause = ", ".join(f"{k} = :{k}" for k in updates)
+    updates["id"] = achievement_id
+    updates["tid"] = tenant_id
+    row = db.execute(text(f"""
+        UPDATE achievement_definitions SET {set_clause}
+        WHERE id = :id AND tenant_id = :tid
+        RETURNING id, name, is_active
+    """), updates).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.commit()
+    return dict(row)
+
+
+@achievement_router.delete("/{achievement_id}/", status_code=204)
+def delete_achievement_definition(
+    achievement_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    db.execute(text("DELETE FROM achievement_definitions WHERE id = :id AND tenant_id = :tid"),
+               {"id": achievement_id, "tid": tenant_id})
+    db.commit()
+
+
+# =============================================================================
+# Student Achievements  /student-achievements/
+# =============================================================================
+
+student_achievement_router = APIRouter()
+
+
+@student_achievement_router.get("/")
+def list_student_achievements(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    student_id: Optional[str] = Query(None),
+):
+    tenant_id = current_user.get("tenant_id")
+    extra = ""
+    params: dict = {"tid": tenant_id}
+    if student_id:
+        extra = " AND sa.student_id = :sid"
+        params["sid"] = student_id
+    rows = db.execute(text(f"""
+        SELECT sa.id, sa.student_id, sa.achievement_id, sa.earned_at,
+               ad.name as achievement_name, ad.icon, ad.points_value
+        FROM student_achievements sa
+        JOIN achievement_definitions ad ON ad.id = sa.achievement_id
+        WHERE sa.tenant_id = :tid {extra}
+        ORDER BY sa.earned_at DESC LIMIT 500
+    """), params).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@student_achievement_router.post("/", status_code=201)
+def award_student_achievement(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    try:
+        row = db.execute(text("""
+            INSERT INTO student_achievements (tenant_id, student_id, achievement_id, awarded_by)
+            VALUES (:tid, :sid, :aid, :awarded_by)
+            ON CONFLICT (student_id, achievement_id) DO NOTHING
+            RETURNING id, student_id, achievement_id, earned_at
+        """), {
+            "tid": tenant_id,
+            "sid": body.get("student_id"),
+            "aid": body.get("achievement_id"),
+            "awarded_by": str(user_id) if user_id else None,
+        }).mappings().first()
+        db.commit()
+        return dict(row) if row else {"status": "already_awarded"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# =============================================================================
+# Gamification process-event  /gamification/process-event/
+# =============================================================================
+
+gamification_router = APIRouter()
+
+
+@gamification_router.post("/process-event/")
+def process_gamification_event(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Process a gamification event and award matching achievements."""
+    tenant_id = current_user.get("tenant_id")
+    event_type = body.get("event_type", "")
+    student_id = body.get("student_id")
+
+    if not student_id or not event_type:
+        raise HTTPException(status_code=400, detail="student_id and event_type required")
+
+    # Find matching achievement definitions for this event type
+    rows = db.execute(text("""
+        SELECT id, name, points_value FROM achievement_definitions
+        WHERE tenant_id = :tid AND is_active = TRUE AND trigger_type = :etype
+    """), {"tid": tenant_id, "etype": event_type}).mappings().all()
+
+    awarded = []
+    for ach in rows:
+        try:
+            result = db.execute(text("""
+                INSERT INTO student_achievements (tenant_id, student_id, achievement_id)
+                VALUES (:tid, :sid, :aid)
+                ON CONFLICT (student_id, achievement_id) DO NOTHING
+                RETURNING id
+            """), {"tid": tenant_id, "sid": student_id, "aid": str(ach["id"])}).mappings().first()
+            if result:
+                awarded.append({"achievement_id": str(ach["id"]), "name": ach["name"]})
+        except Exception:
+            pass
+
+    db.commit()
+    return {"event_type": event_type, "student_id": student_id, "achievements_awarded": awarded}

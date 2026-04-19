@@ -372,29 +372,31 @@ export const adminQueries = {
         },
     }),
 
-    // E-learning Queries
-    // TODO: Backend endpoints not yet implemented — returning empty stubs to prevent runtime errors
+    // E-learning Queries — backed by /analytics/elearning/courses/
     adminCourses: (tenantId: string) => ({
         queryKey: ["admin-courses", tenantId] as const,
         queryFn: async () => {
-            // TODO: Backend endpoint /academic/courses/ not yet implemented
-            return [];
+            if (!tenantId) return [];
+            const response = await apiClient.get("/analytics/elearning/courses/");
+            return response.data || [];
         },
     }),
 
     adminCourseModules: (courseId: string) => ({
         queryKey: ["admin-course-modules", courseId] as const,
         queryFn: async () => {
-            // TODO: Backend endpoint /academic/courses/:id/modules/ not yet implemented
-            return [];
+            if (!courseId) return [];
+            const response = await apiClient.get(`/analytics/elearning/courses/${courseId}/modules/`);
+            return response.data || [];
         },
     }),
 
     adminCourseEnrollments: (tenantId: string) => ({
         queryKey: ["admin-course-enrollments", tenantId] as const,
         queryFn: async () => {
-            // TODO: Backend endpoint /academic/courses/enrollments/ not yet implemented
-            return [];
+            if (!tenantId) return [];
+            const response = await apiClient.get("/analytics/elearning/enrollments/");
+            return response.data || [];
         },
     }),
 
