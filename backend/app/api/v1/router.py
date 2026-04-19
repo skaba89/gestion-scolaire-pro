@@ -174,17 +174,5 @@ api_router.include_router(shared_notes_router, prefix="/shared-notes", tags=["Sh
 api_router.include_router(shared_note_likes_router, prefix="/shared-note-likes", tags=["Shared Notes"])
 api_router.include_router(shared_note_comments_router, prefix="/shared-note-comments", tags=["Shared Notes"])
 
-# 25. Invoice email (alias at root)
-from fastapi import Request as _Request
-_send_invoice_email_router = APIRouter()
-
-@_send_invoice_email_router.post("/send-invoice-email/")
-async def _send_invoice_email_root(request: _Request):
-    """Proxy /send-invoice-email/ → /payments/send-invoice-email/"""
-    from starlette.responses import RedirectResponse
-    return RedirectResponse(url="/api/v1/payments/send-invoice-email/", status_code=307)
-
-api_router.include_router(_send_invoice_email_router, prefix="", tags=["Invoices"], include_in_schema=False)
-
-# 26. Consent endpoints (RGPD)
+# 25. Consent endpoints (RGPD)
 api_router.include_router(consent_router, prefix="/consent", tags=["RGPD"])

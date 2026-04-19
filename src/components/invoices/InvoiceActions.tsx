@@ -115,7 +115,7 @@ export function InvoiceActions({ invoice, compact = false }: InvoiceActionsProps
   const handleSendEmail = async () => {
     setSending(true);
     try {
-      const { data } = await apiClient.post("/send-invoice-email", {
+      const { data } = await apiClient.post("/payments/send-invoice-email/", {
         invoiceId: invoice.id,
         recipientEmail: emailForm.email || undefined,
         customMessage: emailForm.message || undefined,
