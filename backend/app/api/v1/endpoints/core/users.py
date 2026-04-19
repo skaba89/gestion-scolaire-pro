@@ -267,6 +267,147 @@ def list_users(
     }
 
 
+# ─── GET /users/roles/ ─── List all role assignments for the tenant ──────────
+# MUST be defined BEFORE /{user_id}/ to prevent "roles" being matched as user_id
+
+@router.get("/roles/")
+def list_user_roles(
+    tenant_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:read")),
+):
+    """GET /users/roles/ — list all user-role assignments for the current tenant."""
+    tid = tenant_id or current_user.get("tenant_id")
+    rows = db.execute(text("""
+        SELECT ur.user_id, ur.role, ur.tenant_id, ur.created_at,
+               u.first_name, u.last_name, u.email,
+               -- Synthetic id: user_id:role (no separate PK on user_roles)
+               CONCAT(ur.user_id::text, ':', ur.role) AS id
+        FROM user_roles ur
+        JOIN users u ON u.id = ur.user_id
+        WHERE ur.tenant_id = :tid
+        ORDER BY u.last_name, u.first_name, ur.role
+        LIMIT 500
+    """), {"tid": tid}).mappings().all()
+
+    return [
+        {
+            "id": r["id"],
+            "user_id": str(r["user_id"]),
+            "role": r["role"],
+            "created_at": r["created_at"],
+            "profile": {
+                "first_name": r["first_name"],
+                "last_name": r["last_name"],
+                "email": r["email"],
+            },
+        }
+        for r in rows
+    ]
+
+
+class AssignRoleDirectRequest(BaseModel):
+    user_id: str
+    role: str
+    tenant_id: Optional[str] = None
+
+
+@router.post("/roles/", status_code=201)
+def assign_role_direct(
+    body: AssignRoleDirectRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:write")),
+):
+    """POST /users/roles/ — assign a role to a user for the current tenant."""
+    tid = body.tenant_id or current_user.get("tenant_id")
+    try:
+        db.execute(text("""
+            INSERT INTO user_roles (user_id, tenant_id, role, created_at)
+            VALUES (:user_id, :tenant_id, :role, NOW())
+            ON CONFLICT DO NOTHING
+        """), {"user_id": body.user_id, "tenant_id": tid, "role": body.role})
+        db.commit()
+        return {
+            "id": f"{body.user_id}:{body.role}",
+            "user_id": body.user_id,
+            "role": body.role,
+            "tenant_id": tid,
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/roles/{role_id}/", status_code=204)
+def remove_role_direct(
+    role_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:write")),
+):
+    """DELETE /users/roles/{role_id}/ — remove a role assignment.
+    role_id format: '{user_id}:{role}'
+    """
+    tid = current_user.get("tenant_id")
+    if ":" not in role_id:
+        raise HTTPException(status_code=400, detail="Invalid role_id format (expected user_id:role)")
+    user_id, role = role_id.split(":", 1)
+    db.execute(text("""
+        DELETE FROM user_roles WHERE user_id = :user_id AND role = :role AND tenant_id = :tid
+    """), {"user_id": user_id, "role": role, "tid": tid})
+    db.commit()
+
+
+# ─── GET /users/profiles/ ─── List user profiles for the tenant ───────────────
+# MUST be before /{user_id}/ to avoid "profiles" matching as a user_id param
+
+@router.get("/profiles/")
+def list_user_profiles(
+    tenant_id: Optional[str] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:read")),
+):
+    """GET /users/profiles/ — list user profiles for a tenant (supports ?search=email)."""
+    tid = tenant_id or current_user.get("tenant_id")
+    where = ["u.tenant_id = :tid"]
+    params: dict = {"tid": tid}
+
+    if search:
+        where.append(
+            "(LOWER(u.first_name) LIKE LOWER(:search) OR LOWER(u.last_name) LIKE LOWER(:search) OR LOWER(u.email) LIKE LOWER(:search))"
+        )
+        params["search"] = f"%{search}%"
+
+    rows = db.execute(text(f"""
+        SELECT u.id, u.first_name, u.last_name, u.email, u.is_active, u.created_at,
+               p.avatar_url, p.phone,
+               COALESCE(
+                   (SELECT array_agg(ur.role) FROM user_roles ur WHERE ur.user_id = u.id AND ur.tenant_id = u.tenant_id),
+                   ARRAY[]::text[]
+               ) AS roles
+        FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE {' AND '.join(where)}
+        ORDER BY u.last_name, u.first_name
+        LIMIT 200
+    """), params).mappings().all()
+
+    return [
+        {
+            "id": str(r["id"]),
+            "first_name": r["first_name"],
+            "last_name": r["last_name"],
+            "email": r["email"],
+            "is_active": r["is_active"],
+            "avatar_url": r["avatar_url"],
+            "phone": r["phone"],
+            "roles": list(r["roles"]) if r["roles"] else [],
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+
+
 @router.get("/{user_id}/")
 def get_user(
     user_id: str,

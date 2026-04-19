@@ -80,21 +80,32 @@ def delete_subscription(
 
 # ─── Notifications History ───────────────────────────────────────────────────
 
-@router.get("/", response_model=List[NotificationResponse])
+@router.get("/")
 def read_notifications(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     limit: int = Query(50, ge=1, le=100),
-    unread_only: bool = False
+    unread_only: bool = False,
 ):
-    """Get notification history for current user."""
+    """Get notification history for current user (raw SQL, avoids ORM UUID type issues)."""
     user_id = current_user.get("id")
-    query = db.query(Notification).filter(Notification.user_id == user_id)
-    if unread_only:
-        query = query.filter(Notification.is_read == False)
-    
-    notifications = query.order_by(Notification.created_at.desc()).limit(limit).all()
-    return notifications
+    try:
+        where = "user_id = :user_id"
+        params: dict = {"user_id": user_id, "limit": limit}
+        if unread_only:
+            where += " AND is_read = FALSE"
+        rows = db.execute(text(f"""
+            SELECT id, user_id, tenant_id, title, message, type, link,
+                   is_read, created_at, updated_at
+            FROM notifications
+            WHERE {where}
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logging.getLogger(__name__).warning("read_notifications failed: %s", e)
+        return []
 
 @router.post("/", response_model=NotificationResponse)
 def create_notification(

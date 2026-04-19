@@ -43,7 +43,25 @@ interface FinanceConfig {
 const FinanceSettings = () => {
   const { settings, updateSettings, isLoading: isUpdating } = useSettings();
   const { toast } = useToast();
-  const [formData, setFormData] = useState<Partial<FinanceConfig>>({});
+  const [formData, setFormData] = useState<Partial<FinanceConfig>>({
+    currency: "XOF",
+    currencySymbol: "FCFA",
+    enableOnlinePayments: false,
+    bankName: "",
+    bankAccount: "",
+    bankIBAN: "",
+    invoicePrefix: "FAC-",
+    invoiceFooter: "",
+    lateFeePercentage: 0,
+    gracePeriodDays: 15,
+    enableAutoReminders: false,
+    reminderDaysBefore: 7,
+    penaltyType: "PERCENTAGE",
+    penaltyFrequency: "ONCE",
+    enableMobileMoney: false,
+    paytechApiKey: "",
+    paytechSecretKey: "",
+  });
 
   useEffect(() => {
     if (settings) {
