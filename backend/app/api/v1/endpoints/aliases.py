@@ -1026,3 +1026,360 @@ def process_gamification_event(
 
     db.commit()
     return {"event_type": event_type, "student_id": student_id, "achievements_awarded": awarded}
+
+
+# ─── Homework Submissions at root (/homework-submissions/) ───────────────────
+
+homework_submissions_router = APIRouter()
+
+
+@homework_submissions_router.get("/")
+def list_homework_submissions(
+    homework_id: Optional[str] = None,
+    student_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:read")),
+):
+    """GET /homework-submissions?homework_id=X"""
+    tenant_id = current_user.get("tenant_id")
+    where = ["hs.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
+
+    if homework_id:
+        where.append("hs.homework_id = :homework_id")
+        params["homework_id"] = homework_id
+    if student_id:
+        where.append("hs.student_id = :student_id")
+        params["student_id"] = student_id
+
+    rows = db.execute(text(f"""
+        SELECT hs.id, hs.homework_id, hs.student_id, hs.content,
+               hs.grade, hs.feedback, hs.graded_at, hs.graded_by,
+               hs.submitted_at,
+               u.first_name, u.last_name
+        FROM homework_submissions hs
+        LEFT JOIN users u ON u.id = hs.student_id
+        WHERE {' AND '.join(where)}
+        ORDER BY hs.submitted_at DESC
+        LIMIT 200
+    """), params).mappings().all()
+
+    return [
+        {
+            **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name")},
+            "student": {
+                "id": str(r["student_id"]),
+                "first_name": r["first_name"],
+                "last_name": r["last_name"],
+            } if r["student_id"] else None,
+        }
+        for r in rows
+    ]
+
+
+@homework_submissions_router.put("/{submission_id}")
+def update_homework_submission(
+    submission_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:write")),
+):
+    """PUT /homework-submissions/{id} — grade a submission."""
+    tenant_id = current_user.get("tenant_id")
+
+    row = db.execute(text("""
+        UPDATE homework_submissions
+        SET grade = :grade,
+            feedback = :feedback,
+            graded_by = :graded_by,
+            graded_at = COALESCE(:graded_at::timestamptz, NOW())
+        WHERE id = :id AND tenant_id = :tenant_id
+        RETURNING id, homework_id, student_id, grade, feedback, graded_at
+    """), {
+        "id": submission_id,
+        "tenant_id": tenant_id,
+        "grade": body.get("grade"),
+        "feedback": body.get("feedback"),
+        "graded_by": body.get("graded_by") or current_user.get("id"),
+        "graded_at": body.get("graded_at"),
+    }).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    db.commit()
+    return dict(row)
+
+
+# ─── Grade History at root (/grade-history) ───────────────────────────────────
+
+grade_history_router = APIRouter()
+
+
+@grade_history_router.get("/")
+def list_grade_history_alias(
+    grade_id: Optional[str] = None,
+    student_id: Optional[str] = None,
+    ordering: str = "-created_at",
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """GET /grade-history?grade_id=X"""
+    tenant_id = current_user.get("tenant_id")
+    where = ["gh.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
+
+    if grade_id:
+        where.append("gh.grade_id = :grade_id")
+        params["grade_id"] = grade_id
+    if student_id:
+        where.append("gh.student_id = :student_id")
+        params["student_id"] = student_id
+
+    order_col = "created_at"
+    order_dir = "DESC"
+    if ordering and ordering.lstrip("-") in ("created_at", "old_score", "new_score"):
+        order_col = ordering.lstrip("-")
+        order_dir = "ASC" if not ordering.startswith("-") else "DESC"
+
+    rows = db.execute(text(f"""
+        SELECT gh.id, gh.grade_id, gh.old_score, gh.new_score,
+               gh.old_comment, gh.new_comment, gh.change_reason, gh.created_at,
+               u.first_name, u.last_name, u.id as user_id
+        FROM grade_history gh
+        LEFT JOIN users u ON u.id = gh.user_id
+        WHERE {' AND '.join(where)}
+        ORDER BY gh.{order_col} {order_dir}
+        LIMIT 200
+    """), params).mappings().all()
+
+    return [
+        {
+            **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name")},
+            "user": {
+                "id": str(r["user_id"]),
+                "first_name": r["first_name"],
+                "last_name": r["last_name"],
+            } if r["user_id"] else None,
+        }
+        for r in rows
+    ]
+
+
+# ─── Shared Notes (/shared-notes/, /shared-note-likes/, /shared-note-comments/) ─
+
+shared_notes_router = APIRouter()
+
+
+@shared_notes_router.get("/")
+def list_shared_notes(
+    ordering: str = "-is_pinned,-created_at",
+    limit: int = Query(50, le=200),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /shared-notes/"""
+    tenant_id = current_user.get("tenant_id")
+    rows = db.execute(text("""
+        SELECT sn.id, sn.title, sn.content, sn.is_pinned, sn.visibility,
+               sn.view_count, sn.tags, sn.created_at, sn.updated_at,
+               sn.classroom_id, sn.subject_id,
+               u.id as author_id, u.first_name, u.last_name
+        FROM shared_notes sn
+        LEFT JOIN users u ON u.id = sn.author_id
+        WHERE sn.tenant_id = :tenant_id
+        ORDER BY sn.is_pinned DESC, sn.created_at DESC
+        LIMIT :limit
+    """), {"tenant_id": tenant_id, "limit": limit}).mappings().all()
+
+    return [
+        {
+            **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name", "author_id")},
+            "author": {
+                "id": str(r["author_id"]),
+                "first_name": r["first_name"],
+                "last_name": r["last_name"],
+            } if r["author_id"] else None,
+        }
+        for r in rows
+    ]
+
+
+@shared_notes_router.post("/", status_code=201)
+def create_shared_note(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """POST /shared-notes/"""
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    tags = body.get("tags", [])
+
+    row = db.execute(text("""
+        INSERT INTO shared_notes (tenant_id, author_id, title, content, visibility, tags, classroom_id, subject_id)
+        VALUES (:tenant_id, :author_id, :title, :content, :visibility, :tags, :classroom_id, :subject_id)
+        RETURNING id, title, content, is_pinned, visibility, view_count, tags, created_at, updated_at
+    """), {
+        "tenant_id": tenant_id,
+        "author_id": user_id,
+        "title": body.get("title", ""),
+        "content": body.get("content", ""),
+        "visibility": body.get("visibility", "class"),
+        "tags": tags if isinstance(tags, list) else [],
+        "classroom_id": body.get("classroom_id"),
+        "subject_id": body.get("subject_id"),
+    }).mappings().first()
+    db.commit()
+    return dict(row)
+
+
+@shared_notes_router.delete("/{note_id}", status_code=204)
+def delete_shared_note(
+    note_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """DELETE /shared-notes/{id}"""
+    tenant_id = current_user.get("tenant_id")
+    db.execute(text("DELETE FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+               {"id": note_id, "tid": tenant_id})
+    db.commit()
+
+
+shared_note_likes_router = APIRouter()
+
+
+@shared_note_likes_router.get("/")
+def list_note_likes(
+    note_id__in: Optional[str] = None,
+    user_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /shared-note-likes/"""
+    where = []
+    params: dict = {}
+
+    if note_id__in:
+        ids = [i.strip() for i in note_id__in.split(",") if i.strip()]
+        if ids:
+            where.append("note_id = ANY(:ids)")
+            params["ids"] = ids
+    if user_id:
+        where.append("user_id = :user_id")
+        params["user_id"] = user_id
+
+    sql = "SELECT id, note_id, user_id, created_at FROM shared_note_likes"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " LIMIT 1000"
+
+    rows = db.execute(text(sql), params).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@shared_note_likes_router.post("/", status_code=201)
+def like_note(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """POST /shared-note-likes/"""
+    user_id = current_user.get("id")
+    note_id = body.get("note_id")
+    try:
+        db.execute(text("""
+            INSERT INTO shared_note_likes (note_id, user_id)
+            VALUES (:note_id, :user_id)
+            ON CONFLICT (note_id, user_id) DO NOTHING
+        """), {"note_id": note_id, "user_id": user_id})
+        db.commit()
+        return {"liked": True}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@shared_note_likes_router.delete("/")
+def unlike_note(
+    note_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """DELETE /shared-note-likes/?note_id=X"""
+    user_id = current_user.get("id")
+    db.execute(text("DELETE FROM shared_note_likes WHERE note_id = :nid AND user_id = :uid"),
+               {"nid": note_id, "uid": user_id})
+    db.commit()
+    return {"liked": False}
+
+
+shared_note_comments_router = APIRouter()
+
+
+@shared_note_comments_router.get("/")
+def list_note_comments(
+    note_id: Optional[str] = None,
+    note_id__in: Optional[str] = None,
+    ordering: str = "created_at",
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /shared-note-comments/"""
+    where = []
+    params: dict = {}
+
+    if note_id:
+        where.append("snc.note_id = :note_id")
+        params["note_id"] = note_id
+    elif note_id__in:
+        ids = [i.strip() for i in note_id__in.split(",") if i.strip()]
+        if ids:
+            where.append("snc.note_id = ANY(:ids)")
+            params["ids"] = ids
+
+    sql = """
+        SELECT snc.id, snc.note_id, snc.content, snc.created_at,
+               u.id as user_id, u.first_name, u.last_name
+        FROM shared_note_comments snc
+        LEFT JOIN users u ON u.id = snc.user_id
+    """
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY snc.created_at ASC LIMIT 500"
+
+    rows = db.execute(text(sql), params).mappings().all()
+    return [
+        {
+            **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name", "user_id")},
+            "user": {
+                "id": str(r["user_id"]),
+                "first_name": r["first_name"],
+                "last_name": r["last_name"],
+            } if r["user_id"] else None,
+        }
+        for r in rows
+    ]
+
+
+@shared_note_comments_router.post("/", status_code=201)
+def create_note_comment(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """POST /shared-note-comments/"""
+    user_id = current_user.get("id")
+    note_id = body.get("note_id")
+    content = body.get("content", "")
+    if not note_id or not content:
+        raise HTTPException(status_code=400, detail="note_id and content required")
+
+    row = db.execute(text("""
+        INSERT INTO shared_note_comments (note_id, user_id, content)
+        VALUES (:note_id, :user_id, :content)
+        RETURNING id, note_id, user_id, content, created_at
+    """), {"note_id": note_id, "user_id": user_id, "content": content}).mappings().first()
+    db.commit()
+    return dict(row)

@@ -765,6 +765,72 @@ _DDL = [
     )""",
     """CREATE INDEX IF NOT EXISTS ix_elearning_enroll_course ON elearning_enrollments(course_id)""",
 
+    # ── Shared Notes (collaboration) ──────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS shared_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL,
+        author_id UUID REFERENCES users(id),
+        title VARCHAR(200) NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        visibility VARCHAR(20) NOT NULL DEFAULT 'class',
+        is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
+        view_count INTEGER NOT NULL DEFAULT 0,
+        tags TEXT[] DEFAULT '{}',
+        classroom_id UUID,
+        subject_id UUID REFERENCES subjects(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_shared_notes_tenant ON shared_notes(tenant_id)""",
+    """CREATE TABLE IF NOT EXISTS shared_note_likes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        note_id UUID NOT NULL REFERENCES shared_notes(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(note_id, user_id)
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_shared_note_likes_note ON shared_note_likes(note_id)""",
+    """CREATE TABLE IF NOT EXISTS shared_note_comments (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        note_id UUID NOT NULL REFERENCES shared_notes(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id),
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_shared_note_comments_note ON shared_note_comments(note_id)""",
+
+    # ── Grade History (audit trail for grade changes) ─────────────────────
+    """CREATE TABLE IF NOT EXISTS grade_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL,
+        grade_id UUID NOT NULL,
+        user_id UUID REFERENCES users(id),
+        old_score NUMERIC(5,2),
+        new_score NUMERIC(5,2),
+        old_comment TEXT,
+        new_comment TEXT,
+        change_reason TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_grade_history_grade ON grade_history(grade_id)""",
+
+    # ── Consent records (RGPD) ────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS user_consents (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID,
+        user_id UUID NOT NULL REFERENCES users(id),
+        consent_type VARCHAR(50) NOT NULL,
+        consent_given BOOLEAN NOT NULL DEFAULT FALSE,
+        consent_version VARCHAR(20) NOT NULL DEFAULT '1.0',
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        details JSONB,
+        withdrawal_date TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_user_consents_user ON user_consents(user_id)""",
+
     # ── Tenant-scoped unique constraints ──────────────────────────────────
     """DO $$ BEGIN
         ALTER TABLE subjects ADD CONSTRAINT uq_subjects_tenant_name UNIQUE (tenant_id, name);

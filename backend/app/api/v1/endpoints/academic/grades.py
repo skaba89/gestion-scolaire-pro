@@ -263,3 +263,52 @@ def create_bulk_grades(
         db.rollback()
         logger.error("Failed to create bulk grades: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
+
+
+# ─── GET /grade-history ────────────────────────────────────────────────────────
+
+@router.get("/history/")
+def list_grade_history(
+    grade_id: Optional[str] = None,
+    student_id: Optional[str] = None,
+    ordering: str = "-created_at",
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """Return the audit trail of grade changes. GET /grades/history/"""
+    tenant_id = current_user.get("tenant_id")
+    where = ["tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
+
+    if grade_id:
+        where.append("grade_id = :grade_id")
+        params["grade_id"] = grade_id
+    if student_id:
+        where.append("student_id = :student_id")
+        params["student_id"] = student_id
+
+    order_col = "created_at"
+    order_dir = "DESC"
+    if ordering and ordering.lstrip("-") in ("created_at", "old_score", "new_score"):
+        order_col = ordering.lstrip("-")
+        order_dir = "ASC" if not ordering.startswith("-") else "DESC"
+
+    rows = db.execute(text(f"""
+        SELECT gh.id, gh.grade_id, gh.old_score, gh.new_score,
+               gh.old_comment, gh.new_comment, gh.change_reason, gh.created_at,
+               u.first_name, u.last_name, u.id as user_id
+        FROM grade_history gh
+        LEFT JOIN users u ON u.id = gh.user_id
+        WHERE {' AND '.join(where)}
+        ORDER BY gh.{order_col} {order_dir}
+        LIMIT 200
+    """), params).mappings().all()
+
+    return [
+        {
+            **dict(r),
+            "user": {"id": str(r["user_id"]), "first_name": r["first_name"], "last_name": r["last_name"]}
+            if r["user_id"] else None,
+        }
+        for r in rows
+    ]

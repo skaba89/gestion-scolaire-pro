@@ -486,3 +486,83 @@ def get_rgpd_retention_risks(
         }
         for r in rows
     ]
+
+
+# ─── Consent CRUD (/rgpd/consent/ and /consent/ alias) ───────────────────────
+
+consent_router = APIRouter()
+
+
+@consent_router.get("/")
+def list_consents(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /consent/ — fetch current user's consent records."""
+    from sqlalchemy import text as _text
+    user_id = current_user.get("id")
+    rows = db.execute(_text("""
+        SELECT id, user_id, consent_type, consent_given, consent_version,
+               details, withdrawal_date, created_at, updated_at
+        FROM user_consents
+        WHERE user_id = :user_id
+        ORDER BY created_at DESC
+    """), {"user_id": user_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+@consent_router.post("/record/", status_code=201)
+def record_consent(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """POST /consent/record/ — record a consent choice for the current user."""
+    import json
+    from sqlalchemy import text as _text
+    user_id = current_user.get("id")
+    tenant_id = current_user.get("tenant_id")
+    consent_type = body.get("consent_type")
+    consent_given = body.get("consent_given", False)
+    consent_version = body.get("consent_version", "1.0")
+    details = body.get("details")
+
+    if not consent_type:
+        raise HTTPException(status_code=400, detail="consent_type is required")
+
+    # Upsert: update existing row or insert
+    row = db.execute(_text("""
+        INSERT INTO user_consents (tenant_id, user_id, consent_type, consent_given, consent_version, details)
+        VALUES (:tenant_id, :user_id, :consent_type, :consent_given, :consent_version, :details)
+        ON CONFLICT DO NOTHING
+        RETURNING id, user_id, consent_type, consent_given, consent_version, created_at
+    """), {
+        "tenant_id": tenant_id,
+        "user_id": user_id,
+        "consent_type": consent_type,
+        "consent_given": consent_given,
+        "consent_version": consent_version,
+        "details": json.dumps(details) if details else None,
+    }).mappings().first()
+
+    if not row:
+        # Update existing
+        row = db.execute(_text("""
+            UPDATE user_consents
+            SET consent_given = :consent_given,
+                consent_version = :consent_version,
+                details = :details,
+                updated_at = NOW(),
+                withdrawal_date = CASE WHEN :consent_given = FALSE THEN NOW() ELSE NULL END
+            WHERE user_id = :user_id AND consent_type = :consent_type
+            RETURNING id, user_id, consent_type, consent_given, consent_version, updated_at
+        """), {
+            "user_id": user_id,
+            "consent_type": consent_type,
+            "consent_given": consent_given,
+            "consent_version": consent_version,
+            "details": json.dumps(details) if details else None,
+        }).mappings().first()
+
+    db.commit()
+    return dict(row) if row else {"success": True, "consent_type": consent_type}
