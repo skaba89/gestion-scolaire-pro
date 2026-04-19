@@ -1090,7 +1090,10 @@ class _SafeStaticFiles(_BaseStaticFiles):
             await original_send(message)
         await super().__call__(scope, receive, _send_with_disposition)
 
-_upload_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+try:
+    from app.core.storage import _UPLOAD_DIR as _upload_dir
+except Exception:
+    _upload_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(_upload_dir, exist_ok=True)
 app.mount("/uploads", _SafeStaticFiles(directory=_upload_dir), name="uploads")
 

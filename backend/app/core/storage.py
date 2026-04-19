@@ -10,8 +10,20 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # ─── Storage directory for local fallback ──────────────────────────────────
-_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
-os.makedirs(_UPLOAD_DIR, exist_ok=True)
+# Primary: <repo_root>/backend/uploads
+# Fallback: /tmp/schoolflow_uploads (always writable, even on read-only FS)
+_PRIMARY_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
+try:
+    os.makedirs(_PRIMARY_UPLOAD_DIR, exist_ok=True)
+    # Quick write-permission test
+    _test_path = os.path.join(_PRIMARY_UPLOAD_DIR, ".write_test")
+    open(_test_path, "w").close()
+    os.remove(_test_path)
+    _UPLOAD_DIR = _PRIMARY_UPLOAD_DIR
+except OSError:
+    _UPLOAD_DIR = os.path.join("/tmp", "schoolflow_uploads")
+    os.makedirs(_UPLOAD_DIR, exist_ok=True)
+    logger.info("Primary upload dir not writable — using /tmp fallback: %s", _UPLOAD_DIR)
 
 
 # =============================================================================

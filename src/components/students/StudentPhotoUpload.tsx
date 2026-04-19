@@ -51,7 +51,7 @@ export function StudentPhotoUpload({
       uploadFormData.append('type', 'student-photo');
       uploadFormData.append('student_id', studentId);
 
-      const { data: uploadData } = await apiClient.post('/storage/upload', uploadFormData, {
+      const { data: uploadData } = await apiClient.post('/storage/upload/', uploadFormData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 

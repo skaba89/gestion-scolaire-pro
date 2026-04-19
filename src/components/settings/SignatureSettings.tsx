@@ -65,7 +65,7 @@ const SignatureSettings = () => {
     uploadFormData.append('file', fileOrBlob);
     uploadFormData.append('type', type);
 
-    const uploadResponse = await apiClient.post('/storage/upload', uploadFormData, {
+    const uploadResponse = await apiClient.post('/storage/upload/', uploadFormData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
 

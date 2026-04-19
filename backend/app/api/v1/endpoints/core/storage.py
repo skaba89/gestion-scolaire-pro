@@ -20,6 +20,7 @@ ALLOWED_EXTENSIONS = {
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
+@router.post("/upload")
 @router.post("/upload/")
 @limiter.limit("10/minute")
 async def upload_file(request: Request, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):

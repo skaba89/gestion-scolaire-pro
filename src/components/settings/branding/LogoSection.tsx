@@ -33,7 +33,7 @@ export function LogoSection({ formData, setFormData }: BrandingSectionProps) {
             const uploadFormData = new FormData();
             uploadFormData.append("file", file);
 
-            const response = await apiClient.post("/storage/upload", uploadFormData, {
+            const response = await apiClient.post("/storage/upload/", uploadFormData, {
                 headers: {
                     "Content-Type": "multipart/form-data",
                 },

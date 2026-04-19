@@ -276,7 +276,7 @@ export function OnboardingWizard() {
             const formData = new FormData();
             formData.append('file', blob, `signature-${Date.now()}.png`);
 
-            const uploadResponse = await apiClient.post('/storage/upload', formData, {
+            const uploadResponse = await apiClient.post('/storage/upload/', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
