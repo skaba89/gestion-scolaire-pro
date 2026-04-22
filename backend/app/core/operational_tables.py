@@ -870,6 +870,38 @@ _DDL = [
     """CREATE INDEX IF NOT EXISTS ix_point_transactions_tenant ON point_transactions(tenant_id)""",
     """CREATE INDEX IF NOT EXISTS ix_point_transactions_student ON point_transactions(student_id)""",
 
+    # ── Gamification rules ───────────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS gamification_rules (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        event_type VARCHAR(100) NOT NULL,
+        conditions JSONB DEFAULT '{}',
+        reward_type VARCHAR(50) DEFAULT 'POINTS',
+        reward_value INTEGER,
+        reward_badge_id UUID,
+        is_active BOOLEAN DEFAULT TRUE,
+        priority INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_gamification_rules_tenant ON gamification_rules(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_gamification_rules_event ON gamification_rules(event_type)""",
+
+    # ── Gamification event logs ───────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS gamification_event_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        event_type VARCHAR(100) NOT NULL,
+        event_id UUID,
+        student_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        rules_applied JSONB DEFAULT '[]',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_gamification_event_logs_tenant ON gamification_event_logs(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_gamification_event_logs_student ON gamification_event_logs(student_id)""",
+
     # ── Quiz questions (e-learning) ───────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS quiz_questions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

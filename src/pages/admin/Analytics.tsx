@@ -39,7 +39,7 @@ export default function Analytics() {
     queryKey: ["analytics-attendance-trend", tenant?.id, selectedPeriod],
     queryFn: async () => {
       if (!tenant?.id) return [];
-      const response = await apiClient.get('/analytics/attendance-trend', {
+      const response = await apiClient.get('/analytics/attendance-trend/', {
         params: { period: selectedPeriod }
       });
       // Format the date for display (e.g. from "YYYY-MM-DD" to "DD/MM")
@@ -57,7 +57,7 @@ export default function Analytics() {
     queryKey: ["analytics-grades-distribution", tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
-      const response = await apiClient.get('/analytics/grades-distribution');
+      const response = await apiClient.get('/analytics/grades-distribution/');
       const data = Array.isArray(response.data) ? response.data : [];
       return data.map((item: any) => ({
         range: item.range,
@@ -78,7 +78,7 @@ export default function Analytics() {
     queryKey: ["analytics-revenue", tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
-      const response = await apiClient.get('/analytics/revenue-trend', {
+      const response = await apiClient.get('/analytics/revenue-trend/', {
         params: { months: 12 }
       });
 

@@ -47,10 +47,16 @@ const TeacherAssignmentsDialog = ({
   const { data: assignments, isLoading } = useQuery({
     queryKey: ["teacher-assignments", teacher.id],
     queryFn: async () => {
-      const response = await apiClient.get("/teacher-assignments", {
-        params: { teacher_id: teacher.id, tenant_id: tenantId },
-      });
-      return response.data;
+      try {
+        const response = await apiClient.get("/teachers/", {
+          params: { teacher_id: teacher.id, tenant_id: tenantId },
+        });
+        // Backend returns { items, total, ... } or flat array
+        const raw = response.data;
+        return Array.isArray(raw) ? raw : (raw?.items || []);
+      } catch {
+        return [];
+      }
     },
     enabled: open && !!teacher.id,
   });
@@ -59,7 +65,7 @@ const TeacherAssignmentsDialog = ({
   const { data: classrooms } = useQuery({
     queryKey: ["classrooms-for-assignment", tenantId],
     queryFn: async () => {
-      const response = await apiClient.get("/classrooms", {
+      const response = await apiClient.get("/classrooms/", {
         params: { tenant_id: tenantId, ordering: "name" },
       });
       return response.data;
@@ -71,7 +77,7 @@ const TeacherAssignmentsDialog = ({
   const { data: subjects } = useQuery({
     queryKey: ["subjects-for-assignment", tenantId],
     queryFn: async () => {
-      const response = await apiClient.get("/subjects", {
+      const response = await apiClient.get("/subjects/", {
         params: { tenant_id: tenantId, ordering: "name" },
       });
       return response.data;
@@ -86,7 +92,7 @@ const TeacherAssignmentsDialog = ({
       }
 
       try {
-        await apiClient.post("/teacher-assignments", {
+        await apiClient.post("/teachers/", {
           teacher_id: teacher.id,
           class_id: selectedClassroom,
           subject_id: selectedSubject,
@@ -112,7 +118,7 @@ const TeacherAssignmentsDialog = ({
 
   const removeAssignmentMutation = useMutation({
     mutationFn: async (assignmentId: string) => {
-      await apiClient.delete(`/teacher-assignments/${assignmentId}`);
+      await apiClient.delete(`/teachers/${assignmentId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-assignments"] });

@@ -1028,6 +1028,144 @@ def process_gamification_event(
     return {"event_type": event_type, "student_id": student_id, "achievements_awarded": awarded}
 
 
+@gamification_router.get("/rules/")
+def list_gamification_rules(
+    is_active: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /gamification/rules/ — list tenant's gamification rules."""
+    tenant_id = current_user.get("tenant_id")
+    where = ["tenant_id = :tid"]
+    params: dict = {"tid": tenant_id}
+    if is_active in ("true", "1"):
+        where.append("is_active = TRUE")
+    try:
+        rows = db.execute(text(f"""
+            SELECT id, tenant_id, name, description, event_type, conditions,
+                   reward_type, reward_value, reward_badge_id, is_active, priority,
+                   created_at, updated_at
+            FROM gamification_rules
+            WHERE {' AND '.join(where)}
+            ORDER BY priority ASC, created_at DESC
+            LIMIT 200
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+@gamification_router.post("/rules/", status_code=201)
+def create_gamification_rule(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """POST /gamification/rules/ — create a new rule."""
+    import uuid as _uuid, json as _json
+    tenant_id = current_user.get("tenant_id")
+    try:
+        new_id = str(_uuid.uuid4())
+        conditions = body.get("conditions", {})
+        if isinstance(conditions, (dict, list)):
+            conditions = _json.dumps(conditions)
+        db.execute(text("""
+            INSERT INTO gamification_rules
+            (id, tenant_id, name, description, event_type, conditions,
+             reward_type, reward_value, reward_badge_id, is_active, priority, created_at, updated_at)
+            VALUES (:id, :tid, :name, :desc, :etype, :cond::jsonb,
+                    :rtype, :rvalue, :rbadge, :active, :prio, NOW(), NOW())
+        """), {
+            "id": new_id, "tid": tenant_id,
+            "name": body.get("name", ""),
+            "desc": body.get("description"),
+            "etype": body.get("event_type", ""),
+            "cond": conditions,
+            "rtype": body.get("reward_type", "POINTS"),
+            "rvalue": body.get("reward_value"),
+            "rbadge": body.get("reward_badge_id"),
+            "active": body.get("is_active", True),
+            "prio": body.get("priority", 0),
+        })
+        db.commit()
+        return {"id": new_id, **body, "tenant_id": tenant_id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@gamification_router.patch("/rules/{rule_id}/")
+def update_gamification_rule(
+    rule_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """PATCH /gamification/rules/{id}/ — update a rule."""
+    import json as _json
+    tenant_id = current_user.get("tenant_id")
+    allowed = {"name", "description", "event_type", "conditions",
+               "reward_type", "reward_value", "reward_badge_id", "is_active", "priority"}
+    sets, params = [], {"id": rule_id, "tid": tenant_id}
+    for k, v in body.items():
+        if k not in allowed:
+            continue
+        if k == "conditions" and isinstance(v, (dict, list)):
+            v = _json.dumps(v)
+            sets.append(f"{k} = :{k}::jsonb")
+        else:
+            sets.append(f"{k} = :{k}")
+        params[k] = v
+    if not sets:
+        raise HTTPException(status_code=400, detail="No updatable fields provided")
+    sets.append("updated_at = NOW()")
+    try:
+        db.execute(text(f"""
+            UPDATE gamification_rules SET {', '.join(sets)}
+            WHERE id = :id AND tenant_id = :tid
+        """), params)
+        db.commit()
+        return {"id": rule_id, **body}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@gamification_router.delete("/rules/{rule_id}/", status_code=204)
+def delete_gamification_rule(
+    rule_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """DELETE /gamification/rules/{id}/"""
+    tenant_id = current_user.get("tenant_id")
+    db.execute(text("DELETE FROM gamification_rules WHERE id = :id AND tenant_id = :tid"),
+               {"id": rule_id, "tid": tenant_id})
+    db.commit()
+
+
+@gamification_router.get("/event-logs/")
+def list_gamification_event_logs(
+    limit: int = Query(100, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /gamification/event-logs/ — list recent gamification events."""
+    tenant_id = current_user.get("tenant_id")
+    try:
+        rows = db.execute(text("""
+            SELECT id, tenant_id, event_type, event_id, student_id,
+                   rules_applied, created_at
+            FROM gamification_event_logs
+            WHERE tenant_id = :tid
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """), {"tid": tenant_id, "limit": limit}).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
 # ─── Homework Submissions at root (/homework-submissions/) ───────────────────
 
 homework_submissions_router = APIRouter()

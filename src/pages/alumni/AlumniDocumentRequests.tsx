@@ -224,8 +224,8 @@ export default function AlumniDocumentRequests() {
                 </div>
               )}
 
-              <Button 
-                onClick={() => createRequest.mutate()}
+              <Button
+                onClick={handleCreateRequest}
                 disabled={!documentType || !purpose || createRequest.isPending}
                 className="w-full"
               >

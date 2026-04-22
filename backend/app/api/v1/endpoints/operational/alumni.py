@@ -387,6 +387,106 @@ def alumni_career_events(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
+# ─── Career Applications ──────────────────────────────────────────────────────
+
+@router.get("/careers/applications/")
+def list_job_applications(
+    student_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /alumni/careers/applications/ — list job applications (scoped to student if provided)."""
+    try:
+        tenant_id = current_user.get("tenant_id")
+        user_id = current_user.get("id")
+        where = ["ja.tenant_id = :tid"]
+        params: dict = {"tid": tenant_id}
+
+        # Non-admins can only see their own applications
+        roles = current_user.get("roles", [])
+        if not any(r in roles for r in ("TENANT_ADMIN", "DIRECTOR", "STAFF")):
+            where.append("ja.student_id = :uid")
+            params["uid"] = student_id or user_id
+        elif student_id:
+            where.append("ja.student_id = :uid")
+            params["uid"] = student_id
+
+        rows = db.execute(text(f"""
+            SELECT ja.id, ja.student_id, ja.job_offer_id, ja.cover_letter,
+                   ja.status, ja.applied_at, ja.created_at,
+                   jo.title as job_title, jo.company_name
+            FROM job_applications ja
+            LEFT JOIN job_offers jo ON jo.id = ja.job_offer_id
+            WHERE {' AND '.join(where)}
+            ORDER BY ja.applied_at DESC NULLS LAST, ja.created_at DESC
+            LIMIT 200
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error("Error listing job applications: %s", e)
+        return []
+
+
+@router.post("/careers/applications/", status_code=201)
+def create_job_application(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """POST /alumni/careers/applications/ — apply to a job offer."""
+    import uuid as _uuid
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    try:
+        new_id = str(_uuid.uuid4())
+        db.execute(text("""
+            INSERT INTO job_applications
+            (id, tenant_id, student_id, job_offer_id, cover_letter, status, applied_at, created_at)
+            VALUES (:id, :tid, :sid, :jid, :cover, 'pending', NOW(), NOW())
+            ON CONFLICT (student_id, job_offer_id) DO NOTHING
+        """), {
+            "id": new_id,
+            "tid": tenant_id,
+            "sid": body.get("student_id") or user_id,
+            "jid": body.get("job_offer_id"),
+            "cover": body.get("cover_letter", ""),
+        })
+        db.commit()
+        return {"id": new_id, **body, "status": "pending"}
+    except Exception as e:
+        db.rollback()
+        logger.error("Error creating job application: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/mentorship-requests/")
+def list_mentorship_requests_student(
+    student_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /alumni/mentorship-requests/ — student-facing list of mentorship requests."""
+    try:
+        tenant_id = current_user.get("tenant_id")
+        user_id = current_user.get("id")
+        effective_id = student_id or user_id
+        rows = db.execute(text("""
+            SELECT m.id, m.student_id, m.mentor_id, m.message, m.goals,
+                   m.status, m.created_at,
+                   am.first_name as mentor_first_name, am.last_name as mentor_last_name,
+                   am.current_position, am.current_company
+            FROM mentorship_requests m
+            LEFT JOIN alumni_mentors am ON am.id = m.mentor_id
+            WHERE m.tenant_id = :tid AND m.student_id = :sid
+            ORDER BY m.created_at DESC
+            LIMIT 100
+        """), {"tid": tenant_id, "sid": effective_id}).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        logger.error("Error listing mentorship requests: %s", e)
+        return []
+
+
 # ─── Messaging recipients (staff for alumni to contact) ───────────────────────
 
 @router.get("/messaging/staff-recipients/")

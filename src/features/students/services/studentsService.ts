@@ -118,7 +118,7 @@ export const studentsService = {
 
   async getMentors(tenantId: string) {
     if (!tenantId) return [];
-    const { data } = await apiClient.get<any[]>("/alumni/mentors/", {
+    const { data } = await apiClient.get<any[]>("/alumni/careers/mentors/", {
       params: { tenant_id: tenantId, is_available: "true" },
     });
     return data || [];
@@ -126,7 +126,7 @@ export const studentsService = {
 
   async getMyMentorshipRequests(studentId: string) {
     if (!studentId) return [];
-    const { data } = await apiClient.get<any[]>("/alumni/mentorship-requests/", {
+    const { data } = await apiClient.get<any[]>("/alumni/admin/mentorship-requests/", {
       params: { student_id: studentId },
     });
     return data || [];

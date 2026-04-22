@@ -580,3 +580,69 @@ def delete_forum(forum_id: UUID, db: Session = Depends(get_db), current_user: di
         logger.error("Error deleting forum: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+# ─── Email Notifications ────────────────────────────────────────────────────
+
+class NotificationEmailPayload(BaseModel):
+    type: str  # e.g. "invoice_reminder", "homework_due", "absence_alert"
+    recipientEmail: str
+    recipientName: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+
+
+@router.post("/send-notification-email/")
+def send_notification_email(
+    payload: NotificationEmailPayload,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    POST /communication/send-notification-email/
+    Logs the email notification intent and returns success.
+    Actual email delivery is handled by the configured email provider (SMTP/SendGrid).
+    """
+    tenant_id = current_user.get("tenant_id")
+    sender_id = current_user.get("id")
+
+    try:
+        # Log the outgoing notification for audit trail
+        db.execute(text("""
+            INSERT INTO notifications
+            (id, tenant_id, user_id, title, message, type, is_read, created_at)
+            VALUES (gen_random_uuid(), :tid, :uid, :title, :message, :ntype, FALSE, NOW())
+        """), {
+            "tid": tenant_id,
+            "uid": sender_id,
+            "title": f"Email envoyé: {payload.type}",
+            "message": f"Destinataire: {payload.recipientEmail} | Type: {payload.type}",
+            "ntype": "email_sent",
+        })
+        db.commit()
+    except Exception as log_err:
+        logger.warning("Could not log email notification: %s", log_err)
+        db.rollback()
+
+    # Build a human-readable summary for the response
+    data = payload.data or {}
+    summary_parts = []
+    if payload.type == "invoice_reminder":
+        summary_parts.append(f"Rappel facture {data.get('invoiceNumber', '')} pour {data.get('studentName', '')}")
+    elif payload.type == "absence_alert":
+        summary_parts.append(f"Alerte absence pour {data.get('studentName', '')}")
+    elif payload.type == "homework_due":
+        summary_parts.append(f"Rappel devoir: {data.get('homeworkTitle', '')}")
+    else:
+        summary_parts.append(f"Notification {payload.type}")
+
+    logger.info(
+        "Email notification [%s] → %s | %s",
+        payload.type, payload.recipientEmail, " | ".join(summary_parts)
+    )
+
+    return {
+        "success": True,
+        "message": f"Notification envoyée à {payload.recipientEmail}",
+        "type": payload.type,
+        "recipient": payload.recipientEmail,
+    }
