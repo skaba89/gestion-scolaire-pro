@@ -27,6 +27,11 @@ from app.api.v1.endpoints.aliases import (
     shared_notes_router,
     shared_note_likes_router,
     shared_note_comments_router,
+    courses_alias_router,
+    course_discussions_router,
+    student_check_ins_router,
+    student_badges_router,
+    trusted_devices_router,
 )
 from app.api.v1.endpoints.core.rgpd import consent_router
 
@@ -176,3 +181,18 @@ api_router.include_router(shared_note_comments_router, prefix="/shared-note-comm
 
 # 25. Consent endpoints (RGPD)
 api_router.include_router(consent_router, prefix="/consent", tags=["RGPD"])
+
+# 26. Courses alias (collaborative tools)
+api_router.include_router(courses_alias_router, prefix="/courses", tags=["E-Learning"])
+
+# 27. Course discussions
+api_router.include_router(course_discussions_router, prefix="/course-discussions", tags=["E-Learning"])
+
+# 28. Student check-ins at root
+api_router.include_router(student_check_ins_router, prefix="/student-check-ins", tags=["School Life"])
+
+# 29. Student badges at root
+api_router.include_router(student_badges_router, prefix="/student-badges", tags=["School Life"])
+
+# 30. Trusted devices (2FA)
+api_router.include_router(trusted_devices_router, prefix="/trusted-devices", tags=["Authentication"])

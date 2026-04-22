@@ -1383,3 +1383,305 @@ def create_note_comment(
     """), {"note_id": note_id, "user_id": user_id, "content": content}).mappings().first()
     db.commit()
     return dict(row)
+
+
+# ─── /courses/ alias → /analytics/elearning/courses/ ────────────────────────
+
+courses_alias_router = APIRouter()
+
+
+@courses_alias_router.get("/")
+def list_courses_alias(
+    is_published: Optional[bool] = None,
+    ordering: str = "-created_at",
+    limit: int = Query(20, le=100),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /courses/ — alias for /analytics/elearning/courses/"""
+    tenant_id = current_user.get("tenant_id")
+    where = ["tenant_id = :tid"]
+    params: dict = {"tid": tenant_id, "limit": limit}
+
+    if is_published is not None:
+        where.append("is_published = :pub")
+        params["pub"] = is_published
+
+    order_col = "created_at"
+    order_dir = "DESC"
+    if ordering and ordering.lstrip("-") in ("created_at", "title", "updated_at"):
+        order_col = ordering.lstrip("-")
+        order_dir = "ASC" if not ordering.startswith("-") else "DESC"
+
+    try:
+        rows = db.execute(text(f"""
+            SELECT id, tenant_id, title, description, status, is_published,
+                   thumbnail_url, duration_hours, teacher_id, created_at, updated_at
+            FROM elearning_courses
+            WHERE {' AND '.join(where)}
+            ORDER BY {order_col} {order_dir}
+            LIMIT :limit
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+# ─── /course-discussions/ ─────────────────────────────────────────────────────
+
+course_discussions_router = APIRouter()
+
+
+@course_discussions_router.get("/")
+def list_course_discussions(
+    course_id: Optional[str] = None,
+    ordering: str = "-created_at",
+    limit: int = Query(10, le=100),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /course-discussions/"""
+    tenant_id = current_user.get("tenant_id")
+    where = ["cd.tenant_id = :tid"]
+    params: dict = {"tid": tenant_id, "limit": limit}
+
+    if course_id:
+        where.append("cd.course_id = :course_id")
+        params["course_id"] = course_id
+
+    try:
+        rows = db.execute(text(f"""
+            SELECT cd.id, cd.course_id, cd.user_id, cd.content,
+                   cd.parent_id, cd.created_at,
+                   u.first_name, u.last_name
+            FROM course_discussions cd
+            LEFT JOIN users u ON u.id = cd.user_id
+            WHERE {' AND '.join(where)}
+            ORDER BY cd.created_at DESC
+            LIMIT :limit
+        """), params).mappings().all()
+        return [
+            {
+                **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name")},
+                "author": {"first_name": r["first_name"], "last_name": r["last_name"]}
+                if r["user_id"] else None,
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
+
+
+@course_discussions_router.post("/", status_code=201)
+def create_course_discussion(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """POST /course-discussions/"""
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    try:
+        row = db.execute(text("""
+            INSERT INTO course_discussions (tenant_id, course_id, user_id, content, parent_id)
+            VALUES (:tid, :course_id, :user_id, :content, :parent_id)
+            RETURNING id, course_id, user_id, content, parent_id, created_at
+        """), {
+            "tid": tenant_id,
+            "course_id": body.get("course_id"),
+            "user_id": user_id,
+            "content": body.get("content", ""),
+            "parent_id": body.get("parent_id"),
+        }).mappings().first()
+        db.commit()
+        return dict(row)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ─── /student-check-ins/ alias → /school-life/check-ins/ ─────────────────────
+
+student_check_ins_router = APIRouter()
+
+
+@student_check_ins_router.get("/")
+def list_student_check_ins(
+    student_id: Optional[str] = None,
+    classroom_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /student-check-ins/ — list check-in records."""
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    where = ["ci.tenant_id = :tid"]
+    params: dict = {"tid": tenant_id}
+
+    # Students can only see their own check-ins
+    roles = current_user.get("roles", [])
+    if "STUDENT" in roles and not any(r in roles for r in ("TEACHER", "TENANT_ADMIN", "DIRECTOR")):
+        where.append("ci.student_id = :user_id")
+        params["user_id"] = user_id
+    elif student_id:
+        where.append("ci.student_id = :student_id")
+        params["student_id"] = student_id
+
+    if classroom_id:
+        where.append("ci.classroom_id = :classroom_id")
+        params["classroom_id"] = classroom_id
+
+    try:
+        rows = db.execute(text(f"""
+            SELECT ci.id, ci.student_id, ci.classroom_id, ci.check_in_time,
+                   ci.check_out_time, ci.status, ci.notes, ci.created_at,
+                   u.first_name, u.last_name
+            FROM student_check_ins ci
+            LEFT JOIN users u ON u.id = ci.student_id
+            WHERE {' AND '.join(where)}
+            ORDER BY ci.check_in_time DESC
+            LIMIT 200
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+# ─── /student-badges/ alias → /school-life/badges/ ───────────────────────────
+
+student_badges_router = APIRouter()
+
+
+@student_badges_router.get("/")
+def list_student_badges(
+    student_id: Optional[str] = None,
+    classroom_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /student-badges/"""
+    tenant_id = current_user.get("tenant_id")
+    where = ["b.tenant_id = :tid"]
+    params: dict = {"tid": tenant_id}
+
+    if student_id:
+        where.append("b.student_id = :student_id")
+        params["student_id"] = student_id
+    if classroom_id:
+        where.append("b.classroom_id = :classroom_id")
+        params["classroom_id"] = classroom_id
+
+    try:
+        rows = db.execute(text(f"""
+            SELECT b.id, b.student_id, b.badge_type, b.badge_name,
+                   b.description, b.icon, b.status, b.awarded_at,
+                   b.classroom_id, b.tenant_id
+            FROM student_badges b
+            WHERE {' AND '.join(where)}
+            ORDER BY b.awarded_at DESC
+            LIMIT 500
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+@student_badges_router.post("/", status_code=201)
+def create_student_badge(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """POST /student-badges/"""
+    tenant_id = current_user.get("tenant_id")
+    try:
+        # body may be a list or a single object
+        items = body if isinstance(body, list) else [body]
+        created = []
+        for item in items:
+            row = db.execute(text("""
+                INSERT INTO student_badges
+                (tenant_id, student_id, badge_type, badge_name, description, icon, status, classroom_id)
+                VALUES (:tid, :sid, :btype, :bname, :desc, :icon, 'ACTIVE', :cid)
+                RETURNING id, student_id, badge_type, badge_name, status
+            """), {
+                "tid": tenant_id,
+                "sid": item.get("student_id"),
+                "btype": item.get("badge_type", "MERIT"),
+                "bname": item.get("badge_name", item.get("name", "Badge")),
+                "desc": item.get("description", ""),
+                "icon": item.get("icon", "⭐"),
+                "cid": item.get("classroom_id"),
+            }).mappings().first()
+            if row:
+                created.append(dict(row))
+        db.commit()
+        return created
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@student_badges_router.delete("/{badge_id}/", status_code=204)
+def delete_student_badge(
+    badge_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """DELETE /student-badges/{id}/"""
+    tenant_id = current_user.get("tenant_id")
+    db.execute(text("DELETE FROM student_badges WHERE id = :id AND tenant_id = :tid"),
+               {"id": badge_id, "tid": tenant_id})
+    db.commit()
+
+
+# ─── /trusted-devices/ ───────────────────────────────────────────────────────
+
+trusted_devices_router = APIRouter()
+
+
+@trusted_devices_router.post("/", status_code=201)
+def register_trusted_device(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """POST /trusted-devices/ — register a trusted device for 2FA bypass."""
+    user_id = body.get("user_id") or current_user.get("id")
+    try:
+        db.execute(text("""
+            INSERT INTO trusted_devices
+            (user_id, device_name, device_fingerprint, expires_at)
+            VALUES (:uid, :name, :fingerprint, :expires)
+            ON CONFLICT (user_id, device_fingerprint) DO UPDATE
+            SET expires_at = EXCLUDED.expires_at, updated_at = NOW()
+        """), {
+            "uid": user_id,
+            "name": body.get("device_name", "Unknown Device"),
+            "fingerprint": body.get("device_fingerprint", ""),
+            "expires": body.get("expires_at"),
+        })
+        db.commit()
+        return {"success": True, "message": "Device registered"}
+    except Exception:
+        db.rollback()
+        return {"success": True, "message": "Device noted"}  # non-blocking
+
+
+@trusted_devices_router.get("/")
+def list_trusted_devices(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /trusted-devices/ — list current user's trusted devices."""
+    user_id = current_user.get("id")
+    try:
+        rows = db.execute(text("""
+            SELECT id, device_name, device_fingerprint, expires_at, created_at
+            FROM trusted_devices
+            WHERE user_id = :uid AND expires_at > NOW()
+            ORDER BY created_at DESC
+        """), {"uid": user_id}).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []

@@ -831,6 +831,31 @@ _DDL = [
     )""",
     """CREATE INDEX IF NOT EXISTS ix_user_consents_user ON user_consents(user_id)""",
 
+    # ── Course discussions ────────────────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS course_discussions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL,
+        course_id UUID NOT NULL REFERENCES elearning_courses(id) ON DELETE CASCADE,
+        user_id UUID REFERENCES users(id),
+        content TEXT NOT NULL,
+        parent_id UUID REFERENCES course_discussions(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_course_discussions_course ON course_discussions(course_id)""",
+
+    # ── Trusted devices (2FA bypass) ──────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS trusted_devices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        device_name VARCHAR(200),
+        device_fingerprint TEXT NOT NULL,
+        expires_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(user_id, device_fingerprint)
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_trusted_devices_user ON trusted_devices(user_id)""",
+
     # ── Tenant-scoped unique constraints ──────────────────────────────────
     """DO $$ BEGIN
         ALTER TABLE subjects ADD CONSTRAINT uq_subjects_tenant_name UNIQUE (tenant_id, name);
