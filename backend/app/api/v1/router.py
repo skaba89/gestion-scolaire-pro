@@ -32,6 +32,8 @@ from app.api.v1.endpoints.aliases import (
     student_check_ins_router,
     student_badges_router,
     trusted_devices_router,
+    point_transactions_router,
+    quiz_questions_router,
 )
 from app.api.v1.endpoints.core.rgpd import consent_router
 
@@ -196,3 +198,9 @@ api_router.include_router(student_badges_router, prefix="/student-badges", tags=
 
 # 30. Trusted devices (2FA)
 api_router.include_router(trusted_devices_router, prefix="/trusted-devices", tags=["Authentication"])
+
+# 31. Point transactions (gamification)
+api_router.include_router(point_transactions_router, prefix="/point-transactions", tags=["Gamification"])
+
+# 32. Quiz questions (e-learning)
+api_router.include_router(quiz_questions_router, prefix="/quiz-questions", tags=["E-Learning"])

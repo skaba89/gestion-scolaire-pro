@@ -11,7 +11,7 @@ export async function generateInvoiceNumber(tenantId: string): Promise<string> {
   const prefix = `FAC-${year}${month}`;
 
   try {
-    const { data: lastInvoice } = await apiClient.get<any[]>("/finance/invoices/", {
+    const { data: lastInvoice } = await apiClient.get<any[]>("/invoices/", {
       params: { tenant_id: tenantId, invoice_number_prefix: prefix, limit: "1" },
     });
 

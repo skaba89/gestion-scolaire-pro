@@ -67,7 +67,7 @@ const AccountingExports = () => {
           endDate = endOfMonth(now);
       }
 
-      const { data } = await apiClient.get("/finance/invoices/", {
+      const { data } = await apiClient.get("/invoices/", {
         params: {
           created_at_after: startDate.toISOString(),
           created_at_before: endDate.toISOString(),
@@ -112,7 +112,7 @@ const AccountingExports = () => {
           endDate = endOfMonth(now);
       }
 
-      const { data } = await apiClient.get("/finance/payments/", {
+      const { data } = await apiClient.get("/payments/", {
         params: {
           payment_date_after: startDate.toISOString(),
           payment_date_before: endDate.toISOString(),

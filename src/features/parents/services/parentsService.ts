@@ -17,7 +17,7 @@ export const parentsService = {
 
     async getUnpaidInvoices(studentIds: string[]) {
         if (!studentIds.length) return [];
-        const { data } = await apiClient.get<any[]>("/finance/invoices/", {
+        const { data } = await apiClient.get<any[]>("/invoices/", {
             params: {
                 student_id: studentIds.join(","),
                 status: "PENDING,PARTIAL,OVERDUE",
@@ -34,7 +34,7 @@ export const parentsService = {
         } else {
             params.student_id = studentIds.join(",");
         }
-        const { data } = await apiClient.get<any[]>("/finance/invoices/", { params });
+        const { data } = await apiClient.get<any[]>("/invoices/", { params });
         return data || [];
     },
 

@@ -63,9 +63,22 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30 * 1000,
       gcTime: 5 * 60 * 1000,
-      retry: 2,
+      retry: (failureCount, error: any) => {
+        // Do not retry on 4xx errors (client mistakes)
+        const status = error?.response?.status;
+        if (status && status >= 400 && status < 500) return false;
+        return failureCount < 2;
+      },
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       refetchOnWindowFocus: false,
+    },
+    mutations: {
+      onError: (error: any) => {
+        // Swallow errors silently at global level — each mutation handles its own toast
+        if (import.meta.env.DEV) {
+          console.error('[QueryClient] Mutation error:', error);
+        }
+      },
     },
   },
 });

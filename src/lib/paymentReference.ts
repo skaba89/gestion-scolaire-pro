@@ -10,7 +10,7 @@ export async function generatePaymentReference(tenantId: string): Promise<string
     const prefix = `PAY-${year}${month}-`;
 
     try {
-        const { data: lastPayment } = await apiClient.get<any[]>("/finance/payments/", {
+        const { data: lastPayment } = await apiClient.get<any[]>("/payments/", {
             params: { tenant_id: tenantId, reference_prefix: prefix, limit: "1" },
         });
 

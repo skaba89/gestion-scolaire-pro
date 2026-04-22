@@ -260,7 +260,7 @@ export default function AdvancedExports() {
         }
 
         case "finances": {
-          const { data: invoicesData } = await apiClient.get("/finance/invoices/", {
+          const { data: invoicesData } = await apiClient.get("/invoices/", {
             params: {
               ordering: "-created_at",
               expand: "student",

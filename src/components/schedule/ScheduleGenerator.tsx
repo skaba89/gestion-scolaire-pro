@@ -96,7 +96,7 @@ export const ScheduleGenerator = ({
         }));
       }
 
-      const response = await apiClient.get("/classes", {
+      const response = await apiClient.get("/classrooms/", {
         params: { tenant_id: tenant.id, ordering: "name" },
       });
       return response.data;
@@ -113,12 +113,15 @@ export const ScheduleGenerator = ({
       const levelId = currentClassroom?.level_id;
 
       if (!levelId) {
-        const response = await apiClient.get("/subjects", { params: { tenant_id: tenant.id } });
+        const response = await apiClient.get("/subjects/", { params: { tenant_id: tenant.id } });
         return response.data || [];
       }
 
-      const slResponse = await apiClient.get("/subject-levels", { params: { level_id: levelId } });
-      const subjectIds = (slResponse.data || []).map((sl: any) => sl.subject_id);
+      const slResponse = await apiClient.get("/infrastructure/all-subject-levels/", { params: { tenant_id: tenant.id } });
+      const allSubjectLevels = slResponse.data || [];
+      const subjectIds = allSubjectLevels
+        .filter((sl: any) => sl.level_id === levelId)
+        .map((sl: any) => sl.subject_id);
 
       if (subjectIds.length === 0) {
         const response = await apiClient.get("/subjects", { params: { tenant_id: tenant.id, limit: 10 } });
@@ -139,7 +142,7 @@ export const ScheduleGenerator = ({
         throw new Error("Configuration incomplète ou aucune matière chargée");
       }
 
-      await apiClient.delete("/schedule", { params: { class_id: config.class_id } });
+      await apiClient.delete("/schedule/", { params: { class_id: config.class_id } });
 
       const slotsToCreate: any[] = [];
 

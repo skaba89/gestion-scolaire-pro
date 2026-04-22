@@ -170,7 +170,7 @@ export const ReminderSystem = () => {
       if (!user?.id || !tenant?.id) return [];
 
       // Get parent's students
-      const psResponse = await apiClient.get("/parent-students", {
+      const psResponse = await apiClient.get("/student-parents/", {
         params: { parent_id: user.id },
       });
       const parentStudents = psResponse.data || [];
@@ -180,7 +180,7 @@ export const ReminderSystem = () => {
       const studentIds = parentStudents.map((ps: any) => ps.student_id);
 
       // Get pending invoices
-      const invoicesResponse = await apiClient.get("/invoices", {
+      const invoicesResponse = await apiClient.get("/invoices/", {
         params: {
           student_id__in: studentIds.join(","),
           tenant_id: tenant.id,

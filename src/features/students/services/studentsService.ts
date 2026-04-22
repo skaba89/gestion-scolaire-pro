@@ -86,7 +86,7 @@ export const studentsService = {
 
   async getJobOffers(tenantId: string) {
     if (!tenantId) return [];
-    const { data } = await apiClient.get<any[]>("/careers/", {
+    const { data } = await apiClient.get<any[]>("/alumni/careers/jobs/", {
       params: { tenant_id: tenantId, is_active: "true" },
     });
     return data || [];
@@ -94,7 +94,7 @@ export const studentsService = {
 
   async getMyApplications(studentId: string) {
     if (!studentId) return [];
-    const { data } = await apiClient.get<any[]>("/careers/applications/", {
+    const { data } = await apiClient.get<any[]>("/alumni/careers/applications/", {
       params: { student_id: studentId },
     });
     return data || [];

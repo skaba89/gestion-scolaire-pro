@@ -856,6 +856,37 @@ _DDL = [
     )""",
     """CREATE INDEX IF NOT EXISTS ix_trusted_devices_user ON trusted_devices(user_id)""",
 
+    # ── Point transactions (gamification) ────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS point_transactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        student_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        points INTEGER NOT NULL DEFAULT 0,
+        reason TEXT,
+        category VARCHAR(100) DEFAULT 'manual',
+        reference_id UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_point_transactions_tenant ON point_transactions(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_point_transactions_student ON point_transactions(student_id)""",
+
+    # ── Quiz questions (e-learning) ───────────────────────────────────────
+    """CREATE TABLE IF NOT EXISTS quiz_questions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        quiz_id UUID NOT NULL,
+        question_text TEXT NOT NULL,
+        question_type VARCHAR(50) DEFAULT 'single_choice',
+        options JSONB,
+        correct_answer TEXT,
+        points INTEGER DEFAULT 1,
+        order_index INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_quiz_questions_tenant ON quiz_questions(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_quiz_questions_quiz ON quiz_questions(quiz_id)""",
+
     # ── Tenant-scoped unique constraints ──────────────────────────────────
     """DO $$ BEGIN
         ALTER TABLE subjects ADD CONSTRAINT uq_subjects_tenant_name UNIQUE (tenant_id, name);

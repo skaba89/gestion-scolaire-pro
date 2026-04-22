@@ -101,7 +101,8 @@ export default function Analytics() {
       const response = await apiClient.get('/analytics/academic-stats');
       // Returns { bySubject: [...], byClass: [...] }
       // We want name and moyenne
-      return (response.data.bySubject || [])
+      const bySubject = Array.isArray(response.data?.bySubject) ? response.data.bySubject : [];
+      return bySubject
         .map((s: any) => ({
           name: s.subject_name,
           moyenne: s.average_grade

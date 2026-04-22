@@ -36,22 +36,25 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
     queryKey: ['students-per-classroom', classroomIds, tenant?.id],
     queryFn: async () => {
       if (classroomIds.length === 0) return [];
+      try {
+        const { data: enrollData } = await apiClient.get('/enrollments/', {
+          params: { tenant_id: tenant?.id || '', status: 'active', class_ids: classroomIds.join(',') },
+        });
+        const enrollmentsList = enrollData.data || enrollData || [];
 
-      const { data: enrollData } = await apiClient.get('/enrollments/', {
-        params: { tenant_id: tenant?.id || '', status: 'active', class_ids: classroomIds.join(',') },
-      });
-      const enrollmentsList = enrollData.data || enrollData || [];
+        // Count per classroom
+        const counts: Record<string, { name: string; count: number }> = {};
+        enrollmentsList.forEach((e: any) => {
+          const id = e.class_id;
+          const name = e.classrooms?.name || 'Non défini';
+          if (!counts[id]) counts[id] = { name, count: 0 };
+          counts[id].count++;
+        });
 
-      // Count per classroom
-      const counts: Record<string, { name: string; count: number }> = {};
-      enrollmentsList.forEach((e: any) => {
-        const id = e.class_id;
-        const name = e.classrooms?.name || 'Non défini';
-        if (!counts[id]) counts[id] = { name, count: 0 };
-        counts[id].count++;
-      });
-
-      return Object.values(counts);
+        return Object.values(counts);
+      } catch {
+        return [];
+      }
     },
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
@@ -61,32 +64,35 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
     queryKey: ['attendance-trends', classroomIds, tenant?.id],
     queryFn: async () => {
       if (classroomIds.length === 0) return [];
+      try {
+        const days = Array.from({ length: 7 }, (_, i) => {
+          const date = subDays(new Date(), 6 - i);
+          return format(date, 'yyyy-MM-dd');
+        });
 
-      const days = Array.from({ length: 7 }, (_, i) => {
-        const date = subDays(new Date(), 6 - i);
-        return format(date, 'yyyy-MM-dd');
-      });
+        const { data: attendData } = await apiClient.get('/attendance/', {
+          params: { tenant_id: tenant?.id || '', class_ids: classroomIds.join(','), date_range: days.join(',') },
+        });
+        const attendList = attendData.data || attendData || [];
 
-      const { data: attendData } = await apiClient.get('/attendance/', {
-        params: { tenant_id: tenant?.id || '', class_ids: classroomIds.join(','), date_range: days.join(',') },
-      });
-      const attendList = attendData.data || attendData || [];
+        // Group by date
+        const grouped: Record<string, { date: string; present: number; absent: number; late: number }> = {};
+        days.forEach(d => {
+          grouped[d] = { date: format(new Date(d), 'EEE', { locale: fr }), present: 0, absent: 0, late: 0 };
+        });
 
-      // Group by date
-      const grouped: Record<string, { date: string; present: number; absent: number; late: number }> = {};
-      days.forEach(d => {
-        grouped[d] = { date: format(new Date(d), 'EEE', { locale: fr }), present: 0, absent: 0, late: 0 };
-      });
+        attendList.forEach((a: any) => {
+          if (grouped[a.date]) {
+            if (a.status === 'PRESENT') grouped[a.date].present++;
+            else if (a.status === 'ABSENT') grouped[a.date].absent++;
+            else if (a.status === 'LATE') grouped[a.date].late++;
+          }
+        });
 
-      attendList.forEach((a: any) => {
-        if (grouped[a.date]) {
-          if (a.status === 'PRESENT') grouped[a.date].present++;
-          else if (a.status === 'ABSENT') grouped[a.date].absent++;
-          else if (a.status === 'LATE') grouped[a.date].late++;
-        }
-      });
-
-      return Object.values(grouped);
+        return Object.values(grouped);
+      } catch {
+        return [];
+      }
     },
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
@@ -96,34 +102,37 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
     queryKey: ['grade-distribution', classroomIds, tenant?.id],
     queryFn: async () => {
       if (classroomIds.length === 0) return [];
+      try {
+        const { data: gradesData } = await apiClient.get('/grades/', {
+          params: { tenant_id: tenant?.id || '', class_ids: classroomIds.join(',') },
+        });
+        const gradesList = gradesData.data || gradesData || [];
 
-      const { data: gradesData } = await apiClient.get('/grades/', {
-        params: { tenant_id: tenant?.id || '', class_ids: classroomIds.join(',') },
-      });
-      const gradesList = gradesData.data || gradesData || [];
+        // Categorize grades
+        const categories = {
+          'Excellent (16-20)': 0,
+          'Bien (14-16)': 0,
+          'Assez bien (12-14)': 0,
+          'Passable (10-12)': 0,
+          'Insuffisant (<10)': 0,
+        };
 
-      // Categorize grades
-      const categories = {
-        'Excellent (16-20)': 0,
-        'Bien (14-16)': 0,
-        'Assez bien (12-14)': 0,
-        'Passable (10-12)': 0,
-        'Insuffisant (<10)': 0,
-      };
+        gradesList.forEach((g: any) => {
+          const score = Number(g.score) || 0;
+          const maxScore = Number(g.assessments?.max_score) || 20;
+          const normalized = maxScore > 0 ? (score / maxScore) * 20 : 0;
 
-      gradesList.forEach((g: any) => {
-        const score = g.score;
-        const maxScore = g.assessments?.max_score || 20;
-        const normalized = (score / maxScore) * 20;
+          if (normalized >= 16) categories['Excellent (16-20)']++;
+          else if (normalized >= 14) categories['Bien (14-16)']++;
+          else if (normalized >= 12) categories['Assez bien (12-14)']++;
+          else if (normalized >= 10) categories['Passable (10-12)']++;
+          else categories['Insuffisant (<10)']++;
+        });
 
-        if (normalized >= 16) categories['Excellent (16-20)']++;
-        else if (normalized >= 14) categories['Bien (14-16)']++;
-        else if (normalized >= 12) categories['Assez bien (12-14)']++;
-        else if (normalized >= 10) categories['Passable (10-12)']++;
-        else categories['Insuffisant (<10)']++;
-      });
-
-      return Object.entries(categories).map(([name, value]) => ({ name, value }));
+        return Object.entries(categories).map(([name, value]) => ({ name, value }));
+      } catch {
+        return [];
+      }
     },
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
@@ -223,7 +232,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
                   outerRadius={80}
                   paddingAngle={2}
                   dataKey="value"
-                  label={({ name, percent }) => `${name.split(' ')[0]} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${(name || '').split(' ')[0]} ${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
                 >
                   {(gradeDistribution || []).map((_, index) => (

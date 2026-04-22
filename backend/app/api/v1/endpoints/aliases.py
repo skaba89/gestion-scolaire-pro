@@ -1685,3 +1685,158 @@ def list_trusted_devices(
         return [dict(r) for r in rows]
     except Exception:
         return []
+
+
+# ─── /point-transactions/ ───────────────────────────────────────────────────
+
+point_transactions_router = APIRouter()
+
+
+@point_transactions_router.get("/")
+def list_point_transactions(
+    student_id: Optional[str] = None,
+    limit: int = Query(100, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /point-transactions/ — list gamification point transactions."""
+    tenant_id = current_user.get("tenant_id")
+    where = ["pt.tenant_id = :tid"]
+    params: dict = {"tid": tenant_id, "limit": limit}
+
+    if student_id:
+        where.append("pt.student_id = :student_id")
+        params["student_id"] = student_id
+
+    try:
+        rows = db.execute(text(f"""
+            SELECT pt.id, pt.student_id, pt.points, pt.reason, pt.category,
+                   pt.reference_id, pt.created_at, pt.tenant_id,
+                   u.first_name, u.last_name
+            FROM point_transactions pt
+            LEFT JOIN users u ON u.id = pt.student_id
+            WHERE {' AND '.join(where)}
+            ORDER BY pt.created_at DESC
+            LIMIT :limit
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+@point_transactions_router.post("/", status_code=201)
+def create_point_transaction(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """POST /point-transactions/ — award or deduct points."""
+    tenant_id = current_user.get("tenant_id")
+    import uuid as _uuid
+    try:
+        new_id = str(_uuid.uuid4())
+        db.execute(text("""
+            INSERT INTO point_transactions
+            (id, student_id, points, reason, category, reference_id, tenant_id, created_at)
+            VALUES (:id, :student_id, :points, :reason, :category, :ref_id, :tid, NOW())
+        """), {
+            "id": new_id,
+            "student_id": body.get("student_id"),
+            "points": body.get("points", 0),
+            "reason": body.get("reason", ""),
+            "category": body.get("category", "manual"),
+            "ref_id": body.get("reference_id"),
+            "tid": tenant_id,
+        })
+        db.commit()
+        return {"id": new_id, **body, "tenant_id": tenant_id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ─── /quiz-questions/ ───────────────────────────────────────────────────────
+
+quiz_questions_router = APIRouter()
+
+
+@quiz_questions_router.get("/")
+def list_quiz_questions(
+    quiz_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """GET /quiz-questions/?quiz_id=X"""
+    tenant_id = current_user.get("tenant_id")
+    where = ["qq.tenant_id = :tid"]
+    params: dict = {"tid": tenant_id}
+
+    if quiz_id:
+        where.append("qq.quiz_id = :quiz_id")
+        params["quiz_id"] = quiz_id
+
+    try:
+        rows = db.execute(text(f"""
+            SELECT qq.id, qq.quiz_id, qq.question_text, qq.question_type,
+                   qq.options, qq.correct_answer, qq.points, qq.order_index,
+                   qq.created_at, qq.tenant_id
+            FROM quiz_questions qq
+            WHERE {' AND '.join(where)}
+            ORDER BY qq.order_index ASC, qq.created_at ASC
+            LIMIT 200
+        """), params).mappings().all()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+@quiz_questions_router.post("/", status_code=201)
+def create_quiz_question(
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:write")),
+):
+    """POST /quiz-questions/"""
+    tenant_id = current_user.get("tenant_id")
+    import uuid as _uuid
+    import json as _json
+    try:
+        new_id = str(_uuid.uuid4())
+        options = body.get("options")
+        if isinstance(options, (list, dict)):
+            options = _json.dumps(options)
+        db.execute(text("""
+            INSERT INTO quiz_questions
+            (id, quiz_id, question_text, question_type, options, correct_answer,
+             points, order_index, tenant_id, created_at)
+            VALUES (:id, :quiz_id, :question_text, :question_type, :options,
+                    :correct_answer, :points, :order_index, :tid, NOW())
+        """), {
+            "id": new_id,
+            "quiz_id": body.get("quiz_id"),
+            "question_text": body.get("question_text", ""),
+            "question_type": body.get("question_type", "single_choice"),
+            "options": options,
+            "correct_answer": body.get("correct_answer"),
+            "points": body.get("points", 1),
+            "order_index": body.get("order_index", 0),
+            "tid": tenant_id,
+        })
+        db.commit()
+        return {"id": new_id, **body, "tenant_id": tenant_id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@quiz_questions_router.delete("/{question_id}/", status_code=204)
+def delete_quiz_question(
+    question_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:write")),
+):
+    """DELETE /quiz-questions/{id}/"""
+    tenant_id = current_user.get("tenant_id")
+    db.execute(text("DELETE FROM quiz_questions WHERE id = :id AND tenant_id = :tid"),
+               {"id": question_id, "tid": tenant_id})
+    db.commit()

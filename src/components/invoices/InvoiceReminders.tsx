@@ -42,7 +42,7 @@ export const InvoiceReminders = () => {
     queryFn: async () => {
       if (!tenant?.id) return [];
 
-      const response = await apiClient.get("/invoices", {
+      const response = await apiClient.get("/invoices/", {
         params: {
           tenant_id: tenant.id,
           status__in: "PENDING,PARTIAL,OVERDUE",
@@ -95,7 +95,7 @@ export const InvoiceReminders = () => {
             // Email notification
             if (parent.email) {
               emailPromises.push(
-                apiClient.post("/send-notification-email", {
+                apiClient.post("/communication/send-notification-email/", {
                   type: "invoice_reminder",
                   recipientEmail: parent.email,
                   recipientName: `${parent.first_name || ""} ${parent.last_name || ""}`.trim(),
