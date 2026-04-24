@@ -43,22 +43,36 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === 'development' && componentTagger(),
+      // ⚠️  NE PAS activer VITE_ENABLE_PWA=true — le projet utilise
+      // sw-schoolflow.js (custom SW, enregistré dans main.tsx).
+      // VitePWA génère un sw.js Workbox séparé qui INTERCEPTERAIT les appels API
+      // et entrerait en conflit avec notre SW custom.
+      // Le mode offline est géré entièrement par sw-schoolflow.js + Dexie (offlineDb.ts).
       enablePwa && VitePWA({
         registerType: 'autoUpdate',
+        // Exclusions API complètes — JAMAIS intercepter les appels backend
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-          navigateFallbackDenylist: [/^\/api-proxy\//],
+          navigateFallbackDenylist: [
+            /^\/api\//,
+            /^\/api-proxy\//,
+            /^\/api\/v1\//,
+          ],
+          // Ne PAS intercepter les requêtes API avec le SW Workbox
           runtimeCaching: [
             {
-              urlPattern: ({ url }) => url.origin === self.location.origin,
-              handler: 'NetworkFirst',
+              // Seulement les assets statiques same-origin (pas les API)
+              urlPattern: ({ url, request }) =>
+                url.origin === self.location.origin &&
+                !url.pathname.startsWith('/api') &&
+                request.destination !== 'document',
+              handler: 'CacheFirst',
               options: {
-                cacheName: 'schoolflow-runtime-cache',
+                cacheName: 'schoolflow-static-cache',
                 expiration: {
                   maxEntries: 100,
-                  maxAgeSeconds: 24 * 60 * 60,
+                  maxAgeSeconds: 7 * 24 * 60 * 60, // 7 jours
                 },
-                networkTimeoutSeconds: 5,
               }
             }
           ]

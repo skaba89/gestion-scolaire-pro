@@ -118,8 +118,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str = _BASE_DATABASE_URL
     DATABASE_URL_ASYNC: str = get_secret("DATABASE_URL_ASYNC", _BASE_DATABASE_URL)
     DATABASE_URL_SYNC: str = get_secret("DATABASE_URL_SYNC", _BASE_DATABASE_URL)
-    DATABASE_POOL_SIZE: int = 20
-    DATABASE_MAX_OVERFLOW: int = 40
+    # Pool DB : 10 connexions stables + 20 overflow = 30 max par worker Uvicorn.
+    # Render Starter (1 dyno) → 1 worker → 30 connexions max.
+    # Render Standard (2+ dynos) → configurer DATABASE_POOL_SIZE=5, MAX_OVERFLOW=10
+    # pour rester sous la limite PostgreSQL de 97 connexions (Render managed PG).
+    DATABASE_POOL_SIZE: int = int(os.getenv("DATABASE_POOL_SIZE", "10"))
+    DATABASE_MAX_OVERFLOW: int = int(os.getenv("DATABASE_MAX_OVERFLOW", "20"))
 
     @field_validator("DATABASE_URL_ASYNC", "DATABASE_URL_SYNC", mode="before")
     @classmethod

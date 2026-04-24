@@ -1,74 +1,30 @@
 # =============================================================================
 # SchoolFlow Pro — Netlify Deployment Configuration
 # =============================================================================
-# Deploy: Push to Git / drag & drop dist/ / use Netlify CLI
-# Docs: https://docs.netlify.com/configure-builds/file-based-configuration/
+# IMPORTANT — AVANT DE DÉPLOYER :
+#   Remplacer l'URL backend (chercher SCHOOLFLOW_API_URL ci-dessous)
+#   Exemple : https://schoolflow-api-xxxx.onrender.com
+#
+# Variables à définir dans Netlify Dashboard → Site settings → Env vars :
+#   VITE_ENABLE_PWA         = true
+#   VITE_SENTRY_DSN         = (optionnel)
+#   VITE_SENTRY_ENVIRONMENT = production
 # =============================================================================
 
 [build]
-  command = "npm run build"
+  # Le script génère dist/_redirects avec les vraies URLs depuis VITE_API_URL
+  # Variables à définir dans Netlify Dashboard → Site settings → Env vars :
+  #   VITE_API_URL = https://schoolflow-api-xxxx.onrender.com   ← OBLIGATOIRE
+  command = "npm run build && node scripts/generate-redirects.mjs"
   publish = "dist"
 
-# ─── Environment variables ──────────────────────────────────────────────────
-# Set these in Netlify Dashboard → Site settings → Environment variables
-#   VITE_API_URL        = https://your-api.onrender.com    (or Render internal URL)
-#   VITE_ENABLE_PWA     = false
-#   VITE_SENTRY_DSN     = (optional) your Sentry DSN
-#   VITE_SENTRY_ENVIRONMENT = production
-#
-# IMPORTANT: The API proxy (Netlify Redirects below) is the RECOMMENDED
-# approach — set VITE_API_URL to empty and configure NETLIFY_API_PROXY_URL.
-
-# ─── SPA Routing (all non-file paths → index.html) ─────────────────────────
+# ─── SPA Routing ─────────────────────────────────────────────────────────────
+# Fallback minimal — les règles API proxy sont injectées dans dist/_redirects
+# par generate-redirects.mjs au moment du build (elles passent AVANT ce catch-all).
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# ─── API Proxy ─────────────────────────────────────────────────────────────
-# Proxy all /api/* requests to the backend.
-#
-# ⚠️  IMPORTANT: Netlify redirects do NOT support environment variable substitution.
-# You MUST replace the placeholder URLs below with your actual backend URL before
-# deploying, e.g. https://schoolflow-api-xxxx.onrender.com
-#
-# Recommended workflow:
-#   1. Set VITE_API_URL in Netlify Dashboard → Site settings → Environment variables
-#      to your backend URL (e.g. https://schoolflow-api-xxxx.onrender.com)
-#   2. Use Netlify CLI to inject the URL at build time via a _redirects file, OR
-#   3. Manually replace YOUR_API_URL below before each deploy
-#
-# TODO: Consider migrating to Netlify Edge Functions for dynamic proxy support
-#       which would allow true env var substitution at request time.
-#
-# Steps to configure:
-#   1. Replace YOUR_API_URL in the three redirect rules below
-#   2. Example: https://schoolflow-api-xxxx.onrender.com
-# ⚠️ DEPLOY_TODO: Replace YOUR_API_URL below with your actual backend URL
-#    e.g. https://schoolflow-api-xxxx.onrender.com
-#    Netlify redirects do NOT support environment variable substitution,
-#    so these placeholder values must be set manually before deploying.
-[[redirects]]
-  from = "/api/*"
-  to = "https://YOUR_API_URL/api/:splat"
-  status = 200
-  force = true
-
-# Proxy /health to the backend
-# ⚠️ DEPLOY_TODO: Replace YOUR_API_URL below
-[[redirects]]
-  from = "/api-proxy/health"
-  to = "https://YOUR_API_URL/health/"
-  status = 200
-  force = true
-
-# Proxy /api-proxy/* to the backend (for compatibility with existing nginx setup)
-# ⚠️ DEPLOY_TODO: Replace YOUR_API_URL below
-[[redirects]]
-  from = "/api-proxy/*"
-  to = "https://YOUR_API_URL/:splat"
-  status = 200
-  force = true
 
 # ─── Security Headers ───────────────────────────────────────────────────────
 [[headers]]
@@ -78,15 +34,28 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
 
-# ─── Cache: Static assets (hashed filenames → immutable) ────────────────────
+# ─── Cache: Static assets (noms hachés → immuables 1 an) ───────────────────
 [[headers]]
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# ─── Cache: HTML files (always revalidate) ──────────────────────────────────
+# ─── Cache: Service Worker (pas de cache — toujours frais) ─────────────────
+[[headers]]
+  for = "/sw-schoolflow.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# ─── Cache: HTML (toujours revalider) ──────────────────────────────────────
 [[headers]]
   for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# ─── Cache: config.js runtime (ne jamais mettre en cache) ──────────────────
+[[headers]]
+  for = "/config.js"
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
