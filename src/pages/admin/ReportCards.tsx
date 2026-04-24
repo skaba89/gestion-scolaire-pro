@@ -20,11 +20,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
-import { FileText, ExternalLink, Printer, Users, GraduationCap, BarChart3 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  FileText, Printer, Users, GraduationCap, BarChart3,
+  Download, ChevronDown, Info, Award
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PerformanceAnalytics } from "@/components/reports/PerformanceAnalytics";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { pedagogicalEngine, Grade as EngineGrade } from "@/utils/pedagogicalEngine";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Term {
   id: string;
@@ -54,318 +63,270 @@ interface GradeData {
   weight: number;
 }
 
+// ── Décision choices ────────────────────────────────────────────────────────────
+
+const DECISIONS = [
+  { value: "", label: "— À déterminer —" },
+  { value: "Passage", label: "✅ Passage en classe supérieure" },
+  { value: "Félicitations", label: "🏆 Félicitations du conseil" },
+  { value: "Encouragements", label: "👏 Encouragements" },
+  { value: "Avertissement", label: "⚠️ Avertissement de travail" },
+  { value: "Redoublement", label: "🔁 Redoublement" },
+];
+
+// ── Helper: open bulletin in new tab or download ────────────────────────────────
+
+function openOrDownload(base64Html: string, filename: string, toast: any) {
+  const decodedHtml = atob(base64Html);
+  const printWindow = window.open("", "_blank");
+  if (printWindow) {
+    printWindow.document.write(decodedHtml);
+    printWindow.document.close();
+    setTimeout(() => { try { printWindow.print(); } catch {} }, 700);
+  } else {
+    // Popup blocked → download as HTML file
+    const blob = new Blob([decodedHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({
+      title: "Bulletin téléchargé",
+      description: "Ouvrez le fichier .html dans votre navigateur et cliquez Imprimer → Enregistrer en PDF",
+    });
+  }
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
+
 const ReportCards = () => {
   const { tenant } = useTenant();
   const { toast } = useToast();
-  const { studentLabel, StudentLabel, studentsLabel, StudentsLabel, getLabel } = useStudentLabel();
+  const { studentLabel, StudentsLabel, studentsLabel } = useStudentLabel();
+
   const [terms, setTerms] = useState<Term[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedTerm, setSelectedTerm] = useState("");
   const [selectedClassroom, setSelectedClassroom] = useState("");
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating] = useState<string | null>(null); // studentId or "batch"
+
+  // Council decision (applied to all bulletins in this batch)
+  const [decision, setDecision] = useState("");
+  const [directorComment, setDirectorComment] = useState("");
+  const [showGuineaHeader, setShowGuineaHeader] = useState(true);
+  const [showCouncilOptions, setShowCouncilOptions] = useState(false);
+
+  // Legacy grade data (for PerformanceAnalytics tab)
   const [studentGrades, setStudentGrades] = useState<Map<string, GradeData[]>>(new Map());
+
+  // ── Data loading ────────────────────────────────────────────────────────────
 
   const fetchData = async () => {
     if (!tenant) return;
     setLoading(true);
-
     try {
       const [termsRes, classroomsRes] = await Promise.all([
         apiClient.get<any[]>("/terms/").catch(() => ({ data: [] })),
         apiClient.get<any[]>("/infrastructure/classrooms/").catch(() => ({ data: [] })),
       ]);
-
       const formattedTerms = (termsRes.data || []).map((t: any) => ({
         ...t,
         academic_year: t.academic_year || t.academic_years,
       }));
       setTerms(formattedTerms);
-      if (formattedTerms.length > 0) {
-        setSelectedTerm(formattedTerms[0].id);
-      }
+      if (formattedTerms.length > 0) setSelectedTerm(formattedTerms[0].id);
 
       const formattedClassrooms = (classroomsRes.data || []).map((c: any) => ({
         ...c,
         level: c.level || c.levels,
       }));
       setClassrooms(formattedClassrooms);
-      if (formattedClassrooms.length > 0) {
-        setSelectedClassroom(formattedClassrooms[0].id);
-      }
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les données",
-        variant: "destructive"
-      });
+      if (formattedClassrooms.length > 0) setSelectedClassroom(formattedClassrooms[0].id);
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de charger les données", variant: "destructive" });
     }
-
     setLoading(false);
   };
 
   const fetchStudentsAndGrades = async () => {
     if (!tenant || !selectedClassroom || !selectedTerm) return;
-
     try {
-      // Get students enrolled in this classroom
       const enrollmentsRes = await apiClient.get<any[]>("/infrastructure/enrollments/", {
-        params: { class_id: selectedClassroom, status: "active" }
+        params: { class_id: selectedClassroom, status: "active" },
       });
-      const enrollments = enrollmentsRes.data || [];
-
-      const studentList = enrollments
+      const studentList = (enrollmentsRes.data || [])
         .map((e: any) => e.student || e.students)
         .filter(Boolean);
       setStudents(studentList);
 
-      // Get grades for these students
+      // Grades for analytics tab
       const studentIds = studentList.map((s: Student) => s.id);
-
       if (studentIds.length > 0) {
         const gradesRes = await apiClient.get<any[]>("/grades/", {
-          params: { student_ids: studentIds }
-        });
-        const grades = gradesRes.data || [];
-
-        // Group grades by student
+          params: { student_ids: studentIds },
+        }).catch(() => ({ data: [] }));
         const gradesMap = new Map<string, GradeData[]>();
-        grades.forEach((g: any) => {
+        (gradesRes.data || []).forEach((g: any) => {
           const sg = gradesMap.get(g.student_id) || [];
           sg.push({
             student_id: g.student_id,
-            subject_name: g.subject_name || g.assessments?.subjects?.name || "Unknown",
+            subject_name: g.subject_name || g.assessments?.subjects?.name || "Matière",
             score: g.score,
-            max_score: g.max_score || g.assessments?.max_score || 20,
+            max_score: g.max_score || 20,
             coefficient: g.coefficient || g.assessments?.subjects?.coefficient || 1,
-            weight: g.weight || g.assessments?.weight || 1,
+            weight: g.weight || 1,
           });
           gradesMap.set(g.student_id, sg);
         });
         setStudentGrades(gradesMap);
       }
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger les élèves et notes",
-        variant: "destructive"
-      });
+    } catch {
+      toast({ title: "Erreur", description: "Impossible de charger les élèves", variant: "destructive" });
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [tenant]);
+  useEffect(() => { fetchData(); }, [tenant]);
+  useEffect(() => { fetchStudentsAndGrades(); }, [selectedClassroom, selectedTerm]);
 
-  useEffect(() => {
-    fetchStudentsAndGrades();
-  }, [selectedClassroom, selectedTerm]);
+  // ── Average for analytics (local calculation) ───────────────────────────────
 
   const calculateAverage = (studentId: string): string => {
     const grades = studentGrades.get(studentId) || [];
-    if (grades.length === 0) return "-";
-
+    if (grades.length === 0) return "—";
     const engineGrades: EngineGrade[] = grades.map(g => ({
-      score: g.score || 0,
-      max_score: g.max_score,
-      weight: g.weight,
-      subject_id: "", // Not needed for simple average
-      subject_name: g.subject_name,
-      coefficient: g.coefficient
+      score: g.score || 0, max_score: g.max_score, weight: g.weight,
+      subject_id: "", subject_name: g.subject_name, coefficient: g.coefficient,
     }));
-
-    // Group by subject to get subject-weighted general average
     const bySubject = new Map<string, EngineGrade[]>();
     engineGrades.forEach(g => {
       const list = bySubject.get(g.subject_name) || [];
       list.push(g);
       bySubject.set(g.subject_name, list);
     });
-
-    let totalWeightedAverages = 0;
-    let totalCoefficients = 0;
-
-    bySubject.forEach((sGrades) => {
-      const subjectAvg = pedagogicalEngine.calculateAverage(sGrades);
+    let totalWeighted = 0, totalCoeff = 0;
+    bySubject.forEach(sGrades => {
+      const avg = pedagogicalEngine.calculateAverage(sGrades);
       const coeff = sGrades[0].coefficient;
-      totalWeightedAverages += subjectAvg * coeff;
-      totalCoefficients += coeff;
+      totalWeighted += avg * coeff;
+      totalCoeff += coeff;
     });
-
-    if (totalCoefficients === 0) return "-";
-    return (totalWeightedAverages / totalCoefficients).toFixed(2);
+    if (totalCoeff === 0) return "—";
+    return (totalWeighted / totalCoeff).toFixed(2);
   };
 
-  const generatePDF = async (studentId: string, openInNewTab = true) => {
-    setGenerating(true);
+  // ── Generate single bulletin (v2 endpoint) ──────────────────────────────────
 
+  const generateBulletin = async (studentId: string) => {
+    setGenerating(studentId);
     try {
-      const student = students.find(s => s.id === studentId);
-      const term = terms.find(t => t.id === selectedTerm);
-      const classroom = classrooms.find(c => c.id === selectedClassroom);
-      const grades = studentGrades.get(studentId) || [];
-      const average = calculateAverage(studentId);
-
-      // Call API to generate report card HTML
-      try {
-        const response = await apiClient.post("/school-life/generate-report-card/", {
-          tenant: {
-            name: tenant?.name,
-            address: tenant?.address,
-            phone: tenant?.phone,
-            email: tenant?.email,
-          },
-          student: {
-            firstName: student?.first_name,
-            lastName: student?.last_name,
-            registration_number: student?.registration_number,
-          },
-          classroom: classroom?.name,
-          level: classroom?.level?.name,
-          term: term?.name,
-          academicYear: term?.academic_year?.name,
-          grades: grades,
-          average: average,
-        });
-
-        const data = response.data;
-
-        // Decode base64 HTML and open in new tab with print dialog
-        if (data?.html) {
-          const decodedHtml = atob(data.html);
-          const printWindow = window.open("", "_blank");
-          if (printWindow) {
-            printWindow.document.write(decodedHtml);
-            printWindow.document.close();
-            printWindow.onload = () => {
-              if (openInNewTab) { printWindow.print(); }
-            };
-            setTimeout(() => {
-              if (openInNewTab) { printWindow.print(); }
-            }, 500);
-            toast({ title: "Succès", description: "Bulletin ouvert dans un nouvel onglet" });
-          } else {
-            toast({ title: "Attention", description: "Veuillez autoriser les pop-ups pour afficher le bulletin", variant: "destructive" });
-          }
-        }
-      } catch (apiError) {
-        throw apiError;
-      }
-    } catch (error: any) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de générer le bulletin. Veuillez réessayer.",
-        variant: "destructive"
-      });
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const generateAllPDFs = async () => {
-    if (students.length === 0) return;
-    setGenerating(true);
-    toast({ title: "Info", description: "Préparation de la génération groupée..." });
-
-    try {
-      const term = terms.find(t => t.id === selectedTerm);
-      const classroom = classrooms.find(c => c.id === selectedClassroom);
-
-      const allReports = students.map(student => {
-        const grades = studentGrades.get(student.id) || [];
-        const average = calculateAverage(student.id);
-
-        return {
-          tenant: {
-            name: tenant?.name,
-            address: tenant?.address,
-            phone: tenant?.phone,
-            email: tenant?.email,
-          },
-          student: {
-            firstName: student.first_name,
-            lastName: student.last_name,
-            registration_number: student.registration_number,
-          },
-          classroom: classroom?.name,
-          level: classroom?.level?.name,
-          term: term?.name,
-          academicYear: term?.academic_year?.name,
-          grades: grades,
-          average: average,
-        };
-      });
-
-      const response = await apiClient.post("/school-life/generate-report-card/", {
-        reports: allReports,
+      const response = await apiClient.post("/school-life/generate-report-card/v2/", {
+        student_id: studentId,
+        term_id: selectedTerm,
+        classroom_id: selectedClassroom,
+        director_comment: directorComment || undefined,
+        decision: decision || undefined,
+        show_guinea_header: showGuineaHeader,
       });
       const data = response.data;
-
       if (data?.html) {
-        const decodedHtml = atob(data.html);
-        const printWindow = window.open("", "_blank");
-        if (printWindow) {
-          printWindow.document.write(decodedHtml);
-          printWindow.document.close();
-
-          printWindow.onload = () => {
-            printWindow.print();
-          };
-
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-
-          toast({ title: "Succès", description: "Document groupé généré avec succès" });
-        } else {
-          toast({
-            title: "Attention",
-            description: "Veuillez autoriser les pop-ups pour afficher les bulletins",
-            variant: "destructive"
-          });
-        }
+        const student = students.find(s => s.id === studentId);
+        const term = terms.find(t => t.id === selectedTerm);
+        const name = `${student?.last_name}_${student?.first_name}`.replace(/\s+/g, "_");
+        const termName = (term?.name || "trimestre").replace(/\s+/g, "_");
+        openOrDownload(data.html, `bulletin_${name}_${termName}.html`, toast);
+        toast({ title: "Bulletin généré ✅", description: `${data.student_name} — Moy. ${data.average || "—"}/20 — Rang ${data.rank || "—"}/${data.class_total || "—"}` });
       }
-    } catch (apiError: any) {
+    } catch (err: any) {
       toast({
-        title: "Erreur",
-        description: apiError.response?.data?.detail || "Impossible de générer les bulletins groupés.",
-        variant: "destructive"
+        title: "Erreur de génération",
+        description: err.response?.data?.detail || "Réessayez dans quelques instants",
+        variant: "destructive",
       });
     } finally {
-      setGenerating(false);
+      setGenerating(null);
     }
   };
+
+  // ── Generate all bulletins (batch endpoint) ─────────────────────────────────
+
+  const generateAllBulletins = async () => {
+    if (students.length === 0) return;
+    setGenerating("batch");
+    toast({ title: "Génération en cours...", description: `Préparation de ${students.length} bulletins` });
+    try {
+      const response = await apiClient.post("/school-life/generate-report-cards/batch/", {
+        classroom_id: selectedClassroom,
+        term_id: selectedTerm,
+        director_comment: directorComment || undefined,
+        decision: decision || undefined,
+        show_guinea_header: showGuineaHeader,
+      });
+      const data = response.data;
+      if (data?.html) {
+        const term = terms.find(t => t.id === selectedTerm);
+        const classroom = classrooms.find(c => c.id === selectedClassroom);
+        const termName = (term?.name || "trimestre").replace(/\s+/g, "_");
+        const className = (classroom?.name || "classe").replace(/\s+/g, "_");
+        openOrDownload(data.html, `bulletins_${className}_${termName}_${data.count}eleves.html`, toast);
+        toast({
+          title: `${data.count} bulletins générés ✅`,
+          description: "Cliquez 'Imprimer' dans la fenêtre ouverte → 'Enregistrer en PDF'",
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erreur génération groupée",
+        description: err.response?.data?.detail || "Réessayez dans quelques instants",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(null);
+    }
+  };
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   if (!tenant) {
     return (
       <Card className="border-warning/50 bg-warning/5">
         <CardContent className="p-6">
-          <p className="text-muted-foreground">
-            Veuillez d'abord configurer votre établissement.
-          </p>
+          <p className="text-muted-foreground">Veuillez d'abord configurer votre établissement.</p>
         </CardContent>
       </Card>
     );
   }
 
   const selectedTermName = terms.find(t => t.id === selectedTerm)?.name || "Trimestre";
+  const selectedClassroomName = classrooms.find(c => c.id === selectedClassroom)?.name || "";
 
   return (
     <div className="space-y-6">
+
+      {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Bulletins & Performance</h1>
-          <p className="text-muted-foreground">Analysez les résultats et générez les bulletins</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">Bulletins de Notes</h1>
+          <p className="text-muted-foreground">
+            Format officiel Guinée · Rang · Absences · Décision du conseil
+          </p>
         </div>
+        <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50 px-3 py-1.5">
+          🇬🇳 République de Guinée
+        </Badge>
       </div>
 
-      {/* Filters */}
+      {/* ── Filters + Batch generate ──────────────────────────────────── */}
       <Card>
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label>Trimestre</Label>
+              <Label>Trimestre / Période</Label>
               <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionner un trimestre" />
@@ -373,7 +334,7 @@ const ReportCards = () => {
                 <SelectContent>
                   {terms.map((term) => (
                     <SelectItem key={term.id} value={term.id}>
-                      {term.name} ({term.academic_year?.name})
+                      {term.name} {term.academic_year ? `(${term.academic_year.name})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -394,32 +355,199 @@ const ReportCards = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button
-                onClick={generateAllPDFs}
-                disabled={students.length === 0 || generating}
-                className="w-full"
+                onClick={generateAllBulletins}
+                disabled={students.length === 0 || generating === "batch"}
+                className="flex-1"
               >
-                <Printer className="w-4 h-4 mr-2" />
-                Générer tous les bulletins
+                {generating === "batch" ? (
+                  <span className="animate-pulse">Génération...</span>
+                ) : (
+                  <>
+                    <Printer className="w-4 h-4 mr-2" />
+                    Tous les bulletins ({students.length})
+                  </>
+                )}
               </Button>
             </div>
+          </div>
+
+          {/* ── Council options (collapsible) ─────────────────────────── */}
+          <div className="border rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setShowCouncilOptions(!showCouncilOptions)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-sm font-medium"
+            >
+              <span className="flex items-center gap-2">
+                <Award className="w-4 h-4 text-primary" />
+                Décision du conseil de classe &amp; options
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${showCouncilOptions ? "rotate-180" : ""}`} />
+            </button>
+
+            {showCouncilOptions && (
+              <div className="p-4 space-y-4 border-t bg-muted/10">
+                <div className="flex items-start gap-2 p-3 rounded-md bg-blue-50 border border-blue-200">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">
+                    La décision et l'appréciation s'appliquent à <strong>tous les bulletins</strong> générés depuis cette page.
+                    Pour des décisions individualisées, générez les bulletins un par un.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="decision">Décision du conseil de classe</Label>
+                    <Select value={decision} onValueChange={setDecision}>
+                      <SelectTrigger id="decision">
+                        <SelectValue placeholder="— À déterminer —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DECISIONS.map((d) => (
+                          <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dirComment">Appréciation générale du professeur principal</Label>
+                    <Textarea
+                      id="dirComment"
+                      value={directorComment}
+                      onChange={(e) => setDirectorComment(e.target.value)}
+                      placeholder="Trimestre satisfaisant, des efforts notables en mathématiques..."
+                      rows={2}
+                      className="text-sm resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="guineaHeader"
+                    checked={showGuineaHeader}
+                    onCheckedChange={setShowGuineaHeader}
+                  />
+                  <Label htmlFor="guineaHeader" className="cursor-pointer">
+                    Afficher l'en-tête officielle « République de Guinée »
+                  </Label>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      {/* ── Tabs ────────────────────────────────────────────────────────── */}
+      <Tabs defaultValue="reports" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="overview">
-            <BarChart3 className="w-4 h-4 mr-2" />
-            Vue d'ensemble
-          </TabsTrigger>
           <TabsTrigger value="reports">
             <FileText className="w-4 h-4 mr-2" />
             Bulletins individuels
           </TabsTrigger>
+          <TabsTrigger value="overview">
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Analyse des résultats
+          </TabsTrigger>
         </TabsList>
 
+        {/* ── Bulletins individuels ──────────────────────────────────── */}
+        <TabsContent value="reports">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5" />
+                {selectedClassroomName && <span>{selectedClassroomName} — </span>}
+                {StudentsLabel}
+              </CardTitle>
+              <CardDescription>
+                {students.length} {students.length > 1 ? studentsLabel : studentLabel} inscrit(s)
+                {selectedTermName ? ` · ${selectedTermName}` : ""}
+                {" · "}
+                <span className="text-primary font-medium">
+                  Données récupérées en temps réel (rang, absences, notes)
+                </span>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+              ) : students.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-40" />
+                  <p>Aucun {studentLabel} inscrit dans cette classe</p>
+                  <p className="text-xs mt-1">Sélectionnez une autre classe ou vérifiez les inscriptions</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Matricule</TableHead>
+                      <TableHead>Nom &amp; Prénom</TableHead>
+                      <TableHead>Moy. estimée</TableHead>
+                      <TableHead className="text-right">Bulletin</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {students.map((student) => {
+                      const avg = calculateAverage(student.id);
+                      const avgNum = parseFloat(avg);
+                      const isGenerating = generating === student.id;
+                      return (
+                        <TableRow key={student.id}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {student.registration_number || "—"}
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-semibold">{student.last_name}</span>{" "}
+                            <span>{student.first_name}</span>
+                          </TableCell>
+                          <TableCell>
+                            {avg !== "—" ? (
+                              <span
+                                className="font-bold"
+                                style={{
+                                  color: avgNum >= 14 ? "#166534"
+                                    : avgNum >= 10 ? "#1d4ed8"
+                                    : "#991b1b"
+                                }}
+                              >
+                                {avg}<span className="text-muted-foreground font-normal">/20</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => generateBulletin(student.id)}
+                              disabled={!!generating}
+                            >
+                              {isGenerating ? (
+                                <span className="animate-pulse text-xs">Génération...</span>
+                              ) : (
+                                <>
+                                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                                  Bulletin officiel
+                                </>
+                              )}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Analytics ─────────────────────────────────────────────── */}
         <TabsContent value="overview">
           {loading ? (
             <div className="text-center py-12">Chargement des données...</div>
@@ -430,69 +558,6 @@ const ReportCards = () => {
               termName={selectedTermName}
             />
           )}
-        </TabsContent>
-
-        <TabsContent value="reports">
-          {/* Students List */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                {StudentsLabel} de la classe
-              </CardTitle>
-              <CardDescription>
-                {students.length} {students.length > 1 ? studentsLabel : studentLabel} inscrit(s)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
-              ) : students.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Aucun {studentLabel} inscrit dans cette classe</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>N° Étudiant</TableHead>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Prénom</TableHead>
-                      <TableHead>Moyenne</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {students.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-mono text-sm">
-                          {student.registration_number || "-"}
-                        </TableCell>
-                        <TableCell className="font-medium">{student.last_name}</TableCell>
-                        <TableCell>{student.first_name}</TableCell>
-                        <TableCell>
-                          <span className="font-semibold">{calculateAverage(student.id)}</span>
-                          <span className="text-muted-foreground">/20</span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => generatePDF(student.id)}
-                            disabled={generating}
-                          >
-                            <ExternalLink className="w-4 h-4 mr-2" />
-                            Ouvrir & Imprimer
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

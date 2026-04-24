@@ -7,6 +7,8 @@ import { useAttendance } from "@/features/attendance/hooks/useAttendance";
 import { useAbsenceNotifications } from "@/hooks/useAbsenceNotifications";
 import { useParentAlerts } from "@/hooks/useParentAlerts";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useOfflineCache } from "@/hooks/useOfflineCache";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +29,7 @@ import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { TeacherAttendanceHeader } from "@/components/teacher/TeacherAttendanceHeader";
 import { TeacherAttendanceStats } from "@/components/teacher/TeacherAttendanceStats";
 import { TeacherAttendanceTable } from "@/components/teacher/TeacherAttendanceTable";
+import { OfflineAttendance } from "@/components/offline/OfflineAttendance";
 
 const TeacherAttendance = () => {
   const { user } = useAuth();
@@ -39,6 +42,15 @@ const TeacherAttendance = () => {
   const { studentLabel, StudentLabel, studentsLabel } = useStudentLabel();
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+
+  // ── Offline support ──────────────────────────────────────────────────────────
+  const { isOnline, syncNow } = useOfflineSync();
+
+  // Pre-cache students for the selected classroom while online
+  useOfflineCache({
+    tenantId: tenant?.id,
+    classroomId: selectedClassroom || undefined,
+  });
 
   const {
     students,
@@ -166,7 +178,17 @@ const TeacherAttendance = () => {
         </CardContent>
       </Card>
 
-      {isLoading ? (
+      {/* ── Offline mode — show offline attendance form when no network ─────── */}
+      {!isOnline && selectedClassroom && (
+        <OfflineAttendance
+          classroomId={selectedClassroom}
+          classroomName={assignedClassrooms?.find(c => c.id === selectedClassroom)?.name}
+          onSyncRequested={syncNow}
+        />
+      )}
+
+      {/* ── Online mode — normal attendance flow ──────────────────────────── */}
+      {isOnline && (isLoading ? (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => (
@@ -212,7 +234,7 @@ const TeacherAttendance = () => {
             </Card>
           )}
         </>
-      )}
+      ))}
     </div>
   );
 };

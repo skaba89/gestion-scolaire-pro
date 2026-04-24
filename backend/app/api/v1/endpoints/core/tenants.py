@@ -1183,6 +1183,242 @@ async def complete_onboarding(
     
     db.commit()
     return {"message": "Onboarding completed successfully"}
+# ─────────────────────────────────────────────────────────────────────────────
+# MEN Guinée — Conformité administrative
+# Fields stored in tenant.settings["men_guinea"] (no migration needed)
+# ─────────────────────────────────────────────────────────────────────────────
+
+MEN_GUINEA_FIELDS = [
+    "numero_agrement", "region_academique", "prefecture", "commune",
+    "statut_juridique", "cycle", "date_ouverture", "capacite_accueil",
+    "nombre_salles", "inspection_district",
+]
+
+
+@router.get("/men-guinea/")
+async def get_men_guinea_settings(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:read")),
+):
+    """
+    GET /tenants/men-guinea/
+    Returns the MEN Guinée compliance fields stored in settings.men_guinea.
+    """
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
+        if user_db:
+            tenant_id = user_db.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant ID introuvable")
+
+    try:
+        tid_uuid = UUID(tenant_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="ID tenant invalide")
+
+    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant non trouvé")
+
+    men_data = (tenant.settings or {}).get("men_guinea", {})
+    # Compute compliance score
+    filled = sum(1 for f in MEN_GUINEA_FIELDS if men_data.get(f))
+    score = round(filled / len(MEN_GUINEA_FIELDS) * 100)
+
+    return {
+        **men_data,
+        "_compliance_score": score,
+        "_filled_fields": filled,
+        "_total_fields": len(MEN_GUINEA_FIELDS),
+    }
+
+
+@router.patch("/men-guinea/")
+async def update_men_guinea_settings(
+    data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    """
+    PATCH /tenants/men-guinea/
+    Updates MEN Guinée compliance fields in settings.men_guinea.
+    Only fields in MEN_GUINEA_FIELDS are accepted.
+    """
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
+        if user_db:
+            tenant_id = user_db.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant ID introuvable")
+
+    try:
+        tid_uuid = UUID(tenant_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="ID tenant invalide")
+
+    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant non trouvé")
+
+    # Only allow whitelisted fields
+    unknown = set(data.keys()) - set(MEN_GUINEA_FIELDS)
+    if unknown:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Champs non autorisés : {', '.join(sorted(unknown))}"
+        )
+
+    current_settings = tenant.settings or {}
+    current_men = current_settings.get("men_guinea", {})
+    updated_men = {**current_men, **{k: v for k, v in data.items() if v is not None}}
+
+    tenant.settings = {**current_settings, "men_guinea": updated_men}
+    tenant.updated_at = datetime.now()
+    flag_modified(tenant, "settings")
+    db.commit()
+
+    log_audit(
+        db,
+        user_id=current_user.get("id"),
+        tenant_id=tenant_id,
+        action="UPDATE_MEN_GUINEA_SETTINGS",
+        resource_type="TENANT",
+        resource_id=tenant_id,
+        details=data,
+    )
+
+    filled = sum(1 for f in MEN_GUINEA_FIELDS if updated_men.get(f))
+    return {
+        **updated_men,
+        "_compliance_score": round(filled / len(MEN_GUINEA_FIELDS) * 100),
+        "_filled_fields": filled,
+        "_total_fields": len(MEN_GUINEA_FIELDS),
+    }
+
+
+@router.get("/men-guinea/rapport/")
+async def get_men_guinea_rapport(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:read")),
+):
+    """
+    GET /tenants/men-guinea/rapport/
+    Generates a full MEN Guinée compliance report as a JSON object
+    (school identity + live stats). Frontend renders it as a printable page.
+    """
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
+        if user_db:
+            tenant_id = user_db.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant ID introuvable")
+
+    try:
+        tid_uuid = UUID(tenant_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="ID tenant invalide")
+
+    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant non trouvé")
+
+    men = (tenant.settings or {}).get("men_guinea", {})
+
+    # ── Live stats ────────────────────────────────────────────────────────────
+    try:
+        total_students = db.execute(
+            text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid AND status = 'ACTIVE'"),
+            {"tid": tid_uuid}
+        ).scalar() or 0
+    except Exception:
+        total_students = 0
+
+    try:
+        male_students = db.execute(
+            text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid AND status = 'ACTIVE' AND gender = 'male'"),
+            {"tid": tid_uuid}
+        ).scalar() or 0
+    except Exception:
+        male_students = 0
+
+    female_students = total_students - male_students
+
+    try:
+        total_teachers = db.execute(
+            text(
+                "SELECT COUNT(DISTINCT u.id) FROM users u "
+                "JOIN user_roles ur ON ur.user_id = u.id "
+                "WHERE u.tenant_id = :tid AND ur.role = 'TEACHER'"
+            ),
+            {"tid": tid_uuid}
+        ).scalar() or 0
+    except Exception:
+        total_teachers = 0
+
+    try:
+        level_rows = db.execute(
+            text("""
+                SELECT l.name, COUNT(s.id) AS total,
+                       SUM(CASE WHEN s.gender = 'male' THEN 1 ELSE 0 END) AS male,
+                       SUM(CASE WHEN s.gender = 'female' THEN 1 ELSE 0 END) AS female
+                FROM levels l
+                LEFT JOIN classrooms c ON c.level_id = l.id AND c.tenant_id = :tid
+                LEFT JOIN enrollments e ON e.class_id = c.id AND e.status = 'ACTIVE'
+                LEFT JOIN students s ON s.id = e.student_id
+                WHERE l.tenant_id = :tid
+                GROUP BY l.name, l.order_index
+                ORDER BY l.order_index
+            """),
+            {"tid": tid_uuid}
+        ).fetchall()
+        levels = [
+            {"level": r[0], "total": r[1] or 0, "male": r[2] or 0, "female": r[3] or 0}
+            for r in level_rows
+        ]
+    except Exception:
+        levels = []
+
+    current_year_row = db.execute(
+        text("SELECT name FROM academic_years WHERE tenant_id = :tid AND is_current = true LIMIT 1"),
+        {"tid": tid_uuid}
+    ).fetchone()
+    current_year = current_year_row[0] if current_year_row else "—"
+
+    return {
+        # Établissement
+        "nom_etablissement": tenant.name,
+        "adresse": tenant.address,
+        "telephone": tenant.phone,
+        "email": tenant.email,
+        "type": tenant.type,
+        "pays": "République de Guinée",
+        "annee_scolaire": current_year,
+        # Champs MEN
+        "numero_agrement": men.get("numero_agrement", ""),
+        "region_academique": men.get("region_academique", ""),
+        "prefecture": men.get("prefecture", ""),
+        "commune": men.get("commune", ""),
+        "statut_juridique": men.get("statut_juridique", ""),
+        "cycle": men.get("cycle", ""),
+        "date_ouverture": men.get("date_ouverture", ""),
+        "capacite_accueil": men.get("capacite_accueil", ""),
+        "nombre_salles": men.get("nombre_salles", ""),
+        "inspection_district": men.get("inspection_district", ""),
+        # Stats live
+        "total_eleves": total_students,
+        "eleves_garcons": male_students,
+        "eleves_filles": female_students,
+        "total_enseignants": total_teachers,
+        "effectifs_par_niveau": levels,
+        # Meta
+        "date_rapport": datetime.now().strftime("%d/%m/%Y"),
+        "heure_rapport": datetime.now().strftime("%H:%M"),
+    }
+
+
 @router.get("/slug/{slug}/levels/", response_model=List[dict])
 async def get_public_tenant_levels(
     slug: str,

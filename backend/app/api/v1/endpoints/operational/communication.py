@@ -582,12 +582,14 @@ def delete_forum(forum_id: UUID, db: Session = Depends(get_db), current_user: di
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
-# ─── Email Notifications ────────────────────────────────────────────────────
+# ─── Multi-channel Notifications ────────────────────────────────────────────
 
 class NotificationEmailPayload(BaseModel):
-    type: str  # e.g. "invoice_reminder", "homework_due", "absence_alert"
-    recipientEmail: str
+    type: str
+    recipientEmail: Optional[str] = None
+    recipientPhone: Optional[str] = None       # WhatsApp phone (E.164)
     recipientName: Optional[str] = None
+    oneSignalUserId: Optional[str] = None      # OneSignal external user ID
     data: Optional[Dict[str, Any]] = None
 
 
@@ -599,14 +601,89 @@ def send_notification_email(
 ):
     """
     POST /communication/send-notification-email/
-    Logs the email notification intent and returns success.
-    Actual email delivery is handled by the configured email provider (SMTP/SendGrid).
+    Sends via WhatsApp (free), OneSignal push, SMS, and/or email depending on tenant config.
+    Channels are tried in order: WhatsApp → Push → SMS → Email.
     """
+    from app.services.notifications import build_service_from_db
+
     tenant_id = current_user.get("tenant_id")
     sender_id = current_user.get("id")
+    data = payload.data or {}
 
+    channels_used: list[str] = []
+
+    # ── Try real delivery ─────────────────────────────────────────────────────
+    if tenant_id:
+        svc = build_service_from_db(db, tenant_id)
+        if svc:
+            student_name = data.get("studentName", "")
+            parent_name = payload.recipientName or data.get("parentName", "")
+
+            if payload.type == "invoice_reminder":
+                result = svc.send_payment_reminder(
+                    to_phone=payload.recipientPhone,
+                    to_email=payload.recipientEmail,
+                    onesignal_user_id=payload.oneSignalUserId,
+                    parent_name=parent_name,
+                    student_name=student_name,
+                    invoice_number=data.get("invoiceNumber", ""),
+                    amount=data.get("amount", ""),
+                    due_date=data.get("dueDate", ""),
+                )
+            elif payload.type == "absence_alert":
+                result = svc.send_absence_alert(
+                    to_phone=payload.recipientPhone,
+                    to_email=payload.recipientEmail,
+                    onesignal_user_id=payload.oneSignalUserId,
+                    parent_name=parent_name,
+                    student_name=student_name,
+                    date=data.get("date", ""),
+                    subject=data.get("subject", ""),
+                )
+            elif payload.type == "grade_alert":
+                result = svc.send_grade_alert(
+                    to_phone=payload.recipientPhone,
+                    to_email=payload.recipientEmail,
+                    onesignal_user_id=payload.oneSignalUserId,
+                    parent_name=parent_name,
+                    student_name=student_name,
+                    subject=data.get("subject", ""),
+                    grade=str(data.get("grade", "")),
+                    max_grade=str(data.get("maxGrade", "20")),
+                    assessment_name=data.get("assessmentName", ""),
+                )
+            elif payload.type == "bulletin_ready":
+                result = svc.send_bulletin_ready(
+                    to_phone=payload.recipientPhone,
+                    to_email=payload.recipientEmail,
+                    onesignal_user_id=payload.oneSignalUserId,
+                    parent_name=parent_name,
+                    student_name=student_name,
+                    term=data.get("term", ""),
+                    portal_url=data.get("portalUrl", ""),
+                )
+            else:
+                # Generic: send via email only
+                from app.services.notifications import Templates
+                result_email = svc.email.send(
+                    to=payload.recipientEmail or "",
+                    subject=f"Notification — {payload.type}",
+                    html=f"<p>{data.get('message', payload.type)}</p>",
+                )
+                from app.services.notifications import NotifResult
+                result = NotifResult(email=result_email)
+
+            if result.whatsapp:
+                channels_used.append("whatsapp")
+            if result.push:
+                channels_used.append("push")
+            if getattr(result, "sms", False):
+                channels_used.append("sms")
+            if result.email:
+                channels_used.append("email")
+
+    # ── Log to notifications table (audit trail) ──────────────────────────────
     try:
-        # Log the outgoing notification for audit trail
         db.execute(text("""
             INSERT INTO notifications
             (id, tenant_id, user_id, title, message, type, is_read, created_at)
@@ -614,35 +691,32 @@ def send_notification_email(
         """), {
             "tid": tenant_id,
             "uid": sender_id,
-            "title": f"Email envoyé: {payload.type}",
-            "message": f"Destinataire: {payload.recipientEmail} | Type: {payload.type}",
-            "ntype": "email_sent",
+            "title": f"Notification: {payload.type}",
+            "message": (
+                f"Destinataire: {payload.recipientEmail or payload.recipientPhone} | "
+                f"Canaux: {', '.join(channels_used) or 'aucun'}"
+            ),
+            "ntype": "notification_sent",
         })
         db.commit()
     except Exception as log_err:
-        logger.warning("Could not log email notification: %s", log_err)
+        logger.warning("Could not log notification: %s", log_err)
         db.rollback()
 
-    # Build a human-readable summary for the response
-    data = payload.data or {}
-    summary_parts = []
-    if payload.type == "invoice_reminder":
-        summary_parts.append(f"Rappel facture {data.get('invoiceNumber', '')} pour {data.get('studentName', '')}")
-    elif payload.type == "absence_alert":
-        summary_parts.append(f"Alerte absence pour {data.get('studentName', '')}")
-    elif payload.type == "homework_due":
-        summary_parts.append(f"Rappel devoir: {data.get('homeworkTitle', '')}")
-    else:
-        summary_parts.append(f"Notification {payload.type}")
-
     logger.info(
-        "Email notification [%s] → %s | %s",
-        payload.type, payload.recipientEmail, " | ".join(summary_parts)
+        "Notification [%s] → %s | canaux: %s",
+        payload.type,
+        payload.recipientEmail or payload.recipientPhone,
+        channels_used or "none",
     )
 
     return {
         "success": True,
-        "message": f"Notification envoyée à {payload.recipientEmail}",
+        "channels": channels_used,
+        "message": (
+            f"Envoyé via {', '.join(channels_used)}"
+            if channels_used
+            else "Aucun canal de notification configuré (vérifiez les paramètres)"
+        ),
         "type": payload.type,
-        "recipient": payload.recipientEmail,
     }

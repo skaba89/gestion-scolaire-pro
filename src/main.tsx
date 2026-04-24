@@ -85,7 +85,7 @@ if (forceServiceWorkerReset && "serviceWorker" in navigator) {
   // It will skipWaiting(), claim clients, clear all caches, and self-unregister.
   navigator.serviceWorker
     .register("/sw.js", { scope: "/" })
-    .then((reg) => {
+    .then(() => {
       debugLog("[SchoolFlow] killer SW registered, will clean up caches");
     })
     .catch(() => {
@@ -103,6 +103,38 @@ if (forceServiceWorkerReset && "serviceWorker" in navigator) {
   if (window.caches) {
     window.caches.keys().then((keys) => Promise.all(keys.map((key) => window.caches.delete(key))));
   }
+}
+
+// ── Register SchoolFlow offline SW (non-development environments) ─────────────
+// sw-schoolflow.js : Cache-First for static assets, Network-First for navigation,
+// NEVER intercepts API calls — safe for Render cold starts and African low-bandwidth.
+if (!import.meta.env.DEV && "serviceWorker" in navigator) {
+  // If we just ran the killer, wait 3s for it to clean up first; otherwise register immediately.
+  const swDelay = forceServiceWorkerReset ? 3000 : 0;
+  setTimeout(() => {
+    navigator.serviceWorker
+      .register("/sw-schoolflow.js", { scope: "/" })
+      .then((reg) => {
+        debugLog("[SchoolFlow] offline SW registered:", reg.scope);
+        // Activate immediately if a new version is waiting
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+        reg.addEventListener("updatefound", () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                newWorker.postMessage({ type: "SKIP_WAITING" });
+              }
+            });
+          }
+        });
+      })
+      .catch((err) => {
+        debugLog("[SchoolFlow] offline SW registration failed:", err);
+      });
+  }, swDelay);
 }
 
 const rootElement = document.getElementById("root");

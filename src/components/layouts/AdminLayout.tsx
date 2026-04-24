@@ -51,7 +51,8 @@ import {
   Target,
   ScanLine,
   Search,
-  Globe
+  Globe,
+  Upload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,7 @@ import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { Permission, hasPermission } from "@/lib/permissions";
 import { useTerminology } from "@/hooks/useTerminology";
 import { GlobalSearch } from "@/components/search/GlobalSearch";
+import { OfflineBanner, OfflineStatusDot } from "@/components/offline/OfflineBanner";
 // AIChatWidget rendered globally in App.tsx
 
 interface NavItem {
@@ -279,6 +281,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/hr"), label: t("nav.hr", "Ressources Humaines"), icon: Briefcase, permission: "users:update" }, // HR requires restricted access
         { href: getTenantUrl("/admin/security"), label: t("nav.security", "Sécurité"), icon: Shield, permission: "tenant:manage" },
         { href: getTenantUrl("/admin/exports"), label: t("nav.exports"), icon: Download, permission: "students:export" },
+        { href: getTenantUrl("/admin/data-import"), label: "Import de données", icon: Upload, permission: "students:write" },
         { href: getTenantUrl("/admin/audit-logs"), label: t("nav.auditLogs"), icon: Activity, permission: "tenant:manage" },
         { href: getTenantUrl("/admin/data-quality"), label: "Qualité des Données", icon: Activity, permission: "settings:manage" },
         { href: getTenantUrl("/admin/public-pages"), label: "Pages publiques", icon: Globe, permission: "settings:manage" },
@@ -339,6 +342,7 @@ export const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-muted/30">
       <ScrollProgress />
+      <OfflineBanner />
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-card/95 backdrop-blur-xl border-b border-border flex items-center justify-between px-3 z-50 safe-top">
         <TenantBranding size="sm" showName={true} />
@@ -421,6 +425,9 @@ export const AdminLayout = () => {
                   <ThemeSwitcher />
                   <LanguageSwitcher />
                   <NotificationBell />
+                  <div className="px-1">
+                    <OfflineStatusDot />
+                  </div>
                 </div>
               </div>
               <Link to={getTenantUrl("/admin/profile")} onClick={() => setSidebarOpen(false)}>
