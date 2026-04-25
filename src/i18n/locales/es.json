@@ -123,5 +123,40 @@
     "send": "Enviar",
     "thinking": "Pensando...",
     "error": "Ocurrió un error. Por favor, inténtelo de nuevo."
+  },
+  "messages": {
+    "tenantCreated": "¡Institución \"{{name}}\" creada con éxito!",
+    "tenantCreateError": "Error durante la creación",
+    "fillRequired": "Por favor, complete todos los campos obligatorios",
+    "passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
+    "reportCardDownloaded": "Boletín descargado",
+    "reportCardDownloadHint": "Abra el archivo .html en su navegador y haga clic en Imprimir → Guardar como PDF",
+    "reportCardGenerated": "Boletín generado ✅",
+    "reportCardGenerateError": "Error de generación",
+    "reportCardGenerating": "Generando...",
+    "reportCardBatchPreparing": "Preparando {{count}} boletines",
+    "reportCardBatchGenerated": "{{count}} boletines generados ✅",
+    "reportCardBatchHint": "Haga clic en 'Imprimir' en la ventana abierta → 'Guardar como PDF'",
+    "reportCardBatchError": "Error de generación en lote",
+    "retryLater": "Inténtelo de nuevo en un momento"
+  },
+  "reportCards": {
+    "title": "Boletines de Notas",
+    "subtitle": "Formato oficial Guinea · Rango · Ausencias · Decisión del consejo",
+    "decisionUndetermined": "— Por determinar —",
+    "decisionPromotion": "✅ Promoción al siguiente grado",
+    "decisionCongratulations": "🏆 Felicitaciones del consejo",
+    "decisionEncouragement": "👏 Estímulo",
+    "decisionWarning": "⚠️ Advertencia de trabajo",
+    "decisionRepeat": "🔁 Repetición de grado",
+    "generateAll": "Todos los boletines ({{count}})",
+    "generating": "Generando...",
+    "officialReport": "Boletín oficial",
+    "councilDecision": "Decisión del consejo de clase y opciones",
+    "councilDecisionLabel": "Decisión del consejo de clase",
+    "generalAppreciation": "Apreciación general del tutor",
+    "showOfficialHeader": "Mostrar encabezado oficial «República de Guinea»",
+    "individualReports": "Boletines individuales",
+    "resultsAnalysis": "Análisis de resultados"
   }
 }

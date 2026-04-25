@@ -110,7 +110,7 @@ export const studentsService = {
 
   async getMyEventRegistrations(studentId: string) {
     if (!studentId) return [];
-    const { data } = await apiClient.get<any[]>("/school-life/events/registrations/", {
+    const { data } = await apiClient.get<any[]>("/school-life/event-registrations/", {
       params: { student_id: studentId },
     });
     return (data || []).map((r: any) => r.event_id);

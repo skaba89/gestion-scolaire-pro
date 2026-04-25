@@ -206,6 +206,18 @@ const ChildDetail = () => {
           setTimeout(() => {
             printWindow.print();
           }, 500);
+        } else {
+          // Popup blocked — fallback: offer HTML as a downloadable file
+          const blob = new Blob([data.html], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `dossier-scolaire-${student?.last_name || "eleve"}.html`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          toast.info("Ouverture bloquée par le navigateur — fichier téléchargé à la place.");
         }
       }
 

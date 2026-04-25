@@ -123,5 +123,40 @@
     "send": "إرسال",
     "thinking": "جاري التفكير...",
     "error": "حدث خطأ. يرجى المحاولة مرة أخرى."
+  },
+  "messages": {
+    "tenantCreated": "تم إنشاء المؤسسة \"{{name}}\" بنجاح!",
+    "tenantCreateError": "خطأ أثناء الإنشاء",
+    "fillRequired": "يرجى ملء جميع الحقول المطلوبة",
+    "passwordTooShort": "يجب أن تكون كلمة المرور 8 أحرف على الأقل",
+    "reportCardDownloaded": "تم تنزيل كشف الدرجات",
+    "reportCardDownloadHint": "افتح ملف .html في متصفحك وانقر فوق طباعة → حفظ كـ PDF",
+    "reportCardGenerated": "تم إنشاء كشف الدرجات ✅",
+    "reportCardGenerateError": "خطأ في الإنشاء",
+    "reportCardGenerating": "جارٍ الإنشاء...",
+    "reportCardBatchPreparing": "تحضير {{count}} كشف درجات",
+    "reportCardBatchGenerated": "تم إنشاء {{count}} كشف درجات ✅",
+    "reportCardBatchHint": "انقر فوق 'طباعة' في النافذة المفتوحة → 'حفظ كـ PDF'",
+    "reportCardBatchError": "خطأ في الإنشاء الجماعي",
+    "retryLater": "يرجى المحاولة مرة أخرى بعد قليل"
+  },
+  "reportCards": {
+    "title": "كشوف الدرجات",
+    "subtitle": "الصيغة الرسمية لغينيا · الترتيب · الغيابات · قرار المجلس",
+    "decisionUndetermined": "— لم يُحدَّد بعد —",
+    "decisionPromotion": "✅ الانتقال إلى الصف التالي",
+    "decisionCongratulations": "🏆 تهانئ المجلس",
+    "decisionEncouragement": "👏 تشجيع",
+    "decisionWarning": "⚠️ تحذير دراسي",
+    "decisionRepeat": "🔁 إعادة السنة",
+    "generateAll": "جميع كشوف الدرجات ({{count}})",
+    "generating": "جارٍ الإنشاء...",
+    "officialReport": "كشف درجات رسمي",
+    "councilDecision": "قرار مجلس الفصل والخيارات",
+    "councilDecisionLabel": "قرار مجلس الفصل",
+    "generalAppreciation": "التقييم العام لأستاذ الفصل",
+    "showOfficialHeader": "عرض الترويسة الرسمية «جمهورية غينيا»",
+    "individualReports": "كشوف الدرجات الفردية",
+    "resultsAnalysis": "تحليل النتائج"
   }
 }

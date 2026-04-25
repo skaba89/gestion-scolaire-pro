@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { compressImage } from "@/lib/imageCompression";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,8 +31,10 @@ export function LogoSection({ formData, setFormData }: BrandingSectionProps) {
 
         setIsUploading(true);
         try {
+            // Compress logo: max 512px, preserve PNG transparency via WebP
+            const compressed = await compressImage(file, { maxWidthOrHeight: 512, quality: 0.9, outputType: "image/webp" });
             const uploadFormData = new FormData();
-            uploadFormData.append("file", file);
+            uploadFormData.append("file", compressed);
 
             const response = await apiClient.post("/storage/upload/", uploadFormData, {
                 headers: {
@@ -103,7 +106,7 @@ export function LogoSection({ formData, setFormData }: BrandingSectionProps) {
                             </div>
                             <p className="text-xs text-muted-foreground">
                                 • Formats acceptés: PNG, JPG, GIF, WebP<br />
-                                • Taille maximale: 5 MB<br />
+                                • Taille maximale: 5 MB (compressé automatiquement)<br />
                                 • Résolution recommandée: 400×400px
                             </p>
                             {formData.logo_url && (

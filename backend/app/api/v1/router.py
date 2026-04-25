@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search
+from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports
 from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys
@@ -68,6 +68,7 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
+api_router.include_router(data_imports.router, prefix="/import", tags=["Data Import"])
 
 # Academic routes
 api_router.include_router(students.router, prefix="/students", tags=["Students"])

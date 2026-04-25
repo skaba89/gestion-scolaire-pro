@@ -71,10 +71,16 @@ export const Leaderboard = () => {
         studentsParams.enrollments__class_id = filter;
       }
 
-      const { data: students } = await apiClient.get<any[]>("/students/", {
+      const { data: studentsRaw } = await apiClient.get<any>("/students/", {
         params: studentsParams,
       });
-      if (!students) return [];
+      // Handle both flat array and paginated { items: [] } response shapes
+      const students: any[] = Array.isArray(studentsRaw)
+        ? studentsRaw
+        : Array.isArray(studentsRaw?.items)
+          ? studentsRaw.items
+          : [];
+      if (students.length === 0) return [];
 
       const studentIds = students.map(s => s.id);
 
@@ -92,13 +98,15 @@ export const Leaderboard = () => {
         pointsParams.created_at_gte = monthAgo.toISOString();
       }
 
-      const { data: transactions } = await apiClient.get<any[]>("/point-transactions/", {
-        params: pointsParams,
-      });
+      const { data: transactions } = studentIds.length > 0
+        ? await apiClient.get<any[]>("/point-transactions/", { params: pointsParams })
+        : { data: [] };
 
-      const { data: achievements } = await apiClient.get<any[]>("/student-achievements/", {
-        params: { tenant_id: tenant.id, student_id__in: studentIds.join(",") },
-      });
+      const { data: achievements } = studentIds.length > 0
+        ? await apiClient.get<any[]>("/student-achievements/", {
+            params: { tenant_id: tenant.id, student_id__in: studentIds.join(",") },
+          })
+        : { data: [] };
 
       const leaderboardData = students.map(student => {
         const studentPoints = transactions

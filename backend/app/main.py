@@ -11,6 +11,51 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
+
+# ─── Sentry — initialisation avant tout le reste ─────────────────────────────
+def _init_sentry() -> None:
+    """Initialise Sentry si SENTRY_DSN est configuré."""
+    if not settings.SENTRY_DSN:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+        from sentry_sdk.integrations.redis import RedisIntegration
+
+        def _scrub_sensitive(event, hint):
+            """Supprimer les données sensibles avant envoi à Sentry (RGPD)."""
+            if "request" in event:
+                headers = event["request"].get("headers", {})
+                for sensitive_header in ("authorization", "x-tenant-id", "cookie"):
+                    headers.pop(sensitive_header, None)
+            return event
+
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            environment=settings.SENTRY_ENVIRONMENT,
+            integrations=[
+                FastApiIntegration(transaction_style="endpoint"),
+                SqlalchemyIntegration(),
+                RedisIntegration(),
+            ],
+            traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
+            send_default_pii=False,  # RGPD : jamais de données personnelles
+            before_send=_scrub_sensitive,
+        )
+        logging.getLogger(__name__).info(
+            "Sentry initialized (env=%s, sample_rate=%.2f)",
+            settings.SENTRY_ENVIRONMENT,
+            settings.SENTRY_TRACES_SAMPLE_RATE,
+        )
+    except ImportError:
+        logging.getLogger(__name__).warning(
+            "sentry-sdk not installed — skipping Sentry init. "
+            "Add sentry-sdk[fastapi,sqlalchemy] to requirements.txt."
+        )
+
+
+_init_sentry()
 from app.core.logging_config import setup_logging
 from app.core.exceptions import (
     SchoolFlowException,
@@ -55,12 +100,11 @@ limiter = Limiter(
     headers_enabled=True,
 )
 
-def _ensure_all_table_columns(db, text):
-    """Add ALL missing columns to ALL tables via PL/pgSQL DO blocks.
+def _ensure_all_table_columns(db, text):  # noqa: dead code — kept for emergency manual invocation
+    """Replaced by Alembic migration 20260424_0003_ensure_core_table_columns.
 
-    Uses DO $$ BEGIN ... EXCEPTION WHEN OTHERS THEN NULL; END $$ per table
-    so that if a table doesn't exist, the error is caught internally by
-    PostgreSQL WITHOUT aborting the surrounding transaction.
+    This function is no longer called at startup. Use `alembic upgrade head` instead.
+    Kept here only as a reference/emergency fallback — do NOT call from lifespan.
     """
     # Each table's columns are wrapped in a DO block with EXCEPTION handler.
     # If the table doesn't exist, PostgreSQL catches the error internally
@@ -575,16 +619,22 @@ async def lifespan(app: FastAPI):
         command.upgrade(alembic_cfg, "head")
         logger.info("Alembic auto-migration: upgrade head succeeded")
     except Exception as alembic_err:
-        logger.warning("Alembic migration failed (%s), falling back to create_all", alembic_err)
+        logger.critical(
+            "Alembic migration FAILED: %s — refusing to start. "
+            "Fix the migration and retry. Do NOT use create_all as a fallback "
+            "as it may create an incomplete or inconsistent schema.",
+            alembic_err,
+        )
+        raise SystemExit(1)
 
-    # ALWAYS run create_all after Alembic — it uses checkfirst=True by default,
-    # so it safely creates any tables/columns that Alembic migrations missed
-    # without affecting tables that already exist correctly.
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Base.metadata.create_all succeeded (fills gaps from incomplete migrations)")
-    except Exception as create_err:
-        logger.error("Table creation failed: %s", create_err)
+    # create_all uniquement en mode SQLite/développement local sans Alembic
+    # En production PostgreSQL, Alembic est l'unique source de vérité.
+    if settings.is_sqlite:
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("SQLite dev mode: Base.metadata.create_all succeeded")
+        except Exception as create_err:
+            logger.error("SQLite table creation failed: %s", create_err)
 
     # Ensure operational tables that have NO SQLAlchemy models
     try:
@@ -594,23 +644,9 @@ async def lifespan(app: FastAPI):
     except Exception as op_err:
         logger.warning("Operational table creation failed: %s", op_err)
 
-    # Ensure ALL missing columns on ALL tables (Alembic migrations may have failed partially)
-    if not settings.is_sqlite:
-        try:
-            from app.core.database import SessionLocal
-            from sqlalchemy import text
-            db = SessionLocal()
-            try:
-                _ensure_all_table_columns(db, text)
-                db.commit()
-                logger.info("All table columns ensured via ALTER TABLE IF NOT EXISTS")
-            except Exception as col_err:
-                logger.warning("Column migration partial failure: %s", col_err)
-                db.rollback()
-            finally:
-                db.close()
-        except Exception as e:
-            logger.warning("Column migration skipped: %s", e)
+    # NOTE: Column backfills previously done here are now managed by
+    # Alembic migration 20260424_0003_ensure_core_table_columns.py
+    # which runs automatically via `alembic upgrade head` at startup above.
 
     # Auto-create super admin if no admin exists
     try:
@@ -820,33 +856,31 @@ if settings.BACKEND_CORS_ORIGINS:
         _normalized.append(o)
     origins = _normalized
 
-# If no explicit origins configured, use safe defaults.
-# In production, we use dynamic origin validation via a middleware callback
-# instead of blocking all cross-origin requests (which breaks the app).
+# Si aucune origine configurée : defaults sécurisés (jamais "*")
 if not origins:
     if settings.DEBUG:
-        logger.warning(
-            "CORS origins list is empty — falling back to allow all origins (\"*\") "
-            "because DEBUG is enabled. Set BACKEND_CORS_ORIGINS env var for production."
-        )
-        origins = ["*"]
-    else:
-        # Production: allow known deployment origins.
-        # SchoolFlow uses Bearer tokens (not cookies), so CSRF via CORS is not
-        # a concern. The real security boundary is the JWT.
+        # DEBUG : localhost uniquement — jamais de wildcard
         origins = [
-            "https://gestion-scolaire-pro.onrender.com",
-            "https://schoolflow-api-s4gm.onrender.com",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
         ]
         logger.warning(
-            "CORS origins list is empty — using default Render origins: %s. "
-            "Set BACKEND_CORS_ORIGINS env var to customize.", origins
+            "CORS: BACKEND_CORS_ORIGINS not set — using localhost defaults (DEBUG mode). "
+            "Set BACKEND_CORS_ORIGINS before deploying to production."
         )
+    else:
+        # Production sans BACKEND_CORS_ORIGINS : refus de démarrage
+        logger.critical(
+            "CORS: BACKEND_CORS_ORIGINS is required in production (DEBUG=False). "
+            "Set it to your frontend URL, e.g.: https://yourapp.netlify.app"
+        )
+        raise SystemExit(1)
 
-# SECURITY: When origins=["*"], browsers reject allow_credentials=True.
-# Since SchoolFlow uses Bearer tokens (Authorization header) and not cookies,
-# setting allow_credentials=False is safe and avoids browser CORS errors.
-allow_credentials = len(origins) > 1 or (len(origins) == 1 and origins[0] != "*")
+# SECURITY: Bearer tokens → pas de cookies → allow_credentials peut rester True
+# sauf si on a le wildcard (impossible désormais)
+allow_credentials = True
 
 app.add_middleware(
     CORSMiddleware,
@@ -983,6 +1017,19 @@ async def health_check():
     except Exception:
         redis_status = "unreachable"
 
+    # RLS check: verify Row Level Security is enabled on the students table
+    # (representative sentinel for all tenant-scoped tables)
+    rls_status = "skipped"
+    if db_status == "connected" and not settings.is_sqlite:
+        try:
+            with SessionLocal() as _db:
+                row = _db.execute(sa_text(
+                    "SELECT relrowsecurity FROM pg_class WHERE relname = 'students'"
+                )).scalar()
+                rls_status = "active" if row else "disabled"
+        except Exception:
+            rls_status = "unknown"
+
     healthy = db_status == "connected"
     return JSONResponse(
         status_code=200 if healthy else 503,
@@ -992,6 +1039,7 @@ async def health_check():
             "components": {
                 "database": db_status,
                 "cache": redis_status,
+                "rls": rls_status,
             },
         },
     )

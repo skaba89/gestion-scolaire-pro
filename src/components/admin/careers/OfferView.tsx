@@ -89,11 +89,11 @@ export function OfferView({ offers, searchTerm, onSearchChange, onEdit, onDelete
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-2">
-                                        <Button variant="ghost" size="icon" onClick={() => onEdit(offer)}>
+                                        <Button variant="ghost" size="icon" aria-label="Modifier l'offre" onClick={() => onEdit(offer)}>
                                             <Edit className="h-4 w-4" />
                                         </Button>
                                         {offer.external_url && (
-                                            <Button variant="ghost" size="icon" asChild>
+                                            <Button variant="ghost" size="icon" aria-label="Voir l'offre externe" asChild>
                                                 <a href={offer.external_url} target="_blank" rel="noopener noreferrer">
                                                     <ExternalLink className="h-4 w-4" />
                                                 </a>
@@ -102,6 +102,7 @@ export function OfferView({ offers, searchTerm, onSearchChange, onEdit, onDelete
                                         <Button
                                             variant="ghost"
                                             size="icon"
+                                            aria-label="Supprimer l'offre"
                                             onClick={() => onDelete(offer.id)}
                                         >
                                             <Trash2 className="h-4 w-4 text-destructive" />

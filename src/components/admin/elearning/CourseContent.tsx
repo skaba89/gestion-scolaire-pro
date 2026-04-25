@@ -99,10 +99,10 @@ export function CourseContent({
                                 <span className="text-left font-medium">{module.title}</span>
                             </AccordionTrigger>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); onEditModule(module); }}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Modifier le module" onClick={(e) => { e.stopPropagation(); onEditModule(module); }}>
                                     <Edit className="h-3 w-3" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={(e) => { e.stopPropagation(); onDeleteModule(module.id); }}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" aria-label="Supprimer le module" onClick={(e) => { e.stopPropagation(); onDeleteModule(module.id); }}>
                                     <Trash2 className="h-3 w-3" />
                                 </Button>
                             </div>
@@ -125,7 +125,7 @@ export function CourseContent({
                                         <div className="flex items-center gap-1 opacity-0 group-hover/lesson:opacity-100 transition-opacity">
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:text-primary">
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:text-primary" aria-label="Assistant IA">
                                                         <Sparkles className="h-3.5 w-3.5" />
                                                     </Button>
                                                 </DropdownMenuTrigger>
@@ -153,10 +153,10 @@ export function CourseContent({
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEditLesson(lesson)}>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Modifier la leçon" onClick={() => onEditLesson(lesson)}>
                                                 <Edit className="h-3 w-3" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDeleteLesson(lesson.id)}>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label="Supprimer la leçon" onClick={() => onDeleteLesson(lesson.id)}>
                                                 <Trash2 className="h-3 w-3" />
                                             </Button>
                                         </div>

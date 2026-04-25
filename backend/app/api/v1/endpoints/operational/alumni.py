@@ -638,6 +638,55 @@ def admin_list_job_applications(
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
+class MentorshipRequestCreate(BaseModel):
+    mentor_id: str
+    student_id: str
+    message: Optional[str] = None
+    goals: Optional[str] = None
+    status: str = "pending"
+
+
+@router.post("/mentorship-requests/", status_code=201)
+def create_mentorship_request(
+    payload: MentorshipRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        tenant_id = current_user.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required")
+
+        # Combine message and goals into the message field
+        combined_message = payload.message or ""
+        if payload.goals:
+            combined_message = (combined_message + "\n\nObjectifs: " + payload.goals).strip()
+
+        import uuid as uuid_mod
+        new_id = str(uuid_mod.uuid4())
+        db.execute(text("""
+            INSERT INTO mentorship_requests
+                (id, tenant_id, student_id, mentor_id, status, message)
+            VALUES (:id, :tenant_id, :student_id, :mentor_id, :status, :message)
+            ON CONFLICT DO NOTHING
+        """), {
+            "id": new_id,
+            "tenant_id": tenant_id,
+            "student_id": payload.student_id,
+            "mentor_id": payload.mentor_id,
+            "status": payload.status,
+            "message": combined_message or None,
+        })
+        db.commit()
+        return {"id": new_id, "mentor_id": payload.mentor_id, "student_id": payload.student_id, "status": payload.status}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Error creating mentorship request: %s", e)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
 @router.get("/admin/event-registrations/")
 def admin_list_event_registrations(
     db: Session = Depends(get_db),

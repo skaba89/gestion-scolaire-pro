@@ -22,7 +22,16 @@ databases:
     region: frankfurt
     plan: starter
 
+
 services:
+  # ─── Redis (token versioning, session mutex) ─────────────────────────────
+  - type: redis
+    name: schoolflow-redis
+    region: frankfurt
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
+
   # ─── Backend API (FastAPI) ───────────────────────────────────────────────
   - type: web
     name: schoolflow-api
@@ -74,6 +83,8 @@ services:
         generateValue: true
       - key: METRICS_SECRET
         generateValue: true
+      - key: ENFORCE_MFA
+        value: "true"
 
       # --- CORS ---
       - key: BACKEND_CORS_ORIGINS
@@ -82,9 +93,12 @@ services:
           type: web
           property: host
 
-      # --- Redis (optionnel) ---
+      # --- Redis (token versioning, session mutex) ---
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: schoolflow-redis
+          type: redis
+          property: connectionString
 
       # --- AI (optionnel) ---
       - key: GROQ_API_KEY

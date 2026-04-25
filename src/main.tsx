@@ -4,6 +4,7 @@ import App from "./App.tsx";
 import "./index.css";
 import "./i18n/config";
 import { initSentry } from "./lib/sentry";
+import { initSanitize } from "./lib/sanitize";
 
 // =============================================================================
 // Trusted Types Policy — must be before any SW registration or script injection
@@ -74,6 +75,8 @@ function renderRuntimeOverlay(message: string) {
 }
 
 initSentry();
+// Pre-load DOMPurify for synchronous XSS sanitization (fire-and-forget)
+initSanitize();
 
 if (enableBootstrapDebug) {
   (window as Window & { React?: unknown }).React = StrictMode;

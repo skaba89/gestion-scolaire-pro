@@ -43,6 +43,19 @@ jobs:
       - name: Type-check (TypeScript)
         run: npm run type-check
 
+      - name: Run frontend tests with coverage
+        run: npm run test -- --coverage --reporter=verbose
+        env:
+          CI: true
+
+      - name: Upload frontend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: coverage/
+          retention-days: 7
+
       - name: Build (Vite)
         run: npm run build
         env:
@@ -115,13 +128,27 @@ jobs:
             echo "WARNING: subprocess with shell=True found"
           fi
 
-      - name: Run backend tests (SQLite)
-        run: cd backend && python -m pytest tests/ -v --tb=short
+      - name: Install coverage tools
+        run: pip install pytest-cov
+
+      - name: Run backend tests (SQLite) with coverage
+        run: |
+          cd backend && python -m pytest tests/ -v --tb=short \
+            --cov=app --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=50
         env:
           DATABASE_URL: sqlite:///./test.db
           DEBUG: "true"
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
+
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-sqlite
+          path: backend/coverage.xml
+          retention-days: 7
 
   # ── Backend Tests: PostgreSQL integration ──────────────────────────────
   backend-tests:
@@ -160,12 +187,26 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
-      - name: Run backend tests (PostgreSQL)
-        run: cd backend && python -m pytest tests/ -v --tb=short
+      - name: Install coverage tools
+        run: pip install pytest-cov
+
+      - name: Run backend tests (PostgreSQL) with coverage
+        run: |
+          cd backend && python -m pytest tests/ -v --tb=short \
+            --cov=app --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=50
         env:
           DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
+
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-postgres
+          path: backend/coverage.xml
+          retention-days: 7
 
       - name: Stop PostgreSQL service
         if: always()
@@ -210,11 +251,11 @@ jobs:
 
       - name: Run pip-audit on backend
         run: |
-          pip-audit -r backend/requirements.txt --desc 2>&1 | tee pip-audit-results.txt
-          if grep -E "^\[\]\s+(vulnerable|unsuitable)" pip-audit-results.txt; then
+          pip-audit -r backend/requirements.txt --desc --output=json --output-file=pip-audit-results.json || {
             echo "::error::Vulnerable Python dependencies found"
+            pip-audit -r backend/requirements.txt --desc
             exit 1
-          fi
+          }
 
       - name: Check for .env files in git
         run: |
@@ -239,3 +280,9 @@ jobs:
           else
             echo "No credential files committed to git"
           fi
+
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

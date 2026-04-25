@@ -572,6 +572,79 @@ def delete_push_subscription(
     return None
 
 
+class OneSignalLinkPayload(BaseModel):
+    user_id: str
+    tenant_id: str
+    fcm_token: Optional[str] = None
+
+
+@push_subscriptions_router.post("/onesignal-link/", status_code=status.HTTP_200_OK)
+async def onesignal_link_user(
+    payload: OneSignalLinkPayload,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    POST /push-subscriptions/onesignal-link/
+    Links the authenticated user's internal user_id as the OneSignal external_user_id.
+    This enables the backend to send targeted pushes via user ID using OneSignal REST API.
+    Requires the tenant to have oneSignalAppId + oneSignalApiKey configured in settings.
+    """
+    import httpx
+    from app.models import Tenant
+    from sqlalchemy import text as sa_text
+
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        return {"status": "skipped", "reason": "no tenant"}
+
+    # Load tenant settings
+    row = db.execute(
+        sa_text("SELECT settings FROM tenants WHERE id = :tid"),
+        {"tid": str(tenant_id)}
+    ).mappings().first()
+
+    if not row or not row["settings"]:
+        return {"status": "skipped", "reason": "no settings"}
+
+    settings = row["settings"]
+    app_id = settings.get("oneSignalAppId", "")
+    api_key = settings.get("oneSignalApiKey", "")
+
+    if not app_id or not api_key:
+        return {"status": "skipped", "reason": "onesignal not configured"}
+
+    # OneSignal: search for device by FCM token and set external_user_id
+    # We use the "Edit device" API if we have a player_id, otherwise skip gracefully.
+    # The mobile SDK must call OneSignal.setExternalUserId(user_id) for full linkage.
+    # This endpoint serves as the server-side fallback/confirmation.
+    user_id = str(current_user.get("id"))
+
+    try:
+        # Try to find player by alias (OneSignal v5+ API)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"https://api.onesignal.com/apps/{app_id}/users/by/external_id/{user_id}",
+                headers={"Authorization": f"Key {api_key}", "Content-Type": "application/json"},
+            )
+            if resp.status_code == 200:
+                return {"status": "already_linked", "user_id": user_id}
+
+            # Not linked yet — create or update via alias API
+            link_resp = await client.patch(
+                f"https://api.onesignal.com/apps/{app_id}/users/by/external_id/{user_id}",
+                headers={"Authorization": f"Key {api_key}", "Content-Type": "application/json"},
+                json={"properties": {"tags": {"tenant_id": str(tenant_id)}}},
+            )
+            return {
+                "status": "linked" if link_resp.status_code < 300 else "error",
+                "user_id": user_id,
+                "code": link_resp.status_code,
+            }
+    except Exception as exc:
+        return {"status": "error", "reason": str(exc)}
+
+
 # ─── 10. User Presence (/presence/) ───────────────────────────────────────────
 
 presence_router = APIRouter()

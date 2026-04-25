@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Building2, UserPlus, GraduationCap, Shield } from "lucide-react";
+import { ArrowLeft, Building2, UserPlus, GraduationCap, Shield, CheckCircle2, Copy, ExternalLink } from "lucide-react";
 
 const defaultLevels = [
   "CP", "CE1", "CE2", "CM1", "CM2",
@@ -25,7 +26,10 @@ const universityLevels = [
 const CreateTenantWithAdmin = () => {
   const { hasRole } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [createdSlug, setCreatedSlug] = useState<string | null>(null);
+  const [createdName, setCreatedName] = useState<string>("");
 
   // Tenant fields
   const [name, setName] = useState("");
@@ -75,11 +79,11 @@ const CreateTenantWithAdmin = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !slug || !adminEmail || !adminFirstName || !adminLastName || !adminPassword) {
-      toast.error("Veuillez remplir tous les champs obligatoires");
+      toast.error(t("messages.fillRequired"));
       return;
     }
     if (adminPassword.length < 8) {
-      toast.error("Le mot de passe doit contenir au moins 8 caractères");
+      toast.error(t("messages.passwordTooShort"));
       return;
     }
 
@@ -102,17 +106,73 @@ const CreateTenantWithAdmin = () => {
         levels,
       });
 
-      toast.success(`Établissement "${name}" créé avec succès !`);
-
-      // Stay on the super admin dashboard — the new admin can log in separately
-      navigate("/super-admin", { replace: true });
+      toast.success(t("messages.tenantCreated", { name }));
+      setCreatedSlug(slug);
+      setCreatedName(name);
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || "Erreur lors de la création";
+      const detail = err?.response?.data?.detail || t("messages.tenantCreateError");
       toast.error(detail);
     } finally {
       setLoading(false);
     }
   };
+
+  // ── Success panel after creation ──────────────────────────────────────────
+  if (createdSlug) {
+    const onboardingUrl = `${window.location.origin}/${createdSlug}/admin/onboarding`;
+    return (
+      <div className="space-y-6 max-w-2xl mx-auto">
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="pt-8 pb-8 text-center space-y-4">
+            <div className="flex justify-center">
+              <CheckCircle2 className="w-16 h-16 text-green-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-green-800">
+                {t("messages.tenantCreated", { name: createdName })}
+              </h2>
+              <p className="text-sm text-green-700 mt-1">
+                L'administrateur peut maintenant se connecter et configurer l'établissement.
+              </p>
+            </div>
+            <div className="bg-white border border-green-200 rounded-lg p-4 text-left space-y-3">
+              <p className="text-sm font-medium text-foreground">Lien de configuration initiale</p>
+              <p className="text-xs text-muted-foreground">
+                Partagez ce lien avec l'administrateur après sa première connexion :
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 text-xs bg-muted px-3 py-2 rounded font-mono truncate">
+                  {onboardingUrl}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(onboardingUrl);
+                    toast.success("Lien copié !");
+                  }}
+                  aria-label="Copier le lien d'onboarding"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(onboardingUrl, "_blank")}
+                  aria-label="Ouvrir le lien d'onboarding"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <Button onClick={() => navigate("/super-admin")} className="mt-2">
+              Retour au tableau de bord
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">

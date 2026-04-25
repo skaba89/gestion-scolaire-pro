@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -19,12 +19,14 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Users, Building2, Layers, Search, School } from "lucide-react";
+import { Users, Building2, Layers, Search, School, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StudentAvatar } from "@/components/students/StudentAvatar";
 import { referenceQueries } from "@/queries/reference-data";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { generateClassListPdf } from "@/utils/classListPdfGenerator";
 
 const ClassLists = () => {
     const { tenant } = useTenant();
@@ -32,6 +34,8 @@ const ClassLists = () => {
     const [selectedDept, setSelectedDept] = useState<string>("all");
     const [selectedLevel, setSelectedLevel] = useState<string>("all");
     const [searchTerm, setSearchTerm] = useState("");
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 5;
 
     const { data: departments = [] } = useQuery({
         ...referenceQueries.departments(tenant?.id || ""),
@@ -104,13 +108,19 @@ const ClassLists = () => {
         enabled: !!tenant,
     });
 
-    const filteredLists = classLists.filter(cls =>
-        cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cls.students.some(s =>
-            `${s.first_name} ${s.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            s.registration_number?.toLowerCase().includes(searchTerm.toLowerCase())
-        )
+    const filteredLists = useMemo(() =>
+        classLists.filter(cls =>
+            cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            cls.students.some((s: any) =>
+                `${s.first_name} ${s.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                s.registration_number?.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+        ),
+        [classLists, searchTerm]
     );
+
+    const totalPages = Math.max(1, Math.ceil(filteredLists.length / PAGE_SIZE));
+    const pagedLists = filteredLists.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     return (
         <div className="space-y-6">
@@ -128,7 +138,7 @@ const ClassLists = () => {
                             <label className="text-sm font-medium flex items-center gap-2">
                                 <Building2 className="w-4 h-4" /> Département
                             </label>
-                            <Select value={selectedDept} onValueChange={setSelectedDept}>
+                            <Select value={selectedDept} onValueChange={(v) => { setSelectedDept(v); setPage(1); }}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Tous les départements" />
                                 </SelectTrigger>
@@ -147,7 +157,7 @@ const ClassLists = () => {
                             <label className="text-sm font-medium flex items-center gap-2">
                                 <Layers className="w-4 h-4" /> Niveau
                             </label>
-                            <Select value={selectedLevel} onValueChange={setSelectedLevel}>
+                            <Select value={selectedLevel} onValueChange={(v) => { setSelectedLevel(v); setPage(1); }}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Tous les niveaux" />
                                 </SelectTrigger>
@@ -167,7 +177,7 @@ const ClassLists = () => {
                             <Input
                                 placeholder={`Rechercher une classe ou un ${studentLabel}...`}
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                             />
                         </div>
                     </div>
@@ -183,7 +193,7 @@ const ClassLists = () => {
                 </div>
             ) : (
                 <div className="space-y-8">
-                    {filteredLists.map((classroom) => (
+                    {pagedLists.map((classroom) => (
                         <Card key={classroom.id} className="overflow-hidden border-l-4 border-l-primary">
                             <CardHeader className="bg-muted/30">
                                 <div className="flex items-center justify-between flex-wrap gap-4">
@@ -207,6 +217,16 @@ const ClassLists = () => {
                                             </div>
                                         </div>
                                     </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => generateClassListPdf(classroom, tenant?.name || "")}
+                                        aria-label={`Exporter la liste de ${classroom.name} en PDF`}
+                                        disabled={classroom.students.length === 0}
+                                    >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Exporter PDF
+                                    </Button>
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
@@ -260,6 +280,34 @@ const ClassLists = () => {
                             </CardContent>
                         </Card>
                     ))}
+
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-2">
+                            <p className="text-sm text-muted-foreground">
+                                Page {page} sur {totalPages} · {filteredLists.length} classes
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    aria-label="Page précédente"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    disabled={page === totalPages}
+                                    aria-label="Page suivante"
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

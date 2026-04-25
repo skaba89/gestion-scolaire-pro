@@ -287,11 +287,19 @@ def list_grade_history(
         where.append("student_id = :student_id")
         params["student_id"] = student_id
 
-    order_col = "created_at"
-    order_dir = "DESC"
-    if ordering and ordering.lstrip("-") in ("created_at", "old_score", "new_score"):
-        order_col = ordering.lstrip("-")
-        order_dir = "ASC" if not ordering.startswith("-") else "DESC"
+    # Whitelist stricte — jamais d'interpolation directe de paramètres utilisateur
+    _ALLOWED_ORDER_COLS = {
+        "created_at": "gh.created_at",
+        "old_score": "gh.old_score",
+        "new_score": "gh.new_score",
+    }
+    _ALLOWED_ORDER_DIRS = {"ASC": "ASC", "DESC": "DESC"}
+
+    raw_col = ordering.lstrip("-") if ordering else "created_at"
+    raw_dir = "ASC" if (ordering and not ordering.startswith("-")) else "DESC"
+
+    safe_col = _ALLOWED_ORDER_COLS.get(raw_col, "gh.created_at")
+    safe_dir = _ALLOWED_ORDER_DIRS.get(raw_dir, "DESC")
 
     rows = db.execute(text(f"""
         SELECT gh.id, gh.grade_id, gh.old_score, gh.new_score,
@@ -300,7 +308,7 @@ def list_grade_history(
         FROM grade_history gh
         LEFT JOIN users u ON u.id = gh.user_id
         WHERE {' AND '.join(where)}
-        ORDER BY gh.{order_col} {order_dir}
+        ORDER BY {safe_col} {safe_dir}
         LIMIT 200
     """), params).mappings().all()
 

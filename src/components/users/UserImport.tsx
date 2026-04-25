@@ -339,7 +339,12 @@ export const UserImport = ({ onImportComplete }: UserImportProps) => {
                           <Badge variant="secondary">{getRoleLabel(user.role, StudentLabel)}</Badge>
                         </TableCell>
                         <TableCell>
-                          <code className="text-xs bg-muted px-1 rounded">{user.password}</code>
+                          <div className="flex items-center gap-1.5">
+                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded select-none">
+                              {'•'.repeat(10)}
+                            </code>
+                            <span className="text-xs text-muted-foreground">(envoyé par email)</span>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

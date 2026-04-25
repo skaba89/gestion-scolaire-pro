@@ -1,10 +1,12 @@
 import time
 import logging
+from typing import Optional
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-import redis
+import redis as redis_lib
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -15,13 +17,16 @@ router = APIRouter()
 
 
 class ServiceStatus(BaseModel):
-    status: str
-    latency_ms: float | None = None
-    detail: str | None = None
+    status: str  # "healthy" | "unhealthy" | "degraded"
+    latency_ms: Optional[float] = None
+    detail: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
-    status: str
+    status: str           # "healthy" | "degraded" | "unhealthy"
+    version: str
+    environment: str
+    uptime_check: str     # timestamp ISO de ce check
     database: ServiceStatus
     redis: ServiceStatus
 
@@ -30,31 +35,38 @@ def _check_database(db: Session) -> ServiceStatus:
     t0 = time.monotonic()
     try:
         db.execute(text("SELECT 1"))
-        return ServiceStatus(status="healthy", latency_ms=round((time.monotonic() - t0) * 1000, 2))
+        return ServiceStatus(
+            status="healthy",
+            latency_ms=round((time.monotonic() - t0) * 1000, 2),
+        )
     except Exception as e:
-        logging.getLogger(__name__).error("Database health check failed: %s", e)
-        return ServiceStatus(status="unhealthy", detail="Database service unavailable")
+        logger.error("Database health check failed: %s", e)
+        return ServiceStatus(status="unhealthy", detail="Database unreachable")
 
 
 def _check_redis() -> ServiceStatus:
     t0 = time.monotonic()
     try:
-        client = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        client = redis_lib.from_url(settings.REDIS_URL, socket_connect_timeout=2)
         client.ping()
         client.close()
-        return ServiceStatus(status="healthy", latency_ms=round((time.monotonic() - t0) * 1000, 2))
+        return ServiceStatus(
+            status="healthy",
+            latency_ms=round((time.monotonic() - t0) * 1000, 2),
+        )
     except Exception as e:
-        logging.getLogger(__name__).error("Redis health check failed: %s", e)
-        return ServiceStatus(status="unhealthy", detail="Redis service unavailable")
+        logger.warning("Redis health check failed: %s", e)
+        # Redis est optionnel en dev SQLite
+        status = "degraded" if settings.is_sqlite else "unhealthy"
+        return ServiceStatus(status=status, detail="Redis unreachable")
 
 
 @router.get("/", response_model=HealthResponse)
 def health_check(db: Session = Depends(get_db)):
     """
-    Health check for all critical services: Database, Redis.
-    Returns status and latency for each service.
-    Status is 'healthy' when all services are up, 'degraded' otherwise.
-    Note: Redis is optional in SQLite dev mode — "degraded" is expected if Redis is not running.
+    Health check enrichi — vérifie DB, Redis, retourne version et latences.
+    Retourne HTTP 200 si tout est healthy, 503 si dégradé ou unhealthy.
+    Utilisé par Railway, Netlify, UptimeRobot et le CD pipeline.
     """
     db_status = _check_database(db)
     redis_status = _check_redis()
@@ -63,9 +75,31 @@ def health_check(db: Session = Depends(get_db)):
         s.status == "healthy"
         for s in [db_status, redis_status]
     )
+    any_unhealthy = any(
+        s.status == "unhealthy"
+        for s in [db_status, redis_status]
+    )
 
-    return HealthResponse(
-        status="healthy" if all_healthy else "degraded",
+    if all_healthy:
+        global_status = "healthy"
+        http_code = 200
+    elif any_unhealthy:
+        global_status = "unhealthy"
+        http_code = 503
+    else:
+        global_status = "degraded"
+        http_code = 503
+
+    body = HealthResponse(
+        status=global_status,
+        version=settings.APP_VERSION,
+        environment=settings.SENTRY_ENVIRONMENT,
+        uptime_check=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         database=db_status,
         redis=redis_status,
+    )
+
+    return JSONResponse(
+        status_code=http_code,
+        content=body.model_dump(),
     )

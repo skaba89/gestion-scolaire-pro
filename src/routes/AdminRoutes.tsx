@@ -72,6 +72,7 @@ const DecisionDashboard = lazy(() => import("@/pages/admin/DecisionDashboard"));
 const QrScanPage = lazy(() => import("@/pages/admin/QrScanPage"));
 const Onboarding = lazy(() => import("@/pages/admin/Onboarding"));
 const MinistryDashboard = lazy(() => import("@/pages/admin/MinistryDashboard"));
+const DataImport = lazy(() => import("@/pages/admin/DataImport"));
 const LandingPageEditor = lazy(() => import("@/pages/admin/LandingPageEditor"));
 const CreateTenant = lazy(() => import("@/pages/admin/CreateTenant"));
 const PublicPagesManager = lazy(() => import("@/pages/admin/PublicPagesManager"));
@@ -149,6 +150,7 @@ export const AdminRoutes = () => {
             <Route path="decision-support" element={<DecisionDashboard />} />
             <Route path="scan" element={<QrScanPage />} />
             <Route path="ministry-reporting" element={<MinistryDashboard />} />
+            <Route path="data-import" element={<DataImport />} />
             <Route path="landing" element={<LandingPageEditor />} />
             <Route path="create-tenant" element={<CreateTenant />} />
             <Route path="public-pages" element={<PublicPagesManager />} />

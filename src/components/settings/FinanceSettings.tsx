@@ -35,9 +35,14 @@ interface FinanceConfig {
   reminderDaysBefore: number;
   penaltyType: "FIXED" | "PERCENTAGE";
   penaltyFrequency: "ONCE" | "MONTHLY";
+  // PayTech (Sénégal — Wave, Orange Money, MTN)
   enableMobileMoney: boolean;
   paytechApiKey: string;
   paytechSecretKey: string;
+  // CinetPay (CI, SN, ML, BF, TG, CM, CG…)
+  enableCinetPay: boolean;
+  cinetPayApiKey: string;
+  cinetPaySiteId: string;
 }
 
 const FinanceSettings = () => {
@@ -61,6 +66,9 @@ const FinanceSettings = () => {
     enableMobileMoney: false,
     paytechApiKey: "",
     paytechSecretKey: "",
+    enableCinetPay: false,
+    cinetPayApiKey: "",
+    cinetPaySiteId: "",
   });
 
   useEffect(() => {
@@ -83,6 +91,9 @@ const FinanceSettings = () => {
         enableMobileMoney: !!settings.enableMobileMoney,
         paytechApiKey: settings.paytechApiKey || "",
         paytechSecretKey: settings.paytechSecretKey || "",
+        enableCinetPay: !!settings.enableCinetPay,
+        cinetPayApiKey: settings.cinetPayApiKey || "",
+        cinetPaySiteId: settings.cinetPaySiteId || "",
       });
     }
   }, [settings]);
@@ -373,6 +384,65 @@ const FinanceSettings = () => {
                   value={formData.paytechSecretKey}
                   onChange={(e) => setFormData({ ...formData, paytechSecretKey: e.target.value })}
                   placeholder="votre_secret_key_paytech"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CinetPay */}
+        <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-orange-500" />
+              <Label className="text-base font-medium">CinetPay</Label>
+              <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">
+                CI · SN · ML · BF · TG · CM
+              </Badge>
+              {formData.enableCinetPay && (
+                <Badge variant="outline" className="gap-1 bg-green-500/10 text-green-700 border-green-500/30">
+                  <CheckCircle className="w-3 h-3" />
+                  Actif
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Paiements via CinetPay — Wave, Orange Money, MTN, carte bancaire (Afrique francophone)
+            </p>
+          </div>
+          <Switch
+            checked={formData.enableCinetPay}
+            onCheckedChange={(checked) => setFormData({ ...formData, enableCinetPay: checked })}
+          />
+        </div>
+
+        {formData.enableCinetPay && (
+          <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Obtenez vos clés sur{" "}
+              <a href="https://cinetpay.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                cinetpay.com
+              </a>{" "}
+              → Paramètres → API
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cinetPayApiKey">Clé API CinetPay</Label>
+                <Input
+                  id="cinetPayApiKey"
+                  type="password"
+                  value={formData.cinetPayApiKey}
+                  onChange={(e) => setFormData({ ...formData, cinetPayApiKey: e.target.value })}
+                  placeholder="votre_api_key_cinetpay"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cinetPaySiteId">Site ID CinetPay</Label>
+                <Input
+                  id="cinetPaySiteId"
+                  value={formData.cinetPaySiteId}
+                  onChange={(e) => setFormData({ ...formData, cinetPaySiteId: e.target.value })}
+                  placeholder="123456"
                 />
               </div>
             </div>

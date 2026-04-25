@@ -180,5 +180,40 @@
     "fullScreen": "全屏模式",
     "notifications": "通知",
     "performance": "性能"
+  },
+  "messages": {
+    "tenantCreated": "机构\"{{name}}\"创建成功！",
+    "tenantCreateError": "创建时出错",
+    "fillRequired": "请填写所有必填字段",
+    "passwordTooShort": "密码至少需要8个字符",
+    "reportCardDownloaded": "成绩单已下载",
+    "reportCardDownloadHint": "在浏览器中打开.html文件，点击打印→另存为PDF",
+    "reportCardGenerated": "成绩单已生成 ✅",
+    "reportCardGenerateError": "生成错误",
+    "reportCardGenerating": "生成中...",
+    "reportCardBatchPreparing": "正在准备{{count}}份成绩单",
+    "reportCardBatchGenerated": "{{count}}份成绩单已生成 ✅",
+    "reportCardBatchHint": "在打开的窗口中点击"打印"→"另存为PDF"",
+    "reportCardBatchError": "批量生成错误",
+    "retryLater": "请稍后重试"
+  },
+  "reportCards": {
+    "title": "成绩单",
+    "subtitle": "几内亚官方格式 · 排名 · 缺勤 · 委员会决定",
+    "decisionUndetermined": "— 待确定 —",
+    "decisionPromotion": "✅ 升入下一年级",
+    "decisionCongratulations": "🏆 委员会表彰",
+    "decisionEncouragement": "👏 鼓励",
+    "decisionWarning": "⚠️ 学习警告",
+    "decisionRepeat": "🔁 留级",
+    "generateAll": "所有成绩单（{{count}}份）",
+    "generating": "生成中...",
+    "officialReport": "官方成绩单",
+    "councilDecision": "班级委员会决定及选项",
+    "councilDecisionLabel": "班级委员会决定",
+    "generalAppreciation": "班主任总体评语",
+    "showOfficialHeader": "显示"几内亚共和国"官方抬头",
+    "individualReports": "个人成绩单",
+    "resultsAnalysis": "成绩分析"
   }
 }

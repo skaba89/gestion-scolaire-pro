@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { apiClient } from "@/api/client";
+import { compressImage } from "@/lib/imageCompression";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, Loader2, Trash2 } from "lucide-react";
@@ -40,14 +41,11 @@ export function StudentPhotoUpload({
     setUploading(true);
 
     try {
-      // Generate unique filename
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${studentId}-${Date.now()}.${fileExt}`;
-      const filePath = `photos/${fileName}`;
+      // Compress before upload: max 800px, JPEG 82% quality
+      const compressed = await compressImage(file, { maxWidthOrHeight: 800, quality: 0.82 });
 
-      // Upload photo
       const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
+      uploadFormData.append('file', compressed);
       uploadFormData.append('type', 'student-photo');
       uploadFormData.append('student_id', studentId);
 

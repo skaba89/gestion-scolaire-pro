@@ -87,7 +87,7 @@ export const useNativePushNotifications = () => {
         token: token.value
       }));
 
-      // Save token to backend
+      // Save token to backend (FCM/APNs push subscription)
       if (user?.id && currentTenant?.id) {
         try {
           const platform = Capacitor.getPlatform();
@@ -101,6 +101,21 @@ export const useNativePushNotifications = () => {
             auth,
             p256dh: token.value,
           });
+
+          // Register user's external ID with OneSignal so the backend can
+          // target them by user_id via the OneSignal REST API.
+          // The OneSignal Capacitor/JS SDK running in the app picks up the
+          // VITE_ONESIGNAL_APP_ID env var and handles device subscription
+          // automatically — we only need to link the external user ID here.
+          try {
+            await apiClient.post("/push-subscriptions/onesignal-link/", {
+              user_id: user.id,
+              tenant_id: currentTenant.id,
+              fcm_token: token.value,
+            });
+          } catch {
+            // Non-fatal: OneSignal linking is best-effort
+          }
         } catch (error) {
           console.error('Error saving push token:', error);
         }

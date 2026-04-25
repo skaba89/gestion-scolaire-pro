@@ -2,6 +2,13 @@ import axios from 'axios';
 
 const TOKEN_STORAGE_KEY = 'schoolflow:access_token';
 
+/** Timeout global toutes requêtes API : 15 secondes. */
+const API_TIMEOUT_MS = 15_000;
+
+/** Codes HTTP transitoires qui méritent un retry automatique. */
+const RETRYABLE_STATUS_CODES = [502, 503, 504];
+const MAX_AUTO_RETRIES = 2;
+
 // Mutex for token refresh — prevents concurrent refresh calls
 let refreshPromise: Promise<string> | null = null;
 
@@ -51,6 +58,7 @@ function resolveApiBaseUrl(rawValue?: string): string {
 
 export const apiClient = axios.create({
   baseURL: `${resolveApiBaseUrl(import.meta.env.VITE_API_URL)}/api/v1`,
+  timeout: API_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -78,7 +86,22 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config;
+    const originalRequest = error.config as typeof error.config & {
+      _retry?: boolean;
+      _retryCount?: number;
+    };
+
+    // Retry automatique sur erreurs serveur transitoires (502, 503, 504)
+    const httpStatus = error.response?.status;
+    if (httpStatus && RETRYABLE_STATUS_CODES.includes(httpStatus) && originalRequest) {
+      const retryCount = originalRequest._retryCount ?? 0;
+      if (retryCount < MAX_AUTO_RETRIES) {
+        originalRequest._retryCount = retryCount + 1;
+        const delay = 500 * (retryCount + 1); // 500ms, 1000ms
+        await new Promise((r) => setTimeout(r, delay));
+        return apiClient(originalRequest);
+      }
+    }
 
     // Attempt token refresh on 401 (except for auth endpoints and if already retried)
     if (
@@ -104,7 +127,7 @@ apiClient.interceptors.response.use(
         }
         const newToken = await refreshPromise;
         if (!newToken) {
-          console.error('[Auth] Token refresh succeeded but returned no access_token');
+          if (import.meta.env.DEV) console.warn('[Auth] Token refresh returned no access_token');
         }
         if (newToken) {
           // Determine which storage originally held the token and write back there only
@@ -144,7 +167,7 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 404 && error.config?.url?.includes('/tenants/')) {
-      console.warn('Tenant request failed with 404, clearing last_tenant_id...');
+      if (import.meta.env.DEV) console.warn('[API] Tenant 404 — clearing last_tenant_id');
       localStorage.removeItem('last_tenant_id');
     }
 

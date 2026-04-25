@@ -63,7 +63,7 @@ const StudentCareers = () => {
   });
 
   // Fetch my applications
-  const { data: myApplications = [] } = useQuery({
+  const { data: myApplications = [], isLoading: isLoadingApplications } = useQuery({
     queryKey: ["my-applications", currentStudent?.id],
     queryFn: () => studentsService.getMyApplications(currentStudent?.id || ""),
     enabled: !!currentStudent?.id,
@@ -103,7 +103,7 @@ const StudentCareers = () => {
       if (!currentStudent?.id || !selectedOffer?.id || !tenant?.id) {
         throw new Error("Missing data");
       }
-      await apiClient.post("/alumni/applications/", {
+      await apiClient.post("/alumni/careers/applications/", {
         job_offer_id: selectedOffer.id,
         student_id: currentStudent.id,
         cover_letter: applicationForm.cover_letter,
@@ -118,7 +118,7 @@ const StudentCareers = () => {
       toast.success("Candidature envoyée avec succès!");
     },
     onError: (error: any) => {
-      if (error.message?.includes("duplicate")) {
+      if (error.response?.status === 409) {
         toast.error("Vous avez déjà postulé à cette offre");
       } else {
         toast.error("Erreur lors de l'envoi de la candidature");
@@ -130,7 +130,7 @@ const StudentCareers = () => {
   const registerEventMutation = useMutation({
     mutationFn: async (eventId: string) => {
       if (!currentStudent?.id || !tenant?.id) throw new Error("Missing data");
-      await apiClient.post("/alumni/events/register/", {
+      await apiClient.post("/school-life/event-registrations/", {
         event_id: eventId,
         student_id: currentStudent.id,
       });
@@ -140,7 +140,7 @@ const StudentCareers = () => {
       toast.success("Inscription confirmée!");
     },
     onError: (error: any) => {
-      if (error.message?.includes("duplicate")) {
+      if (error.response?.status === 409) {
         toast.error("Vous êtes déjà inscrit à cet événement");
       } else {
         toast.error("Erreur lors de l'inscription");
@@ -154,12 +154,12 @@ const StudentCareers = () => {
       if (!currentStudent?.id || !selectedMentor?.id || !tenant?.id) {
         throw new Error("Missing data");
       }
-      await apiClient.post("/alumni/mentors/request/", {
+      await apiClient.post("/alumni/mentorship-requests/", {
         mentor_id: selectedMentor.id,
         student_id: currentStudent.id,
         message: mentorshipForm.message,
         goals: mentorshipForm.goals,
-        status: "PENDING",
+        status: "pending",
       });
     },
     onSuccess: () => {
@@ -170,7 +170,7 @@ const StudentCareers = () => {
       toast.success("Demande de mentorat envoyée!");
     },
     onError: (error: any) => {
-      if (error.message?.includes("duplicate")) {
+      if (error.response?.status === 409) {
         toast.error("Vous avez déjà contacté ce mentor");
       } else {
         toast.error("Erreur lors de l'envoi de la demande");
@@ -206,6 +206,7 @@ const StudentCareers = () => {
   };
 
   const hasApplied = (offerId: string) => {
+    if (isLoadingApplications) return false; // don't block UI while loading
     return myApplications.some(app => app.job_offer_id === offerId);
   };
 
@@ -316,7 +317,12 @@ const StudentCareers = () => {
                   )}
                 </CardContent>
                 <CardFooter className="gap-2">
-                  {hasApplied(offer.id) ? (
+                  {isLoadingApplications ? (
+                    <Button variant="secondary" disabled className="flex-1">
+                      <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      Chargement...
+                    </Button>
+                  ) : hasApplied(offer.id) ? (
                     <Button variant="secondary" disabled className="flex-1">
                       <Check className="h-4 w-4 mr-2" />
                       Déjà postulé
@@ -394,7 +400,7 @@ const StudentCareers = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>Postulé le {format(new Date(app.applied_at), "dd MMM yyyy", { locale: fr })}</span>
+                    <span>Postulé le {app.applied_at ? format(new Date(app.applied_at), "dd MMM yyyy", { locale: fr }) : "—"}</span>
                     {app.job_offers && getOfferTypeBadge(app.job_offers.offer_type)}
                   </div>
                 </CardContent>

@@ -1,8 +1,10 @@
 import { apiClient } from "@/api/client";
+import { offlineDb, cacheStudents } from "@/lib/offlineDb";
 
 /**
- * Reference data queries with longer cache times
- * These are relatively static data that don't change frequently
+ * Reference data queries with longer cache times.
+ * The `students` query writes through to IndexedDB so offline attendance/grade
+ * entry can look up students without a network connection.
  */
 export const referenceQueries = {
     levels: (tenantId: string) => ({
@@ -35,10 +37,35 @@ export const referenceQueries = {
     students: (tenantId: string) => ({
         queryKey: ['students', tenantId] as const,
         queryFn: async () => {
-            const response = await apiClient.get('/students/', {
-                params: { page_size: 1000 } // Fetch a large batch for reference
-            });
-            return response.data.items || [];
+            try {
+                const response = await apiClient.get('/students/', {
+                    params: { page_size: 1000 },
+                });
+                const items: any[] = response.data.items || [];
+                // Write through to IndexedDB for offline use (fire-and-forget)
+                cacheStudents(
+                    tenantId,
+                    items.map((s) => ({
+                        id: s.id,
+                        tenantId,
+                        firstName: s.first_name,
+                        lastName: s.last_name,
+                        registrationNumber: s.registration_number,
+                        classroomId: s.current_classroom_id,
+                        gender: s.gender,
+                        status: s.status,
+                    }))
+                ).catch(() => undefined);
+                return items;
+            } catch (err) {
+                // Network unavailable — serve from IndexedDB cache
+                const cached = await offlineDb.cachedStudents
+                    .where("tenantId")
+                    .equals(tenantId)
+                    .toArray();
+                if (cached.length > 0) return cached;
+                throw err;
+            }
         },
         staleTime: 10 * 60 * 1000, // 10 minutes
     }),

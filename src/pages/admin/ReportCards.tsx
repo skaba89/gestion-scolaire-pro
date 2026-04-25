@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -65,18 +67,20 @@ interface GradeData {
 
 // ── Décision choices ────────────────────────────────────────────────────────────
 
-const DECISIONS = [
-  { value: "", label: "— À déterminer —" },
-  { value: "Passage", label: "✅ Passage en classe supérieure" },
-  { value: "Félicitations", label: "🏆 Félicitations du conseil" },
-  { value: "Encouragements", label: "👏 Encouragements" },
-  { value: "Avertissement", label: "⚠️ Avertissement de travail" },
-  { value: "Redoublement", label: "🔁 Redoublement" },
-];
+function getDecisions(t: (k: string) => string) {
+  return [
+    { value: "", label: t("reportCards.decisionUndetermined") },
+    { value: "Passage", label: t("reportCards.decisionPromotion") },
+    { value: "Félicitations", label: t("reportCards.decisionCongratulations") },
+    { value: "Encouragements", label: t("reportCards.decisionEncouragement") },
+    { value: "Avertissement", label: t("reportCards.decisionWarning") },
+    { value: "Redoublement", label: t("reportCards.decisionRepeat") },
+  ];
+}
 
 // ── Helper: open bulletin in new tab or download ────────────────────────────────
 
-function openOrDownload(base64Html: string, filename: string, toast: any) {
+function openOrDownload(base64Html: string, filename: string, toast: any, t: (k: string) => string) {
   const decodedHtml = atob(base64Html);
   const printWindow = window.open("", "_blank");
   if (printWindow) {
@@ -95,8 +99,8 @@ function openOrDownload(base64Html: string, filename: string, toast: any) {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast({
-      title: "Bulletin téléchargé",
-      description: "Ouvrez le fichier .html dans votre navigateur et cliquez Imprimer → Enregistrer en PDF",
+      title: t("messages.reportCardDownloaded"),
+      description: t("messages.reportCardDownloadHint"),
     });
   }
 }
@@ -106,14 +110,12 @@ function openOrDownload(base64Html: string, filename: string, toast: any) {
 const ReportCards = () => {
   const { tenant } = useTenant();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { studentLabel, StudentsLabel, studentsLabel } = useStudentLabel();
+  const DECISIONS = getDecisions(t);
 
-  const [terms, setTerms] = useState<Term[]>([]);
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
   const [selectedTerm, setSelectedTerm] = useState("");
   const [selectedClassroom, setSelectedClassroom] = useState("");
-  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null); // studentId or "batch"
 
   // Council decision (applied to all bulletins in this batch)
@@ -122,77 +124,70 @@ const ReportCards = () => {
   const [showGuineaHeader, setShowGuineaHeader] = useState(true);
   const [showCouncilOptions, setShowCouncilOptions] = useState(false);
 
-  // Legacy grade data (for PerformanceAnalytics tab)
-  const [studentGrades, setStudentGrades] = useState<Map<string, GradeData[]>>(new Map());
+  // ── Data loading via React Query ──────────────────────────────────────────────
 
-  // ── Data loading ────────────────────────────────────────────────────────────
+  const { data: terms = [], isLoading: termsLoading } = useQuery({
+    queryKey: ["report-cards", "terms", tenant?.id],
+    queryFn: () =>
+      apiClient.get<any[]>("/terms/").then((r) =>
+        (r.data || []).map((t: any) => ({ ...t, academic_year: t.academic_year || t.academic_years }))
+      ),
+    enabled: !!tenant,
+  });
 
-  const fetchData = async () => {
-    if (!tenant) return;
-    setLoading(true);
-    try {
-      const [termsRes, classroomsRes] = await Promise.all([
-        apiClient.get<any[]>("/terms/").catch(() => ({ data: [] })),
-        apiClient.get<any[]>("/infrastructure/classrooms/").catch(() => ({ data: [] })),
-      ]);
-      const formattedTerms = (termsRes.data || []).map((t: any) => ({
-        ...t,
-        academic_year: t.academic_year || t.academic_years,
-      }));
-      setTerms(formattedTerms);
-      if (formattedTerms.length > 0) setSelectedTerm(formattedTerms[0].id);
+  const { data: classrooms = [], isLoading: classroomsLoading } = useQuery({
+    queryKey: ["report-cards", "classrooms", tenant?.id],
+    queryFn: () =>
+      apiClient.get<any[]>("/infrastructure/classrooms/").then((r) =>
+        (r.data || []).map((c: any) => ({ ...c, level: c.level || c.levels }))
+      ),
+    enabled: !!tenant,
+  });
 
-      const formattedClassrooms = (classroomsRes.data || []).map((c: any) => ({
-        ...c,
-        level: c.level || c.levels,
-      }));
-      setClassrooms(formattedClassrooms);
-      if (formattedClassrooms.length > 0) setSelectedClassroom(formattedClassrooms[0].id);
-    } catch {
-      toast({ title: "Erreur", description: "Impossible de charger les données", variant: "destructive" });
-    }
-    setLoading(false);
-  };
+  // Set initial selection once data arrives
+  useEffect(() => {
+    if (terms.length > 0 && !selectedTerm) setSelectedTerm(terms[0].id);
+  }, [terms]);
+  useEffect(() => {
+    if (classrooms.length > 0 && !selectedClassroom) setSelectedClassroom(classrooms[0].id);
+  }, [classrooms]);
 
-  const fetchStudentsAndGrades = async () => {
-    if (!tenant || !selectedClassroom || !selectedTerm) return;
-    try {
+  const { data: enrollmentData, isLoading: enrollmentLoading } = useQuery({
+    queryKey: ["report-cards", "enrollments", tenant?.id, selectedClassroom, selectedTerm],
+    queryFn: async () => {
       const enrollmentsRes = await apiClient.get<any[]>("/infrastructure/enrollments/", {
         params: { class_id: selectedClassroom, status: "active" },
       });
       const studentList = (enrollmentsRes.data || [])
         .map((e: any) => e.student || e.students)
-        .filter(Boolean);
-      setStudents(studentList);
-
-      // Grades for analytics tab
-      const studentIds = studentList.map((s: Student) => s.id);
-      if (studentIds.length > 0) {
-        const gradesRes = await apiClient.get<any[]>("/grades/", {
-          params: { student_ids: studentIds },
-        }).catch(() => ({ data: [] }));
-        const gradesMap = new Map<string, GradeData[]>();
-        (gradesRes.data || []).forEach((g: any) => {
-          const sg = gradesMap.get(g.student_id) || [];
-          sg.push({
-            student_id: g.student_id,
-            subject_name: g.subject_name || g.assessments?.subjects?.name || "Matière",
-            score: g.score,
-            max_score: g.max_score || 20,
-            coefficient: g.coefficient || g.assessments?.subjects?.coefficient || 1,
-            weight: g.weight || 1,
-          });
-          gradesMap.set(g.student_id, sg);
-        });
-        setStudentGrades(gradesMap);
+        .filter(Boolean) as Student[];
+      if (studentList.length === 0) {
+        return { students: [] as Student[], gradesMap: new Map<string, GradeData[]>() };
       }
-    } catch {
-      toast({ title: "Erreur", description: "Impossible de charger les élèves", variant: "destructive" });
-    }
-  };
+      const gradesRes = await apiClient
+        .get<any[]>("/grades/", { params: { student_ids: studentList.map((s) => s.id) } })
+        .catch(() => ({ data: [] }));
+      const gradesMap = new Map<string, GradeData[]>();
+      (gradesRes.data || []).forEach((g: any) => {
+        const sg = gradesMap.get(g.student_id) || [];
+        sg.push({
+          student_id: g.student_id,
+          subject_name: g.subject_name || g.assessments?.subjects?.name || "Matière",
+          score: g.score,
+          max_score: g.max_score || 20,
+          coefficient: g.coefficient || g.assessments?.subjects?.coefficient || 1,
+          weight: g.weight || 1,
+        });
+        gradesMap.set(g.student_id, sg);
+      });
+      return { students: studentList, gradesMap };
+    },
+    enabled: !!tenant && !!selectedClassroom && !!selectedTerm,
+  });
 
-  useEffect(() => { fetchData(); }, [tenant]);
-  useEffect(() => { fetchStudentsAndGrades(); }, [selectedClassroom, selectedTerm]);
+  const students = enrollmentData?.students ?? [];
+  const studentGrades = enrollmentData?.gradesMap ?? new Map<string, GradeData[]>();
+  const loading = termsLoading || classroomsLoading || enrollmentLoading;
 
   // ── Average for analytics (local calculation) ───────────────────────────────
 
@@ -239,13 +234,13 @@ const ReportCards = () => {
         const term = terms.find(t => t.id === selectedTerm);
         const name = `${student?.last_name}_${student?.first_name}`.replace(/\s+/g, "_");
         const termName = (term?.name || "trimestre").replace(/\s+/g, "_");
-        openOrDownload(data.html, `bulletin_${name}_${termName}.html`, toast);
-        toast({ title: "Bulletin généré ✅", description: `${data.student_name} — Moy. ${data.average || "—"}/20 — Rang ${data.rank || "—"}/${data.class_total || "—"}` });
+        openOrDownload(data.html, `bulletin_${name}_${termName}.html`, toast, t);
+        toast({ title: t("messages.reportCardGenerated"), description: `${data.student_name} — Moy. ${data.average || "—"}/20 — Rang ${data.rank || "—"}/${data.class_total || "—"}` });
       }
     } catch (err: any) {
       toast({
-        title: "Erreur de génération",
-        description: err.response?.data?.detail || "Réessayez dans quelques instants",
+        title: t("messages.reportCardGenerateError"),
+        description: err.response?.data?.detail || t("messages.retryLater"),
         variant: "destructive",
       });
     } finally {
@@ -258,7 +253,7 @@ const ReportCards = () => {
   const generateAllBulletins = async () => {
     if (students.length === 0) return;
     setGenerating("batch");
-    toast({ title: "Génération en cours...", description: `Préparation de ${students.length} bulletins` });
+    toast({ title: t("messages.reportCardGenerating"), description: t("messages.reportCardBatchPreparing", { count: students.length }) });
     try {
       const response = await apiClient.post("/school-life/generate-report-cards/batch/", {
         classroom_id: selectedClassroom,
@@ -273,16 +268,16 @@ const ReportCards = () => {
         const classroom = classrooms.find(c => c.id === selectedClassroom);
         const termName = (term?.name || "trimestre").replace(/\s+/g, "_");
         const className = (classroom?.name || "classe").replace(/\s+/g, "_");
-        openOrDownload(data.html, `bulletins_${className}_${termName}_${data.count}eleves.html`, toast);
+        openOrDownload(data.html, `bulletins_${className}_${termName}_${data.count}eleves.html`, toast, t);
         toast({
-          title: `${data.count} bulletins générés ✅`,
-          description: "Cliquez 'Imprimer' dans la fenêtre ouverte → 'Enregistrer en PDF'",
+          title: t("messages.reportCardBatchGenerated", { count: data.count }),
+          description: t("messages.reportCardBatchHint"),
         });
       }
     } catch (err: any) {
       toast({
-        title: "Erreur génération groupée",
-        description: err.response?.data?.detail || "Réessayez dans quelques instants",
+        title: t("messages.reportCardBatchError"),
+        description: err.response?.data?.detail || t("messages.retryLater"),
         variant: "destructive",
       });
     } finally {

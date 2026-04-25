@@ -17,10 +17,12 @@ import { SettingsProvider } from "@/components/providers/SettingsProvider";
 import { DynamicThemeProvider } from "@/components/providers/DynamicThemeProvider";
 import { TenantHead } from "@/components/providers/TenantHead";
 import { AIChatWidget } from "@/components/ai/AIChatWidget";
+import { useOneSignalInit } from "@/hooks/useOneSignalInit";
 
 // Components
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PortalErrorBoundary } from "@/components/common/PortalErrorBoundary";
 
 // Layouts
 import { AdminLayout } from "@/components/layouts/AdminLayout";
@@ -93,6 +95,10 @@ const AppContent = memo(() => {
     return () => window.removeEventListener('auth:clear-cache', handleClearCache);
   }, []);
 
+  // Initialize OneSignal Web Push for PWA/browser users
+  // (Native Capacitor push is handled separately in useNativePushNotifications)
+  useOneSignalInit();
+
   return (
     <>
       <Toaster />
@@ -125,7 +131,9 @@ const AppContent = memo(() => {
                 element={
                   <TenantRoute>
                     <ProtectedRoute allowedRoles={["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "STAFF", "ACCOUNTANT", "SECRETARY"]}>
-                      <AdminLayout />
+                      <PortalErrorBoundary>
+                        <AdminLayout />
+                      </PortalErrorBoundary>
                     </ProtectedRoute>
                   </TenantRoute>
                 }
@@ -138,7 +146,9 @@ const AppContent = memo(() => {
                 element={
                   <TenantRoute>
                     <ProtectedRoute allowedRoles={["PARENT"]}>
-                      <ParentLayout />
+                      <PortalErrorBoundary>
+                        <ParentLayout />
+                      </PortalErrorBoundary>
                     </ProtectedRoute>
                   </TenantRoute>
                 }
@@ -151,7 +161,9 @@ const AppContent = memo(() => {
                 element={
                   <TenantRoute>
                     <ProtectedRoute allowedRoles={["TEACHER"]}>
-                      <TeacherLayout />
+                      <PortalErrorBoundary>
+                        <TeacherLayout />
+                      </PortalErrorBoundary>
                     </ProtectedRoute>
                   </TenantRoute>
                 }
@@ -164,7 +176,9 @@ const AppContent = memo(() => {
                 element={
                   <TenantRoute>
                     <ProtectedRoute allowedRoles={["STUDENT"]}>
-                      <StudentLayout />
+                      <PortalErrorBoundary>
+                        <StudentLayout />
+                      </PortalErrorBoundary>
                     </ProtectedRoute>
                   </TenantRoute>
                 }
@@ -177,7 +191,9 @@ const AppContent = memo(() => {
                 element={
                   <TenantRoute>
                     <ProtectedRoute allowedRoles={["ALUMNI", "STUDENT"]}>
-                      <AlumniLayout />
+                      <PortalErrorBoundary>
+                        <AlumniLayout />
+                      </PortalErrorBoundary>
                     </ProtectedRoute>
                   </TenantRoute>
                 }
@@ -190,7 +206,9 @@ const AppContent = memo(() => {
                 element={
                   <TenantRoute>
                     <ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}>
-                      <DepartmentLayout />
+                      <PortalErrorBoundary>
+                        <DepartmentLayout />
+                      </PortalErrorBoundary>
                     </ProtectedRoute>
                   </TenantRoute>
                 }

@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Any
@@ -13,10 +13,12 @@ import json
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import get_current_user, require_permission
 from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
+from app.services.payment_gateways import get_gateway
 
 router = APIRouter()
 
@@ -516,21 +518,36 @@ def list_parent_payment_schedules(
 
 # --- POST /parents/payments/create/ --- Create payment for an invoice ---
 
+ONLINE_METHODS = {"CINETPAY", "PAYTECH", "MOBILE_MONEY", "CARD", "STRIPE"}
+
+
 class ParentPaymentCreate(BaseModel):
     invoice_id: str
     amount: float
     method: str = "CASH"
     reference: Optional[str] = None
     notes: Optional[str] = None
+    # Online payment extras (sent by the frontend)
+    invoiceNumber: Optional[str] = None
+    studentName: Optional[str] = None
+    tenantName: Optional[str] = None
+    customerPhone: Optional[str] = None
+    customerEmail: Optional[str] = None
 
 
 @router.post("/payments/create/", status_code=status.HTTP_201_CREATED)
 def create_parent_payment(
     body: ParentPaymentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Parent creates a payment against an invoice (restricted to their children)."""
+    """
+    Parent creates or initiates a payment against an invoice.
+
+    - CASH / BANK_TRANSFER  → recorded immediately as COMPLETED
+    - CINETPAY / PAYTECH    → returns a redirect URL; marked PENDING until webhook confirms
+    """
     tenant_id = current_user.get("tenant_id")
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
@@ -545,8 +562,8 @@ def create_parent_payment(
     child_ids = [str(c.student_id) for c in children]
 
     inv = db.execute(text(
-        "SELECT id, total_amount, paid_amount, status, student_id FROM invoices "
-        "WHERE id = :invoice_id AND tenant_id = :tenant_id"
+        "SELECT id, invoice_number, total_amount, paid_amount, status, student_id "
+        "FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id"
     ), {"invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -555,6 +572,85 @@ def create_parent_payment(
     if inv["status"] == "PAID":
         raise HTTPException(status_code=400, detail="Invoice is already fully paid")
 
+    method_upper = body.method.upper()
+    is_online = method_upper in ONLINE_METHODS
+
+    # ── Online payment via gateway ────────────────────────────────────────────
+    if is_online and method_upper not in ("CARD", "STRIPE"):
+        # Fetch tenant settings to get gateway credentials
+        tenant_row = db.execute(text(
+            "SELECT settings FROM tenants WHERE id = :tid"
+        ), {"tid": tenant_id}).mappings().first()
+        tenant_settings: dict = {}
+        if tenant_row and tenant_row["settings"]:
+            raw = tenant_row["settings"]
+            tenant_settings = raw if isinstance(raw, dict) else json.loads(raw)
+
+        gateway = get_gateway(method_upper, tenant_settings)
+        if not gateway:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La passerelle {method_upper} n'est pas configurée pour cet établissement."
+            )
+
+        # Build callback URLs
+        backend_url = settings.BACKEND_URL or str(request.base_url).rstrip("/")
+        return_url = f"{backend_url}/api/v1/parents/payments/return/?invoice_id={body.invoice_id}"
+        notify_url = f"{backend_url}/api/v1/parents/payments/webhook/{method_upper.lower()}/"
+
+        invoice_number = body.invoiceNumber or str(inv["invoice_number"] or body.invoice_id)
+        result = gateway.initiate(
+            amount=body.amount,
+            currency=tenant_settings.get("currency", "XOF"),
+            invoice_id=body.invoice_id,
+            invoice_number=invoice_number,
+            student_name=body.studentName or "",
+            tenant_name=body.tenantName or "",
+            return_url=return_url,
+            notify_url=notify_url,
+            customer_phone=body.customerPhone,
+            customer_email=body.customerEmail,
+        )
+
+        if not result.success:
+            raise HTTPException(status_code=502, detail=result.error or "Erreur passerelle de paiement")
+
+        # Create a PENDING payment record so we can match the webhook
+        try:
+            payment_id = db.execute(text("""
+                INSERT INTO payments
+                    (tenant_id, invoice_id, amount, payment_method, reference, notes, received_by, status, payment_date)
+                VALUES
+                    (:tenant_id, :invoice_id, :amount, :method, :reference,
+                     :notes, :received_by, 'PENDING', NOW())
+                RETURNING id
+            """), {
+                "tenant_id": tenant_id, "invoice_id": body.invoice_id,
+                "amount": body.amount, "method": method_upper,
+                "reference": result.transaction_id,
+                "notes": f"gateway_ref:{result.gateway_ref or ''}",
+                "received_by": user_id,
+            }).scalar()
+            log_audit(db, user_id=user_id, tenant_id=tenant_id,
+                      action="INITIATE_PAYMENT", resource_type="PAYMENT",
+                      resource_id=str(payment_id),
+                      details={"invoice_id": body.invoice_id, "method": method_upper,
+                               "reference": result.transaction_id, "amount": body.amount})
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.error("Failed to create pending payment record: %s", e, exc_info=True)
+            # Still return the URL — the webhook will handle reconciliation
+
+        return {
+            "url": result.payment_url,
+            "status": "pending",
+            "reference": result.transaction_id,
+            "gateway_ref": result.gateway_ref,
+            "method": method_upper,
+        }
+
+    # ── Direct payment (CASH / BANK_TRANSFER) ────────────────────────────────
     reference = body.reference or f"PAY-{secrets.token_hex(6).upper()}"
     new_paid = float(inv["paid_amount"] or 0) + body.amount
     new_status = "PAID" if new_paid >= float(inv["total_amount"]) else ("PARTIAL" if new_paid > 0 else "PENDING")
@@ -566,25 +662,188 @@ def create_parent_payment(
             RETURNING id
         """), {
             "tenant_id": tenant_id, "invoice_id": body.invoice_id,
-            "amount": body.amount, "method": body.method,
+            "amount": body.amount, "method": method_upper,
             "reference": reference, "notes": body.notes, "received_by": user_id,
         }).scalar()
 
         db.execute(text("""
             UPDATE invoices SET paid_amount = :paid, status = :status, updated_at = NOW()
             WHERE id = :invoice_id AND tenant_id = :tenant_id
-        """), {"paid": new_paid, "status": new_status, "invoice_id": body.invoice_id, "tenant_id": tenant_id})
+        """), {"paid": new_paid, "status": new_status,
+               "invoice_id": body.invoice_id, "tenant_id": tenant_id})
 
         log_audit(db, user_id=user_id, tenant_id=tenant_id,
                   action="REGISTER_PAYMENT", resource_type="PAYMENT",
                   resource_id=str(payment_id),
-                  details={"invoice_id": body.invoice_id, "amount": body.amount, "method": body.method})
+                  details={"invoice_id": body.invoice_id, "amount": body.amount, "method": method_upper})
         db.commit()
-        return {"id": str(payment_id), "reference": reference, "status": new_status, "paid_amount": new_paid}
+        return {"id": str(payment_id), "reference": reference,
+                "status": new_status, "paid_amount": new_paid}
     except Exception as e:
         db.rollback()
         logger.error("Failed to create payment: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
+
+
+# ─── Payment webhooks (gateway callbacks) ─────────────────────────────────────
+
+def _confirm_gateway_payment(db: Session, transaction_id: str, amount: float, tenant_id_hint: Optional[str] = None):
+    """
+    Shared logic: find the pending payment by reference and mark it COMPLETED,
+    then update the invoice accordingly.
+    """
+    payment = db.execute(text("""
+        SELECT p.id, p.invoice_id, p.tenant_id, p.amount
+        FROM payments p
+        WHERE p.reference = :ref AND p.status = 'PENDING'
+        LIMIT 1
+    """), {"ref": transaction_id}).mappings().first()
+
+    if not payment:
+        logger.warning("Webhook: no pending payment found for ref %s", transaction_id)
+        return False
+
+    tenant_id = str(payment["tenant_id"])
+    invoice_id = str(payment["invoice_id"])
+    pay_amount = float(payment["amount"])
+
+    inv = db.execute(text(
+        "SELECT total_amount, paid_amount FROM invoices WHERE id = :id AND tenant_id = :tid"
+    ), {"id": invoice_id, "tid": tenant_id}).mappings().first()
+    if not inv:
+        logger.error("Webhook: invoice %s not found", invoice_id)
+        return False
+
+    new_paid = float(inv["paid_amount"] or 0) + pay_amount
+    new_status = "PAID" if new_paid >= float(inv["total_amount"]) else "PARTIAL"
+
+    db.execute(text(
+        "UPDATE payments SET status = 'COMPLETED', updated_at = NOW() WHERE id = :pid"
+    ), {"pid": str(payment["id"])})
+    db.execute(text(
+        "UPDATE invoices SET paid_amount = :paid, status = :status, updated_at = NOW() "
+        "WHERE id = :id AND tenant_id = :tid"
+    ), {"paid": new_paid, "status": new_status, "id": invoice_id, "tid": tenant_id})
+    return True
+
+
+@router.post("/payments/webhook/cinetpay/")
+async def cinetpay_webhook(request: Request, db: Session = Depends(get_db)):
+    """
+    CinetPay IPN (Instant Payment Notification) webhook.
+    CinetPay POSTs this URL when a payment is completed.
+    No auth required — we verify by re-checking with CinetPay's /check endpoint.
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        # CinetPay sometimes sends form-encoded
+        form = await request.form()
+        payload = dict(form)
+
+    logger.info("CinetPay webhook received: %s", payload)
+
+    # Find the tenant from the invoice so we can load credentials
+    transaction_id = payload.get("cpm_trans_id") or payload.get("transaction_id", "")
+    if not transaction_id:
+        return {"status": "ignored", "reason": "no transaction_id"}
+
+    # Load payment record to find the tenant
+    payment_row = db.execute(text(
+        "SELECT p.tenant_id FROM payments p WHERE p.reference = :ref LIMIT 1"
+    ), {"ref": transaction_id}).mappings().first()
+
+    if payment_row:
+        tenant_id = str(payment_row["tenant_id"])
+        tenant_row = db.execute(text(
+            "SELECT settings FROM tenants WHERE id = :tid"
+        ), {"tid": tenant_id}).mappings().first()
+        tenant_settings: dict = {}
+        if tenant_row and tenant_row["settings"]:
+            raw = tenant_row["settings"]
+            tenant_settings = raw if isinstance(raw, dict) else json.loads(raw)
+
+        from app.services.payment_gateways import CinetPayGateway
+        api_key = tenant_settings.get("cinetPayApiKey", "")
+        site_id = tenant_settings.get("cinetPaySiteId", "")
+        if api_key and site_id:
+            gw = CinetPayGateway(api_key=api_key, site_id=site_id)
+            if not gw.verify_webhook(payload, {}):
+                logger.warning("CinetPay webhook verification failed for %s", transaction_id)
+                return {"status": "rejected", "reason": "verification failed"}
+            pay_status = gw.parse_webhook_status(payload)
+            if pay_status == "COMPLETED":
+                amount = gw.extract_amount(payload) or 0
+                confirmed = _confirm_gateway_payment(db, transaction_id, amount)
+                if confirmed:
+                    db.commit()
+                    logger.info("CinetPay payment confirmed: %s", transaction_id)
+                    return {"status": "ok"}
+
+    return {"status": "processed"}
+
+
+@router.post("/payments/webhook/paytech/")
+async def paytech_webhook(request: Request, db: Session = Depends(get_db)):
+    """PayTech IPN webhook."""
+    try:
+        payload = await request.json()
+    except Exception:
+        form = await request.form()
+        payload = dict(form)
+
+    logger.info("PayTech webhook received: %s", payload)
+    transaction_id = payload.get("ref_command", "")
+    if not transaction_id:
+        return {"status": "ignored"}
+
+    payment_row = db.execute(text(
+        "SELECT p.tenant_id FROM payments p WHERE p.reference = :ref LIMIT 1"
+    ), {"ref": transaction_id}).mappings().first()
+
+    if payment_row:
+        tenant_id = str(payment_row["tenant_id"])
+        tenant_row = db.execute(text(
+            "SELECT settings FROM tenants WHERE id = :tid"
+        ), {"tid": tenant_id}).mappings().first()
+        tenant_settings: dict = {}
+        if tenant_row and tenant_row["settings"]:
+            raw = tenant_row["settings"]
+            tenant_settings = raw if isinstance(raw, dict) else json.loads(raw)
+
+        from app.services.payment_gateways import PayTechGateway
+        api_key = tenant_settings.get("paytechApiKey", "")
+        secret_key = tenant_settings.get("paytechSecretKey", "")
+        if api_key and secret_key:
+            gw = PayTechGateway(api_key=api_key, secret_key=secret_key)
+            if gw.verify_webhook(payload, dict(request.headers)):
+                pay_status = gw.parse_webhook_status(payload)
+                if pay_status == "COMPLETED":
+                    amount = gw.extract_amount(payload) or 0
+                    confirmed = _confirm_gateway_payment(db, transaction_id, amount)
+                    if confirmed:
+                        db.commit()
+                        logger.info("PayTech payment confirmed: %s", transaction_id)
+                        return {"status": "ok"}
+
+    return {"status": "processed"}
+
+
+@router.get("/payments/return/")
+def payment_return(
+    invoice_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """
+    Return URL after gateway redirect.
+    The parent is sent back here after paying on the gateway page.
+    We redirect them to the invoices page — the webhook handles status update.
+    """
+    # In production this would redirect to the frontend
+    return {
+        "message": "Paiement en cours de traitement. Vérifiez votre espace dans quelques instants.",
+        "invoice_id": invoice_id,
+    }
 
 
 # --- POST /parents/report-cards/generate/ --- Generate report card (stub) ---

@@ -64,6 +64,7 @@ export function ClubMembersDialog({
                                     variant="ghost"
                                     size="icon"
                                     className="h-8 w-8 text-destructive"
+                                    aria-label="Retirer le membre"
                                     onClick={() => onRemoveMember(m.id)}
                                 >
                                     <Trash2 className="h-4 w-4" />

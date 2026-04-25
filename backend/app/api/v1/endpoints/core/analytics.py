@@ -2,7 +2,10 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 import logging
+import csv
+import io
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_, text
 
@@ -571,7 +574,7 @@ def get_dashboard_kpis(
         # 1. Counts: Students, Teachers, Classrooms
         count_sql = text("""
             SELECT
-                (SELECT COUNT(*) FROM students WHERE tenant_id = :tenant_id AND is_archived = false) AS total_students,
+                (SELECT COUNT(*) FROM students WHERE tenant_id = :tenant_id AND status = 'ACTIVE') AS total_students,
                 (SELECT COUNT(*) FROM user_roles WHERE tenant_id = :tenant_id AND role = 'TEACHER') AS total_teachers,
                 (SELECT COUNT(*) FROM classes WHERE tenant_id = :tenant_id) AS total_classrooms
         """)
@@ -656,7 +659,7 @@ def get_ministry_kpis(
                 COUNT(*) FILTER (WHERE gender = 'FEMALE') as female,
                 COUNT(*) as total
             FROM students 
-            WHERE tenant_id = :tenant_id AND is_archived = false
+            WHERE tenant_id = :tenant_id AND status = 'ACTIVE'
         """)
         gender_row = db.execute(gender_sql, {"tenant_id": tenant_id}).fetchone()
 
@@ -716,6 +719,240 @@ def get_ministry_kpis(
             "total_revenue_collected": 0,
             "tenant_id": tenant_id
         }
+
+@router.get("/ministry-stats/levels/")
+def get_ministry_stats_by_level(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("analytics:read")),
+):
+    """
+    GET /analytics/ministry-stats/levels/
+    Effectifs et moyenne par niveau scolaire (pour le tableau de bord Ministère).
+    """
+    tenant_id = str(current_user.get("tenant_id"))
+    try:
+        rows = db.execute(text("""
+            SELECT
+                s.level                                                     AS level_name,
+                COUNT(*)                                                    AS total,
+                COUNT(*) FILTER (WHERE s.gender = 'MALE')                   AS male,
+                COUNT(*) FILTER (WHERE s.gender = 'FEMALE')                 AS female,
+                ROUND(AVG(g.score / NULLIF(g.max_score, 0) * 20)::numeric, 1) AS avg_grade
+            FROM students s
+            LEFT JOIN grades g ON g.student_id = s.id AND g.tenant_id = :tid
+            WHERE s.tenant_id = :tid AND s.status = 'ACTIVE'
+            GROUP BY s.level
+            ORDER BY s.level
+        """), {"tid": tenant_id}).mappings().all()
+
+        return [
+            {
+                "level": r["level_name"] or "Non défini",
+                "total": int(r["total"] or 0),
+                "male": int(r["male"] or 0),
+                "female": int(r["female"] or 0),
+                "avg_grade": float(r["avg_grade"] or 0),
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        logger.error("ministry-stats/levels/ error: %s", e)
+        return []
+
+
+@router.get("/ministry-export/csv/")
+def export_ministry_csv(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("analytics:read")),
+    academic_year: Optional[str] = Query(None),
+):
+    """
+    GET /analytics/ministry-export/csv/
+    Exports a comprehensive Ministry-format CSV report covering:
+    - Section 1: KPI Summary
+    - Section 2: Effectifs par niveau
+    - Section 3: Assiduité par niveau (30 jours)
+    - Section 4: Synthèse financière
+    - Section 5: Liste nominative des élèves (pour inspection)
+    """
+    tenant_id = str(current_user.get("tenant_id"))
+
+    # Get tenant name for header
+    tenant_row = db.execute(
+        text("SELECT name FROM tenants WHERE id = :tid"), {"tid": tenant_id}
+    ).fetchone()
+    school_name = tenant_row.name if tenant_row else tenant_id
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";")
+
+    # ── Header ──────────────────────────────────────────────────────────────────
+    writer.writerow(["RAPPORT OFFICIEL — GESTION SCOLAIRE"])
+    writer.writerow(["Établissement", school_name])
+    writer.writerow(["Date d'export", datetime.now().strftime("%d/%m/%Y %H:%M")])
+    if academic_year:
+        writer.writerow(["Année scolaire", academic_year])
+    writer.writerow([])
+
+    # ── Section 1 : Indicateurs clés ────────────────────────────────────────────
+    writer.writerow(["=== SECTION 1 : INDICATEURS CLÉS ==="])
+    writer.writerow(["Indicateur", "Valeur"])
+
+    try:
+        kpi = db.execute(text("""
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'ACTIVE')               AS total_students,
+                COUNT(*) FILTER (WHERE gender = 'MALE' AND status = 'ACTIVE') AS male,
+                COUNT(*) FILTER (WHERE gender = 'FEMALE' AND status = 'ACTIVE') AS female
+            FROM students WHERE tenant_id = :tid
+        """), {"tid": tenant_id}).fetchone()
+
+        grade_row = db.execute(text(
+            "SELECT ROUND(AVG(score / NULLIF(max_score,0) * 20)::numeric, 2) as avg FROM grades WHERE tenant_id = :tid"
+        ), {"tid": tenant_id}).fetchone()
+
+        att = db.execute(text("""
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN status='PRESENT' THEN 1 ELSE 0 END) AS present
+            FROM attendance WHERE tenant_id = :tid AND date >= CURRENT_DATE - 30
+        """), {"tid": tenant_id}).fetchone()
+
+        fin = db.execute(text("""
+            SELECT COALESCE(SUM(total_amount),0) AS expected,
+                   COALESCE(SUM(paid_amount),0) AS collected
+            FROM invoices WHERE tenant_id = :tid
+        """), {"tid": tenant_id}).fetchone()
+
+        writer.writerow(["Effectif total", int(kpi.total_students or 0)])
+        writer.writerow(["Garçons", int(kpi.male or 0)])
+        writer.writerow(["Filles", int(kpi.female or 0)])
+        att_rate = round(att.present / att.total * 100, 1) if (att and att.total) else 0
+        writer.writerow(["Taux d'assiduité (30j)", f"{att_rate}%"])
+        writer.writerow(["Moyenne générale (/20)", float(grade_row.avg or 0) if grade_row else 0])
+        expected = float(fin.expected or 0) if fin else 0
+        collected = float(fin.collected or 0) if fin else 0
+        col_rate = round(collected / expected * 100, 1) if expected > 0 else 0
+        writer.writerow(["Taux de recouvrement", f"{col_rate}%"])
+        writer.writerow(["Montant attendu (FCFA)", f"{expected:,.0f}"])
+        writer.writerow(["Montant collecté (FCFA)", f"{collected:,.0f}"])
+    except Exception as e:
+        writer.writerow(["Erreur", str(e)])
+
+    writer.writerow([])
+
+    # ── Section 2 : Effectifs par niveau ────────────────────────────────────────
+    writer.writerow(["=== SECTION 2 : EFFECTIFS PAR NIVEAU ==="])
+    writer.writerow(["Niveau", "Total", "Garçons", "Filles", "Taux Filles (%)", "Moyenne (/20)"])
+    try:
+        level_rows = db.execute(text("""
+            SELECT
+                COALESCE(s.level, 'Non défini') AS niveau,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE s.gender='MALE') AS male,
+                COUNT(*) FILTER (WHERE s.gender='FEMALE') AS female,
+                ROUND(AVG(g.score / NULLIF(g.max_score,0) * 20)::numeric, 1) AS avg_grade
+            FROM students s
+            LEFT JOIN grades g ON g.student_id = s.id AND g.tenant_id = :tid
+            WHERE s.tenant_id = :tid AND s.status = 'ACTIVE'
+            GROUP BY s.level ORDER BY s.level
+        """), {"tid": tenant_id}).mappings().all()
+        for r in level_rows:
+            total = int(r["total"] or 0)
+            female = int(r["female"] or 0)
+            girl_rate = round(female / total * 100, 1) if total > 0 else 0
+            writer.writerow([
+                r["niveau"], total, int(r["male"] or 0), female,
+                f"{girl_rate}%", float(r["avg_grade"] or 0)
+            ])
+    except Exception as e:
+        writer.writerow(["Erreur", str(e)])
+
+    writer.writerow([])
+
+    # ── Section 3 : Assiduité par niveau (30j) ──────────────────────────────────
+    writer.writerow(["=== SECTION 3 : ASSIDUITÉ PAR NIVEAU (30 derniers jours) ==="])
+    writer.writerow(["Niveau", "Séances", "Présences", "Absences", "Retards", "Taux (%)"])
+    try:
+        att_rows = db.execute(text("""
+            SELECT
+                COALESCE(s.level, 'Non défini') AS niveau,
+                COUNT(*) AS total,
+                SUM(CASE WHEN a.status='PRESENT' THEN 1 ELSE 0 END) AS present,
+                SUM(CASE WHEN a.status='ABSENT' THEN 1 ELSE 0 END) AS absent,
+                SUM(CASE WHEN a.status='LATE' THEN 1 ELSE 0 END) AS late
+            FROM attendance a
+            JOIN students s ON s.id = a.student_id
+            WHERE a.tenant_id = :tid AND a.date >= CURRENT_DATE - 30
+            GROUP BY s.level ORDER BY s.level
+        """), {"tid": tenant_id}).mappings().all()
+        for r in att_rows:
+            total = int(r["total"] or 0)
+            present = int(r["present"] or 0)
+            rate = round(present / total * 100, 1) if total > 0 else 0
+            writer.writerow([
+                r["niveau"], total, present,
+                int(r["absent"] or 0), int(r["late"] or 0), f"{rate}%"
+            ])
+    except Exception as e:
+        writer.writerow(["Erreur", str(e)])
+
+    writer.writerow([])
+
+    # ── Section 4 : Synthèse financière ─────────────────────────────────────────
+    writer.writerow(["=== SECTION 4 : SYNTHÈSE FINANCIÈRE ==="])
+    writer.writerow(["Statut facture", "Nombre", "Montant (FCFA)"])
+    try:
+        inv_rows = db.execute(text("""
+            SELECT status, COUNT(*) AS cnt, COALESCE(SUM(total_amount),0) AS total
+            FROM invoices WHERE tenant_id = :tid
+            GROUP BY status ORDER BY status
+        """), {"tid": tenant_id}).mappings().all()
+        for r in inv_rows:
+            writer.writerow([r["status"], int(r["cnt"]), f"{float(r['total']):,.0f}"])
+    except Exception as e:
+        writer.writerow(["Erreur", str(e)])
+
+    writer.writerow([])
+
+    # ── Section 5 : Liste nominative ────────────────────────────────────────────
+    writer.writerow(["=== SECTION 5 : LISTE NOMINATIVE DES ÉLÈVES ==="])
+    writer.writerow([
+        "Matricule", "Nom", "Prénom", "Sexe", "Date de naissance",
+        "Niveau", "Classe", "Statut"
+    ])
+    try:
+        student_rows = db.execute(text("""
+            SELECT registration_number, last_name, first_name, gender,
+                   date_of_birth, level, class_name, status
+            FROM students
+            WHERE tenant_id = :tid AND status = 'ACTIVE'
+            ORDER BY level, last_name, first_name
+        """), {"tid": tenant_id}).mappings().all()
+        for s in student_rows:
+            dob = s["date_of_birth"].strftime("%d/%m/%Y") if s["date_of_birth"] else ""
+            writer.writerow([
+                s["registration_number"], s["last_name"], s["first_name"],
+                "M" if s["gender"] == "MALE" else "F",
+                dob, s["level"] or "", s["class_name"] or "", s["status"] or ""
+            ])
+    except Exception as e:
+        writer.writerow(["Erreur", str(e)])
+
+    # Stream the response
+    output.seek(0)
+    # Add BOM for Excel UTF-8 compatibility
+    content = "\ufeff" + output.getvalue()
+    date_str = datetime.now().strftime("%Y%m%d")
+    filename = f"rapport_ministere_{date_str}.csv"
+    return StreamingResponse(
+        iter([content.encode("utf-8-sig")]),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
 
 @router.post("/cash-flow-forecast/")
 def get_cash_flow_forecast(

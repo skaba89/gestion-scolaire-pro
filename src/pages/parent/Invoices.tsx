@@ -82,10 +82,17 @@ const Invoices = () => {
     enabled: studentIds.length > 0,
   });
 
-  const onlinePaymentsEnabled = (tenant?.settings as Record<string, any>)?.enableOnlinePayments ?? false;
-  const mobileMoneyEnabled = (tenant?.settings as Record<string, any>)?.enableMobileMoney ?? false;
+  const tenantSettings = (tenant?.settings as Record<string, any>) ?? {};
+  const onlinePaymentsEnabled = tenantSettings.enableOnlinePayments ?? false;
+  const mobileMoneyEnabled = tenantSettings.enableMobileMoney ?? false;
+  const cinetPayEnabled = tenantSettings.enableCinetPay ?? false;
 
-  const handleOnlinePayment = async (invoice: any, method: 'stripe' | 'paytech' = 'stripe') => {
+  // Any online method is available
+  const anyOnlinePayment = onlinePaymentsEnabled || mobileMoneyEnabled || cinetPayEnabled;
+  // Multiple methods → show picker dialog
+  const multipleOnlineMethods = [onlinePaymentsEnabled, mobileMoneyEnabled, cinetPayEnabled].filter(Boolean).length > 1;
+
+  const handleOnlinePayment = async (invoice: any, method: 'stripe' | 'paytech' | 'cinetpay' = 'cinetpay') => {
     if (!invoice || !user) return;
     const remaining = Number(invoice.total_amount) - Number(invoice.paid_amount || 0);
     if (remaining <= 0) {
@@ -93,7 +100,8 @@ const Invoices = () => {
       return;
     }
 
-    if (!paymentMethodDialog.open && onlinePaymentsEnabled && mobileMoneyEnabled) {
+    // Show method picker if multiple options available and dialog not already open
+    if (!paymentMethodDialog.open && multipleOnlineMethods) {
       setPaymentMethodDialog({ open: true, invoice });
       return;
     }
@@ -105,21 +113,25 @@ const Invoices = () => {
       const student = invoice.students as any;
 
       const { data } = await apiClient.post('/parents/payments/create/', {
-        invoiceId: invoice.id,
+        invoice_id: invoice.id,
         amount: remaining,
+        method: method.toUpperCase(),
         invoiceNumber: invoice.invoice_number,
-        studentName: `${student?.first_name} ${student?.last_name}`,
-        tenantName: tenant?.name,
-        method,
+        studentName: `${student?.first_name || ""} ${student?.last_name || ""}`.trim(),
+        tenantName: tenant?.name || "",
       });
 
       if (data?.url && /^https?:\/\//.test(data.url)) {
-        window.open(data.url, "_blank", "noopener,noreferrer");
+        // Redirect to gateway checkout
+        window.location.href = data.url;
+      } else if (data?.status === "pending" || data?.reference) {
+        toast.success("Paiement initié — vous allez être redirigé...");
       } else {
-        throw new Error("URL de paiement non reçue");
+        throw new Error("URL de paiement non reçue du serveur");
       }
     } catch (error: any) {
-      toast.error(error.message || "Erreur lors de l'initiation du paiement");
+      const detail = error?.response?.data?.detail;
+      toast.error(detail || error.message || "Erreur lors de l'initiation du paiement");
     } finally {
       setPayingInvoiceId(null);
     }
@@ -179,10 +191,10 @@ const Invoices = () => {
           <h1 className="text-2xl font-display font-bold text-foreground">Mes Factures</h1>
           <p className="text-muted-foreground">Consultez et gérez les frais de scolarité</p>
         </div>
-        {(onlinePaymentsEnabled || mobileMoneyEnabled) && (
+        {anyOnlinePayment && (
           <Badge className="w-fit gap-2 bg-green-500/10 text-green-700 border-green-500/30 font-bold uppercase tracking-widest text-[10px] py-1.5 shadow-sm">
             <CreditCard className="w-3.5 h-3.5" />
-            Paiement {onlinePaymentsEnabled && mobileMoneyEnabled ? "SÉCURISÉ" : onlinePaymentsEnabled ? "CARTE" : "MOBILE"} activé
+            Paiement en ligne activé
           </Badge>
         )}
       </div>
@@ -252,7 +264,7 @@ const Invoices = () => {
                         <TableCell><Badge className={`${status?.color || ""} border-none shadow-none text-[10px] uppercase font-bold`}>{status?.label || invoice.status}</Badge></TableCell>
                         <TableCell className="text-right px-6">
                           <div className="flex items-center justify-end gap-2">
-                            {(onlinePaymentsEnabled || mobileMoneyEnabled) && canPay && (
+                            {anyOnlinePayment && canPay && (
                               <Button variant="default" size="sm" onClick={() => handleOnlinePayment(invoice)} disabled={payingInvoiceId === invoice.id} className="h-8 gap-1.5 shadow-sm bg-primary hover:bg-primary/90">
                                 {payingInvoiceId === invoice.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><CreditCard className="w-3.5 h-3.5" /><span className="hidden sm:inline">Payer</span></>}
                               </Button>
@@ -301,18 +313,49 @@ const Invoices = () => {
               )}
               <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
                 <Button variant="outline" className="font-bold text-sm h-11 px-6 rounded-xl shadow-sm" onClick={() => handleDownloadPDF(detailInvoice)} disabled={downloadingId === detailInvoice.id}>{downloadingId === detailInvoice.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}Télécharger PDF</Button>
-                {onlinePaymentsEnabled && (Number(detailInvoice.total_amount) - Number(detailInvoice.paid_amount || 0)) > 0 && <Button className="font-bold text-sm h-11 px-6 rounded-xl shadow-md bg-primary hover:bg-primary/90" onClick={() => handleOnlinePayment(detailInvoice)} disabled={payingInvoiceId === detailInvoice.id}>{payingInvoiceId === detailInvoice.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}Payer maintenant</Button>}
+                {anyOnlinePayment && (Number(detailInvoice.total_amount) - Number(detailInvoice.paid_amount || 0)) > 0 && <Button className="font-bold text-sm h-11 px-6 rounded-xl shadow-md bg-primary hover:bg-primary/90" onClick={() => handleOnlinePayment(detailInvoice)} disabled={payingInvoiceId === detailInvoice.id}>{payingInvoiceId === detailInvoice.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}Payer maintenant</Button>}
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Payment method picker dialog */}
       <Dialog open={paymentMethodDialog.open} onOpenChange={(open) => setPaymentMethodDialog({ ...paymentMethodDialog, open })}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader><DialogTitle className="text-center font-display">Choisir le mode de paiement</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-1 gap-4 py-4">
-            {onlinePaymentsEnabled && <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 group transition-all" onClick={() => handleOnlinePayment(paymentMethodDialog.invoice, 'stripe')}><div className="flex items-center gap-2"><CreditCard className="w-6 h-6 text-primary" /><span className="font-bold">Carte Bancaire</span></div><span className="text-[10px] text-muted-foreground uppercase tracking-widest">Visa, Mastercard</span></Button>}
-            {mobileMoneyEnabled && <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-2 border-2 hover:border-primary hover:bg-primary/5 group transition-all" onClick={() => handleOnlinePayment(paymentMethodDialog.invoice, 'paytech')}><div className="flex items-center gap-2"><Smartphone className="w-6 h-6 text-primary" /><span className="font-bold">Mobile Money</span></div><span className="text-[10px] text-muted-foreground uppercase tracking-widest">Wave, Orange, MTN</span></Button>}
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-center font-display text-xl">Choisir le mode de paiement</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-3 py-4">
+            {cinetPayEnabled && (
+              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-1.5 border-2 hover:border-orange-500 hover:bg-orange-50 transition-all" onClick={() => handleOnlinePayment(paymentMethodDialog.invoice, 'cinetpay')}>
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-5 h-5 text-orange-500" />
+                  <span className="font-bold text-sm">CinetPay</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Wave · Orange Money · MTN · Carte</span>
+                <span className="text-[9px] text-orange-600 font-medium">CI · SN · ML · BF · TG · CM et +</span>
+              </Button>
+            )}
+            {mobileMoneyEnabled && (
+              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-1.5 border-2 hover:border-green-500 hover:bg-green-50 transition-all" onClick={() => handleOnlinePayment(paymentMethodDialog.invoice, 'paytech')}>
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-5 h-5 text-green-600" />
+                  <span className="font-bold text-sm">Mobile Money (PayTech)</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Wave · Orange Money · MTN</span>
+                <span className="text-[9px] text-green-600 font-medium">Sénégal</span>
+              </Button>
+            )}
+            {onlinePaymentsEnabled && (
+              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-1.5 border-2 hover:border-blue-500 hover:bg-blue-50 transition-all" onClick={() => handleOnlinePayment(paymentMethodDialog.invoice, 'stripe')}>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-blue-600" />
+                  <span className="font-bold text-sm">Carte Bancaire (Stripe)</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Visa · Mastercard · American Express</span>
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

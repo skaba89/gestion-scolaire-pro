@@ -67,13 +67,14 @@ export function EventView({ events, onEdit, onDelete, getRegistrationCount }: Ev
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(event)}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Modifier l'événement" onClick={() => onEdit(event)}>
                                             <Edit className="h-4 w-4" />
                                         </Button>
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8 text-destructive"
+                                            aria-label="Supprimer l'événement"
                                             onClick={() => onDelete(event.id)}
                                         >
                                             <Trash2 className="h-4 w-4" />

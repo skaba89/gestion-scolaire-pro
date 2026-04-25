@@ -247,3 +247,44 @@ export interface DashboardStats {
   pendingPayments: number;
   attendanceRate: number;
 }
+
+// ─── Types API communs ────────────────────────────────────────────────────────
+
+/** Réponse paginée standard retournée par tous les endpoints liste. */
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+/** Erreur API structurée. */
+export interface APIError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+/** Résultat d'une opération bulk (207 Multi-Status). */
+export interface BulkResult<T> {
+  success: T[];
+  errors: Array<{ id?: string; error: string; index?: number }>;
+  total: number;
+  success_count: number;
+  error_count: number;
+}
+
+/** Entité de base avec timestamps. */
+export interface BaseEntity {
+  id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Entité scoped à un tenant. */
+export interface TenantScopedEntity extends BaseEntity {
+  tenant_id: string;
+}

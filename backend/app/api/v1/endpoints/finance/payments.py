@@ -8,10 +8,14 @@ from sqlalchemy import text
 from uuid import UUID
 import math, secrets
 from datetime import datetime
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.utils.audit import log_audit
+
+limiter = Limiter(key_func=get_remote_address)
 from app.crud import payment as crud_payment
 from app.schemas.payment import (
     Payment, PaymentCreate, PaymentUpdate, PaymentList,
@@ -120,7 +124,9 @@ def list_payments(
 
 
 @router.post("/register/", status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 def register_payment(
+    request: Request,
     body: RegisterPaymentRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
@@ -181,7 +187,9 @@ def register_payment(
 
 
 @router.post("/{payment_id}/reverse/")
+@limiter.limit("5/minute")
 def reverse_payment(
+    request: Request,
     payment_id: str,
     body: ReversePaymentRequest,
     db: Session = Depends(get_db),
@@ -450,59 +458,118 @@ def delete_invoice_endpoint(
 
 
 @router.post("/send-reminders/")
+@limiter.limit("3/minute")
 def send_payment_reminders(
+    request: Request,
     body: InvoiceReminderRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """Send payment reminders — replaces supabase.functions.invoke('send-payment-reminders')."""
+    """
+    Send payment reminders via WhatsApp, push and email.
+    Fetches unpaid/overdue invoices with parent contact info.
+    """
+    from app.services.notifications import build_service_from_db
+
     tenant_id = _get_tenant_id(current_user)
 
-    if body.invoice_ids:
-        inv_filter = "AND id = ANY(:ids)"
-        overdue = db.execute(text(f"""
-            SELECT i.id, i.invoice_number, i.total_amount, i.paid_amount, s.first_name, s.last_name, s.email
-            FROM invoices i JOIN students s ON s.id = i.student_id
-            WHERE i.tenant_id = :tenant_id AND i.status IN ('PENDING', 'OVERDUE') {inv_filter}
-        """), {"tenant_id": tenant_id, "ids": body.invoice_ids}).fetchall()
-    else:
-        overdue = db.execute(text("""
-            SELECT i.id, i.invoice_number, i.total_amount, i.paid_amount, s.first_name, s.last_name, s.email
-            FROM invoices i JOIN students s ON s.id = i.student_id
-            WHERE i.tenant_id = :tenant_id AND i.status IN ('PENDING', 'OVERDUE')
-            AND i.due_date < CURRENT_DATE
-            LIMIT 100
-        """), {"tenant_id": tenant_id}).fetchall()
+    # Fetch invoices with parent contact details (phone + email)
+    base_query = """
+        SELECT
+            i.id, i.invoice_number, i.total_amount, i.paid_amount, i.due_date,
+            s.first_name AS student_first, s.last_name AS student_last,
+            -- Parent contact info via parent_students
+            u.email AS parent_email,
+            u.phone AS parent_phone,
+            u.first_name AS parent_first, u.last_name AS parent_last,
+            u.id AS parent_user_id
+        FROM invoices i
+        JOIN students s ON s.id = i.student_id
+        LEFT JOIN parent_students ps ON ps.student_id = s.id
+        LEFT JOIN users u ON u.id = ps.parent_id AND u.tenant_id = :tenant_id
+        WHERE i.tenant_id = :tenant_id AND i.status IN ('PENDING', 'OVERDUE')
+    """
 
-    # Insert notifications for each unpaid invoice
+    if body.invoice_ids:
+        overdue = db.execute(text(base_query + " AND i.id = ANY(:ids) LIMIT 200"),
+                             {"tenant_id": tenant_id, "ids": body.invoice_ids}).fetchall()
+    else:
+        overdue = db.execute(text(base_query + " AND i.due_date < CURRENT_DATE LIMIT 100"),
+                             {"tenant_id": tenant_id}).fetchall()
+
+    # Build notification service from tenant settings
+    svc = build_service_from_db(db, tenant_id)
+
+    results: dict = {"whatsapp": 0, "push": 0, "email": 0, "in_app": 0, "errors": 0}
     count = 0
+
     for inv in overdue:
-        db.execute(text("""
-            INSERT INTO notifications (tenant_id, user_id, type, title, message, is_read, created_at)
-            SELECT :tenant_id, u.id, 'PAYMENT_REMINDER',
-                   'Rappel de paiement',
-                   CONCAT('La facture ', :inv_number, ' d''un montant de ', :amount, ' est en attente.'),
-                   false, NOW()
-            FROM users u WHERE u.email = :email AND u.tenant_id = :tenant_id
-            ON CONFLICT DO NOTHING
-        """), {
-            "tenant_id": tenant_id, "inv_number": inv.invoice_number,
-            "amount": float(inv.total_amount or 0), "email": inv.email
-        })
+        student_name = f"{inv.student_first} {inv.student_last}".strip()
+        parent_name = f"{inv.parent_first or ''} {inv.parent_last or ''}".strip() or "Parent"
+        remaining = float(inv.total_amount or 0) - float(inv.paid_amount or 0)
+        amount_str = f"{remaining:,.0f}".replace(",", " ")
+        due_str = str(inv.due_date) if inv.due_date else "—"
+
+        # ── Real delivery (WhatsApp + Push + Email) ──────────────────────────
+        if svc and (inv.parent_phone or inv.parent_email):
+            try:
+                result = svc.send_payment_reminder(
+                    to_phone=inv.parent_phone,
+                    to_email=inv.parent_email,
+                    onesignal_user_id=str(inv.parent_user_id) if inv.parent_user_id else None,
+                    parent_name=parent_name,
+                    student_name=student_name,
+                    invoice_number=inv.invoice_number or str(inv.id)[:8],
+                    amount=amount_str,
+                    due_date=due_str,
+                )
+                if result.whatsapp:
+                    results["whatsapp"] += 1
+                if result.push:
+                    results["push"] += 1
+                if result.email:
+                    results["email"] += 1
+                if not result.any_sent:
+                    results["errors"] += 1
+            except Exception as e:
+                logger.error("Reminder send failed for invoice %s: %s", inv.id, e)
+                results["errors"] += 1
+
+        # ── Always insert in-app notification ────────────────────────────────
+        if inv.parent_user_id:
+            try:
+                db.execute(text("""
+                    INSERT INTO notifications (tenant_id, user_id, type, title, message, is_read, created_at)
+                    VALUES (:tid, :uid, 'PAYMENT_REMINDER', :title, :msg, false, NOW())
+                    ON CONFLICT DO NOTHING
+                """), {
+                    "tid": tenant_id,
+                    "uid": str(inv.parent_user_id),
+                    "title": "Rappel de paiement",
+                    "msg": f"La facture {inv.invoice_number} de {amount_str} est en attente (échéance: {due_str}).",
+                })
+                results["in_app"] += 1
+            except Exception:
+                pass
+
         count += 1
 
-    # Audit log BEFORE commit
     log_audit(
         db,
         user_id=current_user.get("id"),
         tenant_id=tenant_id,
         action="SEND_REMINDERS",
         resource_type="INVOICE",
-        details={"invoice_count": count, "specific_ids": body.invoice_ids}
+        details={
+            "invoice_count": count,
+            "channels": results,
+            "specific_ids": body.invoice_ids,
+        }
     )
-
     db.commit()
-    return {"sent": count, "message": f"{count} rappel(s) envoyé(s) avec succès"}
+
+    summary = f"{count} rappel(s) — WhatsApp: {results['whatsapp']}, Push: {results['push']}, Email: {results['email']}, In-app: {results['in_app']}"
+    return {"sent": count, "channels": results, "message": summary}
 
 
 # ─── Fees endpoints ───────────────────────────────────────────────────────────

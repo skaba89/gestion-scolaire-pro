@@ -33,13 +33,13 @@ export function CourseGrid({ courses, onEdit, onDelete, onView }: CourseGridProp
                             </Badge>
                         </div>
                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                            <Button size="icon" variant="secondary" onClick={() => onView(course.id)}>
+                            <Button size="icon" variant="secondary" aria-label="Voir le cours" onClick={() => onView(course.id)}>
                                 <Eye className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="secondary" onClick={() => onEdit(course)}>
+                            <Button size="icon" variant="secondary" aria-label="Modifier le cours" onClick={() => onEdit(course)}>
                                 <Edit className="h-4 w-4" />
                             </Button>
-                            <Button size="icon" variant="destructive" onClick={() => onDelete(course.id)}>
+                            <Button size="icon" variant="destructive" aria-label="Supprimer le cours" onClick={() => onDelete(course.id)}>
                                 <Trash2 className="h-4 w-4" />
                             </Button>
                         </div>

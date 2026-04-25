@@ -205,10 +205,21 @@ class Settings(BaseSettings):
             return generated
         return v
 
+    # Security — MFA enforcement for privileged accounts
+    # Set ENFORCE_MFA=true in production to require MFA for SUPER_ADMIN/TENANT_ADMIN/DIRECTOR.
+    # In non-debug environments this defaults to True; override with ENFORCE_MFA=false only
+    # during the initial rollout window.
+    ENFORCE_MFA: bool = os.getenv("ENFORCE_MFA", "false" if os.getenv("DEBUG", "False").lower() == "true" else "true").lower() == "true"
+
     # Groq AI
     GROQ_API_KEY: str = get_secret("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     GROQ_MAX_TOKENS: int = 4096
+
+    # Observabilité — Sentry
+    SENTRY_DSN: str = get_secret("SENTRY_DSN", "")
+    SENTRY_ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05"))
 
     @field_validator("GROQ_MAX_TOKENS", mode="before")
     @classmethod

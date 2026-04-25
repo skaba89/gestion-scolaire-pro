@@ -7,7 +7,7 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -284,7 +284,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 
         if user_privileged_roles:
             mfa_enabled = getattr(user, "mfa_enabled", False)
-            enforce_mfa = os.getenv("ENFORCE_MFA", "false").lower() == "true"
+            enforce_mfa = settings.ENFORCE_MFA
 
             if not mfa_enabled:
                 if enforce_mfa:
@@ -779,12 +779,31 @@ def bootstrap_admin(
 
     Requires BOOTSTRAP_SECRET. Optionally accepts a new_password parameter
     to override ADMIN_DEFAULT_PASSWORD from env.
+
+    SECURITY: Auto-désactivé si un SUPER_ADMIN existe déjà — empêche
+    toute création non autorisée de compte platform admin.
     """
-    # SECURITY: ALWAYS require the bootstrap secret — use timing-safe comparison
-    # to prevent timing attacks that could leak the secret character by character.
     import hmac
-    if not body.bootstrap_key or not hmac.compare_digest(body.bootstrap_key, settings.BOOTSTRAP_SECRET):
+
+    # SECURITY: Vérification du secret en premier (timing-safe)
+    if not body.bootstrap_key or not settings.BOOTSTRAP_SECRET or \
+            not hmac.compare_digest(body.bootstrap_key, settings.BOOTSTRAP_SECRET):
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # SECURITY: Refuser si un SUPER_ADMIN existe déjà (bootstrap usage unique)
+    existing_superadmin = db.execute(
+        text("SELECT id FROM users WHERE role = 'SUPER_ADMIN' LIMIT 1")
+    ).first()
+    if existing_superadmin:
+        logger.warning(
+            "Bootstrap attempt rejected: a SUPER_ADMIN already exists. "
+            "Use the admin panel or direct DB access to manage admin accounts."
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Bootstrap disabled: platform admin already exists. "
+                   "Contact your system administrator to manage admin accounts.",
+        )
 
     import sqlalchemy
     import uuid as _uuid
