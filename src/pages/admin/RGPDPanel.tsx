@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -45,90 +46,68 @@ interface UserLegalData {
 export default function AdminRGPDPanel() {
     const { user, hasRole } = useAuth();
     const { tenant } = useTenant();
+    const queryClient = useQueryClient();
 
-    // Check admin permission
     const isAdmin = hasRole('SUPER_ADMIN') || hasRole('TENANT_ADMIN') || hasRole('DIRECTOR');
 
     const [searchEmail, setSearchEmail] = useState('');
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-    const [legalData, setLegalData] = useState<UserLegalData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [anonymizeDialogOpen, setAnonymizeDialogOpen] = useState(false);
     const [anonymizeReason, setAnonymizeReason] = useState('');
     const [isAnonymizing, setIsAnonymizing] = useState(false);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-    const [stats, setStats] = useState<{
-        totalConsents: number;
-        anonymizedUsers: number;
-        pendingRequests: number;
-        complianceRisks: number;
-        totalExports: number;
-    }>({
-        totalConsents: 0,
-        anonymizedUsers: 0,
-        pendingRequests: 0,
-        complianceRisks: 0,
-        totalExports: 0
-    });
-    const [pendingRequests, setPendingRequests] = useState<DeletionRequest[]>([]);
-    const [exportHistory, setExportHistory] = useState<any[]>([]);
-    const [retentionRisks, setRetentionRisks] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState('requests');
 
-    useEffect(() => {
-        if (isAdmin) {
-            loadGlobalStats();
-            loadPendingRequests();
-            loadExportHistory();
-            loadRetentionRisks();
-        }
-    }, [isAdmin]);
+    const { data: stats = { totalConsents: 0, anonymizedUsers: 0, pendingRequests: 0, complianceRisks: 0, totalExports: 0 } } = useQuery({
+        queryKey: ['rgpd', 'stats'],
+        queryFn: () => gdprService.getStats(),
+        enabled: isAdmin,
+        staleTime: 2 * 60 * 1000,
+    });
 
-    const loadExportHistory = async () => {
-        try {
+    const { data: pendingRequests = [] } = useQuery({
+        queryKey: ['rgpd', 'pending-requests'],
+        queryFn: () => gdprService.getPendingRequests(),
+        enabled: isAdmin,
+        staleTime: 60 * 1000,
+    });
+
+    const { data: exportHistory = [] } = useQuery({
+        queryKey: ['rgpd', 'export-history'],
+        queryFn: async () => {
             const response = await apiClient.get('/rgpd/export-history');
-            setExportHistory(response.data || []);
-        } catch (error) {
-            toast.error('Erreur lors du chargement de l\'historique d\'exports');
-        }
-    };
+            return response.data || [];
+        },
+        enabled: isAdmin,
+        staleTime: 2 * 60 * 1000,
+    });
 
-    const loadRetentionRisks = async () => {
-        try {
+    const { data: retentionRisks = [] } = useQuery({
+        queryKey: ['rgpd', 'retention-risks'],
+        queryFn: async () => {
             const response = await apiClient.get('/rgpd/retention-risks');
-            setRetentionRisks(response.data || []);
-        } catch (error) {
-            toast.error('Erreur lors du chargement des risques de rétention');
-        }
-    };
+            return response.data || [];
+        },
+        enabled: isAdmin,
+        staleTime: 5 * 60 * 1000,
+    });
 
-    const loadGlobalStats = async () => {
-        try {
-            const data = await gdprService.getStats();
-            setStats(data);
-        } catch (error) {
-            toast.error('Erreur lors du chargement des statistiques RGPD');
-        }
-    };
-
-    const loadPendingRequests = async () => {
-        try {
-            const data = await gdprService.getPendingRequests();
-            setPendingRequests(data);
-        } catch (error) {
-            toast.error('Erreur lors du chargement des demandes de suppression');
-        }
-    };
+    const { data: legalData = null } = useQuery({
+        queryKey: ['rgpd', 'legal-data', selectedUserId],
+        queryFn: () => gdprService.checkLegalRetention(selectedUserId!),
+        enabled: !!selectedUserId,
+        staleTime: 60 * 1000,
+    });
 
     // Process deletion request
     const handleProcessRequest = async (requestId: string, action: DeletionAction, reason?: string) => {
         setIsAnonymizing(true);
         try {
             await gdprService.processRequest(requestId, action, reason);
-
             toast.success(action === 'APPROVE' ? 'Utilisateur anonymisé' : 'Demande rejetée');
-            loadPendingRequests();
-            loadGlobalStats();
+            queryClient.invalidateQueries({ queryKey: ['rgpd', 'pending-requests'] });
+            queryClient.invalidateQueries({ queryKey: ['rgpd', 'stats'] });
         } catch (error: unknown) {
             toast.error('Erreur lors du traitement', {
                 description: error instanceof Error ? error.message : 'Une erreur inconnue est survenue'
@@ -141,36 +120,16 @@ export default function AdminRGPDPanel() {
     // Search user by email
     const handleSearchUser = async () => {
         if (!searchEmail) return;
-
         setIsLoading(true);
         try {
-            const response = await apiClient.get('/rgpd/search', {
-                params: { email: searchEmail }
-            });
-
+            const response = await apiClient.get('/rgpd/search', { params: { email: searchEmail } });
             if (response.data) {
                 setSelectedUserId(response.data.id);
-                await loadLegalData(response.data.id);
             } else {
                 toast.error('Utilisateur non trouvé');
             }
-        } catch (error: any) {
+        } catch {
             toast.error('Utilisateur non trouvé ou erreur');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Load legal data retention info
-    const loadLegalData = async (userId: string) => {
-        setIsLoading(true);
-        try {
-            const data = await gdprService.checkLegalRetention(userId);
-            setLegalData(data);
-        } catch (error: any) {
-            toast.error('Erreur lors du chargement des données légales', {
-                description: error.message,
-            });
         } finally {
             setIsLoading(false);
         }

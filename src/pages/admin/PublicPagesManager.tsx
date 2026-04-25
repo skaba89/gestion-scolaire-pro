@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
 import {
@@ -192,9 +193,7 @@ function formatJson(str: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PublicPagesManager() {
-  // Data state
-  const [pages, setPages] = useState<PublicPage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -216,28 +215,21 @@ export default function PublicPagesManager() {
 
   // ─── Fetch pages ───────────────────────────────────────────────────────
 
-  const fetchPages = useCallback(async () => {
-    setIsLoading(true);
-    try {
+  const { data: pages = [], isLoading } = useQuery({
+    queryKey: ["public-pages", filterType, filterStatus],
+    queryFn: async () => {
       const params: Record<string, string> = {};
       if (filterType !== "all") params.page_type = filterType;
       if (filterStatus === "published") params.is_published = "true";
       if (filterStatus === "draft") params.is_published = "false";
+      const response = await apiClient.get<PublicPage[]>("/public-pages/", { params });
+      return response.data;
+    },
+    staleTime: 60 * 1000,
+  });
 
-      const response = await apiClient.get<PublicPage[]>("/public-pages/", {
-        params,
-      });
-      setPages(response.data);
-    } catch {
-      toast.error("Erreur lors du chargement des pages");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [filterType, filterStatus]);
-
-  useEffect(() => {
-    fetchPages();
-  }, [fetchPages]);
+  const invalidatePages = () =>
+    queryClient.invalidateQueries({ queryKey: ["public-pages"] });
 
   // ─── Stats ─────────────────────────────────────────────────────────────
 
@@ -358,7 +350,7 @@ export default function PublicPagesManager() {
       }
 
       closeForm();
-      fetchPages();
+      invalidatePages();
     } catch {
       toast.error(
         editingPage
@@ -377,7 +369,7 @@ export default function PublicPagesManager() {
       await apiClient.delete(`/public-pages/${deleteTarget.id}/`);
       toast.success("Page supprimée avec succès");
       setDeleteTarget(null);
-      fetchPages();
+      invalidatePages();
     } catch {
       toast.error("Erreur lors de la suppression de la page");
     } finally {
@@ -404,7 +396,7 @@ export default function PublicPagesManager() {
       };
       await apiClient.post("/public-pages/", payload);
       toast.success("Page dupliquée avec succès");
-      fetchPages();
+      invalidatePages();
     } catch {
       toast.error("Erreur lors de la duplication de la page");
     }
@@ -426,7 +418,7 @@ export default function PublicPagesManager() {
           { page_id: prevPage.id, sort_order: page.sort_order },
         ],
       });
-      fetchPages();
+      invalidatePages();
     } catch {
       toast.error("Erreur lors du réordonnancement");
     }
@@ -444,7 +436,7 @@ export default function PublicPagesManager() {
           { page_id: nextPage.id, sort_order: page.sort_order },
         ],
       });
-      fetchPages();
+      invalidatePages();
     } catch {
       toast.error("Erreur lors du réordonnancement");
     }

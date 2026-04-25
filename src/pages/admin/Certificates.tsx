@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -38,88 +39,78 @@ type CertificateType = "enrollment" | "attendance" | "level";
 const Certificates = () => {
   const { tenant } = useAuth();
   const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
-  const [students, setStudents] = useState<Student[]>([]);
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [certificateType, setCertificateType] = useState<CertificateType>("enrollment");
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (tenant?.id) {
-      fetchClassrooms();
-    }
-  }, [tenant?.id]);
-
-  useEffect(() => {
-    if (selectedClassroom) {
-      fetchStudentsByClassroom();
-    }
-  }, [selectedClassroom]);
-
-  const fetchClassrooms = async () => {
-    const { data } = await apiClient.get("/students/classes/", {
-      params: { ordering: "name", expand: "level" },
-    });
-
-    if (data) {
-      setClassrooms((data as any[]).map(c => ({
+  const { data: classrooms = [] } = useQuery({
+    queryKey: ["certificates", "classrooms", tenant?.id],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/students/classes/", {
+        params: { ordering: "name", expand: "level" },
+      });
+      return ((data as any[]) || []).map((c) => ({
         ...c,
-        level: c.level as { name: string } | null
-      })));
-    }
-  };
+        level: c.level as { name: string } | null,
+      }));
+    },
+    enabled: !!tenant?.id,
+    staleTime: 10 * 60 * 1000,
+  });
 
-  const fetchStudentsByClassroom = async () => {
-    // Get current academic year
-    const { data: currentYear } = await apiClient.get("/students/academic-years/", {
-      params: { is_current: true },
-    });
+  const { data: students = [] } = useQuery({
+    queryKey: ["certificates", "students", selectedClassroom],
+    queryFn: async () => {
+      const { data: currentYear } = await apiClient.get("/students/academic-years/", {
+        params: { is_current: true },
+      });
+      const yearData = (currentYear as any[])?.[0];
+      if (!yearData) return [];
 
-    const yearData = (currentYear as any[])?.[0];
-    if (!yearData) return;
-
-    // Get enrolled students
-    const { data: enrollments } = await apiClient.get("/admissions/enrollments/", {
-      params: { class_id: selectedClassroom, academic_year_id: yearData.id, expand: "student" },
-    });
-
-    if (enrollments) {
-      const studentList = (enrollments as any[])
+      const { data: enrollments } = await apiClient.get("/admissions/enrollments/", {
+        params: { class_id: selectedClassroom, academic_year_id: yearData.id, expand: "student" },
+      });
+      return ((enrollments as any[]) || [])
         .map((e) => e.student as unknown as Student)
         .filter(Boolean);
-      setStudents(studentList);
-    }
-  };
+    },
+    enabled: !!selectedClassroom,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const fetchStudentEnrollment = async (studentId: string) => {
-    const { data: currentYear } = await apiClient.get("/students/academic-years/", {
-      params: { is_current: true },
-    });
-
-    const yearData = (currentYear as any[])?.[0];
-    if (!yearData) return;
-
-    const { data } = await apiClient.get("/admissions/enrollments/", {
-      params: { student_id: studentId, academic_year_id: yearData.id, expand: "academic_year,classroom,level" },
-    });
-
-    const enrollmentData = (data as any[])?.[0];
-    if (enrollmentData) {
-      setEnrollment({
-        ...enrollmentData,
-        academic_year: enrollmentData.academic_year as { id: string; name: string },
-        classroom: enrollmentData.classroom as { id: string; name: string },
-        level: enrollmentData.level as { id: string; name: string } | null
+  const { data: enrollment = null } = useQuery({
+    queryKey: ["certificates", "enrollment", selectedStudent?.id],
+    queryFn: async () => {
+      const { data: currentYear } = await apiClient.get("/students/academic-years/", {
+        params: { is_current: true },
       });
-    }
-  };
+      const yearData = (currentYear as any[])?.[0];
+      if (!yearData) return null;
+
+      const { data } = await apiClient.get("/admissions/enrollments/", {
+        params: {
+          student_id: selectedStudent!.id,
+          academic_year_id: yearData.id,
+          expand: "academic_year,classroom,level",
+        },
+      });
+      const e = (data as any[])?.[0];
+      if (!e) return null;
+      return {
+        ...e,
+        academic_year: e.academic_year as { id: string; name: string },
+        classroom: e.classroom as { id: string; name: string },
+        level: e.level as { id: string; name: string } | null,
+      } as Enrollment;
+    },
+    enabled: !!selectedStudent?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
-    fetchStudentEnrollment(student.id);
   };
 
   const generateCertificate = () => {
