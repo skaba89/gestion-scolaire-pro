@@ -57,18 +57,6 @@ interface Booking {
   user?: { first_name: string; last_name: string; email: string };
 }
 
-const resourceTypeLabels: Record<ResourceType, string> = {
-  room: "Salle",
-  equipment: "Équipement",
-  appointment: "Rendez-vous",
-};
-
-const statusLabels: Record<BookingStatus, string> = {
-  pending: "En attente",
-  approved: "Approuvée",
-  rejected: "Refusée",
-  cancelled: "Annulée",
-};
 
 const statusColors: Record<BookingStatus, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -79,6 +67,20 @@ const statusColors: Record<BookingStatus, string> = {
 
 export default function Bookings() {
   const { t } = useTranslation();
+
+  const resourceTypeLabels: Record<ResourceType, string> = {
+    room: t("bookings.typeRoom"),
+    equipment: t("bookings.typeEquipment"),
+    appointment: t("bookings.typeAppointment"),
+  };
+
+  const statusLabels: Record<BookingStatus, string> = {
+    pending: t("bookings.pending"),
+    approved: "Approuvée",
+    rejected: "Refusée",
+    cancelled: "Annulée",
+  };
+
   const { tenant } = useTenant();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -175,11 +177,11 @@ export default function Bookings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookable-resources"] });
-      toast.success("Ressource créée avec succès");
+      toast.success(t("bookings.resourceCreated"));
       setResourceDialogOpen(false);
       resetResourceForm();
     },
-    onError: () => toast.error("Erreur lors de la création"),
+    onError: () => toast.error(t("bookings.resourceCreateError")),
   });
 
   // Update resource mutation
@@ -200,12 +202,12 @@ export default function Bookings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookable-resources"] });
-      toast.success("Ressource mise à jour");
+      toast.success(t("bookings.resourceUpdated"));
       setResourceDialogOpen(false);
       setEditingResource(null);
       resetResourceForm();
     },
-    onError: () => toast.error("Erreur lors de la mise à jour"),
+    onError: () => toast.error(t("bookings.resourceUpdateError")),
   });
 
   // Delete resource mutation
@@ -215,7 +217,7 @@ export default function Bookings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookable-resources"] });
-      toast.success("Ressource supprimée");
+      toast.success(t("bookings.resourceDeleted"));
     },
   });
 
@@ -239,7 +241,7 @@ export default function Bookings() {
         });
       } catch (conflictError: any) {
         if (conflictError.response?.status === 409) {
-          throw new Error("Ce créneau est déjà réservé");
+          throw new Error(t("bookings.slotAlreadyBooked"));
         }
       }
 
@@ -257,7 +259,7 @@ export default function Bookings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["pending-bookings"] });
-      toast.success("Réservation créée avec succès");
+      toast.success(t("bookings.bookingCreated"));
       setBookingDialogOpen(false);
       setSelectedResource(null);
       setBookingForm({ title: "", description: "", start_time: "09:00", end_time: "10:00" });
@@ -338,8 +340,8 @@ export default function Bookings() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Réservations</h1>
-          <p className="text-muted-foreground">Gérez les salles, équipements et rendez-vous</p>
+          <h1 className="text-3xl font-bold">{t("bookings.pageTitle")}</h1>
+          <p className="text-muted-foreground">{t("bookings.pageSubtitle")}</p>
         </div>
         <Dialog open={resourceDialogOpen} onOpenChange={(open) => {
           setResourceDialogOpen(open);
@@ -351,26 +353,26 @@ export default function Bookings() {
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Nouvelle ressource
+              {t("bookings.newResource")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {editingResource ? "Modifier la ressource" : "Nouvelle ressource"}
+                {editingResource ? t("bookings.editResource") : t("bookings.newResource")}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label>Nom *</Label>
+                <Label>{t("bookings.nameRequired")}</Label>
                 <Input
                   value={resourceForm.name}
                   onChange={(e) => setResourceForm({ ...resourceForm, name: e.target.value })}
-                  placeholder="Salle de réunion A"
+                  placeholder={t("bookings.namePlaceholder")}
                 />
               </div>
               <div>
-                <Label>Type</Label>
+                <Label>{t("bookings.type")}</Label>
                 <Select
                   value={resourceForm.resource_type}
                   onValueChange={(v: ResourceType) => setResourceForm({ ...resourceForm, resource_type: v })}
@@ -379,31 +381,31 @@ export default function Bookings() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="room">Salle</SelectItem>
-                    <SelectItem value="equipment">Équipement</SelectItem>
-                    <SelectItem value="appointment">Rendez-vous</SelectItem>
+                    <SelectItem value="room">{t("bookings.typeRoom")}</SelectItem>
+                    <SelectItem value="equipment">{t("bookings.typeEquipment")}</SelectItem>
+                    <SelectItem value="appointment">{t("bookings.typeAppointment")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Description</Label>
+                <Label>{t("bookings.description")}</Label>
                 <Textarea
                   value={resourceForm.description}
                   onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
-                  placeholder="Description de la ressource..."
+                  placeholder={t("bookings.resourceDescPlaceholder")}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Emplacement</Label>
+                  <Label>{t("bookings.location")}</Label>
                   <Input
                     value={resourceForm.location}
                     onChange={(e) => setResourceForm({ ...resourceForm, location: e.target.value })}
-                    placeholder="Bâtiment A, 2ème étage"
+                    placeholder={t("bookings.locationPlaceholder")}
                   />
                 </div>
                 <div>
-                  <Label>Capacité</Label>
+                  <Label>{t("bookings.capacity")}</Label>
                   <Input
                     type="number"
                     value={resourceForm.capacity}
@@ -414,7 +416,7 @@ export default function Bookings() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Heure début</Label>
+                  <Label>{t("bookings.startTime")}</Label>
                   <Input
                     type="time"
                     value={resourceForm.available_start_time}
@@ -422,7 +424,7 @@ export default function Bookings() {
                   />
                 </div>
                 <div>
-                  <Label>Heure fin</Label>
+                  <Label>{t("bookings.endTime")}</Label>
                   <Input
                     type="time"
                     value={resourceForm.available_end_time}
@@ -431,7 +433,7 @@ export default function Bookings() {
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <Label>Nécessite approbation</Label>
+                <Label>{t("bookings.requiresApproval")}</Label>
                 <Switch
                   checked={resourceForm.requires_approval}
                   onCheckedChange={(checked) => setResourceForm({ ...resourceForm, requires_approval: checked })}
@@ -442,7 +444,7 @@ export default function Bookings() {
                 onClick={handleResourceSubmit}
                 disabled={!resourceForm.name || createResourceMutation.isPending || updateResourceMutation.isPending}
               >
-                {editingResource ? "Mettre à jour" : "Créer"}
+                {editingResource ? t("bookings.update") : t("bookings.create")}
               </Button>
             </div>
           </DialogContent>
@@ -451,10 +453,10 @@ export default function Bookings() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="calendar">Calendrier</TabsTrigger>
-          <TabsTrigger value="resources">Ressources</TabsTrigger>
+          <TabsTrigger value="calendar">{t("bookings.calendar")}</TabsTrigger>
+          <TabsTrigger value="resources">{t("bookings.resources")}</TabsTrigger>
           <TabsTrigger value="pending">
-            En attente
+            {t("bookings.pending")}
             {pendingBookings.length > 0 && (
               <Badge variant="destructive" className="ml-2">{pendingBookings.length}</Badge>
             )}
@@ -562,7 +564,7 @@ export default function Bookings() {
                     {resource.capacity && (
                       <span className="flex items-center gap-1">
                         <Users className="h-3 w-3" />
-                        {resource.capacity} places
+                        {resource.capacity} {t("bookings.places")}
                       </span>
                     )}
                     <span className="flex items-center gap-1">
@@ -572,7 +574,7 @@ export default function Bookings() {
                   </div>
                   {resource.requires_approval && (
                     <Badge variant="secondary" className="text-xs">
-                      Approbation requise
+                      {t("bookings.approvalRequired")}
                     </Badge>
                   )}
                 </CardContent>
@@ -580,7 +582,7 @@ export default function Bookings() {
             ))}
             {resources.length === 0 && (
               <div className="col-span-full text-center py-12 text-muted-foreground">
-                Aucune ressource. Créez votre première ressource pour commencer.
+                {t("bookings.noResources")}
               </div>
             )}
           </div>
@@ -597,7 +599,7 @@ export default function Bookings() {
                       {booking.resource?.name} • {format(parseISO(booking.start_time), "dd/MM/yyyy HH:mm", { locale: fr })} - {format(parseISO(booking.end_time), "HH:mm")}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Par {booking.user?.first_name} {booking.user?.last_name}
+                      {t("bookings.by")} {booking.user?.first_name} {booking.user?.last_name}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -608,7 +610,7 @@ export default function Bookings() {
                       onClick={() => updateBookingStatusMutation.mutate({ id: booking.id, status: "approved" })}
                     >
                       <Check className="mr-1 h-4 w-4" />
-                      Approuver
+                      {t("bookings.approve")}
                     </Button>
                     <Button
                       variant="outline"
@@ -617,7 +619,7 @@ export default function Bookings() {
                       onClick={() => updateBookingStatusMutation.mutate({ id: booking.id, status: "rejected" })}
                     >
                       <X className="mr-1 h-4 w-4" />
-                      Refuser
+                      {t("bookings.reject")}
                     </Button>
                   </div>
                 </CardContent>
@@ -625,7 +627,7 @@ export default function Bookings() {
             ))}
             {pendingBookings.length === 0 && (
               <div className="text-center py-12 text-muted-foreground">
-                Aucune réservation en attente d'approbation
+                {t("bookings.noPendingBookings")}
               </div>
             )}
           </div>
@@ -643,24 +645,24 @@ export default function Bookings() {
               Date: {format(selectedDate, "EEEE d MMMM yyyy", { locale: fr })}
             </div>
             <div>
-              <Label>Titre *</Label>
+              <Label>{t("bookings.titleRequired")}</Label>
               <Input
                 value={bookingForm.title}
                 onChange={(e) => setBookingForm({ ...bookingForm, title: e.target.value })}
-                placeholder="Réunion d'équipe"
+                placeholder={t("bookings.titlePlaceholder")}
               />
             </div>
             <div>
-              <Label>Description</Label>
+              <Label>{t("bookings.description")}</Label>
               <Textarea
                 value={bookingForm.description}
                 onChange={(e) => setBookingForm({ ...bookingForm, description: e.target.value })}
-                placeholder="Détails de la réservation..."
+                placeholder={t("bookings.bookingDescPlaceholder")}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Heure de début</Label>
+                <Label>{t("bookings.startTime")}</Label>
                 <Input
                   type="time"
                   value={bookingForm.start_time}
@@ -668,7 +670,7 @@ export default function Bookings() {
                 />
               </div>
               <div>
-                <Label>Heure de fin</Label>
+                <Label>{t("bookings.endTime")}</Label>
                 <Input
                   type="time"
                   value={bookingForm.end_time}
@@ -678,7 +680,7 @@ export default function Bookings() {
             </div>
             {selectedResource?.requires_approval && (
               <p className="text-sm text-yellow-600 bg-yellow-500/10 p-3 rounded-lg">
-                Cette ressource nécessite une approbation. Votre demande sera examinée par un administrateur.
+                {t("bookings.approvalNote")}
               </p>
             )}
             <Button
@@ -686,7 +688,7 @@ export default function Bookings() {
               onClick={() => createBookingMutation.mutate(bookingForm)}
               disabled={!bookingForm.title || createBookingMutation.isPending}
             >
-              Réserver
+              {t("bookings.book")}
             </Button>
           </div>
         </DialogContent>

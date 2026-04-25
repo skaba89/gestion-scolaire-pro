@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -22,16 +23,6 @@ import { AuditLogTable } from "@/components/admin/audit/AuditLogTable";
 
 import { DataTablePagination } from "@/components/ui/DataTablePagination";
 
-const ACTION_LABELS: Record<string, { label: string; icon: any; color: string }> = {
-  LOGIN: { label: "Connexion", icon: LogIn, color: "bg-green-500" },
-  LOGOUT: { label: "Déconnexion", icon: LogOut, color: "bg-gray-500" },
-  CREATE: { label: "Création", icon: UserPlus, color: "bg-blue-500" },
-  INSERT: { label: "Insertion", icon: UserPlus, color: "bg-blue-500" },
-  UPDATE: { label: "Modification", icon: Edit, color: "bg-amber-500" },
-  DELETE: { label: "Suppression", icon: Trash2, color: "bg-red-500" },
-  SOFT_DELETE: { label: "Suppression (Soft)", icon: Trash2, color: "bg-orange-500" },
-  PASSWORD_RESET: { label: "Réinit. mot de passe", icon: RefreshCw, color: "bg-purple-500" },
-};
 
 const SEVERITY_COLORS: Record<string, string> = {
   INFO: "bg-blue-500/10 text-blue-600 border-blue-200",
@@ -40,23 +31,35 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const AuditLogs = () => {
+  const { t } = useTranslation();
   const { studentLabel, StudentsLabel } = useStudentLabel();
   const { toast } = useToast();
 
+  const ACTION_LABELS: Record<string, { label: string; icon: any; color: string }> = {
+    LOGIN: { label: t("auditLogs.actionLogin"), icon: LogIn, color: "bg-green-500" },
+    LOGOUT: { label: t("auditLogs.actionLogout"), icon: LogOut, color: "bg-gray-500" },
+    CREATE: { label: t("auditLogs.actionCreate"), icon: UserPlus, color: "bg-blue-500" },
+    INSERT: { label: t("auditLogs.actionInsert"), icon: UserPlus, color: "bg-blue-500" },
+    UPDATE: { label: t("auditLogs.actionUpdate"), icon: Edit, color: "bg-amber-500" },
+    DELETE: { label: t("auditLogs.actionDelete"), icon: Trash2, color: "bg-red-500" },
+    SOFT_DELETE: { label: t("auditLogs.actionSoftDelete"), icon: Trash2, color: "bg-orange-500" },
+    PASSWORD_RESET: { label: t("auditLogs.actionResetPassword"), icon: RefreshCw, color: "bg-purple-500" },
+  };
+
   const TABLE_LABELS: Record<string, string> = {
-    profiles: "Profils",
-    user_roles: "Rôles",
+    profiles: t("auditLogs.tableProfiles"),
+    user_roles: t("auditLogs.tableRoles"),
     students: StudentsLabel,
-    teachers: "Enseignants",
-    classrooms: "Classes",
-    grades: "Notes",
-    attendance: "Présences",
-    invoices: "Factures",
-    payments: "Paiements",
-    homework: "Devoirs",
-    messages: "Messages",
-    enrollments: "Inscriptions",
-    assessments: "Évaluations",
+    teachers: t("auditLogs.tableTeachers"),
+    classrooms: t("auditLogs.tableClasses"),
+    grades: t("auditLogs.tableGrades"),
+    attendance: t("auditLogs.tableAttendance"),
+    invoices: t("auditLogs.tableInvoices"),
+    payments: t("auditLogs.tablePayments"),
+    homework: t("auditLogs.tableHomework"),
+    messages: t("auditLogs.tableMessages"),
+    enrollments: t("auditLogs.tableEnrollments"),
+    assessments: t("auditLogs.tableAssessments"),
   };
 
   // Filters
@@ -103,7 +106,7 @@ const AuditLogs = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ["Date", "Utilisateur", "Email", "Action", "Table", "Niveau", "Détails"];
+    const headers = [t("auditLogs.colDate"), t("auditLogs.colUser"), t("auditLogs.colEmail"), t("auditLogs.colAction"), t("auditLogs.colTable"), t("auditLogs.colLevel"), t("auditLogs.colDetails")];
     const rows = logs.map(log => [
       log.created_at ? format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: fr }) : "",
       log.user_name || "",
@@ -124,7 +127,7 @@ const AuditLogs = () => {
     link.href = URL.createObjectURL(blob);
     link.download = `historique_actions_${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
-    toast({ title: "Export CSV téléchargé" });
+    toast({ title: t("auditLogs.csvDownloaded") });
   };
 
   const exportToPDF = () => {
@@ -134,7 +137,7 @@ const AuditLogs = () => {
     const htmlContent = `
           <html>
           <head>
-            <title>Historique des Actions</title>
+            <title>${t("auditLogs.pageTitle")}</title>
             <style>
               body { font-family: sans-serif; padding: 20px; font-size: 10px; }
               table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -143,16 +146,16 @@ const AuditLogs = () => {
             </style>
           </head>
           <body>
-            <h2>Historique des Actions</h2>
-            <p>Généré le ${format(new Date(), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
+            <h2>${t("auditLogs.pageTitle")}</h2>
+            <p>${t("auditLogs.generatedOn")} ${format(new Date(), "dd/MM/yyyy à HH:mm", { locale: fr })}</p>
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Utilisateur</th>
-                  <th>Action</th>
-                  <th>Table</th>
-                  <th>Détails</th>
+                  <th>${t("auditLogs.colDate")}</th>
+                  <th>${t("auditLogs.colUser")}</th>
+                  <th>${t("auditLogs.colAction")}</th>
+                  <th>${t("auditLogs.colTable")}</th>
+                  <th>${t("auditLogs.colDetails")}</th>
                 </tr>
               </thead>
               <tbody>

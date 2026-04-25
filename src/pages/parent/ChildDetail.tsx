@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
@@ -49,6 +50,7 @@ import { CheckInHistoryList } from "@/components/attendance/CheckInHistoryList";
 import { parentsService } from "@/features/parents/services/parentsService";
 
 const ChildDetail = () => {
+  const { t } = useTranslation();
   const { studentId } = useParams<{ studentId: string }>();
   const { user } = useAuth();
   const { tenant } = useTenant();
@@ -102,7 +104,7 @@ const ChildDetail = () => {
       setIsGeneratingTranscript(true);
 
       if (!grades || !allEnrollments || !student) {
-        toast.error("Données incomplètes pour générer le relevé.");
+        toast.error(t("childDetail.incompleteData"));
         return;
       }
 
@@ -217,12 +219,12 @@ const ChildDetail = () => {
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
-          toast.info("Ouverture bloquée par le navigateur — fichier téléchargé à la place.");
+          toast.info(t("childDetail.popupBlocked"));
         }
       }
 
     } catch (error: any) {
-      toast.error("Erreur lors de la génération du dossier scolaire", {
+      toast.error(t("childDetail.recordError"), {
         description: error?.response?.data?.detail || error.message || "Veuillez réessayer"
       });
     } finally {
@@ -230,18 +232,18 @@ const ChildDetail = () => {
     }
   };
 
-  const getAppreciation = (note: number) => {
-    if (note >= 16) return "Excellent";
-    if (note >= 14) return "Très Bien";
-    if (note >= 12) return "Bien";
-    if (note >= 10) return "Assez Bien";
-    return "Insuffisant";
-  };
+  const getAppreciation = useMemo(() => (note: number) => {
+    if (note >= 16) return t("childDetail.decisionExcellent");
+    if (note >= 14) return t("childDetail.decisionVeryGood");
+    if (note >= 12) return t("childDetail.decisionGood");
+    if (note >= 10) return t("childDetail.decisionFair");
+    return t("childDetail.decisionInsufficient");
+  }, [t]);
 
-  const getGeneralAppreciation = (note: number) => {
-    if (note >= 10) return "Admis en classe supérieure";
-    return "Redoublement";
-  };
+  const getGeneralAppreciation = useMemo(() => (note: number) => {
+    if (note >= 10) return t("childDetail.decisionPromotion");
+    return t("childDetail.decisionRepeat");
+  }, [t]);
 
   // Fetch attendance history via parentsService
   const { data: attendance } = useQuery({
@@ -314,13 +316,13 @@ const ChildDetail = () => {
         <Link to={getTenantUrl("/parent/children")}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour
+            {t("childDetail.back")}
           </Button>
         </Link>
         <Card>
           <CardContent className="py-12 text-center">
             <AlertCircle className="w-12 h-12 text-destructive/50 mx-auto mb-4" />
-            <p className="text-muted-foreground">Vous n'avez pas accès à ce profil</p>
+            <p className="text-muted-foreground">{t("childDetail.noAccess")}</p>
           </CardContent>
         </Card>
       </div>
@@ -340,7 +342,7 @@ const ChildDetail = () => {
       <Link to={getTenantUrl("/parent/children")}>
         <Button variant="ghost" size="sm">
           <ArrowLeft className="w-4 h-4 mr-2" />
-          Retour à la liste
+          {t("childDetail.backToList")}
         </Button>
       </Link>
 
@@ -365,11 +367,11 @@ const ChildDetail = () => {
             <div className="flex gap-4">
               <div className="text-center">
                 <div className={`text-2xl font-bold ${getAverageColor(overallAverage)}`}>{overallAverage > 0 ? overallAverage.toFixed(1) : "--"}</div>
-                <p className="text-xs text-muted-foreground">Moyenne</p>
+                <p className="text-xs text-muted-foreground">{t("childDetail.average")}</p>
               </div>
               <div className="text-center">
                 <div className={`text-2xl font-bold ${attendanceStats.rate >= 90 ? 'text-success' : attendanceStats.rate >= 75 ? 'text-warning' : 'text-destructive'}`}>{attendanceStats.rate.toFixed(0)}%</div>
-                <p className="text-xs text-muted-foreground">Présence</p>
+                <p className="text-xs text-muted-foreground">{t("childDetail.attendance")}</p>
               </div>
               <div className="flex flex-col justify-center">
                 <StudentDigitalBadge student={student as any} className="py-2 px-4" />
@@ -387,14 +389,14 @@ const ChildDetail = () => {
 
       <Tabs defaultValue="grades" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="grades" className="flex items-center gap-2"><BookOpen className="w-4 h-4" /><span className="hidden sm:inline">Notes</span></TabsTrigger>
-          <TabsTrigger value="attendance" className="flex items-center gap-2"><ClipboardCheck className="w-4 h-4" /><span className="hidden sm:inline">Présences</span></TabsTrigger>
-          <TabsTrigger value="reports" className="flex items-center gap-2"><FileText className="w-4 h-4" /><span className="hidden sm:inline">Bulletins</span></TabsTrigger>
+          <TabsTrigger value="grades" className="flex items-center gap-2"><BookOpen className="w-4 h-4" /><span className="hidden sm:inline">{t("childDetail.tabGrades")}</span></TabsTrigger>
+          <TabsTrigger value="attendance" className="flex items-center gap-2"><ClipboardCheck className="w-4 h-4" /><span className="hidden sm:inline">{t("childDetail.tabAttendance")}</span></TabsTrigger>
+          <TabsTrigger value="reports" className="flex items-center gap-2"><FileText className="w-4 h-4" /><span className="hidden sm:inline">{t("childDetail.tabReportCards")}</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="grades" className="space-y-4">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" />Évolution des résultats</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-lg flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" />{t("childDetail.gradeEvolution")}</CardTitle></CardHeader>
             <CardContent className="h-[250px] pt-4">
               {grades && grades.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -403,21 +405,21 @@ const ChildDetail = () => {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted-foreground))" opacity={0.1} />
                     <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                     <YAxis domain={[0, 20]} fontSize={10} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} ticks={[0, 5, 10, 15, 20]} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '12px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={(value: number) => [value.toFixed(1) + "/20", "Moyenne"]} />
+                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '12px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={(value: number) => [value.toFixed(1) + "/20", t("childDetail.average")]} />
                     <Area type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-muted-foreground"><TrendingUp className="w-12 h-12 mb-2 opacity-10" /><p>Pas assez de données pour le graphique</p></div>
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground"><TrendingUp className="w-12 h-12 mb-2 opacity-10" /><p>{t("childDetail.notEnoughData")}</p></div>
               )}
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-lg">Moyennes par matière</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg">{t("childDetail.averageBySubject")}</CardTitle></CardHeader>
             <CardContent>
               {subjectAverages.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">Aucune note enregistrée</div>
+                <div className="text-center py-8 text-muted-foreground">{t("childDetail.noGrades")}</div>
               ) : (
                 <div className="space-y-4">
                   {subjectAverages.map((subject: any) => (
@@ -426,7 +428,7 @@ const ChildDetail = () => {
                         <span className="font-medium">{subject.subject}</span>
                         <div className="flex items-center gap-2">
                           <span className={`font-bold ${getAverageColor(subject.average)}`}>{subject.average.toFixed(1)}/20</span>
-                          <Badge variant="outline" className="text-xs">{subject.grades.length} note(s)</Badge>
+                          <Badge variant="outline" className="text-xs">{subject.grades.length} {t("childDetail.gradeCount")}</Badge>
                         </div>
                       </div>
                       <Progress value={(subject.average / 20) * 100} className="h-2" />
@@ -438,10 +440,10 @@ const ChildDetail = () => {
           </Card>
 
           <Card>
-            <CardHeader><CardTitle className="text-lg">Historique des notes</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-lg">{t("childDetail.gradesHistory")}</CardTitle></CardHeader>
             <CardContent>
               {grades?.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">Aucune note enregistrée</div>
+                <div className="text-center py-8 text-muted-foreground">{t("childDetail.noGrades")}</div>
               ) : (
                 <div className="space-y-3">
                   {grades?.slice(0, 20).map((grade: any) => (
@@ -462,18 +464,18 @@ const ChildDetail = () => {
 
         <TabsContent value="attendance" className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card><CardContent className="p-4 text-center"><CheckCircle2 className="w-8 h-8 text-success mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.present}</p><p className="text-sm text-muted-foreground">Présent</p></CardContent></Card>
-            <Card><CardContent className="p-4 text-center"><XCircle className="w-8 h-8 text-destructive mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.absent}</p><p className="text-sm text-muted-foreground">Absent</p></CardContent></Card>
-            <Card><CardContent className="p-4 text-center"><Clock className="w-8 h-8 text-warning mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.late}</p><p className="text-sm text-muted-foreground">Retard</p></CardContent></Card>
-            <Card><CardContent className="p-4 text-center"><AlertCircle className="w-8 h-8 text-info mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.excused}</p><p className="text-sm text-muted-foreground">Excusé</p></CardContent></Card>
+            <Card><CardContent className="p-4 text-center"><CheckCircle2 className="w-8 h-8 text-success mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.present}</p><p className="text-sm text-muted-foreground">{t("childDetail.statusPresent")}</p></CardContent></Card>
+            <Card><CardContent className="p-4 text-center"><XCircle className="w-8 h-8 text-destructive mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.absent}</p><p className="text-sm text-muted-foreground">{t("childDetail.statusAbsent")}</p></CardContent></Card>
+            <Card><CardContent className="p-4 text-center"><Clock className="w-8 h-8 text-warning mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.late}</p><p className="text-sm text-muted-foreground">{t("childDetail.statusLate")}</p></CardContent></Card>
+            <Card><CardContent className="p-4 text-center"><AlertCircle className="w-8 h-8 text-info mx-auto mb-2" /><p className="text-2xl font-bold">{attendanceStats.excused}</p><p className="text-sm text-muted-foreground">{t("childDetail.statusExcused")}</p></CardContent></Card>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <CheckInHistoryList checkIns={checkInHistory || []} isLoading={isLoadingCheckIns} />
             <Card>
-              <CardHeader><CardTitle className="text-lg">Historique des présences par jour</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">{t("childDetail.attendanceHistory")}</CardTitle></CardHeader>
               <CardContent>
                 {attendance?.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">Aucun enregistrement de présence</div>
+                  <div className="text-center py-8 text-muted-foreground">{t("childDetail.noAttendance")}</div>
                 ) : (
                   <div className="space-y-2">
                     {attendance?.slice(0, 30).map((record: any) => (
@@ -483,7 +485,7 @@ const ChildDetail = () => {
                           <span className="font-medium">{format(new Date(record.date), "EEEE dd MMMM yyyy", { locale: fr })}</span>
                         </div>
                         <Badge variant={record.status === "PRESENT" ? "default" : record.status === "ABSENT" ? "destructive" : record.status === "LATE" ? "secondary" : "outline"}>
-                          {record.status === "PRESENT" ? "Présent" : record.status === "ABSENT" ? "Absent" : record.status === "LATE" ? "Retard" : "Excusé"}
+                          {record.status === "PRESENT" ? t("childDetail.statusPresent") : record.status === "ABSENT" ? t("childDetail.statusAbsent") : record.status === "LATE" ? t("childDetail.statusLate") : t("childDetail.statusExcused")}
                         </Badge>
                       </div>
                     ))}
@@ -496,8 +498,8 @@ const ChildDetail = () => {
 
         <TabsContent value="reports">
           <div className="grid gap-4 md:grid-cols-2">
-            <Card className="flex flex-col"><CardHeader><CardTitle className="text-lg">Bulletins scolaires</CardTitle></CardHeader><CardContent className="flex-1 flex flex-col items-center justify-center py-8"><FileText className="w-12 h-12 text-muted-foreground/50 mb-4" /><p className="text-muted-foreground text-center mb-6">Consultez et téléchargez les bulletins de notes trimestriels.</p><Link to={getTenantUrl(`/parent/report-cards?student=${studentId}`)}><Button><FileText className="w-4 h-4 mr-2" />Voir les bulletins</Button></Link></CardContent></Card>
-            <Card className="flex flex-col"><CardHeader><CardTitle className="text-lg">Dossier Scolaire</CardTitle></CardHeader><CardContent className="flex-1 flex flex-col items-center justify-center py-8"><BookOpen className="w-12 h-12 text-primary/50 mb-4" /><p className="text-muted-foreground text-center mb-6">Téléchargez le relevé complet de toutes les années scolaires.</p><Button onClick={handleDownloadTranscript} disabled={isGeneratingTranscript} variant="outline" className="border-primary text-primary hover:bg-primary/5">{isGeneratingTranscript ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>Génération...</>) : (<><Download className="w-4 h-4 mr-2" />Télécharger le dossier complet</>)}</Button></CardContent></Card>
+            <Card className="flex flex-col"><CardHeader><CardTitle className="text-lg">{t("childDetail.reportCardsTitle")}</CardTitle></CardHeader><CardContent className="flex-1 flex flex-col items-center justify-center py-8"><FileText className="w-12 h-12 text-muted-foreground/50 mb-4" /><p className="text-muted-foreground text-center mb-6">{t("childDetail.reportCardsDesc")}</p><Link to={getTenantUrl(`/parent/report-cards?student=${studentId}`)}><Button><FileText className="w-4 h-4 mr-2" />{t("childDetail.viewReportCards")}</Button></Link></CardContent></Card>
+            <Card className="flex flex-col"><CardHeader><CardTitle className="text-lg">{t("childDetail.academicRecord")}</CardTitle></CardHeader><CardContent className="flex-1 flex flex-col items-center justify-center py-8"><BookOpen className="w-12 h-12 text-primary/50 mb-4" /><p className="text-muted-foreground text-center mb-6">{t("childDetail.academicRecordDesc")}</p><Button onClick={handleDownloadTranscript} disabled={isGeneratingTranscript} variant="outline" className="border-primary text-primary hover:bg-primary/5">{isGeneratingTranscript ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2"></div>{t("childDetail.generating")}</>) : (<><Download className="w-4 h-4 mr-2" />{t("childDetail.downloadRecord")}</>)}</Button></CardContent></Card>
           </div>
         </TabsContent>
       </Tabs>

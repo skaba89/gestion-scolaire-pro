@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { studentsService } from "@/features/students/services/studentsService";
+import { useTranslation } from "react-i18next";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -27,6 +28,7 @@ import {
 type JobOfferType = "INTERNSHIP" | "JOB" | "APPRENTICESHIP" | "VOLUNTEER";
 
 const StudentCareers = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -47,6 +49,42 @@ const StudentCareers = () => {
     message: "",
     goals: "",
   });
+
+  const offerTypeVariants = useMemo(
+    () => ({
+      INTERNSHIP: { label: t("careers.offerTypeInternship"), variant: "default" as const },
+      JOB: { label: t("careers.offerTypeJob"), variant: "secondary" as const },
+      APPRENTICESHIP: { label: t("careers.offerTypeApprenticeship"), variant: "outline" as const },
+      VOLUNTEER: { label: t("careers.offerTypeVolunteer"), variant: "destructive" as const },
+    }),
+    [t]
+  );
+
+  const statusVariants = useMemo(
+    () => ({
+      PENDING: { label: t("careers.appStatusPending"), className: "bg-yellow-500" },
+      REVIEWING: { label: t("careers.appStatusReview"), className: "bg-blue-500" },
+      INTERVIEW: { label: t("careers.appStatusInterview"), className: "bg-purple-500" },
+      ACCEPTED: { label: t("careers.appStatusAccepted"), className: "bg-green-500" },
+      REJECTED: { label: t("careers.appStatusRejected"), className: "bg-red-500" },
+      WITHDRAWN: { label: t("careers.appStatusWithdrawn"), className: "bg-gray-500" },
+      ACTIVE: { label: t("careers.eventStatusActive"), className: "bg-green-500" },
+      COMPLETED: { label: t("careers.eventStatusCompleted"), className: "bg-gray-500" },
+      CANCELLED: { label: t("careers.eventStatusCancelled"), className: "bg-red-500" },
+    }),
+    [t]
+  );
+
+  const eventTypeLabels = useMemo(
+    () => ({
+      workshop: t("careers.eventTypeWorkshop"),
+      conference: t("careers.eventTypeConference"),
+      fair: t("careers.eventTypeFair"),
+      networking: t("careers.eventTypeNetworking"),
+      webinar: t("careers.eventTypeWebinar"),
+    }),
+    [t]
+  );
 
   // Get current student
   const { data: currentStudent } = useQuery({
@@ -115,13 +153,13 @@ const StudentCareers = () => {
       setShowApplyDialog(false);
       setSelectedOffer(null);
       setApplicationForm({ cover_letter: "" });
-      toast.success("Candidature envoyée avec succès!");
+      toast.success(t("careers.applicationSuccess"));
     },
     onError: (error: any) => {
       if (error.response?.status === 409) {
-        toast.error("Vous avez déjà postulé à cette offre");
+        toast.error(t("careers.alreadyAppliedError"));
       } else {
-        toast.error("Erreur lors de l'envoi de la candidature");
+        toast.error(t("careers.applicationError"));
       }
     },
   });
@@ -137,13 +175,13 @@ const StudentCareers = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-event-registrations"] });
-      toast.success("Inscription confirmée!");
+      toast.success(t("careers.registrationSuccess"));
     },
     onError: (error: any) => {
       if (error.response?.status === 409) {
-        toast.error("Vous êtes déjà inscrit à cet événement");
+        toast.error(t("careers.alreadyRegistered"));
       } else {
-        toast.error("Erreur lors de l'inscription");
+        toast.error(t("careers.registrationError"));
       }
     },
   });
@@ -167,41 +205,24 @@ const StudentCareers = () => {
       setShowMentorDialog(false);
       setSelectedMentor(null);
       setMentorshipForm({ message: "", goals: "" });
-      toast.success("Demande de mentorat envoyée!");
+      toast.success(t("careers.mentoringSuccess"));
     },
     onError: (error: any) => {
       if (error.response?.status === 409) {
-        toast.error("Vous avez déjà contacté ce mentor");
+        toast.error(t("careers.alreadyContacted"));
       } else {
-        toast.error("Erreur lors de l'envoi de la demande");
+        toast.error(t("careers.mentoringError"));
       }
     },
   });
 
   const getOfferTypeBadge = (type: JobOfferType) => {
-    const variants: Record<JobOfferType, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
-      INTERNSHIP: { label: "Stage", variant: "default" },
-      JOB: { label: "Emploi", variant: "secondary" },
-      APPRENTICESHIP: { label: "Alternance", variant: "outline" },
-      VOLUNTEER: { label: "Bénévolat", variant: "destructive" },
-    };
-    const { label, variant } = variants[type] || { label: type, variant: "default" };
+    const { label, variant } = offerTypeVariants[type] || { label: type, variant: "default" as const };
     return <Badge variant={variant}>{label}</Badge>;
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { label: string; className: string }> = {
-      PENDING: { label: "En attente", className: "bg-yellow-500" },
-      REVIEWING: { label: "En révision", className: "bg-blue-500" },
-      INTERVIEW: { label: "Entretien", className: "bg-purple-500" },
-      ACCEPTED: { label: "Acceptée", className: "bg-green-500" },
-      REJECTED: { label: "Refusée", className: "bg-red-500" },
-      WITHDRAWN: { label: "Retirée", className: "bg-gray-500" },
-      ACTIVE: { label: "Active", className: "bg-green-500" },
-      COMPLETED: { label: "Terminée", className: "bg-gray-500" },
-      CANCELLED: { label: "Annulée", className: "bg-red-500" },
-    };
-    const { label, className } = variants[status] || { label: status, className: "bg-gray-500" };
+    const { label, className } = statusVariants[status as keyof typeof statusVariants] || { label: status, className: "bg-gray-500" };
     return <Badge className={className}>{label}</Badge>;
   };
 
@@ -229,9 +250,9 @@ const StudentCareers = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Carrières & Stages</h1>
+        <h1 className="text-3xl font-bold">{t("careers.pageTitle")}</h1>
         <p className="text-muted-foreground">
-          Découvrez les opportunités et connectez-vous avec des mentors
+          {t("careers.pageSubtitle")}
         </p>
       </div>
 
@@ -240,19 +261,19 @@ const StudentCareers = () => {
         <TabsList>
           <TabsTrigger value="offers">
             <Briefcase className="h-4 w-4 mr-2" />
-            Offres
+            {t("careers.tabOffers")}
           </TabsTrigger>
           <TabsTrigger value="applications">
             <FileText className="h-4 w-4 mr-2" />
-            Mes candidatures
+            {t("careers.tabApplications")}
           </TabsTrigger>
           <TabsTrigger value="events">
             <Calendar className="h-4 w-4 mr-2" />
-            Événements
+            {t("careers.tabEvents")}
           </TabsTrigger>
           <TabsTrigger value="mentors">
             <GraduationCap className="h-4 w-4 mr-2" />
-            Mentorat
+            {t("careers.tabMentoring")}
           </TabsTrigger>
         </TabsList>
 
@@ -262,7 +283,7 @@ const StudentCareers = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher une offre..."
+                placeholder={t("careers.searchPlaceholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -270,14 +291,14 @@ const StudentCareers = () => {
             </div>
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="Type" />
+                <SelectValue placeholder={t("careers.filterType")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous</SelectItem>
-                <SelectItem value="INTERNSHIP">Stages</SelectItem>
-                <SelectItem value="JOB">Emplois</SelectItem>
-                <SelectItem value="APPRENTICESHIP">Alternances</SelectItem>
-                <SelectItem value="VOLUNTEER">Bénévolat</SelectItem>
+                <SelectItem value="all">{t("careers.typeAll")}</SelectItem>
+                <SelectItem value="INTERNSHIP">{t("careers.typeInternship")}</SelectItem>
+                <SelectItem value="JOB">{t("careers.typeJob")}</SelectItem>
+                <SelectItem value="APPRENTICESHIP">{t("careers.typeApprenticeship")}</SelectItem>
+                <SelectItem value="VOLUNTEER">{t("careers.typeVolunteer")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -288,7 +309,7 @@ const StudentCareers = () => {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     {getOfferTypeBadge(offer.offer_type)}
-                    {offer.is_remote && <Badge variant="outline">Remote</Badge>}
+                    {offer.is_remote && <Badge variant="outline">{t("careers.remote")}</Badge>}
                   </div>
                   <CardTitle className="text-lg mt-2">{offer.title}</CardTitle>
                   <CardDescription className="flex items-center gap-1">
@@ -312,7 +333,7 @@ const StudentCareers = () => {
                   {offer.application_deadline && (
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-4 w-4" />
-                      Limite: {format(new Date(offer.application_deadline), "dd MMM yyyy", { locale: fr })}
+                      {t("careers.deadline")} {format(new Date(offer.application_deadline), "dd MMM yyyy", { locale: fr })}
                     </div>
                   )}
                 </CardContent>
@@ -325,7 +346,7 @@ const StudentCareers = () => {
                   ) : hasApplied(offer.id) ? (
                     <Button variant="secondary" disabled className="flex-1">
                       <Check className="h-4 w-4 mr-2" />
-                      Déjà postulé
+                      {t("careers.alreadyApplied")}
                     </Button>
                   ) : (
                     <Dialog open={showApplyDialog && selectedOffer?.id === offer.id} onOpenChange={(open) => {
@@ -335,7 +356,7 @@ const StudentCareers = () => {
                       <DialogTrigger asChild>
                         <Button className="flex-1" onClick={() => setSelectedOffer(offer)}>
                           <Send className="h-4 w-4 mr-2" />
-                          Postuler
+                          {t("careers.apply")}
                         </Button>
                       </DialogTrigger>
                       <DialogContent>
@@ -345,11 +366,11 @@ const StudentCareers = () => {
                         </DialogHeader>
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
-                            <Label>Lettre de motivation</Label>
+                            <Label>{t("careers.coverLetter")}</Label>
                             <Textarea
                               value={applicationForm.cover_letter}
                               onChange={(e) => setApplicationForm({ cover_letter: e.target.value })}
-                              placeholder="Expliquez votre motivation pour ce poste..."
+                              placeholder={t("careers.coverLetterPlaceholder")}
                               rows={6}
                             />
                           </div>
@@ -358,7 +379,7 @@ const StudentCareers = () => {
                             disabled={applyMutation.isPending}
                             className="w-full"
                           >
-                            {applyMutation.isPending ? "Envoi..." : "Envoyer ma candidature"}
+                            {applyMutation.isPending ? t("careers.sending") : t("careers.sendApplication")}
                           </Button>
                         </div>
                       </DialogContent>
@@ -377,7 +398,7 @@ const StudentCareers = () => {
             {filteredOffers.length === 0 && (
               <Card className="col-span-full">
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Aucune offre disponible
+                  {t("careers.noOffers")}
                 </CardContent>
               </Card>
             )}
@@ -409,7 +430,7 @@ const StudentCareers = () => {
             {myApplications.length === 0 && (
               <Card>
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Vous n'avez pas encore postulé à des offres
+                  {t("careers.noApplications")}
                 </CardContent>
               </Card>
             )}
@@ -423,11 +444,7 @@ const StudentCareers = () => {
               <Card key={event.id}>
                 <CardHeader>
                   <Badge variant="outline" className="w-fit mb-2">
-                    {event.event_type === "workshop" ? "Atelier" :
-                      event.event_type === "conference" ? "Conférence" :
-                        event.event_type === "fair" ? "Salon" :
-                          event.event_type === "networking" ? "Networking" :
-                            event.event_type === "webinar" ? "Webinaire" : event.event_type}
+                    {eventTypeLabels[event.event_type as keyof typeof eventTypeLabels] ?? event.event_type}
                   </Badge>
                   <CardTitle className="text-lg">{event.title}</CardTitle>
                 </CardHeader>
@@ -444,7 +461,7 @@ const StudentCareers = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{event.is_online ? "En ligne" : event.location || "Lieu à définir"}</span>
+                      <span>{event.is_online ? t("careers.online") : event.location || t("careers.locationTbd")}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -452,7 +469,7 @@ const StudentCareers = () => {
                   {isRegistered(event.id) ? (
                     <Button variant="secondary" disabled className="w-full">
                       <Check className="h-4 w-4 mr-2" />
-                      Inscrit
+                      {t("careers.registered")}
                     </Button>
                   ) : (
                     <Button
@@ -460,7 +477,7 @@ const StudentCareers = () => {
                       onClick={() => registerEventMutation.mutate(event.id)}
                       disabled={registerEventMutation.isPending}
                     >
-                      S'inscrire
+                      {t("careers.register")}
                     </Button>
                   )}
                 </CardFooter>
@@ -469,7 +486,7 @@ const StudentCareers = () => {
             {careerEvents.length === 0 && (
               <Card className="col-span-full">
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Aucun événement à venir
+                  {t("careers.noEvents")}
                 </CardContent>
               </Card>
             )}
@@ -482,7 +499,7 @@ const StudentCareers = () => {
           {myMentorshipRequests.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Mes demandes de mentorat</CardTitle>
+                <CardTitle>{t("careers.myMentoringRequests")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -506,7 +523,7 @@ const StudentCareers = () => {
 
           {/* Available mentors */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Mentors disponibles</h3>
+            <h3 className="text-lg font-semibold mb-4">{t("careers.availableMentors")}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {mentors.map((mentor) => (
                 <Card key={mentor.id}>
@@ -571,32 +588,32 @@ const StudentCareers = () => {
                         <DialogTrigger asChild>
                           <Button className="flex-1" onClick={() => setSelectedMentor(mentor)}>
                             <Send className="h-4 w-4 mr-2" />
-                            Contacter
+                            {t("careers.contact")}
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
-                            <DialogTitle>Demander un mentorat</DialogTitle>
+                            <DialogTitle>{t("careers.requestMentoring")}</DialogTitle>
                             <DialogDescription>
                               {mentor.first_name} {mentor.last_name} - {mentor.current_position}
                             </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4 py-4">
                             <div className="space-y-2">
-                              <Label>Message de présentation</Label>
+                              <Label>{t("careers.introMessage")}</Label>
                               <Textarea
                                 value={mentorshipForm.message}
                                 onChange={(e) => setMentorshipForm({ ...mentorshipForm, message: e.target.value })}
-                                placeholder="Présentez-vous et expliquez pourquoi vous souhaitez être mentoré..."
+                                placeholder={t("careers.introPlaceholder")}
                                 rows={4}
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label>Vos objectifs</Label>
+                              <Label>{t("careers.goals")}</Label>
                               <Textarea
                                 value={mentorshipForm.goals}
                                 onChange={(e) => setMentorshipForm({ ...mentorshipForm, goals: e.target.value })}
-                                placeholder="Quels sont vos objectifs de carrière?"
+                                placeholder={t("careers.goalsPlaceholder")}
                                 rows={3}
                               />
                             </div>
@@ -605,7 +622,7 @@ const StudentCareers = () => {
                               disabled={requestMentorshipMutation.isPending}
                               className="w-full"
                             >
-                              {requestMentorshipMutation.isPending ? "Envoi..." : "Envoyer la demande"}
+                              {requestMentorshipMutation.isPending ? t("careers.sending") : t("careers.sendRequest")}
                             </Button>
                           </div>
                         </DialogContent>
@@ -624,7 +641,7 @@ const StudentCareers = () => {
               {mentors.length === 0 && (
                 <Card className="col-span-full">
                   <CardContent className="py-8 text-center text-muted-foreground">
-                    Aucun mentor disponible pour le moment
+                    {t("careers.noMentors")}
                   </CardContent>
                 </Card>
               )}
