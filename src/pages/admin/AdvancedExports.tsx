@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -21,47 +22,48 @@ import { ExportHistory } from "@/components/admin/exports/ExportHistory";
 
 type ExportType = "students" | "teachers" | "grades" | "attendance" | "finances" | "schedule";
 
-const exportConfigs: Record<ExportType, { label: string; icon: React.ElementType; description: string; fields: string[] }> = {
-  students: {
-    label: "Étudiants",
-    icon: Users,
-    description: "Liste des étudiants avec leurs informations",
-    fields: ["N° Étudiant", "Prénom", "Nom", "Date de naissance", "Genre", "Classe", "Tuteur", "Tél. Tuteur", "Email Tuteur"]
-  },
-  teachers: {
-    label: "Enseignants",
-    icon: GraduationCap,
-    description: "Liste des enseignants et leurs affectations",
-    fields: ["Prénom", "Nom", "Email", "Téléphone", "Matières", "Classes"]
-  },
-  grades: {
-    label: "Notes",
-    icon: BarChart3,
-    description: "Relevés de notes par classe et matière",
-    fields: ["N° Étudiant", "Étudiant", "Classe", "Matière", "Évaluation", "Trimestre", "Note", "Note max", "Commentaire"]
-  },
-  attendance: {
-    label: "Présences",
-    icon: Users,
-    description: "Statistiques de présence par période",
-    fields: ["Date", "N° Étudiant", "Étudiant", "Classe", "Statut", "Remarques"]
-  },
-  finances: {
-    label: "Finances",
-    icon: CreditCard,
-    description: "Factures et paiements",
-    fields: ["N° Facture", "N° Étudiant", "Étudiant", "Montant total", "Montant payé", "Solde", "Statut", "Échéance", "Date création"]
-  },
-  schedule: {
-    label: "Emplois du temps",
-    icon: Calendar,
-    description: "Plannings des cours par classe",
-    fields: ["Classe", "Jour", "Heure début", "Heure fin", "Matière", "Enseignant", "Salle"]
-  },
-};
-
 export default function AdvancedExports() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
+
+  const exportConfigs = useMemo<Record<ExportType, { label: string; icon: React.ElementType; description: string; fields: string[] }>>(() => ({
+    students: {
+      label: t("exports.typeStudents"),
+      icon: Users,
+      description: t("exports.descStudents"),
+      fields: ["N° Étudiant", "Prénom", "Nom", "Date de naissance", "Genre", "Classe", "Tuteur", "Tél. Tuteur", "Email Tuteur"],
+    },
+    teachers: {
+      label: t("exports.typeTeachers"),
+      icon: GraduationCap,
+      description: t("exports.descTeachers"),
+      fields: ["Prénom", "Nom", "Email", "Téléphone", "Matières", "Classes"],
+    },
+    grades: {
+      label: t("exports.typeGrades"),
+      icon: BarChart3,
+      description: t("exports.descGrades"),
+      fields: ["N° Étudiant", "Étudiant", "Classe", "Matière", "Évaluation", "Trimestre", "Note", "Note max", "Commentaire"],
+    },
+    attendance: {
+      label: t("exports.typeAttendance"),
+      icon: Users,
+      description: t("exports.descAttendance"),
+      fields: ["Date", "N° Étudiant", "Étudiant", "Classe", "Statut", "Remarques"],
+    },
+    finances: {
+      label: t("exports.typeFinances"),
+      icon: CreditCard,
+      description: t("exports.descFinances"),
+      fields: ["N° Facture", "N° Étudiant", "Étudiant", "Montant total", "Montant payé", "Solde", "Statut", "Échéance", "Date création"],
+    },
+    schedule: {
+      label: t("exports.typeSchedule"),
+      icon: Calendar,
+      description: t("exports.descSchedule"),
+      fields: ["Classe", "Jour", "Heure début", "Heure fin", "Matière", "Enseignant", "Salle"],
+    },
+  }), [t]);
   const [exportType, setExportType] = useState<ExportType>("students");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
   const [selectedTerm, setSelectedTerm] = useState<string>("");
@@ -96,7 +98,7 @@ export default function AdvancedExports() {
 
   const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
     if (!data || data.length === 0) {
-      toast.error("Aucune donnée à exporter");
+      toast.error(t("exports.noData"));
       return 0;
     }
 
@@ -126,7 +128,7 @@ export default function AdvancedExports() {
 
   const exportToJSON = (data: Record<string, unknown>[], filename: string) => {
     if (!data || data.length === 0) {
-      toast.error("Aucune donnée à exporter");
+      toast.error(t("exports.noData"));
       return 0;
     }
 
@@ -286,10 +288,10 @@ export default function AdvancedExports() {
       let rowCount = 0;
       if (format === "csv") {
         rowCount = exportToCSV(data, filename);
-        toast.success(`Export ${exportConfigs[exportType].label} réussi (${rowCount} lignes)`);
+        toast.success(t("exports.exportSuccess", { label: exportConfigs[exportType].label, count: rowCount }));
       } else if (format === "json") {
         rowCount = exportToJSON(data, filename);
-        toast.success(`Export JSON ${exportConfigs[exportType].label} réussi (${rowCount} lignes)`);
+        toast.success(t("exports.exportJsonSuccess", { label: exportConfigs[exportType].label, count: rowCount }));
       } else {
         const headers = selectedFields.filter(h => data.length > 0 && Object.keys(data[0]).includes(h));
         rowCount = data.length;
@@ -339,7 +341,7 @@ export default function AdvancedExports() {
           printWindow.document.close();
           printWindow.onload = () => { printWindow.print(); };
         }
-        toast.success("Document prêt pour impression/PDF");
+        toast.success(t("exports.pdfReady"));
       }
 
       if (rowCount > 0) {
@@ -349,7 +351,7 @@ export default function AdvancedExports() {
         ]);
       }
     } catch (error) {
-      toast.error("Erreur lors de l'export");
+      toast.error(t("exports.exportError"));
     } finally {
       setIsExporting(false);
     }
@@ -358,14 +360,14 @@ export default function AdvancedExports() {
   return (
     <div className="space-y-6">
       <AdvancedExportHeader
-        title="Exports Avancés"
-        description="Exportez vos données en CSV, JSON ou PDF"
+        title={t("exports.pageTitle")}
+        description={t("exports.pageDescription")}
       />
 
       <Tabs defaultValue="export" className="space-y-6">
         <TabsList className="bg-muted/50 p-1">
-          <TabsTrigger value="export" className="px-6">Nouvel Export</TabsTrigger>
-          <TabsTrigger value="history" className="px-6">Historique</TabsTrigger>
+          <TabsTrigger value="export" className="px-6">{t("exports.newExport")}</TabsTrigger>
+          <TabsTrigger value="history" className="px-6">{t("exports.history")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="export">

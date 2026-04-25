@@ -495,5 +495,28 @@
         "hoursRecorded": "Heures enregistrées",
         "cannotAddHours": "Impossible d'ajouter les heures",
         "fillRequired": "Veuillez remplir tous les champs obligatoires"
+    },
+    "exports": {
+        "pageTitle": "Exports Avancés",
+        "pageDescription": "Exportez vos données en CSV, JSON ou PDF",
+        "newExport": "Nouvel Export",
+        "history": "Historique",
+        "noData": "Aucune donnée à exporter",
+        "exportSuccess": "Export {{label}} réussi ({{count}} lignes)",
+        "exportJsonSuccess": "Export JSON {{label}} réussi ({{count}} lignes)",
+        "pdfReady": "Document prêt pour impression/PDF",
+        "exportError": "Erreur lors de l'export",
+        "typeStudents": "Étudiants",
+        "typeTeachers": "Enseignants",
+        "typeGrades": "Notes",
+        "typeAttendance": "Présences",
+        "typeFinances": "Finances",
+        "typeSchedule": "Emplois du temps",
+        "descStudents": "Liste des étudiants avec leurs informations",
+        "descTeachers": "Liste des enseignants et leurs affectations",
+        "descGrades": "Relevés de notes par classe et matière",
+        "descAttendance": "Statistiques de présence par période",
+        "descFinances": "Factures et paiements",
+        "descSchedule": "Plannings des cours par classe"
     }
 }

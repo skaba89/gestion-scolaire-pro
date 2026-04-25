@@ -495,5 +495,28 @@
         "hoursRecorded": "Hours recorded",
         "cannotAddHours": "Unable to add hours",
         "fillRequired": "Please fill in all required fields"
+    },
+    "exports": {
+        "pageTitle": "Advanced Exports",
+        "pageDescription": "Export your data as CSV, JSON or PDF",
+        "newExport": "New Export",
+        "history": "History",
+        "noData": "No data to export",
+        "exportSuccess": "{{label}} export successful ({{count}} rows)",
+        "exportJsonSuccess": "JSON {{label}} export successful ({{count}} rows)",
+        "pdfReady": "Document ready for print/PDF",
+        "exportError": "Error during export",
+        "typeStudents": "Students",
+        "typeTeachers": "Teachers",
+        "typeGrades": "Grades",
+        "typeAttendance": "Attendance",
+        "typeFinances": "Finances",
+        "typeSchedule": "Schedules",
+        "descStudents": "Student list with their information",
+        "descTeachers": "Teacher list and their assignments",
+        "descGrades": "Grade reports by class and subject",
+        "descAttendance": "Attendance statistics by period",
+        "descFinances": "Invoices and payments",
+        "descSchedule": "Class timetables"
     }
 }

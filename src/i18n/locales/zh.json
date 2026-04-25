@@ -322,5 +322,28 @@
     "hoursRecorded": "工时已记录",
     "cannotAddHours": "无法添加工时",
     "fillRequired": "请填写所有必填字段"
+  },
+  "exports": {
+    "pageTitle": "高级导出",
+    "pageDescription": "将数据导出为CSV、JSON或PDF格式",
+    "newExport": "新建导出",
+    "history": "历史记录",
+    "noData": "没有数据可导出",
+    "exportSuccess": "{{label}}导出成功（{{count}}行）",
+    "exportJsonSuccess": "JSON {{label}}导出成功（{{count}}行）",
+    "pdfReady": "文档已准备好打印/PDF",
+    "exportError": "导出时出错",
+    "typeStudents": "学生",
+    "typeTeachers": "教师",
+    "typeGrades": "成绩",
+    "typeAttendance": "考勤",
+    "typeFinances": "财务",
+    "typeSchedule": "课程表",
+    "descStudents": "包含学生信息的学生列表",
+    "descTeachers": "教师列表及其任务分配",
+    "descGrades": "按班级和科目的成绩报告",
+    "descAttendance": "按时期的考勤统计",
+    "descFinances": "发票和付款",
+    "descSchedule": "按班级的课程计划"
   }
 }

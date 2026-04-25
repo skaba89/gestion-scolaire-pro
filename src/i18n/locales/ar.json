@@ -265,5 +265,28 @@
     "hoursRecorded": "تم تسجيل الساعات",
     "cannotAddHours": "تعذر إضافة الساعات",
     "fillRequired": "يرجى ملء جميع الحقول الإلزامية"
+  },
+  "exports": {
+    "pageTitle": "تصديرات متقدمة",
+    "pageDescription": "صدّر بياناتك بصيغة CSV أو JSON أو PDF",
+    "newExport": "تصدير جديد",
+    "history": "السجل",
+    "noData": "لا توجد بيانات للتصدير",
+    "exportSuccess": "تم تصدير {{label}} بنجاح ({{count}} صف)",
+    "exportJsonSuccess": "تم تصدير JSON {{label}} بنجاح ({{count}} صف)",
+    "pdfReady": "المستند جاهز للطباعة/PDF",
+    "exportError": "خطأ أثناء التصدير",
+    "typeStudents": "الطلاب",
+    "typeTeachers": "المعلمون",
+    "typeGrades": "الدرجات",
+    "typeAttendance": "الحضور",
+    "typeFinances": "المالية",
+    "typeSchedule": "الجداول الزمنية",
+    "descStudents": "قائمة الطلاب مع معلوماتهم",
+    "descTeachers": "قائمة المعلمين وتعيينهم",
+    "descGrades": "تقارير الدرجات حسب الفصل والمادة",
+    "descAttendance": "إحصائيات الحضور حسب الفترة",
+    "descFinances": "الفواتير والمدفوعات",
+    "descSchedule": "جداول الحصص الدراسية"
   }
 }
