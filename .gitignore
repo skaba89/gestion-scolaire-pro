@@ -111,3 +111,8 @@ Thumbs.db
 # Git internals should never be archived inside project snapshots
 .git/
 
+# Fichiers de génération de documents (scripts locaux, non versionnés)
+generate_guide.cjs
+generate_guide.mjs
+*.docx
+
