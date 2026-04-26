@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -17,15 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Building2, GraduationCap, Mail, Phone, MapPin, Globe, Loader2 } from "lucide-react";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
-
-const TENANT_TYPES = [
-  { value: "school", label: "École" },
-  { value: "primary", label: "École Primaire" },
-  { value: "middle", label: "Collège" },
-  { value: "high", label: "Lycée" },
-  { value: "university", label: "Université" },
-  { value: "training", label: "Centre de Formation" },
-];
+import { useTranslation } from "react-i18next";
 
 // Niveaux par défaut selon le type d'établissement
 const DEFAULT_LEVELS: Record<string, string[]> = {
@@ -148,11 +140,21 @@ const DEFAULT_SUBJECTS: Record<string, { name: string; code: string; coefficient
 };
 
 const CreateTenant = () => {
+  const { t } = useTranslation();
   const { user, profile, roles, hasRole, isLoading: authLoading } = useAuth();
   const { tenant, isLoading: tenantLoading } = useTenant();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { getTenantUrl } = useTenantUrl();
+
+  const TENANT_TYPES = useMemo(() => [
+    { value: "school", label: t("createTenant.types.school") },
+    { value: "primary", label: t("createTenant.types.primary") },
+    { value: "middle", label: t("createTenant.types.middle") },
+    { value: "high", label: t("createTenant.types.high") },
+    { value: "university", label: t("createTenant.types.university") },
+    { value: "training", label: t("createTenant.types.training") },
+  ], [t]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -208,8 +210,8 @@ const CreateTenant = () => {
 
     if (!user || !formData.name || !formData.slug) {
       toast({
-        title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires",
+        title: t("createTenant.errorTitle"),
+        description: t("createTenant.errorRequired"),
         variant: "destructive"
       });
       return;
@@ -231,8 +233,8 @@ const CreateTenant = () => {
       });
 
       toast({
-        title: "Établissement créé!",
-        description: `${formData.name} a été créé avec succès.`
+        title: t("createTenant.successTitle"),
+        description: t("createTenant.successDesc", { name: formData.name })
       });
 
       // Force page reload to refresh auth context with new tenant
@@ -240,8 +242,8 @@ const CreateTenant = () => {
 
     } catch (error: any) {
       toast({
-        title: "Erreur de création",
-        description: error.response?.data?.detail || error.message || "Une erreur est survenue lors de la création",
+        title: t("createTenant.errorCreateTitle"),
+        description: error.response?.data?.detail || error.message || t("createTenant.errorCreateDesc"),
         variant: "destructive"
       });
     } finally {
@@ -257,13 +259,13 @@ const CreateTenant = () => {
             <GraduationCap className="w-8 h-8 text-primary-foreground" />
           </div>
           <div className="flex items-center justify-center gap-2 mt-2">
-            <h1 className="text-3xl font-bold text-gray-900">Créer un établissement</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{t("createTenant.title")}</h1>
             <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-semibold">
               Souverain API v2
             </span>
           </div>
           <p className="text-gray-600 mt-2">
-            Configurez votre établissement pour commencer
+            {t("createTenant.subtitle")}
           </p>
         </div>
 
@@ -271,20 +273,20 @@ const CreateTenant = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5" />
-              Informations de l'établissement
+              {t("createTenant.cardTitle")}
             </CardTitle>
             <CardDescription>
-              Ces informations seront visibles sur votre portail
+              {t("createTenant.cardDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="name">Nom de l'établissement *</Label>
+                  <Label htmlFor="name">{t("createTenant.fieldName")}</Label>
                   <Input
                     id="name"
-                    placeholder="Lycée Victor Hugo"
+                    placeholder={t("createTenant.placeholderName")}
                     value={formData.name}
                     onChange={(e) => handleNameChange(e.target.value)}
                     required
@@ -292,12 +294,12 @@ const CreateTenant = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="slug">URL personnalisée *</Label>
+                  <Label htmlFor="slug">{t("createTenant.fieldSlug")}</Label>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">schoolflow.app/</span>
                     <Input
                       id="slug"
-                      placeholder="lycee-victor-hugo"
+                      placeholder={t("createTenant.placeholderSlug")}
                       value={formData.slug}
                       onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                       required
@@ -306,7 +308,7 @@ const CreateTenant = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="type">Type d'établissement</Label>
+                  <Label htmlFor="type">{t("createTenant.fieldType")}</Label>
                   <Select
                     value={formData.type}
                     onValueChange={(v) => setFormData({ ...formData, type: v })}
@@ -327,12 +329,12 @@ const CreateTenant = () => {
                 <div className="space-y-2">
                   <Label htmlFor="email">
                     <Mail className="w-4 h-4 inline mr-2" />
-                    Email
+                    {t("createTenant.fieldEmail")}
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="contact@lycee.fr"
+                    placeholder={t("createTenant.placeholderEmail")}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   />
@@ -341,11 +343,11 @@ const CreateTenant = () => {
                 <div className="space-y-2">
                   <Label htmlFor="phone">
                     <Phone className="w-4 h-4 inline mr-2" />
-                    Téléphone
+                    {t("createTenant.fieldPhone")}
                   </Label>
                   <Input
                     id="phone"
-                    placeholder="+33 1 23 45 67 89"
+                    placeholder={t("createTenant.placeholderPhone")}
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   />
@@ -354,11 +356,11 @@ const CreateTenant = () => {
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="address">
                     <MapPin className="w-4 h-4 inline mr-2" />
-                    Adresse
+                    {t("createTenant.fieldAddress")}
                   </Label>
                   <Input
                     id="address"
-                    placeholder="123 Rue de l'Éducation, 75001 Paris"
+                    placeholder={t("createTenant.placeholderAddress")}
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   />
@@ -367,11 +369,11 @@ const CreateTenant = () => {
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="website">
                     <Globe className="w-4 h-4 inline mr-2" />
-                    Site web
+                    {t("createTenant.fieldWebsite")}
                   </Label>
                   <Input
                     id="website"
-                    placeholder="https://www.lycee-victor-hugo.fr"
+                    placeholder={t("createTenant.placeholderWebsite")}
                     value={formData.website}
                     onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                   />
@@ -384,7 +386,7 @@ const CreateTenant = () => {
                 size="lg"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Création en cours..." : "Créer l'établissement"}
+                {isSubmitting ? t("createTenant.submitting") : t("createTenant.submit")}
               </Button>
             </form>
           </CardContent>

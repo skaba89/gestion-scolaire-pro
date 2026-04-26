@@ -122,7 +122,7 @@ export default function DecisionDashboard() {
                             <CardContent>
                                 <div className="flex items-center text-xs text-green-600 font-medium">
                                     <ArrowUpRight className="h-4 w-4" />
-                                    <span>Globalité de l'établissement</span>
+                                    <span>{t('decision.overallEstablishment', 'Globalité de l\'établissement')}</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -329,7 +329,7 @@ export default function DecisionDashboard() {
                             <CardContent>
                                 <div className="flex items-center text-xs text-green-600 font-medium">
                                     <ArrowUpRight className="h-4 w-4" />
-                                    <span>+12.5% vs an dernier</span>
+                                    <span>{t('decision.vsLastYear', '+12.5% vs an dernier')}</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -353,7 +353,7 @@ export default function DecisionDashboard() {
                             <CardContent>
                                 <div className="flex items-center text-xs text-orange-600 font-medium">
                                     <AlertTriangle className="h-4 w-4" />
-                                    <span>Attention aux impayés</span>
+                                    <span>{t('decision.warningUnpaid', 'Attention aux impayés')}</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -365,7 +365,7 @@ export default function DecisionDashboard() {
                             <CardContent>
                                 <div className="flex items-center text-xs text-indigo-600 font-medium">
                                     <GraduationCap className="h-4 w-4" />
-                                    <span>12 bénéficiaires actifs</span>
+                                    <span>{t('decision.activeBeneficiaries', '12 bénéficiaires actifs')}</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -404,7 +404,7 @@ export default function DecisionDashboard() {
                                             fillOpacity={1} 
                                             fill="url(#colorRevenue)" 
                                             strokeWidth={3}
-                                            name="Revenu Total"
+                                            name={t('financial.revenue', 'Revenu Total')}
                                         />
                                         <Area 
                                             type="monotone" 
@@ -412,7 +412,7 @@ export default function DecisionDashboard() {
                                             stroke="oklch(var(--su))" 
                                             fill="transparent" 
                                             strokeWidth={2}
-                                            name="Encaissé"
+                                            name={t('decision.collected', 'Encaissé')}
                                         />
                                     </AreaChart>
                                 </ResponsiveContainer>

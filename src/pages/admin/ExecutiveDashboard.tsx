@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
@@ -27,6 +28,7 @@ import { CashFlowForecastChart } from "@/components/admin/dashboard/CashFlowFore
 type Period = "month" | "quarter" | "year";
 
 export default function ExecutiveDashboard() {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const queryClient = useQueryClient();
     const [period, setPeriod] = useState<Period>("month");
@@ -181,10 +183,10 @@ export default function ExecutiveDashboard() {
         mutationFn: () => adminQueries.calculateCashFlowForecast(tenant!.id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["dashboard-cash-flow-forecasts", tenant?.id] });
-            toastService.success("Prévisions générées avec succès");
+            toastService.success(t("executiveDashboard.forecastSuccess"));
         },
         onError: (error: any) => {
-            toastService.error("Échec de la génération des prévisions", error.message);
+            toastService.error(t("executiveDashboard.forecastError"), error.message);
         }
     });
 
@@ -204,7 +206,7 @@ export default function ExecutiveDashboard() {
             refetchRiskScores(),
             refetchForecasts(),
         ]);
-        toastService.success("Données actualisées");
+        toastService.success(t("executiveDashboard.refreshSuccess"));
     };
 
     const formatCurrency = (amount: number) => {
@@ -220,7 +222,7 @@ export default function ExecutiveDashboard() {
 
         generateDashboardPDF({
             tenantName: tenant.name,
-            period: period === "month" ? "Ce mois" : period === "quarter" ? "Ce trimestre" : "Cette année",
+            period: period === "month" ? t("executiveDashboard.thisMonth") : period === "quarter" ? t("executiveDashboard.thisQuarter") : t("executiveDashboard.thisYear"),
             financial: {
                 totalRevenue: formatCurrency(revenue?.totalRevenue || 0),
                 collectionRate: `${(revenue?.collectionRate ?? 0).toFixed(1)}%`,
@@ -258,10 +260,10 @@ export default function ExecutiveDashboard() {
             { Categorie: "Opérationnel", Indicateur: "Taux d'Abandon", Valeur: operationalData?.dropoutRate || 0 },
         ];
         exportToCSV(data, "Rapport_Direction");
-        toastService.success("Export Excel réussi");
+        toastService.success(t("executiveDashboard.exportSuccess"));
     };
 
-    const periodLabel = period === "month" ? "ce mois" : period === "quarter" ? "ce trimestre" : "cette année";
+    const periodLabel = period === "month" ? t("executiveDashboard.thisPeriodMonth") : period === "quarter" ? t("executiveDashboard.thisPeriodQuarter") : t("executiveDashboard.thisPeriodYear");
 
     return (
         <div className="space-y-6">
@@ -277,10 +279,10 @@ export default function ExecutiveDashboard() {
 
             <Tabs defaultValue="financial" className="space-y-6">
                 <TabsList className="grid w-full grid-cols-4"> {/* Changed to 4 cols */}
-                    <TabsTrigger value="financial">💰 Financier</TabsTrigger>
-                    <TabsTrigger value="academic">📚 Académique</TabsTrigger>
-                    <TabsTrigger value="operational">⚙️ Opérationnel</TabsTrigger>
-                    <TabsTrigger value="forecasts">📈 Prévisions IA</TabsTrigger> {/* Added Forecasts tab */}
+                    <TabsTrigger value="financial">💰 {t("executiveDashboard.tabFinancial")}</TabsTrigger>
+                    <TabsTrigger value="academic">📚 {t("executiveDashboard.tabAcademic")}</TabsTrigger>
+                    <TabsTrigger value="operational">⚙️ {t("executiveDashboard.tabOperational")}</TabsTrigger>
+                    <TabsTrigger value="forecasts">📈 {t("executiveDashboard.tabForecasts")}</TabsTrigger> {/* Added Forecasts tab */}
                 </TabsList>
 
                 <TabsContent value="financial" className="space-y-6">
@@ -329,8 +331,8 @@ export default function ExecutiveDashboard() {
                         />
                     ) : (
                         <div className="text-center py-12 text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
-                            <p className="mb-4">Aucune prévision disponible pour le moment.</p>
-                            <p className="text-sm">Cliquez sur <strong>"Générer Prévisions IA"</strong> en haut de la page pour lancer l'analyse.</p>
+                            <p className="mb-4">{t("executiveDashboard.noForecasts")}</p>
+                            <p className="text-sm">{t("executiveDashboard.noForecastsHint")}</p>
                         </div>
                     )}
                 </TabsContent>
