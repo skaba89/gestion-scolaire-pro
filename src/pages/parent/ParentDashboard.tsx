@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,6 +42,7 @@ import { useEffect, useState } from "react";
 import { useParentData } from "@/features/parents/hooks/useParentData";
 
 const ParentDashboard = () => {
+  const { t } = useTranslation();
   const { profile, user } = useAuth();
   const { tenant } = useTenant();
   const { formatCurrency } = useCurrency();
@@ -99,10 +101,10 @@ const ParentDashboard = () => {
   const isLoading = dataLoading || riskLoading;
 
   const stats = [
-    { href: getTenantUrl("/parent/children"), label: "Mes Enfants", icon: Users, count: children?.length || 0, color: "bg-primary/10 text-primary" },
-    { href: getTenantUrl("/parent/report-cards"), label: "Bulletins", icon: FileText, count: null, color: "bg-info/10 text-info" },
-    { href: getTenantUrl("/parent/invoices"), label: "Factures", icon: CreditCard, count: unpaidInvoices?.length || 0, color: totalUnpaid > 0 ? "bg-warning/10 text-warning" : "bg-success/10 text-success" },
-    { href: getTenantUrl("/parent/messages"), label: "Messages", icon: MessageSquare, count: unreadMessagesCount || 0, color: "bg-secondary text-secondary-foreground" },
+    { href: getTenantUrl("/parent/children"), label: t("parentDashboard.myChildren"), icon: Users, count: children?.length || 0, color: "bg-primary/10 text-primary" },
+    { href: getTenantUrl("/parent/report-cards"), label: t("parentDashboard.reportCards"), icon: FileText, count: null, color: "bg-info/10 text-info" },
+    { href: getTenantUrl("/parent/invoices"), label: t("parentDashboard.invoices"), icon: CreditCard, count: unpaidInvoices?.length || 0, color: totalUnpaid > 0 ? "bg-warning/10 text-warning" : "bg-success/10 text-success" },
+    { href: getTenantUrl("/parent/messages"), label: t("parentDashboard.messages"), icon: MessageSquare, count: unreadMessagesCount || 0, color: "bg-secondary text-secondary-foreground" },
   ];
 
   if (isLoading) {
@@ -122,10 +124,10 @@ const ParentDashboard = () => {
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-warning/20 flex items-center justify-center shrink-0"><AlertCircle className="w-6 h-6 text-warning" /></div>
                   <div className="flex-1 text-center sm:text-left">
-                    <p className="font-bold text-warning font-display">Factures en attente</p>
-                    <p className="text-sm text-muted-foreground">Vous avez {unpaidInvoices?.length} facture(s) impayée(s) pour un total de <span className="font-bold text-foreground">{formatCurrency(totalUnpaid)}</span></p>
+                    <p className="font-bold text-warning font-display">{t("parentDashboard.pendingInvoices")}</p>
+                    <p className="text-sm text-muted-foreground">{t("parentDashboard.unpaidInvoicesText", { count: unpaidInvoices?.length })} <span className="font-bold text-foreground">{formatCurrency(totalUnpaid)}</span></p>
                   </div>
-                  <Link to={getTenantUrl("/parent/invoices")}><Button variant="outline" size="sm" className="border-warning/50 text-warning hover:bg-warning hover:text-white transition-colors">Payer maintenant</Button></Link>
+                  <Link to={getTenantUrl("/parent/invoices")}><Button variant="outline" size="sm" className="border-warning/50 text-warning hover:bg-warning hover:text-white transition-colors">{t("parentDashboard.payNow")}</Button></Link>
                 </div>
               </CardContent>
             </Card>
@@ -141,10 +143,10 @@ const ParentDashboard = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border-primary/5 shadow-sm lg:col-span-2">
-          <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Clock className="w-5 h-5 text-primary" />Derniers passages enregistrés</CardTitle></CardHeader>
+          <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Clock className="w-5 h-5 text-primary" />{t("parentDashboard.lastBadgeScans")}</CardTitle></CardHeader>
           <CardContent className="p-0">
             {latestScans?.length === 0 ? (
-              <div className="text-center py-12"><Clock className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">Aucun passage récent</p></div>
+              <div className="text-center py-12"><Clock className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">{t("parentDashboard.noRecentScan")}</p></div>
             ) : (
               <div className="divide-y max-h-[300px] overflow-y-auto">
                 {latestScans?.map((scan: any) => (
@@ -153,9 +155,9 @@ const ParentDashboard = () => {
                       <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", scan.check_in_type === 'ENTRY' ? "bg-emerald-100 text-emerald-600" : "bg-rose-100 text-rose-600")}>
                         {scan.check_in_type === 'ENTRY' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
                       </div>
-                      <div><p className="font-bold text-sm">{scan.students?.first_name} {scan.students?.last_name}</p><p className="text-xs text-muted-foreground">{scan.check_in_type === 'ENTRY' ? 'Entrée' : 'Sortie'} • {formatDistanceToNow(new Date(scan.checked_at), { addSuffix: true, locale: fr })}</p></div>
+                      <div><p className="font-bold text-sm">{scan.students?.first_name} {scan.students?.last_name}</p><p className="text-xs text-muted-foreground">{scan.check_in_type === 'ENTRY' ? t("parentDashboard.entry") : t("parentDashboard.exit")} • {formatDistanceToNow(new Date(scan.checked_at), { addSuffix: true, locale: fr })}</p></div>
                     </div>
-                    <Badge variant="outline" className={cn("text-[10px] uppercase font-bold", scan.check_in_type === 'ENTRY' ? "border-emerald-500/50 text-emerald-600" : "border-rose-500/50 text-rose-600")}>{scan.check_in_type === 'ENTRY' ? "À l'école" : "Parti"}</Badge>
+                    <Badge variant="outline" className={cn("text-[10px] uppercase font-bold", scan.check_in_type === 'ENTRY' ? "border-emerald-500/50 text-emerald-600" : "border-rose-500/50 text-rose-600")}>{scan.check_in_type === 'ENTRY' ? t("parentReportCards.atSchool") : t("parentReportCards.left")}</Badge>
                   </div>
                 ))}
               </div>
@@ -165,37 +167,37 @@ const ParentDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 lg:col-span-2 gap-6">
           <Card className="border-primary/5 shadow-sm">
-            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Bell className="w-5 h-5 text-primary" />Notifications récentes</CardTitle></CardHeader>
+            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Bell className="w-5 h-5 text-primary" />{t("parentDashboard.recentNotifications")}</CardTitle></CardHeader>
             <CardContent className="p-4">
-              {notifications?.length === 0 ? (<div className="text-center py-8"><Bell className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">Aucune nouvelle notification</p></div>) : (
+              {notifications?.length === 0 ? (<div className="text-center py-8"><Bell className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">{t("parentDashboard.noNewNotification")}</p></div>) : (
                 <div className="space-y-3">{notifications?.map((notif) => (<div key={notif.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group"><div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0 group-hover:scale-125 transition-transform" /><div className="flex-1 min-w-0"><p className="font-bold text-sm text-foreground/90">{notif.title}</p><p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{notif.message}</p><p className="text-[10px] uppercase font-bold tracking-tighter text-primary/60 mt-2">{formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: fr })}</p></div></div>))}</div>
               )}
             </CardContent>
           </Card>
 
           <Card className="border-primary/5 shadow-sm">
-            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Calendar className="w-5 h-5 text-primary" />Événements à venir</CardTitle></CardHeader>
+            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Calendar className="w-5 h-5 text-primary" />{t("parentDashboard.upcomingEvents")}</CardTitle></CardHeader>
             <CardContent className="p-4">
-              {upcomingEvents?.length === 0 ? (<div className="text-center py-8"><Calendar className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">Aucun événement prévu</p></div>) : (
+              {upcomingEvents?.length === 0 ? (<div className="text-center py-8"><Calendar className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">{t("parentDashboard.noUpcomingEvent")}</p></div>) : (
                 <div className="space-y-3">{upcomingEvents?.map((event) => (<div key={event.id} className="flex items-start gap-4 p-3 rounded-xl bg-muted/30 group hover:bg-muted/50 transition-colors"><div className="w-10 h-10 rounded-xl bg-primary/10 flex flex-col items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:text-primary-foreground transition-all"><Calendar className="w-5 h-5" /></div><div className="flex-1 min-w-0"><p className="font-bold text-sm text-foreground/90">{event.title}</p><p className="text-[10px] font-bold text-primary uppercase mt-0.5">{new Date(event.start_date).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</p>{event.description && <p className="text-xs text-muted-foreground line-clamp-1 mt-1 font-medium">{event.description}</p>}</div></div>))}</div>
               )}
             </CardContent>
           </Card>
 
           <Card className="border-primary/5 shadow-sm">
-            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><TrendingUp className="w-5 h-5 text-primary" />Dernières notes</CardTitle></CardHeader>
+            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><TrendingUp className="w-5 h-5 text-primary" />{t("parentDashboard.latestGrades")}</CardTitle></CardHeader>
             <CardContent className="p-4">
-              {recentGrades?.length === 0 ? (<div className="text-center py-8"><TrendingUp className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">Aucune note récente</p></div>) : (
+              {recentGrades?.length === 0 ? (<div className="text-center py-8"><TrendingUp className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">{t("parentDashboard.noRecentGrade")}</p></div>) : (
                 <div className="space-y-3">{recentGrades?.map((grade: any) => (<div key={grade.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"><div className="flex-1 min-w-0"><p className="font-bold text-sm text-foreground/90 truncate">{grade.assessments?.subjects?.name}</p><p className="text-xs text-muted-foreground truncate">{grade.assessments?.name} • {grade.students?.first_name}</p></div><div className="text-right ml-4"><span className={cn("text-lg font-bold font-display", (grade.score / (grade.assessments?.max_score || 20)) * 20 >= 10 ? "text-success" : "text-destructive")}>{grade.score}/{grade.assessments?.max_score || 20}</span></div></div>))}</div>
               )}
             </CardContent>
           </Card>
 
           <Card className="border-primary/5 shadow-sm">
-            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Clock className="w-5 h-5 text-primary" />Absences & Retards récents</CardTitle></CardHeader>
+            <CardHeader className="bg-muted/20 border-b py-4"><CardTitle className="flex items-center gap-2 text-base font-display"><Clock className="w-5 h-5 text-primary" />{t("parentDashboard.recentAbsences")}</CardTitle></CardHeader>
             <CardContent className="p-4">
-              {attendanceAlerts?.length === 0 ? (<div className="text-center py-8"><Clock className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">Aucun incident de présence</p></div>) : (
-                <div className="space-y-3">{attendanceAlerts?.map((alert: any) => (<div key={alert.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"><div className="flex-1 min-w-0"><p className="font-bold text-sm text-foreground/90 truncate">{alert.students?.first_name} {alert.students?.last_name}</p><p className="text-xs text-muted-foreground">{new Date(alert.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}</p></div><div className="text-right ml-4"><Badge variant="outline" className={cn("text-xs font-bold", alert.status === "ABSENT" ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-warning/10 text-warning border-warning/20")}>{alert.status === "ABSENT" ? "Absent" : "Retard"}</Badge></div></div>))}</div>
+              {attendanceAlerts?.length === 0 ? (<div className="text-center py-8"><Clock className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" /><p className="text-muted-foreground text-sm font-medium">{t("parentDashboard.noAttendanceIncident")}</p></div>) : (
+                <div className="space-y-3">{attendanceAlerts?.map((alert: any) => (<div key={alert.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors"><div className="flex-1 min-w-0"><p className="font-bold text-sm text-foreground/90 truncate">{alert.students?.first_name} {alert.students?.last_name}</p><p className="text-xs text-muted-foreground">{new Date(alert.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}</p></div><div className="text-right ml-4"><Badge variant="outline" className={cn("text-xs font-bold", alert.status === "ABSENT" ? "bg-destructive/10 text-destructive border-destructive/20" : "bg-warning/10 text-warning border-warning/20")}>{alert.status === "ABSENT" ? t("parentDashboard.absent") : t("parentDashboard.late")}</Badge></div></div>))}</div>
               )}
             </CardContent>
           </Card>

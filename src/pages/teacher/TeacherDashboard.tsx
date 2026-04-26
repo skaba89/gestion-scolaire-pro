@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ import { TeacherQuickActions } from "@/components/teacher/TeacherQuickActions";
 import { TeacherTodaySchedule } from "@/components/teacher/TeacherTodaySchedule";
 
 const TeacherDashboard = () => {
+  const { t } = useTranslation();
   const { user, profile } = useAuth();
   const { tenant } = useTenant();
   const { getTenantUrl } = useTenantUrl();
@@ -59,10 +61,10 @@ const TeacherDashboard = () => {
   const isLoading = dataLoading || gradesLoading || statsLoading;
 
   const quickActions = [
-    { href: getTenantUrl("/teacher/classes"), label: "Mes Classes", icon: School, count: (assignedClassrooms || []).length },
-    { href: getTenantUrl("/teacher/grades"), label: "Notes", icon: BarChart3, count: (assessments || []).length },
-    { href: getTenantUrl("/teacher/homework"), label: "Devoirs à noter", icon: FileText, count: stats?.pendingHomework || 0 },
-    { href: getTenantUrl("/teacher/attendance"), label: "Présences", icon: ClipboardCheck, count: 0 },
+    { href: getTenantUrl("/teacher/classes"), label: t("teacherDashboard.myClasses"), icon: School, count: (assignedClassrooms || []).length },
+    { href: getTenantUrl("/teacher/grades"), label: t("teacherDashboard.grades"), icon: BarChart3, count: (assessments || []).length },
+    { href: getTenantUrl("/teacher/homework"), label: t("teacherDashboard.homeworkToGrade"), icon: FileText, count: stats?.pendingHomework || 0 },
+    { href: getTenantUrl("/teacher/attendance"), label: t("teacherDashboard.attendance"), icon: ClipboardCheck, count: 0 },
   ];
 
   if (isLoading) {
@@ -94,7 +96,7 @@ const TeacherDashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <BookOpen className="w-5 h-5" />
-              Mes Assignations
+              {t("teacherDashboard.myAssignments")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -134,16 +136,16 @@ const TeacherDashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
-              Évaluations Récentes
+              {t("teacherDashboard.recentAssessments")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {recentAssessments.length === 0 ? (
               <div className="text-center py-8">
                 <BarChart3 className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-                <p className="text-muted-foreground">Aucune évaluation créée</p>
+                <p className="text-muted-foreground">{t("teacherDashboard.noAssessment")}</p>
                 <Link to={getTenantUrl("/teacher/grades")} className="text-primary hover:underline text-sm">
-                  Créer une évaluation
+                  {t("teacherDashboard.createAssessment")}
                 </Link>
               </div>
             ) : (

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 
 export default function AppointmentSlots() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -90,10 +92,10 @@ export default function AppointmentSlots() {
       queryClient.invalidateQueries({ queryKey: ["teacher-slots"] });
       setIsOpen(false);
       setFormData({ slot_date: "", start_time: "", end_time: "", location: "", is_online: false, meeting_url: "" });
-      toast.success("Créneau ajouté");
+      toast.success(t("appointments.slotAdded"));
     },
     onError: () => {
-      toast.error("Erreur lors de l'ajout");
+      toast.error(t("appointments.slotAddError"));
     },
   });
 
@@ -115,7 +117,7 @@ export default function AppointmentSlots() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-appointments"] });
-      toast.success("Rendez-vous mis à jour");
+      toast.success(t("appointments.appointmentUpdated"));
     },
   });
 
@@ -147,7 +149,7 @@ export default function AppointmentSlots() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-slots"] });
-      toast.success("Créneaux générés pour la semaine prochaine");
+      toast.success(t("appointments.weekGenerated"));
     },
   });
 
@@ -168,30 +170,30 @@ export default function AppointmentSlots() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Calendar className="h-8 w-8 text-primary" />
-            Créneaux de Rendez-vous
+            {t("appointments.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
-            Gérez vos disponibilités pour les rendez-vous parents
+            {t("appointments.teacherSubtitle")}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => bulkCreateMutation.mutate()}>
-            Générer semaine
+            {t("appointments.generateWeek")}
           </Button>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                Ajouter un créneau
+                {t("appointments.addSlot")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Nouveau créneau</DialogTitle>
+                <DialogTitle>{t("appointments.newSlot")}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Date</Label>
+                  <Label>{t("appointments.date")}</Label>
                   <Input
                     type="date"
                     value={formData.slot_date}
@@ -201,7 +203,7 @@ export default function AppointmentSlots() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Heure de début</Label>
+                    <Label>{t("appointments.startTime")}</Label>
                     <Input
                       type="time"
                       value={formData.start_time}
@@ -209,7 +211,7 @@ export default function AppointmentSlots() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Heure de fin</Label>
+                    <Label>{t("appointments.endTime")}</Label>
                     <Input
                       type="time"
                       value={formData.end_time}
@@ -222,11 +224,11 @@ export default function AppointmentSlots() {
                     checked={formData.is_online}
                     onCheckedChange={(checked) => setFormData({ ...formData, is_online: checked })}
                   />
-                  <Label>Rendez-vous en ligne</Label>
+                  <Label>{t("appointments.onlineMeeting")}</Label>
                 </div>
                 {formData.is_online ? (
                   <div className="space-y-2">
-                    <Label>Lien de visioconférence</Label>
+                    <Label>{t("appointments.videoLink")}</Label>
                     <Input
                       value={formData.meeting_url}
                       onChange={(e) => setFormData({ ...formData, meeting_url: e.target.value })}
@@ -235,7 +237,7 @@ export default function AppointmentSlots() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Label>Lieu</Label>
+                    <Label>{t("appointments.location")}</Label>
                     <Input
                       value={formData.location}
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -248,7 +250,7 @@ export default function AppointmentSlots() {
                   disabled={!formData.slot_date || !formData.start_time || !formData.end_time || createMutation.isPending}
                   className="w-full"
                 >
-                  Ajouter le créneau
+                  {t("appointments.addSlotBtn")}
                 </Button>
               </div>
             </DialogContent>
@@ -261,27 +263,27 @@ export default function AppointmentSlots() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-green-600">{availableSlots.length}</div>
-            <p className="text-sm text-muted-foreground">Créneaux disponibles</p>
+            <p className="text-sm text-muted-foreground">{t("appointments.availableSlots")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-orange-600">{bookedSlots.length}</div>
-            <p className="text-sm text-muted-foreground">Créneaux réservés</p>
+            <p className="text-sm text-muted-foreground">{t("appointments.bookedSlots")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{appointments?.length || 0}</div>
-            <p className="text-sm text-muted-foreground">Rendez-vous à venir</p>
+            <p className="text-sm text-muted-foreground">{t("appointments.upcomingAppointments")}</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="slots" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="slots">Mes créneaux</TabsTrigger>
-          <TabsTrigger value="appointments">Rendez-vous réservés ({appointments?.length || 0})</TabsTrigger>
+          <TabsTrigger value="slots">{t("appointments.mySlots")}</TabsTrigger>
+          <TabsTrigger value="appointments">{t("appointments.bookedAppointments")} ({appointments?.length || 0})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="slots" className="space-y-4">
@@ -289,9 +291,9 @@ export default function AppointmentSlots() {
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Aucun créneau configuré</p>
+                <p>{t("appointments.noSlotsConfigured")}</p>
                 <Button variant="link" onClick={() => setIsOpen(true)}>
-                  Ajouter un créneau
+                  {t("appointments.addSlot")}
                 </Button>
               </CardContent>
             </Card>
@@ -329,14 +331,14 @@ export default function AppointmentSlots() {
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             ) : (
-                              <Badge variant="secondary" className="text-xs">Réservé</Badge>
+                              <Badge variant="secondary" className="text-xs">{t("appointments.booked")}</Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                             {slot.is_online ? (
                               <>
                                 <Video className="h-3 w-3" />
-                                En ligne
+                                {t("appointments.online")}
                               </>
                             ) : slot.location ? (
                               <>
@@ -360,7 +362,7 @@ export default function AppointmentSlots() {
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Aucun rendez-vous réservé</p>
+                <p>{t("appointments.noBookedAppointments")}</p>
               </CardContent>
             </Card>
           ) : (
@@ -384,10 +386,10 @@ export default function AppointmentSlots() {
                       <span>{apt.parent?.first_name} {apt.parent?.last_name}</span>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Concernant: <span className="text-foreground">{apt.student?.first_name} {apt.student?.last_name}</span>
+                      {t("appointments.regarding")} <span className="text-foreground">{apt.student?.first_name} {apt.student?.last_name}</span>
                     </div>
                     {apt.subject && (
-                      <div className="text-sm">Sujet: {apt.subject}</div>
+                      <div className="text-sm">{t("appointments.subject")} {apt.subject}</div>
                     )}
                     {apt.status === "scheduled" && (
                       <div className="flex gap-2 pt-2">
@@ -396,7 +398,7 @@ export default function AppointmentSlots() {
                           onClick={() => updateAppointmentMutation.mutate({ id: apt.id, status: "confirmed" })}
                         >
                           <CheckCircle2 className="h-4 w-4 mr-1" />
-                          Confirmer
+                          {t("appointments.confirm")}
                         </Button>
                       </div>
                     )}

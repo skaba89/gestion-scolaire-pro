@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -32,6 +33,7 @@ import { TeacherAttendanceTable } from "@/components/teacher/TeacherAttendanceTa
 import { OfflineAttendance } from "@/components/offline/OfflineAttendance";
 
 const TeacherAttendance = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -85,9 +87,9 @@ const TeacherAttendance = () => {
           studentName,
           date: selectedDate,
         });
-        toast.success("Absence enregistrée, parents notifiés");
+        toast.success(t("teacherAttendance.absentRecorded"));
       } else {
-        toast.success("Présence enregistrée");
+        toast.success(t("teacherAttendance.presentRecorded"));
       }
     } catch (error: any) {
       toast.error("Erreur: " + error.message);
@@ -140,7 +142,7 @@ const TeacherAttendance = () => {
           <CardContent className="p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600" />
             <p className="text-amber-800 font-medium">
-              Information : Vous n'avez pas encore d'assignations de classes. Contactez l'administration pour configurer votre emploi du temps.
+              {t("teacherAttendance.noAssignments")}
             </p>
           </CardContent>
         </Card>
@@ -150,10 +152,10 @@ const TeacherAttendance = () => {
         <CardContent className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Classe</Label>
+              <Label className="text-sm font-medium">{t("teacherAttendance.class")}</Label>
               <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                 <SelectTrigger className="bg-background/50 hover:bg-background transition-colors">
-                  <SelectValue placeholder="Sélectionner une classe" />
+                  <SelectValue placeholder={t("teacherAttendance.selectClass")} />
                 </SelectTrigger>
                 <SelectContent>
                   {assignedClassrooms?.map(c => (
@@ -228,8 +230,8 @@ const TeacherAttendance = () => {
                 <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center mx-auto mb-4">
                   <Calendar className="w-8 h-8 text-primary/30" />
                 </div>
-                <h3 className="text-lg font-medium text-foreground">Sélectionnez une classe</h3>
-                <p className="text-muted-foreground mt-1">Choisissez une classe dans la liste ci-dessus pour commencer à gérer les présences.</p>
+                <h3 className="text-lg font-medium text-foreground">{t("teacherAttendance.selectAClass")}</h3>
+                <p className="text-muted-foreground mt-1">{t("teacherAttendance.selectClassHint")}</p>
               </CardContent>
             </Card>
           )}
