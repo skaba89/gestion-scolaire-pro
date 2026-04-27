@@ -1568,5 +1568,42 @@
         "deleteTitle": "Supprimer la page",
         "deleteConfirm": "Êtes-vous sûr de vouloir supprimer la page \"{{title}}\" ? Cette action est irréversible.",
         "deleting": "Suppression..."
+    },
+    "enrollments": {
+        "pageTitle": "Inscriptions aux Classes",
+        "pageSubtitle": "Gérer les affectations des {{students}} dans les classes"
+    },
+    "humanResources": {
+        "pageTitle": "Ressources Humaines",
+        "pageSubtitle": "Gestion du personnel, contrats, congés et paie",
+        "tabEmployees": "Employés",
+        "tabContracts": "Contrats",
+        "tabLeaves": "Congés",
+        "tabPayslips": "Fiches de paie"
+    },
+    "documentation": {
+        "pageSubtitle": "Manuel complet d'utilisation de la plateforme",
+        "generating": "Génération...",
+        "downloadPdf": "Télécharger PDF"
+    },
+    "dashboard": {
+        "hello": "Bonjour, {{name}} 👋",
+        "welcomeTenant": "Bienvenue sur le tableau de bord de",
+        "welcomeNoTenant": "Bienvenue, {{name}} 👋",
+        "noTenantDesc": "Votre compte n'est pas encore associé à un établissement.",
+        "createTenantTitle": "Créer votre établissement",
+        "createTenantDesc": "Pour commencer, configurez votre établissement.",
+        "createTenantBtn": "Créer mon établissement",
+        "statStudents": "{{label}} Inscrits",
+        "statPendingAdmissions": "Candidatures en attente",
+        "statPendingInvoices": "Factures en Attente",
+        "statAcademicYear": "Année Scolaire",
+        "quickActions": "Actions Rapides",
+        "quickAdmissions": "Admissions",
+        "quickGrades": "Notes",
+        "quickFinances": "Finances",
+        "setupAcademicYearTitle": "Configurez votre année scolaire",
+        "setupAcademicYearDesc": "Aucune année scolaire n'est définie comme courante. Créez une année scolaire pour commencer à gérer les inscriptions.",
+        "setupAcademicYearBtn": "Configurer l'année scolaire"
     }
 }

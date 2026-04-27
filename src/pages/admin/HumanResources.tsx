@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HRStats } from "@/components/human-resources/HRStats";
 import { EmployeesTab } from "@/components/human-resources/EmployeesTab";
@@ -7,23 +8,24 @@ import { LeavesTab } from "@/components/human-resources/LeavesTab";
 import { PayslipsTab } from "@/components/human-resources/PayslipsTab";
 
 const HumanResources = () => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("employees");
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Ressources Humaines</h1>
-        <p className="text-muted-foreground">Gestion du personnel, contrats, congés et paie</p>
+        <h1 className="text-3xl font-bold text-foreground">{t("humanResources.pageTitle")}</h1>
+        <p className="text-muted-foreground">{t("humanResources.pageSubtitle")}</p>
       </div>
 
       <HRStats />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="employees">Employés</TabsTrigger>
-          <TabsTrigger value="contracts">Contrats</TabsTrigger>
-          <TabsTrigger value="leaves">Congés</TabsTrigger>
-          <TabsTrigger value="payslips">Fiches de paie</TabsTrigger>
+          <TabsTrigger value="employees">{t("humanResources.tabEmployees")}</TabsTrigger>
+          <TabsTrigger value="contracts">{t("humanResources.tabContracts")}</TabsTrigger>
+          <TabsTrigger value="leaves">{t("humanResources.tabLeaves")}</TabsTrigger>
+          <TabsTrigger value="payslips">{t("humanResources.tabPayslips")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="employees">

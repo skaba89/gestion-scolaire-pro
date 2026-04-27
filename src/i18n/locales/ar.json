@@ -1338,5 +1338,42 @@
     "deleteTitle": "حذف الصفحة",
     "deleteConfirm": "هل أنت متأكد من حذف الصفحة «{{title}}»؟ هذا الإجراء لا يمكن التراجع عنه.",
     "deleting": "جارٍ الحذف..."
+  },
+  "enrollments": {
+    "pageTitle": "التسجيل في الفصول",
+    "pageSubtitle": "إدارة توزيع {{students}} على الفصول"
+  },
+  "humanResources": {
+    "pageTitle": "الموارد البشرية",
+    "pageSubtitle": "إدارة الموظفين والعقود والإجازات والرواتب",
+    "tabEmployees": "الموظفون",
+    "tabContracts": "العقود",
+    "tabLeaves": "الإجازات",
+    "tabPayslips": "كشوف الرواتب"
+  },
+  "documentation": {
+    "pageSubtitle": "دليل المستخدم الكامل للمنصة",
+    "generating": "جارٍ الإنشاء...",
+    "downloadPdf": "تحميل PDF"
+  },
+  "dashboard": {
+    "hello": "مرحباً، {{name}} 👋",
+    "welcomeTenant": "مرحباً بك في لوحة تحكم",
+    "welcomeNoTenant": "مرحباً، {{name}} 👋",
+    "noTenantDesc": "حسابك غير مرتبط بعد بأي مؤسسة.",
+    "createTenantTitle": "إنشاء مؤسستك",
+    "createTenantDesc": "للبدء، قم بإعداد مؤسستك.",
+    "createTenantBtn": "إنشاء مؤسستي",
+    "statStudents": "{{label}} المسجلون",
+    "statPendingAdmissions": "الطلبات المعلقة",
+    "statPendingInvoices": "الفواتير المعلقة",
+    "statAcademicYear": "السنة الدراسية",
+    "quickActions": "الإجراءات السريعة",
+    "quickAdmissions": "القبول",
+    "quickGrades": "الدرجات",
+    "quickFinances": "المالية",
+    "setupAcademicYearTitle": "إعداد السنة الدراسية",
+    "setupAcademicYearDesc": "لا توجد سنة دراسية محددة كسنة حالية. أنشئ سنة دراسية لبدء إدارة التسجيلات.",
+    "setupAcademicYearBtn": "إعداد السنة الدراسية"
   }
 }

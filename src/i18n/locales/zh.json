@@ -1395,5 +1395,42 @@
     "deleteTitle": "删除页面",
     "deleteConfirm": "确定要删除页面「{{title}}」吗？此操作不可撤销。",
     "deleting": "删除中..."
+  },
+  "enrollments": {
+    "pageTitle": "班级注册",
+    "pageSubtitle": "管理{{students}}的班级分配"
+  },
+  "humanResources": {
+    "pageTitle": "人力资源",
+    "pageSubtitle": "人员管理、合同、假期和薪资",
+    "tabEmployees": "员工",
+    "tabContracts": "合同",
+    "tabLeaves": "假期",
+    "tabPayslips": "工资单"
+  },
+  "documentation": {
+    "pageSubtitle": "平台完整用户手册",
+    "generating": "生成中...",
+    "downloadPdf": "下载PDF"
+  },
+  "dashboard": {
+    "hello": "您好，{{name}} 👋",
+    "welcomeTenant": "欢迎来到仪表板",
+    "welcomeNoTenant": "欢迎，{{name}} 👋",
+    "noTenantDesc": "您的账号尚未关联任何机构。",
+    "createTenantTitle": "创建您的机构",
+    "createTenantDesc": "开始之前，请先设置您的机构。",
+    "createTenantBtn": "创建我的机构",
+    "statStudents": "已注册{{label}}",
+    "statPendingAdmissions": "待处理申请",
+    "statPendingInvoices": "待处理发票",
+    "statAcademicYear": "学年",
+    "quickActions": "快捷操作",
+    "quickAdmissions": "招生",
+    "quickGrades": "成绩",
+    "quickFinances": "财务",
+    "setupAcademicYearTitle": "设置学年",
+    "setupAcademicYearDesc": "尚未设置当前学年。请创建学年以开始管理注册。",
+    "setupAcademicYearBtn": "设置学年"
   }
 }

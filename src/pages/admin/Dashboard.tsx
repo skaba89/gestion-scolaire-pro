@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -26,6 +27,7 @@ import { StudentsAtRiskWidget } from "@/components/dashboard/widgets/StudentsAtR
 import { AnalyticsReportButton } from "@/components/dashboard/AnalyticsReportButton";
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const { profile } = useAuth();
   const { tenant, isLoading: tenantLoading } = useTenant();
   const { StudentsLabel } = useStudentLabel();
@@ -45,17 +47,17 @@ const Dashboard = () => {
   const currentAcademicYear = academicYears?.find(y => y.is_current)?.name || null;
 
   const statsCards = [
-    { label: `${StudentsLabel} Inscrits`, value: stats?.totalStudents || 0, icon: Users, color: "bg-primary" },
-    { label: "Candidatures en attente", value: stats?.pendingAdmissions || 0, icon: ClipboardList, color: "bg-info" },
-    { label: "Factures en Attente", value: stats?.pendingInvoices || 0, icon: CreditCard, color: "bg-warning" },
-    { label: "Année Scolaire", value: currentAcademicYear || "—", icon: Calendar, color: "bg-success" },
+    { label: t("dashboard.statStudents", { label: StudentsLabel }), value: stats?.totalStudents || 0, icon: Users, color: "bg-primary" },
+    { label: t("dashboard.statPendingAdmissions"), value: stats?.pendingAdmissions || 0, icon: ClipboardList, color: "bg-info" },
+    { label: t("dashboard.statPendingInvoices"), value: stats?.pendingInvoices || 0, icon: CreditCard, color: "bg-warning" },
+    { label: t("dashboard.statAcademicYear"), value: currentAcademicYear || "—", icon: Calendar, color: "bg-success" },
   ];
 
   const quickActions = [
-    { label: "Admissions", href: getTenantUrl("/admin/admissions"), icon: ClipboardList },
+    { label: t("dashboard.quickAdmissions"), href: getTenantUrl("/admin/admissions"), icon: ClipboardList },
     { label: StudentsLabel, href: getTenantUrl("/admin/students"), icon: Users },
-    { label: "Notes", href: getTenantUrl("/admin/grades"), icon: FileText },
-    { label: "Finances", href: getTenantUrl("/admin/finances"), icon: CreditCard },
+    { label: t("dashboard.quickGrades"), href: getTenantUrl("/admin/grades"), icon: FileText },
+    { label: t("dashboard.quickFinances"), href: getTenantUrl("/admin/finances"), icon: CreditCard },
   ];
 
   // Show loading state
@@ -69,10 +71,10 @@ const Dashboard = () => {
       <div className="space-y-6">
         <div className="mb-8">
           <h2 className="text-2xl font-display font-bold mb-2">
-            Bienvenue, {profile?.first_name || "Admin"} 👋
+            {t("dashboard.welcomeNoTenant", { name: profile?.first_name || "Admin" })}
           </h2>
           <p className="text-muted-foreground">
-            Votre compte n'est pas encore associé à un établissement.
+            {t("dashboard.noTenantDesc")}
           </p>
         </div>
 
@@ -80,17 +82,17 @@ const Dashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-primary">
               <Building2 className="w-5 h-5" />
-              Créer votre établissement
+              {t("dashboard.createTenantTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              Pour commencer, configurez votre établissement.
+              {t("dashboard.createTenantDesc")}
             </p>
             <Link to={getTenantUrl("/admin/create-tenant")}>
               <Button size="lg">
                 <Building2 className="w-4 h-4 mr-2" />
-                Créer mon établissement
+                {t("dashboard.createTenantBtn")}
               </Button>
             </Link>
           </CardContent>
@@ -105,10 +107,10 @@ const Dashboard = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-display font-bold mb-2">
-            Bonjour, {profile?.first_name || "Admin"} 👋
+            {t("dashboard.hello", { name: profile?.first_name || "Admin" })}
           </h2>
           <p className="text-muted-foreground">
-            Bienvenue sur le tableau de bord de <span className="font-medium text-foreground">{tenant.name}</span>
+            {t("dashboard.welcomeTenant")} <span className="font-medium text-foreground">{tenant.name}</span>
           </p>
         </div>
         <AnalyticsReportButton />
@@ -159,7 +161,7 @@ const Dashboard = () => {
 
       {/* Quick Actions */}
       <div>
-        <h3 className="text-lg font-display font-semibold mb-4">Actions Rapides</h3>
+        <h3 className="text-lg font-display font-semibold mb-4">{t("dashboard.quickActions")}</h3>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {quickActions.map((action, index) => (
             <Link
@@ -186,13 +188,13 @@ const Dashboard = () => {
                 <Calendar className="w-6 h-6 text-info" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold mb-1">Configurez votre année scolaire</h3>
+                <h3 className="font-semibold mb-1">{t("dashboard.setupAcademicYearTitle")}</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Aucune année scolaire n'est définie comme courante. Créez une année scolaire pour commencer à gérer les inscriptions.
+                  {t("dashboard.setupAcademicYearDesc")}
                 </p>
                 <Link to={getTenantUrl("/admin/academic-years")}>
                   <Button variant="default" size="sm">
-                    Configurer l'année scolaire
+                    {t("dashboard.setupAcademicYearBtn")}
                   </Button>
                 </Link>
               </div>

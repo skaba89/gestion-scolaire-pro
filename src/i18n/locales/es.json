@@ -1338,5 +1338,42 @@
     "deleteTitle": "Eliminar página",
     "deleteConfirm": "¿Está seguro de que desea eliminar la página \"{{title}}\"? Esta acción es irreversible.",
     "deleting": "Eliminando..."
+  },
+  "enrollments": {
+    "pageTitle": "Inscripciones a Clases",
+    "pageSubtitle": "Gestionar la asignación de {{students}} a las clases"
+  },
+  "humanResources": {
+    "pageTitle": "Recursos Humanos",
+    "pageSubtitle": "Gestión del personal, contratos, bajas y nóminas",
+    "tabEmployees": "Empleados",
+    "tabContracts": "Contratos",
+    "tabLeaves": "Bajas",
+    "tabPayslips": "Nóminas"
+  },
+  "documentation": {
+    "pageSubtitle": "Manual completo de uso de la plataforma",
+    "generating": "Generando...",
+    "downloadPdf": "Descargar PDF"
+  },
+  "dashboard": {
+    "hello": "Hola, {{name}} 👋",
+    "welcomeTenant": "Bienvenido al panel de",
+    "welcomeNoTenant": "Bienvenido, {{name}} 👋",
+    "noTenantDesc": "Su cuenta aún no está asociada a un centro.",
+    "createTenantTitle": "Crear su centro",
+    "createTenantDesc": "Para comenzar, configure su centro.",
+    "createTenantBtn": "Crear mi centro",
+    "statStudents": "{{label}} Inscritos",
+    "statPendingAdmissions": "Solicitudes pendientes",
+    "statPendingInvoices": "Facturas pendientes",
+    "statAcademicYear": "Año académico",
+    "quickActions": "Acciones Rápidas",
+    "quickAdmissions": "Admisiones",
+    "quickGrades": "Calificaciones",
+    "quickFinances": "Finanzas",
+    "setupAcademicYearTitle": "Configure su año académico",
+    "setupAcademicYearDesc": "No hay ningún año académico definido como actual. Cree un año académico para comenzar a gestionar las inscripciones.",
+    "setupAcademicYearBtn": "Configurar año académico"
   }
 }

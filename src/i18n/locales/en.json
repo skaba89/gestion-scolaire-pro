@@ -1568,5 +1568,42 @@
         "deleteTitle": "Delete page",
         "deleteConfirm": "Are you sure you want to delete the page \"{{title}}\"? This action is irreversible.",
         "deleting": "Deleting..."
+    },
+    "enrollments": {
+        "pageTitle": "Class Enrollments",
+        "pageSubtitle": "Manage {{students}} class assignments"
+    },
+    "humanResources": {
+        "pageTitle": "Human Resources",
+        "pageSubtitle": "Staff management, contracts, leave and payroll",
+        "tabEmployees": "Employees",
+        "tabContracts": "Contracts",
+        "tabLeaves": "Leave",
+        "tabPayslips": "Payslips"
+    },
+    "documentation": {
+        "pageSubtitle": "Complete platform user manual",
+        "generating": "Generating...",
+        "downloadPdf": "Download PDF"
+    },
+    "dashboard": {
+        "hello": "Hello, {{name}} 👋",
+        "welcomeTenant": "Welcome to the dashboard of",
+        "welcomeNoTenant": "Welcome, {{name}} 👋",
+        "noTenantDesc": "Your account is not yet associated with an institution.",
+        "createTenantTitle": "Create your institution",
+        "createTenantDesc": "To get started, set up your institution.",
+        "createTenantBtn": "Create my institution",
+        "statStudents": "Enrolled {{label}}",
+        "statPendingAdmissions": "Pending applications",
+        "statPendingInvoices": "Pending invoices",
+        "statAcademicYear": "Academic year",
+        "quickActions": "Quick Actions",
+        "quickAdmissions": "Admissions",
+        "quickGrades": "Grades",
+        "quickFinances": "Finances",
+        "setupAcademicYearTitle": "Set up your academic year",
+        "setupAcademicYearDesc": "No academic year is set as current. Create an academic year to start managing enrollments.",
+        "setupAcademicYearBtn": "Set up academic year"
     }
 }
