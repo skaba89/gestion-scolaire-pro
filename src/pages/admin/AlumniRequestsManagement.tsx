@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,27 +17,28 @@ import { AlumniRequestDetailDialog } from "@/components/admin/alumni/AlumniReque
 
 import { Loader2, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 
-const DOCUMENT_TYPES = [
-  { value: "transcript", label: "Relevé de notes" },
-  { value: "diploma", label: "Diplôme" },
-  { value: "certificate", label: "Certificat de scolarité" },
-  { value: "attestation", label: "Attestation" },
-  { value: "other", label: "Autre document" },
-];
-
-const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  pending: { label: "En attente", color: "bg-yellow-100 text-yellow-800", icon: <Clock className="w-3 h-3" /> },
-  in_progress: { label: "En cours", color: "bg-blue-100 text-blue-800", icon: <Loader2 className="w-3 h-3" /> },
-  awaiting_validation: { label: "En validation", color: "bg-purple-100 text-purple-800", icon: <AlertCircle className="w-3 h-3" /> },
-  validated: { label: "Validé", color: "bg-green-100 text-green-800", icon: <CheckCircle2 className="w-3 h-3" /> },
-  rejected: { label: "Rejeté", color: "bg-red-100 text-red-800", icon: <XCircle className="w-3 h-3" /> },
-  completed: { label: "Terminé", color: "bg-emerald-100 text-emerald-800", icon: <CheckCircle2 className="w-3 h-3" /> },
-  cancelled: { label: "Annulé", color: "bg-gray-100 text-gray-800", icon: <XCircle className="w-3 h-3" /> },
-};
-
 export default function AlumniRequestsManagement() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
+
+  const DOCUMENT_TYPES = useMemo(() => [
+    { value: "transcript", label: t("alumniRequests.docTranscript") },
+    { value: "diploma", label: t("alumniRequests.docDiploma") },
+    { value: "certificate", label: t("alumniRequests.docCertificate") },
+    { value: "attestation", label: t("alumniRequests.docAttestation") },
+    { value: "other", label: t("alumniRequests.docOther") },
+  ], [t]);
+
+  const STATUS_LABELS = useMemo((): Record<string, { label: string; color: string; icon: React.ReactNode }> => ({
+    pending: { label: t("alumniRequests.statusPending"), color: "bg-yellow-100 text-yellow-800", icon: <Clock className="w-3 h-3" /> },
+    in_progress: { label: t("alumniRequests.statusInProgress"), color: "bg-blue-100 text-blue-800", icon: <Loader2 className="w-3 h-3" /> },
+    awaiting_validation: { label: t("alumniRequests.statusAwaitingValidation"), color: "bg-purple-100 text-purple-800", icon: <AlertCircle className="w-3 h-3" /> },
+    validated: { label: t("alumniRequests.statusValidated"), color: "bg-green-100 text-green-800", icon: <CheckCircle2 className="w-3 h-3" /> },
+    rejected: { label: t("alumniRequests.statusRejected"), color: "bg-red-100 text-red-800", icon: <XCircle className="w-3 h-3" /> },
+    completed: { label: t("alumniRequests.statusCompleted"), color: "bg-emerald-100 text-emerald-800", icon: <CheckCircle2 className="w-3 h-3" /> },
+    cancelled: { label: t("alumniRequests.statusCancelled"), color: "bg-gray-100 text-gray-800", icon: <XCircle className="w-3 h-3" /> },
+  }), [t]);
   const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -91,8 +93,11 @@ export default function AlumniRequestsManagement() {
       if (updates.status && ["validated", "rejected", "completed"].includes(updates.status)) {
         await notify.mutateAsync({
           userId: selectedRequest?.alumni_id,
-          title: `Mise à jour de votre demande`,
-          message: `Votre demande de ${DOCUMENT_TYPES.find(t => t.value === selectedRequest?.document_type)?.label} a été ${STATUS_LABELS[updates.status]?.label.toLowerCase()}`,
+          title: t("alumniRequests.notificationTitle"),
+          message: t("alumniRequests.notificationMessage", {
+            docType: DOCUMENT_TYPES.find(dt => dt.value === selectedRequest?.document_type)?.label,
+            status: STATUS_LABELS[updates.status]?.label.toLowerCase(),
+          }),
           type: "alert", // closest match to document_request in sovereign types
         });
       }
@@ -100,7 +105,7 @@ export default function AlumniRequestsManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-alumni-requests", tenant?.id] });
       refetchHistory();
-      toast.success("Demande mise à jour");
+      toast.success(t("alumniRequests.updateSuccess"));
     },
   });
 

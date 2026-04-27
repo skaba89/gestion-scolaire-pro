@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,6 +22,7 @@ import { Invoice, Fee } from "@/features/finance/types";
 import { FinanceHeader } from "@/components/finance/FinanceHeader";
 
 const Finances = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
 
   // Pagination state
@@ -108,15 +110,15 @@ const Finances = () => {
           </TabsTrigger>
           <TabsTrigger value="invoices" className="gap-2">
             <Receipt className="h-4 w-4" />
-            <span className="hidden sm:inline">Factures</span>
+            <span className="hidden sm:inline">{t("finances.tabInvoices")}</span>
           </TabsTrigger>
           <TabsTrigger value="fees" className="gap-2">
             <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">Frais</span>
+            <span className="hidden sm:inline">{t("finances.tabFees")}</span>
           </TabsTrigger>
           <TabsTrigger value="payments" className="gap-2">
             <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">Paiements</span>
+            <span className="hidden sm:inline">{t("finances.tabPayments")}</span>
           </TabsTrigger>
         </TabsList>
 

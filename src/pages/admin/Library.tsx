@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -17,15 +18,16 @@ import { LibraryList } from "@/components/admin/library/LibraryList";
 
 import { Loader2, BookOpen } from "lucide-react";
 
-const RESOURCE_TYPES: Record<string, string> = {
-  document: "Document",
-  book: "Livre / Manuel",
-  video: "Vidéo / Cours en ligne",
-  link: "Lien externe",
-};
-
 export default function Library() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
+
+  const RESOURCE_TYPES = useMemo((): Record<string, string> => ({
+    document: t("library.typeDocument"),
+    book: t("library.typeBook"),
+    video: t("library.typeVideo"),
+    link: t("library.typeLink"),
+  }), [t]);
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -72,11 +74,11 @@ export default function Library() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-library-resources"] });
-      toast.success(editingResource ? "Ressource modifiée" : "Ressource ajoutée");
+      toast.success(editingResource ? t("library.resourceUpdated") : t("library.resourceAdded"));
       setResourceDialogOpen(false);
       setEditingResource(null);
     },
-    onError: () => toast.error("Une erreur est survenue"),
+    onError: () => toast.error(t("library.saveError")),
   });
 
   const deleteResourceMutation = useMutation({
@@ -85,7 +87,7 @@ export default function Library() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-library-resources"] });
-      toast.success("Ressource supprimée");
+      toast.success(t("library.resourceDeleted"));
     },
   });
 
@@ -99,7 +101,7 @@ export default function Library() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-library-categories"] });
-      toast.success("Catégorie ajoutée");
+      toast.success(t("library.categoryAdded"));
     },
   });
 
@@ -109,7 +111,7 @@ export default function Library() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-library-categories"] });
-      toast.success("Catégorie supprimée");
+      toast.success(t("library.categoryDeleted"));
     },
   });
 
@@ -173,9 +175,9 @@ export default function Library() {
       ) : (
         <div className="text-center py-20 border-2 border-dashed rounded-lg bg-muted/20">
           <BookOpen className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-          <h2 className="text-xl font-semibold mb-2">Aucune ressource trouvée</h2>
+          <h2 className="text-xl font-semibold mb-2">{t("library.emptyTitle")}</h2>
           <p className="text-muted-foreground mb-6">
-            Commencez par ajouter votre premier document ou livre.
+            {t("library.emptyDescription")}
           </p>
         </div>
       )}

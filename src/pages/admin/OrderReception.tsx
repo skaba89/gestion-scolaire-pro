@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { adminQueries } from "@/queries/admin";
@@ -22,6 +23,7 @@ interface CartItem {
 }
 
 export const OrderReception = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { studentLabel } = useStudentLabel();
     const queryClient = useQueryClient();
@@ -58,7 +60,7 @@ export const OrderReception = () => {
             return result;
         },
         onSuccess: () => {
-            toast.success("Commande enregistrée avec succès");
+            toast.success(t("orderReception.orderSuccess"));
             setShowReceipt(true);
             setCart([]);
             setSelectedStudent(null);
@@ -66,7 +68,7 @@ export const OrderReception = () => {
             queryClient.invalidateQueries({ queryKey: ["admin-orders", tenant?.id] });
         },
         onError: (error: any) => {
-            toast.error("Erreur lors de la création de la commande");
+            toast.error(t("orderReception.orderError"));
         }
     });
 
@@ -107,8 +109,8 @@ export const OrderReception = () => {
     return (
         <div className="space-y-6">
             <OrderHeader
-                title="Réception de Commandes"
-                description={`Gérez les ventes d'articles et uniformes pour vos ${studentLabel}s.`}
+                title={t("orderReception.pageTitle")}
+                description={t("orderReception.pageSubtitle", { label: studentLabel })}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -14,6 +15,7 @@ import { OfferDialog } from "@/components/admin/careers/OfferDialog";
 import { EventDialog } from "@/components/admin/careers/EventDialog";
 
 export default function Careers() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("offers");
@@ -44,9 +46,9 @@ export default function Careers() {
       queryClient.invalidateQueries({ queryKey: ["admin-job-offers"] });
       setOfferDialogOpen(false);
       setSelectedOffer(null);
-      toast.success(selectedOffer ? "Offre mise à jour" : "Offre créée");
+      toast.success(selectedOffer ? t("careers.offerUpdated") : t("careers.offerCreated"));
     },
-    onError: (error: any) => toast.error("Erreur: " + error.message),
+    onError: (error: any) => toast.error(t("careers.error") + error.message),
   });
 
   const deleteOfferMutation = useMutation({
@@ -55,7 +57,7 @@ export default function Careers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-job-offers"] });
-      toast.success("Offre supprimée");
+      toast.success(t("careers.offerDeleted"));
     },
   });
 
@@ -71,9 +73,9 @@ export default function Careers() {
       queryClient.invalidateQueries({ queryKey: ["admin-career-events"] });
       setEventDialogOpen(false);
       setSelectedEvent(null);
-      toast.success(selectedEvent ? "Événement mis à jour" : "Événement créé");
+      toast.success(selectedEvent ? t("careers.eventUpdated") : t("careers.eventCreated"));
     },
-    onError: (error: any) => toast.error("Erreur: " + error.message),
+    onError: (error: any) => toast.error(t("careers.error") + error.message),
   });
 
   const deleteEventMutation = useMutation({
@@ -82,7 +84,7 @@ export default function Careers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-career-events"] });
-      toast.success("Événement supprimé");
+      toast.success(t("careers.eventDeleted"));
     },
   });
 
@@ -92,7 +94,7 @@ export default function Careers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-job-applications"] });
-      toast.success("Statut mis à jour");
+      toast.success(t("careers.statusUpdated"));
     },
   });
 
@@ -126,9 +128,9 @@ export default function Careers() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="offers">Offres</TabsTrigger>
-          <TabsTrigger value="applications">Candidatures</TabsTrigger>
-          <TabsTrigger value="events">Événements</TabsTrigger>
+          <TabsTrigger value="offers">{t("careers.tabOffers")}</TabsTrigger>
+          <TabsTrigger value="applications">{t("careers.tabApplications")}</TabsTrigger>
+          <TabsTrigger value="events">{t("careers.tabEvents")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="offers">
@@ -141,7 +143,7 @@ export default function Careers() {
               setOfferDialogOpen(true);
             }}
             onDelete={(id) => {
-              if (confirm("Supprimer cette offre ?")) {
+              if (confirm(t("careers.deleteOfferConfirm"))) {
                 deleteOfferMutation.mutate(id);
               }
             }}
@@ -163,7 +165,7 @@ export default function Careers() {
               setEventDialogOpen(true);
             }}
             onDelete={(id) => {
-              if (confirm("Supprimer cet événement ?")) {
+              if (confirm(t("careers.deleteEventConfirm"))) {
                 deleteEventMutation.mutate(id);
               }
             }}

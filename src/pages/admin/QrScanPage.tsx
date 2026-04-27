@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { apiClient } from "@/api/client";
@@ -26,6 +27,7 @@ interface ScanLog {
 }
 
 export default function QrScanPage() {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const navigate = useTenantNavigate();
     const { studentLabel } = useStudentLabel();
@@ -49,12 +51,12 @@ export default function QrScanPage() {
             if (!student) {
                 const newLog: ScanLog = {
                     id: qrData,
-                    studentName: "Inconnu (" + qrData + ")",
+                    studentName: t("qrScan.unknownStudent", { id: qrData }),
                     timestamp: new Date(),
                     status: "not_found"
                 };
                 setScanLogs(prev => [newLog, ...prev.slice(0, 19)]);
-                toast.error("Étudiant non trouvé");
+                toast.error(t("qrScan.studentNotFound"));
                 return;
             }
 
@@ -73,16 +75,16 @@ export default function QrScanPage() {
             };
 
             setScanLogs(prev => [newLog, ...prev.slice(0, 19)]);
-            toast.success(`Présence enregistrée: ${student.first_name}`);
+            toast.success(t("qrScan.attendanceRecorded", { name: student.first_name }));
 
             // Haptic feedback (simulated for web, works on some browsers)
             if (window.navigator.vibrate) {
                 window.navigator.vibrate(100);
             }
         } catch (err) {
-            toast.error("Erreur de traitement");
+            toast.error(t("qrScan.processError"));
         }
-    }, [tenant?.id, toast]);
+    }, [tenant?.id, t]);
 
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] md:h-full gap-4 pb-4">
@@ -94,9 +96,9 @@ export default function QrScanPage() {
                     <div>
                         <h1 className="text-xl font-bold flex items-center gap-2">
                             <ScanLine className="h-6 w-6 text-primary" />
-                            Scan Présence
+                            {t("qrScan.pageTitle")}
                         </h1>
-                        <p className="text-xs text-muted-foreground italic">Optimisé pour mobile</p>
+                        <p className="text-xs text-muted-foreground italic">{t("qrScan.mobileOptimized")}</p>
                     </div>
                 </div>
                 <Badge variant="outline" className="gap-1 animate-pulse border-primary/50 text-primary">
@@ -110,7 +112,7 @@ export default function QrScanPage() {
                 <Card className="flex flex-col overflow-hidden border-2 border-primary/10 shadow-lg">
                     <CardHeader className="bg-muted/50 pb-2">
                         <CardTitle className="text-sm font-medium uppercase tracking-wider flex items-center gap-2">
-                            <UserCheck className="h-4 w-4" /> Scanner des Badges
+                            <UserCheck className="h-4 w-4" /> {t("qrScan.scannerTitle")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="flex-1 flex flex-col p-4 justify-center">
@@ -129,16 +131,16 @@ export default function QrScanPage() {
                 <Card className="flex flex-col overflow-hidden shadow-md">
                     <CardHeader className="border-b bg-muted/30">
                         <CardTitle className="text-sm font-medium uppercase tracking-wider flex items-center gap-2">
-                            <History className="h-4 w-4" /> Historique de Session
+                            <History className="h-4 w-4" /> {t("qrScan.historyTitle")}
                         </CardTitle>
-                        <CardDescription>Les 20 derniers scans de cette session</CardDescription>
+                        <CardDescription>{t("qrScan.historyDesc")}</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0 flex-1 overflow-hidden">
                         <ScrollArea className="h-full">
                             <div className="p-4 space-y-3">
                                 {scanLogs.length === 0 ? (
                                     <div className="text-center py-12 text-muted-foreground italic">
-                                        Aucun scan pour le moment...
+                                        {t("qrScan.noScans")}
                                     </div>
                                 ) : (
                                     scanLogs.map((log, index) => (
@@ -157,7 +159,7 @@ export default function QrScanPage() {
                                                 variant={log.status === "success" ? "default" : "destructive"}
                                                 className="text-[10px]"
                                             >
-                                                {log.status === "success" ? "Validé" : "Erreur"}
+                                                {log.status === "success" ? t("qrScan.statusSuccess") : t("qrScan.statusError")}
                                             </Badge>
                                         </div>
                                     ))
@@ -175,7 +177,7 @@ export default function QrScanPage() {
                     className="w-full rounded-full gap-2 text-muted-foreground"
                     onClick={() => setScanLogs([])}
                 >
-                    Réinitialiser session
+                    {t("qrScan.resetSession")}
                 </Button>
             </div>
         </div>

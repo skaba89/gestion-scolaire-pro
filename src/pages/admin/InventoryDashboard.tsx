@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { adminQueries } from "@/queries/admin";
@@ -10,6 +11,7 @@ import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useCurrency } from "@/hooks/useCurrency";
 
 export const InventoryDashboard = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const navigate = useNavigate();
     const { getTenantUrl } = useTenantUrl();
@@ -34,7 +36,7 @@ export const InventoryDashboard = () => {
     });
 
     if (itemsLoading || transLoading) {
-        return <div className="flex items-center justify-center h-64 text-muted-foreground">Chargement des analyses...</div>;
+        return <div className="flex items-center justify-center h-64 text-muted-foreground">{t("inventoryDashboard.loading")}</div>;
     }
 
     // Process data for charts
@@ -78,8 +80,8 @@ export const InventoryDashboard = () => {
                         <ArrowLeft className="w-5 h-5" />
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold">Analytique de l'Inventaire</h1>
-                        <p className="text-muted-foreground">Vision stratégique des stocks et flux.</p>
+                        <h1 className="text-3xl font-bold">{t("inventoryDashboard.pageTitle")}</h1>
+                        <p className="text-muted-foreground">{t("inventoryDashboard.pageSubtitle")}</p>
                     </div>
                 </div>
             </div>
@@ -88,7 +90,7 @@ export const InventoryDashboard = () => {
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                            <DollarSign className="w-4 h-4" /> Valeur Totale du Stock
+                            <DollarSign className="w-4 h-4" /> {t("inventoryDashboard.totalValue")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -100,7 +102,7 @@ export const InventoryDashboard = () => {
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                            <Package className="w-4 h-4" /> Articles Distincts
+                            <Package className="w-4 h-4" /> {t("inventoryDashboard.distinctItems")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -110,7 +112,7 @@ export const InventoryDashboard = () => {
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                            <TrendingUp className="w-4 h-4 text-emerald-500" /> Entrées (7j)
+                            <TrendingUp className="w-4 h-4 text-emerald-500" /> {t("inventoryDashboard.inflows7d")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -122,7 +124,7 @@ export const InventoryDashboard = () => {
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4 text-rose-500" /> Sorties (7j)
+                            <AlertTriangle className="w-4 h-4 text-rose-500" /> {t("inventoryDashboard.outflows7d")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -136,8 +138,8 @@ export const InventoryDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Flux de Stock (7 jours)</CardTitle>
-                        <CardDescription>Comparaison des entrées et sorties quotidiennes.</CardDescription>
+                        <CardTitle>{t("inventoryDashboard.stockFlowTitle")}</CardTitle>
+                        <CardDescription>{t("inventoryDashboard.stockFlowDesc")}</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[300px]">
                         <ResponsiveContainer width="100%" height="100%">
@@ -147,8 +149,8 @@ export const InventoryDashboard = () => {
                                 <YAxis />
                                 <Tooltip />
                                 <Legend />
-                                <Bar dataKey="in" name="Entrées" fill="#10b981" radius={[4, 4, 0, 0]} />
-                                <Bar dataKey="out" name="Sorties" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="in" name={t("inventoryDashboard.inflows")} fill="#10b981" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="out" name={t("inventoryDashboard.outflows")} fill="#f43f5e" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
@@ -156,8 +158,8 @@ export const InventoryDashboard = () => {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Répartition de la Valeur</CardTitle>
-                        <CardDescription>Valeur financière par catégorie d'articles.</CardDescription>
+                        <CardTitle>{t("inventoryDashboard.valueDistributionTitle")}</CardTitle>
+                        <CardDescription>{t("inventoryDashboard.valueDistributionDesc")}</CardDescription>
                     </CardHeader>
                     <CardContent className="h-[300px] flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
@@ -185,8 +187,8 @@ export const InventoryDashboard = () => {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Historique de Valeur d'Inventaire</CardTitle>
-                    <CardDescription>Tendance de la valeur totale du stock (simulation basée sur transactions).</CardDescription>
+                    <CardTitle>{t("inventoryDashboard.valueHistoryTitle")}</CardTitle>
+                    <CardDescription>{t("inventoryDashboard.valueHistoryDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">

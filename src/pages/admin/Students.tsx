@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, BarChart3 } from "lucide-react";
@@ -16,6 +17,7 @@ import { StudentHeader } from "@/components/admin/students/StudentHeader";
 import { StudentDialogManager } from "@/components/admin/students/StudentDialogManager";
 
 const Students = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { studentsLabel, StudentsLabel, studentLabel, getLabel } = useStudentLabel();
   const [searchTerm, setSearchTerm] = useState("");
@@ -117,11 +119,11 @@ const Students = () => {
         <TabsList>
           <TabsTrigger value="list">
             <Users className="h-4 w-4 mr-2" />
-            Liste des {studentsLabel}
+            {t("students.tabList", { label: studentsLabel })}
           </TabsTrigger>
           <TabsTrigger value="stats">
             <BarChart3 className="h-4 w-4 mr-2" />
-            Statistiques de pointage
+            {t("students.tabStats")}
           </TabsTrigger>
         </TabsList>
 
