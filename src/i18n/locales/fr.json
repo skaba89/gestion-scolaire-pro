@@ -1605,5 +1605,112 @@
         "setupAcademicYearTitle": "Configurez votre année scolaire",
         "setupAcademicYearDesc": "Aucune année scolaire n'est définie comme courante. Créez une année scolaire pour commencer à gérer les inscriptions.",
         "setupAcademicYearBtn": "Configurer l'année scolaire"
+    },
+    "announcements": {
+        "roleAdmin": "Admin",
+        "roleDirector": "Directeur",
+        "roleTeacher": "Enseignant",
+        "roleParent": "Parent",
+        "roleStaff": "Personnel"
+    },
+    "events": {
+        "createSuccess": "Événement créé avec succès",
+        "createError": "Erreur lors de la création",
+        "deleteSuccess": "Événement supprimé",
+        "deleteError": "Erreur lors de la suppression"
+    },
+    "academicYears": {
+        "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette année scolaire ?"
+    },
+    "incidents": {
+        "reportSuccess": "Incident signalé",
+        "reportError": "Erreur lors du signalement",
+        "statusUpdateSuccess": "Statut mis à jour",
+        "tabOpen": "En cours",
+        "tabClosed": "Clôturés"
+    },
+    "aiInsights": {
+        "refreshSuccess": "Analyse mise à jour",
+        "refreshError": "Erreur lors du rafraîchissement",
+        "pageTitle": "Insights IA",
+        "pageSubtitle": "Analyse prédictive et recommandations intelligentes",
+        "tabRisks": "Risques",
+        "tabRecommendations": "Recommandations",
+        "tabRecommendationsShort": "Conseils",
+        "tabAnalysis": "Analyse",
+        "tabAssistant": "Assistant IA",
+        "tabAssistantShort": "IA"
+    },
+    "admissions": {
+        "loadError": "Erreur lors du chargement des candidatures",
+        "unexpectedFormat": "Format de données inattendu",
+        "applicationsTitle": "Candidatures"
+    },
+    "campuses": {
+        "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce campus ?",
+        "noTenantMessage": "Veuillez d'abord configurer votre établissement."
+    },
+    "forums": {
+        "updateSuccess": "Forum mis à jour",
+        "createSuccess": "Forum créé",
+        "saveError": "Erreur lors de l'enregistrement",
+        "deleteSuccess": "Forum supprimé",
+        "deleteError": "Erreur lors de la suppression",
+        "titleRequired": "Le titre est requis",
+        "loading": "Chargement..."
+    },
+    "terms": {
+        "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce trimestre ?"
+    },
+    "adminMessages": {
+        "pageTitle": "Messagerie",
+        "pageSubtitle": "Communiquez avec les parents, enseignants et personnel",
+        "tabMessages": "Messages",
+        "tabBroadcast": "Diffusion",
+        "tabEmail": "Email",
+        "recipientLabel": "Destinataire",
+        "broadcastTitle": "Diffusion de messages",
+        "broadcastDescription": "Envoyez des notifications en masse aux utilisateurs de la plateforme (parents, enseignants, personnel).",
+        "featuresTitle": "Fonctionnalités",
+        "featuresDescription": "La diffusion de messages permet de :",
+        "featureIndividualTitle": "Envoi individuel ou groupé",
+        "featureIndividualDescription": "Sélectionnez un ou plusieurs destinataires par rôle",
+        "featureRealtimeTitle": "Notifications en temps réel",
+        "featureRealtimeDescription": "Les destinataires reçoivent une alerte instantanée",
+        "emailTitle": "Envoi d'emails",
+        "emailDescription": "Envoyez des emails aux utilisateurs. Les emails sont envoyés à leur adresse email réelle, même s'ils ne sont pas connectés à la plateforme."
+    },
+    "surveys": {
+        "updateSuccess": "Sondage mis à jour",
+        "createSuccess": "Sondage créé",
+        "saveError": "Erreur lors de l'enregistrement",
+        "deleteSuccess": "Sondage supprimé",
+        "deleteError": "Erreur lors de la suppression",
+        "titleRequired": "Le titre est requis",
+        "loading": "Chargement..."
+    },
+    "levels": {
+        "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce niveau ?",
+        "errorTitle": "Erreur",
+        "nameRequired": "Veuillez entrer un nom"
+    },
+    "marketplace": {
+        "typeDocument": "Document",
+        "typeBook": "Livre / Manuel",
+        "typeVideo": "Vidéo / Cours en ligne",
+        "typeLink": "Lien externe",
+        "importSuccess": "Ressource importée dans votre bibliothèque",
+        "importError": "Erreur lors de l'import: ",
+        "pageTitle": "Marketplace Éducatif",
+        "pageSubtitle": "Découvrez et importez des ressources partagées par la communauté éducative",
+        "defaultInstitution": "Établissement",
+        "noDescription": "Aucune description fournie.",
+        "importButton": "Importer",
+        "viewButton": "Voir",
+        "emptyTitle": "Marketplace vide",
+        "emptyDescription": "Aucune ressource publique n'est disponible pour le moment."
+    },
+    "teachers": {
+        "searchPlaceholder": "Rechercher un professeur..."
     }
 }

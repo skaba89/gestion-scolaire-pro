@@ -1375,5 +1375,112 @@
     "setupAcademicYearTitle": "Configure su año académico",
     "setupAcademicYearDesc": "No hay ningún año académico definido como actual. Cree un año académico para comenzar a gestionar las inscripciones.",
     "setupAcademicYearBtn": "Configurar año académico"
+  },
+  "announcements": {
+    "roleAdmin": "Admin",
+    "roleDirector": "Director",
+    "roleTeacher": "Profesor",
+    "roleParent": "Padre/Madre",
+    "roleStaff": "Personal"
+  },
+  "events": {
+    "createSuccess": "Evento creado con éxito",
+    "createError": "Error al crear el evento",
+    "deleteSuccess": "Evento eliminado",
+    "deleteError": "Error al eliminar el evento"
+  },
+  "academicYears": {
+    "deleteConfirm": "¿Está seguro de que desea eliminar este año académico?"
+  },
+  "incidents": {
+    "reportSuccess": "Incidente reportado",
+    "reportError": "Error al reportar el incidente",
+    "statusUpdateSuccess": "Estado actualizado",
+    "tabOpen": "Abiertos",
+    "tabClosed": "Cerrados"
+  },
+  "aiInsights": {
+    "refreshSuccess": "Análisis actualizado",
+    "refreshError": "Error al actualizar el análisis",
+    "pageTitle": "Perspectivas IA",
+    "pageSubtitle": "Análisis predictivo y recomendaciones inteligentes",
+    "tabRisks": "Riesgos",
+    "tabRecommendations": "Recomendaciones",
+    "tabRecommendationsShort": "Consejos",
+    "tabAnalysis": "Análisis",
+    "tabAssistant": "Asistente IA",
+    "tabAssistantShort": "IA"
+  },
+  "admissions": {
+    "loadError": "Error al cargar las solicitudes",
+    "unexpectedFormat": "Formato de datos inesperado",
+    "applicationsTitle": "Solicitudes"
+  },
+  "campuses": {
+    "deleteConfirm": "¿Está seguro de que desea eliminar este campus?",
+    "noTenantMessage": "Por favor, configure su institución primero."
+  },
+  "forums": {
+    "updateSuccess": "Foro actualizado",
+    "createSuccess": "Foro creado",
+    "saveError": "Error al guardar",
+    "deleteSuccess": "Foro eliminado",
+    "deleteError": "Error al eliminar el foro",
+    "titleRequired": "El título es obligatorio",
+    "loading": "Cargando..."
+  },
+  "terms": {
+    "deleteConfirm": "¿Está seguro de que desea eliminar este trimestre?"
+  },
+  "adminMessages": {
+    "pageTitle": "Mensajería",
+    "pageSubtitle": "Comuníquese con padres, profesores y personal",
+    "tabMessages": "Mensajes",
+    "tabBroadcast": "Difusión",
+    "tabEmail": "Correo",
+    "recipientLabel": "Destinatario",
+    "broadcastTitle": "Difusión de mensajes",
+    "broadcastDescription": "Envíe notificaciones masivas a los usuarios de la plataforma (padres, profesores, personal).",
+    "featuresTitle": "Funcionalidades",
+    "featuresDescription": "La difusión de mensajes permite:",
+    "featureIndividualTitle": "Envío individual o grupal",
+    "featureIndividualDescription": "Seleccione uno o varios destinatarios por rol",
+    "featureRealtimeTitle": "Notificaciones en tiempo real",
+    "featureRealtimeDescription": "Los destinatarios reciben una alerta instantánea",
+    "emailTitle": "Envío de correos",
+    "emailDescription": "Envíe correos a los usuarios. Los correos se envían a su dirección real, aunque no estén conectados a la plataforma."
+  },
+  "surveys": {
+    "updateSuccess": "Encuesta actualizada",
+    "createSuccess": "Encuesta creada",
+    "saveError": "Error al guardar",
+    "deleteSuccess": "Encuesta eliminada",
+    "deleteError": "Error al eliminar la encuesta",
+    "titleRequired": "El título es obligatorio",
+    "loading": "Cargando..."
+  },
+  "levels": {
+    "deleteConfirm": "¿Está seguro de que desea eliminar este nivel?",
+    "errorTitle": "Error",
+    "nameRequired": "Por favor, introduzca un nombre"
+  },
+  "marketplace": {
+    "typeDocument": "Documento",
+    "typeBook": "Libro / Manual",
+    "typeVideo": "Vídeo / Curso en línea",
+    "typeLink": "Enlace externo",
+    "importSuccess": "Recurso importado en su biblioteca",
+    "importError": "Error al importar: ",
+    "pageTitle": "Marketplace Educativo",
+    "pageSubtitle": "Descubra e importe recursos compartidos por la comunidad educativa",
+    "defaultInstitution": "Institución",
+    "noDescription": "Sin descripción.",
+    "importButton": "Importar",
+    "viewButton": "Ver",
+    "emptyTitle": "Marketplace vacío",
+    "emptyDescription": "No hay recursos públicos disponibles por el momento."
+  },
+  "teachers": {
+    "searchPlaceholder": "Buscar un profesor..."
   }
 }

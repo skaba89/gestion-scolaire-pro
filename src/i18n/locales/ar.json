@@ -1375,5 +1375,112 @@
     "setupAcademicYearTitle": "إعداد السنة الدراسية",
     "setupAcademicYearDesc": "لا توجد سنة دراسية محددة كسنة حالية. أنشئ سنة دراسية لبدء إدارة التسجيلات.",
     "setupAcademicYearBtn": "إعداد السنة الدراسية"
+  },
+  "announcements": {
+    "roleAdmin": "مدير النظام",
+    "roleDirector": "مدير",
+    "roleTeacher": "معلم",
+    "roleParent": "ولي الأمر",
+    "roleStaff": "موظف"
+  },
+  "events": {
+    "createSuccess": "تم إنشاء الحدث بنجاح",
+    "createError": "خطأ أثناء إنشاء الحدث",
+    "deleteSuccess": "تم حذف الحدث",
+    "deleteError": "خطأ أثناء حذف الحدث"
+  },
+  "academicYears": {
+    "deleteConfirm": "هل أنت متأكد من أنك تريد حذف هذه السنة الدراسية؟"
+  },
+  "incidents": {
+    "reportSuccess": "تم الإبلاغ عن الحادثة",
+    "reportError": "خطأ أثناء الإبلاغ عن الحادثة",
+    "statusUpdateSuccess": "تم تحديث الحالة",
+    "tabOpen": "قيد التنفيذ",
+    "tabClosed": "مغلقة"
+  },
+  "aiInsights": {
+    "refreshSuccess": "تم تحديث التحليل",
+    "refreshError": "خطأ أثناء تحديث التحليل",
+    "pageTitle": "رؤى الذكاء الاصطناعي",
+    "pageSubtitle": "التحليل التنبؤي والتوصيات الذكية",
+    "tabRisks": "المخاطر",
+    "tabRecommendations": "التوصيات",
+    "tabRecommendationsShort": "نصائح",
+    "tabAnalysis": "التحليل",
+    "tabAssistant": "مساعد الذكاء الاصطناعي",
+    "tabAssistantShort": "ذكاء اصطناعي"
+  },
+  "admissions": {
+    "loadError": "خطأ أثناء تحميل الطلبات",
+    "unexpectedFormat": "تنسيق بيانات غير متوقع",
+    "applicationsTitle": "الطلبات"
+  },
+  "campuses": {
+    "deleteConfirm": "هل أنت متأكد من أنك تريد حذف هذا الحرم الجامعي؟",
+    "noTenantMessage": "يرجى تكوين مؤسستك أولاً."
+  },
+  "forums": {
+    "updateSuccess": "تم تحديث المنتدى",
+    "createSuccess": "تم إنشاء المنتدى",
+    "saveError": "خطأ أثناء الحفظ",
+    "deleteSuccess": "تم حذف المنتدى",
+    "deleteError": "خطأ أثناء حذف المنتدى",
+    "titleRequired": "العنوان مطلوب",
+    "loading": "جارٍ التحميل..."
+  },
+  "terms": {
+    "deleteConfirm": "هل أنت متأكد من أنك تريد حذف هذا الفصل الدراسي؟"
+  },
+  "adminMessages": {
+    "pageTitle": "المراسلة",
+    "pageSubtitle": "تواصل مع أولياء الأمور والمعلمين والموظفين",
+    "tabMessages": "الرسائل",
+    "tabBroadcast": "البث",
+    "tabEmail": "البريد الإلكتروني",
+    "recipientLabel": "المستلم",
+    "broadcastTitle": "بث الرسائل",
+    "broadcastDescription": "أرسل إشعارات جماعية لمستخدمي المنصة (أولياء الأمور، المعلمون، الموظفون).",
+    "featuresTitle": "الميزات",
+    "featuresDescription": "يتيح بث الرسائل:",
+    "featureIndividualTitle": "الإرسال الفردي أو الجماعي",
+    "featureIndividualDescription": "اختر مستلماً واحداً أو أكثر حسب الدور",
+    "featureRealtimeTitle": "إشعارات في الوقت الفعلي",
+    "featureRealtimeDescription": "يتلقى المستلمون تنبيهاً فورياً",
+    "emailTitle": "إرسال رسائل بريد إلكتروني",
+    "emailDescription": "أرسل رسائل بريد إلكتروني للمستخدمين. تُرسل على عنوانهم الحقيقي حتى لو لم يكونوا متصلين بالمنصة."
+  },
+  "surveys": {
+    "updateSuccess": "تم تحديث الاستطلاع",
+    "createSuccess": "تم إنشاء الاستطلاع",
+    "saveError": "خطأ أثناء الحفظ",
+    "deleteSuccess": "تم حذف الاستطلاع",
+    "deleteError": "خطأ أثناء حذف الاستطلاع",
+    "titleRequired": "العنوان مطلوب",
+    "loading": "جارٍ التحميل..."
+  },
+  "levels": {
+    "deleteConfirm": "هل أنت متأكد من أنك تريد حذف هذا المستوى؟",
+    "errorTitle": "خطأ",
+    "nameRequired": "يرجى إدخال اسم"
+  },
+  "marketplace": {
+    "typeDocument": "وثيقة",
+    "typeBook": "كتاب / دليل",
+    "typeVideo": "فيديو / دورة عبر الإنترنت",
+    "typeLink": "رابط خارجي",
+    "importSuccess": "تم استيراد المورد إلى مكتبتك",
+    "importError": "خطأ أثناء الاستيراد: ",
+    "pageTitle": "سوق التعليم",
+    "pageSubtitle": "اكتشف وأضف الموارد التي يشاركها مجتمع المعلمين",
+    "defaultInstitution": "المؤسسة",
+    "noDescription": "لا يوجد وصف.",
+    "importButton": "استيراد",
+    "viewButton": "عرض",
+    "emptyTitle": "السوق فارغ",
+    "emptyDescription": "لا توجد موارد عامة متاحة في الوقت الحالي."
+  },
+  "teachers": {
+    "searchPlaceholder": "البحث عن معلم..."
   }
 }

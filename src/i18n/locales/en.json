@@ -1605,5 +1605,112 @@
         "setupAcademicYearTitle": "Set up your academic year",
         "setupAcademicYearDesc": "No academic year is set as current. Create an academic year to start managing enrollments.",
         "setupAcademicYearBtn": "Set up academic year"
+    },
+    "announcements": {
+        "roleAdmin": "Admin",
+        "roleDirector": "Director",
+        "roleTeacher": "Teacher",
+        "roleParent": "Parent",
+        "roleStaff": "Staff"
+    },
+    "events": {
+        "createSuccess": "Event created successfully",
+        "createError": "Error creating event",
+        "deleteSuccess": "Event deleted",
+        "deleteError": "Error deleting event"
+    },
+    "academicYears": {
+        "deleteConfirm": "Are you sure you want to delete this academic year?"
+    },
+    "incidents": {
+        "reportSuccess": "Incident reported",
+        "reportError": "Error reporting incident",
+        "statusUpdateSuccess": "Status updated",
+        "tabOpen": "Open",
+        "tabClosed": "Closed"
+    },
+    "aiInsights": {
+        "refreshSuccess": "Analysis updated",
+        "refreshError": "Error refreshing analysis",
+        "pageTitle": "AI Insights",
+        "pageSubtitle": "Predictive analytics and smart recommendations",
+        "tabRisks": "Risks",
+        "tabRecommendations": "Recommendations",
+        "tabRecommendationsShort": "Tips",
+        "tabAnalysis": "Analysis",
+        "tabAssistant": "AI Assistant",
+        "tabAssistantShort": "AI"
+    },
+    "admissions": {
+        "loadError": "Error loading applications",
+        "unexpectedFormat": "Unexpected data format",
+        "applicationsTitle": "Applications"
+    },
+    "campuses": {
+        "deleteConfirm": "Are you sure you want to delete this campus?",
+        "noTenantMessage": "Please configure your institution first."
+    },
+    "forums": {
+        "updateSuccess": "Forum updated",
+        "createSuccess": "Forum created",
+        "saveError": "Error saving",
+        "deleteSuccess": "Forum deleted",
+        "deleteError": "Error deleting forum",
+        "titleRequired": "Title is required",
+        "loading": "Loading..."
+    },
+    "terms": {
+        "deleteConfirm": "Are you sure you want to delete this term?"
+    },
+    "adminMessages": {
+        "pageTitle": "Messaging",
+        "pageSubtitle": "Communicate with parents, teachers and staff",
+        "tabMessages": "Messages",
+        "tabBroadcast": "Broadcast",
+        "tabEmail": "Email",
+        "recipientLabel": "Recipient",
+        "broadcastTitle": "Message broadcast",
+        "broadcastDescription": "Send mass notifications to platform users (parents, teachers, staff).",
+        "featuresTitle": "Features",
+        "featuresDescription": "Message broadcast allows you to:",
+        "featureIndividualTitle": "Individual or group sending",
+        "featureIndividualDescription": "Select one or more recipients by role",
+        "featureRealtimeTitle": "Real-time notifications",
+        "featureRealtimeDescription": "Recipients receive an instant alert",
+        "emailTitle": "Email sending",
+        "emailDescription": "Send emails to users. Emails are sent to their real email address, even if they are not connected to the platform."
+    },
+    "surveys": {
+        "updateSuccess": "Survey updated",
+        "createSuccess": "Survey created",
+        "saveError": "Error saving",
+        "deleteSuccess": "Survey deleted",
+        "deleteError": "Error deleting survey",
+        "titleRequired": "Title is required",
+        "loading": "Loading..."
+    },
+    "levels": {
+        "deleteConfirm": "Are you sure you want to delete this level?",
+        "errorTitle": "Error",
+        "nameRequired": "Please enter a name"
+    },
+    "marketplace": {
+        "typeDocument": "Document",
+        "typeBook": "Book / Manual",
+        "typeVideo": "Video / Online Course",
+        "typeLink": "External Link",
+        "importSuccess": "Resource imported into your library",
+        "importError": "Error importing: ",
+        "pageTitle": "Educational Marketplace",
+        "pageSubtitle": "Discover and import resources shared by the educational community",
+        "defaultInstitution": "Institution",
+        "noDescription": "No description provided.",
+        "importButton": "Import",
+        "viewButton": "View",
+        "emptyTitle": "Empty marketplace",
+        "emptyDescription": "No public resources are available at this time."
+    },
+    "teachers": {
+        "searchPlaceholder": "Search for a teacher..."
     }
 }

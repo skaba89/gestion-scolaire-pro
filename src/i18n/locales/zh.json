@@ -1432,5 +1432,112 @@
     "setupAcademicYearTitle": "设置学年",
     "setupAcademicYearDesc": "尚未设置当前学年。请创建学年以开始管理注册。",
     "setupAcademicYearBtn": "设置学年"
+  },
+  "announcements": {
+    "roleAdmin": "管理员",
+    "roleDirector": "校长",
+    "roleTeacher": "教师",
+    "roleParent": "家长",
+    "roleStaff": "员工"
+  },
+  "events": {
+    "createSuccess": "活动创建成功",
+    "createError": "创建活动时出错",
+    "deleteSuccess": "活动已删除",
+    "deleteError": "删除活动时出错"
+  },
+  "academicYears": {
+    "deleteConfirm": "您确定要删除此学年吗？"
+  },
+  "incidents": {
+    "reportSuccess": "事件已报告",
+    "reportError": "报告事件时出错",
+    "statusUpdateSuccess": "状态已更新",
+    "tabOpen": "进行中",
+    "tabClosed": "已关闭"
+  },
+  "aiInsights": {
+    "refreshSuccess": "分析已更新",
+    "refreshError": "刷新分析时出错",
+    "pageTitle": "AI 洞察",
+    "pageSubtitle": "预测分析与智能建议",
+    "tabRisks": "风险",
+    "tabRecommendations": "建议",
+    "tabRecommendationsShort": "建议",
+    "tabAnalysis": "分析",
+    "tabAssistant": "AI 助手",
+    "tabAssistantShort": "AI"
+  },
+  "admissions": {
+    "loadError": "加载申请时出错",
+    "unexpectedFormat": "意外的数据格式",
+    "applicationsTitle": "申请"
+  },
+  "campuses": {
+    "deleteConfirm": "您确定要删除此校区吗？",
+    "noTenantMessage": "请先配置您的机构。"
+  },
+  "forums": {
+    "updateSuccess": "论坛已更新",
+    "createSuccess": "论坛已创建",
+    "saveError": "保存时出错",
+    "deleteSuccess": "论坛已删除",
+    "deleteError": "删除论坛时出错",
+    "titleRequired": "标题为必填项",
+    "loading": "加载中..."
+  },
+  "terms": {
+    "deleteConfirm": "您确定要删除此学期吗？"
+  },
+  "adminMessages": {
+    "pageTitle": "消息中心",
+    "pageSubtitle": "与家长、教师和员工沟通",
+    "tabMessages": "消息",
+    "tabBroadcast": "广播",
+    "tabEmail": "邮件",
+    "recipientLabel": "收件人",
+    "broadcastTitle": "消息广播",
+    "broadcastDescription": "向平台用户（家长、教师、员工）发送群发通知。",
+    "featuresTitle": "功能",
+    "featuresDescription": "消息广播允许您：",
+    "featureIndividualTitle": "单人或群组发送",
+    "featureIndividualDescription": "按角色选择一个或多个收件人",
+    "featureRealtimeTitle": "实时通知",
+    "featureRealtimeDescription": "收件人即时收到提醒",
+    "emailTitle": "发送邮件",
+    "emailDescription": "向用户发送邮件。邮件将发送到其真实邮箱地址，即使他们未登录平台。"
+  },
+  "surveys": {
+    "updateSuccess": "调查已更新",
+    "createSuccess": "调查已创建",
+    "saveError": "保存时出错",
+    "deleteSuccess": "调查已删除",
+    "deleteError": "删除调查时出错",
+    "titleRequired": "标题为必填项",
+    "loading": "加载中..."
+  },
+  "levels": {
+    "deleteConfirm": "您确定要删除此年级吗？",
+    "errorTitle": "错误",
+    "nameRequired": "请输入名称"
+  },
+  "marketplace": {
+    "typeDocument": "文档",
+    "typeBook": "书籍 / 手册",
+    "typeVideo": "视频 / 在线课程",
+    "typeLink": "外部链接",
+    "importSuccess": "资源已导入您的资料库",
+    "importError": "导入时出错：",
+    "pageTitle": "教育市场",
+    "pageSubtitle": "发现并导入教育社区共享的资源",
+    "defaultInstitution": "机构",
+    "noDescription": "暂无描述。",
+    "importButton": "导入",
+    "viewButton": "查看",
+    "emptyTitle": "市场为空",
+    "emptyDescription": "目前没有可用的公共资源。"
+  },
+  "teachers": {
+    "searchPlaceholder": "搜索教师..."
   }
 }

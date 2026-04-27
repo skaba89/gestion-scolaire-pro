@@ -1,8 +1,9 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // Queries
 import {
@@ -17,17 +18,18 @@ import { AnnouncementList } from "@/components/communication/AnnouncementList";
 import { AnnouncementDialog } from "@/components/communication/AnnouncementDialog";
 
 export default function Announcements() {
+    const { t } = useTranslation("announcements");
     const { tenant } = useTenant();
     const { StudentLabel } = useStudentLabel();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     const ROLE_LABELS: Record<string, string> = {
-        TENANT_ADMIN: "Admin",
-        DIRECTOR: "Directeur",
-        TEACHER: "Enseignant",
+        TENANT_ADMIN: t("announcements.roleAdmin"),
+        DIRECTOR: t("announcements.roleDirector"),
+        TEACHER: t("announcements.roleTeacher"),
         STUDENT: StudentLabel,
-        PARENT: "Parent",
-        STAFF: "Personnel",
+        PARENT: t("announcements.roleParent"),
+        STAFF: t("announcements.roleStaff"),
     };
 
     // Fetch announcements
@@ -78,3 +80,4 @@ export default function Announcements() {
         </div>
     );
 }
+

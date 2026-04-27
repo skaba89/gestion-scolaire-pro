@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -10,6 +10,7 @@ import {
   useReorderLevels,
   Level
 } from "@/queries/levels";
+import { useTranslation } from "react-i18next";
 
 // New Modular Components
 import { LevelHeader } from "@/components/levels/LevelHeader";
@@ -17,6 +18,7 @@ import { LevelTable } from "@/components/levels/LevelTable";
 import { LevelFormDialog } from "@/components/levels/LevelFormDialog";
 
 const Levels = () => {
+  const { t } = useTranslation("levels");
   const { tenant } = useTenant();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -48,14 +50,14 @@ const Levels = () => {
   };
 
   const handleDeleteClick = async (id: string) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce niveau ?")) {
+    if (confirm(t("levels.deleteConfirm"))) {
       await deleteLevelMutation.mutateAsync(id);
     }
   };
 
   const handleSubmit = async (formData: any) => {
     if (!tenant || !formData.name) {
-      toast({ title: "Erreur", description: "Veuillez entrer un nom", variant: "destructive" });
+      toast({ title: t("levels.errorTitle"), description: t("levels.nameRequired"), variant: "destructive" });
       return;
     }
 
@@ -146,3 +148,4 @@ const Levels = () => {
 };
 
 export default Levels;
+

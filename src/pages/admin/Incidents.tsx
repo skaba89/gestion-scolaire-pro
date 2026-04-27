@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,12 +6,14 @@ import { useTenant } from "@/contexts/TenantContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { adminQueries } from "@/queries/admin";
+import { useTranslation } from "react-i18next";
 import { IncidentHeader } from "@/components/admin/incidents/IncidentHeader";
 import { IncidentStats } from "@/components/admin/incidents/IncidentStats";
 import { IncidentTable } from "@/components/admin/incidents/IncidentTable";
 import { IncidentDialog } from "@/components/admin/incidents/IncidentDialog";
 
 export default function Incidents() {
+  const { t } = useTranslation("incidents");
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -39,9 +41,9 @@ export default function Incidents() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-incidents"] });
       setIsOpen(false);
-      toast.success("Incident signalé");
+      toast.success(t("incidents.reportSuccess"));
     },
-    onError: () => toast.error("Erreur lors du signalement"),
+    onError: () => toast.error(t("incidents.reportError")),
   });
 
   const updateStatusMutation = useMutation({
@@ -55,7 +57,7 @@ export default function Incidents() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-incidents"] });
-      toast.success("Statut mis à jour");
+      toast.success(t("incidents.statusUpdateSuccess"));
     },
   });
 
@@ -82,8 +84,8 @@ export default function Incidents() {
 
       <Tabs defaultValue="open" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="open">En cours ({openIncidents.length})</TabsTrigger>
-          <TabsTrigger value="closed">Clôturés ({closedIncidents.length})</TabsTrigger>
+          <TabsTrigger value="open">{t("incidents.tabOpen")} ({openIncidents.length})</TabsTrigger>
+          <TabsTrigger value="closed">{t("incidents.tabClosed")} ({closedIncidents.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="open">
@@ -111,3 +113,4 @@ export default function Incidents() {
     </div>
   );
 }
+
