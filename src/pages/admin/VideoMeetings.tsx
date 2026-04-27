@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
@@ -41,6 +42,7 @@ import {
 } from "lucide-react";
 
 export default function VideoMeetings() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const { studentsLabel } = useStudentLabel();
@@ -84,10 +86,10 @@ export default function VideoMeetings() {
       queryClient.invalidateQueries({ queryKey: ["video-meetings"] });
       setIsOpen(false);
       setFormData({ title: "", description: "", scheduled_start: "", scheduled_end: "", max_participants: 50 });
-      toast.success("Réunion créée avec succès");
+      toast.success(t("videoMeetings.created"));
     },
     onError: () => {
-      toast.error("Erreur lors de la création de la réunion");
+      toast.error(t("videoMeetings.createError"));
     },
   });
 
@@ -101,16 +103,16 @@ export default function VideoMeetings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["video-meetings"] });
-      toast.success("Statut mis à jour");
+      toast.success(t("videoMeetings.statusUpdated"));
     },
   });
 
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
-      scheduled: { variant: "outline", label: "Planifiée" },
-      in_progress: { variant: "default", label: "En cours" },
-      completed: { variant: "secondary", label: "Terminée" },
-      cancelled: { variant: "destructive", label: "Annulée" },
+      scheduled: { variant: "outline", label: t("videoMeetings.statusScheduled") },
+      in_progress: { variant: "default", label: t("videoMeetings.statusInProgress") },
+      completed: { variant: "secondary", label: t("videoMeetings.statusCompleted") },
+      cancelled: { variant: "destructive", label: t("videoMeetings.statusCancelled") },
     };
     const config = configs[status] || configs.scheduled;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -118,7 +120,7 @@ export default function VideoMeetings() {
 
   const copyLink = (url: string) => {
     navigator.clipboard.writeText(url);
-    toast.success("Lien copié dans le presse-papier");
+    toast.success(t("videoMeetings.linkCopied"));
   };
 
   const upcomingMeetings = meetings?.filter(m => m.status === "scheduled") || [];
@@ -131,43 +133,43 @@ export default function VideoMeetings() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Video className="h-8 w-8 text-primary" />
-            Visioconférences
+            {t("videoMeetings.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
-            Gérez vos réunions vidéo avec les parents, enseignants et {studentsLabel}
+            {t("videoMeetings.pageSubtitle", { students: studentsLabel })}
           </p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 h-4 mr-2" />
-              Nouvelle réunion
+              {t("videoMeetings.newMeeting")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Créer une réunion</DialogTitle>
+              <DialogTitle>{t("videoMeetings.createMeeting")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Titre</Label>
+                <Label>{t("videoMeetings.title")}</Label>
                 <Input
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Réunion parents-enseignants"
+                  placeholder={t("videoMeetings.titlePlaceholder")}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t("videoMeetings.description")}</Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Description de la réunion..."
+                  placeholder={t("videoMeetings.descPlaceholder")}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Date et heure de début</Label>
+                  <Label>{t("videoMeetings.startDateTime")}</Label>
                   <Input
                     type="datetime-local"
                     value={formData.scheduled_start}
@@ -175,7 +177,7 @@ export default function VideoMeetings() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Date et heure de fin</Label>
+                  <Label>{t("videoMeetings.endDateTime")}</Label>
                   <Input
                     type="datetime-local"
                     value={formData.scheduled_end}
@@ -184,7 +186,7 @@ export default function VideoMeetings() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Nombre max de participants</Label>
+                <Label>{t("videoMeetings.maxParticipants")}</Label>
                 <Input
                   type="number"
                   value={formData.max_participants}
@@ -198,7 +200,7 @@ export default function VideoMeetings() {
                 disabled={!formData.title || !formData.scheduled_start || createMutation.isPending}
                 className="w-full"
               >
-                Créer la réunion
+                {t("videoMeetings.createMeetingBtn")}
               </Button>
             </div>
           </DialogContent>
@@ -210,7 +212,7 @@ export default function VideoMeetings() {
         <div className="space-y-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse" />
-            Réunions en cours
+            {t("videoMeetings.activeMeetings")}
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
             {activeMeetings.map((meeting: any) => (
@@ -221,7 +223,7 @@ export default function VideoMeetings() {
                     {getStatusBadge(meeting.status)}
                   </CardTitle>
                   <CardDescription>
-                    Animé par {meeting.host?.first_name} {meeting.host?.last_name}
+                    {t("videoMeetings.hostedBy", { name: `${meeting.host?.first_name} ${meeting.host?.last_name}` })}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -232,14 +234,14 @@ export default function VideoMeetings() {
                     </span>
                     <span className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
-                      Démarrée à {meeting.actual_start && format(new Date(meeting.actual_start), "HH:mm", { locale: fr })}
+                      {t("videoMeetings.startedAt", { time: meeting.actual_start ? format(new Date(meeting.actual_start), "HH:mm", { locale: fr }) : "" })}
                     </span>
                   </div>
                   <div className="flex gap-2">
                     <Button asChild className="flex-1">
                       <a href={meeting.meeting_url} target="_blank" rel="noopener noreferrer">
                         <Play className="h-4 w-4 mr-2" />
-                        Rejoindre
+                        {t("videoMeetings.join")}
                       </a>
                     </Button>
                     <Button variant="outline" size="icon" onClick={() => copyLink(meeting.meeting_url)}>
@@ -264,13 +266,13 @@ export default function VideoMeetings() {
       <div className="space-y-4">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <Calendar className="h-5 h-5" />
-          Réunions à venir ({upcomingMeetings.length})
+          {t("videoMeetings.upcomingMeetings", { count: upcomingMeetings.length })}
         </h2>
         {upcomingMeetings.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center text-muted-foreground">
               <Video className="h-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Aucune réunion planifiée</p>
+              <p>{t("videoMeetings.noUpcoming")}</p>
             </CardContent>
           </Card>
         ) : (
@@ -289,7 +291,7 @@ export default function VideoMeetings() {
                   )}
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Users className="h-4 w-4" />
-                    <span>Max {meeting.max_participants} participants</span>
+                    <span>{t("videoMeetings.maxParticipantsCount", { count: meeting.max_participants })}</span>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -297,7 +299,7 @@ export default function VideoMeetings() {
                       onClick={() => updateStatusMutation.mutate({ id: meeting.id, status: "in_progress" })}
                     >
                       <Play className="h-4 w-4 mr-2" />
-                      Démarrer
+                      {t("videoMeetings.start")}
                     </Button>
                     <Button variant="outline" size="icon" onClick={() => copyLink(meeting.meeting_url)}>
                       <LinkIcon className="h-4 w-4" />
@@ -314,7 +316,7 @@ export default function VideoMeetings() {
       {pastMeetings.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold text-muted-foreground">
-            Historique ({pastMeetings.length})
+            {t("videoMeetings.history", { count: pastMeetings.length })}
           </h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {pastMeetings.slice(0, 6).map((meeting: any) => (
@@ -330,7 +332,7 @@ export default function VideoMeetings() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm text-muted-foreground">
-                    {meeting.participants?.filter((p: any) => p.status === "joined").length || 0} participants
+                    {t("videoMeetings.participantsCount", { count: meeting.participants?.filter((p: any) => p.status === "joined").length || 0 })}
                   </div>
                 </CardContent>
               </Card>

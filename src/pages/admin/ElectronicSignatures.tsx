@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,6 +50,7 @@ import {
 } from "lucide-react";
 
 export default function ElectronicSignatures() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -111,10 +113,10 @@ export default function ElectronicSignatures() {
       setIsOpen(false);
       setFormData({ document_type: "authorization", title: "", description: "", content: "" });
       setSignatories([{ email: "", name: "", role: "" }]);
-      toast.success("Document créé et envoyé pour signature");
+      toast.success(t("electronicSignatures.created"));
     },
     onError: () => {
-      toast.error("Erreur lors de la création du document");
+      toast.error(t("electronicSignatures.createError"));
     },
   });
 
@@ -134,12 +136,12 @@ export default function ElectronicSignatures() {
 
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
-      draft: { variant: "outline", label: "Brouillon" },
-      pending_signatures: { variant: "default", label: "En attente" },
-      partially_signed: { variant: "secondary", label: "Partiellement signé" },
-      completed: { variant: "secondary", label: "Complété" },
-      cancelled: { variant: "destructive", label: "Annulé" },
-      expired: { variant: "destructive", label: "Expiré" },
+      draft: { variant: "outline", label: t("electronicSignatures.statusDraft") },
+      pending_signatures: { variant: "default", label: t("electronicSignatures.statusPending") },
+      partially_signed: { variant: "secondary", label: t("electronicSignatures.statusPartial") },
+      completed: { variant: "secondary", label: t("electronicSignatures.statusCompleted") },
+      cancelled: { variant: "destructive", label: t("electronicSignatures.statusCancelled") },
+      expired: { variant: "destructive", label: t("electronicSignatures.statusExpired") },
     };
     const config = configs[status] || configs.draft;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -147,10 +149,10 @@ export default function ElectronicSignatures() {
 
   const getSignatoryStatus = (status: string) => {
     const configs: Record<string, { icon: any; label: string; className: string }> = {
-      pending: { icon: Clock, label: "En attente", className: "text-muted-foreground" },
-      viewed: { icon: Eye, label: "Vu", className: "text-blue-600" },
-      signed: { icon: CheckCircle2, label: "Signé", className: "text-green-600" },
-      declined: { icon: null, label: "Refusé", className: "text-red-600" },
+      pending: { icon: Clock, label: t("electronicSignatures.sigPending"), className: "text-muted-foreground" },
+      viewed: { icon: Eye, label: t("electronicSignatures.sigViewed"), className: "text-blue-600" },
+      signed: { icon: CheckCircle2, label: t("electronicSignatures.sigSigned"), className: "text-green-600" },
+      declined: { icon: null, label: t("electronicSignatures.sigDeclined"), className: "text-red-600" },
     };
     const config = configs[status] || configs.pending;
     const Icon = config.icon;
@@ -168,14 +170,14 @@ export default function ElectronicSignatures() {
     return Math.round((signed / signatories.length) * 100);
   };
 
-  const documentTypes = [
-    { value: "authorization", label: "Autorisation parentale" },
-    { value: "consent", label: "Consentement" },
-    { value: "contract", label: "Contrat" },
-    { value: "certificate", label: "Certificat" },
-    { value: "report", label: "Rapport" },
-    { value: "other", label: "Autre" },
-  ];
+  const documentTypes = useMemo(() => [
+    { value: "authorization", label: t("electronicSignatures.typeAuthorization") },
+    { value: "consent", label: t("electronicSignatures.typeConsent") },
+    { value: "contract", label: t("electronicSignatures.typeContract") },
+    { value: "certificate", label: t("electronicSignatures.typeCertificate") },
+    { value: "report", label: t("electronicSignatures.typeReport") },
+    { value: "other", label: t("electronicSignatures.typeOther") },
+  ], [t]);
 
   const pendingDocs = documents?.filter(d => ["pending_signatures", "partially_signed"].includes(d.status)) || [];
   const completedDocs = documents?.filter(d => d.status === "completed") || [];
@@ -186,27 +188,27 @@ export default function ElectronicSignatures() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <PenTool className="h-8 w-8 text-primary" />
-            Signatures Électroniques
+            {t("electronicSignatures.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
-            Créez et gérez vos documents avec signatures électroniques
+            {t("electronicSignatures.pageSubtitle")}
           </p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Nouveau document
+              {t("electronicSignatures.newDocument")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Créer un document à signer</DialogTitle>
+              <DialogTitle>{t("electronicSignatures.createDocTitle")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Type de document</Label>
+                  <Label>{t("electronicSignatures.docType")}</Label>
                   <Select
                     value={formData.document_type}
                     onValueChange={(value) => setFormData({ ...formData, document_type: value })}
@@ -224,47 +226,47 @@ export default function ElectronicSignatures() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Titre</Label>
+                  <Label>{t("electronicSignatures.title")}</Label>
                   <Input
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="Autorisation de sortie scolaire"
+                    placeholder={t("electronicSignatures.titlePlaceholder")}
                   />
                 </div>
               </div>
               
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t("electronicSignatures.description")}</Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Brève description du document..."
+                  placeholder={t("electronicSignatures.descPlaceholder")}
                   rows={2}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Contenu du document</Label>
+                <Label>{t("electronicSignatures.content")}</Label>
                 <Textarea
                   value={formData.content}
                   onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                  placeholder="Rédigez le contenu complet du document ici..."
+                  placeholder={t("electronicSignatures.contentPlaceholder")}
                   rows={6}
                 />
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label>Signataires</Label>
+                  <Label>{t("electronicSignatures.signatories")}</Label>
                   <Button type="button" variant="outline" size="sm" onClick={addSignatory}>
                     <Plus className="h-4 w-4 mr-1" />
-                    Ajouter
+                    {t("electronicSignatures.add")}
                   </Button>
                 </div>
                 {signatories.map((sig, index) => (
                   <div key={index} className="grid grid-cols-4 gap-2 items-end">
                     <div className="space-y-1">
-                      <Label className="text-xs">Nom</Label>
+                      <Label className="text-xs">{t("electronicSignatures.name")}</Label>
                       <Input
                         value={sig.name}
                         onChange={(e) => updateSignatory(index, "name", e.target.value)}
@@ -272,7 +274,7 @@ export default function ElectronicSignatures() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Email</Label>
+                      <Label className="text-xs">{t("electronicSignatures.email")}</Label>
                       <Input
                         type="email"
                         value={sig.email}
@@ -281,7 +283,7 @@ export default function ElectronicSignatures() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Rôle</Label>
+                      <Label className="text-xs">{t("electronicSignatures.role")}</Label>
                       <Input
                         value={sig.role}
                         onChange={(e) => updateSignatory(index, "role", e.target.value)}
@@ -312,7 +314,7 @@ export default function ElectronicSignatures() {
                 className="w-full"
               >
                 <Send className="h-4 w-4 mr-2" />
-                Créer et envoyer pour signature
+                {t("electronicSignatures.createAndSend")}
               </Button>
             </div>
           </DialogContent>
@@ -324,19 +326,19 @@ export default function ElectronicSignatures() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{documents?.length || 0}</div>
-            <p className="text-sm text-muted-foreground">Total documents</p>
+            <p className="text-sm text-muted-foreground">{t("electronicSignatures.totalDocs")}</p>
           </CardContent>
         </Card>
         <Card className="border-orange-500/50">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-orange-600">{pendingDocs.length}</div>
-            <p className="text-sm text-muted-foreground">En attente</p>
+            <p className="text-sm text-muted-foreground">{t("electronicSignatures.pending")}</p>
           </CardContent>
         </Card>
         <Card className="border-green-500/50">
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-green-600">{completedDocs.length}</div>
-            <p className="text-sm text-muted-foreground">Complétés</p>
+            <p className="text-sm text-muted-foreground">{t("electronicSignatures.completed")}</p>
           </CardContent>
         </Card>
         <Card>
@@ -344,15 +346,15 @@ export default function ElectronicSignatures() {
             <div className="text-2xl font-bold">
               {documents?.reduce((acc, d) => acc + (d.signatories?.length || 0), 0) || 0}
             </div>
-            <p className="text-sm text-muted-foreground">Signatures totales</p>
+            <p className="text-sm text-muted-foreground">{t("electronicSignatures.totalSignatures")}</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="pending" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="pending">En attente ({pendingDocs.length})</TabsTrigger>
-          <TabsTrigger value="completed">Complétés ({completedDocs.length})</TabsTrigger>
+          <TabsTrigger value="pending">{t("electronicSignatures.tabPending", { count: pendingDocs.length })}</TabsTrigger>
+          <TabsTrigger value="completed">{t("electronicSignatures.tabCompleted", { count: completedDocs.length })}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
@@ -360,7 +362,7 @@ export default function ElectronicSignatures() {
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Aucun document en attente de signature</p>
+                <p>{t("electronicSignatures.noPending")}</p>
               </CardContent>
             </Card>
           ) : (
@@ -379,14 +381,14 @@ export default function ElectronicSignatures() {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span>Progression des signatures</span>
+                        <span>{t("electronicSignatures.sigProgress")}</span>
                         <span>{calculateSignatureProgress(doc.signatories)}%</span>
                       </div>
                       <Progress value={calculateSignatureProgress(doc.signatories)} />
                     </div>
                     
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Signataires:</p>
+                      <p className="text-sm font-medium">{t("electronicSignatures.signatories")}:</p>
                       {doc.signatories?.map((sig: any) => (
                         <div key={sig.id} className="flex items-center justify-between text-sm">
                           <span className="flex items-center gap-2">
@@ -414,11 +416,11 @@ export default function ElectronicSignatures() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Document</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Signataires</TableHead>
-                  <TableHead>Date de création</TableHead>
-                  <TableHead>Statut</TableHead>
+                  <TableHead>{t("electronicSignatures.colDocument")}</TableHead>
+                  <TableHead>{t("electronicSignatures.colType")}</TableHead>
+                  <TableHead>{t("electronicSignatures.colSignatories")}</TableHead>
+                  <TableHead>{t("electronicSignatures.colDate")}</TableHead>
+                  <TableHead>{t("electronicSignatures.colStatus")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

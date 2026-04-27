@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -40,6 +41,7 @@ interface LocalLesson {
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
 export default function Elearning() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -88,7 +90,7 @@ export default function Elearning() {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       setIsCourseDialogOpen(false);
       setEditingCourse(null);
-      toast.success(editingCourse ? "Cours mis à jour" : "Cours créé");
+      toast.success(editingCourse ? t("elearning.courseUpdated") : t("elearning.courseCreated"));
     },
   });
 
@@ -98,7 +100,7 @@ export default function Elearning() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
-      toast.success("Cours supprimé");
+      toast.success(t("elearning.courseDeleted"));
     },
   });
 
@@ -133,7 +135,7 @@ export default function Elearning() {
             : m
         )
       );
-      toast.success("Module mis à jour");
+      toast.success(t("elearning.moduleUpdated"));
     } else {
       const newModule: LocalModule = {
         id: generateId(),
@@ -143,7 +145,7 @@ export default function Elearning() {
         lessons: [],
       };
       setLocalModules((prev) => [...prev, newModule]);
-      toast.success("Module ajouté");
+      toast.success(t("elearning.moduleAdded"));
     }
     setIsModuleDialogOpen(false);
     setModuleTitle("");
@@ -152,9 +154,9 @@ export default function Elearning() {
   };
 
   const handleDeleteModule = (module: any) => {
-    if (confirm(`Supprimer le module "${module.title}" ?`)) {
+    if (confirm(t("elearning.confirmDeleteModule", { title: module.title }))) {
       setLocalModules((prev) => prev.filter((m) => m.id !== module.id));
-      toast.success("Module supprimé");
+      toast.success(t("elearning.moduleDeleted"));
     }
   };
 
@@ -180,7 +182,7 @@ export default function Elearning() {
   };
 
   const handleDeleteLesson = (lesson: any, moduleId: string) => {
-    if (confirm(`Supprimer la leçon "${lesson.title}" ?`)) {
+    if (confirm(t("elearning.confirmDeleteLesson", { title: lesson.title }))) {
       setLocalModules((prev) =>
         prev.map((m) =>
           m.id === moduleId
@@ -216,7 +218,7 @@ export default function Elearning() {
             : m
         )
       );
-      toast.success("Leçon mise à jour");
+      toast.success(t("elearning.lessonUpdated"));
     } else {
       const newLesson: LocalLesson = {
         id: generateId(),
@@ -233,7 +235,7 @@ export default function Elearning() {
             : m
         )
       );
-      toast.success("Leçon ajoutée");
+      toast.success(t("elearning.lessonAdded"));
     }
     setIsLessonDialogOpen(false);
     setLessonTitle("");
@@ -264,10 +266,10 @@ export default function Elearning() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <GraduationCap className="h-8 w-8 text-primary" />
-            Plateforme E-learning
+            {t("elearning.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
-            Gérez votre catalogue de cours et suivez les progrès des étudiants
+            {t("elearning.pageSubtitle")}
           </p>
         </div>
         {!selectedCourseId && (
@@ -278,7 +280,7 @@ export default function Elearning() {
             }}
           >
             <Plus className="h-4 w-4 mr-2" />
-            Créer un cours
+            {t("elearning.createCourse")}
           </Button>
         )}
       </div>
@@ -290,7 +292,7 @@ export default function Elearning() {
             courses={courses}
             onEdit={handleEditCourse}
             onDelete={(id) => {
-              if (confirm("Supprimer ce cours ?")) deleteCourseMutation.mutate(id);
+              if (confirm(t("elearning.confirmDeleteCourse"))) deleteCourseMutation.mutate(id);
             }}
             onView={(id) => {
               setSelectedCourseId(id);
@@ -302,7 +304,7 @@ export default function Elearning() {
         <div className="space-y-6">
           <Button variant="ghost" onClick={() => setSelectedCourseId(null)} className="pl-0">
             <ChevronLeft className="h-4 w-4 mr-2" />
-            Retour au catalogue
+            {t("elearning.backToCatalog")}
           </Button>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -321,27 +323,27 @@ export default function Elearning() {
 
             <div className="space-y-6">
               <div className="bg-card border rounded-lg p-6 sticky top-24">
-                <h3 className="font-semibold mb-4">Détails du cours</h3>
+                <h3 className="font-semibold mb-4">{t("elearning.courseDetails")}</h3>
                 <img
                   src={selectedCourse?.thumbnail_url || ""}
                   className="w-full aspect-video object-cover rounded mb-4"
                 />
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Statut</span>
+                    <span className="text-muted-foreground">{t("elearning.status")}</span>
                     <span className="font-medium capitalize">{selectedCourse?.status}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Catégorie</span>
+                    <span className="text-muted-foreground">{t("elearning.category")}</span>
                     <span className="font-medium">{selectedCourse?.category}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Niveau</span>
+                    <span className="text-muted-foreground">{t("elearning.level")}</span>
                     <span className="font-medium capitalize">{selectedCourse?.level}</span>
                   </div>
                 </div>
                 <Button className="w-full mt-6" onClick={() => handleEditCourse(selectedCourse)}>
-                  Modifier le cours
+                  {t("elearning.editCourse")}
                 </Button>
               </div>
             </div>
@@ -361,32 +363,32 @@ export default function Elearning() {
       <Dialog open={isModuleDialogOpen} onOpenChange={setIsModuleDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingModule ? "Modifier le module" : "Ajouter un module"}</DialogTitle>
+            <DialogTitle>{editingModule ? t("elearning.editModule") : t("elearning.addModule")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Titre du module</Label>
+              <Label>{t("elearning.moduleTitle")}</Label>
               <Input
                 value={moduleTitle}
                 onChange={(e) => setModuleTitle(e.target.value)}
-                placeholder="Ex: Introduction"
+                placeholder={t("elearning.moduleTitlePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>{t("elearning.description")}</Label>
               <Input
                 value={moduleDescription}
                 onChange={(e) => setModuleDescription(e.target.value)}
-                placeholder="Description du module"
+                placeholder={t("elearning.moduleDescPlaceholder")}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsModuleDialogOpen(false)}>
-              Annuler
+              {t("elearning.cancel")}
             </Button>
             <Button onClick={handleSaveModule} disabled={!moduleTitle.trim()}>
-              {editingModule ? "Mettre à jour" : "Ajouter"}
+              {editingModule ? t("elearning.update") : t("elearning.add")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -396,41 +398,41 @@ export default function Elearning() {
       <Dialog open={isLessonDialogOpen} onOpenChange={setIsLessonDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingLesson ? "Modifier la leçon" : "Ajouter une leçon"}</DialogTitle>
+            <DialogTitle>{editingLesson ? t("elearning.editLesson") : t("elearning.addLesson")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Titre de la leçon</Label>
+              <Label>{t("elearning.lessonTitle")}</Label>
               <Input
                 value={lessonTitle}
                 onChange={(e) => setLessonTitle(e.target.value)}
-                placeholder="Ex: Les bases de la programmation"
+                placeholder={t("elearning.lessonTitlePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>{t("elearning.description")}</Label>
               <Input
                 value={lessonDescription}
                 onChange={(e) => setLessonDescription(e.target.value)}
-                placeholder="Description de la leçon"
+                placeholder={t("elearning.lessonDescPlaceholder")}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label>{t("elearning.type")}</Label>
                 <select
                   value={lessonType}
                   onChange={(e) => setLessonType(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="video">Vidéo</option>
-                  <option value="text">Texte</option>
-                  <option value="quiz">Quiz</option>
-                  <option value="document">Document</option>
+                  <option value="video">{t("elearning.typeVideo")}</option>
+                  <option value="text">{t("elearning.typeText")}</option>
+                  <option value="quiz">{t("elearning.typeQuiz")}</option>
+                  <option value="document">{t("elearning.typeDocument")}</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>Durée (minutes)</Label>
+                <Label>{t("elearning.durationMinutes")}</Label>
                 <Input
                   type="number"
                   value={lessonDuration}
@@ -442,10 +444,10 @@ export default function Elearning() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsLessonDialogOpen(false)}>
-              Annuler
+              {t("elearning.cancel")}
             </Button>
             <Button onClick={handleSaveLesson} disabled={!lessonTitle.trim()}>
-              {editingLesson ? "Mettre à jour" : "Ajouter"}
+              {editingLesson ? t("elearning.update") : t("elearning.add")}
             </Button>
           </DialogFooter>
         </DialogContent>

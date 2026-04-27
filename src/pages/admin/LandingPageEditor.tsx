@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -220,65 +221,66 @@ function TabGeneral({
   data: LandingSettings;
   onChange: (patch: Partial<LandingSettings>) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid sm:grid-cols-2 gap-5">
-      <FormField label="Nom de l'établissement" help="Nom affiché sur votre page publique">
+      <FormField label={t("landingPageEditor.fieldName")} help={t("landingPageEditor.fieldNameHelp")}>
         <TextInput
           value={data.name ?? ""}
           onChange={(v) => onChange({ name: v })}
-          placeholder="Ex: Université La Source"
+          placeholder={t("landingPageEditor.fieldNamePlaceholder")}
         />
       </FormField>
 
-      <FormField label="Accroche (tagline)" help="Courte phrase qui résume votre établissement">
+      <FormField label={t("landingPageEditor.fieldTagline")} help={t("landingPageEditor.fieldTaglineHelp")}>
         <TextInput
           value={data.tagline ?? ""}
           onChange={(v) => onChange({ tagline: v })}
-          placeholder="Ex: Former les talents de demain"
+          placeholder={t("landingPageEditor.fieldTaglinePlaceholder")}
         />
       </FormField>
 
       <div className="sm:col-span-2">
-        <FormField label="Description" help="Présentation générale de votre établissement">
+        <FormField label={t("landingPageEditor.fieldDescription")} help={t("landingPageEditor.fieldDescriptionHelp")}>
           <TextareaInput
             value={data.description ?? ""}
             onChange={(v) => onChange({ description: v })}
-            placeholder="Décrivez votre établissement, vos valeurs, votre mission..."
+            placeholder={t("landingPageEditor.fieldDescriptionPlaceholder")}
             rows={5}
           />
         </FormField>
       </div>
 
-      <FormField label="Devise / Motto">
+      <FormField label={t("landingPageEditor.fieldMotto")}>
         <TextInput
           value={data.motto ?? ""}
           onChange={(v) => onChange({ motto: v })}
-          placeholder="Ex: Savoir, Savoir-faire, Savoir-être"
+          placeholder={t("landingPageEditor.fieldMottoPlaceholder")}
         />
       </FormField>
 
-      <FormField label="Horaires d'ouverture">
+      <FormField label={t("landingPageEditor.fieldOpeningHours")}>
         <TextInput
           value={data.opening_hours ?? ""}
           onChange={(v) => onChange({ opening_hours: v })}
-          placeholder="Ex: Lun-Ven 8h-18h, Sam 9h-12h"
+          placeholder={t("landingPageEditor.fieldOpeningHoursPlaceholder")}
         />
       </FormField>
 
-      <FormField label="Année de fondation">
+      <FormField label={t("landingPageEditor.fieldFoundedYear")}>
         <TextInput
           value={String(data.founded_year ?? "")}
           onChange={(v) => onChange({ founded_year: v })}
-          placeholder="Ex: 1978"
+          placeholder={t("landingPageEditor.fieldFoundedYearPlaceholder")}
           type="number"
         />
       </FormField>
 
-      <FormField label="Accréditation / Certification">
+      <FormField label={t("landingPageEditor.fieldAccreditation")}>
         <TextInput
           value={data.accreditation ?? ""}
           onChange={(v) => onChange({ accreditation: v })}
-          placeholder="Ex: ISO 9001, Certifié Qualiopi..."
+          placeholder={t("landingPageEditor.fieldAccreditationPlaceholder")}
         />
       </FormField>
     </div>
@@ -296,22 +298,23 @@ function TabMedia({
   data: LandingSettings;
   onChange: (patch: Partial<LandingSettings>) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-8">
       {/* Logo */}
       <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
         <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <School className="w-4 h-4 text-blue-600" />
-          Logo de l&apos;établissement
+          {t("landingPageEditor.logoSection")}
         </h3>
         <FormField
-          label="URL du logo"
-          help="Recommandé : format carré PNG ou SVG, fond transparent, 512×512px minimum"
+          label={t("landingPageEditor.logoUrlLabel")}
+          help={t("landingPageEditor.logoUrlHelp")}
         >
           <TextInput
             value={data.logo_url ?? ""}
             onChange={(v) => onChange({ logo_url: v })}
-            placeholder="https://exemple.com/logo.png"
+            placeholder={t("landingPageEditor.logoUrlPlaceholder")}
           />
         </FormField>
         {data.logo_url && (
@@ -324,7 +327,7 @@ function TabMedia({
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            <p className="text-xs text-gray-400">Aperçu du logo</p>
+            <p className="text-xs text-gray-400">{t("landingPageEditor.logoPreview")}</p>
           </div>
         )}
       </div>
@@ -333,16 +336,16 @@ function TabMedia({
       <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
         <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <Image className="w-4 h-4 text-blue-600" />
-          Bannière / Photo de couverture
+          {t("landingPageEditor.bannerSection")}
         </h3>
         <FormField
-          label="URL de la bannière"
-          help="Recommandé : format paysage 1920×480px, JPG ou WebP"
+          label={t("landingPageEditor.bannerUrlLabel")}
+          help={t("landingPageEditor.bannerUrlHelp")}
         >
           <TextInput
             value={data.banner_url ?? ""}
             onChange={(v) => onChange({ banner_url: v })}
-            placeholder="https://exemple.com/banner.jpg"
+            placeholder={t("landingPageEditor.bannerUrlPlaceholder")}
           />
         </FormField>
         {data.banner_url && (
@@ -355,7 +358,7 @@ function TabMedia({
                 (e.target as HTMLImageElement).style.display = "none";
               }}
             />
-            <p className="text-xs text-gray-400 mt-2">Aperçu de la bannière</p>
+            <p className="text-xs text-gray-400 mt-2">{t("landingPageEditor.bannerPreview")}</p>
           </div>
         )}
       </div>
@@ -374,6 +377,7 @@ function TabColors({
   data: LandingSettings;
   onChange: (patch: Partial<LandingSettings>) => void;
 }) {
+  const { t } = useTranslation();
   const primaryColor = data.primary_color ?? "#1e3a5f";
   const secondaryColor = data.secondary_color ?? "#3b82f6";
 
@@ -382,11 +386,11 @@ function TabColors({
       <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
         <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
           <Palette className="w-4 h-4 text-blue-600" />
-          Couleurs de la page publique
+          {t("landingPageEditor.colorsSection")}
         </h3>
         <div className="grid sm:grid-cols-2 gap-6">
           {/* Primary */}
-          <FormField label="Couleur principale" help="Utilisée pour les titres et boutons principaux">
+          <FormField label={t("landingPageEditor.primaryColor")} help={t("landingPageEditor.primaryColorHelp")}>
             <div className="flex items-center gap-3">
               <input
                 type="color"
@@ -403,7 +407,7 @@ function TabColors({
           </FormField>
 
           {/* Secondary */}
-          <FormField label="Couleur secondaire" help="Utilisée pour les accents et badges">
+          <FormField label={t("landingPageEditor.secondaryColor")} help={t("landingPageEditor.secondaryColorHelp")}>
             <div className="flex items-center gap-3">
               <input
                 type="color"
@@ -423,18 +427,18 @@ function TabColors({
 
       {/* Preview */}
       <div className="p-6 rounded-2xl border-2 border-dashed border-gray-200">
-        <p className="text-xs text-gray-400 uppercase tracking-widest mb-4 font-semibold">Aperçu</p>
+        <p className="text-xs text-gray-400 uppercase tracking-widest mb-4 font-semibold">{t("landingPageEditor.preview")}</p>
         <div
           className="rounded-xl p-6 text-white text-center"
           style={{ backgroundColor: primaryColor }}
         >
-          <h3 className="text-xl font-bold mb-2">Titre de la page</h3>
-          <p className="text-sm opacity-80 mb-4">Sous-titre descriptif de l&apos;établissement</p>
+          <h3 className="text-xl font-bold mb-2">{t("landingPageEditor.previewTitle")}</h3>
+          <p className="text-sm opacity-80 mb-4">{t("landingPageEditor.previewSubtitle")}</p>
           <button
             className="px-5 py-2 rounded-lg text-sm font-semibold transition-opacity"
             style={{ backgroundColor: secondaryColor, color: "#fff" }}
           >
-            Bouton d&apos;action
+            {t("landingPageEditor.previewButton")}
           </button>
         </div>
       </div>
@@ -461,6 +465,7 @@ function TabAnnouncements({
   data: LandingSettings;
   onChange: (patch: Partial<LandingSettings>) => void;
 }) {
+  const { t } = useTranslation();
   const announcements = data.announcements ?? [];
   const [form, setForm] = useState<Omit<Announcement, "id">>(BLANK_ANNOUNCEMENT);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -470,7 +475,7 @@ function TabAnnouncements({
 
   const handleSave = () => {
     if (!form.title.trim()) {
-      toast.error("Le titre de l'annonce est requis.");
+      toast.error(t("landingPageEditor.announcementTitleRequired"));
       return;
     }
     if (editingId) {
@@ -512,7 +517,7 @@ function TabAnnouncements({
           className="flex items-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all w-fit shadow-sm"
         >
           <Plus className="w-4 h-4" />
-          Nouvelle annonce
+          {t("landingPageEditor.newAnnouncement")}
         </button>
       )}
 
@@ -521,17 +526,17 @@ function TabAnnouncements({
         <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 flex flex-col gap-4">
           <h3 className="font-semibold text-[#1e3a5f] flex items-center gap-2">
             <Megaphone className="w-4 h-4" />
-            {editingId ? "Modifier l'annonce" : "Nouvelle annonce"}
+            {editingId ? t("landingPageEditor.editAnnouncement") : t("landingPageEditor.newAnnouncement")}
           </h3>
           <div className="grid sm:grid-cols-2 gap-4">
-            <FormField label="Titre *">
+            <FormField label={t("landingPageEditor.announcementTitle")}>
               <TextInput
                 value={form.title}
                 onChange={(v) => setForm({ ...form, title: v })}
-                placeholder="Titre de l'annonce"
+                placeholder={t("landingPageEditor.announcementTitlePlaceholder")}
               />
             </FormField>
-            <FormField label="Date">
+            <FormField label={t("landingPageEditor.announcementDate")}>
               <TextInput
                 value={form.date}
                 onChange={(v) => setForm({ ...form, date: v })}
@@ -539,26 +544,26 @@ function TabAnnouncements({
               />
             </FormField>
             <div className="sm:col-span-2">
-              <FormField label="Contenu">
+              <FormField label={t("landingPageEditor.announcementContent")}>
                 <TextareaInput
                   value={form.content}
                   onChange={(v) => setForm({ ...form, content: v })}
-                  placeholder="Contenu de l'annonce..."
+                  placeholder={t("landingPageEditor.announcementContentPlaceholder")}
                   rows={3}
                 />
               </FormField>
             </div>
-            <FormField label="Catégorie">
+            <FormField label={t("landingPageEditor.announcementCategory")}>
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="general">Général</option>
-                <option value="academic">Académique</option>
-                <option value="event">Événement</option>
-                <option value="urgent">Urgent</option>
-                <option value="administrative">Administratif</option>
+                <option value="general">{t("landingPageEditor.categoryGeneral")}</option>
+                <option value="academic">{t("landingPageEditor.categoryAcademic")}</option>
+                <option value="event">{t("landingPageEditor.categoryEvent")}</option>
+                <option value="urgent">{t("landingPageEditor.categoryUrgent")}</option>
+                <option value="administrative">{t("landingPageEditor.categoryAdministrative")}</option>
               </select>
             </FormField>
             <div className="flex items-center gap-3 mt-1">
@@ -570,7 +575,7 @@ function TabAnnouncements({
                 className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="pinned" className="text-sm text-gray-700 font-medium cursor-pointer">
-                Épingler en haut de la liste
+                {t("landingPageEditor.pinAnnouncement")}
               </label>
             </div>
           </div>
@@ -579,13 +584,13 @@ function TabAnnouncements({
               onClick={handleSave}
               className="px-5 py-2 bg-[#1e3a5f] text-white text-sm font-semibold rounded-lg hover:bg-[#162d4a] transition-all"
             >
-              {editingId ? "Enregistrer" : "Ajouter"}
+              {editingId ? t("landingPageEditor.save") : t("landingPageEditor.add")}
             </button>
             <button
               onClick={handleCancel}
               className="px-5 py-2 bg-white text-gray-600 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-all"
             >
-              Annuler
+              {t("landingPageEditor.cancel")}
             </button>
           </div>
         </div>
@@ -595,7 +600,7 @@ function TabAnnouncements({
       {announcements.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <Megaphone className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Aucune annonce. Créez votre première annonce.</p>
+          <p className="text-sm">{t("landingPageEditor.noAnnouncements")}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -665,6 +670,7 @@ function TabGallery({
   data: LandingSettings;
   onChange: (patch: Partial<LandingSettings>) => void;
 }) {
+  const { t } = useTranslation();
   const gallery = data.gallery ?? [];
   const [newUrl, setNewUrl] = useState("");
 
@@ -672,7 +678,7 @@ function TabGallery({
     const url = newUrl.trim();
     if (!url) return;
     if (gallery.includes(url)) {
-      toast.error("Cette URL est déjà dans la galerie.");
+      toast.error(t("landingPageEditor.galleryDuplicateUrl"));
       return;
     }
     onChange({ gallery: [...gallery, url] });
@@ -701,7 +707,7 @@ function TabGallery({
           className="px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
-          Ajouter
+          {t("landingPageEditor.addPhoto")}
         </button>
       </div>
 
@@ -709,8 +715,8 @@ function TabGallery({
       {gallery.length === 0 ? (
         <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
           <Camera className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Aucune photo dans la galerie.</p>
-          <p className="text-xs mt-1">Ajoutez des URLs de photos pour enrichir votre page publique.</p>
+          <p className="text-sm">{t("landingPageEditor.noPhotos")}</p>
+          <p className="text-xs mt-1">{t("landingPageEditor.noPhotosHelp")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -739,7 +745,7 @@ function TabGallery({
       )}
 
       <p className="text-xs text-gray-400">
-        {gallery.length} photo{gallery.length !== 1 ? "s" : ""} dans la galerie
+        {t("landingPageEditor.photoCount", { count: gallery.length })}
       </p>
     </div>
   );
@@ -756,6 +762,7 @@ function TabSocial({
   data: LandingSettings;
   onChange: (patch: Partial<LandingSettings>) => void;
 }) {
+  const { t } = useTranslation();
   const socials = [
     { key: "facebook" as const, label: "Facebook", placeholder: "https://facebook.com/votrepagé" },
     { key: "instagram" as const, label: "Instagram", placeholder: "https://instagram.com/votre_compte" },
@@ -766,7 +773,7 @@ function TabSocial({
   return (
     <div className="flex flex-col gap-5">
       <p className="text-sm text-gray-500">
-        Ajoutez les liens vers vos réseaux sociaux. Ils seront affichés sur votre page publique.
+        {t("landingPageEditor.socialDescription")}
       </p>
       {socials.map(({ key, label, placeholder }) => (
         <FormField key={key} label={label}>
@@ -793,28 +800,29 @@ function TabOptions({
   data: LandingSettings;
   onChange: (patch: Partial<LandingSettings>) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-gray-500 mb-2">
-        Choisissez les sections à afficher sur votre page publique.
+        {t("landingPageEditor.optionsDescription")}
       </p>
       <Toggle
         checked={data.show_stats ?? true}
         onChange={(v) => onChange({ show_stats: v })}
-        label="Afficher les statistiques"
-        description="Nombre d'élèves, filières, etc."
+        label={t("landingPageEditor.showStats")}
+        description={t("landingPageEditor.showStatsDesc")}
       />
       <Toggle
         checked={data.show_programs ?? true}
         onChange={(v) => onChange({ show_programs: v })}
-        label="Afficher les programmes"
-        description="Liste des formations et niveaux disponibles."
+        label={t("landingPageEditor.showPrograms")}
+        description={t("landingPageEditor.showProgramsDesc")}
       />
       <Toggle
         checked={data.show_gallery ?? true}
         onChange={(v) => onChange({ show_gallery: v })}
-        label="Afficher la galerie photos"
-        description="Section photos de l'établissement."
+        label={t("landingPageEditor.showGallery")}
+        description={t("landingPageEditor.showGalleryDesc")}
       />
     </div>
   );
@@ -824,22 +832,23 @@ function TabOptions({
 // Main component
 // ---------------------------------------------------------------------------
 
-const TABS: { key: TabKey; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: "general", label: "Général", icon: School },
-  { key: "media", label: "Médias", icon: Image },
-  { key: "colors", label: "Couleurs", icon: Palette },
-  { key: "announcements", label: "Annonces", icon: Megaphone },
-  { key: "gallery", label: "Galerie", icon: Camera },
-  { key: "social", label: "Réseaux sociaux", icon: Share2 },
-  { key: "options", label: "Options", icon: Settings },
-];
-
 export default function LandingPageEditor() {
+  const { t } = useTranslation();
   const { tenant } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<TabKey>("general");
   const [localData, setLocalData] = useState<LandingSettings>({});
   const [isDirty, setIsDirty] = useState(false);
+
+  const tabs = useMemo<{ key: TabKey; label: string; icon: React.FC<{ className?: string }> }[]>(() => [
+    { key: "general", label: t("landingPageEditor.tabGeneral"), icon: School },
+    { key: "media", label: t("landingPageEditor.tabMedia"), icon: Image },
+    { key: "colors", label: t("landingPageEditor.tabColors"), icon: Palette },
+    { key: "announcements", label: t("landingPageEditor.tabAnnouncements"), icon: Megaphone },
+    { key: "gallery", label: t("landingPageEditor.tabGallery"), icon: Camera },
+    { key: "social", label: t("landingPageEditor.tabSocial"), icon: Share2 },
+    { key: "options", label: t("landingPageEditor.tabOptions"), icon: Settings },
+  ], [t]);
 
   // Fetch current tenant settings
   const { data: tenantData, isLoading } = useQuery({
@@ -886,7 +895,7 @@ export default function LandingPageEditor() {
       return response.data;
     },
     onSuccess: () => {
-      toast.success("Page publique mise à jour avec succès !");
+      toast.success(t("landingPageEditor.savedSuccess"));
       setIsDirty(false);
       queryClient.invalidateQueries({ queryKey: ["tenant-settings-landing"] });
     },
@@ -894,7 +903,7 @@ export default function LandingPageEditor() {
       const msg =
         error?.response?.data?.detail ??
         error?.message ??
-        "Une erreur est survenue lors de la sauvegarde.";
+        t("landingPageEditor.saveError");
       toast.error(msg);
     },
   });
@@ -937,10 +946,10 @@ export default function LandingPageEditor() {
           <div>
             <h1 className="text-2xl font-bold text-[#1e3a5f] flex items-center gap-2">
               <Globe className="w-6 h-6 text-blue-600" />
-              Page publique de l&apos;établissement
+              {t("landingPageEditor.pageTitle")}
             </h1>
             <p className="text-gray-500 text-sm mt-1">
-              Personnalisez ce que voient les visiteurs sur votre page publique.
+              {t("landingPageEditor.pageSubtitle")}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -952,7 +961,7 @@ export default function LandingPageEditor() {
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all"
               >
                 <Eye className="w-4 h-4" />
-                Prévisualiser
+                {t("landingPageEditor.previewPage")}
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
             )}
@@ -966,7 +975,7 @@ export default function LandingPageEditor() {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              {saveMutation.isPending ? "Enregistrement..." : isDirty ? "Enregistrer *" : "Enregistré"}
+              {saveMutation.isPending ? t("landingPageEditor.saving") : isDirty ? t("landingPageEditor.saveUnsaved") : t("landingPageEditor.saved")}
             </button>
           </div>
         </div>
@@ -979,7 +988,7 @@ export default function LandingPageEditor() {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Sidebar tabs (desktop) */}
           <aside className="hidden lg:flex flex-col gap-1 w-48 flex-shrink-0">
-            {TABS.map((tab) => (
+            {tabs.map((tab) => (
               <TabButton
                 key={tab.key}
                 active={activeTab === tab.key}
@@ -992,7 +1001,7 @@ export default function LandingPageEditor() {
 
           {/* Mobile tab scroll */}
           <div className="lg:hidden flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4">
-            {TABS.map((tab) => (
+            {tabs.map((tab) => (
               <TabButton
                 key={tab.key}
                 active={activeTab === tab.key}
@@ -1009,7 +1018,7 @@ export default function LandingPageEditor() {
               {/* Tab heading */}
               <div className="mb-6 pb-5 border-b border-gray-100">
                 {(() => {
-                  const tab = TABS.find((t) => t.key === activeTab);
+                  const tab = tabs.find((t) => t.key === activeTab);
                   const Icon = tab?.icon ?? Settings;
                   return (
                     <h2 className="text-lg font-bold text-[#1e3a5f] flex items-center gap-2">
@@ -1048,7 +1057,7 @@ export default function LandingPageEditor() {
             {isDirty && (
               <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-4">
                 <p className="text-sm text-amber-700 font-medium">
-                  Vous avez des modifications non enregistrées.
+                  {t("landingPageEditor.unsavedChanges")}
                 </p>
                 <button
                   onClick={handleSave}
@@ -1060,7 +1069,7 @@ export default function LandingPageEditor() {
                   ) : (
                     <Save className="w-4 h-4" />
                   )}
-                  Enregistrer maintenant
+                  {t("landingPageEditor.saveNow")}
                 </button>
               </div>
             )}
