@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { adminQueries } from "@/queries/admin";
@@ -20,6 +21,7 @@ import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useCurrency } from "@/hooks/useCurrency";
 
 export const InventoryManagement = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { formatCurrency } = useCurrency();
     const navigate = useNavigate();
@@ -56,7 +58,7 @@ export const InventoryManagement = () => {
         mutationFn: (data: any) => adminQueries.createInventoryItem(tenant!.id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["admin-inventory-items", tenant?.id] });
-            toast.success("Article créé avec succès");
+            toast.success(t("inventoryMgmt.createSuccess"));
             setIsAddDialogOpen(false);
         }
     });
@@ -65,7 +67,7 @@ export const InventoryManagement = () => {
         mutationFn: ({ id, data }: { id: string; data: any }) => adminQueries.updateInventoryItem(id, data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["admin-inventory-items", tenant?.id] });
-            toast.success("Article mis à jour");
+            toast.success(t("inventoryMgmt.updateSuccess"));
             setEditingItem(null);
         }
     });
@@ -74,7 +76,7 @@ export const InventoryManagement = () => {
         mutationFn: (id: string) => adminQueries.deleteInventoryItem(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["admin-inventory-items", tenant?.id] });
-            toast.success("Article supprimé");
+            toast.success(t("inventoryMgmt.deleteSuccess"));
         }
     });
 
@@ -83,7 +85,7 @@ export const InventoryManagement = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["admin-inventory-items", tenant?.id] });
             queryClient.invalidateQueries({ queryKey: ["admin-inventory-transactions", tenant?.id] });
-            toast.success("Stock ajusté avec succès");
+            toast.success(t("inventoryMgmt.adjustSuccess"));
             setIsAdjustDialogOpen(false);
             setAdjustingItem(null);
         }
@@ -139,9 +141,9 @@ export const InventoryManagement = () => {
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
                         <Package className="w-8 h-8 text-primary" />
-                        Gestion de l'Inventaire
+                        {t("inventoryMgmt.pageTitle")}
                     </h1>
-                    <p className="text-muted-foreground">Suivez vos stocks d'uniformes, livres et fournitures.</p>
+                    <p className="text-muted-foreground">{t("inventoryMgmt.pageSubtitle")}</p>
                 </div>
                 <div className="flex gap-2">
                     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -153,22 +155,22 @@ export const InventoryManagement = () => {
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>Ajouter un article à l'inventaire</DialogTitle>
+                                <DialogTitle>{t("inventoryMgmt.addTitle")}</DialogTitle>
                             </DialogHeader>
                             <form onSubmit={handleSaveItem} className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label>Nom de l'article</Label>
-                                    <Input name="name" required placeholder="ex: Uniforme Polo XL" />
+                                    <Label>{t("inventoryMgmt.itemName")}</Label>
+                                    <Input name="name" required placeholder={t("inventoryMgmt.itemNamePlaceholder")} />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label>Catégorie</Label>
+                                        <Label>{t("inventoryMgmt.category")}</Label>
                                         <Select name="category_id" defaultValue="none">
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Catégorie" />
+                                                <SelectValue placeholder={t("inventoryMgmt.category")} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="none">Sans catégorie</SelectItem>
+                                                <SelectItem value="none">{t("inventoryMgmt.noCategory")}</SelectItem>
                                                 {categories?.map((cat) => (
                                                     <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                                                 ))}
@@ -176,23 +178,23 @@ export const InventoryManagement = () => {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Prix Unitaire</Label>
+                                        <Label>{t("inventoryMgmt.unitPrice")}</Label>
                                         <Input name="unit_price" type="number" step="0.01" required />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label>Quantité en Stock</Label>
+                                        <Label>{t("inventoryMgmt.stockQty")}</Label>
                                         <Input name="stock_quantity" type="number" required />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Alerte Stock Bas</Label>
+                                        <Label>{t("inventoryMgmt.lowStockAlert")}</Label>
                                         <Input name="min_stock_level" type="number" defaultValue="5" />
                                     </div>
                                 </div>
                                 <DialogFooter>
                                     <Button type="submit" disabled={createItemMutation.isPending}>
-                                        Enregistrer
+                                        {t("inventoryMgmt.save")}
                                     </Button>
                                 </DialogFooter>
                             </form>
@@ -200,7 +202,7 @@ export const InventoryManagement = () => {
                     </Dialog>
                     <Button variant="outline" className="gap-2" onClick={() => navigate(getTenantUrl('/admin/inventory/analytics'))}>
                         <TrendingUp className="w-4 h-4" />
-                        Voir les Analyses
+                        {t("inventoryMgmt.viewAnalytics")}
                     </Button>
                 </div>
             </div>
@@ -210,7 +212,7 @@ export const InventoryManagement = () => {
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Valeur Totale</p>
+                                <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{t("inventoryMgmt.totalValue")}</p>
                                 <h3 className="text-2xl font-bold">{formatCurrency(totalInventoryValue)}</h3>
                             </div>
                             <Package className="w-8 h-8 text-emerald-500 opacity-50" />
@@ -221,8 +223,8 @@ export const InventoryManagement = () => {
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Stock Bas</p>
-                                <h3 className="text-2xl font-bold text-amber-700 dark:text-amber-500">{lowStockItems.length} articles</h3>
+                                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">{t("inventoryMgmt.lowStock")}</p>
+                                <h3 className="text-2xl font-bold text-amber-700 dark:text-amber-500">{t("inventoryMgmt.itemsCount", { count: lowStockItems.length })}</h3>
                             </div>
                             <AlertTriangle className="w-8 h-8 text-amber-500 opacity-50" />
                         </div>
@@ -232,8 +234,8 @@ export const InventoryManagement = () => {
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-rose-600 dark:text-rose-400">Rupture de Stock</p>
-                                <h3 className="text-2xl font-bold text-rose-700 dark:text-rose-500">{outOfStockItems.length} articles</h3>
+                                <p className="text-sm font-medium text-rose-600 dark:text-rose-400">{t("inventoryMgmt.outOfStock")}</p>
+                                <h3 className="text-2xl font-bold text-rose-700 dark:text-rose-500">{t("inventoryMgmt.itemsCount", { count: outOfStockItems.length })}</h3>
                             </div>
                             <Trash2 className="w-8 h-8 text-rose-500 opacity-50" />
                         </div>
@@ -243,8 +245,8 @@ export const InventoryManagement = () => {
 
             <Tabs defaultValue="items" className="space-y-4">
                 <TabsList className="grid w-[400px] grid-cols-2">
-                    <TabsTrigger value="items">Articles</TabsTrigger>
-                    <TabsTrigger value="history">Historique des mouvements</TabsTrigger>
+                    <TabsTrigger value="items">{t("inventoryMgmt.tabItems")}</TabsTrigger>
+                    <TabsTrigger value="history">{t("inventoryMgmt.tabHistory")}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="items" className="space-y-4">
@@ -278,25 +280,25 @@ export const InventoryManagement = () => {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Article</TableHead>
-                                        <TableHead>Catégorie</TableHead>
-                                        <TableHead className="text-right">Prix Unit.</TableHead>
-                                        <TableHead className="text-center">Stock</TableHead>
-                                        <TableHead className="text-center">Statut</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
+                                        <TableHead>{t("inventoryMgmt.colItem")}</TableHead>
+                                        <TableHead>{t("inventoryMgmt.colCategory")}</TableHead>
+                                        <TableHead className="text-right">{t("inventoryMgmt.colUnitPrice")}</TableHead>
+                                        <TableHead className="text-center">{t("inventoryMgmt.colStock")}</TableHead>
+                                        <TableHead className="text-center">{t("inventoryMgmt.colStatus")}</TableHead>
+                                        <TableHead className="text-right">{t("inventoryMgmt.colActions")}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {itemsLoading ? (
                                         <TableRow>
                                             <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                                Chargement de l'inventaire...
+                                                {t("inventoryMgmt.loading")}
                                             </TableCell>
                                         </TableRow>
                                     ) : filteredItems?.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                                Aucun article trouvé.
+                                                {t("inventoryMgmt.noItems")}
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -310,16 +312,16 @@ export const InventoryManagement = () => {
                                                     {item.stock_quantity <= 0 ? (
                                                         <Badge variant="destructive" className="gap-1">
                                                             <AlertTriangle className="w-3 h-3" />
-                                                            Rupture
+                                                            {t("inventoryMgmt.statusOutOfStock")}
                                                         </Badge>
                                                     ) : item.stock_quantity <= item.min_stock_level ? (
                                                         <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600 bg-amber-50">
                                                             <AlertTriangle className="w-3 h-3" />
-                                                            Stock Bas
+                                                            {t("inventoryMgmt.statusLow")}
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="border-emerald-500 text-emerald-600 bg-emerald-50">
-                                                            Optimale
+                                                            {t("inventoryMgmt.statusOptimal")}
                                                         </Badge>
                                                     )}
                                                 </TableCell>
@@ -343,7 +345,7 @@ export const InventoryManagement = () => {
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={() => {
-                                                                if (confirm("Supprimer cet article ?")) {
+                                                                if (confirm(t("inventoryMgmt.deleteConfirm"))) {
                                                                     deleteItemMutation.mutate(item.id);
                                                                 }
                                                             }}
@@ -364,31 +366,31 @@ export const InventoryManagement = () => {
                 <TabsContent value="history" className="space-y-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Mouvements de Stock</CardTitle>
-                            <CardDescription>Historique complet des entrées et sorties de l'inventaire.</CardDescription>
+                            <CardTitle>{t("inventoryMgmt.movementsTitle")}</CardTitle>
+                            <CardDescription>{t("inventoryMgmt.movementsDesc")}</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Article</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead className="text-right">Quantité</TableHead>
-                                        <TableHead>Notes</TableHead>
+                                        <TableHead>{t("inventoryMgmt.colDate")}</TableHead>
+                                        <TableHead>{t("inventoryMgmt.colItem")}</TableHead>
+                                        <TableHead>{t("inventoryMgmt.colType")}</TableHead>
+                                        <TableHead className="text-right">{t("inventoryMgmt.colQuantity")}</TableHead>
+                                        <TableHead>{t("inventoryMgmt.colNotes")}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {transLoading ? (
                                         <TableRow>
                                             <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                                Chargement de l'historique...
+                                                {t("inventoryMgmt.loadingHistory")}
                                             </TableCell>
                                         </TableRow>
                                     ) : transactions?.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                                Aucun mouvement enregistré.
+                                                {t("inventoryMgmt.noMovements")}
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -401,15 +403,15 @@ export const InventoryManagement = () => {
                                                 <TableCell>
                                                     {trans.transaction_type === 'IN' ? (
                                                         <Badge variant="outline" className="gap-1 border-emerald-500 text-emerald-600 bg-emerald-50">
-                                                            <ArrowUpRight className="w-3 h-3" /> Entrée
+                                                            <ArrowUpRight className="w-3 h-3" /> {t("inventoryMgmt.typeIn")}
                                                         </Badge>
                                                     ) : trans.transaction_type === 'OUT' ? (
                                                         <Badge variant="outline" className="gap-1 border-rose-500 text-rose-600 bg-rose-50">
-                                                            <ArrowDownRight className="w-3 h-3" /> Sortie
+                                                            <ArrowDownRight className="w-3 h-3" /> {t("inventoryMgmt.typeOut")}
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="gap-1 border-blue-500 text-blue-600 bg-blue-50">
-                                                            <RefreshCcw className="w-3 h-3" /> Ajustement
+                                                            <RefreshCcw className="w-3 h-3" /> {t("inventoryMgmt.typeAdjustment")}
                                                         </Badge>
                                                     )}
                                                 </TableCell>
@@ -433,21 +435,21 @@ export const InventoryManagement = () => {
             <Dialog open={isAdjustDialogOpen} onOpenChange={setIsAdjustDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Ajuster le stock : {adjustingItem?.name}</DialogTitle>
-                        <DialogDescription>Enregistrez une entrée ou une sortie manuelle exceptionnelle.</DialogDescription>
+                        <DialogTitle>{t("inventoryMgmt.adjustTitle", { name: adjustingItem?.name })}</DialogTitle>
+                        <DialogDescription>{t("inventoryMgmt.adjustDesc")}</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAdjustStock} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Type de mouvement</Label>
+                                <Label>{t("inventoryMgmt.movementType")}</Label>
                                 <Select name="type" defaultValue="IN">
                                     <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="IN">Entrée (Réapprovisionnement)</SelectItem>
-                                        <SelectItem value="OUT">Sortie (Passe, Don, Perte)</SelectItem>
-                                        <SelectItem value="ADJUSTMENT">Ajustement (Inventaire)</SelectItem>
+                                        <SelectItem value="IN">{t("inventoryMgmt.typeInLabel")}</SelectItem>
+                                        <SelectItem value="OUT">{t("inventoryMgmt.typeOutLabel")}</SelectItem>
+                                        <SelectItem value="ADJUSTMENT">{t("inventoryMgmt.typeAdjustmentLabel")}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -473,12 +475,12 @@ export const InventoryManagement = () => {
             <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Modifier l'article</DialogTitle>
+                        <DialogTitle>{t("inventoryMgmt.editDialogTitle")}</DialogTitle>
                     </DialogHeader>
                     {editingItem && (
                         <form onSubmit={handleSaveItem} className="space-y-4">
                             <div className="space-y-2">
-                                <Label>Nom de l'article</Label>
+                                <Label>{t("inventoryMgmt.formItemName")}</Label>
                                 <Input name="name" defaultValue={editingItem.name} required />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -489,7 +491,7 @@ export const InventoryManagement = () => {
                                             <SelectValue placeholder="Catégorie" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="none">Sans catégorie</SelectItem>
+                                            <SelectItem value="none">{t("inventoryMgmt.noCategory")}</SelectItem>
                                             {categories?.map((cat) => (
                                                 <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                                             ))}
@@ -497,23 +499,23 @@ export const InventoryManagement = () => {
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Prix Unitaire</Label>
+                                    <Label>{t("inventoryMgmt.formUnitPrice")}</Label>
                                     <Input name="unit_price" type="number" step="0.01" defaultValue={editingItem.unit_price} required />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Quantité en Stock</Label>
+                                    <Label>{t("inventoryMgmt.formStockQty")}</Label>
                                     <Input name="stock_quantity" type="number" defaultValue={editingItem.stock_quantity} required />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Alerte Stock Bas</Label>
+                                    <Label>{t("inventoryMgmt.formLowStockAlert")}</Label>
                                     <Input name="min_stock_level" type="number" defaultValue={editingItem.min_stock_level} />
                                 </div>
                             </div>
                             <DialogFooter>
                                 <Button type="submit" disabled={updateItemMutation.isPending}>
-                                    Enregistrer les modifications
+                                    {t("inventoryMgmt.saveChanges")}
                                 </Button>
                             </DialogFooter>
                         </form>

@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,18 +55,14 @@ type Step = "upload" | "preview" | "importing" | "done";
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
-const STEPS = [
-  { id: "upload", label: "Chargement" },
-  { id: "preview", label: "Aperçu" },
-  { id: "importing", label: "Import" },
-  { id: "done", label: "Terminé" },
-];
+// STEPS labels are set dynamically inside component using t()
+const STEP_IDS = ["upload", "preview", "importing", "done"];
 
-const StepBar = ({ current }: { current: Step }) => {
-  const idx = STEPS.findIndex(s => s.id === current);
+const StepBar = ({ current, steps }: { current: Step; steps: { id: string; label: string }[] }) => {
+  const idx = steps.findIndex(s => s.id === current);
   return (
     <div className="flex items-center gap-0 mb-8">
-      {STEPS.map((step, i) => (
+      {steps.map((step, i) => (
         <div key={step.id} className="flex items-center">
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors
             ${i < idx ? "bg-green-100 text-green-700" :
@@ -88,8 +85,15 @@ const StepBar = ({ current }: { current: Step }) => {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function DataImport() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
+  const STEPS = [
+    { id: "upload", label: t("dataImport.stepUpload") },
+    { id: "preview", label: t("dataImport.stepPreview") },
+    { id: "importing", label: t("dataImport.stepImporting") },
+    { id: "done", label: t("dataImport.stepDone") },
+  ];
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -113,8 +117,8 @@ export default function DataImport() {
     const ext = f.name.split(".").pop()?.toLowerCase();
     if (!["csv", "txt"].includes(ext || "")) {
       toast({
-        title: "Format non supporté",
-        description: "Utilisez un fichier CSV. Depuis Excel : Fichier → Enregistrer sous → CSV (séparateur point-virgule)",
+        title: t("dataImport.unsupportedFormat"),
+        description: t("dataImport.unsupportedFormatDesc"),
         variant: "destructive",
       });
       return;
@@ -142,7 +146,7 @@ export default function DataImport() {
       setStep("preview");
     } catch (err: any) {
       toast({
-        title: "Erreur d'analyse",
+        title: t("dataImport.analysisError"),
         description: err.response?.data?.detail || err.message,
         variant: "destructive",
       });
@@ -181,12 +185,12 @@ export default function DataImport() {
       setStep("done");
 
       toast({
-        title: "Import terminé",
+        title: t("dataImport.importDone"),
         description: res.data.message,
       });
     } catch (err: any) {
       toast({
-        title: "Erreur lors de l'import",
+        title: t("dataImport.importError"),
         description: err.response?.data?.detail || err.message,
         variant: "destructive",
       });
@@ -210,7 +214,7 @@ export default function DataImport() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      toast({ title: "Erreur", description: "Impossible de télécharger le modèle", variant: "destructive" });
+      toast({ title: t("dataImport.downloadError"), description: t("dataImport.downloadErrorDesc"), variant: "destructive" });
     }
   };
 
@@ -231,19 +235,19 @@ export default function DataImport() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Upload className="w-6 h-6 text-primary" />
-            Import de données
+            {t("dataImport.pageTitle")}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Importez vos listes d'élèves depuis Excel (CSV) en quelques clics
+            {t("dataImport.pageSubtitle")}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-2 shrink-0">
           <Download className="w-4 h-4" />
-          Télécharger le modèle CSV
+          {t("dataImport.downloadTemplate")}
         </Button>
       </div>
 
-      <StepBar current={step} />
+      <StepBar current={step} steps={STEPS} />
 
       {/* ── Step 1 : Upload ─────────────────────────────────────────────── */}
       {(step === "upload") && (
@@ -286,10 +290,10 @@ export default function DataImport() {
               <div className="space-y-3">
                 <Upload className="w-12 h-12 text-muted-foreground mx-auto" />
                 <div>
-                  <p className="text-base font-medium">Glissez votre fichier CSV ici</p>
-                  <p className="text-sm text-muted-foreground">ou cliquez pour sélectionner</p>
+                  <p className="text-base font-medium">{t("dataImport.dropHere")}</p>
+                  <p className="text-sm text-muted-foreground">{t("dataImport.clickToSelect")}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">CSV uniquement · Max 5 Mo</p>
+                <p className="text-xs text-muted-foreground">{t("dataImport.csvOnly")}</p>
               </div>
             )}
           </div>
@@ -299,7 +303,7 @@ export default function DataImport() {
           <div className="flex justify-end">
             <Button onClick={handlePreview} disabled={!file || loading} className="gap-2">
               {loading ? <RefreshCcw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-              {loading ? "Analyse en cours..." : "Analyser le fichier"}
+              {loading ? t("dataImport.analyzing") : t("dataImport.analyze")}
             </Button>
           </div>
         </div>
@@ -313,7 +317,7 @@ export default function DataImport() {
             <Card className="text-center">
               <CardContent className="pt-4">
                 <p className="text-2xl font-bold text-primary">{preview.total_rows}</p>
-                <p className="text-xs text-muted-foreground">Lignes détectées</p>
+                <p className="text-xs text-muted-foreground">{t("dataImport.detectedRows")}</p>
               </CardContent>
             </Card>
             <Card className="text-center">
@@ -321,19 +325,19 @@ export default function DataImport() {
                 <p className="text-2xl font-bold text-green-600">
                   {Object.values(preview.mapping).filter(Boolean).length}
                 </p>
-                <p className="text-xs text-muted-foreground">Colonnes reconnues</p>
+                <p className="text-xs text-muted-foreground">{t("dataImport.recognizedColumns")}</p>
               </CardContent>
             </Card>
             <Card className="text-center">
               <CardContent className="pt-4">
                 <p className="text-2xl font-bold text-orange-500">{preview.validation_errors.length}</p>
-                <p className="text-xs text-muted-foreground">Avertissements</p>
+                <p className="text-xs text-muted-foreground">{t("dataImport.warnings")}</p>
               </CardContent>
             </Card>
             <Card className="text-center">
               <CardContent className="pt-4">
                 <p className="text-2xl font-bold text-red-500">{preview.required_missing.length}</p>
-                <p className="text-xs text-muted-foreground">Colonnes manquantes</p>
+                <p className="text-xs text-muted-foreground">{t("dataImport.missingColumns")}</p>
               </CardContent>
             </Card>
           </div>
@@ -460,7 +464,7 @@ export default function DataImport() {
           <div className="flex justify-between">
             <Button variant="outline" onClick={reset} className="gap-2">
               <RefreshCcw className="w-4 h-4" />
-              Recommencer
+              {t("dataImport.restart")}
             </Button>
             <Button
               onClick={handleConfirm}
@@ -468,7 +472,7 @@ export default function DataImport() {
               className="gap-2"
             >
               <Users className="w-4 h-4" />
-              Importer {preview.total_rows} élève(s)
+              {t("dataImport.importCount", { count: preview.total_rows })}
             </Button>
           </div>
         </div>
@@ -482,9 +486,9 @@ export default function DataImport() {
               <Upload className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <p className="text-lg font-semibold">Import en cours...</p>
+              <p className="text-lg font-semibold">{t("dataImport.importing")}</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Création des élèves dans la base de données
+                {t("dataImport.importingDesc")}
               </p>
             </div>
             <div className="max-w-sm mx-auto">
@@ -507,15 +511,15 @@ export default function DataImport() {
               <div className="flex justify-center gap-8">
                 <div className="text-center">
                   <p className="text-3xl font-bold text-green-600">{result.created}</p>
-                  <p className="text-sm text-green-700">Importés</p>
+                  <p className="text-sm text-green-700">{t("dataImport.imported")}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-orange-500">{result.skipped}</p>
-                  <p className="text-sm text-orange-600">Ignorés</p>
+                  <p className="text-sm text-orange-600">{t("dataImport.skipped")}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-3xl font-bold text-muted-foreground">{result.total}</p>
-                  <p className="text-sm text-muted-foreground">Total</p>
+                  <p className="text-sm text-muted-foreground">{t("dataImport.total")}</p>
                 </div>
               </div>
             </CardContent>
@@ -546,11 +550,11 @@ export default function DataImport() {
           <div className="flex justify-between">
             <Button variant="outline" onClick={reset} className="gap-2">
               <Upload className="w-4 h-4" />
-              Nouvel import
+              {t("dataImport.newImport")}
             </Button>
             <Button onClick={() => window.location.href = "../students"} className="gap-2">
               <Users className="w-4 h-4" />
-              Voir les élèves
+              {t("dataImport.viewStudents")}
             </Button>
           </div>
         </div>

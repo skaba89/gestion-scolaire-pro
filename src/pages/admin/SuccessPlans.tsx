@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +43,7 @@ import {
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 export default function SuccessPlans() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const { studentLabel, StudentLabel, studentsLabel } = useStudentLabel();
@@ -94,10 +96,10 @@ export default function SuccessPlans() {
       queryClient.invalidateQueries({ queryKey: ["success-plans"] });
       setIsOpen(false);
       setFormData({ student_id: "", title: "", description: "", start_date: "", end_date: "", priority: "medium" });
-      toast.success("Plan de réussite créé");
+      toast.success(t("successPlans.createSuccess"));
     },
     onError: () => {
-      toast.error("Erreur lors de la création");
+      toast.error(t("successPlans.createError"));
     },
   });
 
@@ -107,16 +109,16 @@ export default function SuccessPlans() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["success-plans"] });
-      toast.success("Statut mis à jour");
+      toast.success(t("successPlans.statusUpdated"));
     },
   });
 
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
-      DRAFT: { variant: "outline", label: "Brouillon" },
-      ACTIVE: { variant: "default", label: "Actif" },
-      COMPLETED: { variant: "secondary", label: "Terminé" },
-      CANCELLED: { variant: "destructive", label: "Annulé" },
+      DRAFT: { variant: "outline", label: t("successPlans.statusDraft") },
+      ACTIVE: { variant: "default", label: t("successPlans.statusActive") },
+      COMPLETED: { variant: "secondary", label: t("successPlans.statusCompleted") },
+      CANCELLED: { variant: "destructive", label: t("successPlans.statusCancelled") },
     };
     const config = configs[status] || configs.DRAFT;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -124,10 +126,10 @@ export default function SuccessPlans() {
 
   const getPriorityBadge = (priority: string) => {
     const configs: Record<string, { className: string; label: string }> = {
-      low: { className: "bg-gray-100 text-gray-800", label: "Basse" },
-      medium: { className: "bg-blue-100 text-blue-800", label: "Moyenne" },
-      high: { className: "bg-orange-100 text-orange-800", label: "Haute" },
-      urgent: { className: "bg-red-100 text-red-800", label: "Urgente" },
+      low: { className: "bg-gray-100 text-gray-800", label: t("successPlans.priorityLow") },
+      medium: { className: "bg-blue-100 text-blue-800", label: t("successPlans.priorityMedium") },
+      high: { className: "bg-orange-100 text-orange-800", label: t("successPlans.priorityHigh") },
+      urgent: { className: "bg-red-100 text-red-800", label: t("successPlans.priorityUrgent") },
     };
     const config = configs[priority] || configs.medium;
     return <Badge className={config.className}>{config.label}</Badge>;
@@ -149,22 +151,22 @@ export default function SuccessPlans() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Target className="h-8 w-8 text-primary" />
-            Plans de Réussite
+            {t("successPlans.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
-            Accompagnez les {studentsLabel} avec des plans personnalisés
+            {t("successPlans.pageSubtitle", { label: studentsLabel })}
           </p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 h-4 mr-2" />
-              Nouveau plan
+              {t("successPlans.newPlan")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Créer un plan de réussite</DialogTitle>
+              <DialogTitle>{t("successPlans.dialogTitle")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -174,7 +176,7 @@ export default function SuccessPlans() {
                   onValueChange={(value) => setFormData({ ...formData, student_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={`Sélectionner un ${studentLabel}`} />
+                    <SelectValue placeholder={t("successPlans.selectStudent", { label: studentLabel })} />
                   </SelectTrigger>
                   <SelectContent>
                     {students?.map((student: any) => (
@@ -186,24 +188,24 @@ export default function SuccessPlans() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Titre du plan</Label>
+                <Label>{t("successPlans.planTitle")}</Label>
                 <Input
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Plan de soutien en mathématiques"
+                  placeholder={t("successPlans.planTitlePlaceholder")}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t("successPlans.description")}</Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Objectifs et stratégies..."
+                  placeholder={t("successPlans.descriptionPlaceholder")}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Date de début</Label>
+                  <Label>{t("successPlans.startDate")}</Label>
                   <Input
                     type="date"
                     value={formData.start_date}
@@ -211,7 +213,7 @@ export default function SuccessPlans() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Date de fin (optionnel)</Label>
+                  <Label>{t("successPlans.endDate")}</Label>
                   <Input
                     type="date"
                     value={formData.end_date}
@@ -220,7 +222,7 @@ export default function SuccessPlans() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Priorité</Label>
+                <Label>{t("successPlans.priority")}</Label>
                 <Select
                   value={formData.priority}
                   onValueChange={(value) => setFormData({ ...formData, priority: value })}
@@ -229,10 +231,10 @@ export default function SuccessPlans() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Basse</SelectItem>
-                    <SelectItem value="medium">Moyenne</SelectItem>
-                    <SelectItem value="high">Haute</SelectItem>
-                    <SelectItem value="urgent">Urgente</SelectItem>
+                    <SelectItem value="low">{t("successPlans.priorityLow")}</SelectItem>
+                    <SelectItem value="medium">{t("successPlans.priorityMedium")}</SelectItem>
+                    <SelectItem value="high">{t("successPlans.priorityHigh")}</SelectItem>
+                    <SelectItem value="urgent">{t("successPlans.priorityUrgent")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -241,7 +243,7 @@ export default function SuccessPlans() {
                 disabled={!formData.student_id || !formData.title || !formData.start_date || createMutation.isPending}
                 className="w-full"
               >
-                Créer le plan
+                {t("successPlans.createPlan")}
               </Button>
             </div>
           </DialogContent>
@@ -253,13 +255,13 @@ export default function SuccessPlans() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{activePlans.length}</div>
-            <p className="text-sm text-muted-foreground">Plans actifs</p>
+            <p className="text-sm text-muted-foreground">{t("successPlans.statActive")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">{draftPlans.length}</div>
-            <p className="text-sm text-muted-foreground">En préparation</p>
+            <p className="text-sm text-muted-foreground">{t("successPlans.statDraft")}</p>
           </CardContent>
         </Card>
         <Card>
@@ -267,7 +269,7 @@ export default function SuccessPlans() {
             <div className="text-2xl font-bold">
               {plans?.reduce((acc, p) => acc + (p.objectives?.length || 0), 0) || 0}
             </div>
-            <p className="text-sm text-muted-foreground">Objectifs totaux</p>
+            <p className="text-sm text-muted-foreground">{t("successPlans.statObjectives")}</p>
           </CardContent>
         </Card>
         <Card>
@@ -275,16 +277,16 @@ export default function SuccessPlans() {
             <div className="text-2xl font-bold text-green-600">
               {completedPlans.filter(p => p.status === "completed").length}
             </div>
-            <p className="text-sm text-muted-foreground">Plans réussis</p>
+            <p className="text-sm text-muted-foreground">{t("successPlans.statSucceeded")}</p>
           </CardContent>
         </Card>
       </div>
 
       <Tabs defaultValue="active" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="active">Actifs ({activePlans.length})</TabsTrigger>
-          <TabsTrigger value="draft">Brouillons ({draftPlans.length})</TabsTrigger>
-          <TabsTrigger value="completed">Terminés ({completedPlans.length})</TabsTrigger>
+          <TabsTrigger value="active">{t("successPlans.tabActive", { count: activePlans.length })}</TabsTrigger>
+          <TabsTrigger value="draft">{t("successPlans.tabDraft", { count: draftPlans.length })}</TabsTrigger>
+          <TabsTrigger value="completed">{t("successPlans.tabCompleted", { count: completedPlans.length })}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="space-y-4">
@@ -304,7 +306,7 @@ export default function SuccessPlans() {
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span>Progression</span>
+                      <span>{t("successPlans.progress")}</span>
                       <span>{calculateProgress(plan.objectives)}%</span>
                     </div>
                     <Progress value={calculateProgress(plan.objectives)} />
@@ -312,23 +314,23 @@ export default function SuccessPlans() {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <ListTodo className="h-4 w-4" />
-                      {plan.objectives?.length || 0} objectifs
+                      {t("successPlans.objectives", { count: plan.objectives?.length || 0 })}
                     </span>
                     <span className="flex items-center gap-1">
                       <BookOpen className="h-4 w-4" />
-                      {plan.interventions?.length || 0} interventions
+                      {t("successPlans.interventions", { count: plan.interventions?.length || 0 })}
                     </span>
                   </div>
                   {plan.end_date && (
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Calendar className="h-4 w-4" />
-                      Échéance: {format(new Date(plan.end_date), "d MMM yyyy", { locale: fr })}
+                      {t("successPlans.deadline")}: {format(new Date(plan.end_date), "d MMM yyyy", { locale: fr })}
                     </div>
                   )}
                 </CardContent>
                 <CardFooter className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => setSelectedPlan(plan)}>
-                    Voir détails
+                    {t("successPlans.viewDetails")}
                   </Button>
                   <Button
                     variant="secondary"
@@ -365,7 +367,7 @@ export default function SuccessPlans() {
                     className="w-full"
                     onClick={() => updateStatusMutation.mutate({ id: plan.id, status: "ACTIVE" })}
                   >
-                    Activer le plan
+                    {t("successPlans.activatePlan")}
                   </Button>
                 </CardFooter>
               </Card>
@@ -388,7 +390,7 @@ export default function SuccessPlans() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-sm text-muted-foreground">
-                    Progression finale: {calculateProgress(plan.objectives)}%
+                    {t("successPlans.finalProgress")}: {calculateProgress(plan.objectives)}%
                   </div>
                 </CardContent>
               </Card>

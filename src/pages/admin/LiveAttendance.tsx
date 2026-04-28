@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +43,7 @@ interface Classroom {
 }
 
 export default function LiveAttendancePage() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { toast: uiToast } = useToast();
   const { studentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
@@ -95,7 +97,7 @@ export default function LiveAttendancePage() {
       if (context?.previousCheckIns) {
         queryClient.setQueryData(["admin-student-check-ins", tenant?.id], context.previousCheckIns);
       }
-      toast.error("Erreur lors de l'enregistrement du pointage.");
+      toast.error(t("liveAttendance.checkInError"));
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-student-check-ins", tenant?.id, dayStart, dayEnd] });
@@ -140,13 +142,13 @@ export default function LiveAttendancePage() {
     try {
       const data = JSON.parse(qrData);
       if (data.type !== "student_badge" || data.tenant_id !== tenant?.id) {
-        toast.error("Badge non valide.");
+        toast.error(t("liveAttendance.badgeInvalid"));
         return;
       }
 
       const badge = badges.find((b: any) => b.badge_code === data.badge_code);
       if (!badge) {
-        toast.error("Badge non trouvé.");
+        toast.error(t("liveAttendance.badgeNotFound"));
         return;
       }
 
@@ -166,11 +168,11 @@ export default function LiveAttendancePage() {
         checked_by: user?.id,
       });
 
-      toast.success(`${type === "ENTRY" ? "Entrée" : "Sortie"} enregistrée`, {
+      toast.success(type === "ENTRY" ? t("liveAttendance.entryRecorded") : t("liveAttendance.exitRecorded"), {
         description: `${badge.student?.first_name} ${badge.student?.last_name}`,
       });
     } catch (e) {
-      toast.error("Erreur lors du scan.");
+      toast.error(t("liveAttendance.scanError"));
     }
   };
 
@@ -205,7 +207,7 @@ export default function LiveAttendancePage() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Activity className="h-8 w-8 text-green-500 animate-pulse" />
-            Pointage en Temps Réel
+            {t("liveAttendance.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
             {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
@@ -213,7 +215,7 @@ export default function LiveAttendancePage() {
         </div>
         <Button size="lg" onClick={() => setShowScanner(!showScanner)} variant={showScanner ? "destructive" : "default"} className="gap-2 shadow-lg">
           <Scan className="w-5 h-5" />
-          {showScanner ? "Fermer le Scanner" : "Ouvrir le Scanner"}
+          {showScanner ? t("liveAttendance.closeScanner") : t("liveAttendance.openScanner")}
         </Button>
       </div>
 
@@ -222,11 +224,11 @@ export default function LiveAttendancePage() {
           <Card className="lg:col-span-1 shadow-xl border-primary/20">
             <CardHeader>
               <CardTitle className="flex justify-between items-center text-sm md:text-base">
-                <span>Scanner de Badges</span>
+                <span>{t("liveAttendance.badgeScanner")}</span>
                 <div className="flex gap-1">
-                  <Badge variant={scanMode === 'AUTO' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setScanMode('AUTO')}>Auto</Badge>
-                  <Badge variant={scanMode === 'ENTRY' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setScanMode('ENTRY')}>Entrée</Badge>
-                  <Badge variant={scanMode === 'EXIT' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setScanMode('EXIT')}>Sortie</Badge>
+                  <Badge variant={scanMode === 'AUTO' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setScanMode('AUTO')}>{t("liveAttendance.modeAuto")}</Badge>
+                  <Badge variant={scanMode === 'ENTRY' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setScanMode('ENTRY')}>{t("liveAttendance.modeEntry")}</Badge>
+                  <Badge variant={scanMode === 'EXIT' ? 'default' : 'outline'} className="cursor-pointer" onClick={() => setScanMode('EXIT')}>{t("liveAttendance.modeExit")}</Badge>
                 </div>
               </CardTitle>
             </CardHeader>
@@ -238,7 +240,7 @@ export default function LiveAttendancePage() {
           <Card className="lg:col-span-2 shadow-lg">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="w-5 h-5" /> File d'attente (Derniers passages)
+                <Clock className="w-5 h-5" /> {t("liveAttendance.queue")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -259,7 +261,7 @@ export default function LiveAttendancePage() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <Badge className={check.check_in_type === 'ENTRY' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-orange-500 hover:bg-orange-600'}>
-                            {check.check_in_type === 'ENTRY' ? 'ENTRÉE' : 'SORTIE'}
+                            {check.check_in_type === 'ENTRY' ? t("liveAttendance.badgeEntry") : t("liveAttendance.badgeExit")}
                           </Badge>
                           <p className="text-[10px] text-muted-foreground mt-1">{format(new Date(check.checked_at), 'HH:mm:ss')}</p>
                         </div>
@@ -268,7 +270,7 @@ export default function LiveAttendancePage() {
                   );
                 })}
                 {checkIns.length === 0 && (
-                  <div className="text-center py-10 text-muted-foreground">En attente de pointage...</div>
+                  <div className="text-center py-10 text-muted-foreground">{t("liveAttendance.waitingCheckIn")}</div>
                 )}
               </div>
             </CardContent>
@@ -279,7 +281,7 @@ export default function LiveAttendancePage() {
       <div className="grid gap-4 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total {StudentsLabel}</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("liveAttendance.statTotal", { label: StudentsLabel })}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -288,7 +290,7 @@ export default function LiveAttendancePage() {
         </Card>
         <Card className="border-green-200 bg-green-50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-green-800">Présents</CardTitle>
+            <CardTitle className="text-sm font-medium text-green-800">{t("liveAttendance.statPresent")}</CardTitle>
             <UserCheck className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
@@ -297,7 +299,7 @@ export default function LiveAttendancePage() {
         </Card>
         <Card className="border-red-200 bg-red-50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-red-800">Absents</CardTitle>
+            <CardTitle className="text-sm font-medium text-red-800">{t("liveAttendance.statAbsent")}</CardTitle>
             <UserX className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
@@ -306,7 +308,7 @@ export default function LiveAttendancePage() {
         </Card>
         <Card className="border-orange-200 bg-orange-50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-orange-800">Partis</CardTitle>
+            <CardTitle className="text-sm font-medium text-orange-800">{t("liveAttendance.statLeft")}</CardTitle>
             <Clock className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
@@ -315,7 +317,7 @@ export default function LiveAttendancePage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Taux Présence</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("liveAttendance.statRate")}</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -329,14 +331,14 @@ export default function LiveAttendancePage() {
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Rechercher..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+              <Input placeholder={t("liveAttendance.searchPlaceholder")} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
             </div>
             <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
               <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Toutes les classes" />
+                <SelectValue placeholder={t("liveAttendance.allClasses")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Toutes les classes</SelectItem>
+                <SelectItem value="all">{t("liveAttendance.allClasses")}</SelectItem>
                 {classrooms.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -344,9 +346,9 @@ export default function LiveAttendancePage() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Chargement...</div>
+            <div className="text-center py-8">{t("liveAttendance.loading")}</div>
           ) : filteredEnrollments.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">Aucun {studentLabel} trouvé</div>
+            <div className="text-center py-8 text-muted-foreground">{t("liveAttendance.noResults", { label: studentLabel })}</div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {filteredEnrollments.map((en) => {
@@ -362,7 +364,7 @@ export default function LiveAttendancePage() {
                         </div>
                         <div className="text-right">
                           <Badge variant="outline" className={status === "present" ? "bg-green-100 text-green-800 border-green-200" : status === "left" ? "bg-orange-100 text-orange-800 border-orange-200" : "bg-red-100 text-red-800 border-red-200"}>
-                            {status === "present" ? "Présent" : status === "left" ? "Parti" : "Absent"}
+                            {status === "present" ? t("liveAttendance.statusPresent") : status === "left" ? t("liveAttendance.statusLeft") : t("liveAttendance.statusAbsent")}
                           </Badge>
                           {time && <p className="text-[10px] text-muted-foreground mt-1 font-mono">{time}</p>}
                         </div>

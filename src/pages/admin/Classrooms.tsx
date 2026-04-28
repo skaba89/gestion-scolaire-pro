@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
@@ -59,6 +60,7 @@ const StatCard = ({ icon: Icon, label, value, color }: { icon: any, label: strin
 };
 
 const Classrooms = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { studentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
 
@@ -123,7 +125,7 @@ const Classrooms = () => {
 
   const handleDeleteClick = async (id: string) => {
     if (!tenant) return;
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette classe ? Cette action est irréversible.")) {
+    if (confirm(t("classrooms.deleteConfirm"))) {
       await deleteMutation.mutateAsync(id);
     }
   };
@@ -158,7 +160,7 @@ const Classrooms = () => {
       }
       setFormDialogOpen(false);
     } catch (error) {
-      toast.error("Erreur lors de la sauvegarde de la classe");
+      toast.error(t("classrooms.saveError"));
     }
   };
 
@@ -199,20 +201,20 @@ const Classrooms = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={School} label="Classes" value={stats.total} color="blue" />
-        <StatCard icon={Building2} label="Salles" value={roomsCount} color="purple" />
-        <StatCard icon={LayoutGrid} label="Moy./classe" value={stats.avgPerClass} color="amber" />
+        <StatCard icon={School} label={t("classrooms.statClasses")} value={stats.total} color="blue" />
+        <StatCard icon={Building2} label={t("classrooms.statRooms")} value={roomsCount} color="purple" />
+        <StatCard icon={LayoutGrid} label={t("classrooms.statAvg")} value={stats.avgPerClass} color="amber" />
       </div>
 
       <Tabs defaultValue="classes" className="space-y-6">
         <TabsList className="bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl w-fit">
           <TabsTrigger value="classes" className="rounded-xl py-2.5 px-6 data-[state=active]:bg-background data-[state=active]:shadow-xl transition-all gap-2">
             <School className="w-4 h-4" />
-            Classes
+            {t("classrooms.tabClasses")}
           </TabsTrigger>
           <TabsTrigger value="rooms" className="rounded-xl py-2.5 px-6 data-[state=active]:bg-background data-[state=active]:shadow-xl transition-all gap-2">
             <Building2 className="w-4 h-4" />
-            Salles & Disponibilité
+            {t("classrooms.tabRooms")}
           </TabsTrigger>
         </TabsList>
 
@@ -231,7 +233,7 @@ const Classrooms = () => {
             viewMode === "grid" ? <SkeletonStats count={6} /> : <TableSkeleton columns={6} rows={10} />
           ) : filteredClassrooms.length === 0 ? (
             <div className="text-center py-20 bg-background/50 rounded-3xl border-2 border-dashed border-muted">
-              <p className="text-muted-foreground">Aucun résultat trouvé.</p>
+              <p className="text-muted-foreground">{t("classrooms.noResults")}</p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -258,7 +260,7 @@ const Classrooms = () => {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-2">
                   <p className="text-sm text-muted-foreground">
-                    Affichage de {(currentPage - 1) * pageSize + 1} à {Math.min(currentPage * pageSize, filteredClassrooms.length)} sur {filteredClassrooms.length} classes
+                    {t("classrooms.paginationInfo", { from: (currentPage - 1) * pageSize + 1, to: Math.min(currentPage * pageSize, filteredClassrooms.length), total: filteredClassrooms.length })}
                   </p>
                   {/* ... pagination buttons (simplified here, but could be modularized too) ... */}
                 </div>

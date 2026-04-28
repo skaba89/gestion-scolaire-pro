@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   BookOpen,
   Printer,
@@ -39,80 +40,26 @@ interface GuideSection {
 }
 
 export default function UniversityGuide() {
+  const { t } = useTranslation();
   const [activeSection, setActiveSection] = useState("overview");
 
   const handlePrint = () => {
     window.print();
   };
 
-  const sections: GuideSection[] = [
-    {
-      id: "overview",
-      title: "Vue d'ensemble",
-      icon: <Building2 className="h-5 w-5" />,
-      content: <OverviewSection />
-    },
-    {
-      id: "setup",
-      title: "Configuration",
-      icon: <Settings className="h-5 w-5" />,
-      content: <SetupSection />
-    },
-    {
-      id: "departments",
-      title: "Départements",
-      icon: <Building2 className="h-5 w-5" />,
-      content: <DepartmentsSection />
-    },
-    {
-      id: "users",
-      title: "Utilisateurs",
-      icon: <Users className="h-5 w-5" />,
-      content: <UsersSection />
-    },
-    {
-      id: "students",
-      title: "Étudiants",
-      icon: <GraduationCap className="h-5 w-5" />,
-      content: <StudentsSection />
-    },
-    {
-      id: "academics",
-      title: "Académique",
-      icon: <BookOpen className="h-5 w-5" />,
-      content: <AcademicsSection />
-    },
-    {
-      id: "schedule",
-      title: "Emploi du temps",
-      icon: <Calendar className="h-5 w-5" />,
-      content: <ScheduleSection />
-    },
-    {
-      id: "finances",
-      title: "Finances",
-      icon: <CreditCard className="h-5 w-5" />,
-      content: <FinancesSection />
-    },
-    {
-      id: "documents",
-      title: "Documents",
-      icon: <FileText className="h-5 w-5" />,
-      content: <DocumentsSection />
-    },
-    {
-      id: "alumni",
-      title: "Réseau Alumni",
-      icon: <Award className="h-5 w-5" />,
-      content: <AlumniSection />
-    },
-    {
-      id: "reports",
-      title: "Rapports",
-      icon: <BarChart3 className="h-5 w-5" />,
-      content: <ReportsSection />
-    }
-  ];
+  const sections: GuideSection[] = useMemo(() => [
+    { id: "overview", title: t("universityGuide.sectionOverview"), icon: <Building2 className="h-5 w-5" />, content: <OverviewSection /> },
+    { id: "setup", title: t("universityGuide.sectionSetup"), icon: <Settings className="h-5 w-5" />, content: <SetupSection /> },
+    { id: "departments", title: t("universityGuide.sectionDepartments"), icon: <Building2 className="h-5 w-5" />, content: <DepartmentsSection /> },
+    { id: "users", title: t("universityGuide.sectionUsers"), icon: <Users className="h-5 w-5" />, content: <UsersSection /> },
+    { id: "students", title: t("universityGuide.sectionStudents"), icon: <GraduationCap className="h-5 w-5" />, content: <StudentsSection /> },
+    { id: "academics", title: t("universityGuide.sectionAcademics"), icon: <BookOpen className="h-5 w-5" />, content: <AcademicsSection /> },
+    { id: "schedule", title: t("universityGuide.sectionSchedule"), icon: <Calendar className="h-5 w-5" />, content: <ScheduleSection /> },
+    { id: "finances", title: t("universityGuide.sectionFinances"), icon: <CreditCard className="h-5 w-5" />, content: <FinancesSection /> },
+    { id: "documents", title: t("universityGuide.sectionDocuments"), icon: <FileText className="h-5 w-5" />, content: <DocumentsSection /> },
+    { id: "alumni", title: t("universityGuide.sectionAlumni"), icon: <Award className="h-5 w-5" />, content: <AlumniSection /> },
+    { id: "reports", title: t("universityGuide.sectionReports"), icon: <BarChart3 className="h-5 w-5" />, content: <ReportsSection /> },
+  ], [t]);
 
   return (
     <div className="space-y-6 print:space-y-4">
@@ -121,29 +68,29 @@ export default function UniversityGuide() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <BookOpen className="h-8 w-8 text-primary" />
-            Guide universitaire complet
+            {t("universityGuide.pageTitle")}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Documentation complète pour la gestion d'une université multi-départements
+            {t("universityGuide.pageSubtitle")}
           </p>
         </div>
 
         <div className="flex gap-2">
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
-            Imprimer
+            {t("universityGuide.print")}
           </Button>
           <Button variant="outline" onClick={handlePrint}>
             <Download className="h-4 w-4 mr-2" />
-            Télécharger PDF
+            {t("universityGuide.downloadPdf")}
           </Button>
         </div>
       </div>
 
       {/* Print Header */}
       <div className="hidden print:block text-center mb-8">
-        <h1 className="text-3xl font-bold">Guide de gestion universitaire</h1>
-        <p className="text-lg text-muted-foreground">Documentation complète</p>
+        <h1 className="text-3xl font-bold">{t("universityGuide.printTitle")}</h1>
+        <p className="text-lg text-muted-foreground">{t("universityGuide.printSubtitle")}</p>
       </div>
 
       {/* Navigation Tabs */}
@@ -189,7 +136,7 @@ export default function UniversityGuide() {
 
       {/* Table of contents for print */}
       <div className="hidden print:block break-before-page">
-        <h2 className="text-2xl font-bold mb-4">Table des matières</h2>
+        <h2 className="text-2xl font-bold mb-4">{t("universityGuide.tableOfContents")}</h2>
         <ul className="space-y-2">
           {sections.map((section, index) => (
             <li key={section.id} className="flex items-center gap-2">

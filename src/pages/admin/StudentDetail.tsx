@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
@@ -21,6 +22,7 @@ import { StudentReportsTab } from "@/components/admin/students/detail/tabs/Stude
 import { StudentFormDialog } from "@/components/students/StudentFormDialog";
 
 export default function StudentDetail() {
+  const { t } = useTranslation();
   const { studentId } = useParams<{ studentId: string }>();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -76,10 +78,10 @@ export default function StudentDetail() {
     try {
       await apiClient.delete(`/parents/link/${linkId}/`);
 
-      toast.success("Liaison supprimée");
+      toast.success(t("studentDetail.linkDeleted"));
       refetchParents();
     } catch (error) {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("studentDetail.deleteError"));
     }
   };
 
@@ -96,7 +98,7 @@ export default function StudentDetail() {
   if (!student) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">{StudentLabel} non trouvé</p>
+        <p className="text-muted-foreground">{t("studentDetail.notFound", { label: StudentLabel })}</p>
       </div>
     );
   }
@@ -139,8 +141,8 @@ export default function StudentDetail() {
   return (
     <div className="space-y-6">
       <StudentDetailHeader
-        title={`Fiche ${StudentLabel} `}
-        subtitle="Historique complet et informations détaillées"
+        title={t("studentDetail.pageTitle", { label: StudentLabel })}
+        subtitle={t("studentDetail.pageSubtitle")}
         onEditClick={() => setIsEditDialogOpen(true)}
       />
 
@@ -163,11 +165,11 @@ export default function StudentDetail() {
 
       <Tabs defaultValue="grades" className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="grades">Notes</TabsTrigger>
-          <TabsTrigger value="attendance">Présences</TabsTrigger>
-          <TabsTrigger value="enrollments">Inscriptions</TabsTrigger>
-          <TabsTrigger value="invoices">Finances</TabsTrigger>
-          <TabsTrigger value="reports">Bulletins</TabsTrigger>
+          <TabsTrigger value="grades">{t("studentDetail.tabGrades")}</TabsTrigger>
+          <TabsTrigger value="attendance">{t("studentDetail.tabAttendance")}</TabsTrigger>
+          <TabsTrigger value="enrollments">{t("studentDetail.tabEnrollments")}</TabsTrigger>
+          <TabsTrigger value="invoices">{t("studentDetail.tabInvoices")}</TabsTrigger>
+          <TabsTrigger value="reports">{t("studentDetail.tabReports")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="grades">
