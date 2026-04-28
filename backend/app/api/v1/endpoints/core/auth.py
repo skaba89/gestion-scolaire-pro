@@ -763,6 +763,174 @@ async def register(
     }
 
 
+# ─── Self-service school registration ────────────────────────────────────────
+
+class RegisterSchoolRequest(BaseModel):
+    # School info
+    school_name: str = Field(..., min_length=2, max_length=255)
+    school_type: str = Field(..., description="primary | middle | high | university | training")
+    country: str = Field(default="GN", max_length=2)
+    # Admin account
+    first_name: str = Field(..., min_length=1, max_length=255)
+    last_name: str = Field(..., min_length=1, max_length=255)
+    email: EmailStr
+    password: str
+    # Optional
+    phone: Optional[str] = None
+    slug: Optional[str] = None   # auto-generated if omitted
+
+    @field_validator("school_type")
+    @classmethod
+    def validate_type(cls, v: str) -> str:
+        allowed = {"primary", "middle", "high", "university", "training"}
+        if v not in allowed:
+            raise ValueError(f"Type d'établissement invalide. Valeurs acceptées : {', '.join(sorted(allowed))}")
+        return v
+
+
+def _slugify(text: str) -> str:
+    """Convert school name to a URL-safe slug."""
+    import re
+    import unicodedata
+    # Normalize accented characters
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"[^\w\s-]", "", text.lower())
+    text = re.sub(r"[\s_-]+", "-", text).strip("-")
+    return text[:50] or "school"
+
+
+@router.post("/register-school/", status_code=status.HTTP_201_CREATED)
+@limiter.limit("3/minute")
+async def register_school(
+    request: Request,
+    body: RegisterSchoolRequest,
+    db: Session = Depends(get_db),
+):
+    """Self-service school registration.
+
+    Creates a new tenant + TENANT_ADMIN user in one atomic operation.
+    Starts a 30-day Pro trial automatically.
+    Returns a JWT so the user is immediately logged in.
+    """
+    import uuid as _uuid
+    from datetime import timedelta
+    from app.core.security import get_password_hash, create_access_token
+    from app.models.tenant import Tenant
+    from app.services.notifications import EmailSender, Templates
+
+    # 1. Check email uniqueness
+    existing_user = db.query(User).filter(User.email == body.email).first()
+    if existing_user:
+        raise HTTPException(status_code=409, detail="Un compte avec cet email existe déjà.")
+
+    # 2. Validate password
+    validate_password_strength(body.password)
+
+    # 3. Build slug (auto or provided)
+    base_slug = _slugify(body.slug or body.school_name)
+    slug = base_slug
+    suffix = 1
+    while db.query(Tenant).filter(Tenant.slug == slug).first():
+        slug = f"{base_slug}-{suffix}"
+        suffix += 1
+
+    # 4. Create tenant
+    trial_ends = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
+    tenant = Tenant(
+        id=str(_uuid.uuid4()),
+        name=body.school_name,
+        slug=slug,
+        type=body.school_type,
+        country=body.country.upper(),
+        email=body.email,
+        phone=body.phone or "",
+        is_active=True,
+        subscription_plan="pro",      # trial gives full Pro access
+        subscription_status="trialing",
+        trial_ends_at=trial_ends,
+        billing_email=body.email,
+        settings={},
+    )
+    db.add(tenant)
+    db.flush()
+
+    # 5. Create TENANT_ADMIN user
+    user_id = str(_uuid.uuid4())
+    new_user = User(
+        id=user_id,
+        email=body.email,
+        username=body.email,
+        first_name=body.first_name,
+        last_name=body.last_name,
+        password_hash=get_password_hash(body.password),
+        tenant_id=tenant.id,
+        is_active=True,
+    )
+    db.add(new_user)
+    db.flush()
+
+    user_role = UserRole(
+        user_id=user_id,
+        tenant_id=tenant.id,
+        role="TENANT_ADMIN",
+    )
+    db.add(user_role)
+    db.commit()
+
+    logger.info("New school registered: slug=%s, admin=%s", slug, body.email)
+
+    # 6. Send welcome email (non-blocking)
+    try:
+        sender = EmailSender(
+            resend_api_key=settings.RESEND_API_KEY,
+            smtp_host=settings.SMTP_HOST,
+            smtp_port=settings.SMTP_PORT,
+            smtp_user=settings.SMTP_USER,
+            smtp_pass=settings.SMTP_PASS,
+            from_email=settings.FROM_EMAIL,
+            from_name=settings.FROM_NAME,
+        )
+        dashboard_url = f"{settings.FRONTEND_URL}/{slug}/admin/onboarding"
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
+          <h2 style="color:#1a56db">🎉 Bienvenue sur SchoolFlow Pro !</h2>
+          <p>Bonjour <strong>{body.first_name}</strong>,</p>
+          <p>Votre établissement <strong>{body.school_name}</strong> a bien été créé.</p>
+          <p>Vous bénéficiez de <strong>30 jours d'essai gratuit Pro</strong> pour découvrir toutes les fonctionnalités.</p>
+          <div style="margin:24px 0">
+            <a href="{dashboard_url}" style="background:#1a56db;color:#fff;padding:14px 28px;
+               text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block">
+              Configurer mon établissement →
+            </a>
+          </div>
+          <p style="color:#6b7280;font-size:13px">Votre URL de connexion : <strong>{settings.FRONTEND_URL}/{slug}/admin</strong></p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+          <p style="color:#9ca3af;font-size:12px">SchoolFlow Pro — L'ERP scolaire pour l'Afrique francophone</p>
+        </div>"""
+        sender.send(to=body.email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {body.school_name}", html=html)
+    except Exception as exc:
+        logger.warning("Welcome email failed: %s", exc)
+
+    # 7. Issue JWT so the user is immediately logged in
+    token_data = {
+        "sub": user_id,
+        "email": body.email,
+        "roles": ["TENANT_ADMIN"],
+        "tenant_id": str(tenant.id),
+        "tenant_slug": slug,
+    }
+    access_token = create_access_token(data=token_data)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "tenant_slug": slug,
+        "tenant_id": str(tenant.id),
+        "onboarding_url": f"/{slug}/admin/onboarding",
+        "message": f"Établissement '{body.school_name}' créé avec succès. Essai Pro de 30 jours activé.",
+    }
+
+
 class BootstrapRequest(BaseModel):
     bootstrap_key: str
     new_password: Optional[str] = None

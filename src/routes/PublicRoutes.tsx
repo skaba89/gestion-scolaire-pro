@@ -22,6 +22,7 @@ const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const Pricing = lazy(() => import("@/pages/public/Pricing"));
+const Register = lazy(() => import("@/pages/public/Register"));
 
 export const PublicRoutes = () => {
     return (
@@ -71,6 +72,9 @@ export const PublicRoutes = () => {
 
             {/* Pricing page */}
             <Route path="/tarifs" element={<Pricing />} />
+
+            {/* Self-service school registration */}
+            <Route path="/inscription" element={<Register />} />
 
             {/* Bootstrap — initial super admin setup */}
             <Route path="/bootstrap" element={<Bootstrap />} />

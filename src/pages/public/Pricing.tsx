@@ -23,7 +23,7 @@ const PLANS = [
       "Support communautaire",
     ],
     cta: "Commencer gratuitement",
-    ctaLink: "/auth",
+    ctaLink: "/inscription",
     ctaVariant: "outline" as const,
   },
   {
@@ -45,7 +45,7 @@ const PLANS = [
       "Support prioritaire par email",
     ],
     cta: "Essai gratuit 30 jours",
-    ctaLink: "/auth",
+    ctaLink: "/inscription",
     ctaVariant: "default" as const,
   },
   {
@@ -231,7 +231,7 @@ export default function Pricing() {
         <p className="text-indigo-200 mb-8 text-lg">
           30 jours d'essai gratuit · Sans carte bancaire · Annulable à tout moment
         </p>
-        <Link to="/auth">
+        <Link to="/inscription">
           <Button size="lg" className="bg-white text-indigo-700 hover:bg-indigo-50 font-semibold h-12 px-8">
             Démarrer gratuitement
             <ArrowRight className="w-4 h-4 ml-2" />
