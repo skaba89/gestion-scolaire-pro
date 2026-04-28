@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -242,12 +242,12 @@ const AuthNative = () => {
                 <Label htmlFor="password" className="text-sm font-medium text-slate-700">
                   Mot de passe
                 </Label>
-                <button
-                  type="button"
+                <Link
+                  to="/forgot-password"
                   className="text-xs font-medium text-indigo-600 hover:underline transition-colors"
                 >
                   Mot de passe oublié ?
-                </button>
+                </Link>
               </div>
               <div className="relative">
                 <Input

@@ -19,6 +19,8 @@ const SchoolFlowHomePage = lazy(() => import("@/pages/public/SchoolFlowHomePage"
 const PublicDirectory = lazy(() => import("@/pages/public/PublicDirectory"));
 const ConnectionHub = lazy(() => import("@/pages/public/ConnectionHub"));
 const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
+const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 
 export const PublicRoutes = () => {
     return (
@@ -61,6 +63,10 @@ export const PublicRoutes = () => {
                     <CreateTenant />
                 </ProtectedRoute>
             } />
+
+            {/* Password reset flow */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Bootstrap — initial super admin setup */}
             <Route path="/bootstrap" element={<Bootstrap />} />
