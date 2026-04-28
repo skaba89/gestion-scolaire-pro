@@ -21,6 +21,7 @@ const ConnectionHub = lazy(() => import("@/pages/public/ConnectionHub"));
 const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const Pricing = lazy(() => import("@/pages/public/Pricing"));
 
 export const PublicRoutes = () => {
     return (
@@ -67,6 +68,9 @@ export const PublicRoutes = () => {
             {/* Password reset flow */}
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* Pricing page */}
+            <Route path="/tarifs" element={<Pricing />} />
 
             {/* Bootstrap — initial super admin setup */}
             <Route path="/bootstrap" element={<Bootstrap />} />

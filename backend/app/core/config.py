@@ -211,6 +211,15 @@ class Settings(BaseSettings):
     # during the initial rollout window.
     ENFORCE_MFA: bool = os.getenv("ENFORCE_MFA", "false" if os.getenv("DEBUG", "False").lower() == "true" else "true").lower() == "true"
 
+    # Stripe Billing
+    STRIPE_SECRET_KEY: str = get_secret("STRIPE_SECRET_KEY", "")
+    STRIPE_PUBLISHABLE_KEY: str = get_secret("STRIPE_PUBLISHABLE_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = get_secret("STRIPE_WEBHOOK_SECRET", "")
+    # Price IDs créés dans le dashboard Stripe (mode test ou live)
+    STRIPE_PRICE_STARTER: str = get_secret("STRIPE_PRICE_STARTER", "")   # gratuit / essai
+    STRIPE_PRICE_PRO: str = get_secret("STRIPE_PRICE_PRO", "")           # ~29 $/mois
+    STRIPE_PRICE_ENTERPRISE: str = get_secret("STRIPE_PRICE_ENTERPRISE", "")  # ~99 $/mois
+
     # Email (Resend API + SMTP fallback)
     RESEND_API_KEY: str = get_secret("RESEND_API_KEY", "")
     SMTP_HOST: str = get_secret("SMTP_HOST", "")

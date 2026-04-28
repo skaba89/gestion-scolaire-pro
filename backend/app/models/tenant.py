@@ -1,5 +1,5 @@
 """Tenant model"""
-from sqlalchemy import Column, String, Boolean, JSON, Text
+from sqlalchemy import Column, String, Boolean, JSON, Text, DateTime
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, UUIDMixin, TimestampMixin
@@ -7,7 +7,7 @@ from app.models.base import Base, UUIDMixin, TimestampMixin
 
 class Tenant(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "tenants"
-    
+
     name = Column(String(255), nullable=False)
     slug = Column(String(100), unique=True, nullable=False, index=True)
     type = Column(String(50), nullable=False)  # primary, middle, high, university, training
@@ -20,6 +20,16 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     website = Column(String(255))
     is_active = Column(Boolean, default=True)
     settings = Column(JSON, default=dict)
+
+    # ── Stripe Billing ─────────────────────────────────────────────────────────
+    stripe_customer_id = Column(String(255), nullable=True, index=True)
+    stripe_subscription_id = Column(String(255), nullable=True, index=True)
+    # plan: "starter" | "pro" | "enterprise"
+    subscription_plan = Column(String(50), nullable=True, default="starter")
+    # status mirrors Stripe: "trialing" | "active" | "past_due" | "canceled" | "unpaid"
+    subscription_status = Column(String(50), nullable=True, default="trialing")
+    trial_ends_at = Column(DateTime, nullable=True)
+    billing_email = Column(String(255), nullable=True)
 
     # Signature / official document fields
     director_name = Column(String(255))
