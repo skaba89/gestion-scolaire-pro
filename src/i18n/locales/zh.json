@@ -1962,7 +1962,7 @@
     "noTestYetHint": "触发事件以查看结果",
     "rulesApplied": "已应用规则",
     "details": "详情：",
-    "noRulesAlert": "没有规则与此事件的条件匹配。请在"自动规则"选项卡中检查您的规则。",
+    "noRulesAlert": "没有规则与此事件的条件匹配。请在「自动规则」选项卡中检查您的规则。",
     "scenariosTitle": "建议测试场景",
     "scenariosDesc": "测试这些场景以验证默认规则是否有效",
     "fillRequired": "请填写所有必填字段",
