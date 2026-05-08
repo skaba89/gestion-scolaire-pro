@@ -10,11 +10,12 @@ import { AIRecommendations } from "@/components/admin/ai/AIRecommendations";
 import { AICharts } from "@/components/admin/ai/AICharts";
 import { AIActions } from "@/components/admin/ai/AIActions";
 import { AIAssistant } from "@/components/admin/ai/AIAssistant";
+import { PlanGate } from "@/components/ui/PlanGate";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
 export default function AIInsights() {
-  const { t } = useTranslation("aiInsights");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -47,6 +48,7 @@ export default function AIInsights() {
 
 
   return (
+    <PlanGate minPlan="pro">
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -114,6 +116,7 @@ export default function AIInsights() {
         </TabsContent>
       </Tabs>
     </div>
+    </PlanGate>
   );
 }
 

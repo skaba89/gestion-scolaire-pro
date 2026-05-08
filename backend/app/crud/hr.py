@@ -124,15 +124,23 @@ def update_leave_status(db: Session, leave_id: UUID, obj_in: LeaveRequestUpdate,
     db_obj = get_leave_request(db, leave_id, tenant_id)
     if not db_obj:
         return None
-    
+
     update_data = obj_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_obj, field, value)
-    
+
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+def delete_leave_request(db: Session, leave_id: UUID, tenant_id: UUID) -> bool:
+    db_obj = get_leave_request(db, leave_id, tenant_id)
+    if not db_obj:
+        return False
+    db.delete(db_obj)
+    db.commit()
+    return True
 
 # --- Payslip ---
 def get_payslips(db: Session, tenant_id: UUID) -> List[Payslip]:

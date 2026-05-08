@@ -18,7 +18,7 @@ import { LevelTable } from "@/components/levels/LevelTable";
 import { LevelFormDialog } from "@/components/levels/LevelFormDialog";
 
 const Levels = () => {
-  const { t } = useTranslation("levels");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);

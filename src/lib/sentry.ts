@@ -16,7 +16,11 @@ const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
 export function initSentry() {
     // Only initialize Sentry if DSN is provided
     if (!SENTRY_DSN) {
-        console.warn('Sentry DSN not configured. Error monitoring disabled.');
+        // Only warn in development — silence in production (intentional opt-out)
+        if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.warn('[Sentry] DSN not configured. Error monitoring disabled.');
+        }
         return;
     }
 

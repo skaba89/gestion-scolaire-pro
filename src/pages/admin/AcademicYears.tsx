@@ -17,7 +17,7 @@ import { AcademicYearTable } from "@/components/academic-years/AcademicYearTable
 import { AcademicYearFormDialog } from "@/components/academic-years/AcademicYearFormDialog";
 
 const AcademicYears = () => {
-  const { t } = useTranslation("academicYears");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { getTenantUrl } = useTenantUrl();
   const [dialogOpen, setDialogOpen] = useState(false);

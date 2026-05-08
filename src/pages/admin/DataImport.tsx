@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
+import { PlanGate } from "@/components/ui/PlanGate";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -84,7 +85,7 @@ const StepBar = ({ current, steps }: { current: Step; steps: { id: string; label
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function DataImport() {
+function DataImportContent() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -604,5 +605,13 @@ export default function DataImport() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function DataImport() {
+  return (
+    <PlanGate minPlan="pro">
+      <DataImportContent />
+    </PlanGate>
   );
 }

@@ -1650,6 +1650,18 @@
         "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce campus ?",
         "noTenantMessage": "Veuillez d'abord configurer votre établissement."
     },
+    "classrooms": {
+        "statClasses": "Classes",
+        "statRooms": "Salles",
+        "statStudents": "Étudiants",
+        "statAvg": "Moy. par classe",
+        "tabClasses": "Classes",
+        "tabRooms": "Salles",
+        "noResults": "Aucune classe trouvée",
+        "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cette classe ?",
+        "saveError": "Erreur lors de l'enregistrement de la classe",
+        "paginationInfo": "{{from}} - {{to}} sur {{total}} classes"
+    },
     "forums": {
         "updateSuccess": "Forum mis à jour",
         "createSuccess": "Forum créé",

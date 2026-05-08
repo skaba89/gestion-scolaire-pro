@@ -13,7 +13,7 @@ import { AdmissionTable } from "@/components/admin/admissions/AdmissionTable";
 import { AdmissionHeader } from "@/components/admin/admissions/AdmissionHeader";
 
 const Admissions = () => {
-  const { t } = useTranslation("admissions");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { StudentLabel } = useStudentLabel();
   const [searchTerm, setSearchTerm] = useState("");

@@ -107,7 +107,7 @@ export function OnboardingWizard() {
                     clearProgress();
                 }
             } catch (error) {
-                console.error("[Onboarding] Error parsing saved progress:", error);
+                if (import.meta.env.DEV) console.error("[Onboarding] Error parsing saved progress:", error);
                 clearProgress();
             }
         }
@@ -150,19 +150,19 @@ export function OnboardingWizard() {
         try {
             await apiClient.patch('/tenants/settings', updates.settings || {});
 
-            // If name is updated, we might need a separate endpoint or just handle it here
-            if (updates.name) {
-                // For now name updates are not explicitly handled in /settings
-            }
-
             // Update local context
             setCurrentTenant({
                 ...tenant,
                 ...updates,
                 settings: { ...tenant.settings, ...updates.settings }
             });
-        } catch (error) {
-            console.error("Error updating tenant settings:", error);
+        } catch (error: any) {
+            if (import.meta.env.DEV) console.error("Error updating tenant settings:", error);
+            // On 401, the token has expired — show reconnect modal instead of a generic error
+            if (error?.response?.status === 401) {
+                setShowReconnectModal(true);
+                return;
+            }
             throw error;
         }
     };
@@ -218,7 +218,7 @@ export function OnboardingWizard() {
             setStep(3);
         } catch (error) {
             toast.error("Erreur lors de la création des niveaux");
-            console.error(error);
+            if (import.meta.env.DEV) console.error(error);
         } finally {
             setIsLoading(false);
         }
@@ -242,7 +242,7 @@ export function OnboardingWizard() {
 
         } catch (error) {
             toast.error("Erreur lors de la création des matières");
-            console.error(error);
+            if (import.meta.env.DEV) console.error(error);
         } finally {
             setIsLoading(false);
         }
@@ -308,7 +308,7 @@ export function OnboardingWizard() {
 
         } catch (error) {
             toast.error("Erreur lors de l'enregistrement de la signature");
-            console.error(error);
+            if (import.meta.env.DEV) console.error(error);
         } finally {
             setIsLoading(false);
         }

@@ -14,7 +14,7 @@ import { EventGrid } from "@/components/admin/events/EventGrid";
 import { EventDialog } from "@/components/admin/events/EventDialog";
 
 export default function Events() {
-  const { t } = useTranslation("events");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
   const queryClient = useQueryClient();

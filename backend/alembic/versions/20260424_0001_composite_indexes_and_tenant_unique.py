@@ -49,6 +49,17 @@ def _constraint_exists(conn, constraint_name: str, table_name: str) -> bool:
     return result.scalar()
 
 
+def _column_exists(conn, table_name: str, column_name: str) -> bool:
+    """Vérifie si une colonne existe dans une table."""
+    result = conn.execute(text(
+        "SELECT EXISTS ("
+        "  SELECT 1 FROM information_schema.columns"
+        "  WHERE table_schema = 'public' AND table_name = :t AND column_name = :c"
+        ")"
+    ), {"t": table_name, "c": column_name})
+    return result.scalar()
+
+
 def upgrade():
     conn = op.get_bind()
 
@@ -59,7 +70,8 @@ def upgrade():
                 "ix_students_tenant_status",
                 "students", ["tenant_id", "status"]
             )
-        if not _index_exists(conn, "ix_students_tenant_classroom"):
+        if (not _index_exists(conn, "ix_students_tenant_classroom")
+                and _column_exists(conn, "students", "classroom_id")):
             op.create_index(
                 "ix_students_tenant_classroom",
                 "students", ["tenant_id", "classroom_id"]
@@ -83,15 +95,18 @@ def upgrade():
 
     # ── 2. Index composites sur grades ───────────────────────────────────────
     if _table_exists(conn, "grades"):
-        if not _index_exists(conn, "ix_grades_tenant_student_subject"):
+        if (not _index_exists(conn, "ix_grades_tenant_student_subject")
+                and _column_exists(conn, "grades", "student_id")
+                and _column_exists(conn, "grades", "subject_id")):
             op.create_index(
                 "ix_grades_tenant_student_subject",
                 "grades", ["tenant_id", "student_id", "subject_id"]
             )
-        if not _index_exists(conn, "ix_grades_tenant_term"):
+        if (not _index_exists(conn, "ix_grades_tenant_term")
+                and _column_exists(conn, "grades", "term_id")):
             op.create_index(
                 "ix_grades_tenant_term",
-                "grades", ["tenant_id", "academic_term_id"]
+                "grades", ["tenant_id", "term_id"]
             )
 
     # ── 3. Index composites sur attendance ───────────────────────────────────
@@ -101,7 +116,8 @@ def upgrade():
                 "ix_attendance_tenant_date",
                 "attendance", ["tenant_id", "date"]
             )
-        if not _index_exists(conn, "ix_attendance_tenant_classroom"):
+        if (not _index_exists(conn, "ix_attendance_tenant_classroom")
+                and _column_exists(conn, "attendance", "classroom_id")):
             op.create_index(
                 "ix_attendance_tenant_classroom",
                 "attendance", ["tenant_id", "classroom_id"]
@@ -122,12 +138,16 @@ def upgrade():
 
     # ── 5. Index composites sur users ────────────────────────────────────────
     if _table_exists(conn, "users"):
-        if not _index_exists(conn, "ix_users_tenant_role"):
+        # users.role n'existe pas (les rôles sont dans user_roles) — on ignore
+        if (not _index_exists(conn, "ix_users_tenant_role")
+                and _column_exists(conn, "users", "role")):
             op.create_index(
                 "ix_users_tenant_role",
                 "users", ["tenant_id", "role"]
             )
-        if not _index_exists(conn, "ix_users_email_active"):
+        if (not _index_exists(conn, "ix_users_email_active")
+                and _column_exists(conn, "users", "email")
+                and _column_exists(conn, "users", "is_active")):
             op.create_index(
                 "ix_users_email_active",
                 "users", ["email", "is_active"]

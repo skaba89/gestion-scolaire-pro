@@ -17,7 +17,7 @@ import { CampusTable } from "@/components/campuses/CampusTable";
 import { CampusFormDialog } from "@/components/campuses/CampusFormDialog";
 
 const Campuses = () => {
-  const { t } = useTranslation("campuses");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCampus, setEditingCampus] = useState<Campus | null>(null);

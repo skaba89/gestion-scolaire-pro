@@ -408,6 +408,63 @@ def list_user_profiles(
     ]
 
 
+# ─── GET /users/pending/ ─── MUST be before /{user_id}/ ─────────────────────
+# Moved up from the bottom of the file — FastAPI matches routes in registration
+# order, so "/pending/" must come before "/{user_id}/" or "pending" is captured
+# as a UUID param and causes an InvalidTextRepresentation DB error.
+
+@router.get("/pending/")
+def list_pending_users(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:read")),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1),
+):
+    """List students who don't have a linked user account yet (matched by email)."""
+    tenant_id = current_user.get("tenant_id")
+
+    # Students whose email doesn't match any user in the same tenant
+    students_sql = text("""
+        SELECT s.id, s.first_name, s.last_name, s.email, s.phone,
+               s.registration_number, 'student' as type
+        FROM students s
+        WHERE s.tenant_id = :tenant_id
+          AND (
+              s.email IS NULL
+              OR s.email NOT IN (
+                  SELECT u.email FROM users u
+                  WHERE u.tenant_id = :tenant_id AND u.email IS NOT NULL
+              )
+          )
+        ORDER BY s.last_name, s.first_name
+    """)
+    students = db.execute(students_sql, {"tenant_id": tenant_id}).fetchall()
+
+    # Parents are tracked as users with PARENT role — no standalone parents table
+    parents = []
+
+    combined = [
+        {
+            "id": str(r.id),
+            "first_name": r.first_name,
+            "last_name": r.last_name,
+            "email": r.email,
+            "phone": r.phone,
+            "registration_number": r.registration_number,
+            "type": r.type
+        }
+        for r in (list(students) + list(parents))
+    ]
+
+    if page_size >= 100:
+        return combined
+
+    total = len(combined)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {"items": combined[start:end], "total": total}
+
+
 @router.get("/{user_id}/")
 def get_user(
     user_id: str,
@@ -993,56 +1050,6 @@ def create_user(
         "id": new_id,
         "email": body.email,
     }
-
-
-@router.get("/pending/")
-def list_pending_users(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("users:read")),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(100, ge=1),
-):
-    """List students and parents who don't have a linked user account yet."""
-    tenant_id = current_user.get("tenant_id")
-
-    # Students without user_id
-    students_sql = text("""
-        SELECT id, first_name, last_name, email, phone, registration_number, 'student' as type
-        FROM students
-        WHERE tenant_id = :tenant_id AND user_id IS NULL
-    """)
-    students = db.execute(students_sql, {"tenant_id": tenant_id}).fetchall()
-
-    # Parents without user_id
-    parents_sql = text("""
-        SELECT id, first_name, last_name, email, phone, NULL as registration_number, 'parent' as type
-        FROM parents
-        WHERE tenant_id = :tenant_id AND user_id IS NULL
-    """)
-    parents = db.execute(parents_sql, {"tenant_id": tenant_id}).fetchall()
-
-    combined = [
-        {
-            "id": str(r.id),
-            "first_name": r.first_name,
-            "last_name": r.last_name,
-            "email": r.email,
-            "phone": r.phone,
-            "registration_number": r.registration_number,
-            "type": r.type
-        }
-        for r in (list(students) + list(parents))
-    ]
-
-    if page_size >= 100:
-        # Default behaviour: return ALL results as a plain list (backward-compatible)
-        return combined
-
-    # Explicit pagination requested (page_size < 100)
-    total = len(combined)
-    start = (page - 1) * page_size
-    end = start + page_size
-    return {"items": combined[start:end], "total": total}
 
 
 class ConvertRequest(BaseModel):

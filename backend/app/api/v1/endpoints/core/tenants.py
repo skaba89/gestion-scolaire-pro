@@ -322,29 +322,40 @@ async def get_tenant_settings(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Retrieve settings for the current tenant."""
+    """Retrieve settings for the current tenant.
+
+    Returns empty dict for SUPER_ADMIN users who have no tenant context —
+    the frontend SettingsProvider will merge these with DEFAULT_SETTINGS.
+    """
     tenant_id = current_user.get("tenant_id")
-    
-    # Robust fallback: if tenant_id is not in token (e.g. just after onboarding)
-    # look it up in the database for the current user
+
+    # Robust fallback: if tenant_id is not in token (e.g. just after onboarding
+    # or a super admin acting cross-tenant), look it up in the database.
     if not tenant_id:
         user_id = current_user.get("id")
         user_db = db.query(User).filter(User.id == user_id).first()
         if user_db:
-            tenant_id = user_db.tenant_id
-            
+            tenant_id = getattr(user_db, "tenant_id", None)
+
+    # SUPER_ADMIN has no tenant — return empty settings (not an error)
     if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID not found in token or user profile")
-    
+        user_roles = current_user.get("roles", [])
+        if "SUPER_ADMIN" in user_roles:
+            return {}
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID not found. Please log out and log back in to refresh your session."
+        )
+
     try:
-        tid_uuid = UUID(tenant_id)
+        tid_uuid = UUID(str(tenant_id))
     except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid tenant ID")
-        
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid tenant ID format")
+
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
-        
+
     return tenant.settings or {}
 
 @router.patch("/settings/")
@@ -355,15 +366,18 @@ async def update_tenant_settings(
 ):
     """Update settings for the current tenant."""
     tenant_id = current_user.get("tenant_id")
-    
+
     if not tenant_id:
         user_id = current_user.get("id")
         user_db = db.query(User).filter(User.id == user_id).first()
         if user_db:
-            tenant_id = user_db.tenant_id
+            tenant_id = getattr(user_db, "tenant_id", None)
 
     if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID not found in token")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant ID not found. Please log out and log back in to refresh your session."
+        )
     
     try:
         tid_uuid = UUID(tenant_id)
@@ -1038,19 +1052,30 @@ async def delete_tenant(
             tenant_name, tenant.id, user_count,
         )
 
-    log_audit(
-        db,
-        user_id=current_user.get("id"),
-        tenant_id=str(tenant.id),
-        action="DELETE_TENANT",
-        resource_type="TENANT",
-        resource_id=str(tenant.id),
-        details={"name": tenant_name, "user_count": user_count},
-        severity="WARNING",
-    )
+    try:
+        log_audit(
+            db,
+            user_id=current_user.get("id"),
+            tenant_id=str(tenant.id),
+            action="DELETE_TENANT",
+            resource_type="TENANT",
+            resource_id=str(tenant.id),
+            details={"name": tenant_name, "user_count": user_count},
+            severity="WARNING",
+        )
 
-    db.delete(tenant)
-    db.commit()
+        db.delete(tenant)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error(
+            "Failed to delete tenant '%s' (%s): %s",
+            tenant_name, tenant_id, exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors de la suppression de l'établissement. Vérifiez que toutes les contraintes de base de données sont correctement configurées (CASCADE).",
+        )
 
     return {"detail": "Établissement supprimé définitivement"}
 
@@ -1073,19 +1098,48 @@ async def update_tenant(
     tenant_id: UUID,
     tenant_updates: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("tenants:write"))
+    current_user: dict = Depends(require_permission("settings:write"))
 ):
-    """Update general tenant fields (is_active, type, name, etc.)."""
+    """Update general tenant fields (name, type, contact info, etc.).
+
+    TENANT_ADMIN can update their own tenant only.
+    SUPER_ADMIN can update any tenant (and may also set is_active).
+    """
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    # Only allow safe, explicit fields — protect id, slug, settings, created_at, etc.
-    ALLOWED_FIELDS = {
-        "name", "type", "email", "phone", "address", "website",
-        "country", "currency", "timezone", "is_active",
+    is_super_admin = "SUPER_ADMIN" in current_user.get("roles", [])
+
+    # TENANT_ADMIN may only update their own tenant
+    if not is_super_admin:
+        caller_tenant_id = str(current_user.get("tenant_id") or "")
+        if caller_tenant_id != str(tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous ne pouvez modifier que votre propre établissement.",
+            )
+
+    # SUPER_ADMIN may also toggle is_active; TENANT_ADMIN may not
+    ALLOWED_FIELDS_ADMIN = {
+        # Basic identity
+        "name", "official_name", "type",
+        # Contact
+        "email", "phone", "address", "website", "city", "country",
+        # Locale
+        "currency", "timezone",
+        # Branding
+        "logo_url", "favicon_url",
+        # Signatures (used by SignatureSettings)
+        "director_name", "director_signature_url",
+        "secretary_name", "secretary_signature_url",
+        # Generic settings JSON column (used by many settings components)
+        "settings",
     }
-    unknown_fields = set(tenant_updates.keys()) - ALLOWED_FIELDS
+    ALLOWED_FIELDS_SUPER = ALLOWED_FIELDS_ADMIN | {"is_active", "slug"}
+    allowed = ALLOWED_FIELDS_SUPER if is_super_admin else ALLOWED_FIELDS_ADMIN
+
+    unknown_fields = set(tenant_updates.keys()) - allowed
     if unknown_fields:
         raise HTTPException(
             status_code=400,
@@ -1115,7 +1169,7 @@ async def update_tenant(
 async def setup_tenant_levels(
     levels_in: List[str],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("tenants:write"))
+    current_user: dict = Depends(require_permission("levels:write"))
 ):
     """Batch create levels during onboarding."""
     tenant_id = current_user.get("tenant_id")
@@ -1136,7 +1190,7 @@ async def setup_tenant_levels(
 async def setup_tenant_subjects(
     subjects_in: List[Dict[str, Any]],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("tenants:write"))
+    current_user: dict = Depends(require_permission("subjects:write"))
 ):
     """Batch create subjects during onboarding."""
     tenant_id = current_user.get("tenant_id")
@@ -1161,7 +1215,7 @@ async def setup_tenant_subjects(
 async def complete_onboarding(
     data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("tenants:write"))
+    current_user: dict = Depends(require_permission("settings:write"))
 ):
     """Complete onboarding with signature and director name."""
     tenant_id = current_user.get("tenant_id")

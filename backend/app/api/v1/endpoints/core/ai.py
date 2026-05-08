@@ -8,16 +8,20 @@ All endpoints require JWT authentication.
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_plan
 from app.services.groq_service import groq_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+# AI endpoints use external LLM API calls — stricter rate limit to control cost
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ---------------------------------------------------------------------------
@@ -102,9 +106,12 @@ def generate_ai_content(
 
 
 @router.post("/chat")
+@limiter.limit("20/minute")
 async def chat(
-    request: ChatRequest | ChatRequestV2,
+    request: Request,
+    body: ChatRequest | ChatRequestV2,
     current_user: dict = Depends(get_current_user),
+    _plan: dict = Depends(require_plan("pro")),
 ):
     """
     Chat support endpoint.
@@ -117,27 +124,27 @@ async def chat(
     Supports streaming via SSE when `stream=true`.
     """
     # Normalize both formats to the same internal representation
-    if isinstance(request, ChatRequestV2) and request.messages:
+    if isinstance(body, ChatRequestV2) and body.messages:
         # V2 format from ChatBot.tsx / useAIStream.ts
         # Extract last user message as the primary message
-        user_messages = [m for m in request.messages if m.get("role") == "user"]
+        user_messages = [m for m in body.messages if m.get("role") == "user"]
         message = user_messages[-1]["content"] if user_messages else ""
         # Build history from all messages except the last user message
         history = [
             ChatMessage(role=m["role"], content=m["content"])
-            for m in request.messages[:-1] if m.get("content")
-        ] if len(request.messages) > 1 else None
+            for m in body.messages[:-1] if m.get("content")
+        ] if len(body.messages) > 1 else None
         stream = False  # V2 callers handle streaming themselves via fetch
         req = ChatRequest(message=message, history=history, stream=stream)
     else:
-        req = request
+        req = body
         stream = req.stream
 
     # Determine the platform name to use in AI responses
     # If tenant name is provided (tenant context), use it instead of "Academy Guinéenne"
     platform_name = "Academy Guinéenne"
-    if isinstance(request, ChatRequestV2) and request.tenantName:
-        platform_name = request.tenantName
+    if isinstance(body, ChatRequestV2) and body.tenantName:
+        platform_name = body.tenantName
 
     # Also check current_user tenant if available
     if platform_name == "Academy Guinéenne" and current_user.get("tenant_name"):
@@ -196,9 +203,12 @@ async def chat(
 
 
 @router.post("/audit")
+@limiter.limit("10/minute")
 async def audit(
+    request: Request,
     req: AuditRequest,
     current_user: dict = Depends(get_current_user),
+    _plan: dict = Depends(require_plan("pro")),
 ):
     """
     Audit analysis endpoint.

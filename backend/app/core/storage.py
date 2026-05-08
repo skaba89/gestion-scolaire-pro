@@ -81,15 +81,24 @@ class MinioClient:
             client.make_bucket(self.bucket_name)
         self._bucket_ready = True
 
-    def get_presigned_url(self, object_name: str, method: str = "GET", expires: timedelta = timedelta(hours=1)):
+    def get_presigned_url(self, object_name: str, method: str = "GET", expires: timedelta = timedelta(days=7)):
         self._ensure_bucket_exists()
         client = self._require_client()
-        return client.get_presigned_url(
+        url = client.get_presigned_url(
             method=method,
             bucket_name=self.bucket_name,
             object_name=object_name,
             expires=expires,
         )
+        # Rewrite internal Docker hostname to a browser-reachable nginx proxy path.
+        # nginx /minio-proxy/ → http://minio:9000/ with Host=minio:9000,
+        # so the AWS Signature V4 (signed with host=minio:9000) remains valid.
+        endpoint = (settings.MINIO_ENDPOINT or "").strip("/")
+        if url and endpoint:
+            internal_prefix = f"http://{endpoint}/"
+            if url.startswith(internal_prefix):
+                url = "/minio-proxy/" + url[len(internal_prefix):]
+        return url
 
     def upload_file(self, file_data, object_name: str, content_type: str):
         self._ensure_bucket_exists()
@@ -173,7 +182,7 @@ class StorageClient:
             return self._minio.upload_file(file_data, object_name, content_type)
         return self._local.upload_file(file_data, object_name, content_type)
 
-    def get_presigned_url(self, object_name: str, method: str = "GET", expires: timedelta = timedelta(hours=1)):
+    def get_presigned_url(self, object_name: str, method: str = "GET", expires: timedelta = timedelta(days=7)):
         if self.use_minio:
             return self._minio.get_presigned_url(object_name, method, expires)
         return self._local.get_presigned_url(object_name, method, expires)

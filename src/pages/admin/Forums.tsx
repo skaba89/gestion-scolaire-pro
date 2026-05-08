@@ -11,7 +11,7 @@ import { ForumDialog } from "@/components/admin/forums/ForumDialog";
 import { forumCategories } from "@/components/admin/forums/constants";
 
 export default function Forums() {
-  const { t } = useTranslation("forums");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);

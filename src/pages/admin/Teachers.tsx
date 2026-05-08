@@ -19,7 +19,7 @@ import { TeacherViewDialog } from "@/components/teachers/TeacherViewDialog";
 import { TeacherDeleteDialog } from "@/components/teachers/TeacherDeleteDialog";
 
 const TeachersPage = () => {
-  const { t } = useTranslation("teachers");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);

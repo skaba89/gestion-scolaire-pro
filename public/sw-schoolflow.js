@@ -11,8 +11,8 @@
 // application layer via IndexedDB (Dexie). The SW only manages the app shell.
 // =============================================================================
 
-const CACHE_NAME = "schoolflow-offline-v2";
-const SHELL_CACHE = "schoolflow-shell-v2";
+const CACHE_NAME = "schoolflow-offline-v3";
+const SHELL_CACHE = "schoolflow-shell-v3";
 
 // API patterns to NEVER intercept — always pass through to network
 const API_PATTERNS = [
@@ -85,10 +85,11 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           if (response.ok) {
-            // Update app shell cache with fresh response
+            // Clone synchronously before response body is consumed
+            const clone = response.clone();
             caches
               .open(SHELL_CACHE)
-              .then((cache) => cache.put(request, response.clone()));
+              .then((cache) => cache.put(request, clone));
           }
           return response;
         })
@@ -119,9 +120,11 @@ self.addEventListener("fetch", (event) => {
           const networkFetch = fetch(request)
             .then((response) => {
               if (response.ok) {
+                // Clone synchronously before response body is consumed
+                const clone = response.clone();
                 caches
                   .open(CACHE_NAME)
-                  .then((cache) => cache.put(request, response.clone()));
+                  .then((cache) => cache.put(request, clone));
               }
               return response;
             })
@@ -132,9 +135,11 @@ self.addEventListener("fetch", (event) => {
         // Not cached: fetch and store
         return fetch(request).then((response) => {
           if (response.ok) {
+            // Clone synchronously before response body is consumed
+            const clone = response.clone();
             caches
               .open(CACHE_NAME)
-              .then((cache) => cache.put(request, response.clone()));
+              .then((cache) => cache.put(request, clone));
           }
           return response;
         });

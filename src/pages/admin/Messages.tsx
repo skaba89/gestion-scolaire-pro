@@ -11,7 +11,7 @@ import { MessengerInterface } from "@/components/messages/MessengerInterface";
 import { useTranslation } from "react-i18next";
 
 const MessagesPage = () => {
-  const { t } = useTranslation("adminMessages");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
 
   // Fetch all users for recipient selection

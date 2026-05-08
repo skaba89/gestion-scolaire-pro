@@ -18,7 +18,7 @@ import { TermTable } from "@/components/terms/TermTable";
 import { TermFormDialog } from "@/components/terms/TermFormDialog";
 
 const Terms = () => {
-  const { t } = useTranslation("terms");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);

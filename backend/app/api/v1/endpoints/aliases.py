@@ -652,7 +652,13 @@ presence_router = APIRouter()
 
 class PresenceUpdate(BaseModel):
     user_id: str
-    status: str  # "online", "offline", "away"
+    # Frontend sends is_online bool; accept both shapes for compatibility
+    is_online: Optional[bool] = None
+    status: Optional[str] = None   # "online", "offline", "away" (legacy shape)
+    is_typing: Optional[bool] = None
+    last_seen_at: Optional[str] = None
+    current_conversation_id: Optional[str] = None
+    tenant_id: Optional[str] = None  # ignored — taken from JWT
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -662,7 +668,12 @@ def update_presence(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """PUT /presence/ — update user presence status."""
+    """PUT /presence/ — update user presence status.
+
+    Accepts two body shapes for compatibility:
+    - New shape: { user_id, is_online, is_typing, last_seen_at, current_conversation_id }
+    - Legacy shape: { user_id, status, metadata }
+    """
     tenant_id = current_user.get("tenant_id")
     user_id = current_user.get("id")
 
@@ -672,26 +683,61 @@ def update_presence(
         if "TENANT_ADMIN" not in roles and "SUPER_ADMIN" not in roles:
             raise HTTPException(status_code=403, detail="Can only update your own presence")
 
+    # Derive status string from is_online bool if status not provided
+    if body.status:
+        resolved_status = body.status
+    elif body.is_online is True:
+        resolved_status = "online"
+    elif body.is_online is False:
+        resolved_status = "offline"
+    else:
+        resolved_status = "online"
+
     try:
         db.execute(text("""
-            INSERT INTO user_presence (user_id, tenant_id, status, metadata, updated_at)
-            VALUES (:user_id, :tenant_id, :status, :metadata::jsonb, NOW())
+            CREATE TABLE IF NOT EXISTS user_presence (
+                user_id UUID PRIMARY KEY,
+                tenant_id UUID,
+                status VARCHAR(50) DEFAULT 'online',
+                is_typing BOOLEAN DEFAULT FALSE,
+                current_conversation_id UUID,
+                metadata JSONB,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        import json as _json
+        metadata_payload = body.metadata
+        if body.is_typing is not None or body.current_conversation_id is not None:
+            metadata_payload = metadata_payload or {}
+            if body.is_typing is not None:
+                metadata_payload["is_typing"] = body.is_typing
+            if body.current_conversation_id is not None:
+                metadata_payload["current_conversation_id"] = body.current_conversation_id
+
+        metadata_json = _json.dumps(metadata_payload) if metadata_payload else None
+        db.execute(text("""
+            INSERT INTO user_presence (user_id, tenant_id, status, is_typing, current_conversation_id, metadata, updated_at)
+            VALUES (:user_id, :tenant_id, :status, :is_typing, :conv_id, CAST(:metadata AS JSONB), NOW())
             ON CONFLICT (user_id) DO UPDATE SET
                 status = :status,
-                metadata = :metadata::jsonb,
+                is_typing = :is_typing,
+                current_conversation_id = :conv_id,
+                metadata = CAST(:metadata AS JSONB),
                 updated_at = NOW()
         """), {
             "user_id": body.user_id,
             "tenant_id": tenant_id,
-            "status": body.status,
-            "metadata": __import__("json").dumps(body.metadata) if body.metadata else None,
+            "status": resolved_status,
+            "is_typing": body.is_typing or False,
+            "conv_id": body.current_conversation_id or None,
+            "metadata": metadata_json,
         })
         db.commit()
-        return {"user_id": body.user_id, "status": body.status, "updated_at": datetime.now(timezone.utc).isoformat()}
+        return {"user_id": body.user_id, "status": resolved_status, "updated_at": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         db.rollback()
         logger.error("Failed to update presence: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
+        raise HTTPException(status_code=400, detail="Failed to update presence. Please try again.")
 
 
 # ─── 13. Rooms at root (/rooms/) ─────────────────────────────────────────────
@@ -1146,7 +1192,7 @@ def create_gamification_rule(
             INSERT INTO gamification_rules
             (id, tenant_id, name, description, event_type, conditions,
              reward_type, reward_value, reward_badge_id, is_active, priority, created_at, updated_at)
-            VALUES (:id, :tid, :name, :desc, :etype, :cond::jsonb,
+            VALUES (:id, :tid, :name, :desc, :etype, CAST(:cond AS JSONB),
                     :rtype, :rvalue, :rbadge, :active, :prio, NOW(), NOW())
         """), {
             "id": new_id, "tid": tenant_id,
@@ -1185,7 +1231,7 @@ def update_gamification_rule(
             continue
         if k == "conditions" and isinstance(v, (dict, list)):
             v = _json.dumps(v)
-            sets.append(f"{k} = :{k}::jsonb")
+            sets.append(f"{k} = CAST(:{k} AS JSONB)")
         else:
             sets.append(f"{k} = :{k}")
         params[k] = v

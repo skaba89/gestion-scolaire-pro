@@ -46,7 +46,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
           const response = await apiClient.get('/tenants');
           setAllTenants(response.data);
         } catch (error) {
-          console.error("Error fetching all tenants:", error);
+          if (import.meta.env.DEV) console.error("Error fetching all tenants:", error);
         }
       };
       fetchAllTenants();
@@ -86,8 +86,10 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
             setIsManualSelection(true);
           }
         } catch (err: any) {
-          console.error("Error fetching last tenant", err);
-          if (err.response?.status === 404) {
+          if (import.meta.env.DEV) console.error("Error fetching last tenant", err);
+          // Remove stale entry on auth failure (401) or missing tenant (404/400)
+          const status = err.response?.status;
+          if (status === 404 || status === 401 || status === 400) {
             localStorage.removeItem("last_tenant_id");
             setIsManualSelection(false);
             resolvedTenantId.current = null;
@@ -145,8 +147,9 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
           tenantCache.set(profile.tenant_id!, { data: tenant, timestamp: Date.now() });
         }
       } catch (error: any) {
-        console.error("Error fetching tenant:", error);
-        if (error.response?.status === 404) {
+        if (import.meta.env.DEV) console.error("Error fetching tenant:", error);
+        const status = error.response?.status;
+        if (status === 404 || status === 401 || status === 400) {
           localStorage.removeItem("last_tenant_id");
           resolvedTenantId.current = null;
         }
@@ -413,7 +416,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       }
       return null;
     } catch (error: any) {
-      console.error("Error fetching tenant by slug:", error);
+      if (import.meta.env.DEV) console.error("Error fetching tenant by slug:", error);
       if (error.response?.status === 404) {
         localStorage.removeItem("last_tenant_id");
       }
@@ -434,7 +437,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("last_tenant_id", tenantId);
       }
     } catch (error: any) {
-      console.error("Error switching tenant:", error);
+      if (import.meta.env.DEV) console.error("Error switching tenant:", error);
     } finally {
       setIsLoading(false);
     }

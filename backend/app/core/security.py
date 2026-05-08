@@ -358,3 +358,119 @@ def require_permission(permission: str):
         )
 
     return decorator
+
+
+# ─── Feature Gating — Plan hierarchy ─────────────────────────────────────────
+
+# Numeric weight per plan level (higher = more features)
+_PLAN_WEIGHT: dict[str, int] = {
+    "starter": 0,
+    "pro": 1,
+    "enterprise": 2,
+}
+
+# Statuses that count as "access granted" for a paid or trial period
+_ACTIVE_STATUSES = {"active", "trialing"}
+
+
+def require_plan(min_plan: str):
+    """FastAPI dependency factory: enforce a minimum subscription plan.
+
+    Usage::
+
+        @router.post("/ai/chat/")
+        async def chat(
+            _plan: None = Depends(require_plan("pro")),
+            current_user: dict = Depends(get_current_user),
+        ):
+            ...
+
+    Rules
+    -----
+    * SUPER_ADMIN always passes (platform-level).
+    * Tenants with ``subscription_status`` in {"active", "trialing"} AND
+      ``subscription_plan`` weight >= ``min_plan`` weight are allowed.
+    * Everyone else gets HTTP 402 with an upgrade prompt.
+    * If the DB look-up fails for any reason, fail **open** so we don't break
+      existing functionality during a DB hiccup.
+    """
+    min_weight = _PLAN_WEIGHT.get(min_plan.lower(), 0)
+
+    def _check(current_user: dict = Depends(get_current_user)) -> dict:
+        # SUPER_ADMIN bypasses all plan checks
+        roles = current_user.get("roles", [])
+        if "SUPER_ADMIN" in roles:
+            return current_user
+
+        tenant_id = current_user.get("tenant_id")
+        if not tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "error": "PLAN_REQUIRED",
+                    "required_plan": min_plan,
+                    "message": (
+                        f"Cette fonctionnalité nécessite le plan '{min_plan}' ou supérieur. "
+                        "Passez à un plan supérieur pour y accéder."
+                    ),
+                    "upgrade_url": "/billing",
+                },
+            )
+
+        try:
+            from app.core.database import SessionLocal
+            from app.models.tenant import Tenant as _Tenant
+
+            with SessionLocal() as db:
+                tenant = db.query(_Tenant).filter(_Tenant.id == tenant_id).first()
+                if not tenant:
+                    # Tenant not found — fail open to avoid false positives
+                    logger.warning("require_plan: tenant %s not found, failing open", tenant_id)
+                    return current_user
+
+                plan = (tenant.subscription_plan or "starter").lower()
+                sub_status = (tenant.subscription_status or "trialing").lower()
+
+                # Check trial validity for "trialing" status
+                if sub_status == "trialing" and tenant.trial_ends_at:
+                    from datetime import datetime, timezone
+                    if tenant.trial_ends_at < datetime.now(timezone.utc).replace(tzinfo=None):
+                        sub_status = "expired"
+
+                plan_weight = _PLAN_WEIGHT.get(plan, 0)
+
+                if sub_status in _ACTIVE_STATUSES and plan_weight >= min_weight:
+                    return current_user
+
+                # Build friendly upgrade message
+                if sub_status not in _ACTIVE_STATUSES:
+                    message = (
+                        f"Votre abonnement est '{sub_status}'. "
+                        "Renouvelez votre abonnement pour accéder à cette fonctionnalité."
+                    )
+                else:
+                    message = (
+                        f"Cette fonctionnalité nécessite le plan '{min_plan}' ou supérieur "
+                        f"(plan actuel : '{plan}'). Passez à un plan supérieur pour y accéder."
+                    )
+
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail={
+                        "error": "PLAN_REQUIRED",
+                        "required_plan": min_plan,
+                        "current_plan": plan,
+                        "current_status": sub_status,
+                        "message": message,
+                        "upgrade_url": "/billing",
+                    },
+                )
+
+        except HTTPException:
+            raise
+        except Exception as exc:
+            # Fail open: plan check failure must not break existing functionality
+            logger.warning("require_plan check failed (failing open): %s", exc)
+            return current_user
+
+    return _check

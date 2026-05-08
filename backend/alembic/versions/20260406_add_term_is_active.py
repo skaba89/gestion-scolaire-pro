@@ -20,6 +20,16 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Enlarge alembic_version.version_num so that revision IDs longer than 32 chars
+    # (e.g. "20260406_create_operational_tables") can be stored without truncation.
+    # This is safe to run multiple times (IF changes would be a no-op on a wider column).
+    bind = op.get_context().bind
+    if bind and bind.dialect.name == "postgresql":
+        from sqlalchemy import text
+        bind.execute(text(
+            "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(256)"
+        ))
+
     op.add_column('terms',
                   sa.Column('is_active', sa.Boolean(), server_default='false', nullable=True))
 

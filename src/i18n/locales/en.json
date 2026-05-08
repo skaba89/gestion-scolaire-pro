@@ -1650,6 +1650,18 @@
         "deleteConfirm": "Are you sure you want to delete this campus?",
         "noTenantMessage": "Please configure your institution first."
     },
+    "classrooms": {
+        "statClasses": "Classes",
+        "statRooms": "Rooms",
+        "statStudents": "Students",
+        "statAvg": "Avg per class",
+        "tabClasses": "Classes",
+        "tabRooms": "Rooms",
+        "noResults": "No classrooms found",
+        "deleteConfirm": "Are you sure you want to delete this classroom?",
+        "saveError": "Error saving classroom",
+        "paginationInfo": "{{from}} - {{to}} of {{total}} classrooms"
+    },
     "forums": {
         "updateSuccess": "Forum updated",
         "createSuccess": "Forum created",

@@ -13,7 +13,7 @@ import { IncidentTable } from "@/components/admin/incidents/IncidentTable";
 import { IncidentDialog } from "@/components/admin/incidents/IncidentDialog";
 
 export default function Incidents() {
-  const { t } = useTranslation("incidents");
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();

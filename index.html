@@ -24,7 +24,7 @@
              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.onesignal.com;
              font-src 'self' https://fonts.gstatic.com;
              img-src 'self' data: blob: https:;
-             connect-src 'self' https: https://*.sentry.io https://*.onesignal.com https://api.onesignal.com;
+             connect-src 'self' https: http://localhost:* ws://localhost:* https://*.sentry.io https://*.onesignal.com https://api.onesignal.com;
              frame-src 'none';
              object-src 'none';
              base-uri 'self';

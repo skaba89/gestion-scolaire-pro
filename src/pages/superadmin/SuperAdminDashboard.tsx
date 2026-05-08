@@ -21,7 +21,6 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { useTenant } from "@/contexts/TenantContext";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
   Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle
@@ -65,7 +64,6 @@ const getTypeBadge = (type: string) => {
 const SuperAdminDashboard = () => {
   const { hasRole } = useAuth();
   const navigate = useNavigate();
-  const { switchTenant } = useTenant();
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: tenants = [], isLoading, refetch } = useQuery<TenantStat[]>({
@@ -275,8 +273,7 @@ const SuperAdminDashboard = () => {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={async () => {
-                                  await switchTenant(tenant.id);
+                                onClick={() => {
                                   window.open(
                                     window.location.origin + `/${tenant.slug}/admin`,
                                     "_blank",

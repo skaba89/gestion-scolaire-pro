@@ -12,7 +12,9 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
-ARG VITE_API_URL=http://localhost:8000
+# Default to /api so nginx proxies API calls (docker-compose passes VITE_API_URL=/api).
+# Fallback http://localhost:8000 was causing direct API calls that bypassed nginx.
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
@@ -21,14 +23,17 @@ RUN npm run build
 # ─── Production: Nginx serves static files ──────────────────────────────────
 FROM nginx:alpine
 
-# Copy custom nginx config
+# Replace main nginx.conf (pid → /tmp, no user directive, temp paths → /tmp)
+COPY docker/nginx-main.conf /etc/nginx/nginx.conf
+
+# Copy custom server block config
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Ensure nginx can serve the files
-RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run /var/log/nginx && \
+# Ensure nginx can write to needed dirs; temp dirs created in /tmp at runtime
+RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx && \
     chmod -R 755 /usr/share/nginx/html
 
 # SECURITY: Run as non-root user

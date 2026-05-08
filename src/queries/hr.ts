@@ -49,6 +49,26 @@ export const hrQueries = {
         },
         enabled: !!tenantId,
     }),
+    /**
+     * Returns the last contract_number string (e.g. "CTR-2026-0003") so that
+     * ContractDialog can auto-increment the next sequence number.
+     * Derives from existing contracts — no dedicated backend endpoint needed.
+     */
+    lastContractNumber: (tenantId: string) => ({
+        queryKey: ["lastContractNumber", tenantId] as const,
+        queryFn: async (): Promise<string | null> => {
+            const response = await apiClient.get<Contract[]>("/hr/contracts/");
+            const contracts = response.data;
+            if (!contracts || contracts.length === 0) return null;
+            // Sort descending by contract_number (CTR-YEAR-SEQ format sorts lexicographically)
+            const sorted = [...contracts]
+                .map(c => c.contract_number)
+                .filter(Boolean)
+                .sort((a, b) => b.localeCompare(a));
+            return sorted[0] ?? null;
+        },
+        enabled: !!tenantId,
+    }),
 };
 // --- Employee Mutations ---
 

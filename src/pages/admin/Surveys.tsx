@@ -11,7 +11,7 @@ import { SurveyDialog } from "@/components/admin/surveys/SurveyDialog";
 import { SurveyResultsDialog } from "@/components/admin/surveys/SurveyResultsDialog";
 
 export default function Surveys() {
-  const { t } = useTranslation("surveys");
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);

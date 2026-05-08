@@ -39,6 +39,7 @@ const TenantLanding = lazy(() => import("./pages/public/TenantLanding"));
 const PublicPageView = lazy(() => import("./pages/public/PublicPageView"));
 const SuperAdminDashboard = lazy(() => import("./pages/superadmin/SuperAdminDashboard"));
 const CreateTenantWithAdmin = lazy(() => import("./pages/superadmin/CreateTenantWithAdmin"));
+const SaaSDashboard = lazy(() => import("./pages/superadmin/SaaSDashboard"));
 const TenantAuth = lazy(() => import("./pages/TenantAuth"));
 const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 
@@ -121,6 +122,7 @@ const AppContent = memo(() => {
                 }
               >
                 <Route index element={<SuperAdminDashboard />} />
+                <Route path="saas-dashboard" element={<SaaSDashboard />} />
                 <Route path="tenants" element={<SuperAdminDashboard />} />
                 <Route path="create-tenant" element={<CreateTenantWithAdmin />} />
               </Route>

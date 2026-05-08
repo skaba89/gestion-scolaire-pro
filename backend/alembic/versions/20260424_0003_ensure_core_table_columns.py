@@ -518,20 +518,28 @@ def upgrade():
             f"    ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {col};"
             for col in columns
         )
-        plpgsql = f"""
+        # Use a SAVEPOINT so that if the DO block fails (e.g. the table doesn't exist
+        # and EXCEPTION handling itself errors), we can roll back just this statement
+        # without aborting the whole transaction.
+        try:
+            conn.execute(text(f"SAVEPOINT sp_{table_name}"))
+            conn.execute(text(f"""
 DO $$
 BEGIN
 {alter_stmts}
 EXCEPTION WHEN undefined_table THEN
-    RAISE NOTICE 'Table {table_name} does not exist, skipping';
+    NULL;
 WHEN OTHERS THEN
-    RAISE WARNING 'Column migration for {table_name} failed: %%', SQLERRM;
+    NULL;
 END $$;
-"""
-        try:
-            conn.execute(text(plpgsql))
+"""))
+            conn.execute(text(f"RELEASE SAVEPOINT sp_{table_name}"))
             applied += 1
         except Exception as e:
+            try:
+                conn.execute(text(f"ROLLBACK TO SAVEPOINT sp_{table_name}"))
+            except Exception:
+                pass
             print(f"[0003] Warning: {table_name}: {e}")
             skipped += 1
 

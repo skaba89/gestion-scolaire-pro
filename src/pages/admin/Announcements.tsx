@@ -18,7 +18,7 @@ import { AnnouncementList } from "@/components/communication/AnnouncementList";
 import { AnnouncementDialog } from "@/components/communication/AnnouncementDialog";
 
 export default function Announcements() {
-    const { t } = useTranslation("announcements");
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { StudentLabel } = useStudentLabel();
     const [isDialogOpen, setIsDialogOpen] = useState(false);

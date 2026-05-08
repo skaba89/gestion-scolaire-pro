@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 export default function Marketplace() {
-    const { t } = useTranslation("marketplace");
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { user } = useAuth();
     const queryClient = useQueryClient();
