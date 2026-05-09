@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: students_clean
+    description: "Vue nettoyée et dédupliquée des élèves depuis bronze.students_raw."
+    columns:
+      - name: student_id
+        tests:
+          - not_null
+      - name: tenant_id
+        tests:
+          - not_null
+      - name: status
+        description: "Statut opérationnel de l'élève."
