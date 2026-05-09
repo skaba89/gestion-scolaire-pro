@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: student_performance
+    description: "Data mart Gold pour les performances et le risque de décrochage."
+    columns:
+      - name: student_id
+        tests:
+          - not_null
+      - name: tenant_id
+        tests:
+          - not_null
+      - name: dropout_risk_level
+        description: "Niveau de risque de décrochage calculé analytiquement."
