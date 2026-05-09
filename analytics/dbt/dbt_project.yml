@@ -1,0 +1,32 @@
+name: schoolflow_analytics
+version: '1.0.0'
+config-version: 2
+
+profile: schoolflow_analytics
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+analysis-paths: ["analyses"]
+snapshot-paths: ["snapshots"]
+
+target-path: target
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  schoolflow_analytics:
+    bronze:
+      +schema: bronze
+      +materialized: view
+    silver:
+      +schema: silver
+      +materialized: view
+    gold:
+      +schema: gold
+      +materialized: table
+    ml:
+      +schema: ml
+      +materialized: table
