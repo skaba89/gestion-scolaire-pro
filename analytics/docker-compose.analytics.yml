@@ -1,0 +1,134 @@
+services:
+  postgres_analytics:
+    image: postgres:16-alpine
+    container_name: schoolflow_postgres_analytics
+    environment:
+      POSTGRES_DB: ${ANALYTICS_POSTGRES_DB:-schoolflow_analytics}
+      POSTGRES_USER: ${ANALYTICS_POSTGRES_USER:-analytics}
+      POSTGRES_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-analytics_password_change_me}
+    ports:
+      - "127.0.0.1:${ANALYTICS_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - analytics_pg_data:/var/lib/postgresql/data
+      - ./sql/init_analytics_schemas.sql:/docker-entrypoint-initdb.d/001_init_analytics_schemas.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_POSTGRES_USER:-analytics} -d ${ANALYTICS_POSTGRES_DB:-schoolflow_analytics}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - schoolflow_analytics
+
+  minio_analytics:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    container_name: schoolflow_minio_analytics
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${ANALYTICS_MINIO_ROOT_USER:-analytics_minio}
+      MINIO_ROOT_PASSWORD: ${ANALYTICS_MINIO_ROOT_PASSWORD:-analytics_minio_password_change_me}
+    ports:
+      - "127.0.0.1:${ANALYTICS_MINIO_API_PORT:-9100}:9000"
+      - "127.0.0.1:${ANALYTICS_MINIO_CONSOLE_PORT:-9101}:9001"
+    volumes:
+      - analytics_minio_data:/data
+    networks:
+      - schoolflow_analytics
+
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    container_name: schoolflow_zookeeper
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+    ports:
+      - "127.0.0.1:${ZOOKEEPER_PORT:-2181}:2181"
+    networks:
+      - schoolflow_analytics
+
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: schoolflow_kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_CFG_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "127.0.0.1:${KAFKA_PORT:-9092}:9092"
+    networks:
+      - schoolflow_analytics
+
+  airflow_db:
+    image: postgres:16-alpine
+    container_name: schoolflow_airflow_db
+    environment:
+      POSTGRES_DB: airflow
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+    volumes:
+      - airflow_pg_data:/var/lib/postgresql/data
+    networks:
+      - schoolflow_analytics
+
+  airflow:
+    image: apache/airflow:2.10.2-python3.11
+    container_name: schoolflow_airflow
+    depends_on:
+      - airflow_db
+      - postgres_analytics
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_db:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY:-schoolflow_analytics_secret_change_me}
+      ANALYTICS_DATABASE_URL: postgresql://analytics:analytics_password_change_me@postgres_analytics:5432/schoolflow_analytics
+      OLTP_DATABASE_URL: ${OLTP_DATABASE_URL:-postgresql://schoolflow:schoolflow@host.docker.internal:5432/schoolflow}
+    ports:
+      - "127.0.0.1:${AIRFLOW_PORT:-8088}:8080"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/scripts:/opt/airflow/scripts
+      - ./dbt:/opt/airflow/dbt
+    command: >
+      bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname Analytics --role Admin --email admin@example.com || true && airflow webserver & airflow scheduler"
+    networks:
+      - schoolflow_analytics
+
+  superset:
+    image: apache/superset:4.1.1
+    container_name: schoolflow_superset_analytics
+    depends_on:
+      - postgres_analytics
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-schoolflow_superset_secret_change_me}
+    ports:
+      - "127.0.0.1:${SUPERSET_PORT:-8089}:8088"
+    networks:
+      - schoolflow_analytics
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.17.0
+    container_name: schoolflow_mlflow
+    depends_on:
+      - postgres_analytics
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://analytics:analytics_password_change_me@postgres_analytics:5432/schoolflow_analytics
+      --default-artifact-root s3://mlflow/
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "127.0.0.1:${MLFLOW_PORT:-5055}:5000"
+    networks:
+      - schoolflow_analytics
+
+volumes:
+  analytics_pg_data:
+  analytics_minio_data:
+  airflow_pg_data:
+
+networks:
+  schoolflow_analytics:
+    driver: bridge
