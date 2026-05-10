@@ -34,6 +34,24 @@ sed -i '/career_events.id/d' /app/alembic/versions/20260406_create_operational_t
 # Some local schemas do not include students.classroom_id / attendance.classroom_id.
 sed -i '/classroom_id/d' /app/alembic/versions/20260424_0001_composite_indexes_and_tenant_unique.py || true
 
+# FastAPI main.py also tries to run Alembic during lifespan startup.
+# In Docker dev, this script owns the migration phase. Disable the duplicate run
+# to prevent InFailedSqlTransaction after legacy migration fallbacks.
+python - <<'PY'
+from pathlib import Path
+p = Path('/app/app/main.py')
+s = p.read_text()
+s = s.replace(
+    'command.upgrade(alembic_cfg, "head")',
+    'logger.warning("Docker dev: Alembic auto-migration skipped because docker_dev_start.sh already handled migrations")'
+)
+s = s.replace(
+    'command.upgrade(alembic_cfg, "heads")',
+    'logger.warning("Docker dev: Alembic auto-migration skipped because docker_dev_start.sh already handled migrations")'
+)
+p.write_text(s)
+PY
+
 echo "==> Running Alembic base chain..."
 alembic upgrade 20260406_add_term_is_active
 
