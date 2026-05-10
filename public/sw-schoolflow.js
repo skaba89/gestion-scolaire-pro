@@ -11,8 +11,8 @@
 // application layer via IndexedDB (Dexie). The SW only manages the app shell.
 // =============================================================================
 
-const CACHE_NAME = "schoolflow-offline-v2";
-const SHELL_CACHE = "schoolflow-shell-v2";
+const CACHE_NAME = "schoolflow-offline-v3";
+const SHELL_CACHE = "schoolflow-shell-v3";
 
 // API patterns to NEVER intercept — always pass through to network
 const API_PATTERNS = [
@@ -29,22 +29,30 @@ function isApiRequest(url) {
 }
 
 function isStaticAsset(url) {
-  // Vite build output: /assets/vendor-xxx-[hash].js, /assets/index-[hash].css, etc.
   return (
     /\/assets\/.*\.(js|css|woff2?|ttf|eot)/.test(url) ||
     /\.(png|jpg|jpeg|svg|ico|webp|gif)(\?.*)?$/.test(url)
   );
 }
 
-// ── Install: cache the app shell immediately ──────────────────────────────────
+async function putInCache(cacheName, request, response) {
+  if (!response || !response.ok) return;
+  try {
+    const responseForCache = response.clone();
+    const cache = await caches.open(cacheName);
+    await cache.put(request, responseForCache);
+  } catch (error) {
+    // Never break navigation/static loading because of a cache write failure.
+    console.warn("[sw-schoolflow] cache put skipped:", error);
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
       .then((cache) => {
-        // Pre-cache only the root — JS bundles cached on first fetch
         return cache.add("/").catch(() => {
-          // / might redirect, try index.html directly
           return cache.add("/index.html").catch(() => {});
         });
       })
@@ -52,7 +60,6 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// ── Activate: remove old caches ───────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -68,91 +75,68 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// ── Fetch: route requests ─────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = request.url;
 
-  // ── 1. Skip non-GET and API calls entirely ────────────────────────────────
   if (request.method !== "GET" || isApiRequest(url)) {
-    return; // Let browser handle normally
+    return;
   }
 
-  // ── 2. Navigation requests (HTML pages) ───────────────────────────────────
-  // Network-first: try to get fresh HTML, fall back to cached app shell
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            // Update app shell cache with fresh response
-            caches
-              .open(SHELL_CACHE)
-              .then((cache) => cache.put(request, response.clone()));
-          }
+      (async () => {
+        try {
+          const response = await fetch(request);
+          event.waitUntil(putInCache(SHELL_CACHE, request, response));
           return response;
-        })
-        .catch(() => {
-          // Offline: serve the cached app shell
+        } catch (_) {
           return (
-            caches.match(request) ||
-            caches.match("/") ||
-            caches.match("/index.html")
+            (await caches.match(request)) ||
+            (await caches.match("/")) ||
+            (await caches.match("/index.html")) ||
+            Response.error()
           );
-        })
+        }
+      })()
     );
     return;
   }
 
-  // ── 3. Static assets: Cache-First ─────────────────────────────────────────
-  // Hashed assets (immutable) → serve from cache immediately
-  // Non-hashed assets → revalidate in background
   if (isStaticAsset(url)) {
     event.respondWith(
-      caches.match(request).then((cached) => {
+      (async () => {
+        const cached = await caches.match(request);
+
         if (cached) {
-          // Has a hash in filename → truly immutable, serve directly
           if (/\/assets\/.*-[a-f0-9]{8,}\./.test(url)) {
             return cached;
           }
-          // No hash → revalidate in background (stale-while-revalidate)
-          const networkFetch = fetch(request)
-            .then((response) => {
-              if (response.ok) {
-                caches
-                  .open(CACHE_NAME)
-                  .then((cache) => cache.put(request, response.clone()));
-              }
-              return response;
-            })
-            .catch(() => cached);
-          return cached; // Return cached immediately, update in background
+
+          event.waitUntil(
+            fetch(request)
+              .then((response) => putInCache(CACHE_NAME, request, response))
+              .catch(() => undefined)
+          );
+          return cached;
         }
 
-        // Not cached: fetch and store
-        return fetch(request).then((response) => {
-          if (response.ok) {
-            caches
-              .open(CACHE_NAME)
-              .then((cache) => cache.put(request, response.clone()));
-          }
-          return response;
-        });
-      })
+        const response = await fetch(request);
+        event.waitUntil(putInCache(CACHE_NAME, request, response));
+        return response;
+      })()
     );
     return;
   }
-
-  // ── 4. Everything else: Network-only ──────────────────────────────────────
-  // Don't cache dynamic content (unknown patterns, WebSocket upgrades, etc.)
 });
 
-// ── Message: force update ─────────────────────────────────────────────────────
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
   if (event.data && event.data.type === "CLEAR_CACHE") {
-    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+    event.waitUntil(
+      caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+    );
   }
 });
