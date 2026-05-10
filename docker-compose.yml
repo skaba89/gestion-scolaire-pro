@@ -86,7 +86,7 @@ services:
       GROQ_MAX_TOKENS: ${GROQ_MAX_TOKENS:-4096}
     ports:
       - "${API_PORT:-8000}:8000"
-    command: ["bash", "-c", "sed -i '/career_events.id/d' /app/alembic/versions/20260406_create_operational_tables.py && sed -i '/ix_students_tenant_classroom/d' /app/alembic/versions/20260424_0001_composite_indexes_and_tenant_unique.py && alembic upgrade 20260406_add_term_is_active && PGPASSWORD=${POSTGRES_PASSWORD} psql -h postgres -U ${POSTGRES_USER:-schoolflow} -d ${POSTGRES_DB:-schoolflow} -c 'ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(256);' && alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    command: ["bash", "-c", "sed -i '/career_events.id/d' /app/alembic/versions/20260406_create_operational_tables.py && sed -i '/classroom_id/d' /app/alembic/versions/20260424_0001_composite_indexes_and_tenant_unique.py && alembic upgrade 20260406_add_term_is_active && PGPASSWORD=${POSTGRES_PASSWORD} psql -h postgres -U ${POSTGRES_USER:-schoolflow} -d ${POSTGRES_DB:-schoolflow} -c 'ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(256);' && alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ || exit 1"]
       interval: 15s
