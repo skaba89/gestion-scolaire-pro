@@ -27,12 +27,9 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Ensure nginx can serve the files and write runtime temp files as non-root
+# Ensure nginx can serve the files and write runtime temp files
 RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run /var/log/nginx /tmp && \
     chmod -R 755 /usr/share/nginx/html
-
-# SECURITY: Run as non-root user
-USER nginx
 
 EXPOSE 80
 
