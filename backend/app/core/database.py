@@ -25,15 +25,29 @@ else:
     _engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
     _engine_kwargs["pool_pre_ping"] = True
 
-    # Neon / cloud PostgreSQL requires SSL.  Detect sslmode in the URL and
-    # pass it through connect_args so psycopg v3 can establish a secure conn.
     _db_url = settings.DATABASE_URL_SYNC or ""
-    if "sslmode=require" in _db_url or "sslmode" in _db_url:
-        _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "require"
+    _is_local_docker_db = any(
+        marker in _db_url for marker in (
+            "@postgres:",
+            "@localhost:",
+            "@127.0.0.1:",
+            "sslmode=disable",
+            "sslmode=prefer",
+        )
+    )
 
-    # SECURITY: Force SSL for PostgreSQL in non-DEBUG environments.
-    # Prevents accidental plaintext database connections in production.
-    if not settings.DEBUG and not settings.is_sqlite:
+    # Respect explicit sslmode in URL. Previous implementation forced
+    # sslmode=require whenever the URL contained the word "sslmode", which broke
+    # local Docker PostgreSQL when DATABASE_URL ended with ?sslmode=disable.
+    if "sslmode=require" in _db_url or "sslmode=verify-full" in _db_url or "sslmode=verify-ca" in _db_url:
+        _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "require"
+    elif "sslmode=disable" in _db_url:
+        _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "disable"
+
+    # SECURITY: Force SSL for PostgreSQL in non-DEBUG environments, except for
+    # explicit local Docker/dev URLs. Local postgres image does not support SSL by
+    # default and will fail with: "server does not support SSL, but SSL was required".
+    if not settings.DEBUG and not settings.is_sqlite and not _is_local_docker_db:
         _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "require"
 
 # Create SQLAlchemy engine
