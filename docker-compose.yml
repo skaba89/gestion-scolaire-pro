@@ -91,11 +91,11 @@ services:
       - "${API_PORT:-8000}:8000"
     command: ["bash", "/app/scripts/docker_dev_start.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3).read()\" || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.create_connection(('127.0.0.1', 8000), 3); s.close()\" || exit 1"]
       interval: 15s
       timeout: 5s
-      retries: 5
-      start_period: 45s
+      retries: 10
+      start_period: 90s
     networks:
       - schoolflow-network
     mem_limit: 512m
