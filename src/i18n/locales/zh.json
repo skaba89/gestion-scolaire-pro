@@ -193,7 +193,7 @@
     "reportCardGenerating": "生成中...",
     "reportCardBatchPreparing": "正在准备{{count}}份成绩单",
     "reportCardBatchGenerated": "{{count}}份成绩单已生成 ✅",
-    "reportCardBatchHint": "在打开的窗口中点击"打印"→"另存为PDF"",
+    "reportCardBatchHint": "在打开的窗口中点击\"打印\"→\"另存为PDF\"",
     "reportCardBatchError": "批量生成错误",
     "retryLater": "请稍后重试"
   },
@@ -212,7 +212,7 @@
     "councilDecision": "班级委员会决定及选项",
     "councilDecisionLabel": "班级委员会决定",
     "generalAppreciation": "班主任总体评语",
-    "showOfficialHeader": "显示"几内亚共和国"官方抬头",
+    "showOfficialHeader": "显示\"几内亚共和国\"官方抬头",
     "individualReports": "个人成绩单",
     "resultsAnalysis": "成绩分析"
   }
