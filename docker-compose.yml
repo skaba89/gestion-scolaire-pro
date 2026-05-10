@@ -67,7 +67,9 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-schoolflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-schoolflow}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-schoolflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-schoolflow}?sslmode=disable
+      DATABASE_URL_SYNC: postgresql+psycopg://${POSTGRES_USER:-schoolflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-schoolflow}?sslmode=disable
+      DATABASE_URL_ASYNC: postgresql+psycopg://${POSTGRES_USER:-schoolflow}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-schoolflow}?sslmode=disable
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
@@ -79,6 +81,7 @@ services:
       BOOTSTRAP_SECRET: ${BOOTSTRAP_SECRET:?BOOTSTRAP_SECRET is required}
       ADMIN_DEFAULT_EMAIL: ${ADMIN_DEFAULT_EMAIL:-admin@schoolflow.local}
       ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:?ADMIN_DEFAULT_PASSWORD is required}
+      SKIP_STARTUP_MIGRATIONS: "true"
       DEBUG: ${DEBUG:-False}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
@@ -88,11 +91,11 @@ services:
       - "${API_PORT:-8000}:8000"
     command: ["bash", "/app/scripts/docker_dev_start.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3).read()\" || exit 1"]
       interval: 15s
       timeout: 5s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 45s
     networks:
       - schoolflow-network
     mem_limit: 512m
