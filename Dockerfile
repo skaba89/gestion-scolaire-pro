@@ -27,8 +27,8 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Ensure nginx can serve the files
-RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run /var/log/nginx && \
+# Ensure nginx can serve the files and write runtime temp files as non-root
+RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/run /var/log/nginx /tmp && \
     chmod -R 755 /usr/share/nginx/html
 
 # SECURITY: Run as non-root user
@@ -39,4 +39,4 @@ EXPOSE 80
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
   CMD ["wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/"]
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["nginx", "-g", "pid /tmp/nginx.pid; daemon off;"]
