@@ -8,9 +8,14 @@ Pourquoi :
 - Les requêtes LIST sur tables larges scannent toute la table par tenant_id seul.
 - Les index composites (tenant_id, champ_filtré) réduisent les scans de 10x à 100x.
 - registration_number doit être unique PAR tenant, pas globalement.
+
+Cette migration est volontairement défensive : certaines bases locales/legacy
+n'ont pas encore toutes les colonnes optionnelles. Les index sont donc créés
+uniquement lorsque les colonnes existent réellement dans PostgreSQL.
 """
 from alembic import op
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError, OperationalError
 
 revision = "20260424_0001"
 down_revision = "20260411_add_user_must_change_password"
@@ -19,22 +24,32 @@ depends_on = None
 
 
 def _table_exists(conn, table_name: str) -> bool:
-    result = conn.execute(text(
-        "SELECT EXISTS ("
-        "  SELECT 1 FROM information_schema.tables"
-        "  WHERE table_schema = 'public' AND table_name = :t"
-        ")"
-    ), {"t": table_name})
+    result = conn.execute(
+        text("SELECT to_regclass(:qualified_name) IS NOT NULL"),
+        {"qualified_name": f"public.{table_name}"},
+    )
     return bool(result.scalar())
 
 
 def _column_exists(conn, table_name: str, column_name: str) -> bool:
-    result = conn.execute(text(
-        "SELECT EXISTS ("
-        "  SELECT 1 FROM information_schema.columns"
-        "  WHERE table_schema = 'public' AND table_name = :t AND column_name = :c"
-        ")"
-    ), {"t": table_name, "c": column_name})
+    result = conn.execute(
+        text(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_attribute a
+                JOIN pg_class c ON c.oid = a.attrelid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relname = :table_name
+                  AND a.attname = :column_name
+                  AND a.attnum > 0
+                  AND NOT a.attisdropped
+            )
+            """
+        ),
+        {"table_name": table_name, "column_name": column_name},
+    )
     return bool(result.scalar())
 
 
@@ -43,27 +58,45 @@ def _columns_exist(conn, table_name: str, columns: list[str]) -> bool:
 
 
 def _index_exists(conn, index_name: str) -> bool:
-    result = conn.execute(text(
-        "SELECT EXISTS ("
-        "  SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = :i"
-        ")"
-    ), {"i": index_name})
+    result = conn.execute(
+        text(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = :i"
+            ")"
+        ),
+        {"i": index_name},
+    )
     return bool(result.scalar())
 
 
 def _constraint_exists(conn, constraint_name: str, table_name: str) -> bool:
-    result = conn.execute(text(
-        "SELECT EXISTS ("
-        "  SELECT 1 FROM information_schema.table_constraints"
-        "  WHERE table_schema = 'public' AND constraint_name = :c AND table_name = :t"
-        ")"
-    ), {"c": constraint_name, "t": table_name})
+    result = conn.execute(
+        text(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM information_schema.table_constraints"
+            "  WHERE table_schema = 'public' AND constraint_name = :c AND table_name = :t"
+            ")"
+        ),
+        {"c": constraint_name, "t": table_name},
+    )
     return bool(result.scalar())
 
 
 def _create_index_if_columns_exist(conn, index_name: str, table_name: str, columns: list[str]) -> None:
-    if _table_exists(conn, table_name) and _columns_exist(conn, table_name, columns) and not _index_exists(conn, index_name):
+    if not _table_exists(conn, table_name):
+        return
+    if not _columns_exist(conn, table_name, columns):
+        return
+    if _index_exists(conn, index_name):
+        return
+
+    try:
         op.create_index(index_name, table_name, columns)
+    except (ProgrammingError, OperationalError):
+        # Defensive migration: optional optimization indexes must never prevent
+        # a fresh environment from booting when a legacy/parallel migration has
+        # not yet introduced a column.
+        conn.rollback()
 
 
 def upgrade():
@@ -84,7 +117,7 @@ def upgrade():
                 op.create_unique_constraint(
                     "uq_students_tenant_registration",
                     "students",
-                    ["tenant_id", "registration_number"]
+                    ["tenant_id", "registration_number"],
                 )
 
     # ── 2. Index composites sur grades ───────────────────────────────────────
@@ -144,5 +177,5 @@ def downgrade():
             op.create_unique_constraint(
                 "uq_students_registration_number",
                 "students",
-                ["registration_number"]
+                ["registration_number"],
             )
