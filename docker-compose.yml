@@ -86,7 +86,7 @@ services:
       GROQ_MAX_TOKENS: ${GROQ_MAX_TOKENS:-4096}
     ports:
       - "${API_PORT:-8000}:8000"
-    command: ["bash", "-c", "alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    command: ["bash", "-c", "python - <<'PY'\nfrom pathlib import Path\np=Path('/app/alembic/versions/20260406_create_operational_tables.py')\ns=p.read_text()\ns=s.replace('        sa.ForeignKeyConstraint([\"event_id\"], [\"career_events.id\"], ondelete=\"CASCADE\"),\n', '')\np.write_text(s)\nPY\nalembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health/ || exit 1"]
       interval: 15s
