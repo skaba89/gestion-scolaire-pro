@@ -1,0 +1,92 @@
+# docker-compose.prod.yml — Production overlay
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  postgres:
+    restart: always
+    mem_limit: 1g
+    environment:
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=512MB
+        -c work_mem=4MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=100
+        -c log_min_duration_statement=500
+        -c log_checkpoints=on
+        -c log_connections=on
+        -c log_disconnections=on
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  redis:
+    restart: always
+    command: >
+      sh -c 'redis-server
+        --requirepass "$$REDIS_PASSWORD"
+        --maxmemory 128mb
+        --maxmemory-policy allkeys-lru
+        --appendonly yes
+        --appendfsync everysec'
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    mem_limit: 1g
+    environment:
+      DEBUG: "false"
+      LOG_LEVEL: "WARNING"
+      WORKERS: "4"
+    command: >
+      bash -c "
+        alembic upgrade head &&
+        exec gunicorn app.main:app
+          --bind 0.0.0.0:8000
+          --workers $${WORKERS:-4}
+          --worker-class uvicorn.workers.UvicornWorker
+          --timeout 120
+          --graceful-timeout 30
+          --keep-alive 5
+          --max-requests 1000
+          --max-requests-jitter 50
+          --access-logfile -
+          --error-logfile -
+      "
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+
+  frontend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+  db-backup:
+    restart: always
+    environment:
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: "30"
+      BACKUP_KEEP_WEEKS: "8"
+      BACKUP_KEEP_MONTHS: "6"
+      HEALTHCHECK_PORT: "8080"
+
+  pgadmin:
+    profiles: ["debug"]
