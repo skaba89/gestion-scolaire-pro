@@ -8,11 +8,13 @@ WORKDIR /app
 
 # Install dependencies first (layer caching)
 COPY package.json package-lock.json ./
-RUN npm ci
+# The project currently needs legacy peer resolution, same as CI.
+RUN npm ci --legacy-peer-deps
 
 # Copy source and build
 COPY . .
-ARG VITE_API_URL=http://localhost:8000
+# In Docker, Nginx proxies /api/ to the backend container.
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
