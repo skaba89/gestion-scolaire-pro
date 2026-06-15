@@ -1,5 +1,5 @@
 """Tenant model"""
-from sqlalchemy import Column, String, Boolean, JSON, Text
+from sqlalchemy import Column, String, Boolean, JSON, Text, DateTime
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, UUIDMixin, TimestampMixin
@@ -20,6 +20,15 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     website = Column(String(255))
     is_active = Column(Boolean, default=True)
     settings = Column(JSON, default=dict)
+
+    # Legacy billing columns kept for backward compatibility with /billing and
+    # /platform endpoints while Phase 4 introduces normalized SaaS tables.
+    billing_email = Column(String(255))
+    subscription_plan = Column(String(50), default="starter")
+    subscription_status = Column(String(50), default="trialing")
+    trial_ends_at = Column(DateTime)
+    stripe_customer_id = Column(String(255), index=True)
+    stripe_subscription_id = Column(String(255), index=True)
 
     # Signature / official document fields
     director_name = Column(String(255))
