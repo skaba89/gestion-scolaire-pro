@@ -4,7 +4,6 @@
 # Runs on push to main and pull_request to main.
 # Four independent jobs: frontend (lint+typecheck+build), backend (syntax+security+pytest),
 # backend-tests (PostgreSQL integration), and security (dependency + secret scanning).
-# Designed to complete in under 5 minutes.
 # =============================================================================
 
 name: CI
@@ -20,7 +19,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Frontend: lint + type-check + build ─────────────────────────────────
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -61,7 +59,6 @@ jobs:
         env:
           CI: true
 
-  # ── Backend: syntax + import + security validation ───────────────────────
   backend:
     name: Backend
     runs-on: ubuntu-latest
@@ -95,7 +92,6 @@ jobs:
         run: |
           echo "Scanning for hardcoded secrets in backend..."
           SECRETS_FOUND=0
-          # Check for common secret patterns in Python files
           if rg -l 'password\s*=\s*["\x27][^"\x27]{4,}["\x27]' backend/app/ --type py 2>/dev/null; then
             echo "WARNING: Possible hardcoded password found"
             SECRETS_FOUND=1
@@ -111,19 +107,15 @@ jobs:
       - name: Check for dangerous patterns
         run: |
           echo "Scanning for dangerous patterns..."
-          # eval() usage
           if rg -l '\beval\s*\(' backend/app/ --type py 2>/dev/null; then
             echo "WARNING: eval() found in backend code"
           fi
-          # exec() usage with user input risk
           if rg -l '\bexec\s*\(' backend/app/ --type py 2>/dev/null; then
             echo "WARNING: exec() found in backend code"
           fi
-          # pickle deserialization
           if rg -l 'pickle\.load' backend/app/ --type py 2>/dev/null; then
             echo "WARNING: pickle.load (insecure deserialization) found"
           fi
-          # subprocess shell=True
           if rg -l 'shell\s*=\s*True' backend/app/ --type py 2>/dev/null; then
             echo "WARNING: subprocess with shell=True found"
           fi
@@ -150,7 +142,6 @@ jobs:
           path: backend/coverage.xml
           retention-days: 7
 
-  # ── Backend Tests: PostgreSQL integration ──────────────────────────────
   backend-tests:
     name: Backend Tests (PostgreSQL)
     runs-on: ubuntu-latest
@@ -158,18 +149,50 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Start PostgreSQL service
+      - name: Prepare Docker CI env
         run: |
-          docker compose -f docker-compose.yml up postgres -d --wait
-        env:
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_DB: schoolflow_test
-          POSTGRES_USER: schoolflow
+          cat > .env.docker.ci <<'EOF'
+          POSTGRES_DB=schoolflow_test
+          POSTGRES_USER=schoolflow
+          POSTGRES_PASSWORD=testpassword
+          POSTGRES_PORT=5432
+          REDIS_PASSWORD=testredispassword
+          REDIS_PORT=6379
+          MINIO_ROOT_USER=minioadmin
+          MINIO_ROOT_PASSWORD=testminio123
+          MINIO_BUCKET=schoolflow
+          MINIO_API_PORT=9002
+          MINIO_CONSOLE_PORT=9001
+          SECRET_KEY=test-secret-key-for-ci-min-32-chars
+          BOOTSTRAP_SECRET=test-bootstrap-secret-key-for-ci-32chars
+          ADMIN_DEFAULT_EMAIL=admin@schoolflow.local
+          ADMIN_DEFAULT_PASSWORD=testpassword123
+          API_PORT=8000
+          FRONTEND_PORT=3000
+          VITE_API_URL=/api
+          DEBUG=true
+          LOG_LEVEL=INFO
+          BACKEND_CORS_ORIGINS=http://localhost:3000
+          GROQ_API_KEY=
+          GROQ_MODEL=llama-3.3-70b-versatile
+          GROQ_MAX_TOKENS=4096
+          BACKUP_SCHEDULE=@daily
+          BACKUP_KEEP_DAYS=7
+          BACKUP_KEEP_WEEKS=4
+          BACKUP_KEEP_MONTHS=6
+          EOF
+          sed -i 's/^          //' .env.docker.ci
+
+      - name: Validate docker compose config
+        run: docker compose --env-file .env.docker.ci -f docker-compose.yml config >/tmp/compose.yml
+
+      - name: Start PostgreSQL service
+        run: docker compose --env-file .env.docker.ci -f docker-compose.yml up postgres -d --wait
 
       - name: Wait for PostgreSQL to be ready
         run: |
           for i in $(seq 1 30); do
-            if docker compose -f docker-compose.yml exec -T postgres pg_isready -U schoolflow -d schoolflow_test > /dev/null 2>&1; then
+            if docker compose --env-file .env.docker.ci -f docker-compose.yml exec -T postgres pg_isready -U schoolflow -d schoolflow_test > /dev/null 2>&1; then
               echo "PostgreSQL is ready"
               break
             fi
@@ -197,6 +220,9 @@ jobs:
             --cov-fail-under=50
         env:
           DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
+          DATABASE_URL_SYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
+          DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
+          DEBUG: "true"
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
 
@@ -210,9 +236,8 @@ jobs:
 
       - name: Stop PostgreSQL service
         if: always()
-        run: docker compose -f docker-compose.yml down -v
+        run: docker compose --env-file .env.docker.ci -f docker-compose.yml down -v
 
-  # ── Security: dependency vulnerability scan ─────────────────────────────
   security:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -232,7 +257,6 @@ jobs:
       - name: Run npm audit
         run: |
           npm audit --audit-level=high --json > audit-results.json 2>&1 || true
-          # Fail if HIGH or CRITICAL vulnerabilities found
           HIGH_COUNT=$(python3 -c "import json; d=json.load(open('audit-results.json')); print(sum(1 for v in d.get('vulnerabilities',{}).values() if v.get('severity') in ('high','critical'))" 2>/dev/null || echo 0)
           if [ "$HIGH_COUNT" -gt 0 ]; then
             echo "::error::$HIGH_COUNT high/critical npm vulnerabilities found"
