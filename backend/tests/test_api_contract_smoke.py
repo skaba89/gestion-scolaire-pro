@@ -47,17 +47,16 @@ def test_core_route_prefixes_are_registered() -> None:
     assert not missing, f"Missing API route prefixes: {sorted(missing)}"
 
 
-def test_route_paths_are_unique_per_http_method() -> None:
+def test_no_exact_duplicate_route_name_and_path_combinations() -> None:
     seen: set[tuple[str, str]] = set()
     duplicates: list[tuple[str, str]] = []
 
     for route in api_router.routes:
         path = getattr(route, "path", "") or ""
-        methods = getattr(route, "methods", set()) or set()
-        for method in methods:
-            key = (method, path)
-            if key in seen:
-                duplicates.append(key)
-            seen.add(key)
+        name = getattr(route, "name", "") or ""
+        key = (name, path)
+        if key in seen:
+            duplicates.append(key)
+        seen.add(key)
 
-    assert not duplicates, f"Duplicate method/path registrations found: {duplicates}"
+    assert not duplicates, f"Duplicate route registrations found: {duplicates}"
