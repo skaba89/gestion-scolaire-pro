@@ -148,7 +148,7 @@ const TenantAuthPage = () => {
         localStorage.removeItem("last_tenant_id");
       }
 
-      const { error, profileData } = await signIn(normalizedEmail, trimmedPassword);
+      const { error, profileData } = await signIn(normalizedEmail, trimmedPassword, isUuid(tenantId) ? tenantId : null);
       if (error) {
         const msg = error.message || "Identifiants incorrects";
         console.error("[TenantAuth] Login failed:", msg);
@@ -167,7 +167,7 @@ const TenantAuthPage = () => {
       }
 
       const userRoles: string[] = (profileData?.roles as string[]) || [];
-      const profileSlug = (profileData?.tenant?.slug as string) || null;
+      const profileSlug = (profileData?.tenant?.slug as string) || tenantSlug || null;
 
       if (userRoles.includes("SUPER_ADMIN")) {
         navigate("/super-admin", { replace: true });
@@ -179,16 +179,6 @@ const TenantAuthPage = () => {
           description: "Aucun établissement associé à votre compte. Contactez un administrateur.",
           variant: "destructive",
         });
-        return;
-      }
-
-      if (tenantSlug && profileSlug !== tenantSlug) {
-        toast({
-          title: "Mauvais établissement",
-          description: `Ce compte est associé à l'établissement ${profileSlug}, pas à ${tenantSlug}.`,
-          variant: "destructive",
-        });
-        navigate(`/${profileSlug}/admin`, { replace: true });
         return;
       }
 
@@ -287,71 +277,81 @@ const TenantAuthPage = () => {
             </div>
           </div>
 
-          {/* Tagline */}
-          {(tagline || description) && (
-            <div className="mb-8 space-y-3">
-              {tagline && <p className="text-xl xl:text-2xl font-semibold text-white/95 leading-relaxed">{tagline}</p>}
-              {description && <p className="text-white/75 text-base xl:text-lg leading-relaxed max-w-lg">{description}</p>}
+          {/* Tagline / Motto */}
+          {(tagline || schoolMotto || description) && (
+            <div className="space-y-4 mb-8">
+              {tagline && (
+                <p className="text-xl xl:text-2xl font-semibold text-white leading-relaxed">
+                  {tagline}
+                </p>
+              )}
+              {schoolMotto && (
+                <p className="text-lg italic text-white/85 border-l-4 border-white/40 pl-4">
+                  “{schoolMotto}”
+                </p>
+              )}
+              {description && (
+                <p className="text-white/75 text-sm xl:text-base leading-relaxed max-w-lg">
+                  {description}
+                </p>
+              )}
             </div>
           )}
 
-          {/* Info Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-            {address && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 text-white/85">
-                <MapPin className="w-5 h-5 shrink-0 text-white/70" />
-                <span className="text-sm truncate">{address}</span>
-              </div>
-            )}
-            {website && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 text-white/85">
-                <Globe className="w-5 h-5 shrink-0 text-white/70" />
-                <span className="text-sm truncate">{website}</span>
-              </div>
-            )}
+          {/* Quick Info */}
+          <div className="flex flex-wrap gap-3 text-white/85 text-sm">
             {foundedYear && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 text-white/85">
-                <Calendar className="w-5 h-5 shrink-0 text-white/70" />
-                <span className="text-sm">Fondé en {foundedYear}</span>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg">
+                <Calendar className="w-4 h-4" />
+                <span>Fondé en {foundedYear}</span>
               </div>
             )}
             {accreditation && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 text-white/85">
-                <ShieldCheck className="w-5 h-5 shrink-0 text-white/70" />
-                <span className="text-sm truncate">{accreditation}</span>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg">
+                <ShieldCheck className="w-4 h-4" />
+                <span>{accreditation}</span>
+              </div>
+            )}
+            {stats?.students_count > 0 && (
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg">
+                <Users className="w-4 h-4" />
+                <span>{stats.students_count} étudiants</span>
               </div>
             )}
           </div>
 
-          {/* Stats */}
-          {stats && (
-            <div className="flex flex-wrap gap-4">
-              {stats.student_count !== undefined && (
-                <div className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
-                  <div className="text-2xl font-bold text-white">{stats.student_count}</div>
-                  <div className="text-xs text-white/60">Étudiants</div>
-                </div>
-              )}
-              {stats.teacher_count !== undefined && (
-                <div className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur-sm border border-white/10">
-                  <div className="text-2xl font-bold text-white">{stats.teacher_count}</div>
-                  <div className="text-xs text-white/60">Enseignants</div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* Contact Info */}
+          <div className="mt-8 space-y-2 text-white/70 text-sm">
+            {address && (
+              <div className="flex items-center gap-2 justify-center lg:justify-start">
+                <MapPin className="w-4 h-4" />
+                <span>{address}</span>
+              </div>
+            )}
+            {website && (
+              <div className="flex items-center gap-2 justify-center lg:justify-start">
+                <Globe className="w-4 h-4" />
+                <span>{website}</span>
+              </div>
+            )}
+            {(contactEmail || contactPhone) && (
+              <div className="text-white/60">
+                {[contactEmail, contactPhone].filter(Boolean).join(" · ")}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* RIGHT PANEL — Login Form */}
-      <div className="w-full lg:w-[45%] xl:w-[40%] min-h-screen flex items-center justify-center p-6 lg:p-10 bg-slate-50 dark:bg-slate-950">
+      {/* ═══════════════════════════════════════
+          RIGHT PANEL — Login Form
+          ═══════════════════════════════════════ */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-background">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left space-y-2">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Connexion
-            </h2>
-            <p className="text-slate-600 dark:text-slate-400">
-              Connectez-vous à votre espace {tenantName || "établissement"}
+            <h2 className="text-3xl font-bold tracking-tight">Connexion</h2>
+            <p className="text-muted-foreground">
+              Accédez à votre espace {tenantName ? `— ${tenantName}` : "établissement"}
             </p>
           </div>
 
@@ -361,11 +361,12 @@ const TenantAuthPage = () => {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
+                placeholder="votre@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder={contactEmail || "admin@etablissement.com"}
-                autoComplete="email"
-                required
+                disabled={submitting || isLoading}
+                className="h-12"
               />
             </div>
 
@@ -375,46 +376,47 @@ const TenantAuthPage = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  required
+                  disabled={submitting || isLoading}
+                  className="h-12 pr-12"
                 />
                 <button
                   type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
 
             <Button
               type="submit"
-              disabled={submitting || isLoading}
-              className="w-full h-11 text-base font-semibold"
+              className="w-full h-12 text-base font-semibold"
               style={{ backgroundColor: pColor }}
+              disabled={submitting || isLoading}
             >
               {submitting || isLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Connexion...
                 </>
               ) : (
                 <>
                   Se connecter
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                  <ArrowRight className="w-5 h-5 ml-2" />
                 </>
               )}
             </Button>
           </form>
 
-          <div className="text-center text-sm text-slate-500 dark:text-slate-400">
-            Besoin d'aide ? Contactez l'administration de votre établissement.
-          </div>
+          <p className="text-center text-sm text-muted-foreground">
+            Mot de passe oublié ? Contactez votre administrateur.
+          </p>
         </div>
       </div>
     </div>
