@@ -8,7 +8,8 @@ WORKDIR /app
 
 # Install dependencies first (layer caching)
 COPY package.json package-lock.json ./
-RUN npm ci
+# Keep Docker aligned with CI because the project currently needs legacy peer resolution.
+RUN npm ci --legacy-peer-deps
 
 # Copy source and build
 COPY . .
