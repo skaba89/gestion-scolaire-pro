@@ -30,9 +30,36 @@ def _uuid_type():
     return postgresql.UUID(as_uuid=True) if bind.dialect.name == "postgresql" else sa.CHAR(32)
 
 
+def _add_column_if_missing(table_name: str, column: sa.Column) -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing = {col["name"] for col in inspector.get_columns(table_name)}
+    if column.name not in existing:
+        op.add_column(table_name, column)
+
+
+def _create_index_if_missing(index_name: str, table_name: str, columns: list[str]) -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing = {idx["name"] for idx in inspector.get_indexes(table_name)}
+    if index_name not in existing:
+        op.create_index(index_name, table_name, columns)
+
+
 def upgrade() -> None:
     uuid_type = _uuid_type()
     json_type = _json_type()
+
+    # Legacy tenant billing fields used by existing /billing and /platform routes.
+    # Non-destructive: these columns are added only if missing.
+    _add_column_if_missing("tenants", sa.Column("billing_email", sa.String(length=255), nullable=True))
+    _add_column_if_missing("tenants", sa.Column("subscription_plan", sa.String(length=50), nullable=True, server_default="starter"))
+    _add_column_if_missing("tenants", sa.Column("subscription_status", sa.String(length=50), nullable=True, server_default="trialing"))
+    _add_column_if_missing("tenants", sa.Column("trial_ends_at", sa.DateTime(), nullable=True))
+    _add_column_if_missing("tenants", sa.Column("stripe_customer_id", sa.String(length=255), nullable=True))
+    _add_column_if_missing("tenants", sa.Column("stripe_subscription_id", sa.String(length=255), nullable=True))
+    _create_index_if_missing("ix_tenants_stripe_customer_id", "tenants", ["stripe_customer_id"])
+    _create_index_if_missing("ix_tenants_stripe_subscription_id", "tenants", ["stripe_subscription_id"])
 
     op.create_table(
         "subscription_plans",
