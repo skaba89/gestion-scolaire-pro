@@ -20,7 +20,7 @@ type AuthContextType = {
   isLoading: boolean;
   mustChangePassword: boolean;
   isMfaVerified: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null; profileData?: any }>;
+  signIn: (email: string, password: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any }>;
   verifyMfa: (token: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string, metadata?: unknown) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -152,21 +152,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('auth:logout', handleAuthLogout);
   }, [clearAuth, navigate]);
 
-  const signIn = useCallback(async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string, tenantId?: string | null) => {
     try {
       setIsLoading(true);
       const body = new URLSearchParams();
       body.set("username", email);
       body.set("password", password);
-      const response = await apiClient.post("/auth/login/", body, {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      });
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/x-www-form-urlencoded",
+      };
+
+      // Tenant-branded login pages must tell the backend which tenant context
+      // to authenticate against. Without this header, duplicate emails across
+      // tenants or tenant-scoped admins can be rejected with 401.
+      if (tenantId) {
+        headers["X-Tenant-ID"] = tenantId;
+        localStorage.setItem("last_tenant_id", tenantId);
+      }
+
+      const response = await apiClient.post("/auth/login/", body, { headers });
       const token = response.data?.access_token;
       if (!token) {
         throw new Error("No access token returned by API");
       }
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
-      const profileResponse = await apiClient.get("/users/me/");
+      const profileResponse = await apiClient.get("/users/me/", tenantId ? { headers: { "X-Tenant-ID": tenantId } } : undefined);
       applyProfileData(profileResponse.data);
       return { error: null, profileData: profileResponse.data };
     } catch (error: any) {
