@@ -76,14 +76,20 @@ const CreateTenantWithAdmin = () => {
     }
   };
 
+  const tenantCreatedMessage = (tenantName: string) =>
+    t("messages.tenantCreated", {
+      name: tenantName,
+      defaultValue: `Établissement "${tenantName}" créé avec succès !`,
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !slug || !adminEmail || !adminFirstName || !adminLastName || !adminPassword) {
-      toast.error(t("messages.fillRequired"));
+      toast.error(t("messages.fillRequired", { defaultValue: "Veuillez remplir tous les champs obligatoires" }));
       return;
     }
     if (adminPassword.length < 8) {
-      toast.error(t("messages.passwordTooShort"));
+      toast.error(t("messages.passwordTooShort", { defaultValue: "Le mot de passe doit contenir au moins 8 caractères" }));
       return;
     }
 
@@ -106,11 +112,11 @@ const CreateTenantWithAdmin = () => {
         levels,
       });
 
-      toast.success(t("messages.tenantCreated", { name }));
+      toast.success(tenantCreatedMessage(name));
       setCreatedSlug(slug);
       setCreatedName(name);
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || t("messages.tenantCreateError");
+      const detail = err?.response?.data?.detail || t("messages.tenantCreateError", { defaultValue: "Erreur lors de la création" });
       toast.error(detail);
     } finally {
       setLoading(false);
@@ -129,7 +135,7 @@ const CreateTenantWithAdmin = () => {
             </div>
             <div>
               <h2 className="text-xl font-bold text-green-800">
-                {t("messages.tenantCreated", { name: createdName })}
+                {tenantCreatedMessage(createdName)}
               </h2>
               <p className="text-sm text-green-700 mt-1">
                 L'administrateur peut maintenant se connecter et configurer l'établissement.

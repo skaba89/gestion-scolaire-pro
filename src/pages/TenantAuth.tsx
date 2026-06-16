@@ -42,6 +42,10 @@ function isValidHex(hex: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(hex);
 }
 
+function isUuid(value?: string | null): value is string {
+  return !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 // ─────────────────────────────────────────────
 // Animated Background Pattern (SVG)
 // ─────────────────────────────────────────────
@@ -120,7 +124,10 @@ const TenantAuthPage = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!email.trim() || !password.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const trimmedPassword = password.trim();
+
+    if (!normalizedEmail || !trimmedPassword) {
       toast({
         title: "Champs requis",
         description: "Veuillez renseigner votre email et votre mot de passe.",
@@ -131,13 +138,23 @@ const TenantAuthPage = () => {
 
     setSubmitting(true);
     try {
-      const { error, profileData } = await signIn(email, password);
+      // Tenant login pages must send the current tenant context. Without this,
+      // a stale X-Tenant-ID from a previous session can make the backend search
+      // the wrong tenant and return 401 even when credentials are correct.
+      const tenantId = (tenantData?.id as string | undefined) || null;
+      if (isUuid(tenantId)) {
+        localStorage.setItem("last_tenant_id", tenantId);
+      } else {
+        localStorage.removeItem("last_tenant_id");
+      }
+
+      const { error, profileData } = await signIn(normalizedEmail, trimmedPassword, isUuid(tenantId) ? tenantId : null);
       if (error) {
         const msg = error.message || "Identifiants incorrects";
         console.error("[TenantAuth] Login failed:", msg);
         let description = msg;
         if (msg.includes("401") || msg.includes("identifiant") || msg.includes("credential")) {
-          description = "Email ou mot de passe incorrect. Veuillez vérifier vos identifiants.";
+          description = `Email ou mot de passe incorrect pour ${tenantName || "cet établissement"}. Utilisez le compte administrateur créé pour cet établissement.`;
         } else if (msg.includes("network") || msg.includes("Network") || msg.includes("ECONNREFUSED")) {
           description = "Impossible de joindre le serveur. Vérifiez que l'API est lancée.";
         } else if (msg.includes("403") || msg.includes("désactivé") || msg.includes("deactivated")) {
@@ -145,13 +162,12 @@ const TenantAuthPage = () => {
         } else if (msg.includes("429")) {
           description = "Trop de tentatives de connexion. Veuillez attendre quelques minutes avant de réessayer.";
         }
-        // En production, show user-friendly message; the raw msg is already in console
         toast({ title: "Erreur de connexion", description, variant: "destructive" });
         return;
       }
 
       const userRoles: string[] = (profileData?.roles as string[]) || [];
-      const profileSlug = (profileData?.tenant?.slug as string) || null;
+      const profileSlug = (profileData?.tenant?.slug as string) || tenantSlug || null;
 
       if (userRoles.includes("SUPER_ADMIN")) {
         navigate("/super-admin", { replace: true });
@@ -261,254 +277,146 @@ const TenantAuthPage = () => {
             </div>
           </div>
 
-          {/* Description / Tagline / Motto */}
-          {(description || tagline || schoolMotto) && (
-            <p className="text-white/75 text-sm xl:text-base leading-relaxed mb-8 max-w-md mx-auto lg:mx-0">
-              {tagline || schoolMotto || (description && description.length > 120 ? description.substring(0, 120) + "..." : description)}
-            </p>
-          )}
-
-          {/* Stats */}
-          {stats && (stats.student_count > 0 || stats.teacher_count > 0) && (
-            <div className="flex items-center justify-center lg:justify-start gap-6 mb-8">
-              {stats.student_count > 0 && (
-                <div className="flex items-center gap-2 text-white/80">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-lg font-bold text-white leading-none">{stats.student_count.toLocaleString("fr-FR")}</p>
-                    <p className="text-[10px] text-white/60 uppercase tracking-wider">Étudiants</p>
-                  </div>
-                </div>
+          {/* Tagline / Motto */}
+          {(tagline || schoolMotto || description) && (
+            <div className="space-y-4 mb-8">
+              {tagline && (
+                <p className="text-xl xl:text-2xl font-semibold text-white leading-relaxed">
+                  {tagline}
+                </p>
               )}
-              {stats.teacher_count > 0 && (
-                <div className="flex items-center gap-2 text-white/80">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                    <BookOpen className="w-5 h-5" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-lg font-bold text-white leading-none">{stats.teacher_count.toLocaleString("fr-FR")}</p>
-                    <p className="text-[10px] text-white/60 uppercase tracking-wider">Enseignants</p>
-                  </div>
-                </div>
+              {schoolMotto && (
+                <p className="text-lg italic text-white/85 border-l-4 border-white/40 pl-4">
+                  “{schoolMotto}”
+                </p>
+              )}
+              {description && (
+                <p className="text-white/75 text-sm xl:text-base leading-relaxed max-w-lg">
+                  {description}
+                </p>
               )}
             </div>
           )}
 
-          {/* Info badges */}
-          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 text-xs text-white/65">
+          {/* Quick Info */}
+          <div className="flex flex-wrap gap-3 text-white/85 text-sm">
             {foundedYear && (
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {foundedYear}
-              </span>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg">
+                <Calendar className="w-4 h-4" />
+                <span>Fondé en {foundedYear}</span>
+              </div>
             )}
             {accreditation && (
-              <span className="inline-flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" />
-                {accreditation}
-              </span>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg">
+                <ShieldCheck className="w-4 h-4" />
+                <span>{accreditation}</span>
+              </div>
             )}
-            {address && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="w-3 h-3" />
-                {address.length > 40 ? address.substring(0, 40) + "..." : address}
-              </span>
-            )}
-            {website && (
-              <span className="inline-flex items-center gap-1">
-                <Globe className="w-3 h-3" />
-                {website.replace(/^https?:\/\//, "")}
-              </span>
+            {stats?.students_count > 0 && (
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg">
+                <Users className="w-4 h-4" />
+                <span>{stats.students_count} étudiants</span>
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Bottom branding */}
-        <div className="absolute bottom-6 left-0 right-0 text-center">
-          <p className="text-[11px] text-white/40 tracking-wide">
-            Propulsé par <span className="font-semibold text-white/50">{tenantName}</span>
-          </p>
+          {/* Contact Info */}
+          <div className="mt-8 space-y-2 text-white/70 text-sm">
+            {address && (
+              <div className="flex items-center gap-2 justify-center lg:justify-start">
+                <MapPin className="w-4 h-4" />
+                <span>{address}</span>
+              </div>
+            )}
+            {website && (
+              <div className="flex items-center gap-2 justify-center lg:justify-start">
+                <Globe className="w-4 h-4" />
+                <span>{website}</span>
+              </div>
+            )}
+            {(contactEmail || contactPhone) && (
+              <div className="text-white/60">
+                {[contactEmail, contactPhone].filter(Boolean).join(" · ")}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ═══════════════════════════════════════
           RIGHT PANEL — Login Form
           ═══════════════════════════════════════ */}
-      <div className="w-full lg:w-[45%] xl:w-[40%] min-h-screen flex items-center justify-center p-6 sm:p-8 lg:p-12 relative bg-gradient-to-br from-slate-50 via-white to-slate-50">
-        {/* Subtle accent strip at top */}
-        <div
-          className="absolute top-0 left-0 right-0 h-1.5"
-          style={{ background: `linear-gradient(90deg, ${pColor}, ${lightenHex(pColor, 30)}, ${sColor})` }}
-        />
-
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-background">
         <div className="w-full max-w-md space-y-8">
-          {/* Mobile-only branding (shown on small screens) */}
-          <div className="flex flex-col items-center gap-4 lg:hidden">
-            {logoUrl && !logoError ? (
-              <div className="w-16 h-16 rounded-xl overflow-hidden shadow-lg bg-white p-1 ring-1 ring-slate-200">
-                <img
-                  src={logoUrl}
-                  alt={`Logo ${tenantName}`}
-                  className="w-full h-full object-contain"
-                  onError={() => setLogoError(true)}
-                />
-              </div>
-            ) : (
-              <div
-                className="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg"
-                style={{ background: `linear-gradient(135deg, ${pColor}, ${darkenHex(pColor, 15)})` }}
-              >
-                <BookOpen className="w-7 h-7 text-white" />
-              </div>
-            )}
-            <div className="text-center">
-              <h2 className="text-xl font-bold" style={{ color: pColor }}>{tenantName}</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">{typeLabel}</p>
-            </div>
-          </div>
-
-          {/* Welcome header */}
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Connexion
-            </h2>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Accédez à votre espace de gestion scolaire. Entrez vos identifiants pour continuer.
+          <div className="text-center lg:text-left space-y-2">
+            <h2 className="text-3xl font-bold tracking-tight">Connexion</h2>
+            <p className="text-muted-foreground">
+              Accédez à votre espace {tenantName ? `— ${tenantName}` : "établissement"}
             </p>
           </div>
 
-          {/* Login Form */}
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-slate-700">
-                Adresse email
-              </Label>
-              <div className="relative group">
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="votre@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoFocus
-                  autoComplete="email"
-                  className="h-12 pl-4 pr-4 rounded-xl border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:border-transparent"
-                  style={{
-                    "--tw-ring-color": hexToRgba(pColor, 0.3),
-                  } as React.CSSProperties}
-                />
-              </div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="votre@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting || isLoading}
+                className="h-12"
+              />
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm font-medium text-slate-700">
-                  Mot de passe
-                </Label>
-                <button
-                  type="button"
-                  className="text-xs font-medium hover:underline transition-colors"
-                  style={{ color: pColor }}
-                >
-                  Mot de passe oublié ?
-                </button>
-              </div>
+              <Label htmlFor="password">Mot de passe</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Votre mot de passe"
+                  autoComplete="current-password"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  className="h-12 pl-4 pr-11 rounded-xl border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:border-transparent"
-                  style={{
-                    "--tw-ring-color": hexToRgba(pColor, 0.3),
-                  } as React.CSSProperties}
+                  disabled={submitting || isLoading}
+                  className="h-12 pr-12"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
 
             <Button
               type="submit"
-              className="w-full h-12 text-base font-semibold text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2"
-              style={{
-                background: `linear-gradient(135deg, ${pColor}, ${darkenHex(pColor, 18)})`,
-              }}
+              className="w-full h-12 text-base font-semibold"
+              style={{ backgroundColor: pColor }}
               disabled={submitting || isLoading}
             >
-              {submitting ? (
+              {submitting || isLoading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Connexion en cours...
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Connexion...
                 </>
               ) : (
                 <>
                   Se connecter
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-5 h-5 ml-2" />
                 </>
               )}
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200" />
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-gradient-to-br from-slate-50 via-white to-slate-50 px-3 text-slate-400">
-                ou
-              </span>
-            </div>
-          </div>
-
-          {/* Quick links */}
-          <div className="grid grid-cols-1 gap-3">
-            {tenantSlug && (
-              <a
-                href={website || `/${tenantSlug}`}
-                target={website ? "_blank" : undefined}
-                rel={website ? "noopener noreferrer" : undefined}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                {website ? "Retour à l'accueil" : "Page de l'établissement"}
-              </a>
-            )}
-          </div>
-
-          {/* Footer info */}
-          <div className="space-y-3 text-center">
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              En continuant, vous acceptez les conditions d'utilisation et la politique de confidentialité.
-            </p>
-            <div className="flex items-center justify-center gap-4 text-[11px] text-slate-400">
-              {contactEmail && (
-                <a href={`mailto:${contactEmail}`} className="hover:text-slate-600 transition-colors">
-                  {contactEmail}
-                </a>
-              )}
-              {contactPhone && (
-                <a href={`tel:${contactPhone}`} className="hover:text-slate-600 transition-colors">
-                  {contactPhone}
-                </a>
-              )}
-            </div>
-          </div>
+          <p className="text-center text-sm text-muted-foreground">
+            Mot de passe oublié ? Contactez votre administrateur.
+          </p>
         </div>
       </div>
     </div>

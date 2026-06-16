@@ -1,0 +1,13 @@
+schoolflow_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('ANALYTICS_DB_HOST', 'localhost') }}"
+      port: "{{ env_var('ANALYTICS_DB_PORT', 55432) | int }}"
+      user: "{{ env_var('ANALYTICS_DB_USER', 'analytics') }}"
+      password: "{{ env_var('ANALYTICS_DB_PASSWORD', 'analytics_password_change_me') }}"
+      dbname: "{{ env_var('ANALYTICS_DB_NAME', 'schoolflow_analytics') }}"
+      schema: public
+      threads: 4
+      keepalives_idle: 0
