@@ -2,14 +2,17 @@
 # Multi-stage build: Node builder → Nginx runtime
 # Used by docker-compose.yml for local development
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install dependencies first (layer caching)
+# Install dependencies first (layer caching).
+# We intentionally use npm install instead of npm ci because the current lockfile
+# can miss transitive/root package entries after large dependency additions.
+# npm install keeps Docker builds aligned with package.json and avoids missing
+# modules such as @radix-ui/react-dropdown-menu during Vite production builds.
 COPY package.json package-lock.json ./
-# Keep Docker aligned with CI because the project currently needs legacy peer resolution.
-RUN npm ci --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
 # Copy source and build
 COPY . .
