@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/api/client";
@@ -54,6 +55,7 @@ interface WorkHour {
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 export default function TeacherHoursPage() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -133,8 +135,8 @@ export default function TeacherHoursPage() {
   const handleAddHours = async () => {
     if (!selectedTeacher || !hoursWorked || !tenant) {
       toast({
-        title: "Erreur",
-        description: "Veuillez remplir tous les champs obligatoires",
+        title: t("common.error") ?? "Erreur",
+        description: t("teacherHours.fillRequired"),
         variant: "destructive",
       });
       return;
@@ -153,16 +155,16 @@ export default function TeacherHoursPage() {
       });
 
       toast({
-        title: "Succès",
-        description: "Heures enregistrées",
+        title: t("common.success") ?? "Succès",
+        description: t("teacherHours.hoursRecorded"),
       });
       setIsDialogOpen(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["teacher-work-hours"] });
     } catch (error) {
       toast({
-        title: "Erreur",
-        description: "Impossible d'ajouter les heures",
+        title: t("common.error") ?? "Erreur",
+        description: t("teacherHours.cannotAddHours"),
         variant: "destructive",
       });
     }
@@ -183,7 +185,7 @@ export default function TeacherHoursPage() {
 
   // Hours by teacher chart data
   const hoursByTeacher = workHours.reduce((acc, wh) => {
-    const teacherName = wh.teacher ? `${wh.teacher.first_name} ${wh.teacher.last_name}` : "Inconnu";
+    const teacherName = wh.teacher ? `${wh.teacher.first_name} ${wh.teacher.last_name}` : t("teacherHours.unknown");
     acc[teacherName] = (acc[teacherName] || 0) + Number(wh.hours_worked);
     return acc;
   }, {} as Record<string, number>);
@@ -196,7 +198,7 @@ export default function TeacherHoursPage() {
 
   // Hours by subject chart data
   const hoursBySubject = workHours.reduce((acc, wh) => {
-    const subjectName = wh.subject?.name || "Non spécifié";
+    const subjectName = wh.subject?.name || t("teacherHours.unspecified");
     acc[subjectName] = (acc[subjectName] || 0) + Number(wh.hours_worked);
     return acc;
   }, {} as Record<string, number>);
@@ -210,28 +212,28 @@ export default function TeacherHoursPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Suivi Horaire Enseignants</h1>
+          <h1 className="text-3xl font-bold">{t("teacherHours.pageTitle")}</h1>
           <p className="text-muted-foreground">
-            Gérez et suivez les heures de travail des professeurs
+            {t("teacherHours.pageSubtitle")}
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 h-4 mr-2" />
-              Ajouter des heures
+              {t("teacherHours.addHours")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Enregistrer des heures</DialogTitle>
+              <DialogTitle>{t("teacherHours.recordHours")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Enseignant *</Label>
+                <Label>{t("teacherHours.teacherRequired")}</Label>
                 <Select value={selectedTeacher} onValueChange={setSelectedTeacher}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un enseignant" />
+                    <SelectValue placeholder={t("teacherHours.selectTeacher")} />
                   </SelectTrigger>
                   <SelectContent>
                     {teachers.map((teacher) => (
@@ -245,10 +247,10 @@ export default function TeacherHoursPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Matière</Label>
+                  <Label>{t("teacherHours.subject")}</Label>
                   <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Optionnel" />
+                      <SelectValue placeholder={t("teacherHours.optional")} />
                     </SelectTrigger>
                     <SelectContent>
                       {subjects.map((subject) => (
@@ -260,10 +262,10 @@ export default function TeacherHoursPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Classe</Label>
+                  <Label>{t("teacherHours.classroom")}</Label>
                   <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Optionnel" />
+                      <SelectValue placeholder={t("teacherHours.optional")} />
                     </SelectTrigger>
                     <SelectContent>
                       {classrooms.map((classroom) => (
@@ -278,7 +280,7 @@ export default function TeacherHoursPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Date *</Label>
+                  <Label>{t("teacherHours.dateRequired")}</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full justify-start text-left">
@@ -297,7 +299,7 @@ export default function TeacherHoursPage() {
                   </Popover>
                 </div>
                 <div className="space-y-2">
-                  <Label>Heures *</Label>
+                  <Label>{t("teacherHours.hoursRequired")}</Label>
                   <Input
                     type="number"
                     step="0.5"
@@ -311,16 +313,16 @@ export default function TeacherHoursPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t("teacherHours.description")}</Label>
                 <Input
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Détails optionnels..."
+                  placeholder={t("teacherHours.descriptionPlaceholder")}
                 />
               </div>
 
               <Button onClick={handleAddHours} className="w-full">
-                Enregistrer
+                {t("teacherHours.save")}
               </Button>
             </div>
           </DialogContent>
@@ -331,7 +333,7 @@ export default function TeacherHoursPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Heures</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("teacherHours.totalHours")}</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -340,7 +342,7 @@ export default function TeacherHoursPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Enseignants Actifs</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("teacherHours.activeTeachers")}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -349,7 +351,7 @@ export default function TeacherHoursPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Matières Enseignées</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("teacherHours.subjectsTaught")}</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -358,7 +360,7 @@ export default function TeacherHoursPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Moyenne/Enseignant</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("teacherHours.avgPerTeacher")}</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -371,8 +373,8 @@ export default function TeacherHoursPage() {
 
       <Tabs defaultValue="dashboard" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="dashboard">Tableau de Bord</TabsTrigger>
-          <TabsTrigger value="details">Détails</TabsTrigger>
+          <TabsTrigger value="dashboard">{t("teacherHours.dashboard")}</TabsTrigger>
+          <TabsTrigger value="details">{t("teacherHours.details")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-4">
@@ -380,7 +382,7 @@ export default function TeacherHoursPage() {
             {/* Hours by Teacher Chart */}
             <Card>
               <CardHeader>
-                <CardTitle>Heures par Enseignant</CardTitle>
+                <CardTitle>{t("teacherHours.hoursByTeacher")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -400,7 +402,7 @@ export default function TeacherHoursPage() {
             {/* Hours by Subject Chart */}
             <Card>
               <CardHeader>
-                <CardTitle>Heures par Matière</CardTitle>
+                <CardTitle>{t("teacherHours.hoursBySubject")}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -435,10 +437,10 @@ export default function TeacherHoursPage() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Select value={filterTeacher} onValueChange={setFilterTeacher}>
                   <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Tous les enseignants" />
+                    <SelectValue placeholder={t("teacherHours.allTeachers")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tous les enseignants</SelectItem>
+                    <SelectItem value="all">{t("teacherHours.allTeachers")}</SelectItem>
                     {teachers.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id}>
                         {teacher.first_name} {teacher.last_name}
@@ -451,30 +453,30 @@ export default function TeacherHoursPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="week">Cette semaine</SelectItem>
-                    <SelectItem value="month">Ce mois</SelectItem>
-                    <SelectItem value="all">Tout</SelectItem>
+                    <SelectItem value="week">{t("teacherHours.thisWeek")}</SelectItem>
+                    <SelectItem value="month">{t("teacherHours.thisMonth")}</SelectItem>
+                    <SelectItem value="all">{t("teacherHours.allPeriods")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8">Chargement...</div>
+                <div className="text-center py-8">{t("common.loading")}</div>
               ) : workHours.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Aucune heure enregistrée
+                  {t("teacherHours.noHoursRecorded")}
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Enseignant</TableHead>
-                      <TableHead>Matière</TableHead>
-                      <TableHead>Classe</TableHead>
-                      <TableHead>Heures</TableHead>
-                      <TableHead>Description</TableHead>
+                      <TableHead>{t("teacherHours.colDate")}</TableHead>
+                      <TableHead>{t("teacherHours.teacher")}</TableHead>
+                      <TableHead>{t("teacherHours.subject")}</TableHead>
+                      <TableHead>{t("teacherHours.classroom")}</TableHead>
+                      <TableHead>{t("teacherHours.colHours")}</TableHead>
+                      <TableHead>{t("teacherHours.description")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

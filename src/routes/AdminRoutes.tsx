@@ -76,6 +76,8 @@ const DataImport = lazy(() => import("@/pages/admin/DataImport"));
 const LandingPageEditor = lazy(() => import("@/pages/admin/LandingPageEditor"));
 const CreateTenant = lazy(() => import("@/pages/admin/CreateTenant"));
 const PublicPagesManager = lazy(() => import("@/pages/admin/PublicPagesManager"));
+const Billing = lazy(() => import("@/pages/admin/Billing"));
+const SaaSDashboard = lazy(() => import("@/pages/superadmin/SaaSDashboard"));
 
 export const AdminRoutes = () => {
     return (
@@ -154,6 +156,8 @@ export const AdminRoutes = () => {
             <Route path="landing" element={<LandingPageEditor />} />
             <Route path="create-tenant" element={<CreateTenant />} />
             <Route path="public-pages" element={<PublicPagesManager />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="saas-dashboard" element={<SaaSDashboard />} />
         </>
     );
 };

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -5,6 +6,7 @@ import { MessengerInterface } from "@/components/messages/MessengerInterface";
 import { communicationQueries } from "@/queries/communication";
 
 const TeacherMessages = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
 
@@ -18,7 +20,7 @@ const TeacherMessages = () => {
     <MessengerInterface
       recipients={recipients || []}
       recipientLabel="Destinataire"
-      title="Messages"
+      title={t("nav.messages")}
       showNewConversation={true}
     />
   );

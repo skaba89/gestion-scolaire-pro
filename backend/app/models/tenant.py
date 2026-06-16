@@ -7,7 +7,7 @@ from app.models.base import Base, UUIDMixin, TimestampMixin
 
 class Tenant(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "tenants"
-    
+
     name = Column(String(255), nullable=False)
     slug = Column(String(100), unique=True, nullable=False, index=True)
     type = Column(String(50), nullable=False)  # primary, middle, high, university, training
@@ -21,14 +21,15 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     is_active = Column(Boolean, default=True)
     settings = Column(JSON, default=dict)
 
-    # Legacy billing columns kept for backward compatibility with /billing and
-    # /platform endpoints while Phase 4 introduces normalized SaaS tables.
-    billing_email = Column(String(255))
-    subscription_plan = Column(String(50), default="starter")
-    subscription_status = Column(String(50), default="trialing")
-    trial_ends_at = Column(DateTime)
-    stripe_customer_id = Column(String(255), index=True)
-    stripe_subscription_id = Column(String(255), index=True)
+    # ── Stripe Billing ─────────────────────────────────────────────────────────
+    stripe_customer_id = Column(String(255), nullable=True, index=True)
+    stripe_subscription_id = Column(String(255), nullable=True, index=True)
+    # plan: "starter" | "pro" | "enterprise"
+    subscription_plan = Column(String(50), nullable=True, default="starter")
+    # status mirrors Stripe: "trialing" | "active" | "past_due" | "canceled" | "unpaid"
+    subscription_status = Column(String(50), nullable=True, default="trialing")
+    trial_ends_at = Column(DateTime, nullable=True)
+    billing_email = Column(String(255), nullable=True)
 
     # Signature / official document fields
     director_name = Column(String(255))

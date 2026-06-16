@@ -211,6 +211,26 @@ class Settings(BaseSettings):
     # during the initial rollout window.
     ENFORCE_MFA: bool = os.getenv("ENFORCE_MFA", "false" if os.getenv("DEBUG", "False").lower() == "true" else "true").lower() == "true"
 
+    # Stripe Billing
+    STRIPE_SECRET_KEY: str = get_secret("STRIPE_SECRET_KEY", "")
+    STRIPE_PUBLISHABLE_KEY: str = get_secret("STRIPE_PUBLISHABLE_KEY", "")
+    STRIPE_WEBHOOK_SECRET: str = get_secret("STRIPE_WEBHOOK_SECRET", "")
+    # Price IDs créés dans le dashboard Stripe (mode test ou live)
+    STRIPE_PRICE_STARTER: str = get_secret("STRIPE_PRICE_STARTER", "")   # gratuit / essai
+    STRIPE_PRICE_PRO: str = get_secret("STRIPE_PRICE_PRO", "")           # ~29 $/mois
+    STRIPE_PRICE_ENTERPRISE: str = get_secret("STRIPE_PRICE_ENTERPRISE", "")  # ~99 $/mois
+
+    # Email (Resend API + SMTP fallback)
+    RESEND_API_KEY: str = get_secret("RESEND_API_KEY", "")
+    SMTP_HOST: str = get_secret("SMTP_HOST", "")
+    SMTP_PORT: int = 587
+    SMTP_USER: str = get_secret("SMTP_USER", "")
+    SMTP_PASS: str = get_secret("SMTP_PASS", "")
+    FROM_EMAIL: str = get_secret("FROM_EMAIL", "noreply@schoolflow.pro")
+    FROM_NAME: str = get_secret("FROM_NAME", "SchoolFlow Pro")
+    # URL base utilisée dans les emails (lien de reset, etc.)
+    FRONTEND_URL: str = get_secret("FRONTEND_URL", "http://localhost:3000")
+
     # Groq AI
     GROQ_API_KEY: str = get_secret("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")

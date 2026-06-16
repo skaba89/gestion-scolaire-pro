@@ -657,6 +657,60 @@ class Templates:
         }
 
     @staticmethod
+    def password_reset(
+        user_name: str,
+        reset_url: str,
+        school_name: str = "SchoolFlow Pro",
+        expires_minutes: int = 15,
+    ) -> dict:
+        """Password reset email — sent when a user requests a new password."""
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px;background:#ffffff">
+          <div style="text-align:center;margin-bottom:24px">
+            <h2 style="color:#1a56db;margin:0">🔐 {school_name}</h2>
+            <p style="color:#6b7280;font-size:14px;margin:4px 0 0">Réinitialisation de mot de passe</p>
+          </div>
+          <p style="color:#374151">Bonjour <strong>{user_name}</strong>,</p>
+          <p style="color:#374151">
+            Vous avez demandé à réinitialiser votre mot de passe.
+            Cliquez sur le bouton ci-dessous pour choisir un nouveau mot de passe.
+          </p>
+          <div style="text-align:center;margin:32px 0">
+            <a href="{reset_url}"
+               style="background:#1a56db;color:#ffffff;padding:14px 32px;text-decoration:none;
+                      border-radius:8px;font-weight:bold;font-size:16px;display:inline-block">
+              Réinitialiser mon mot de passe
+            </a>
+          </div>
+          <p style="color:#6b7280;font-size:13px">
+            ⏱ Ce lien expire dans <strong>{expires_minutes} minutes</strong>.
+          </p>
+          <p style="color:#6b7280;font-size:13px">
+            Si vous n'avez pas demandé cette réinitialisation, ignorez cet email —
+            votre mot de passe ne sera pas modifié.
+          </p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+          <p style="color:#9ca3af;font-size:12px;text-align:center">
+            {school_name} · Cet email a été envoyé automatiquement, merci de ne pas y répondre.
+          </p>
+        </div>"""
+        plain = (
+            f"Bonjour {user_name},\n\n"
+            f"Vous avez demandé à réinitialiser votre mot de passe sur {school_name}.\n\n"
+            f"Cliquez ici pour créer un nouveau mot de passe (valable {expires_minutes} min) :\n"
+            f"{reset_url}\n\n"
+            f"Si vous n'avez pas fait cette demande, ignorez cet email.\n\n"
+            f"— L'équipe {school_name}"
+        )
+        return {
+            "subject": f"[{school_name}] Réinitialisation de mot de passe",
+            "html": html,
+            "text": plain,
+            "whatsapp_text": plain,
+            "whatsapp_vars": [],
+        }
+
+    @staticmethod
     def bulletin_ready(
         parent_name: str,
         student_name: str,

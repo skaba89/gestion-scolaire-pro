@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { adminQueries } from "@/queries/admin";
@@ -14,6 +15,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { OrderReceipt } from "@/components/admin/orders/OrderReceipt";
 
 export const OrderHistory = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { formatCurrency } = useCurrency();
     const [searchTerm, setSearchTerm] = useState("");
@@ -40,8 +42,8 @@ export const OrderHistory = () => {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">Historique des Commandes</h1>
-                    <p className="text-muted-foreground">Consultez et gérez les ventes d'articles passées.</p>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("orderHistory.pageTitle")}</h1>
+                    <p className="text-muted-foreground">{t("orderHistory.pageSubtitle")}</p>
                 </div>
             </div>
 
@@ -50,7 +52,7 @@ export const OrderHistory = () => {
                     <div className="relative max-w-md">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Rechercher une commande, un étudiant..."
+                            placeholder={t("orderHistory.searchPlaceholder")}
                             className="pl-9 bg-background/50 border-primary/10 focus:border-primary/30 rounded-xl"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -61,26 +63,26 @@ export const OrderHistory = () => {
                     <Table>
                         <TableHeader className="bg-muted/30">
                             <TableRow>
-                                <TableHead className="pl-6">Date</TableHead>
-                                <TableHead>Commande #</TableHead>
-                                <TableHead>Étudiant</TableHead>
-                                <TableHead>Mode de règlement</TableHead>
-                                <TableHead className="text-right">Montant</TableHead>
-                                <TableHead className="text-right pr-6">Actions</TableHead>
+                                <TableHead className="pl-6">{t("orderHistory.colDate")}</TableHead>
+                                <TableHead>{t("orderHistory.colOrder")}</TableHead>
+                                <TableHead>{t("orderHistory.colStudent")}</TableHead>
+                                <TableHead>{t("orderHistory.colPayment")}</TableHead>
+                                <TableHead className="text-right">{t("orderHistory.colAmount")}</TableHead>
+                                <TableHead className="text-right pr-6">{t("common.actions")}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                                        Chargement des commandes...
+                                        {t("orderHistory.loading")}
                                     </TableCell>
                                 </TableRow>
                             ) : filteredOrders.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
                                         <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-10" />
-                                        <p className="font-medium">Aucune commande trouvée</p>
+                                        <p className="font-medium">{t("orderHistory.empty")}</p>
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -106,14 +108,14 @@ export const OrderHistory = () => {
                                                     <span className="text-[10px] text-muted-foreground font-mono">{order.student.registration_number}</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-muted-foreground italic">Client anonyme</span>
+                                                <span className="text-muted-foreground italic">{t("orderHistory.anonymousClient")}</span>
                                             )}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="secondary" className="text-[10px] h-5">
-                                                {order.payment_method === 'CASH' ? 'Espèces' :
-                                                    order.payment_method === 'CARD' ? 'CB' :
-                                                        order.payment_method === 'TRANSFER' ? 'Virement' : 'Autre'}
+                                                {order.payment_method === 'CASH' ? t("orderHistory.paymentCash") :
+                                                    order.payment_method === 'CARD' ? t("orderHistory.paymentCard") :
+                                                        order.payment_method === 'TRANSFER' ? t("orderHistory.paymentTransfer") : t("orderHistory.paymentOther")}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right font-bold text-primary">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   academicYearQueries,
@@ -9,6 +9,7 @@ import {
 } from "@/queries/academic-years";
 import { useTenant } from "@/contexts/TenantContext";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
+import { useTranslation } from "react-i18next";
 
 // New Modular Components
 import { AcademicYearHeader } from "@/components/academic-years/AcademicYearHeader";
@@ -16,6 +17,7 @@ import { AcademicYearTable } from "@/components/academic-years/AcademicYearTable
 import { AcademicYearFormDialog } from "@/components/academic-years/AcademicYearFormDialog";
 
 const AcademicYears = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { getTenantUrl } = useTenantUrl();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -46,7 +48,7 @@ const AcademicYears = () => {
   };
 
   const handleDeleteClick = async (id: string) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette année scolaire ?")) {
+    if (confirm(t("academicYears.deleteConfirm"))) {
       await deleteMutation.mutateAsync(id);
     }
   };
@@ -106,3 +108,4 @@ const AcademicYears = () => {
 };
 
 export default AcademicYears;
+

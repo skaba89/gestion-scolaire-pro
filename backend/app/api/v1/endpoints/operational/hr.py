@@ -149,6 +149,18 @@ def update_leave_status(
         raise HTTPException(status_code=404, detail="Leave request not found")
     return leave
 
+@router.delete("/leave-requests/{leave_id}/")
+def delete_leave_request(
+    leave_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a leave request."""
+    success = crud_hr.delete_leave_request(db, leave_id=leave_id, tenant_id=current_user.get("tenant_id"))
+    if not success:
+        raise HTTPException(status_code=404, detail="Leave request not found")
+    return {"status": "success"}
+
 # --- Payslips ---
 
 @router.get("/payslips/", response_model=List[Payslip])

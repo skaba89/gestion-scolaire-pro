@@ -25,29 +25,19 @@ else:
     _engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
     _engine_kwargs["pool_pre_ping"] = True
 
+    # SSL for PostgreSQL:
+    #   1. If the URL already contains sslmode=require → honour it.
+    #   2. If DATABASE_SSL env var is explicitly "true" → force SSL.
+    #   3. Otherwise → no forced SSL (safe for Docker internal networks and
+    #      development; cloud providers include sslmode=require in their URLs).
+    #
+    # We intentionally avoid the "not DEBUG → force SSL" pattern because Docker
+    # Compose internal PostgreSQL has no SSL certificate, causing connection
+    # failures even though DEBUG=False is the correct production default.
+    import os as _os
     _db_url = settings.DATABASE_URL_SYNC or ""
-    _is_local_docker_db = any(
-        marker in _db_url for marker in (
-            "@postgres:",
-            "@localhost:",
-            "@127.0.0.1:",
-            "sslmode=disable",
-            "sslmode=prefer",
-        )
-    )
-
-    # Respect explicit sslmode in URL. Previous implementation forced
-    # sslmode=require whenever the URL contained the word "sslmode", which broke
-    # local Docker PostgreSQL when DATABASE_URL ended with ?sslmode=disable.
-    if "sslmode=require" in _db_url or "sslmode=verify-full" in _db_url or "sslmode=verify-ca" in _db_url:
-        _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "require"
-    elif "sslmode=disable" in _db_url:
-        _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "disable"
-
-    # SECURITY: Force SSL for PostgreSQL in non-DEBUG environments, except for
-    # explicit local Docker/dev URLs. Local postgres image does not support SSL by
-    # default and will fail with: "server does not support SSL, but SSL was required".
-    if not settings.DEBUG and not settings.is_sqlite and not _is_local_docker_db:
+    _db_ssl_env = _os.getenv("DATABASE_SSL", "").lower()
+    if "sslmode=require" in _db_url or "sslmode" in _db_url or _db_ssl_env == "true":
         _engine_kwargs.setdefault("connect_args", {})["sslmode"] = "require"
 
 # Create SQLAlchemy engine
@@ -112,10 +102,14 @@ def get_db():
         db.execute(text("SELECT 1"))
         yield db
     except Exception as exc:
-        import logging
-        logging.getLogger(__name__).error(
-            "Database connection failed in get_db(): %s", exc
-        )
+        # Only log actual database/sqlalchemy errors, not HTTP exceptions raised
+        # by endpoint handlers (e.g. 401/403/404) which propagate through yield.
+        from fastapi import HTTPException as _HTTPException
+        if not isinstance(exc, _HTTPException):
+            import logging
+            logging.getLogger(__name__).error(
+                "Database error in get_db(): %s", exc
+            )
         try:
             db.rollback()
         except Exception:

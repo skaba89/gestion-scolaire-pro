@@ -83,9 +83,14 @@ export function ContractDialog({ open, onOpenChange, contract, employees, curren
             return;
         }
 
+        // Convert empty date strings to null — Pydantic rejects "" for Optional[date] fields
+        const toDateOrNull = (v: any) => (v === "" || v === undefined ? null : v);
+
         const payload = {
             ...form,
-            gross_monthly_salary: salary
+            gross_monthly_salary: salary,
+            end_date: toDateOrNull(form.end_date),
+            trial_period_end: toDateOrNull(form.trial_period_end),
         };
         onSubmit(payload);
     };

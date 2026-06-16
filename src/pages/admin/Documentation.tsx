@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +10,7 @@ import { DocModuleCard } from "@/components/documentation/DocModuleCard";
 import { generateDocumentationPDF } from "@/utils/documentationUtils";
 
 export default function Documentation() {
+  const { t } = useTranslation();
   const { studentLabel, studentsLabel, StudentLabel, StudentsLabel } = useStudentLabel();
   const [selectedCategory, setSelectedCategory] = useState<string>("admin");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -38,12 +40,12 @@ export default function Documentation() {
             Documentation
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manuel complet d'utilisation de la plateforme
+            {t("documentation.pageSubtitle")}
           </p>
         </div>
         <Button onClick={handleGeneratePDF} disabled={isGenerating} size="lg">
           <Download className="h-5 w-5 mr-2" />
-          {isGenerating ? "Génération..." : "Télécharger PDF"}
+          {isGenerating ? t("documentation.generating") : t("documentation.downloadPdf")}
         </Button>
       </div>
 

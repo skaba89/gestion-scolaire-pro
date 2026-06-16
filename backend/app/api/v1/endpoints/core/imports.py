@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import get_current_user, require_permission, require_plan
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -133,6 +133,7 @@ def _parse_csv_bytes(content: bytes) -> tuple[list[str], list[dict]]:
 async def preview_student_import(
     file: UploadFile = File(...),
     current_user: dict = Depends(require_permission("students:write")),
+    _plan: dict = Depends(require_plan("pro")),
 ):
     """
     POST /import/students/preview/
@@ -220,6 +221,7 @@ async def confirm_student_import(
     default_academic_year: str = Form(""),
     current_user: dict = Depends(require_permission("students:write")),
     db: Session = Depends(get_db),
+    _plan: dict = Depends(require_plan("pro")),
 ):
     """
     POST /import/students/confirm/

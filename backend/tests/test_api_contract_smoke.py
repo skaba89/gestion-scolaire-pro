@@ -34,7 +34,6 @@ def test_core_route_prefixes_are_registered() -> None:
         "/payments",
         "/billing",
         "/platform",
-        "/saas",
         "/analytics",
         "/audit",
         "/audit-logs",

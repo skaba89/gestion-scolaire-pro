@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/api/client";
@@ -37,6 +38,7 @@ interface Classroom {
 type CertificateType = "enrollment" | "attendance" | "level";
 
 const Certificates = () => {
+  const { t } = useTranslation();
   const { tenant } = useAuth();
   const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
@@ -115,16 +117,16 @@ const Certificates = () => {
 
   const generateCertificate = () => {
     if (!selectedStudent || !enrollment || !tenant) {
-      toast.error(`Veuillez sélectionner un ${studentLabel}`);
+      toast.error(t("certificates.selectStudentError", { student: studentLabel }));
       return;
     }
 
     setIsLoading(true);
 
     const certificateTitles: Record<CertificateType, string> = {
-      enrollment: "ATTESTATION D'INSCRIPTION",
-      attendance: "ATTESTATION DE SCOLARITÉ",
-      level: "ATTESTATION DE NIVEAU"
+      enrollment: t("certificates.typeEnrollmentTitle"),
+      attendance: t("certificates.typeAttendanceTitle"),
+      level: t("certificates.typeLevelTitle")
     };
 
     const certificateContent: Record<CertificateType, string> = {
@@ -141,7 +143,7 @@ const Certificates = () => {
 
     const birthDate = selectedStudent.date_of_birth
       ? new Date(selectedStudent.date_of_birth).toLocaleDateString("fr-FR")
-      : "Non renseignée";
+      : t("certificates.notProvided");
 
     // Signatures électroniques des responsables (cast tenant avec les nouveaux champs)
     const tenantData = tenant as typeof tenant & {
@@ -406,7 +408,7 @@ const Certificates = () => {
         setIsLoading(false);
       }, 500);
     } else {
-      toast.error("Impossible d'ouvrir la fenêtre d'impression");
+      toast.error(t("certificates.printWindowError"));
       setIsLoading(false);
     }
   };
@@ -420,8 +422,8 @@ const Certificates = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Attestations</h1>
-        <p className="text-muted-foreground">Générer des attestations d'inscription, de scolarité et de niveau</p>
+        <h1 className="text-2xl font-bold">{t("certificates.title")}</h1>
+        <p className="text-muted-foreground">{t("certificates.subtitle")}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -430,16 +432,16 @@ const Certificates = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5" />
-              Sélectionner un {StudentLabel}
+              {t("certificates.selectStudentTitle", { student: StudentLabel })}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label>Classe</Label>
+                <Label>{t("certificates.fieldClass")}</Label>
                 <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une classe" />
+                    <SelectValue placeholder={t("certificates.placeholderClass")} />
                   </SelectTrigger>
                   <SelectContent>
                     {classrooms.map((c) => (
@@ -451,9 +453,9 @@ const Certificates = () => {
                 </Select>
               </div>
               <div>
-                <Label>Rechercher</Label>
+                <Label>{t("certificates.fieldSearch")}</Label>
                 <Input
-                  placeholder="Nom, prénom ou numéro d'étudiant..."
+                  placeholder={t("certificates.placeholderSearch")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -463,7 +465,7 @@ const Certificates = () => {
             <div className="max-h-64 overflow-y-auto space-y-2">
               {filteredStudents.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">
-                  {selectedClassroom ? `Aucun ${studentLabel} trouvé` : "Sélectionnez une classe"}
+                  {selectedClassroom ? t("certificates.noStudentFound", { student: studentLabel }) : t("certificates.selectClassFirst")}
                 </p>
               ) : (
                 filteredStudents.map((student) => (
@@ -495,17 +497,17 @@ const Certificates = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Award className="h-5 w-5" />
-              Générer une Attestation
+              {t("certificates.generateTitle")}
             </CardTitle>
             <CardDescription>
               {selectedStudent
-                ? `Pour ${selectedStudent.last_name} ${selectedStudent.first_name}`
-                : `Sélectionnez un ${studentLabel}`}
+                ? t("certificates.generateFor", { name: `${selectedStudent.last_name} ${selectedStudent.first_name}` })
+                : t("certificates.generateSelectStudent", { student: studentLabel })}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Type d'attestation</Label>
+              <Label>{t("certificates.fieldType")}</Label>
               <Select
                 value={certificateType}
                 onValueChange={(v) => setCertificateType(v as CertificateType)}
@@ -517,19 +519,19 @@ const Certificates = () => {
                   <SelectItem value="enrollment">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
-                      Attestation d'Inscription
+                      {t("certificates.typeEnrollment")}
                     </div>
                   </SelectItem>
                   <SelectItem value="attendance">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
-                      Attestation de Scolarité
+                      {t("certificates.typeAttendance")}
                     </div>
                   </SelectItem>
                   <SelectItem value="level">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
-                      Attestation de Niveau
+                      {t("certificates.typeLevel")}
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -538,10 +540,10 @@ const Certificates = () => {
 
             {selectedStudent && enrollment && (
               <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
-                <p><strong>Année:</strong> {enrollment.academic_year.name}</p>
-                <p><strong>Classe:</strong> {enrollment.classroom.name}</p>
+                <p><strong>{t("certificates.year")}:</strong> {enrollment.academic_year.name}</p>
+                <p><strong>{t("certificates.class")}:</strong> {enrollment.classroom.name}</p>
                 {enrollment.level && (
-                  <p><strong>Niveau:</strong> {enrollment.level.name}</p>
+                  <p><strong>{t("certificates.level")}:</strong> {enrollment.level.name}</p>
                 )}
               </div>
             )}
@@ -552,7 +554,7 @@ const Certificates = () => {
               className="w-full"
             >
               <Printer className="h-4 w-4 mr-2" />
-              {isLoading ? "Génération..." : "Générer et Imprimer"}
+              {isLoading ? t("certificates.generating") : t("certificates.generatePrint")}
             </Button>
           </CardContent>
         </Card>
@@ -567,9 +569,9 @@ const Certificates = () => {
                 <FileText className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <h3 className="font-medium">Attestation d'Inscription</h3>
+                <h3 className="font-medium">{t("certificates.typeEnrollment")}</h3>
                 <p className="text-sm text-muted-foreground">
-                  Confirme l'inscription de l'${studentLabel} dans l'établissement pour l'année en cours
+                  {t("certificates.typeEnrollmentDesc", { student: studentLabel })}
                 </p>
               </div>
             </div>
@@ -582,9 +584,9 @@ const Certificates = () => {
                 <FileText className="h-5 w-5 text-green-600" />
               </div>
               <div>
-                <h3 className="font-medium">Attestation de Scolarité</h3>
+                <h3 className="font-medium">{t("certificates.typeAttendance")}</h3>
                 <p className="text-sm text-muted-foreground">
-                  Certifie que l'${studentLabel} est régulièrement scolarisé dans l'établissement
+                  {t("certificates.typeAttendanceDesc", { student: studentLabel })}
                 </p>
               </div>
             </div>
@@ -597,9 +599,9 @@ const Certificates = () => {
                 <FileText className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <h3 className="font-medium">Attestation de Niveau</h3>
+                <h3 className="font-medium">{t("certificates.typeLevel")}</h3>
                 <p className="text-sm text-muted-foreground">
-                  Atteste du niveau scolaire atteint par l'${studentLabel}
+                  {t("certificates.typeLevelDesc", { student: studentLabel })}
                 </p>
               </div>
             </div>

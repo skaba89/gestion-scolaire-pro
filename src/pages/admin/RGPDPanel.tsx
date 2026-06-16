@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,6 +45,7 @@ interface UserLegalData {
 }
 
 export default function AdminRGPDPanel() {
+    const { t } = useTranslation();
     const { user, hasRole } = useAuth();
     const { tenant } = useTenant();
     const queryClient = useQueryClient();
@@ -105,12 +107,12 @@ export default function AdminRGPDPanel() {
         setIsAnonymizing(true);
         try {
             await gdprService.processRequest(requestId, action, reason);
-            toast.success(action === 'APPROVE' ? 'Utilisateur anonymisé' : 'Demande rejetée');
+            toast.success(action === 'APPROVE' ? t("rgpd.anonymized") : t("rgpd.rejected"));
             queryClient.invalidateQueries({ queryKey: ['rgpd', 'pending-requests'] });
             queryClient.invalidateQueries({ queryKey: ['rgpd', 'stats'] });
         } catch (error: unknown) {
-            toast.error('Erreur lors du traitement', {
-                description: error instanceof Error ? error.message : 'Une erreur inconnue est survenue'
+            toast.error(t("rgpd.processError"), {
+                description: error instanceof Error ? error.message : t("rgpd.unknownError")
             });
         } finally {
             setIsAnonymizing(false);
@@ -126,10 +128,10 @@ export default function AdminRGPDPanel() {
             if (response.data) {
                 setSelectedUserId(response.data.id);
             } else {
-                toast.error('Utilisateur non trouvé');
+                toast.error(t("rgpd.userNotFound"));
             }
         } catch {
-            toast.error('Utilisateur non trouvé ou erreur');
+            toast.error(t("rgpd.searchError"));
         } finally {
             setIsLoading(false);
         }
@@ -141,7 +143,7 @@ export default function AdminRGPDPanel() {
                 <Card>
                     <CardContent className="pt-6">
                         <p className="text-center text-muted-foreground">
-                            Accès réservé aux administrateurs
+                            {t("rgpd.adminOnly")}
                         </p>
                     </CardContent>
                 </Card>
@@ -200,10 +202,10 @@ export default function AdminRGPDPanel() {
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
                         <Shield className="h-8 w-8 text-primary" />
-                        Gestion RGPD - Administration
+                        {t("rgpd.pageTitle")}
                     </h1>
                     <p className="text-muted-foreground mt-2">
-                        Gérer les demandes d'anonymisation et vérifier la conformité RGPD
+                        {t("rgpd.pageSubtitle")}
                     </p>
                 </div>
                 <Button
@@ -212,7 +214,7 @@ export default function AdminRGPDPanel() {
                     className="gap-2"
                 >
                     <FileText className="h-4 w-4" />
-                    {isGeneratingReport ? 'Génération...' : 'Générer Rapport de Conformité'}
+                    {isGeneratingReport ? t("rgpd.generating") : t("rgpd.generateReport")}
                 </Button>
             </div>
 
@@ -220,47 +222,47 @@ export default function AdminRGPDPanel() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Consentements Actifs</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t("rgpd.activeConsents")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.totalConsents}</div>
-                        <p className="text-xs text-muted-foreground">Utilisateurs ayant donné au moins un consentement</p>
+                        <p className="text-xs text-muted-foreground">{t("rgpd.activeConsentsDesc")}</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Comptes Anonymisés</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t("rgpd.anonymizedAccounts")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.anonymizedUsers}</div>
-                        <p className="text-xs text-muted-foreground">Utilisateurs dont le compte a été supprimé</p>
+                        <p className="text-xs text-muted-foreground">{t("rgpd.anonymizedAccountsDesc")}</p>
                     </CardContent>
                 </Card>
                 <Card className={stats.pendingRequests > 0 ? "border-orange-500" : ""}>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Demandes en attente</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t("rgpd.pendingRequests")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.pendingRequests}</div>
-                        <p className="text-xs text-muted-foreground">Demandes de suppression à traiter</p>
+                        <p className="text-xs text-muted-foreground">{t("rgpd.pendingRequestsDesc")}</p>
                     </CardContent>
                 </Card>
                 <Card className={stats.complianceRisks > 0 ? "border-red-500" : ""}>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Risques de Rétention</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t("rgpd.retentionRisks")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.complianceRisks}</div>
-                        <p className="text-xs text-muted-foreground">Utilisateurs hors délais de conservation</p>
+                        <p className="text-xs text-muted-foreground">{t("rgpd.retentionRisksDesc")}</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Exports de Données</CardTitle>
+                        <CardTitle className="text-sm font-medium">{t("rgpd.dataExports")}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.totalExports}</div>
-                        <p className="text-xs text-muted-foreground">Nombre total d'exports de données personnelles</p>
+                        <p className="text-xs text-muted-foreground">{t("rgpd.dataExportsDesc")}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -268,21 +270,21 @@ export default function AdminRGPDPanel() {
             {/* Data Tables / Action Center */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Centre de Conformité</CardTitle>
-                    <CardDescription>Actions et historique RGPD</CardDescription>
+                    <CardTitle>{t("rgpd.complianceCenter")}</CardTitle>
+                    <CardDescription>{t("rgpd.complianceCenterDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="requests">Demandes ({pendingRequests.length})</TabsTrigger>
-                            <TabsTrigger value="exports">Historique Exports ({exportHistory.length})</TabsTrigger>
-                            <TabsTrigger value="risks">Risques Rétention ({retentionRisks.length})</TabsTrigger>
+                            <TabsTrigger value="requests">{t("rgpd.tabRequests", { count: pendingRequests.length })}</TabsTrigger>
+                            <TabsTrigger value="exports">{t("rgpd.tabExports", { count: exportHistory.length })}</TabsTrigger>
+                            <TabsTrigger value="risks">{t("rgpd.tabRisks", { count: retentionRisks.length })}</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="requests" className="space-y-4 pt-4">
                             {pendingRequests.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground border rounded-lg border-dashed">
-                                    Aucune demande de suppression en attente
+                                    {t("rgpd.noPendingRequests")}
                                 </div>
                             ) : (
                                 <div className="space-y-4">
@@ -302,25 +304,25 @@ export default function AdminRGPDPanel() {
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() => {
-                                                        const reason = prompt('Motif du rejet :');
+                                                        const reason = prompt(t("rgpd.rejectReasonPrompt"));
                                                         if (reason) handleProcessRequest(req.id, 'REJECT', reason);
                                                     }}
                                                     disabled={isAnonymizing}
                                                 >
-                                                    Rejeter
+                                                    {t("rgpd.reject")}
                                                 </Button>
                                                 <Button
                                                     variant="destructive"
                                                     size="sm"
                                                     onClick={() => {
-                                                        if (confirm('Êtes-vous sûr de vouloir anonymiser cet utilisateur ? Cette action est irréversible.')) {
+                                                        if (confirm(t("rgpd.confirmAnonymize"))) {
                                                             handleProcessRequest(req.id, 'APPROVE');
                                                         }
                                                     }}
                                                     disabled={isAnonymizing}
                                                 >
                                                     <Trash2 className="h-4 w-4 mr-2" />
-                                                    {isAnonymizing ? 'Traitement...' : 'Approuver suppression'}
+                                                    {isAnonymizing ? t("rgpd.processing") : t("rgpd.approveDeletion")}
                                                 </Button>
                                             </div>
                                         </div>
@@ -334,16 +336,16 @@ export default function AdminRGPDPanel() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Date</TableHead>
-                                            <TableHead>Cible</TableHead>
-                                            <TableHead>Demandeur</TableHead>
+                                            <TableHead>{t("rgpd.colDate")}</TableHead>
+                                            <TableHead>{t("rgpd.colTarget")}</TableHead>
+                                            <TableHead>{t("rgpd.colRequester")}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {exportHistory.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                                                    Aucun historique d'export trouvé
+                                                    {t("rgpd.noExportHistory")}
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
@@ -372,17 +374,17 @@ export default function AdminRGPDPanel() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Utilisateur</TableHead>
-                                            <TableHead>Création</TableHead>
-                                            <TableHead>Échéance</TableHead>
-                                            <TableHead>Statut</TableHead>
+                                            <TableHead>{t("rgpd.colUser")}</TableHead>
+                                            <TableHead>{t("rgpd.colCreation")}</TableHead>
+                                            <TableHead>{t("rgpd.colDeadline")}</TableHead>
+                                            <TableHead>{t("rgpd.colStatus")}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {retentionRisks.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                                                    Aucun risque de rétention identifié
+                                                    {t("rgpd.noRetentionRisks")}
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
@@ -419,10 +421,10 @@ export default function AdminRGPDPanel() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Search className="h-5 w-5" />
-                        Rechercher un utilisateur
+                        {t("rgpd.searchUser")}
                     </CardTitle>
                     <CardDescription>
-                        Recherchez un utilisateur par email pour voir ses données RGPD
+                        {t("rgpd.searchUserDesc")}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -435,7 +437,7 @@ export default function AdminRGPDPanel() {
                         />
                         <Button onClick={handleSearchUser} disabled={isLoading}>
                             <Search className="h-4 w-4 mr-2" />
-                            Rechercher
+                            {t("rgpd.search")}
                         </Button>
                     </div>
                 </CardContent>
@@ -459,10 +461,10 @@ export default function AdminRGPDPanel() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <FileText className="h-5 w-5" />
-                                Données légales à conserver
+                                {t("rgpd.legalData")}
                             </CardTitle>
                             <CardDescription>
-                                Données qui doivent être conservées conformément à la loi
+                                {t("rgpd.legalDataDesc")}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -470,7 +472,7 @@ export default function AdminRGPDPanel() {
                                 {/* Invoices */}
                                 <div className="border rounded-lg p-4 space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="font-semibold">Factures</h3>
+                                        <h3 className="font-semibold">{t("rgpd.invoices")}</h3>
                                         <Badge variant="secondary">{legalData.legal_data.invoices.count}</Badge>
                                     </div>
                                     <p className="text-sm text-muted-foreground">
@@ -484,7 +486,7 @@ export default function AdminRGPDPanel() {
                                 {/* Payments */}
                                 <div className="border rounded-lg p-4 space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="font-semibold">Paiements</h3>
+                                        <h3 className="font-semibold">{t("rgpd.payments")}</h3>
                                         <Badge variant="secondary">{legalData.legal_data.payments.count}</Badge>
                                     </div>
                                     <p className="text-sm text-muted-foreground">
@@ -498,7 +500,7 @@ export default function AdminRGPDPanel() {
                                 {/* Grades */}
                                 <div className="border rounded-lg p-4 space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="font-semibold">Notes</h3>
+                                        <h3 className="font-semibold">{t("rgpd.grades")}</h3>
                                         <Badge variant="secondary">{legalData.legal_data.grades.count}</Badge>
                                     </div>
                                     <p className="text-sm text-muted-foreground">
@@ -512,7 +514,7 @@ export default function AdminRGPDPanel() {
                                 {/* Attendance */}
                                 <div className="border rounded-lg p-4 space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="font-semibold">Présences</h3>
+                                        <h3 className="font-semibold">{t("rgpd.attendance")}</h3>
                                         <Badge variant="secondary">{legalData.legal_data.attendance.count}</Badge>
                                     </div>
                                     <p className="text-sm text-muted-foreground">
@@ -529,7 +531,7 @@ export default function AdminRGPDPanel() {
                                     {legalData.can_be_fully_deleted ? (
                                         <>
                                             <CheckCircle className="h-4 w-4 text-green-600" />
-                                            <span>Suppression complète possible</span>
+                                            <span>{t("rgpd.fullDeletionPossible")}</span>
                                         </>
                                     ) : (
                                         <>
@@ -547,10 +549,10 @@ export default function AdminRGPDPanel() {
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-destructive">
                                 <Trash2 className="h-5 w-5" />
-                                Anonymiser l'utilisateur
+                                {t("rgpd.anonymizeUser")}
                             </CardTitle>
                             <CardDescription>
-                                Anonymiser les données personnelles tout en conservant les données légales
+                                {t("rgpd.anonymizeUserDesc")}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -560,7 +562,7 @@ export default function AdminRGPDPanel() {
                                 className="gap-2"
                             >
                                 <Trash2 className="h-4 w-4" />
-                                Anonymiser cet utilisateur
+                                {t("rgpd.anonymizeThisUser")}
                             </Button>
                         </CardContent>
                     </Card>
@@ -571,24 +573,24 @@ export default function AdminRGPDPanel() {
             <Dialog open={anonymizeDialogOpen} onOpenChange={setAnonymizeDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle className="text-destructive">Confirmer l'anonymisation</DialogTitle>
+                        <DialogTitle className="text-destructive">{t("rgpd.confirmAnonymizeTitle")}</DialogTitle>
                         <DialogDescription>
-                            Cette action est irréversible. Les données personnelles seront définitivement anonymisées.
+                            {t("rgpd.confirmAnonymizeDesc")}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label htmlFor="reason">Raison de l'anonymisation *</Label>
+                            <Label htmlFor="reason">{t("rgpd.anonymizeReason")}</Label>
                             <Textarea
                                 id="reason"
                                 value={anonymizeReason}
                                 onChange={(e) => setAnonymizeReason(e.target.value)}
-                                placeholder="Ex: Demande utilisateur RGPD Article 17, Compte inactif depuis 5 ans, etc."
+                                placeholder={t("rgpd.anonymizeReasonPlaceholder")}
                                 rows={3}
                             />
                             <p className="text-xs text-muted-foreground">
-                                Cette raison sera enregistrée dans les audit logs
+                                {t("rgpd.anonymizeReasonHelp")}
                             </p>
                         </div>
                     </div>
@@ -601,14 +603,14 @@ export default function AdminRGPDPanel() {
                                 setAnonymizeReason('');
                             }}
                         >
-                            Annuler
+                            {t("rgpd.cancel")}
                         </Button>
                         <Button
                             variant="destructive"
                             onClick={handleAnonymizeUser}
                             disabled={!anonymizeReason || isAnonymizing}
                         >
-                            {isAnonymizing ? 'Anonymisation...' : 'Confirmer l\'anonymisation'}
+                            {isAnonymizing ? t("rgpd.anonymizing") : t("rgpd.confirmAnonymizeBtn")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
@@ -117,24 +118,6 @@ interface PageFormData {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const PAGE_TYPES: Record<string, string> = {
-  HOME: "Accueil",
-  ABOUT: "À propos",
-  ADMISSION: "Admissions",
-  PROGRAMS: "Programmes",
-  RESEARCH: "Recherche",
-  CAMPUS: "Campus",
-  CONTACT: "Contact",
-  CUSTOM: "Personnalisé",
-};
-
-const TEMPLATES: Record<string, string> = {
-  default: "Défaut",
-  modern: "Moderne",
-  classic: "Classique",
-  minimal: "Minimal",
-};
-
 const PAGE_TYPE_COLORS: Record<string, string> = {
   HOME: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
   ABOUT: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
@@ -193,7 +176,26 @@ function formatJson(str: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PublicPagesManager() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
+
+  const PAGE_TYPES = useMemo<Record<string, string>>(() => ({
+    HOME: t("publicPages.typeHome"),
+    ABOUT: t("publicPages.typeAbout"),
+    ADMISSION: t("publicPages.typeAdmission"),
+    PROGRAMS: t("publicPages.typePrograms"),
+    RESEARCH: t("publicPages.typeResearch"),
+    CAMPUS: t("publicPages.typeCampus"),
+    CONTACT: t("publicPages.typeContact"),
+    CUSTOM: t("publicPages.typeCustom"),
+  }), [t]);
+
+  const TEMPLATES = useMemo<Record<string, string>>(() => ({
+    default: t("publicPages.templateDefault"),
+    modern: t("publicPages.templateModern"),
+    classic: t("publicPages.templateClassic"),
+    minimal: t("publicPages.templateMinimal"),
+  }), [t]);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -268,7 +270,7 @@ export default function PublicPagesManager() {
       // Validate content JSON
       if (key === "content") {
         if (value && !isValidJson(value as string)) {
-          setContentError("JSON invalide");
+          setContentError(t("publicPages.jsonError"));
         } else {
           setContentError(null);
         }
@@ -315,11 +317,11 @@ export default function PublicPagesManager() {
 
   const handleSave = async () => {
     if (!form.title.trim()) {
-      toast.error("Le titre est requis");
+      toast.error(t("publicPages.titleRequired"));
       return;
     }
     if (contentError) {
-      toast.error("Veuillez corriger le contenu JSON");
+      toast.error(t("publicPages.invalidJson"));
       return;
     }
 
@@ -343,10 +345,10 @@ export default function PublicPagesManager() {
 
       if (editingPage) {
         await apiClient.put(`/public-pages/${editingPage.id}/`, payload);
-        toast.success("Page mise à jour avec succès");
+        toast.success(t("publicPages.updated"));
       } else {
         await apiClient.post("/public-pages/", payload);
-        toast.success("Page créée avec succès");
+        toast.success(t("publicPages.created"));
       }
 
       closeForm();
@@ -354,8 +356,8 @@ export default function PublicPagesManager() {
     } catch {
       toast.error(
         editingPage
-          ? "Erreur lors de la mise à jour de la page"
-          : "Erreur lors de la création de la page"
+          ? t("publicPages.updateError")
+          : t("publicPages.createError")
       );
     } finally {
       setIsSaving(false);
@@ -367,11 +369,11 @@ export default function PublicPagesManager() {
     setIsDeleting(true);
     try {
       await apiClient.delete(`/public-pages/${deleteTarget.id}/`);
-      toast.success("Page supprimée avec succès");
+      toast.success(t("publicPages.deleted"));
       setDeleteTarget(null);
       invalidatePages();
     } catch {
-      toast.error("Erreur lors de la suppression de la page");
+      toast.error(t("publicPages.deleteError"));
     } finally {
       setIsDeleting(false);
     }
@@ -380,8 +382,8 @@ export default function PublicPagesManager() {
   const handleDuplicate = async (page: PublicPage) => {
     try {
       const payload = {
-        title: `${page.title} (copie)`,
-        slug: `${page.slug}-copie`,
+        title: `${page.title} ${t("publicPages.copyLabel")}`,
+        slug: `${page.slug}-${t("publicPages.copySlug")}`,
         page_type: page.page_type,
         template: page.template,
         content: page.content,
@@ -395,10 +397,10 @@ export default function PublicPagesManager() {
         sort_order: page.sort_order + 1,
       };
       await apiClient.post("/public-pages/", payload);
-      toast.success("Page dupliquée avec succès");
+      toast.success(t("publicPages.duplicated"));
       invalidatePages();
     } catch {
-      toast.error("Erreur lors de la duplication de la page");
+      toast.error(t("publicPages.duplicateError"));
     }
   };
 
@@ -420,7 +422,7 @@ export default function PublicPagesManager() {
       });
       invalidatePages();
     } catch {
-      toast.error("Erreur lors du réordonnancement");
+      toast.error(t("publicPages.reorderError"));
     }
   };
 
@@ -438,7 +440,7 @@ export default function PublicPagesManager() {
       });
       invalidatePages();
     } catch {
-      toast.error("Erreur lors du réordonnancement");
+      toast.error(t("publicPages.reorderError"));
     }
   };
 
@@ -451,15 +453,15 @@ export default function PublicPagesManager() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Globe className="h-6 w-6 text-primary" />
-            Pages publiques
+            {t("publicPages.pageTitle")}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Gérez les pages publiques de votre établissement
+            {t("publicPages.pageSubtitle")}
           </p>
         </div>
         <Button onClick={openCreateDialog} className="gap-2">
           <Plus className="h-4 w-4" />
-          Nouvelle page
+          {t("publicPages.newPage")}
         </Button>
       </div>
 
@@ -469,15 +471,15 @@ export default function PublicPagesManager() {
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline" className="gap-1.5 px-3 py-1.5 text-sm">
             <FileText className="h-3.5 w-3.5" />
-            {stats.total} page{stats.total !== 1 ? "s" : ""}
+            {t("publicPages.totalPages", { count: stats.total })}
           </Badge>
           <Badge className="gap-1.5 px-3 py-1.5 text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800">
             <Globe className="h-3.5 w-3.5" />
-            {stats.published} publiée{stats.published !== 1 ? "s" : ""}
+            {t("publicPages.publishedPages", { count: stats.published })}
           </Badge>
           <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-sm">
             <FilePlus className="h-3.5 w-3.5" />
-            {stats.draft} brouillon{stats.draft !== 1 ? "s" : ""}
+            {t("publicPages.draftPages", { count: stats.draft })}
           </Badge>
         </div>
 
@@ -486,7 +488,7 @@ export default function PublicPagesManager() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher..."
+              placeholder={t("publicPages.search")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 w-[200px]"
@@ -497,7 +499,7 @@ export default function PublicPagesManager() {
               <SelectValue placeholder="Type de page" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous les types</SelectItem>
+              <SelectItem value="all">{t("publicPages.allTypes")}</SelectItem>
               {Object.entries(PAGE_TYPES).map(([key, label]) => (
                 <SelectItem key={key} value={key}>
                   {label}
@@ -510,9 +512,9 @@ export default function PublicPagesManager() {
               <SelectValue placeholder="Statut" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tous</SelectItem>
-              <SelectItem value="published">Publiées</SelectItem>
-              <SelectItem value="draft">Brouillons</SelectItem>
+              <SelectItem value="all">{t("publicPages.all")}</SelectItem>
+              <SelectItem value="published">{t("publicPages.published")}</SelectItem>
+              <SelectItem value="draft">{t("publicPages.drafts")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -528,16 +530,16 @@ export default function PublicPagesManager() {
           <div className="rounded-full bg-muted p-4 mb-4">
             <FileText className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold">Aucune page trouvée</h3>
+          <h3 className="text-lg font-semibold">{t("publicPages.noPages")}</h3>
           <p className="text-muted-foreground mt-1 max-w-md">
             {searchQuery || filterType !== "all" || filterStatus !== "all"
-              ? "Aucune page ne correspond à vos filtres. Essayez de modifier vos critères."
-              : "Commencez par créer votre première page publique."}
+              ? t("publicPages.noPagesFilter")
+              : t("publicPages.noPagesEmpty")}
           </p>
           {!searchQuery && filterType === "all" && filterStatus === "all" && (
             <Button onClick={openCreateDialog} className="mt-4 gap-2">
               <Plus className="h-4 w-4" />
-              Créer une page
+              {t("publicPages.createPage")}
             </Button>
           )}
         </div>
@@ -546,13 +548,13 @@ export default function PublicPagesManager() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[250px]">Titre</TableHead>
+                <TableHead className="w-[250px]">{t("publicPages.colTitle")}</TableHead>
                 <TableHead className="w-[180px]">Slug</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead>{t("publicPages.colType")}</TableHead>
                 <TableHead>Template</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="text-center">Ordre</TableHead>
-                <TableHead className="text-center">Navigation</TableHead>
+                <TableHead>{t("publicPages.colStatus")}</TableHead>
+                <TableHead className="text-center">{t("publicPages.colOrder")}</TableHead>
+                <TableHead className="text-center">{t("publicPages.colNavigation")}</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -599,10 +601,10 @@ export default function PublicPagesManager() {
                   <TableCell>
                     {page.is_published ? (
                       <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800">
-                        Publiée
+                        {t("publicPages.statusPublished")}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary">Brouillon</Badge>
+                      <Badge variant="secondary">{t("publicPages.statusDraft")}</Badge>
                     )}
                   </TableCell>
                   <TableCell>
@@ -643,7 +645,7 @@ export default function PublicPagesManager() {
                         className="bg-primary/10 text-primary border-primary/20"
                       >
                         <Globe className="h-3 w-3 mr-1" />
-                        Oui
+                        {t("publicPages.yes")}
                       </Badge>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
@@ -670,7 +672,7 @@ export default function PublicPagesManager() {
                           }}
                         >
                           <Pencil className="h-4 w-4 mr-2" />
-                          Modifier
+                          {t("publicPages.edit")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={(e) => {
@@ -679,7 +681,7 @@ export default function PublicPagesManager() {
                           }}
                         >
                           <Eye className="h-4 w-4 mr-2" />
-                          Prévisualiser
+                          {t("publicPages.preview")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={(e) => {
@@ -688,7 +690,7 @@ export default function PublicPagesManager() {
                           }}
                         >
                           <Copy className="h-4 w-4 mr-2" />
-                          Dupliquer
+                          {t("publicPages.duplicate")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
@@ -699,7 +701,7 @@ export default function PublicPagesManager() {
                           }}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
-                          Supprimer
+                          {t("publicPages.delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -719,29 +721,29 @@ export default function PublicPagesManager() {
         >
           <SheetHeader className="p-6 pb-0">
             <SheetTitle>
-              {editingPage ? "Modifier la page" : "Nouvelle page"}
+              {editingPage ? t("publicPages.editPage") : t("publicPages.newPage")}
             </SheetTitle>
             <SheetDescription>
               {editingPage
-                ? "Modifiez les informations de la page publique."
-                : "Remplissez les informations pour créer une nouvelle page publique."}
+                ? t("publicPages.editPageDesc")
+                : t("publicPages.newPageDesc")}
             </SheetDescription>
           </SheetHeader>
 
           <Tabs defaultValue="general" className="px-6">
             <TabsList className="w-full grid grid-cols-3 mt-4">
-              <TabsTrigger value="general">Général</TabsTrigger>
-              <TabsTrigger value="design">Design & Apparence</TabsTrigger>
-              <TabsTrigger value="seo">SEO & Contenu</TabsTrigger>
+              <TabsTrigger value="general">{t("publicPages.tabGeneral")}</TabsTrigger>
+              <TabsTrigger value="design">{t("publicPages.tabDesign")}</TabsTrigger>
+              <TabsTrigger value="seo">{t("publicPages.tabSeo")}</TabsTrigger>
             </TabsList>
 
             {/* ── Tab: General ─────────────────────────────────────────── */}
             <TabsContent value="general" className="space-y-4 mt-4 pb-24">
               <div className="space-y-2">
-                <Label htmlFor="page-title">Titre *</Label>
+                <Label htmlFor="page-title">{t("publicPages.fieldTitle")}</Label>
                 <Input
                   id="page-title"
-                  placeholder="Titre de la page"
+                  placeholder={t("publicPages.fieldTitlePlaceholder")}
                   value={form.title}
                   onChange={(e) => updateField("title", e.target.value)}
                 />
@@ -756,13 +758,13 @@ export default function PublicPagesManager() {
                   onChange={(e) => updateField("slug", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Généré automatiquement à partir du titre. Utilisé dans l'URL.
+                  {t("publicPages.slugHelp")}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="page-type">Type de page</Label>
+                  <Label htmlFor="page-type">{t("publicPages.fieldType")}</Label>
                   <Select
                     value={form.page_type}
                     onValueChange={(v) => updateField("page_type", v)}
@@ -801,7 +803,7 @@ export default function PublicPagesManager() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="page-sort-order">Ordre d'affichage</Label>
+                <Label htmlFor="page-sort-order">{t("publicPages.fieldSortOrder")}</Label>
                 <Input
                   id="page-sort-order"
                   type="number"
@@ -812,8 +814,7 @@ export default function PublicPagesManager() {
                   }
                 />
                 <p className="text-xs text-muted-foreground">
-                  Ordre de tri (0 = premier). Vous pouvez aussi réordonner via
-                  les flèches dans le tableau.
+                  {t("publicPages.sortOrderHelp")}
                 </p>
               </div>
 
@@ -822,10 +823,10 @@ export default function PublicPagesManager() {
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
                     <Label htmlFor="page-published" className="cursor-pointer">
-                      Publiée
+                      {t("publicPages.fieldPublished")}
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      La page sera visible publiquement
+                      {t("publicPages.fieldPublishedDesc")}
                     </p>
                   </div>
                   <Switch
@@ -838,11 +839,10 @@ export default function PublicPagesManager() {
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
                     <Label htmlFor="page-show-nav" className="cursor-pointer">
-                      Afficher dans la navigation
+                      {t("publicPages.fieldShowNav")}
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Ajouter un lien vers cette page dans le menu de
-                      navigation
+                      {t("publicPages.fieldShowNavDesc")}
                     </p>
                   </div>
                   <Switch
@@ -854,10 +854,10 @@ export default function PublicPagesManager() {
 
                 {form.show_in_nav && (
                   <div className="space-y-2">
-                    <Label htmlFor="page-nav-label">Label de navigation</Label>
+                    <Label htmlFor="page-nav-label">{t("publicPages.fieldNavLabel")}</Label>
                     <Input
                       id="page-nav-label"
-                      placeholder="Texte affiché dans le menu"
+                      placeholder={t("publicPages.fieldNavLabelPlaceholder")}
                       value={form.nav_label}
                       onChange={(e) => updateField("nav_label", e.target.value)}
                     />
@@ -870,7 +870,7 @@ export default function PublicPagesManager() {
             <TabsContent value="design" className="space-y-4 mt-4 pb-24">
               <div className="space-y-2">
                 <Label htmlFor="page-primary-color">
-                  Couleur principale
+                  {t("publicPages.primaryColor")}
                 </Label>
                 <div className="flex items-center gap-3">
                   <div className="relative">
@@ -898,13 +898,13 @@ export default function PublicPagesManager() {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Utilisée pour les titres, boutons et éléments principaux
+                  {t("publicPages.primaryColorHelp")}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="page-secondary-color">
-                  Couleur secondaire
+                  {t("publicPages.secondaryColor")}
                 </Label>
                 <div className="flex items-center gap-3">
                   <div className="relative">
@@ -934,20 +934,20 @@ export default function PublicPagesManager() {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Utilisée pour les arrière-plans et éléments secondaires
+                  {t("publicPages.secondaryColorHelp")}
                 </p>
               </div>
 
               {/* Color preview */}
               <div className="rounded-lg border p-4 space-y-2">
-                <Label className="text-sm font-medium">Aperçu des couleurs</Label>
+                <Label className="text-sm font-medium">{t("publicPages.colorPreview")}</Label>
                 <div className="flex gap-3">
                   <div className="flex-1 space-y-1">
                     <div
                       className="h-16 rounded-lg flex items-center justify-center text-white text-sm font-medium"
                       style={{ backgroundColor: form.primary_color }}
                     >
-                      Principale
+                      {t("publicPages.primary")}
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
                       {form.primary_color}
@@ -958,7 +958,7 @@ export default function PublicPagesManager() {
                       className="h-16 rounded-lg flex items-center justify-center text-white text-sm font-medium"
                       style={{ backgroundColor: form.secondary_color }}
                     >
-                      Secondaire
+                      {t("publicPages.secondary")}
                     </div>
                     <p className="text-xs text-center text-muted-foreground">
                       {form.secondary_color}
@@ -969,14 +969,14 @@ export default function PublicPagesManager() {
 
               {/* Template preview */}
               <div className="rounded-lg border p-4 space-y-2">
-                <Label className="text-sm font-medium">Template sélectionné</Label>
+                <Label className="text-sm font-medium">{t("publicPages.selectedTemplate")}</Label>
                 <div className="text-center py-6 rounded-lg bg-muted/50 border-2 border-dashed">
                   <Palette className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm font-medium">
                     {TEMPLATES[form.template] || form.template}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Modèle de mise en page appliqué à la page
+                    {t("publicPages.templateDesc")}
                   </p>
                 </div>
               </div>
@@ -985,26 +985,26 @@ export default function PublicPagesManager() {
             {/* ── Tab: SEO & Content ───────────────────────────────────── */}
             <TabsContent value="seo" className="space-y-4 mt-4 pb-24">
               <div className="space-y-2">
-                <Label htmlFor="page-meta-title">Meta titre (SEO)</Label>
+                <Label htmlFor="page-meta-title">{t("publicPages.metaTitle")}</Label>
                 <Input
                   id="page-meta-title"
-                  placeholder="Titre affiché dans les résultats de recherche"
+                  placeholder={t("publicPages.metaTitlePlaceholder")}
                   value={form.meta_title}
                   onChange={(e) => updateField("meta_title", e.target.value)}
                   maxLength={70}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {form.meta_title.length}/70 caractères recommandés
+                  {t("publicPages.charsRecommended", { count: form.meta_title.length, max: 70 })}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="page-meta-description">
-                  Meta description (SEO)
+                  {t("publicPages.metaDescription")}
                 </Label>
                 <Textarea
                   id="page-meta-description"
-                  placeholder="Description affichée dans les résultats de recherche"
+                  placeholder={t("publicPages.metaDescriptionPlaceholder")}
                   value={form.meta_description}
                   onChange={(e) =>
                     updateField("meta_description", e.target.value)
@@ -1013,13 +1013,13 @@ export default function PublicPagesManager() {
                   maxLength={160}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {form.meta_description.length}/160 caractères recommandés
+                  {t("publicPages.charsRecommended", { count: form.meta_description.length, max: 160 })}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="page-content">Contenu (JSON)</Label>
+                  <Label htmlFor="page-content">{t("publicPages.contentJson")}</Label>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1029,7 +1029,7 @@ export default function PublicPagesManager() {
                       updateField("content", formatted);
                     }}
                   >
-                    Formater
+                    {t("publicPages.format")}
                   </Button>
                 </div>
                 <Textarea
@@ -1044,8 +1044,7 @@ export default function PublicPagesManager() {
                   <p className="text-xs text-destructive">{contentError}</p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Structure JSON décrivant le contenu de la page (sections,
-                  composants, etc.)
+                  {t("publicPages.contentJsonHelp")}
                 </p>
               </div>
 
@@ -1053,7 +1052,7 @@ export default function PublicPagesManager() {
               {form.content && isValidJson(form.content) && (
                 <div className="rounded-lg border p-4 space-y-2">
                   <Label className="text-sm font-medium">
-                    Structure du contenu
+                    {t("publicPages.contentStructure")}
                   </Label>
                   <div className="bg-muted/50 rounded-lg p-3 font-mono text-xs overflow-auto max-h-48">
                     <ContentStructurePreview
@@ -1073,7 +1072,7 @@ export default function PublicPagesManager() {
               disabled={isSaving}
               className="flex-1"
             >
-              Annuler
+              {t("publicPages.cancel")}
             </Button>
             <Button
               onClick={handleSave}
@@ -1081,7 +1080,7 @@ export default function PublicPagesManager() {
               className="flex-1 gap-2"
             >
               {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {editingPage ? "Enregistrer" : "Créer la page"}
+              {editingPage ? t("publicPages.save") : t("publicPages.createPage")}
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -1094,19 +1093,14 @@ export default function PublicPagesManager() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer la page</AlertDialogTitle>
+            <AlertDialogTitle>{t("publicPages.deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer la page{" "}
-              <span className="font-semibold text-foreground">
-                "{deleteTarget?.title}"
-              </span>{" "}
-              ? Cette action est irréversible. Toutes les données associées à
-              cette page seront définitivement supprimées.
+              {t("publicPages.deleteConfirm", { title: deleteTarget?.title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>
-              Annuler
+              {t("publicPages.cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
@@ -1116,12 +1110,12 @@ export default function PublicPagesManager() {
               {isDeleting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Suppression...
+                  {t("publicPages.deleting")}
                 </>
               ) : (
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Supprimer
+                  {t("publicPages.delete")}
                 </>
               )}
             </AlertDialogAction>

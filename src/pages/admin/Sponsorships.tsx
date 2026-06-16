@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -15,12 +16,6 @@ import { Plus, Users, UserCheck, UserPlus, Heart, Trash2, Edit } from "lucide-re
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const statusConfig: Record<string, { label: string; color: string }> = {
-  PENDING: { label: "En attente", color: "bg-yellow-500" },
-  ACTIVE: { label: "Actif", color: "bg-green-500" },
-  COMPLETED: { label: "Terminé", color: "bg-blue-500" },
-  CANCELLED: { label: "Annulé", color: "bg-red-500" },
-};
 
 type Student = {
   id: string;
@@ -36,8 +31,16 @@ type AcademicYear = {
 };
 
 export default function Sponsorships() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
+
+  const statusConfig = useMemo<Record<string, { label: string; color: string }>>(() => ({
+    PENDING: { label: t("sponsorships.statusPending"), color: "bg-yellow-500" },
+    ACTIVE: { label: t("sponsorships.statusActive"), color: "bg-green-500" },
+    COMPLETED: { label: t("sponsorships.statusCompleted"), color: "bg-blue-500" },
+    CANCELLED: { label: t("sponsorships.statusCancelled"), color: "bg-red-500" },
+  }), [t]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedSponsorship, setSelectedSponsorship] = useState<any>(null);
   const [formData, setFormData] = useState({
@@ -125,11 +128,11 @@ export default function Sponsorships() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-sponsorships"] });
-      toast.success(selectedSponsorship ? "Parrainage mis à jour" : "Parrainage créé");
+      toast.success(selectedSponsorship ? t("sponsorships.updated") : t("sponsorships.created"));
       resetForm();
     },
     onError: () => {
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(t("sponsorships.saveError"));
     },
   });
 
@@ -140,10 +143,10 @@ export default function Sponsorships() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-sponsorships"] });
-      toast.success("Parrainage supprimé");
+      toast.success(t("sponsorships.deleted"));
     },
     onError: () => {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("sponsorships.deleteError"));
     },
   });
 
@@ -173,11 +176,11 @@ export default function Sponsorships() {
 
   const handleSubmit = () => {
     if (!formData.sponsor_id || !formData.sponsored_id) {
-      toast.error("Sélectionnez un parrain et un filleul");
+      toast.error(t("sponsorships.selectBothError"));
       return;
     }
     if (formData.sponsor_id === formData.sponsored_id) {
-      toast.error("Le parrain et le filleul doivent être différents");
+      toast.error(t("sponsorships.samePersonError"));
       return;
     }
     saveMutation.mutate({ ...formData, id: selectedSponsorship?.id });
@@ -189,40 +192,40 @@ export default function Sponsorships() {
   const pendingCount = sponsorships?.filter((s) => s.status === "PENDING").length || 0;
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">Chargement...</div>;
+    return <div className="flex items-center justify-center h-64">{t("sponsorships.loading")}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Parrainage Étudiant</h1>
+          <h1 className="text-3xl font-bold">{t("sponsorships.pageTitle")}</h1>
           <p className="text-muted-foreground">
-            Gérez le système de parrainage entre étudiants anciens et nouveaux
+            {t("sponsorships.pageSubtitle")}
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => resetForm()}>
               <Plus className="h-4 w-4 mr-2" />
-              Nouveau Parrainage
+              {t("sponsorships.newSponsorship")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {selectedSponsorship ? "Modifier le Parrainage" : "Créer un Parrainage"}
+                {selectedSponsorship ? t("sponsorships.editTitle") : t("sponsorships.createTitle")}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label>Parrain (étudiant senior) *</Label>
+                <Label>{t("sponsorships.sponsor")}</Label>
                 <Select
                   value={formData.sponsor_id}
                   onValueChange={(value) => setFormData({ ...formData, sponsor_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un parrain" />
+                    <SelectValue placeholder={t("sponsorships.selectSponsor")} />
                   </SelectTrigger>
                   <SelectContent>
                     {students
@@ -236,13 +239,13 @@ export default function Sponsorships() {
                 </Select>
               </div>
               <div>
-                <Label>Filleul (nouveau étudiant) *</Label>
+                <Label>{t("sponsorships.sponsored")}</Label>
                 <Select
                   value={formData.sponsored_id}
                   onValueChange={(value) => setFormData({ ...formData, sponsored_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un filleul" />
+                    <SelectValue placeholder={t("sponsorships.selectSponsored")} />
                   </SelectTrigger>
                   <SelectContent>
                     {students
@@ -256,25 +259,25 @@ export default function Sponsorships() {
                 </Select>
               </div>
               <div>
-                <Label>Année académique</Label>
+                <Label>{t("sponsorships.academicYear")}</Label>
                 <Select
                   value={formData.academic_year_id}
                   onValueChange={(value) => setFormData({ ...formData, academic_year_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner une année" />
+                    <SelectValue placeholder={t("sponsorships.selectYear")} />
                   </SelectTrigger>
                   <SelectContent>
                     {academicYears?.map((year) => (
                       <SelectItem key={year.id} value={year.id}>
-                        {year.name} {year.is_current && "(En cours)"}
+                        {year.name} {year.is_current && `(${t("sponsorships.current")})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Statut</Label>
+                <Label>{t("sponsorships.status")}</Label>
                 <Select
                   value={formData.status}
                   onValueChange={(value) => setFormData({ ...formData, status: value })}
@@ -292,19 +295,19 @@ export default function Sponsorships() {
                 </Select>
               </div>
               <div>
-                <Label>Notes</Label>
+                <Label>{t("sponsorships.notes")}</Label>
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Notes sur ce parrainage..."
+                  placeholder={t("sponsorships.notesPlaceholder")}
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={resetForm}>
-                  Annuler
+                  {t("sponsorships.cancel")}
                 </Button>
                 <Button onClick={handleSubmit} disabled={saveMutation.isPending}>
-                  {selectedSponsorship ? "Mettre à jour" : "Créer"}
+                  {selectedSponsorship ? t("sponsorships.update") : t("sponsorships.create")}
                 </Button>
               </div>
             </div>
@@ -318,7 +321,7 @@ export default function Sponsorships() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <UserCheck className="h-4 w-4" />
-              Parrainages actifs
+              {t("sponsorships.activeCount")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -329,7 +332,7 @@ export default function Sponsorships() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <UserPlus className="h-4 w-4" />
-              En attente
+              {t("sponsorships.pendingCount")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -340,7 +343,7 @@ export default function Sponsorships() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Heart className="h-4 w-4" />
-              Terminés
+              {t("sponsorships.completedCount")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -351,7 +354,7 @@ export default function Sponsorships() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Total
+              {t("sponsorships.total")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -363,9 +366,9 @@ export default function Sponsorships() {
       {/* Sponsorships Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Liste des Parrainages</CardTitle>
+          <CardTitle>{t("sponsorships.listTitle")}</CardTitle>
           <CardDescription>
-            Tous les parrainages entre étudiants
+            {t("sponsorships.listDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -373,12 +376,12 @@ export default function Sponsorships() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Parrain</TableHead>
-                  <TableHead>Filleul</TableHead>
-                  <TableHead>Année</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>{t("sponsorships.colSponsor")}</TableHead>
+                  <TableHead>{t("sponsorships.colSponsored")}</TableHead>
+                  <TableHead>{t("sponsorships.colYear")}</TableHead>
+                  <TableHead>{t("sponsorships.colStatus")}</TableHead>
+                  <TableHead>{t("sponsorships.colDate")}</TableHead>
+                  <TableHead className="text-right">{t("sponsorships.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -422,7 +425,7 @@ export default function Sponsorships() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              if (confirm("Supprimer ce parrainage ?")) {
+                              if (confirm(t("sponsorships.confirmDelete"))) {
                                 deleteMutation.mutate(sponsorship.id);
                               }
                             }}
@@ -439,13 +442,13 @@ export default function Sponsorships() {
           ) : (
             <div className="text-center py-8">
               <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Aucun parrainage</h3>
+              <h3 className="text-lg font-medium mb-2">{t("sponsorships.empty")}</h3>
               <p className="text-muted-foreground mb-4">
-                Créez votre premier parrainage entre étudiants
+                {t("sponsorships.emptyDesc")}
               </p>
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
-                Créer un parrainage
+                {t("sponsorships.createFirst")}
               </Button>
             </div>
           )}

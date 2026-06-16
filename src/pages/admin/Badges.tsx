@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
@@ -30,14 +31,16 @@ const STATUS_COLORS: Record<string, string> = {
   EXPIRED: "bg-yellow-100 text-yellow-800",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Actif",
-  INACTIVE: "Inactif",
-  LOST: "Perdu",
-  EXPIRED: "Expiré",
-};
-
 export default function BadgesPage() {
+  const { t } = useTranslation();
+
+  const STATUS_LABELS: Record<string, string> = {
+    ACTIVE: t("badges.statusActive"),
+    INACTIVE: t("badges.statusInactive"),
+    LOST: t("badges.statusLost"),
+    EXPIRED: t("badges.statusExpired"),
+  };
+
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -98,10 +101,10 @@ export default function BadgesPage() {
         status: "ACTIVE",
       });
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || "Impossible de créer le badge");
+      toast.error(error.response?.data?.detail || t("badges.badgeCreateError"));
       return;
     }
-    toast.success("Badge créé avec succès");
+    toast.success(t("badges.badgeCreated"));
       setIsCreateDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["admin-student-badges", tenant.id] });
       queryClient.invalidateQueries({ queryKey: ["admin-students-without-badges", tenant.id] });
@@ -111,10 +114,10 @@ export default function BadgesPage() {
     try {
       await apiClient.put(`/school-life/badges/${badgeId}/`, { status: newStatus });
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || "Impossible de mettre à jour le statut");
+      toast.error(error.response?.data?.detail || t("badges.statusUpdateError"));
       return;
     }
-    toast.success("Statut mis à jour");
+    toast.success(t("badges.statusUpdated"));
       queryClient.invalidateQueries({ queryKey: ["admin-student-badges", tenant?.id] });
       if (selectedBadge && selectedBadge.id === badgeId) {
         setSelectedBadge({ ...selectedBadge, status: newStatus });
@@ -125,10 +128,10 @@ export default function BadgesPage() {
     try {
       await apiClient.delete(`/school-life/badges/${badgeId}/`);
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || "Impossible de supprimer le badge");
+      toast.error(error.response?.data?.detail || t("badges.badgeDeleteError"));
       return;
     }
-    toast.success("Badge supprimé définitivement");
+    toast.success(t("badges.badgeDeleted"));
       setSelectedBadge(null);
       queryClient.invalidateQueries({ queryKey: ["admin-student-badges", tenant?.id] });
       queryClient.invalidateQueries({ queryKey: ["admin-students-without-badges", tenant?.id] });
@@ -139,13 +142,13 @@ export default function BadgesPage() {
       const data = JSON.parse(qrData);
 
       if (data.type !== "student_badge" || data.tenant_id !== tenant?.id) {
-        toast.error("Ce QR code n'est pas un badge valide pour cet établissement");
+        toast.error(t("badges.invalidQR"));
         return;
       }
 
       const badge = badges.find((b: any) => b.badge_code === data.badge_code);
       if (!badge) {
-        toast.error("Ce badge n'existe pas dans le système");
+        toast.error(t("badges.badgeNotFound"));
         return;
       }
 
@@ -174,16 +177,16 @@ export default function BadgesPage() {
           checked_by: user?.id,
         });
       } catch (error: any) {
-        toast.error(error.response?.data?.detail || "Impossible d'enregistrer le pointage");
+        toast.error(error.response?.data?.detail || t("badges.checkError"));
         return;
       }
       toast.success(
-        checkInType === "ENTRY" ? "Entrée enregistrée" : "Sortie enregistrée",
+        checkInType === "ENTRY" ? t("badges.checkInRecorded") : t("badges.checkOutRecorded"),
         { description: `${badge.student?.first_name} ${badge.student?.last_name}` }
       );
     } catch (e) {
       if (e instanceof SyntaxError) {
-        toast.error("Impossible de lire ce QR code");
+        toast.error(t("badges.qrReadError"));
       }
     }
   };
@@ -295,7 +298,7 @@ export default function BadgesPage() {
   const groupedBadges = useMemo(() => {
     const paginated = filteredBadges.slice((currentPage - 1) * pageSize, currentPage * pageSize);
     return paginated.reduce((acc: any, badgeByClass: any) => {
-      const classroom = badgeByClass.classroomName || "Sans classe";
+      const classroom = badgeByClass.classroomName || t("badges.noClass");
       if (!acc[classroom]) acc[classroom] = [];
       acc[classroom].push(badgeByClass);
       return acc;
@@ -303,15 +306,16 @@ export default function BadgesPage() {
   }, [filteredBadges, currentPage, pageSize]);
 
   const sortedClassrooms = useMemo(() => {
+    const noClassLabel = t("badges.noClass");
     return Object.keys(groupedBadges).sort((a, b) => {
-      if (a === "Sans classe") return 1;
-      if (b === "Sans classe") return -1;
+      if (a === noClassLabel) return 1;
+      if (b === noClassLabel) return -1;
       return a.localeCompare(b);
     });
   }, [groupedBadges]);
 
   if (isBadgesLoading) {
-    return <div className="flex items-center justify-center py-12">Chargement...</div>;
+    return <div className="flex items-center justify-center py-12">{t("common.loading")}</div>;
   }
 
   return (
@@ -338,11 +342,11 @@ export default function BadgesPage() {
         <TabsList>
           <TabsTrigger value="badges">
             <QrCode className="h-4 w-4 mr-2" />
-            Badges
+            {t("badges.tabBadges")}
           </TabsTrigger>
           <TabsTrigger value="history">
             <History className="h-4 w-4 mr-2" />
-            Historique Pointages
+            {t("badges.tabHistory")}
           </TabsTrigger>
         </TabsList>
 
@@ -359,7 +363,7 @@ export default function BadgesPage() {
             </CardHeader>
             <CardContent>
               {filteredBadges.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">Aucun badge trouvé</div>
+                <div className="text-center py-8 text-muted-foreground">{t("badges.noBadgesFound")}</div>
               ) : (
                 <div className="space-y-6">
                   {sortedClassrooms.map((classroomName) => (

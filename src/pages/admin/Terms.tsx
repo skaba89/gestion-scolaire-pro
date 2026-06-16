@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/queries/terms";
 import { academicYearQueries } from "@/queries/academic-years";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // New Modular Components
 import { TermHeader } from "@/components/terms/TermHeader";
@@ -17,6 +18,7 @@ import { TermTable } from "@/components/terms/TermTable";
 import { TermFormDialog } from "@/components/terms/TermFormDialog";
 
 const Terms = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);
@@ -51,7 +53,7 @@ const Terms = () => {
 
   const handleDeleteClick = async (id: string) => {
     if (!tenant) return;
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce trimestre ?")) {
+    if (confirm(t("terms.deleteConfirm"))) {
       await deleteTermMutation.mutateAsync({ id, tenantId: tenant.id });
     }
   };
@@ -122,3 +124,4 @@ const Terms = () => {
 };
 
 export default Terms;
+

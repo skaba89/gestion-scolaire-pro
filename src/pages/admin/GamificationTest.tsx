@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { motion } from "framer-motion";
  * Permet de simuler des événements et vérifier que les règles fonctionnent
  */
 export const GamificationTestPage = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const [isLoading, setIsLoading] = useState(false);
     const [lastResult, setLastResult] = useState<any>(null);
@@ -29,7 +31,7 @@ export const GamificationTestPage = () => {
 
     const handleTestEvent = async () => {
         if (!tenant || !studentId) {
-            toast.error("Veuillez remplir tous les champs requis");
+            toast.error(t("gamificationTest.fillRequired"));
             return;
         }
 
@@ -71,9 +73,9 @@ export const GamificationTestPage = () => {
             setLastResult(result);
 
             if (result.rules_applied > 0) {
-                toast.success(`✅ ${result.rules_applied} règle(s) appliquée(s) !`);
+                toast.success(`✅ ${t("gamificationTest.rulesAppliedToast", { count: result.rules_applied })}`);
             } else {
-                toast.info("Aucune règle ne correspond à cet événement");
+                toast.info(t("gamificationTest.noRulesMatch"));
             }
         } catch (error: any) {
             toast.error("Erreur: " + error.message);
@@ -135,9 +137,9 @@ export const GamificationTestPage = () => {
                     <TestTube className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                    <h1 className="text-3xl font-bold">Test de Gamification</h1>
+                    <h1 className="text-3xl font-bold">{t("gamificationTest.pageTitle")}</h1>
                     <p className="text-muted-foreground">
-                        Simulez des événements pour tester les règles automatiques
+                        {t("gamificationTest.pageSubtitle")}
                     </p>
                 </div>
             </div>
@@ -148,58 +150,58 @@ export const GamificationTestPage = () => {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Zap className="h-5 w-5 text-amber-500" />
-                            Déclencher un Événement
+                            {t("gamificationTest.triggerTitle")}
                         </CardTitle>
                         <CardDescription>
-                            Simulez un événement pour tester vos règles
+                            {t("gamificationTest.triggerDesc")}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <Label>Type d'événement</Label>
+                            <Label>{t("gamificationTest.eventTypeLabel")}</Label>
                             <Select value={eventType} onValueChange={setEventType}>
                                 <SelectTrigger className="rounded-xl">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl">
                                     <SelectItem value="GRADE_ADDED" className="rounded-xl">
-                                        📝 Note ajoutée
+                                        📝 {t("gamificationTest.eventGradeAdded")}
                                     </SelectItem>
                                     <SelectItem value="PERFECT_SCORE" className="rounded-xl">
-                                        🎯 Note parfaite (20/20)
+                                        🎯 {t("gamificationTest.eventPerfectScore")}
                                     </SelectItem>
                                     <SelectItem value="ATTENDANCE_PRESENT" className="rounded-xl">
-                                        ✅ Présence
+                                        ✅ {t("gamificationTest.eventPresent")}
                                     </SelectItem>
                                     <SelectItem value="ATTENDANCE_STREAK" className="rounded-xl">
-                                        🔥 Série de présences
+                                        🔥 {t("gamificationTest.eventStreak")}
                                     </SelectItem>
                                     <SelectItem value="HOMEWORK_SUBMITTED" className="rounded-xl">
-                                        📚 Devoir rendu
+                                        📚 {t("gamificationTest.eventHomework")}
                                     </SelectItem>
                                     <SelectItem value="GRADE_IMPROVEMENT" className="rounded-xl">
-                                        📈 Amélioration de note
+                                        📈 {t("gamificationTest.eventImprovement")}
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-2">
-                            <Label>ID de l'étudiant</Label>
+                            <Label>{t("gamificationTest.studentIdLabel")}</Label>
                             <Input
                                 value={studentId}
                                 onChange={(e) => setStudentId(e.target.value)}
-                                placeholder="UUID de l'étudiant"
+                                placeholder={t("gamificationTest.studentIdPlaceholder")}
                                 className="rounded-xl font-mono text-sm"
                             />
                             <p className="text-xs text-muted-foreground">
-                                Utilisez l'ID d'un étudiant existant dans votre base
+                                {t("gamificationTest.studentIdHint")}
                             </p>
                         </div>
 
                         {(eventType === "GRADE_ADDED" || eventType === "GRADE_IMPROVEMENT") && (
                             <div className="space-y-2">
-                                <Label>Note (sur 20)</Label>
+                                <Label>{t("gamificationTest.scoreLabel")}</Label>
                                 <Input
                                     type="number"
                                     min="0"
@@ -213,7 +215,7 @@ export const GamificationTestPage = () => {
 
                         {eventType === "ATTENDANCE_STREAK" && (
                             <div className="space-y-2">
-                                <Label>Jours consécutifs</Label>
+                                <Label>{t("gamificationTest.consecutiveDaysLabel")}</Label>
                                 <Input
                                     type="number"
                                     min="1"
@@ -232,12 +234,12 @@ export const GamificationTestPage = () => {
                             {isLoading ? (
                                 <>
                                     <Sparkles className="h-4 w-4 mr-2 animate-spin" />
-                                    Test en cours...
+                                    {t("gamificationTest.testing")}
                                 </>
                             ) : (
                                 <>
                                     <Zap className="h-4 w-4 mr-2" />
-                                    Déclencher l'événement
+                                    {t("gamificationTest.triggerButton")}
                                 </>
                             )}
                         </Button>
@@ -257,18 +259,18 @@ export const GamificationTestPage = () => {
                             ) : (
                                 <Sparkles className="h-5 w-5 text-muted-foreground" />
                             )}
-                            Résultat du Test
+                            {t("gamificationTest.resultTitle")}
                         </CardTitle>
                         <CardDescription>
-                            Détails de l'exécution des règles
+                            {t("gamificationTest.resultDesc")}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         {!lastResult ? (
                             <div className="text-center py-12 text-muted-foreground">
                                 <Sparkles className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                <p>Aucun test exécuté</p>
-                                <p className="text-sm mt-1">Déclenchez un événement pour voir les résultats</p>
+                                <p>{t("gamificationTest.noTestYet")}</p>
+                                <p className="text-sm mt-1">{t("gamificationTest.noTestYetHint")}</p>
                             </div>
                         ) : lastResult.error ? (
                             <Alert variant="destructive" className="rounded-xl">
@@ -279,7 +281,7 @@ export const GamificationTestPage = () => {
                         ) : (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl">
-                                    <span className="font-semibold">Règles appliquées</span>
+                                    <span className="font-semibold">{t("gamificationTest.rulesApplied")}</span>
                                     <Badge variant="secondary" className="text-lg px-3 py-1 rounded-lg">
                                         {lastResult.rules_applied}
                                     </Badge>
@@ -287,7 +289,7 @@ export const GamificationTestPage = () => {
 
                                 {lastResult.details && lastResult.details.length > 0 && (
                                     <div className="space-y-2">
-                                        <h4 className="font-semibold text-sm text-muted-foreground">Détails :</h4>
+                                        <h4 className="font-semibold text-sm text-muted-foreground">{t("gamificationTest.details")}</h4>
                                         {lastResult.details.map((detail: any, index: number) => (
                                             <motion.div
                                                 key={index}
@@ -318,8 +320,7 @@ export const GamificationTestPage = () => {
                                 {lastResult.rules_applied === 0 && (
                                     <Alert className="rounded-xl bg-amber-50 border-amber-200">
                                         <AlertDescription className="text-amber-800">
-                                            Aucune règle ne correspond aux conditions de cet événement.
-                                            Vérifiez vos règles dans l'onglet "Règles Auto".
+                                            {t("gamificationTest.noRulesAlert")}
                                         </AlertDescription>
                                     </Alert>
                                 )}
@@ -332,9 +333,9 @@ export const GamificationTestPage = () => {
             {/* Scénarios de test suggérés */}
             <Card className="glass-card border-none shadow-premium">
                 <CardHeader>
-                    <CardTitle>Scénarios de Test Suggérés</CardTitle>
+                    <CardTitle>{t("gamificationTest.scenariosTitle")}</CardTitle>
                     <CardDescription>
-                        Testez ces scénarios pour vérifier que vos règles par défaut fonctionnent
+                        {t("gamificationTest.scenariosDesc")}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

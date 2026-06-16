@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -46,6 +47,7 @@ interface CheckIn {
 const POLL_INTERVAL = 10000; // 10 seconds
 
 export default function ClassSessionAttendance() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -152,7 +154,7 @@ export default function ClassSessionAttendance() {
     },
     onSuccess: (data) => {
       setActiveSession(data as Session);
-      toast.success("Session démarrée");
+      toast.success(t("common.sessionStarted"));
     },
   });
 
@@ -200,7 +202,7 @@ export default function ClassSessionAttendance() {
         },
       });
 
-      if (!badge) return toast.error("Badge non reconnu");
+      if (!badge) return toast.error(t("badges.invalidQR"));
       if (!enrolledStudents?.some(e => e.student_id === badge.student_id)) {
         return toast.error(`Cet ${studentLabel} n'est pas dans cette classe`);
       }
@@ -210,7 +212,7 @@ export default function ClassSessionAttendance() {
 
       await checkInMutation.mutateAsync(badge.student_id);
     } catch (e) {
-      toast.error("Erreur lors du scan");
+      toast.error(t("badges.qrReadError"));
     }
   };
 
@@ -286,7 +288,7 @@ export default function ClassSessionAttendance() {
       <Dialog open={showScanner} onOpenChange={setShowScanner}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Scanner le badge QR</DialogTitle>
+            <DialogTitle>{t("badges.scanQR")}</DialogTitle>
           </DialogHeader>
           <QRScanner onScan={handleQRScan} onClose={() => setShowScanner(false)} />
         </DialogContent>

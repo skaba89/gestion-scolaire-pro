@@ -60,21 +60,24 @@ export const FinalStep = ({ allData, onFinish }: FinalStepProps) => {
             const response = await apiClient.post('/tenants/', payload);
             const tenant = response.data;
 
-            // Mark onboarding as completed so AdminLayout doesn't redirect back
-            try {
-                await apiClient.patch('/tenants/settings', { onboarding_completed: true });
-            } catch (err) {
-                console.error("Failed to mark onboarding as completed", err);
-            }
-
             setCreated(true);
             toast({
                 title: "Établissement créé !",
                 description: "Votre établissement a été créé avec succès via l'API souveraine.",
             });
 
-            // Refresh profile to get tenant_id and TENANT_ADMIN role
+            // Refresh profile FIRST to get a new JWT that includes the tenant_id.
+            // The old token has tenant_id=null (issued before tenant creation), so any
+            // tenant-scoped call (like PATCH /tenants/settings/) will 400 without this.
             await refreshProfile();
+
+            // Now that the token has tenant_id, mark onboarding as completed
+            try {
+                await apiClient.patch('/tenants/settings', { onboarding_completed: true });
+            } catch (err) {
+                // Non-critical: onboarding_completed flag will be set on next API call
+                if (import.meta.env.DEV) console.warn("[FinalStep] Could not mark onboarding complete:", err);
+            }
 
             // Rediriger après 2 secondes
             setTimeout(() => {

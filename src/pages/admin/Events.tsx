@@ -1,10 +1,11 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { isToday, isFuture } from "date-fns";
 import { adminQueries, SchoolEvent } from "@/queries/admin";
+import { useTranslation } from "react-i18next";
 
 // Modular components
 import { EventHeader } from "@/components/admin/events/EventHeader";
@@ -13,6 +14,7 @@ import { EventGrid } from "@/components/admin/events/EventGrid";
 import { EventDialog } from "@/components/admin/events/EventDialog";
 
 export default function Events() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -36,11 +38,11 @@ export default function Events() {
     mutationFn: (data: any) => adminQueries.createEvent(tenant!.id, user?.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-events"] });
-      toast.success("Événement créé avec succès");
+      toast.success(t("events.createSuccess"));
       setDialogOpen(false);
     },
     onError: (error) => {
-      toast.error("Erreur lors de la création");
+      toast.error(t("events.createError"));
     },
   });
 
@@ -49,10 +51,10 @@ export default function Events() {
     mutationFn: (id: string) => adminQueries.deleteEvent(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-events"] });
-      toast.success("Événement supprimé");
+      toast.success(t("events.deleteSuccess"));
     },
     onError: (error) => {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("events.deleteError"));
     }
   });
 
@@ -86,3 +88,4 @@ export default function Events() {
     </div>
   );
 }
+

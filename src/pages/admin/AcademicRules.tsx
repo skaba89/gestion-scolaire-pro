@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -34,6 +35,7 @@ interface AcademicRule {
 }
 
 export default function AcademicRules() {
+    const { t } = useTranslation();
     const { termLabel, coefficientLabel, levelLabel, gradeLabel } = useTerminology();
     const queryClient = useQueryClient();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -73,7 +75,7 @@ export default function AcademicRules() {
             try {
                 valueJson = JSON.parse(rule.valueStr);
             } catch (e) {
-                throw new Error("Format JSON invalide");
+                throw new Error(t("academicRules.invalidJson"));
             }
 
             const { data } = await apiClient.post("/tenants/settings/academic-rules/", {
@@ -89,10 +91,10 @@ export default function AcademicRules() {
             queryClient.invalidateQueries({ queryKey: ["academic-rules"] });
             setIsCreateOpen(false);
             setNewRule({ type: 'PASSING_GRADE', is_active: true, valueStr: '{"min": 10}' });
-            toast.success("Règle créée avec succès");
+            toast.success(t("academicRules.createSuccess"));
         },
         onError: (error: any) => {
-            toast.error(error?.response?.data?.detail || error.message || "Erreur lors de la création");
+            toast.error(error?.response?.data?.detail || error.message || t("academicRules.createError"));
         },
     });
 
@@ -103,7 +105,7 @@ export default function AcademicRules() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["academic-rules"] });
-            toast.success("Règle supprimée");
+            toast.success(t("academicRules.deleteSuccess"));
         },
     });
 
@@ -113,11 +115,11 @@ export default function AcademicRules() {
 
     const getRuleDescription = (type: AcademicRuleType) => {
         switch (type) {
-            case 'PASSING_GRADE': return `${gradeLabel} de passage`;
-            case 'HONOR_ROLL_THRESHOLD': return "Seuils de mentions/tableau d'honneur";
-            case 'COEFFICIENT_POLICY': return `Politique des ${coefficientLabel}s`;
-            case 'ATTENDANCE_LIMIT': return "Limite d'absences autorisées";
-            case 'PROMOTION_RULE': return `Règle de passage en ${levelLabel} supérieure`;
+            case 'PASSING_GRADE': return t("academicRules.rulePassingGrade", { label: gradeLabel });
+            case 'HONOR_ROLL_THRESHOLD': return t("academicRules.ruleHonorRoll");
+            case 'COEFFICIENT_POLICY': return t("academicRules.ruleCoefficientPolicy", { label: coefficientLabel });
+            case 'ATTENDANCE_LIMIT': return t("academicRules.ruleAttendanceLimit");
+            case 'PROMOTION_RULE': return t("academicRules.rulePromotion", { label: levelLabel });
             default: return type;
         }
     };
@@ -135,29 +137,29 @@ export default function AcademicRules() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Règles Académiques</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">{t("academicRules.pageTitle")}</h2>
                     <p className="text-muted-foreground">
-                        Configurez les critères de passage, les seuils de mentions et la logique d'évaluation.
+                        {t("academicRules.pageSubtitle")}
                     </p>
                 </div>
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
                         <Button>
                             <Plus className="mr-2 h-4 w-4" />
-                            Nouvelle Règle
+                            {t("academicRules.newRule")}
                         </Button>
                     </DialogTrigger>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Ajouter une règle académique</DialogTitle>
+                            <DialogTitle>{t("academicRules.dialogTitle")}</DialogTitle>
                             <DialogDescription>
-                                Définissez une règle globale ou spécifique à un niveau.
+                                {t("academicRules.dialogDescription")}
                             </DialogDescription>
                         </DialogHeader>
 
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
-                                <Label>Type de règle</Label>
+                                <Label>{t("academicRules.ruleType")}</Label>
                                 <Select
                                     value={newRule.type}
                                     onValueChange={(val: AcademicRuleType) =>
@@ -168,53 +170,53 @@ export default function AcademicRules() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="PASSING_GRADE">Moyenne de Passage</SelectItem>
-                                        <SelectItem value="HONOR_ROLL_THRESHOLD">Seuils de Mentions</SelectItem>
-                                        <SelectItem value="ATTENDANCE_LIMIT">Limite d'Absences</SelectItem>
-                                        <SelectItem value="PROMOTION_RULE">Règle de Promotion</SelectItem>
+                                        <SelectItem value="PASSING_GRADE">{t("academicRules.typePassingGrade")}</SelectItem>
+                                        <SelectItem value="HONOR_ROLL_THRESHOLD">{t("academicRules.typeHonorRoll")}</SelectItem>
+                                        <SelectItem value="ATTENDANCE_LIMIT">{t("academicRules.typeAttendanceLimit")}</SelectItem>
+                                        <SelectItem value="PROMOTION_RULE">{t("academicRules.typePromotion")}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
 
                             <div className="space-y-2">
-                                <Label>{levelLabel} (Optionnel)</Label>
+                                <Label>{levelLabel} ({t("academicRules.optional")})</Label>
                                 <Select
                                     value={newRule.level_id || "all"}
                                     onValueChange={(val) => setNewRule({ ...newRule, level_id: val })}
                                 >
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Tous les niveaux" />
+                                        <SelectValue placeholder={t("academicRules.allLevels")} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">Tous les niveaux (Global)</SelectItem>
+                                        <SelectItem value="all">{t("academicRules.allLevelsGlobal")}</SelectItem>
                                         {levels?.map((l) => (
                                             <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                                 <p className="text-xs text-muted-foreground">
-                                    Laissez vide pour appliquer à toute l'institution.
+                                    {t("academicRules.levelHint")}
                                 </p>
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Valeur (Configuration JSON)</Label>
+                                <Label>{t("academicRules.valueJson")}</Label>
                                 <Input
                                     value={newRule.valueStr}
                                     onChange={(e) => setNewRule({ ...newRule, valueStr: e.target.value })}
                                     className="font-mono"
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Format JSON requis. Ex: {"{"}"min": 10{"}"}
+                                    {t("academicRules.jsonHint")}
                                 </p>
                             </div>
                         </div>
 
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Annuler</Button>
+                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>{t("academicRules.cancel")}</Button>
                             <Button onClick={handleSubmit} disabled={createMutation.isPending}>
                                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Enregistrer
+                                {t("academicRules.save")}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -229,9 +231,9 @@ export default function AcademicRules() {
                 ) : rules?.length === 0 ? (
                     <div className="col-span-3 text-center py-12 border rounded-lg bg-muted/10">
                         <Settings className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                        <h3 className="text-lg font-medium">Aucune règle configurée</h3>
-                        <p className="text-muted-foreground mb-4">Utilisez les règles par défaut (10/20) ou ajoutez-en une.</p>
-                        <Button onClick={() => setIsCreateOpen(true)} variant="outline">Créer une règle</Button>
+                        <h3 className="text-lg font-medium">{t("academicRules.emptyTitle")}</h3>
+                        <p className="text-muted-foreground mb-4">{t("academicRules.emptySubtitle")}</p>
+                        <Button onClick={() => setIsCreateOpen(true)} variant="outline">{t("academicRules.createRule")}</Button>
                     </div>
                 ) : (
                     rules?.map((rule) => (
@@ -243,7 +245,7 @@ export default function AcademicRules() {
                                             {getRuleDescription(rule.type)}
                                         </CardTitle>
                                         <CardDescription>
-                                            {rule.levels ? `Niveau : ${rule.levels.name}` : 'Application Globale'}
+                                            {rule.levels ? t("academicRules.levelApplied", { name: rule.levels.name }) : t("academicRules.globalApplication")}
                                         </CardDescription>
                                     </div>
                                     <Button
@@ -264,7 +266,7 @@ export default function AcademicRules() {
                                     <div className="flex items-center space-x-2">
                                         <Switch checked={rule.is_active} disabled />
                                         <span className="text-xs text-muted-foreground">
-                                            {rule.is_active ? 'Actif' : 'Inactif'}
+                                            {rule.is_active ? t("academicRules.active") : t("academicRules.inactive")}
                                         </span>
                                     </div>
                                 </div>
@@ -278,10 +280,9 @@ export default function AcademicRules() {
                 <CardContent className="flex items-start p-4 space-x-4">
                     <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
                     <div className="space-y-1">
-                        <h4 className="font-semibold text-amber-800">Note Importante</h4>
+                        <h4 className="font-semibold text-amber-800">{t("academicRules.noteTitle")}</h4>
                         <p className="text-sm text-amber-700">
-                            Les modifications des règles s'appliquent immédiatement aux nouveaux calculs de bulletins et de relevés.
-                            Les bulletins déjà générés (PDF) ne sont pas modifiés.
+                            {t("academicRules.noteContent")}
                         </p>
                     </div>
                 </CardContent>

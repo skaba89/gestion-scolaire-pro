@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,6 +41,7 @@ import {
 } from "lucide-react";
 
 export default function Appointments() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -130,10 +132,10 @@ export default function Appointments() {
       queryClient.invalidateQueries({ queryKey: ["appointment-slots"] });
       setIsOpen(false);
       setFormData({ teacher_id: "", student_id: "", slot_id: "", subject: "", notes: "" });
-      toast.success("Rendez-vous réservé avec succès");
+      toast.success(t("appointments.bookingSuccess"));
     },
     onError: () => {
-      toast.error("Erreur lors de la réservation");
+      toast.error(t("appointments.bookingError"));
     },
   });
 
@@ -155,17 +157,17 @@ export default function Appointments() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parent-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-slots"] });
-      toast.success("Rendez-vous annulé");
+      toast.success(t("appointments.cancelled"));
     },
   });
 
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
-      scheduled: { variant: "outline", label: "Planifié" },
-      confirmed: { variant: "default", label: "Confirmé" },
-      cancelled: { variant: "destructive", label: "Annulé" },
-      completed: { variant: "secondary", label: "Terminé" },
-      no_show: { variant: "destructive", label: "Absent" },
+      scheduled: { variant: "outline", label: t("appointments.statusScheduled") },
+      confirmed: { variant: "default", label: t("appointments.statusConfirmed") },
+      cancelled: { variant: "destructive", label: t("appointments.statusCancelled") },
+      completed: { variant: "secondary", label: t("appointments.statusCompleted") },
+      no_show: { variant: "destructive", label: t("appointments.statusAbsent") },
     };
     const config = configs[status] || configs.scheduled;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -187,32 +189,32 @@ export default function Appointments() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Calendar className="h-8 w-8 text-primary" />
-            Rendez-vous
+            {t("appointments.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
-            Prenez rendez-vous avec les enseignants de vos enfants
+            {t("appointments.parentSubtitle")}
           </p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Prendre rendez-vous
+              {t("appointments.newAppointment")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Nouveau rendez-vous</DialogTitle>
+              <DialogTitle>{t("appointments.newAppointment")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Enfant concerné</Label>
+                <Label>{t("appointments.child")}</Label>
                 <Select
                   value={formData.student_id}
                   onValueChange={(value) => setFormData({ ...formData, student_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un enfant" />
+                    <SelectValue placeholder={t("appointments.selectChild")} />
                   </SelectTrigger>
                   <SelectContent>
                     {children?.map((child: any) => (
@@ -225,13 +227,13 @@ export default function Appointments() {
               </div>
 
               <div className="space-y-2">
-                <Label>Enseignant</Label>
+                <Label>{t("appointments.teacher")}</Label>
                 <Select
                   value={formData.teacher_id}
                   onValueChange={(value) => setFormData({ ...formData, teacher_id: value, slot_id: "" })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un enseignant" />
+                    <SelectValue placeholder={t("appointments.selectTeacher")} />
                   </SelectTrigger>
                   <SelectContent>
                     {teachers?.map((teacher: any) => (
@@ -245,10 +247,10 @@ export default function Appointments() {
 
               {formData.teacher_id && (
                 <div className="space-y-2">
-                  <Label>Créneau disponible</Label>
+                  <Label>{t("appointments.availableSlot")}</Label>
                   {availableSlots?.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      Aucun créneau disponible pour cet enseignant
+                      {t("appointments.noSlotForTeacher")}
                     </p>
                   ) : (
                     <Select
@@ -256,13 +258,13 @@ export default function Appointments() {
                       onValueChange={(value) => setFormData({ ...formData, slot_id: value })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Choisir un créneau" />
+                        <SelectValue placeholder={t("appointments.chooseSlot")} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableSlots?.map((slot: any) => (
                           <SelectItem key={slot.id} value={slot.id}>
                             {format(new Date(slot.slot_date), "EEEE d MMMM", { locale: fr })} - {slot.start_time.slice(0, 5)} à {slot.end_time.slice(0, 5)}
-                            {slot.is_online && " (en ligne)"}
+                            {slot.is_online && ` ${t("appointments.inOnline")}`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -272,20 +274,20 @@ export default function Appointments() {
               )}
 
               <div className="space-y-2">
-                <Label>Sujet du rendez-vous</Label>
+                <Label>{t("appointments.appointmentSubject")}</Label>
                 <Input
                   value={formData.subject}
                   onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                  placeholder="Ex: Suivi scolaire, Comportement..."
+                  placeholder={t("appointments.subjectPlaceholder")}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Notes (optionnel)</Label>
+                <Label>{t("appointments.notesOptional")}</Label>
                 <Textarea
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Points à aborder..."
+                  placeholder={t("appointments.notesPlaceholder")}
                 />
               </div>
 
@@ -299,7 +301,7 @@ export default function Appointments() {
                 }
                 className="w-full"
               >
-                Confirmer le rendez-vous
+                {t("appointments.confirmBtn")}
               </Button>
             </div>
           </DialogContent>
@@ -308,8 +310,8 @@ export default function Appointments() {
 
       <Tabs defaultValue="upcoming" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="upcoming">À venir ({upcomingAppointments.length})</TabsTrigger>
-          <TabsTrigger value="past">Passés ({pastAppointments.length})</TabsTrigger>
+          <TabsTrigger value="upcoming">{t("appointments.upcoming")} ({upcomingAppointments.length})</TabsTrigger>
+          <TabsTrigger value="past">{t("appointments.past")} ({pastAppointments.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upcoming" className="space-y-4">
@@ -317,9 +319,9 @@ export default function Appointments() {
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Aucun rendez-vous à venir</p>
+                <p>{t("appointments.noUpcoming")}</p>
                 <Button variant="link" onClick={() => setIsOpen(true)}>
-                  Prendre un rendez-vous
+                  {t("appointments.takeAppointment")}
                 </Button>
               </CardContent>
             </Card>
@@ -347,7 +349,7 @@ export default function Appointments() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span>Concernant:</span>
+                      <span>{t("appointments.regarding")}</span>
                       <span className="font-medium text-foreground">
                         {apt.student?.first_name} {apt.student?.last_name}
                       </span>
@@ -366,7 +368,7 @@ export default function Appointments() {
                       onClick={() => cancelMutation.mutate(apt.id)}
                     >
                       <X className="h-4 w-4 mr-1" />
-                      Annuler
+                      {t("common.cancel")}
                     </Button>
                   </CardFooter>
                 </Card>

@@ -29,30 +29,22 @@ function isApiRequest(url) {
 }
 
 function isStaticAsset(url) {
+  // Vite build output: /assets/vendor-xxx-[hash].js, /assets/index-[hash].css, etc.
   return (
     /\/assets\/.*\.(js|css|woff2?|ttf|eot)/.test(url) ||
     /\.(png|jpg|jpeg|svg|ico|webp|gif)(\?.*)?$/.test(url)
   );
 }
 
-async function putInCache(cacheName, request, response) {
-  if (!response || !response.ok) return;
-  try {
-    const responseForCache = response.clone();
-    const cache = await caches.open(cacheName);
-    await cache.put(request, responseForCache);
-  } catch (error) {
-    // Never break navigation/static loading because of a cache write failure.
-    console.warn("[sw-schoolflow] cache put skipped:", error);
-  }
-}
-
+// ── Install: cache the app shell immediately ──────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
       .then((cache) => {
+        // Pre-cache only the root — JS bundles cached on first fetch
         return cache.add("/").catch(() => {
+          // / might redirect, try index.html directly
           return cache.add("/index.html").catch(() => {});
         });
       })
@@ -60,6 +52,7 @@ self.addEventListener("install", (event) => {
   );
 });
 
+// ── Activate: remove old caches ───────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -75,68 +68,96 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// ── Fetch: route requests ─────────────────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = request.url;
 
+  // ── 1. Skip non-GET and API calls entirely ────────────────────────────────
   if (request.method !== "GET" || isApiRequest(url)) {
-    return;
+    return; // Let browser handle normally
   }
 
+  // ── 2. Navigation requests (HTML pages) ───────────────────────────────────
+  // Network-first: try to get fresh HTML, fall back to cached app shell
   if (request.mode === "navigate") {
     event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(request);
-          event.waitUntil(putInCache(SHELL_CACHE, request, response));
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            // Clone synchronously before response body is consumed
+            const clone = response.clone();
+            caches
+              .open(SHELL_CACHE)
+              .then((cache) => cache.put(request, clone));
+          }
           return response;
-        } catch (_) {
+        })
+        .catch(() => {
+          // Offline: serve the cached app shell
           return (
-            (await caches.match(request)) ||
-            (await caches.match("/")) ||
-            (await caches.match("/index.html")) ||
-            Response.error()
+            caches.match(request) ||
+            caches.match("/") ||
+            caches.match("/index.html")
           );
-        }
-      })()
+        })
     );
     return;
   }
 
+  // ── 3. Static assets: Cache-First ─────────────────────────────────────────
+  // Hashed assets (immutable) → serve from cache immediately
+  // Non-hashed assets → revalidate in background
   if (isStaticAsset(url)) {
     event.respondWith(
-      (async () => {
-        const cached = await caches.match(request);
-
+      caches.match(request).then((cached) => {
         if (cached) {
+          // Has a hash in filename → truly immutable, serve directly
           if (/\/assets\/.*-[a-f0-9]{8,}\./.test(url)) {
             return cached;
           }
-
-          event.waitUntil(
-            fetch(request)
-              .then((response) => putInCache(CACHE_NAME, request, response))
-              .catch(() => undefined)
-          );
-          return cached;
+          // No hash → revalidate in background (stale-while-revalidate)
+          const networkFetch = fetch(request)
+            .then((response) => {
+              if (response.ok) {
+                // Clone synchronously before response body is consumed
+                const clone = response.clone();
+                caches
+                  .open(CACHE_NAME)
+                  .then((cache) => cache.put(request, clone));
+              }
+              return response;
+            })
+            .catch(() => cached);
+          return cached; // Return cached immediately, update in background
         }
 
-        const response = await fetch(request);
-        event.waitUntil(putInCache(CACHE_NAME, request, response));
-        return response;
-      })()
+        // Not cached: fetch and store
+        return fetch(request).then((response) => {
+          if (response.ok) {
+            // Clone synchronously before response body is consumed
+            const clone = response.clone();
+            caches
+              .open(CACHE_NAME)
+              .then((cache) => cache.put(request, clone));
+          }
+          return response;
+        });
+      })
     );
     return;
   }
+
+  // ── 4. Everything else: Network-only ──────────────────────────────────────
+  // Don't cache dynamic content (unknown patterns, WebSocket upgrades, etc.)
 });
 
+// ── Message: force update ─────────────────────────────────────────────────────
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
   if (event.data && event.data.type === "CLEAR_CACHE") {
-    event.waitUntil(
-      caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-    );
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
   }
 });

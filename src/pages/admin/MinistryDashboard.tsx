@@ -7,7 +7,8 @@
  *     Nationale de Guinée, score de complétude, rapport imprimable
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { adminQueries } from "@/queries/admin";
@@ -228,6 +229,7 @@ ${data.effectifs_par_niveau.length > 0 ? `
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function MinistryDashboard() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { formatCurrency } = useCurrency();
   const { studentsLabel, StudentsLabel } = useStudentLabel();
@@ -256,9 +258,9 @@ export default function MinistryDashboard() {
     mutationFn: adminQueries.refreshMinistryDashboard,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-ministry-kpis", tenant?.id] });
-      toastService.success("Données institutionnelles rafraîchies");
+      toastService.success(t("ministryDashboard.refreshSuccess"));
     },
-    onError: (error: any) => toastService.error("Échec du rafraîchissement", error.message),
+    onError: (error: any) => toastService.error(t("ministryDashboard.refreshError"), error.message),
   });
 
   // ── Tab 2: MEN Guinée conformité ──────────────────────────────────────────────
@@ -288,10 +290,10 @@ export default function MinistryDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["men-guinea", tenant?.id] });
       setFormDirty(false);
-      toastService.success("Informations MEN enregistrées");
+      toastService.success(t("ministryDashboard.saveSuccess"));
     },
     onError: (err: any) =>
-      toastService.error("Erreur", err.response?.data?.detail || err.message),
+      toastService.error(t("ministryDashboard.saveError"), err.response?.data?.detail || err.message),
   });
 
   const handleSave = () => {
@@ -330,23 +332,23 @@ export default function MinistryDashboard() {
 
   // ── Charts ────────────────────────────────────────────────────────────────────
 
-  const genderData = kpis ? [
-    { name: "Garçons", value: kpis.students_male, color: "#3b82f6" },
-    { name: "Filles", value: kpis.students_female, color: "#ec4899" },
-  ] : [];
+  const genderData = useMemo(() => kpis ? [
+    { name: t("ministryDashboard.boys"), value: kpis.students_male, color: "#3b82f6" },
+    { name: t("ministryDashboard.girls"), value: kpis.students_female, color: "#ec4899" },
+  ] : [], [kpis, t]);
 
-  const onboardingSteps = [
+  const onboardingSteps = useMemo(() => [
     {
       target: "#ministry-stats",
-      title: "Indicateurs Clés",
-      content: `Suivez ici la santé globale de votre établissement.`,
+      title: t("ministryDashboard.onboarding.kpiTitle"),
+      content: t("ministryDashboard.onboarding.kpiContent"),
     },
     {
       target: "#men-compliance",
-      title: "Conformité MEN Guinée",
-      content: "Renseignez les informations officielles requises par le Ministère de l'Éducation Nationale.",
+      title: t("ministryDashboard.onboarding.complianceTitle"),
+      content: t("ministryDashboard.onboarding.complianceContent"),
     },
-  ];
+  ], [t]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -357,13 +359,13 @@ export default function MinistryDashboard() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <ShieldCheck className="h-7 w-7 text-primary" />
-            Reporting Institutionnel
+            {t("ministryDashboard.title")}
             <Badge variant="outline" className="ml-2 text-xs border-green-500 text-green-700 bg-green-50">
               🇬🇳 Guinée
             </Badge>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Indicateurs de performance + conformité Ministère de l'Éducation Nationale
+            {t("ministryDashboard.subtitle")}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -373,7 +375,7 @@ export default function MinistryDashboard() {
             disabled={refreshMutation.isPending}
           >
             <RefreshCcw className={cn("h-4 w-4 mr-1.5", refreshMutation.isPending && "animate-spin")} />
-            Actualiser
+            {t("ministryDashboard.refresh")}
           </Button>
           <Button size="sm" variant="outline" disabled={exportLoading} onClick={async () => {
             setExportLoading(true);
@@ -384,17 +386,17 @@ export default function MinistryDashboard() {
               a.href = url; a.download = `rapport_men_${new Date().toISOString().split("T")[0]}.csv`;
               document.body.appendChild(a); a.click();
               document.body.removeChild(a); URL.revokeObjectURL(url);
-              toastService.success("CSV exporté");
+              toastService.success(t("ministryDashboard.exportSuccess"));
             } catch (err: any) {
-              toastService.error("Erreur d'export", err.response?.data?.detail || err.message);
+              toastService.error(t("ministryDashboard.exportError"), err.response?.data?.detail || err.message);
             } finally { setExportLoading(false); }
           }}>
             <FileSpreadsheet className="h-4 w-4 mr-1.5" />
-            {exportLoading ? "Export..." : "Export CSV"}
+            {exportLoading ? t("ministryDashboard.exporting") : t("ministryDashboard.exportCsv")}
           </Button>
           <Button size="sm" onClick={handlePrintRapport} disabled={rapportLoading}>
             <Printer className="h-4 w-4 mr-1.5" />
-            Fiche MEN (impression)
+            {t("ministryDashboard.printMen")}
           </Button>
         </div>
       </div>
@@ -403,11 +405,11 @@ export default function MinistryDashboard() {
         <TabsList className="mb-4">
           <TabsTrigger value="kpis" className="gap-2">
             <BarChart3 className="h-4 w-4" />
-            Tableau de bord
+            {t("ministryDashboard.tabDashboard")}
           </TabsTrigger>
           <TabsTrigger value="conformite" className="gap-2" id="men-compliance">
             <ClipboardList className="h-4 w-4" />
-            Conformité MEN
+            {t("ministryDashboard.tabCompliance")}
             {score > 0 && (
               <Badge
                 variant="outline"
@@ -423,7 +425,7 @@ export default function MinistryDashboard() {
         <TabsContent value="kpis" className="space-y-6">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">
-              Chargement des données institutionnelles...
+              {t("ministryDashboard.loadingKpis")}
             </div>
           ) : (
             <>
@@ -431,17 +433,17 @@ export default function MinistryDashboard() {
               <div id="ministry-stats" className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">Total {StudentsLabel}</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("ministryDashboard.totalStudents")} {StudentsLabel}</CardTitle>
                     <Users className="h-4 w-4 text-primary" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{kpis?.total_students || 0}</div>
-                    <p className="text-xs text-muted-foreground">Effectifs actifs consolidés</p>
+                    <p className="text-xs text-muted-foreground">{t("ministryDashboard.activeEnrollments")}</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">Assiduité Globale</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("ministryDashboard.attendanceRate")}</CardTitle>
                     <Calendar className="h-4 w-4 text-emerald-500" />
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -451,17 +453,17 @@ export default function MinistryDashboard() {
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">Moyenne Académique</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("ministryDashboard.academicAverage")}</CardTitle>
                     <GraduationCap className="h-4 w-4 text-purple-500" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{kpis?.average_grade || 0}/20</div>
-                    <p className="text-xs text-muted-foreground">Moyenne générale</p>
+                    <p className="text-xs text-muted-foreground">{t("ministryDashboard.overallAverage")}</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">Taux Recouvrement</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("ministryDashboard.collectionRate")}</CardTitle>
                     <TrendingUp className="h-4 w-4 text-blue-500" />
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -477,10 +479,10 @@ export default function MinistryDashboard() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <BookOpen className="h-4 w-4 text-indigo-500" />
-                      Effectifs par niveau
+                      {t("ministryDashboard.levelStats")}
                     </CardTitle>
                     <CardDescription>
-                      Répartition des {studentsLabel.toLowerCase()} par niveau scolaire
+                      {t("ministryDashboard.levelStatsDesc", { students: studentsLabel.toLowerCase() })}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -488,12 +490,12 @@ export default function MinistryDashboard() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left py-2 font-medium text-muted-foreground">Niveau</th>
-                            <th className="text-right py-2 font-medium text-muted-foreground">Total</th>
-                            <th className="text-right py-2 font-medium text-muted-foreground">Garçons</th>
-                            <th className="text-right py-2 font-medium text-muted-foreground">Filles</th>
-                            <th className="text-right py-2 font-medium text-muted-foreground">% Filles</th>
-                            <th className="text-right py-2 font-medium text-muted-foreground">Moy. /20</th>
+                            <th className="text-left py-2 font-medium text-muted-foreground">{t("ministryDashboard.colLevel")}</th>
+                            <th className="text-right py-2 font-medium text-muted-foreground">{t("ministryDashboard.colTotal")}</th>
+                            <th className="text-right py-2 font-medium text-muted-foreground">{t("ministryDashboard.colBoys")}</th>
+                            <th className="text-right py-2 font-medium text-muted-foreground">{t("ministryDashboard.colGirls")}</th>
+                            <th className="text-right py-2 font-medium text-muted-foreground">{t("ministryDashboard.colGirlsPct")}</th>
+                            <th className="text-right py-2 font-medium text-muted-foreground">{t("ministryDashboard.colAvg")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -521,7 +523,7 @@ export default function MinistryDashboard() {
                         </tbody>
                         <tfoot>
                           <tr className="border-t-2 font-bold">
-                            <td className="py-2">Total</td>
+                            <td className="py-2">{t("ministryDashboard.colTotal")}</td>
                             <td className="py-2 text-right">{levelStats.reduce((s, r) => s + r.total, 0)}</td>
                             <td className="py-2 text-right text-blue-600">{levelStats.reduce((s, r) => s + r.male, 0)}</td>
                             <td className="py-2 text-right text-pink-600">{levelStats.reduce((s, r) => s + r.female, 0)}</td>
@@ -540,9 +542,9 @@ export default function MinistryDashboard() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <PieChartIcon className="h-4 w-4 text-primary" />
-                      Démographie des {studentsLabel}
+                      {t("ministryDashboard.genderTitle", { students: studentsLabel })}
                     </CardTitle>
-                    <CardDescription>Répartition par genre</CardDescription>
+                    <CardDescription>{t("ministryDashboard.genderDesc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[280px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -564,14 +566,14 @@ export default function MinistryDashboard() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
                       <BarChart3 className="h-4 w-4 text-primary" />
-                      Flux Financiers
+                      {t("ministryDashboard.financialFlows")}
                     </CardTitle>
-                    <CardDescription>Revenus attendus vs collectés</CardDescription>
+                    <CardDescription>{t("ministryDashboard.financialFlowsDesc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6 pt-2">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Revenus Collectés</span>
+                        <span className="text-muted-foreground">{t("ministryDashboard.revenueCollected")}</span>
                         <span className="font-bold text-emerald-600">
                           {formatCurrency(kpis?.total_revenue_collected || 0)}
                         </span>
@@ -583,11 +585,11 @@ export default function MinistryDashboard() {
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="p-4 rounded-xl bg-muted/30 border">
-                        <p className="text-xs text-muted-foreground uppercase mb-1">Total Attendu</p>
+                        <p className="text-xs text-muted-foreground uppercase mb-1">{t("ministryDashboard.totalExpected")}</p>
                         <p className="text-xl font-bold">{formatCurrency(kpis?.total_revenue_expected || 0)}</p>
                       </div>
                       <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-                        <p className="text-xs text-emerald-700 uppercase mb-1">Restant à Collecter</p>
+                        <p className="text-xs text-emerald-700 uppercase mb-1">{t("ministryDashboard.remaining")}</p>
                         <p className="text-xl font-bold text-emerald-900">
                           {formatCurrency((kpis?.total_revenue_expected || 0) - (kpis?.total_revenue_collected || 0))}
                         </p>
@@ -609,26 +611,26 @@ export default function MinistryDashboard() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-sm">Score de conformité MEN Guinée</p>
+                    <p className="font-semibold text-sm">{t("ministryDashboard.complianceScore")}</p>
                     <span className={cn("text-2xl font-bold", scoreColor(score).split(" ")[0])}>
                       {score}%
                     </span>
                   </div>
                   <Progress value={score} className="h-3" />
                   <p className="text-xs text-muted-foreground">
-                    {filled} sur {total} informations officielles renseignées
-                    {score < 100 && ` — ${total - filled} champ(s) manquant(s)`}
+                    {t("ministryDashboard.complianceFilledOf", { filled, total })}
+                    {score < 100 && ` — ${t("ministryDashboard.complianceMissingFields", { count: total - filled })}`}
                   </p>
                 </div>
                 {score >= 80 ? (
                   <div className="flex items-center gap-2 text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 shrink-0">
                     <CheckCircle2 className="h-5 w-5" />
-                    <span className="text-sm font-medium">Conforme</span>
+                    <span className="text-sm font-medium">{t("ministryDashboard.compliant")}</span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 shrink-0">
                     <AlertCircle className="h-5 w-5" />
-                    <span className="text-sm font-medium">Incomplet</span>
+                    <span className="text-sm font-medium">{t("ministryDashboard.incomplete")}</span>
                   </div>
                 )}
               </div>
@@ -637,7 +639,7 @@ export default function MinistryDashboard() {
 
           {/* Formulaire */}
           {menLoading ? (
-            <div className="p-6 text-center text-muted-foreground">Chargement des informations MEN...</div>
+            <div className="p-6 text-center text-muted-foreground">{t("ministryDashboard.loadingMen")}</div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2">
 
@@ -646,13 +648,13 @@ export default function MinistryDashboard() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <FileText className="h-4 w-4 text-primary" />
-                    Identification officielle
+                    {t("ministryDashboard.officialId")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="numero_agrement" className="text-xs">
-                      Numéro d'agrément MEN{" "}
+                      {t("ministryDashboard.fieldAgreement")}{" "}
                       {!merged.numero_agrement && <span className="text-red-500">*</span>}
                     </Label>
                     <Input
@@ -664,7 +666,7 @@ export default function MinistryDashboard() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="statut_juridique" className="text-xs">
-                      Statut juridique{" "}
+                      {t("ministryDashboard.fieldLegalStatus")}{" "}
                       {!merged.statut_juridique && <span className="text-red-500">*</span>}
                     </Label>
                     <Select
@@ -672,7 +674,7 @@ export default function MinistryDashboard() {
                       onValueChange={v => setField("statut_juridique", v)}
                     >
                       <SelectTrigger id="statut_juridique">
-                        <SelectValue placeholder="Sélectionner..." />
+                        <SelectValue placeholder={t("ministryDashboard.selectPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
                         {STATUTS_JURIDIQUES.map(s => (
@@ -683,7 +685,7 @@ export default function MinistryDashboard() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="cycle" className="text-xs">
-                      Cycle d'enseignement{" "}
+                      {t("ministryDashboard.fieldCycle")}{" "}
                       {!merged.cycle && <span className="text-red-500">*</span>}
                     </Label>
                     <Select
@@ -691,7 +693,7 @@ export default function MinistryDashboard() {
                       onValueChange={v => setField("cycle", v)}
                     >
                       <SelectTrigger id="cycle">
-                        <SelectValue placeholder="Sélectionner..." />
+                        <SelectValue placeholder={t("ministryDashboard.selectPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
                         {CYCLES.map(c => (
@@ -701,7 +703,7 @@ export default function MinistryDashboard() {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="date_ouverture" className="text-xs">Date d'ouverture</Label>
+                    <Label htmlFor="date_ouverture" className="text-xs">{t("ministryDashboard.fieldOpeningDate")}</Label>
                     <Input
                       id="date_ouverture"
                       type="date"
@@ -717,13 +719,13 @@ export default function MinistryDashboard() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-primary" />
-                    Localisation administrative
+                    {t("ministryDashboard.adminLocation")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="region_academique" className="text-xs">
-                      Région académique{" "}
+                      {t("ministryDashboard.fieldRegion")}{" "}
                       {!merged.region_academique && <span className="text-red-500">*</span>}
                     </Label>
                     <Select
@@ -731,7 +733,7 @@ export default function MinistryDashboard() {
                       onValueChange={v => setField("region_academique", v)}
                     >
                       <SelectTrigger id="region_academique">
-                        <SelectValue placeholder="Sélectionner..." />
+                        <SelectValue placeholder={t("ministryDashboard.selectPlaceholder")} />
                       </SelectTrigger>
                       <SelectContent>
                         {REGIONS_GUINEE.map(r => (
@@ -742,7 +744,7 @@ export default function MinistryDashboard() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="prefecture" className="text-xs">
-                      Préfecture / Commune de Conakry{" "}
+                      {t("ministryDashboard.fieldPrefecture")}{" "}
                       {!merged.prefecture && <span className="text-red-500">*</span>}
                     </Label>
                     <Input
@@ -753,7 +755,7 @@ export default function MinistryDashboard() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="commune" className="text-xs">Commune / Sous-préfecture</Label>
+                    <Label htmlFor="commune" className="text-xs">{t("ministryDashboard.fieldCommune")}</Label>
                     <Input
                       id="commune"
                       placeholder="ex: Hamdallaye, Madina..."
@@ -763,7 +765,7 @@ export default function MinistryDashboard() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="inspection_district" className="text-xs">
-                      Inspection de district{" "}
+                      {t("ministryDashboard.fieldInspection")}{" "}
                       {!merged.inspection_district && <span className="text-red-500">*</span>}
                     </Label>
                     <Input
@@ -781,13 +783,13 @@ export default function MinistryDashboard() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-primary" />
-                    Infrastructure
+                    {t("ministryDashboard.infrastructure")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="capacite_accueil" className="text-xs">
-                      Capacité d'accueil (nombre de places)
+                      {t("ministryDashboard.fieldCapacity")}
                     </Label>
                     <Input
                       id="capacite_accueil"
@@ -800,7 +802,7 @@ export default function MinistryDashboard() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="nombre_salles" className="text-xs">
-                      Nombre de salles de classe
+                      {t("ministryDashboard.fieldRooms")}
                     </Label>
                     <Input
                       id="nombre_salles"
@@ -819,18 +821,18 @@ export default function MinistryDashboard() {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm text-blue-800 flex items-center gap-2">
                     <AlertCircle className="h-4 w-4" />
-                    Pourquoi ces informations ?
+                    {t("ministryDashboard.whyTitle")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-xs text-blue-700 space-y-2">
-                  <p>Ces données sont requises par le <strong>Ministère de l'Éducation Nationale et de l'Alphabétisation de Guinée</strong> pour :</p>
+                  <p>{t("ministryDashboard.whyDesc")}</p>
                   <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>La fiche de déclaration statistique annuelle (formulaire officiel)</li>
-                    <li>Le suivi des effectifs par la Direction Régionale de l'Éducation</li>
-                    <li>Le renouvellement de l'agrément d'ouverture</li>
-                    <li>Les rapports à destination des partenaires éducatifs (UNICEF, UNESCO)</li>
+                    <li>{t("ministryDashboard.whyReason1")}</li>
+                    <li>{t("ministryDashboard.whyReason2")}</li>
+                    <li>{t("ministryDashboard.whyReason3")}</li>
+                    <li>{t("ministryDashboard.whyReason4")}</li>
                   </ul>
-                  <p className="mt-2 font-medium">Les champs marqués <span className="text-red-500">*</span> sont obligatoires pour le rapport MEN.</p>
+                  <p className="mt-2 font-medium">{t("ministryDashboard.whyRequired")} <span className="text-red-500">*</span> {t("ministryDashboard.whyRequiredSuffix")}</p>
                 </CardContent>
               </Card>
             </div>
@@ -843,11 +845,11 @@ export default function MinistryDashboard() {
               disabled={!formDirty || saveMutation.isPending}
             >
               <Save className="h-4 w-4 mr-2" />
-              {saveMutation.isPending ? "Enregistrement..." : "Enregistrer les informations MEN"}
+              {saveMutation.isPending ? t("ministryDashboard.saving") : t("ministryDashboard.saveMen")}
             </Button>
             <Button variant="outline" onClick={handlePrintRapport} disabled={rapportLoading}>
               <Printer className="h-4 w-4 mr-2" />
-              Générer la fiche officielle
+              {t("ministryDashboard.generateSheet")}
             </Button>
           </div>
         </TabsContent>

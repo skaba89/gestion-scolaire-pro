@@ -8,6 +8,9 @@ const ChangePassword = lazy(() => import("@/pages/ChangePassword"));
 const AdmissionForm = lazy(() => import("@/pages/public/AdmissionForm"));
 const TenantLanding = lazy(() => import("@/pages/public/TenantLanding"));
 const AdmissionInfo = lazy(() => import("@/pages/public/AdmissionInfo"));
+const EnrollmentHub = lazy(() => import("@/pages/public/EnrollmentHub"));
+const ApplicationStatus = lazy(() => import("@/pages/public/ApplicationStatus"));
+const ReEnrollment = lazy(() => import("@/pages/public/ReEnrollment"));
 const Programs = lazy(() => import("@/pages/public/Programs"));
 const PublicCalendar = lazy(() => import("@/pages/public/PublicCalendar"));
 const Contact = lazy(() => import("@/pages/public/Contact"));
@@ -19,6 +22,10 @@ const SchoolFlowHomePage = lazy(() => import("@/pages/public/SchoolFlowHomePage"
 const PublicDirectory = lazy(() => import("@/pages/public/PublicDirectory"));
 const ConnectionHub = lazy(() => import("@/pages/public/ConnectionHub"));
 const Bootstrap = lazy(() => import("@/pages/Bootstrap"));
+const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const Pricing = lazy(() => import("@/pages/public/Pricing"));
+const Register = lazy(() => import("@/pages/public/Register"));
 
 export const PublicRoutes = () => {
     return (
@@ -44,6 +51,11 @@ export const PublicRoutes = () => {
             <Route path="/info/:tenantSlug" element={<AdmissionInfo />} />
             <Route path="/admissions/:tenantSlug" element={<AdmissionForm />} />
 
+            {/* Online enrollment portal (3 paths) */}
+            <Route path="/inscription/:tenantSlug" element={<EnrollmentHub />} />
+            <Route path="/inscription/:tenantSlug/statut" element={<ApplicationStatus />} />
+            <Route path="/inscription/:tenantSlug/reinscription" element={<ReEnrollment />} />
+
             {/* Demo Routes */}
             <Route path="/demo" element={<Navigate to="/ecole/lasource" replace />} />
             <Route path="/demo/admissions" element={<Navigate to="/admissions/lasource" replace />} />
@@ -61,6 +73,16 @@ export const PublicRoutes = () => {
                     <CreateTenant />
                 </ProtectedRoute>
             } />
+
+            {/* Password reset flow */}
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* Pricing page */}
+            <Route path="/tarifs" element={<Pricing />} />
+
+            {/* Self-service school registration */}
+            <Route path="/inscription" element={<Register />} />
 
             {/* Bootstrap — initial super admin setup */}
             <Route path="/bootstrap" element={<Bootstrap />} />

@@ -1,11 +1,12 @@
-
-import { useState } from "react";
+﻿
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 import { adminQueries } from "@/queries/admin";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
 
 import { LibraryHeader } from "@/components/admin/library/LibraryHeader";
 import { LibraryFilters } from "@/components/admin/library/LibraryFilters";
@@ -16,17 +17,18 @@ import { Loader2, ShoppingBag, Globe, Download, Import } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-const RESOURCE_TYPES: Record<string, string> = {
-    document: "Document",
-    book: "Livre / Manuel",
-    video: "Vidéo / Cours en ligne",
-    link: "Lien externe",
-};
-
 export default function Marketplace() {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { user } = useAuth();
     const queryClient = useQueryClient();
+
+    const RESOURCE_TYPES: Record<string, string> = useMemo(() => ({
+        document: t("marketplace.typeDocument"),
+        book: t("marketplace.typeBook"),
+        video: t("marketplace.typeVideo"),
+        link: t("marketplace.typeLink"),
+    }), [t]);
 
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("all");
@@ -60,9 +62,9 @@ export default function Marketplace() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["admin-library-resources"] });
-            toast.success("Ressource importée dans votre bibliothèque");
+            toast.success(t("marketplace.importSuccess"));
         },
-        onError: (error) => toast.error("Erreur lors de l'import: " + error.message),
+        onError: (error) => toast.error(t("marketplace.importError") + error.message),
     });
 
     if (isLoading) {
@@ -79,10 +81,10 @@ export default function Marketplace() {
                 <div>
                     <h1 className="text-3xl font-bold flex items-center gap-2">
                         <Globe className="h-8 w-8 text-primary" />
-                        Marketplace Éducatif
+                        {t("marketplace.pageTitle")}
                     </h1>
                     <p className="text-muted-foreground">
-                        Découvrez et importez des ressources partagées par la communauté éducative
+                        {t("marketplace.pageSubtitle")}
                     </p>
                 </div>
             </div>
@@ -105,7 +107,7 @@ export default function Marketplace() {
                     <div key={resource.id} className="bg-card border rounded-lg overflow-hidden flex flex-col group p-4 border-primary/20 bg-primary/5">
                         <div className="flex justify-between items-start mb-2">
                             <Badge variant="outline" className="bg-background">
-                                {resource.tenant?.name || "Établissement"}
+                                {resource.tenant?.name || t("marketplace.defaultInstitution")}
                             </Badge>
                             <div className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Download className="h-3 w-3" />
@@ -114,7 +116,7 @@ export default function Marketplace() {
                         </div>
                         <h3 className="font-semibold text-lg line-clamp-1">{resource.title}</h3>
                         <p className="text-sm text-muted-foreground line-clamp-2 mt-1 h-10">
-                            {resource.description || "Aucune description fournie."}
+                            {resource.description || t("marketplace.noDescription")}
                         </p>
                         <div className="mt-4 flex gap-2">
                             <Button
@@ -124,7 +126,7 @@ export default function Marketplace() {
                                 disabled={importMutation.isPending}
                             >
                                 <Import className="h-4 w-4 mr-2" />
-                                Importer
+                                {t("marketplace.importButton")}
                             </Button>
                             <Button
                                 className="flex-1"
@@ -132,7 +134,7 @@ export default function Marketplace() {
                                     window.open(resource.file_url || resource.external_url, "_blank");
                                 }}
                             >
-                                Voir
+                                {t("marketplace.viewButton")}
                             </Button>
                         </div>
                     </div>
@@ -142,12 +144,13 @@ export default function Marketplace() {
             {resources.length === 0 && (
                 <div className="text-center py-20 border-2 border-dashed rounded-lg bg-muted/20">
                     <ShoppingBag className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-20" />
-                    <h2 className="text-xl font-semibold mb-2">Marketplace vide</h2>
+                    <h2 className="text-xl font-semibold mb-2">{t("marketplace.emptyTitle")}</h2>
                     <p className="text-muted-foreground mb-6">
-                        Aucune ressource publique n'est disponible pour le moment.
+                        {t("marketplace.emptyDescription")}
                     </p>
                 </div>
             )}
         </div>
     );
 }
+

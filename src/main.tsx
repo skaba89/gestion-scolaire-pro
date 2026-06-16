@@ -6,6 +6,20 @@ import "./i18n/config";
 import { initSentry } from "./lib/sentry";
 import { initSanitize } from "./lib/sanitize";
 
+// ── Production console silencing ─────────────────────────────────────────────
+// In production builds, suppress console.log/info/debug to prevent leaking
+// application internals, route names, and state data to end users.
+// console.warn and console.error are preserved for genuine error reporting.
+// Sentry captures errors independently via the error handler in lib/sentry.ts.
+if (import.meta.env.PROD) {
+  // eslint-disable-next-line no-console
+  console.log = () => {};
+  // eslint-disable-next-line no-console
+  console.debug = () => {};
+  // eslint-disable-next-line no-console
+  console.info = () => {};
+}
+
 // =============================================================================
 // Trusted Types Policy — must be before any SW registration or script injection
 // =============================================================================

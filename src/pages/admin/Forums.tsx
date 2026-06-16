@@ -1,8 +1,9 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 import { adminQueries } from "@/queries/admin";
+import { useTranslation } from "react-i18next";
 import { ForumHeader } from "@/components/admin/forums/ForumHeader";
 import { ForumStats } from "@/components/admin/forums/ForumStats";
 import { ForumList } from "@/components/admin/forums/ForumList";
@@ -10,6 +11,7 @@ import { ForumDialog } from "@/components/admin/forums/ForumDialog";
 import { forumCategories } from "@/components/admin/forums/constants";
 
 export default function Forums() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -37,11 +39,11 @@ export default function Forums() {
     mutationFn: (data: any) => adminQueries.saveForum(tenant?.id || "", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-forums"] });
-      toast.success(selectedForum ? "Forum mis à jour" : "Forum créé");
+      toast.success(selectedForum ? t("forums.updateSuccess") : t("forums.createSuccess"));
       resetForm();
     },
     onError: () => {
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(t("forums.saveError"));
     },
   });
 
@@ -49,10 +51,10 @@ export default function Forums() {
     mutationFn: adminQueries.deleteForum,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-forums"] });
-      toast.success("Forum supprimé");
+      toast.success(t("forums.deleteSuccess"));
     },
     onError: () => {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("forums.deleteError"));
     },
   });
 
@@ -75,14 +77,14 @@ export default function Forums() {
 
   const handleSubmit = () => {
     if (!formData.title) {
-      toast.error("Le titre est requis");
+      toast.error(t("forums.titleRequired"));
       return;
     }
     saveMutation.mutate({ ...formData, id: selectedForum?.id });
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">Chargement...</div>;
+    return <div className="flex items-center justify-center h-64">{t("forums.loading")}</div>;
   }
 
   return (
@@ -117,3 +119,4 @@ export default function Forums() {
     </div>
   );
 }
+

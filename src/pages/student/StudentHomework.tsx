@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -22,6 +23,7 @@ import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { useStudentData } from "@/features/students/hooks/useStudentData";
 
 const StudentHomework = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const [selectedHomework, setSelectedHomework] = useState<any>(null);
@@ -47,25 +49,25 @@ const StudentHomework = () => {
     if (submission) {
       if (submission.grade !== null) {
         return {
-          label: `Noté: ${submission.grade}/${hw.max_points || 20}`,
+          label: `${t("homework.gradeLabel")} ${submission.grade}/${hw.max_points || 20}`,
           variant: "default" as const,
           icon: CheckCircle,
           color: "bg-green-100 text-green-700"
         };
       }
-      return { label: "Rendu", variant: "secondary" as const, icon: CheckCircle, color: "bg-blue-100 text-blue-700" };
+      return { label: t("homework.submitted"), variant: "secondary" as const, icon: CheckCircle, color: "bg-blue-100 text-blue-700" };
     }
 
     if (isPast(dueDate) && !isToday(dueDate)) {
-      return { label: "En retard", variant: "destructive" as const, icon: AlertCircle, color: "bg-red-100 text-red-700" };
+      return { label: t("homework.late"), variant: "destructive" as const, icon: AlertCircle, color: "bg-red-100 text-red-700" };
     }
     if (isToday(dueDate)) {
-      return { label: "Aujourd'hui", variant: "secondary" as const, icon: Clock, color: "bg-orange-100 text-orange-700" };
+      return { label: t("homework.today"), variant: "secondary" as const, icon: Clock, color: "bg-orange-100 text-orange-700" };
     }
     if (daysUntil <= 2) {
-      return { label: `${daysUntil}j restants`, variant: "secondary" as const, icon: Clock, color: "bg-orange-100 text-orange-700" };
+      return { label: t("homework.daysLeft", { count: daysUntil }), variant: "secondary" as const, icon: Clock, color: "bg-orange-100 text-orange-700" };
     }
-    return { label: "À faire", variant: "outline" as const, icon: BookOpen, color: "bg-muted text-muted-foreground" };
+    return { label: t("homework.toDo2"), variant: "outline" as const, icon: BookOpen, color: "bg-muted text-muted-foreground" };
   };
 
   const handleOpenSubmission = (hw: any) => {
@@ -91,15 +93,15 @@ const StudentHomework = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Mes Devoirs</h1>
-        <p className="text-muted-foreground">Consultez et rendez vos devoirs</p>
+        <h1 className="text-2xl font-display font-bold text-foreground">{t("homework.studentPageTitle")}</h1>
+        <p className="text-muted-foreground">{t("homework.studentPageSubtitle")}</p>
       </div>
 
       {!enrollment ? (
         <Card>
           <CardContent className="py-12 text-center">
             <BookOpen className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-            <p className="text-muted-foreground">Vous n'êtes inscrit dans aucune classe</p>
+            <p className="text-muted-foreground">{t("homework.noClassEnrolled")}</p>
           </CardContent>
         </Card>
       ) : (
@@ -109,7 +111,7 @@ const StudentHomework = () => {
             <CardHeader className="bg-muted/20 border-b">
               <CardTitle className="flex items-center gap-2 text-base font-display">
                 <Clock className="w-5 h-5 text-primary" />
-                Devoirs à rendre ({upcomingHomework.length})
+                {t("homework.toDo")} ({upcomingHomework.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4">
@@ -174,7 +176,7 @@ const StudentHomework = () => {
                               onClick={() => handleOpenSubmission(hw)}
                             >
                               <Send className="w-4 h-4 mr-1.5" />
-                              {submission ? "Voir / Modifier" : "Rendre"}
+                              {submission ? t("homework.viewEdit") : t("homework.submit")}
                             </Button>
                           </div>
                         </div>
@@ -185,7 +187,7 @@ const StudentHomework = () => {
               ) : (
                 <div className="text-center py-12">
                   <CheckCircle className="w-16 h-16 text-green-500/20 mx-auto mb-4" />
-                  <p className="text-muted-foreground font-medium">Félicitations ! Aucun devoir en attente.</p>
+                  <p className="text-muted-foreground font-medium">{t("homework.allDone")}</p>
                 </div>
               )}
             </CardContent>
@@ -197,7 +199,7 @@ const StudentHomework = () => {
               <CardHeader className="py-4">
                 <CardTitle className="flex items-center gap-2 text-sm font-display text-muted-foreground">
                   <BookOpen className="w-4 h-4" />
-                  Devoirs passés ({pastHomework.length})
+                  {t("homework.past")} ({pastHomework.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
@@ -231,7 +233,7 @@ const StudentHomework = () => {
                               className="h-8 px-2 text-xs"
                               onClick={() => handleOpenSubmission(hw)}
                             >
-                              Voir
+                              {t("homework.view")}
                             </Button>
                           )}
                         </div>

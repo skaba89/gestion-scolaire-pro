@@ -4,6 +4,7 @@
 # Runs on push to main and pull_request to main.
 # Four independent jobs: frontend (lint+typecheck+build), backend (syntax+security+pytest),
 # backend-tests (PostgreSQL integration), and security (dependency + secret scanning).
+# Designed to complete in under 5 minutes.
 # =============================================================================
 
 name: CI
@@ -130,6 +131,8 @@ jobs:
             --cov-fail-under=50
         env:
           DATABASE_URL: sqlite:///./test.db
+          DATABASE_URL_SYNC: sqlite:///./test.db
+          DATABASE_URL_ASYNC: sqlite+aiosqlite:///./test.db
           DEBUG: "true"
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
@@ -149,7 +152,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare Docker CI env
+      - name: Prepare Docker CI environment
         run: |
           cat > .env.docker.ci <<'EOF'
           POSTGRES_DB=schoolflow_test

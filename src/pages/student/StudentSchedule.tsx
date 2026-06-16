@@ -1,3 +1,5 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -5,13 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Clock, Loader2 } from "lucide-react";
 import { studentQueries } from "@/queries/students";
 
-const DAYS = [
-  { value: 1, label: "Lundi" },
-  { value: 2, label: "Mardi" },
-  { value: 3, label: "Mercredi" },
-  { value: 4, label: "Jeudi" },
-  { value: 5, label: "Vendredi" },
-];
 
 const TIME_SLOTS = [
   "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
@@ -31,11 +26,20 @@ const COLORS = [
 import { useStudentData } from "@/features/students/hooks/useStudentData";
 
 const StudentSchedule = () => {
+  const { t } = useTranslation();
   const {
     enrollment,
     schedule: scheduleSlots,
     isLoading
   } = useStudentData();
+
+  const DAYS = useMemo(() => [
+    { value: 1, label: t("studentSchedule.monday") },
+    { value: 2, label: t("studentSchedule.tuesday") },
+    { value: 3, label: t("studentSchedule.wednesday") },
+    { value: 4, label: t("studentSchedule.thursday") },
+    { value: 5, label: t("studentSchedule.friday") },
+  ], [t]);
 
   // Create color mapping for subjects
   const subjectColors = new Map<string, string>();
@@ -65,12 +69,12 @@ const StudentSchedule = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">
-          Emploi du Temps
+          {t("studentSchedule.pageTitle")}
         </h1>
         <p className="text-muted-foreground">
-          Consultez votre programme de cours
+          {t("studentSchedule.pageSubtitle")}
           {enrollment?.class_name && (
-            <span className="ml-2 font-medium">- Classe: {enrollment.class_name}</span>
+            <span className="ml-2 font-medium">- {t("studentSchedule.classLabel")} {enrollment.class_name}</span>
           )}
         </p>
       </div>
@@ -79,7 +83,7 @@ const StudentSchedule = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-primary" />
-            Semaine en cours
+            {t("studentSchedule.currentWeek")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -89,11 +93,11 @@ const StudentSchedule = () => {
             </div>
           ) : !enrollment ? (
             <div className="text-center py-12 text-muted-foreground">
-              Vous n'êtes inscrit dans aucune classe pour le moment.
+              {t("studentSchedule.noClassEnrolled")}
             </div>
           ) : scheduleSlots?.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              Aucun emploi du temps n'a encore été défini pour votre classe.
+              {t("studentSchedule.noSchedule")}
             </div>
           ) : (
             <>
@@ -136,7 +140,7 @@ const StudentSchedule = () => {
                                       </p>
                                     )}
                                     {slot.room && (
-                                      <p className="mt-1 font-mono">Salle: {slot.room}</p>
+                                      <p className="mt-1 font-mono">{t("studentSchedule.room")} {slot.room}</p>
                                     )}
                                   </div>
                                 );
@@ -153,7 +157,7 @@ const StudentSchedule = () => {
               {/* Legend */}
               {uniqueSubjects.length > 0 && (
                 <div className="mt-6 pt-4 border-t">
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">Légende des matières</h3>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-3">{t("studentSchedule.legend")}</h3>
                   <div className="flex flex-wrap gap-2">
                     {uniqueSubjects.map((subName) => (
                       <div

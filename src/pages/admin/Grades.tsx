@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -37,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const Grades = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
@@ -103,12 +105,12 @@ const Grades = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assessments"] });
-      toast.success("Évaluation créée avec succès");
+      toast.success(t("grades.assessmentCreated"));
       setIsCreateOpen(false);
     },
     onError: (error: any) => {
       console.error('[SchoolFlow] Error creating assessment:', error);
-      toast.error(error?.response?.data?.detail || "Erreur lors de la création de l'évaluation");
+      toast.error(error?.response?.data?.detail || t("grades.assessmentCreateError"));
     }
   });
 
@@ -143,31 +145,29 @@ const Grades = () => {
   const handleGenerateBulletins = () => {
     try {
       if (!assessments || assessments.length === 0) {
-        toast.info("Aucune évaluation disponible pour générer un bulletin.");
+        toast.info(t("grades.noDataForBulletin"));
         return;
       }
 
-      // Use first assessment's classroom, subject, and current term as context
       const firstAssessment = assessments[0] as any;
       const classroom = firstAssessment.classrooms?.name || (classrooms?.[0] as any)?.name || "Classe";
       const subject = firstAssessment.subjects?.name || (subjects?.[0] as any)?.name || "Matière";
       const term = (currentTerms?.[0] as any)?.name || "Période en cours";
 
-      // Generate bulletin with real assessment data (no hardcoded student - PDF uses template)
       const sampleStudent = { first_name: "Élève", last_name: "Type" };
       const sampleClass = { name: classroom };
       const sampleTerm = { name: term };
 
       const grades = assessments.slice(0, 10).map((a: any) => ({
         ...a,
-        score: a.max_score ? Math.round(a.max_score * 0.75) : 15, // Use 75% of max as example
+        score: a.max_score ? Math.round(a.max_score * 0.75) : 15,
         description: `${subject} - ${a.name}`
       }));
 
       generateReportCard(sampleStudent, sampleClass, sampleTerm, grades, tenant);
-      toast.success(`Bulletin généré avec ${grades.length} évaluations (PDF téléchargé).`);
+      toast.success(t("grades.bulletinGenerated", { count: grades.length }));
     } catch (e) {
-      toast.error("Erreur lors de la génération du PDF.");
+      toast.error(t("grades.bulletinError"));
     }
   };
 
@@ -176,17 +176,17 @@ const Grades = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Notes & Bulletins</h1>
-          <p className="text-muted-foreground">Gérez les évaluations et bulletins scolaires</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t("grades.pageTitle")}</h1>
+          <p className="text-muted-foreground">{t("grades.pageSubtitle")}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleGenerateBulletins}>
             <FileText className="w-4 h-4 mr-2" />
-            Générer Bulletins
+            {t("grades.generateBulletins")}
           </Button>
           <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            Nouvelle Évaluation
+            {t("grades.newAssessment")}
           </Button>
         </div>
       </div>
@@ -201,7 +201,7 @@ const Grades = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">Évaluations</p>
+                <p className="text-xs text-muted-foreground">{t("grades.assessments")}</p>
               </div>
             </div>
           </CardContent>
@@ -214,7 +214,7 @@ const Grades = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.subjects}</p>
-                <p className="text-xs text-muted-foreground">Matières</p>
+                <p className="text-xs text-muted-foreground">{t("grades.subjects")}</p>
               </div>
             </div>
           </CardContent>
@@ -227,7 +227,7 @@ const Grades = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{classrooms?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">Classes</p>
+                <p className="text-xs text-muted-foreground">{t("grades.classes")}</p>
               </div>
             </div>
           </CardContent>
@@ -240,7 +240,7 @@ const Grades = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{currentTerms?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">Périodes</p>
+                <p className="text-xs text-muted-foreground">{t("grades.periods")}</p>
               </div>
             </div>
           </CardContent>
@@ -254,7 +254,7 @@ const Grades = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher une évaluation..."
+                placeholder={t("grades.searchPlaceholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -262,10 +262,10 @@ const Grades = () => {
             </div>
             <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
               <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Toutes les classes" />
+                <SelectValue placeholder={t("grades.allClasses")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Toutes les classes</SelectItem>
+                <SelectItem value="all">{t("grades.allClasses")}</SelectItem>
                 {classrooms?.map((classroom) => (
                   <SelectItem key={classroom.id} value={classroom.id}>
                     {classroom.name}
@@ -282,20 +282,20 @@ const Grades = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="w-5 h-5" />
-            Évaluations ({filteredAssessments?.length || 0})
+            {t("grades.assessments")} ({filteredAssessments?.length || 0})
           </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Chargement...
+              {t("common.loading")}
             </div>
           ) : filteredAssessments?.length === 0 ? (
             <div className="text-center py-12">
               <BarChart3 className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-              <p className="text-muted-foreground">Aucune évaluation trouvée</p>
+              <p className="text-muted-foreground">{t("grades.noAssessmentFound")}</p>
               <p className="text-sm text-muted-foreground/70">
-                Créez des évaluations pour commencer à saisir les notes
+                {t("grades.noAssessmentSub")}
               </p>
             </div>
           ) : (
@@ -303,12 +303,12 @@ const Grades = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Évaluation</TableHead>
-                    <TableHead>Matière</TableHead>
-                    <TableHead>Classe</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Note Max</TableHead>
-                    <TableHead>Coefficient</TableHead>
+                    <TableHead>{t("grades.colAssessment")}</TableHead>
+                    <TableHead>{t("grades.subject")}</TableHead>
+                    <TableHead>{t("grades.classes")}</TableHead>
+                    <TableHead>{t("grades.type")}</TableHead>
+                    <TableHead>{t("grades.colMaxScore")}</TableHead>
+                    <TableHead>{t("grades.coefficient")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -339,14 +339,14 @@ const Grades = () => {
       {!isLoading && (assessments?.length === 0 || subjects?.length === 0 || classrooms?.length === 0) && (
         <Card className="border-dashed">
           <CardContent className="p-8 text-center">
-            <h3 className="text-lg font-semibold mb-2">Configuration requise</h3>
+            <h3 className="text-lg font-semibold mb-2">{t("grades.configRequired")}</h3>
             <p className="text-muted-foreground mb-4">
-              Pour saisir des notes, vous devez d'abord configurer :
+              {t("grades.configRequiredText")}
             </p>
             <ul className="text-sm text-muted-foreground space-y-1">
-              {subjects?.length === 0 && <li>• Des matières (Paramètres → Matières)</li>}
-              {classrooms?.length === 0 && <li>• Des classes (Paramètres → Classes)</li>}
-              <li>• Des trimestres et années scolaires</li>
+              {subjects?.length === 0 && <li>• {t("grades.configSubjects")}</li>}
+              {classrooms?.length === 0 && <li>• {t("grades.configClasses")}</li>}
+              <li>• {t("grades.configTerms")}</li>
             </ul>
           </CardContent>
         </Card>
@@ -355,26 +355,26 @@ const Grades = () => {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nouvelle Évaluation</DialogTitle>
+            <DialogTitle>{t("grades.newAssessment")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Nom de l'évaluation</Label>
+              <Label>{t("grades.assessmentName")}</Label>
               <Input
-                placeholder="ex: Contrôle continu 1"
+                placeholder={t("grades.assessmentNamePlaceholder")}
                 value={newAssessment.name}
                 onChange={(e) => setNewAssessment({ ...newAssessment, name: e.target.value })}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Classe</Label>
+                <Label>{t("grades.classes")}</Label>
                 <Select
                   value={newAssessment.class_id}
                   onValueChange={(v) => setNewAssessment({ ...newAssessment, class_id: v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Choisir..." />
+                    <SelectValue placeholder={t("grades.choose")} />
                   </SelectTrigger>
                   <SelectContent>
                     {classrooms?.map((c: any) => (
@@ -384,13 +384,13 @@ const Grades = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Matière</Label>
+                <Label>{t("grades.subject")}</Label>
                 <Select
                   value={newAssessment.subject_id}
                   onValueChange={(v) => setNewAssessment({ ...newAssessment, subject_id: v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Choisir..." />
+                    <SelectValue placeholder={t("grades.choose")} />
                   </SelectTrigger>
                   <SelectContent>
                     {subjects?.map((s: any) => (
@@ -402,13 +402,13 @@ const Grades = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Trimestre / Semestre</Label>
+                <Label>{t("grades.termSemester")}</Label>
                 <Select
                   value={newAssessment.term_id}
                   onValueChange={(v) => setNewAssessment({ ...newAssessment, term_id: v })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Choisir..." />
+                    <SelectValue placeholder={t("grades.choose")} />
                   </SelectTrigger>
                   <SelectContent>
                     {currentTerms?.map((t: any) => (
@@ -418,7 +418,7 @@ const Grades = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Date</Label>
+                <Label>{t("grades.date")}</Label>
                 <Input
                   type="date"
                   value={newAssessment.date}
@@ -428,7 +428,7 @@ const Grades = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Note Max</Label>
+                <Label>{t("grades.colMaxScore")}</Label>
                 <Input
                   type="number"
                   value={newAssessment.max_score}
@@ -436,7 +436,7 @@ const Grades = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Coefficient</Label>
+                <Label>{t("grades.coefficient")}</Label>
                 <Input
                   type="number"
                   value={newAssessment.weight}
@@ -446,12 +446,12 @@ const Grades = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>{t("common.cancel")}</Button>
             <Button
               onClick={() => createMutation.mutate(newAssessment)}
               disabled={createMutation.isPending || !newAssessment.name || !newAssessment.class_id || !newAssessment.subject_id}
             >
-              {createMutation.isPending ? "Création..." : "Créer l'évaluation"}
+              {createMutation.isPending ? t("grades.creating") : t("grades.createAssessment")}
             </Button>
           </DialogFooter>
         </DialogContent>

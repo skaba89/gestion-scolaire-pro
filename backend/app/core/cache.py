@@ -12,26 +12,30 @@ class RedisClient:
     @property
     async def client(self):
         if self._client is None:
-            # SECURITY: Enable SSL/TLS for Redis connections in production.
-            # Detect production by checking if the URL uses rediss:// (TLS) or if
-            # the connection is not to localhost (external Redis provider).
-            ssl_required = False
+            # SECURITY: SSL/TLS is determined exclusively by the URL scheme.
+            #   rediss:// → TLS enabled  (managed Redis on Render/Railway/Upstash)
+            #   redis://  → no TLS       (Docker internal network, localhost)
+            #
+            # We intentionally avoid hostname-based auto-detection: service names
+            # like "redis" (Docker Compose) are not localhost but also not external,
+            # and auto-forcing TLS for them causes "SSL WRONG_VERSION_NUMBER" errors.
+            # Cloud providers always supply rediss:// URLs when TLS is required.
             redis_url = self.redis_url
-            if redis_url.startswith("rediss://"):
-                ssl_required = True
-            elif not redis_url.startswith("redis://localhost") and not redis_url.startswith("redis://127.0.0.1"):
-                # External Redis — force TLS
-                ssl_required = True
-                if not redis_url.startswith("rediss://"):
-                    redis_url = redis_url.replace("redis://", "rediss://", 1)
+            ssl_required = redis_url.startswith("rediss://")
 
-            self._client = redis.from_url(
-                redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-                ssl=ssl_required,
-                ssl_cert_reqs="required" if ssl_required else "none",
-            )
+            # IMPORTANT: do NOT pass ssl=False for plain redis:// URLs.
+            # redis.asyncio.from_url infers the connection class from the scheme;
+            # passing ssl=False (or ssl_cert_reqs) to a non-SSL connection raises
+            # TypeError: unexpected keyword argument 'ssl'.
+            client_kwargs: dict = {
+                "encoding": "utf-8",
+                "decode_responses": True,
+            }
+            if ssl_required:
+                client_kwargs["ssl"] = True
+                client_kwargs["ssl_cert_reqs"] = "required"
+
+            self._client = redis.from_url(redis_url, **client_kwargs)
         return self._client
 
     async def get(self, key: str):

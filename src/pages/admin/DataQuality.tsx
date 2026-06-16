@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -20,6 +21,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 const DataQuality = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -47,14 +49,14 @@ const DataQuality = () => {
         onSuccess: (count) => {
             queryClient.invalidateQueries({ queryKey: ["data-quality-anomalies"] });
             toast({
-                title: "Analyse terminée",
-                description: `${count} anomalies détectées au total.`,
+                title: t("dataQuality.analysisDone"),
+                description: t("dataQuality.anomaliesCount", { count }),
             });
             setRunning(false);
         },
         onError: (error: any) => {
             toast({
-                title: "Erreur d'analyse",
+                title: t("dataQuality.analysisError"),
                 description: error.message,
                 variant: "destructive",
             });
@@ -68,15 +70,15 @@ const DataQuality = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["data-quality-anomalies"] });
-            toast({ title: "Marqué comme résolu" });
+            toast({ title: t("dataQuality.resolvedSuccess") });
         }
     });
 
     const getSeverityBadge = (severity: string) => {
         switch (severity) {
-            case 'HIGH': return <Badge variant="destructive">Haute</Badge>;
-            case 'MEDIUM': return <Badge variant="secondary" className="bg-orange-500 text-white">Moyenne</Badge>;
-            default: return <Badge variant="outline">Basse</Badge>;
+            case 'HIGH': return <Badge variant="destructive">{t("dataQuality.severityHigh")}</Badge>;
+            case 'MEDIUM': return <Badge variant="secondary" className="bg-orange-500 text-white">{t("dataQuality.severityMedium")}</Badge>;
+            default: return <Badge variant="outline">{t("dataQuality.severityLow")}</Badge>;
         }
     };
 
@@ -84,8 +86,8 @@ const DataQuality = () => {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">Qualité des Données</h1>
-                    <p className="text-muted-foreground">Détectez et gérez les anomalies métier de votre établissement</p>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("dataQuality.pageTitle")}</h1>
+                    <p className="text-muted-foreground">{t("dataQuality.pageSubtitle")}</p>
                 </div>
                 <Button
                     onClick={() => runChecksMutation.mutate()}
@@ -93,7 +95,7 @@ const DataQuality = () => {
                     className="gap-2"
                 >
                     <RefreshCw className={`w-4 h-4 ${running ? 'animate-spin' : ''}`} />
-                    {running ? "Analyse en cours..." : "Lancer l'analyse"}
+                    {running ? t("dataQuality.runningAnalysis") : t("dataQuality.runAnalysis")}
                 </Button>
             </div>
 
@@ -104,7 +106,7 @@ const DataQuality = () => {
                             <Database className="w-8 h-8 text-primary opacity-50" />
                             <div>
                                 <p className="text-3xl font-bold">{anomalies?.length || 0}</p>
-                                <p className="text-sm font-medium text-muted-foreground">Anomalies actives</p>
+                                <p className="text-sm font-medium text-muted-foreground">{t("dataQuality.activeAnomalies")}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -113,15 +115,15 @@ const DataQuality = () => {
                 <Card className="border-green-500/20">
                     <CardContent className="pt-6 text-center">
                         <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm font-medium">Santé Globale</p>
-                        <p className="text-2xl font-bold">{anomalies?.length === 0 ? "100%" : "Attention"}</p>
+                        <p className="text-sm font-medium">{t("dataQuality.globalHealth")}</p>
+                        <p className="text-2xl font-bold">{anomalies?.length === 0 ? "100%" : t("dataQuality.attention")}</p>
                     </CardContent>
                 </Card>
 
                 <Card className="border-orange-500/20">
                     <CardContent className="pt-6 text-center">
                         <ShieldAlert className="w-8 h-8 text-orange-500 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm font-medium">Règles actives</p>
+                        <p className="text-sm font-medium">{t("dataQuality.activeRules")}</p>
                         <p className="text-2xl font-bold">12</p>
                     </CardContent>
                 </Card>
@@ -131,25 +133,25 @@ const DataQuality = () => {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-orange-500" />
-                        Anomalies détectées
+                        {t("dataQuality.anomaliesTitle")}
                     </CardTitle>
-                    <CardDescription>Liste des incohérences nécessitant une correction manuelle</CardDescription>
+                    <CardDescription>{t("dataQuality.anomaliesDesc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {!anomalies || anomalies.length === 0 ? (
                         <div className="text-center py-12">
                             <CheckCircle className="w-12 h-12 text-green-500/30 mx-auto mb-4" />
-                            <p className="text-muted-foreground">Aucune anomalie détectée. Vos données sont saines !</p>
+                            <p className="text-muted-foreground">{t("dataQuality.noAnomalies")}</p>
                         </div>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Sévérité</TableHead>
-                                    <TableHead>Code</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead>Détecté le</TableHead>
-                                    <TableHead className="text-right">Action</TableHead>
+                                    <TableHead>{t("dataQuality.colSeverity")}</TableHead>
+                                    <TableHead>{t("dataQuality.colCode")}</TableHead>
+                                    <TableHead>{t("dataQuality.colDescription")}</TableHead>
+                                    <TableHead>{t("dataQuality.colDetected")}</TableHead>
+                                    <TableHead className="text-right">{t("common.actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -167,7 +169,7 @@ const DataQuality = () => {
                                                 size="sm"
                                                 onClick={() => resolveMutation.mutate(anomaly.id)}
                                             >
-                                                Marquer résolu
+                                                {t("dataQuality.markResolved")}
                                             </Button>
                                         </TableCell>
                                     </TableRow>

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
@@ -17,21 +18,22 @@ import { ScheduleFilters } from "@/components/schedule/ScheduleFilters";
 import { ScheduleGrid } from "@/components/schedule/ScheduleGrid";
 import { ScheduleFormDialog } from "@/components/schedule/ScheduleFormDialog";
 
-const DAYS = [
-  { value: 1, label: "Lundi" },
-  { value: 2, label: "Mardi" },
-  { value: 3, label: "Mercredi" },
-  { value: 4, label: "Jeudi" },
-  { value: 5, label: "Vendredi" },
-];
-
 const TIME_SLOTS = [
   "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
   "13:00", "14:00", "15:00", "16:00", "17:00", "18:00",
 ];
 
 const Schedule = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
+
+  const DAYS = useMemo(() => [
+    { value: 1, label: t("schedule.monday") },
+    { value: 2, label: t("schedule.tuesday") },
+    { value: 3, label: t("schedule.wednesday") },
+    { value: 4, label: t("schedule.thursday") },
+    { value: 5, label: t("schedule.friday") },
+  ], [t]);
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [selectedLevel, setSelectedLevel] = useState<string>("all");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");

@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAIInsights } from "@/hooks/useAIInsights";
@@ -10,9 +10,12 @@ import { AIRecommendations } from "@/components/admin/ai/AIRecommendations";
 import { AICharts } from "@/components/admin/ai/AICharts";
 import { AIActions } from "@/components/admin/ai/AIActions";
 import { AIAssistant } from "@/components/admin/ai/AIAssistant";
+import { PlanGate } from "@/components/ui/PlanGate";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 export default function AIInsights() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -27,10 +30,10 @@ export default function AIInsights() {
       queryClient.invalidateQueries({ queryKey: ["classrooms"] }),
     ]).then(() => {
       setIsAnalyzing(false);
-      toast.success("Analyse mise à jour");
+      toast.success(t("aiInsights.refreshSuccess"));
     }).catch(() => {
       setIsAnalyzing(false);
-      toast.error("Erreur lors du rafraîchissement");
+      toast.error(t("aiInsights.refreshError"));
     });
   };
 
@@ -45,14 +48,15 @@ export default function AIInsights() {
 
 
   return (
+    <PlanGate minPlan="pro">
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Brain className="h-8 w-8 text-primary" />
-            Insights IA
+            {t("aiInsights.pageTitle")}
           </h1>
-          <p className="text-muted-foreground">Analyse prédictive et recommandations intelligentes</p>
+          <p className="text-muted-foreground">{t("aiInsights.pageSubtitle")}</p>
         </div>
         <AIActions
           tenantName={tenant?.name}
@@ -70,23 +74,23 @@ export default function AIInsights() {
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="risks" className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
-            <span className="hidden sm:inline">Risques</span>
-            <span className="sm:hidden">Risques</span>
+            <span className="hidden sm:inline">{t("aiInsights.tabRisks")}</span>
+            <span className="sm:hidden">{t("aiInsights.tabRisks")}</span>
           </TabsTrigger>
           <TabsTrigger value="recommendations" className="flex items-center gap-2">
             <Lightbulb className="h-4 w-4" />
-            <span className="hidden sm:inline">Recommandations</span>
-            <span className="sm:hidden">Conseils</span>
+            <span className="hidden sm:inline">{t("aiInsights.tabRecommendations")}</span>
+            <span className="sm:hidden">{t("aiInsights.tabRecommendationsShort")}</span>
           </TabsTrigger>
           <TabsTrigger value="analysis" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
-            <span className="hidden sm:inline">Analyse</span>
-            <span className="sm:hidden">Analyse</span>
+            <span className="hidden sm:inline">{t("aiInsights.tabAnalysis")}</span>
+            <span className="sm:hidden">{t("aiInsights.tabAnalysis")}</span>
           </TabsTrigger>
           <TabsTrigger value="assistant" className="flex items-center gap-2">
             <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">Assistant IA</span>
-            <span className="sm:hidden">IA</span>
+            <span className="hidden sm:inline">{t("aiInsights.tabAssistant")}</span>
+            <span className="sm:hidden">{t("aiInsights.tabAssistantShort")}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -112,5 +116,7 @@ export default function AIInsights() {
         </TabsContent>
       </Tabs>
     </div>
+    </PlanGate>
   );
 }
+

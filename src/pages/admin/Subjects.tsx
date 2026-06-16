@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +38,7 @@ import { SubjectTable } from "@/components/subjects/SubjectTable";
 import { SubjectFormDialog } from "@/components/subjects/SubjectFormDialog";
 
 const Subjects = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { isAdmin, hasRole, roles } = useAuth();
   const { toast } = useToast();
@@ -104,7 +106,7 @@ const Subjects = () => {
   };
 
   const handleDeleteClick = async (id: string) => {
-    if (confirm("Êtes-vous sûr de vouloir supprimer cette matière ?")) {
+    if (confirm(t("subjects.deleteConfirm"))) {
       await deleteMutation.mutateAsync(id);
     }
   };
@@ -139,8 +141,8 @@ const Subjects = () => {
       setFormDialogOpen(false);
     } catch (error) {
       toast({
-        title: "Erreur",
-        description: "Impossible de sauvegarder la matière",
+        title: t("subjects.saveErrorTitle"),
+        description: t("subjects.saveErrorDesc"),
         variant: "destructive"
       });
     }
@@ -279,10 +281,10 @@ const Subjects = () => {
       <Dialog open={levelDialogOpen} onOpenChange={setLevelDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Niveaux - {selectedSubject?.name}</DialogTitle>
+            <DialogTitle>{t("subjects.levelDialogTitle", { name: selectedSubject?.name })}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-4">Sélectionnez les niveaux où cette matière est enseignée</p>
+            <p className="text-sm text-muted-foreground mb-4">{t("subjects.levelDialogHint")}</p>
             <div className="space-y-3">
               {levels.map((level) => {
                 const isAssigned = selectedLevelIds.includes(level.id);
@@ -298,7 +300,7 @@ const Subjects = () => {
                   </div>
                 );
               })}
-              {levels.length === 0 && <p className="text-center py-4 text-muted-foreground">Aucun niveau créé.</p>}
+              {levels.length === 0 && <p className="text-center py-4 text-muted-foreground">{t("subjects.noLevels")}</p>}
             </div>
           </div>
         </DialogContent>
@@ -308,7 +310,7 @@ const Subjects = () => {
       <Dialog open={roomsDialogOpen} onOpenChange={setRoomsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Salles préférentielles - {selectedSubject?.name}</DialogTitle>
+            <DialogTitle>{t("subjects.roomsDialogTitle", { name: selectedSubject?.name })}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             {selectedSubject && tenant && (

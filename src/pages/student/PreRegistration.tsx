@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -37,6 +38,7 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { studentsService } from "@/features/students/services/studentsService";
 
 const PreRegistration = () => {
+  const { t } = useTranslation();
   const { user, tenant } = useAuth();
   const queryClient = useQueryClient();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -103,13 +105,13 @@ const PreRegistration = () => {
       });
     },
     onSuccess: () => {
-      toast.success("Pré-réinscription soumise avec succès!");
+      toast.success(t("preRegistration.success"));
       setShowConfirmDialog(false);
       setNotes("");
       queryClient.invalidateQueries({ queryKey: ["pre-registration"] });
     },
     onError: (error) => {
-      toast.error("Erreur lors de la soumission. Veuillez réessayer.");
+      toast.error(t("preRegistration.error"));
     },
   });
 
@@ -145,17 +147,16 @@ const PreRegistration = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Pré-Réinscription</h1>
-          <p className="text-muted-foreground">Effectuez votre demande de réinscription pour l'année suivante</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1>
+          <p className="text-muted-foreground">{t("preRegistration.studentSubtitle")}</p>
         </div>
 
         <Card>
           <CardContent className="p-8 text-center">
             <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-lg font-semibold mb-2">Profil non trouvé</h2>
+            <h2 className="text-lg font-semibold mb-2">{t("preRegistration.profileNotFound")}</h2>
             <p className="text-muted-foreground">
-              Votre compte n'est pas encore associé à un profil {studentLabel}.
-              Veuillez contacter l'administration.
+              {t("preRegistration.noStudentProfile", { studentLabel })}
             </p>
           </CardContent>
         </Card>
@@ -167,17 +168,16 @@ const PreRegistration = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Pré-Réinscription</h1>
-          <p className="text-muted-foreground">Effectuez votre demande de réinscription pour l'année suivante</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1>
+          <p className="text-muted-foreground">{t("preRegistration.studentSubtitle")}</p>
         </div>
 
         <Card>
           <CardContent className="p-8 text-center">
             <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-lg font-semibold mb-2">Pas d'année académique disponible</h2>
+            <h2 className="text-lg font-semibold mb-2">{t("preRegistration.noAcademicYear")}</h2>
             <p className="text-muted-foreground">
-              Les inscriptions pour l'année suivante ne sont pas encore ouvertes.
-              Veuillez réessayer plus tard.
+              {t("preRegistration.notOpenYet")}
             </p>
           </CardContent>
         </Card>
@@ -186,19 +186,19 @@ const PreRegistration = () => {
   }
 
   const statusConfig = {
-    DRAFT: { label: "Brouillon", icon: FileText, color: "bg-muted text-muted-foreground" },
-    SUBMITTED: { label: "Soumise", icon: Clock, color: "bg-blue-100 text-blue-700" },
-    UNDER_REVIEW: { label: "En cours d'examen", icon: RefreshCw, color: "bg-yellow-100 text-yellow-700" },
-    ACCEPTED: { label: "Acceptée", icon: CheckCircle, color: "bg-green-100 text-green-700" },
-    REJECTED: { label: "Refusée", icon: AlertCircle, color: "bg-red-100 text-red-700" },
-    WAITLISTED: { label: "Liste d'attente", icon: Clock, color: "bg-orange-100 text-orange-700" },
+    DRAFT: { label: t("preRegistration.statusDraft"), icon: FileText, color: "bg-muted text-muted-foreground" },
+    SUBMITTED: { label: t("preRegistration.statusSubmitted"), icon: Clock, color: "bg-blue-100 text-blue-700" },
+    UNDER_REVIEW: { label: t("preRegistration.statusReview"), icon: RefreshCw, color: "bg-yellow-100 text-yellow-700" },
+    ACCEPTED: { label: t("preRegistration.statusAccepted"), icon: CheckCircle, color: "bg-green-100 text-green-700" },
+    REJECTED: { label: t("preRegistration.statusRejected"), icon: AlertCircle, color: "bg-red-100 text-red-700" },
+    WAITLISTED: { label: t("preRegistration.statusWaitlist"), icon: Clock, color: "bg-orange-100 text-orange-700" },
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Pré-Réinscription</h1>
-        <p className="text-muted-foreground">Effectuez votre demande de réinscription pour l'année suivante</p>
+        <h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1>
+        <p className="text-muted-foreground">{t("preRegistration.studentSubtitle")}</p>
       </div>
 
       {/* Informations actuelles */}
@@ -216,11 +216,11 @@ const PreRegistration = () => {
                 {studentProfile.first_name} {studentProfile.last_name}
               </p>
               <p className="text-sm text-muted-foreground">
-                N° Étudiant: {studentProfile.registration_number || "Non attribué"}
+                {t("preRegistration.studentNumber")} {studentProfile.registration_number || "Non attribué"}
               </p>
               {currentEnrollment && (
                 <p className="text-sm text-muted-foreground">
-                  Niveau actuel: {currentEnrollment.levels?.name || "N/A"}
+                  {t("preRegistration.currentLevel")} {currentEnrollment.levels?.name || "N/A"}
                 </p>
               )}
             </div>
@@ -231,14 +231,13 @@ const PreRegistration = () => {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              Année Cible
+              {t("preRegistration.targetYear")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="font-medium text-foreground">{nextAcademicYear.name}</p>
             <p className="text-sm text-muted-foreground">
-              Du {new Date(nextAcademicYear.start_date).toLocaleDateString('fr-FR')} au{' '}
-              {new Date(nextAcademicYear.end_date).toLocaleDateString('fr-FR')}
+              {t("preRegistration.dateRange")} {new Date(nextAcademicYear.start_date).toLocaleDateString('fr-FR')} {new Date(nextAcademicYear.end_date).toLocaleDateString('fr-FR')}
             </p>
           </CardContent>
         </Card>
@@ -251,25 +250,24 @@ const PreRegistration = () => {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Demande de Pré-Réinscription
+                {t("preRegistration.existingRequest")}
               </CardTitle>
               <Badge className={statusConfig[existingApplication.status as keyof typeof statusConfig]?.color || "bg-muted"}>
                 {statusConfig[existingApplication.status as keyof typeof statusConfig]?.label || existingApplication.status}
               </Badge>
             </div>
             <CardDescription>
-              Soumise le {new Date(existingApplication.submitted_at || existingApplication.created_at).toLocaleDateString('fr-FR')}
+              {t("preRegistration.submittedOn")} {new Date(existingApplication.submitted_at || existingApplication.created_at).toLocaleDateString('fr-FR')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-muted/50 rounded-lg p-4">
               <p className="text-sm text-muted-foreground">
-                Votre demande de pré-réinscription a été enregistrée.
-                L'administration examinera votre dossier et vous contactera pour la suite des démarches.
+                {t("preRegistration.requestInfo")}
               </p>
               {existingApplication.notes && (
                 <div className="mt-4 pt-4 border-t border-border">
-                  <p className="text-sm font-medium text-foreground mb-1">Notes:</p>
+                  <p className="text-sm font-medium text-foreground mb-1">{t("preRegistration.notes")}</p>
                   <p className="text-sm text-muted-foreground">{existingApplication.notes}</p>
                 </div>
               )}
@@ -281,53 +279,52 @@ const PreRegistration = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <RefreshCw className="w-5 h-5" />
-              Nouvelle Demande de Pré-Réinscription
+              {t("preRegistration.newRequest")}
             </CardTitle>
             <CardDescription>
-              Soumettez votre demande pour l'année {nextAcademicYear.name}
+              {t("preRegistration.submitForYear")} {nextAcademicYear.name}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4">
               <p className="text-sm text-foreground">
-                <strong>Information:</strong> La pré-réinscription permet de réserver votre place pour l'année suivante.
-                L'administration validera votre demande et vous contactera pour finaliser l'inscription.
+                {t("preRegistration.infoNote")}
               </p>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="level">Niveau souhaité pour l'année prochaine</Label>
+                <Label htmlFor="level">{t("preRegistration.desiredLevel")}</Label>
                 <Select
                   value={selectedLevelId || (nextLevel?.id || "")}
                   onValueChange={setSelectedLevelId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un niveau" />
+                    <SelectValue placeholder={t("preRegistration.selectLevel")} />
                   </SelectTrigger>
                   <SelectContent>
                     {levels?.map((level) => (
                       <SelectItem key={level.id} value={level.id}>
                         {level.name}
-                        {level.id === nextLevel?.id && " (Niveau suivant)"}
+                        {level.id === nextLevel?.id && ` (${t("preRegistration.nextLevelSuggestion")})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {nextLevel && (
                   <p className="text-xs text-muted-foreground">
-                    Suggestion: {nextLevel.name} (passage automatique)
+                    {t("preRegistration.suggestion")} {nextLevel.name} (passage automatique)
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Notes ou commentaires (optionnel)</Label>
+                <Label htmlFor="notes">{t("preRegistration.notesOptional")}</Label>
                 <Textarea
                   id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ajoutez des informations complémentaires si nécessaire..."
+                  placeholder={t("preRegistration.notesPlaceholder")}
                   rows={4}
                   maxLength={500}
                 />
@@ -336,7 +333,7 @@ const PreRegistration = () => {
             </div>
 
             <Button onClick={handleSubmit} size="lg" className="w-full">
-              Soumettre ma Pré-Réinscription
+              {t("preRegistration.submit")}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </CardContent>
@@ -347,9 +344,9 @@ const PreRegistration = () => {
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmer la pré-réinscription</DialogTitle>
+            <DialogTitle>{t("preRegistration.confirm")}</DialogTitle>
             <DialogDescription>
-              Vous êtes sur le point de soumettre votre demande de pré-réinscription pour l'année {nextAcademicYear?.name}.
+              {t("preRegistration.confirmText")} {nextAcademicYear?.name}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
@@ -366,7 +363,7 @@ const PreRegistration = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
-              Annuler
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={() => submitMutation.mutate()}
@@ -375,10 +372,10 @@ const PreRegistration = () => {
               {submitMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Soumission...
+                  {t("preRegistration.submitting")}
                 </>
               ) : (
-                "Confirmer"
+                t("preRegistration.confirm")
               )}
             </Button>
           </DialogFooter>

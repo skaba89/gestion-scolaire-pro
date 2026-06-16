@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -44,6 +45,7 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 const EnrollmentStats = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
@@ -141,7 +143,7 @@ const EnrollmentStats = () => {
   }, {}) || {};
 
   const genderChartData = Object.entries(genderStats).map(([name, value]) => ({
-    name: name === "M" ? "Masculin" : name === "F" ? "Féminin" : name,
+    name: name === "M" ? t("enrollmentStats.male") : name === "F" ? t("enrollmentStats.female") : name,
     value,
   }));
 
@@ -167,9 +169,9 @@ const EnrollmentStats = () => {
 
   // Application status distribution
   const applicationStatusData = [
-    { name: "En attente", value: stats.pendingApplications, color: "#f59e0b" },
-    { name: "Acceptées", value: stats.acceptedApplications, color: "#10b981" },
-    { name: "Refusées", value: stats.rejectedApplications, color: "#ef4444" },
+    { name: t("enrollmentStats.statusPending"), value: stats.pendingApplications, color: "#f59e0b" },
+    { name: t("enrollmentStats.statusAccepted"), value: stats.acceptedApplications, color: "#10b981" },
+    { name: t("enrollmentStats.statusRejected"), value: stats.rejectedApplications, color: "#ef4444" },
   ].filter(d => d.value > 0);
 
   const exportStats = () => {
@@ -195,8 +197,8 @@ const EnrollmentStats = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Statistiques d'Inscription</h1>
-          <p className="text-muted-foreground">Analyse détaillée des inscriptions et candidatures</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t("enrollmentStats.pageTitle")}</h1>
+          <p className="text-muted-foreground">{t("enrollmentStats.pageSubtitle")}</p>
         </div>
         <div className="flex gap-2">
           <Select value={selectedYear} onValueChange={setSelectedYear}>
@@ -204,7 +206,7 @@ const EnrollmentStats = () => {
               <SelectValue placeholder="Année académique" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Toutes les années</SelectItem>
+              <SelectItem value="all">{t("enrollmentStats.allYears")}</SelectItem>
               {academicYears?.map((year) => (
                 <SelectItem key={year.id} value={year.id}>
                   {year.name}
@@ -214,7 +216,7 @@ const EnrollmentStats = () => {
           </Select>
           <Button variant="outline" onClick={exportStats}>
             <Download className="w-4 h-4 mr-2" />
-            Exporter
+            {t("enrollmentStats.export")}
           </Button>
         </div>
       </div>
@@ -229,7 +231,7 @@ const EnrollmentStats = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.totalStudents}</p>
-                <p className="text-xs text-muted-foreground">{StudentsLabel} actifs</p>
+                <p className="text-xs text-muted-foreground">{t("enrollmentStats.activeStudents", { label: StudentsLabel })}</p>
               </div>
             </div>
           </CardContent>
@@ -243,7 +245,7 @@ const EnrollmentStats = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.activeEnrollments}</p>
-                <p className="text-xs text-muted-foreground">Inscriptions actives</p>
+                <p className="text-xs text-muted-foreground">{t("enrollmentStats.activeEnrollments")}</p>
               </div>
             </div>
           </CardContent>
@@ -257,7 +259,7 @@ const EnrollmentStats = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.pendingApplications}</p>
-                <p className="text-xs text-muted-foreground">Candidatures en attente</p>
+                <p className="text-xs text-muted-foreground">{t("enrollmentStats.pendingApplications")}</p>
               </div>
             </div>
           </CardContent>
@@ -271,7 +273,7 @@ const EnrollmentStats = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.archivedStudents}</p>
-                <p className="text-xs text-muted-foreground">{StudentsLabel} archivés</p>
+                <p className="text-xs text-muted-foreground">{t("enrollmentStats.archivedStudents", { label: StudentsLabel })}</p>
               </div>
             </div>
           </CardContent>
@@ -285,9 +287,9 @@ const EnrollmentStats = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />
-              Tendance des Inscriptions
+              {t("enrollmentStats.trendTitle")}
             </CardTitle>
-            <CardDescription>Nouvelles inscriptions sur les 12 derniers mois</CardDescription>
+            <CardDescription>{t("enrollmentStats.trendDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
@@ -321,9 +323,9 @@ const EnrollmentStats = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <PieChartIcon className="w-5 h-5" />
-              Répartition par Niveau
+              {t("enrollmentStats.byLevelTitle")}
             </CardTitle>
-            <CardDescription>Distribution des {studentsLabel} par niveau d'études</CardDescription>
+            <CardDescription>{t("enrollmentStats.byLevelDesc", { label: studentsLabel })}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
@@ -358,9 +360,9 @@ const EnrollmentStats = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
-              Effectifs par Classe
+              {t("enrollmentStats.byClassTitle")}
             </CardTitle>
-            <CardDescription>Top 10 des classes par nombre de {studentsLabel}</CardDescription>
+            <CardDescription>{t("enrollmentStats.byClassDesc", { label: studentsLabel })}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
@@ -388,9 +390,9 @@ const EnrollmentStats = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              Répartition par Genre
+              {t("enrollmentStats.byGenderTitle")}
             </CardTitle>
-            <CardDescription>Distribution des {studentsLabel} par genre</CardDescription>
+            <CardDescription>{t("enrollmentStats.byGenderDesc", { label: studentsLabel })}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
@@ -426,9 +428,9 @@ const EnrollmentStats = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <GraduationCap className="w-5 h-5" />
-              État des Candidatures
+              {t("enrollmentStats.applicationStatusTitle")}
             </CardTitle>
-            <CardDescription>Répartition des candidatures par statut</CardDescription>
+            <CardDescription>{t("enrollmentStats.applicationStatusDesc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useDepartments,
@@ -28,6 +29,7 @@ import { DepartmentTable } from "@/components/departments/DepartmentTable";
 import { DepartmentFormDialog } from "@/components/departments/DepartmentFormDialog";
 
 const Departments = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
@@ -72,7 +74,7 @@ const Departments = () => {
     if (!tenant?.id) return;
     try {
       await bulkDeleteMutation.mutateAsync({ ids: selectedIds, tenantId: tenant.id });
-      toast.success(`${selectedIds.length} départements supprimés`);
+      toast.success(t("departments.bulkDeleteSuccess", { count: selectedIds.length }));
       setSelectedIds([]);
       setShowBulkDeleteConfirm(false);
     } catch (error) {
@@ -97,10 +99,10 @@ const Departments = () => {
           id: editingDepartment.id,
           updates: payload,
         });
-        toast.success("Département mis à jour avec succès");
+        toast.success(t("departments.updateSuccess"));
       } else {
         await createMutation.mutateAsync(payload);
-        toast.success("Département créé avec succès");
+        toast.success(t("departments.createSuccess"));
       }
       setIsDialogOpen(false);
       setEditingDepartment(null);
@@ -111,7 +113,7 @@ const Departments = () => {
 
   const handleDelete = async (id: string) => {
     if (!tenant?.id) return;
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce département ?")) {
+    if (confirm(t("departments.deleteConfirm"))) {
       deleteMutation.mutate({ id, tenantId: tenant.id });
     }
   };
@@ -168,16 +170,15 @@ const Departments = () => {
       <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmation de suppression groupée</AlertDialogTitle>
+            <AlertDialogTitle>{t("departments.bulkDeleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer les {selectedIds.length} départements sélectionnés ?
-              Cette action est irréversible.
+              {t("departments.bulkDeleteDesc", { count: selectedIds.length })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Supprimer
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

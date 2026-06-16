@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -21,6 +22,7 @@ import { MentorshipRequestsTable } from "@/components/admin/alumni/MentorshipReq
 type MentorshipStatus = "PENDING" | "ACCEPTED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
 
 const AlumniMentors = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
 
@@ -62,10 +64,10 @@ const AlumniMentors = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-alumni-mentors", tenant?.id] });
       setShowMentorDialog(false);
       setEditingMentor(null);
-      toast.success(editingMentor ? "Mentor mis à jour" : "Mentor ajouté avec succès");
+      toast.success(editingMentor ? t("alumniMentors.updateSuccess") : t("alumniMentors.createSuccess"));
     },
     onError: (error) => {
-      toast.error("Erreur lors de la sauvegarde");
+      toast.error(t("alumniMentors.saveError"));
     },
   });
 
@@ -75,7 +77,7 @@ const AlumniMentors = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-alumni-mentors", tenant?.id] });
-      toast.success("Mentor supprimé");
+      toast.success(t("alumniMentors.deleteSuccess"));
     },
   });
 
@@ -93,7 +95,7 @@ const AlumniMentors = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-mentorship-requests", tenant?.id] });
-      toast.success("Statut mis à jour");
+      toast.success(t("alumniMentors.statusUpdateSuccess"));
     },
   });
 
@@ -133,8 +135,8 @@ const AlumniMentors = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="mentors">Mentors</TabsTrigger>
-          <TabsTrigger value="requests">Demandes de mentorat</TabsTrigger>
+          <TabsTrigger value="mentors">{t("alumniMentors.tabMentors")}</TabsTrigger>
+          <TabsTrigger value="requests">{t("alumniMentors.tabRequests")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="mentors" className="space-y-4">
@@ -142,7 +144,7 @@ const AlumniMentors = () => {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Rechercher un mentor..."
+                placeholder={t("alumniMentors.searchPlaceholder")}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -150,7 +152,7 @@ const AlumniMentors = () => {
             </div>
             <Button onClick={() => setShowMentorDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Ajouter un mentor
+              {t("alumniMentors.addMentor")}
             </Button>
           </div>
 
@@ -166,7 +168,7 @@ const AlumniMentors = () => {
             {filteredMentors.length === 0 && (
               <Card className="col-span-full">
                 <CardContent className="py-8 text-center text-muted-foreground">
-                  Aucun mentor trouvé
+                  {t("alumniMentors.emptyMentors")}
                 </CardContent>
               </Card>
             )}

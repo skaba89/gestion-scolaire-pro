@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { HomeworkList, HomeworkForm, homeworkService } from "@/features/homework";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 export default function TeacherHomework() {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedHomework, setSelectedHomework] = useState<Homework | undefined>(undefined);
   const [viewingHomework, setViewingHomework] = useState<Homework | null>(null);
@@ -72,10 +74,10 @@ export default function TeacherHomework() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <BookOpen className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-display font-bold">Gestion des Devoirs</h1>
+            <h1 className="text-2xl font-display font-bold">{t("homework.teacherPageTitle")}</h1>
           </div>
           <p className="text-muted-foreground">
-            Créez et gérez les devoirs pour vos classes
+            {t("homework.teacherPageSubtitle")}
           </p>
         </div>
 
@@ -87,14 +89,14 @@ export default function TeacherHomework() {
               onClick={() => setSelectedHomework(undefined)}
             >
               <Plus className="mr-2 h-4 w-4 group-hover:rotate-90 transition-transform" />
-              Nouveau Devoir
+              {t("homework.newHomework")}
             </Button>
           </DialogTrigger>
 
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>
-                {selectedHomework ? "Modifier le devoir" : "Créer un nouveau devoir"}
+                {selectedHomework ? t("homework.editHomework") : t("homework.createHomework")}
               </DialogTitle>
             </DialogHeader>
 
@@ -124,7 +126,7 @@ export default function TeacherHomework() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <BookMarked className="h-5 w-5 text-primary" />
-              {viewingHomework?.title || "Détails du devoir"}
+              {viewingHomework?.title || t("homework.details")}
             </DialogTitle>
           </DialogHeader>
 
@@ -133,7 +135,7 @@ export default function TeacherHomework() {
               {/* Status & Due Date */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant={viewingHomework.status === "PUBLISHED" ? "default" : "secondary"}>
-                  {viewingHomework.status || "Brouillon"}
+                  {viewingHomework.status || t("homework.draft")}
                 </Badge>
                 {dueInfo && (
                   <Badge variant={dueInfo.variant}>
@@ -165,7 +167,7 @@ export default function TeacherHomework() {
                 {viewingHomework.due_date && (
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Date limite :</span>
+                    <span className="text-muted-foreground">{t("homework.deadline")}</span>
                     <span className="font-medium">
                       {format(new Date(viewingHomework.due_date), "dd MMM yyyy", { locale: fr })}
                     </span>
@@ -174,7 +176,7 @@ export default function TeacherHomework() {
                 {viewingHomework.due_time && (
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Heure :</span>
+                    <span className="text-muted-foreground">{t("homework.time")}</span>
                     <span className="font-medium">{viewingHomework.due_time}</span>
                   </div>
                 )}
@@ -185,26 +187,26 @@ export default function TeacherHomework() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium">
-                      Soumissions ({submissions.length})
+                      {t("homework.submissions")} ({submissions.length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="p-2 bg-muted/50 rounded-lg">
                         <p className="text-lg font-bold">{submissions.length}</p>
-                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="text-xs text-muted-foreground">{t("homework.total")}</p>
                       </div>
                       <div className="p-2 bg-muted/50 rounded-lg">
                         <p className="text-lg font-bold">
                           {submissions.filter((s: any) => s.graded_at).length}
                         </p>
-                        <p className="text-xs text-muted-foreground">Notés</p>
+                        <p className="text-xs text-muted-foreground">{t("homework.graded")}</p>
                       </div>
                       <div className="p-2 bg-muted/50 rounded-lg">
                         <p className="text-lg font-bold">
                           {submissions.filter((s: any) => !s.graded_at).length}
                         </p>
-                        <p className="text-xs text-muted-foreground">En attente</p>
+                        <p className="text-xs text-muted-foreground">{t("homework.pending")}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -221,14 +223,14 @@ export default function TeacherHomework() {
                     if (viewingHomework) handleEditStart(viewingHomework);
                   }}
                 >
-                  Modifier
+                  {t("homework.edit")}
                 </Button>
                 <Button
                   variant="default"
                   className="flex-1"
                   onClick={() => setIsViewOpen(false)}
                 >
-                  Fermer
+                  {t("homework.close")}
                 </Button>
               </div>
             </div>

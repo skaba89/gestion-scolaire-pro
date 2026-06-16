@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +54,7 @@ const getRiskIcon = (level: RiskLevel) => {
 };
 
 export const TeacherRiskDashboard = () => {
+    const { t } = useTranslation();
     const { user } = useAuth();
     const { tenant } = useTenant();
     const [searchTerm, setSearchTerm] = useState("");
@@ -164,27 +166,27 @@ export const TeacherRiskDashboard = () => {
 
         // Header
         doc.setFontSize(18);
-        doc.text("Rapport des Élèves à Risque", pageWidth / 2, 20, { align: "center" });
+        doc.text(t("teacherRisk.reportTitle"), pageWidth / 2, 20, { align: "center" });
 
         doc.setFontSize(10);
-        doc.text(`Généré le: ${new Date().toLocaleDateString("fr-FR")}`, pageWidth / 2, 28, { align: "center" });
-        doc.text(`Établissement: ${tenant?.name || ""}`, pageWidth / 2, 34, { align: "center" });
+        doc.text(`${t("teacherRisk.generatedOn")} ${new Date().toLocaleDateString("fr-FR")}`, pageWidth / 2, 28, { align: "center" });
+        doc.text(`${t("teacherRisk.institution")} ${tenant?.name || ""}`, pageWidth / 2, 34, { align: "center" });
 
         // Summary Stats
         doc.setFontSize(12);
-        doc.text("Résumé des Alertes", 14, 45);
+        doc.text(t("teacherRisk.alertSummary"), 14, 45);
         autoTable(doc, {
             startY: 50,
-            head: [["Total Élèves", "Alertes Critiques", "Alertes Élevées", "Alertes Modérées"]],
+            head: [[t("teacherRisk.totalStudents"), t("teacherRisk.criticalAlerts"), t("teacherRisk.highAlerts"), t("teacherRisk.moderateAlerts")]],
             body: [[stats.total, stats.critical, stats.high, stats.moderate]],
             theme: "grid"
         });
 
         // Student List
-        doc.text("Détail par Élève", 14, (doc as any).lastAutoTable.finalY + 15);
+        doc.text(t("teacherRisk.studentDetail"), 14, (doc as any).lastAutoTable.finalY + 15);
         autoTable(doc, {
             startY: (doc as any).lastAutoTable.finalY + 20,
-            head: [["Élève", "Classe", "Score", "Niveau", "Dernier Calcul"]],
+            head: [[t("teacherRisk.colStudent"), t("teacherRisk.colClass"), t("teacherRisk.colScore"), t("teacherRisk.colLevel"), t("teacherRisk.colLastCalc")]],
             body: filteredStudents.map(s => [
                 s.student_name,
                 s.class_name,
@@ -197,7 +199,7 @@ export const TeacherRiskDashboard = () => {
         });
 
         doc.save(`rapport-risques-${new Date().toISOString().split('T')[0]}.pdf`);
-        toast.success("Rapport PDF exporté");
+        toast.success(t("teacherRisk.pdfExported"));
     };
 
     if (isLoading) {
@@ -209,12 +211,12 @@ export const TeacherRiskDashboard = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">Élèves à Risque</h1>
-                    <p className="text-muted-foreground">Système d'alerte précoce pour vos classes</p>
+                    <h1 className="text-3xl font-bold">{t("teacherRisk.pageTitle")}</h1>
+                    <p className="text-muted-foreground">{t("teacherRisk.pageSubtitle")}</p>
                 </div>
                 <Button onClick={handleExportPDF} variant="outline">
                     <Download className="w-4 h-4 mr-2" />
-                    Exporter PDF
+                    {t("teacherRisk.exportPdf")}
                 </Button>
             </div>
 
@@ -224,7 +226,7 @@ export const TeacherRiskDashboard = () => {
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-muted-foreground">Total</p>
+                                <p className="text-sm text-muted-foreground">{t("teacherRisk.total")}</p>
                                 <p className="text-2xl font-bold">{stats.total}</p>
                             </div>
                             <Users className="w-8 h-8 text-primary opacity-20" />
@@ -235,7 +237,7 @@ export const TeacherRiskDashboard = () => {
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-red-600">Critique</p>
+                                <p className="text-sm text-red-600">{t("teacherRisk.critical")}</p>
                                 <p className="text-2xl font-bold text-red-700">{stats.critical}</p>
                             </div>
                             <AlertTriangle className="w-8 h-8 text-red-500 opacity-30" />
@@ -246,7 +248,7 @@ export const TeacherRiskDashboard = () => {
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-orange-600">Élevé</p>
+                                <p className="text-sm text-orange-600">{t("teacherRisk.high")}</p>
                                 <p className="text-2xl font-bold text-orange-700">{stats.high}</p>
                             </div>
                             <TrendingDown className="w-8 h-8 text-orange-500 opacity-30" />
@@ -257,7 +259,7 @@ export const TeacherRiskDashboard = () => {
                     <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-yellow-600">Modéré</p>
+                                <p className="text-sm text-yellow-600">{t("teacherRisk.moderate")}</p>
                                 <p className="text-2xl font-bold text-yellow-700">{stats.moderate}</p>
                             </div>
                             <BookOpen className="w-8 h-8 text-yellow-500 opacity-30" />
@@ -272,7 +274,7 @@ export const TeacherRiskDashboard = () => {
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5 text-primary" />
-                            Recommandations
+                            {t("teacherRisk.recommendations")}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -298,7 +300,7 @@ export const TeacherRiskDashboard = () => {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <Input
-                                placeholder="Rechercher un élève ou une classe..."
+                                placeholder={t("teacherRisk.searchPlaceholder")}
                                 className="pl-9"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -312,7 +314,7 @@ export const TeacherRiskDashboard = () => {
                                     size="sm"
                                     onClick={() => setFilterLevel(level)}
                                 >
-                                    {level === "ALL" ? "Tous" : level}
+                                    {level === "ALL" ? t("teacherRisk.all") : level}
                                 </Button>
                             ))}
                         </div>
@@ -323,13 +325,13 @@ export const TeacherRiskDashboard = () => {
             {/* Students List */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Liste des élèves ({filteredStudents.length})</CardTitle>
+                    <CardTitle>{t("teacherRisk.studentList")} ({filteredStudents.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {filteredStudents.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                             <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                            <p>Aucun élève trouvé</p>
+                            <p>{t("teacherRisk.noStudentFound")}</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -351,11 +353,11 @@ export const TeacherRiskDashboard = () => {
                                     <div className="flex items-center gap-2">
                                         <Button variant="ghost" size="sm">
                                             <Mail className="w-4 h-4 mr-2" />
-                                            Contacter
+                                            {t("teacherRisk.contact")}
                                         </Button>
                                         <Button variant="ghost" size="sm">
                                             <Calendar className="w-4 h-4 mr-2" />
-                                            Entretien
+                                            {t("teacherRisk.interview")}
                                         </Button>
                                     </div>
                                 </div>

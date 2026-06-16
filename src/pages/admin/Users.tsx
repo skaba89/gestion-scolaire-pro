@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +36,7 @@ import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { toast } from "sonner";
 
 const UsersPage = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { hasRole, user: currentUser, roles } = useAuth(); // Destructure roles
   const { studentLabel, studentsLabel } = useStudentLabel();
@@ -92,10 +94,10 @@ const UsersPage = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold text-foreground">
-            Gestion des Utilisateurs
+            {t("users.pageTitle")}
           </h1>
           <p className="text-muted-foreground">
-            Gérez les enseignants, les {studentsLabel} et le personnel de votre établissement
+            {t("users.pageSubtitle", { label: studentsLabel })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -112,7 +114,7 @@ const UsersPage = () => {
               className="gap-2"
             >
               <Settings2 className="w-4 h-4" />
-              Configuration
+              {t("users.configuration")}
             </Button>
           )}
         </div>
@@ -126,13 +128,13 @@ const UsersPage = () => {
 
       <Tabs defaultValue="users" className="w-full">
         <TabsList className="bg-muted/50 p-1 mb-8">
-          <TabsTrigger value="users">Utilisateurs actifs</TabsTrigger>
+          <TabsTrigger value="users">{t("users.tabActive")}</TabsTrigger>
           <TabsTrigger value="pending" className="relative">
-            Comptes en attente
-            <Badge className="ml-2 bg-primary text-[10px] h-4 px-1">Nouveau</Badge>
+            {t("users.tabPending")}
+            <Badge className="ml-2 bg-primary text-[10px] h-4 px-1">{t("users.badgeNew")}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="roles">Rôles & Permissions</TabsTrigger>
-          {hasPermission(roles, "users:assign_roles") && <TabsTrigger value="security">Sécurité & Privilèges</TabsTrigger>}
+          <TabsTrigger value="roles">{t("users.tabRoles")}</TabsTrigger>
+          {hasPermission(roles, "users:assign_roles") && <TabsTrigger value="security">{t("users.tabSecurity")}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -169,7 +171,7 @@ const UsersPage = () => {
               if (user.roles.includes("TEACHER")) {
                 // Teachers are in the profiles table, and the Teachers page shows all users with TEACHER role.
                 navigate(getTenantUrl(`/admin/teachers`));
-                toast.info("Veuillez utiliser l'action modifier sur la ligne de l'enseignant.");
+                toast.info(t("users.teacherEditInfo"));
                 return;
               }
 
@@ -177,7 +179,7 @@ const UsersPage = () => {
               setIsEditUserOpen(true);
             }}
             onDelete={(user) => {
-              if (confirm("Confirmer la suppression définitive ?")) {
+              if (confirm(t("users.deleteConfirm"))) {
                 deleteAccountMutation.mutate(user.id);
               }
             }}

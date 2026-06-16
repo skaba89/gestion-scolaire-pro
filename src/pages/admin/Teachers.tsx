@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { useStaff, useTeacherSchedule } from "@/features/staff/hooks/useStaff";
 import { StaffProfile as TeacherProfile } from "@/features/staff/types";
 import { TeacherTable } from "@/components/admin/teachers/TeacherTable";
 import TeacherAssignmentsDialog from "@/components/teachers/TeacherAssignmentsDialog";
+import { useTranslation } from "react-i18next";
 
 // New Modular Components
 import { TeacherHeader } from "@/components/teachers/TeacherHeader";
@@ -18,6 +19,7 @@ import { TeacherViewDialog } from "@/components/teachers/TeacherViewDialog";
 import { TeacherDeleteDialog } from "@/components/teachers/TeacherDeleteDialog";
 
 const TeachersPage = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -89,7 +91,7 @@ const TeachersPage = () => {
       <div className="relative w-full max-w-sm ml-auto">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
-          placeholder="Rechercher un professeur..."
+          placeholder={t("teachers.searchPlaceholder")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -156,3 +158,4 @@ const TeachersPage = () => {
 };
 
 export default TeachersPage;
+

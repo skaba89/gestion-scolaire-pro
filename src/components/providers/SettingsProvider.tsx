@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import i18n from "@/i18n/config";
 import { apiClient } from "@/api/client";
@@ -62,14 +63,19 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const { tenant } = useTenant();
+    const { isSuperAdmin } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
     const [isUpdating, setIsUpdating] = React.useState(false);
 
+    // Super admins have no tenant context — skip fetching settings entirely.
+    // The backend would return 400; the frontend should just use DEFAULT_SETTINGS.
+    const hasTenantContext = !!tenant?.id && !isSuperAdmin();
+
     const { data: cachedSettings, refetch, isLoading } = useQuery({
         queryKey: ["tenant-settings", tenant?.id],
         queryFn: async () => {
-            if (!tenant?.id) return DEFAULT_SETTINGS;
+            if (!hasTenantContext) return DEFAULT_SETTINGS;
 
             try {
                 const response = await apiClient.get("/tenants/settings/");
@@ -78,14 +84,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                     ...(response.data || {}),
                 };
             } catch (error: any) {
-                // Log for debugging but return defaults so the UI doesn't break
-                // (super admin without tenant, network issues, etc.)
-                console.warn("[SettingsProvider] Failed to fetch tenant settings:",
-                    error.response?.status, error.response?.data?.detail || error.message);
+                // Return defaults so the UI never breaks on network or auth issues
+                if (import.meta.env.DEV) {
+                    console.warn("[SettingsProvider] Failed to fetch tenant settings:",
+                        error.response?.status, error.response?.data?.detail || error.message);
+                }
                 return DEFAULT_SETTINGS;
             }
         },
-        enabled: !!tenant?.id,
+        enabled: hasTenantContext,
         staleTime: 5 * 60 * 1000,
         retry: false,
     });

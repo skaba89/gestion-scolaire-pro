@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -242,12 +242,12 @@ const AuthNative = () => {
                 <Label htmlFor="password" className="text-sm font-medium text-slate-700">
                   Mot de passe
                 </Label>
-                <button
-                  type="button"
+                <Link
+                  to="/forgot-password"
                   className="text-xs font-medium text-indigo-600 hover:underline transition-colors"
                 >
                   Mot de passe oublié ?
-                </button>
+                </Link>
               </div>
               <div className="relative">
                 <Input
@@ -304,14 +304,21 @@ const AuthNative = () => {
           </div>
 
           {/* Quick links */}
-          <div className="grid grid-cols-1 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <a
               href="/"
               className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium text-white transition-all duration-200 hover:opacity-90 shadow-sm bg-gradient-to-r from-slate-600 to-slate-700"
             >
               <BookOpen className="w-3.5 h-3.5" />
-              Retour à l'accueil
+              Accueil
             </a>
+            <Link
+              to="/inscription"
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-medium text-white transition-all duration-200 hover:opacity-90 shadow-sm bg-gradient-to-r from-indigo-600 to-indigo-700"
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              Créer un établissement
+            </Link>
           </div>
 
           {/* Footer */}

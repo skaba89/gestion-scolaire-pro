@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,17 +38,18 @@ import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isWithinInterval } from "date-fns";
 import { fr } from "date-fns/locale";
 
-const EVENT_TYPES = [
-  { value: "event", label: "Événement", icon: CalendarDays, color: "bg-blue-100 text-blue-700 border-blue-200" },
-  { value: "exam", label: "Examen", icon: GraduationCap, color: "bg-purple-100 text-purple-700 border-purple-200" },
-  { value: "holiday", label: "Vacances", icon: PartyPopper, color: "bg-green-100 text-green-700 border-green-200" },
-  { value: "meeting", label: "Réunion", icon: Users, color: "bg-orange-100 text-orange-700 border-orange-200" },
-];
-
 const SchoolCalendar = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
+
+  const EVENT_TYPES = useMemo(() => [
+    { value: "event", label: t("schoolCalendar.typeEvent"), icon: CalendarDays, color: "bg-blue-100 text-blue-700 border-blue-200" },
+    { value: "exam", label: t("schoolCalendar.typeExam"), icon: GraduationCap, color: "bg-purple-100 text-purple-700 border-purple-200" },
+    { value: "holiday", label: t("schoolCalendar.typeHoliday"), icon: PartyPopper, color: "bg-green-100 text-green-700 border-green-200" },
+    { value: "meeting", label: t("schoolCalendar.typeMeeting"), icon: Users, color: "bg-orange-100 text-orange-700 border-orange-200" },
+  ], [t]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -103,7 +105,7 @@ const SchoolCalendar = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-events"] });
-      toast.success("Événement créé");
+      toast.success(t("schoolCalendar.eventCreated"));
       setDialogOpen(false);
       resetForm();
     },
@@ -118,7 +120,7 @@ const SchoolCalendar = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["school-events"] });
-      toast.success("Événement supprimé");
+      toast.success(t("schoolCalendar.eventDeleted"));
     },
   });
 
@@ -173,32 +175,32 @@ const SchoolCalendar = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Calendrier Scolaire</h1>
-          <p className="text-muted-foreground">Événements, examens et vacances</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t("schoolCalendar.pageTitle")}</h1>
+          <p className="text-muted-foreground">{t("schoolCalendar.pageSubtitle")}</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => openNewEventDialog()}>
               <Plus className="w-4 h-4 mr-2" />
-              Nouvel événement
+              {t("schoolCalendar.newEvent")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Créer un événement</DialogTitle>
+              <DialogTitle>{t("schoolCalendar.dialogTitle")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Titre *</Label>
+                <Label>{t("schoolCalendar.labelTitle")}</Label>
                 <Input
                   value={formData.title}
                   onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Nom de l'événement"
+                  placeholder={t("schoolCalendar.titlePlaceholder")}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label>{t("schoolCalendar.labelType")}</Label>
                 <Select 
                   value={formData.event_type} 
                   onValueChange={(v) => setFormData(prev => ({ ...prev, event_type: v }))}
@@ -221,7 +223,7 @@ const SchoolCalendar = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Date de début *</Label>
+                  <Label>{t("schoolCalendar.labelStartDate")}</Label>
                   <Input
                     type="date"
                     value={formData.start_date}
@@ -229,7 +231,7 @@ const SchoolCalendar = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Date de fin</Label>
+                  <Label>{t("schoolCalendar.labelEndDate")}</Label>
                   <Input
                     type="date"
                     value={formData.end_date}
@@ -246,13 +248,13 @@ const SchoolCalendar = () => {
                     setFormData(prev => ({ ...prev, is_all_day: !!checked }))
                   }
                 />
-                <Label htmlFor="is_all_day" className="font-normal">Toute la journée</Label>
+                <Label htmlFor="is_all_day" className="font-normal">{t("schoolCalendar.allDay")}</Label>
               </div>
 
               {!formData.is_all_day && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Heure de début</Label>
+                    <Label>{t("schoolCalendar.labelStartTime")}</Label>
                     <Input
                       type="time"
                       value={formData.start_time}
@@ -260,7 +262,7 @@ const SchoolCalendar = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Heure de fin</Label>
+                    <Label>{t("schoolCalendar.labelEndTime")}</Label>
                     <Input
                       type="time"
                       value={formData.end_time}
@@ -271,11 +273,11 @@ const SchoolCalendar = () => {
               )}
 
               <div className="space-y-2">
-                <Label>Description</Label>
+                <Label>{t("schoolCalendar.labelDescription")}</Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Détails de l'événement..."
+                  placeholder={t("schoolCalendar.descriptionPlaceholder")}
                   rows={3}
                 />
               </div>
@@ -285,7 +287,7 @@ const SchoolCalendar = () => {
                 onClick={() => createEventMutation.mutate()}
                 disabled={!formData.title || !formData.start_date || createEventMutation.isPending}
               >
-                Créer l'événement
+                {t("schoolCalendar.createButton")}
               </Button>
             </div>
           </DialogContent>
@@ -311,20 +313,20 @@ const SchoolCalendar = () => {
           </CardTitle>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}>
-              ← Précédent
+              ← {t("schoolCalendar.prev")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setCurrentMonth(new Date())}>
-              Aujourd'hui
+              {t("schoolCalendar.today")}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setCurrentMonth(prev => addMonths(prev, 1))}>
-              Suivant →
+              {t("schoolCalendar.next")} →
             </Button>
           </div>
         </CardHeader>
         <CardContent>
           {/* Weekday headers */}
           <div className="grid grid-cols-7 gap-1 mb-2">
-            {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map(day => (
+            {[t("schoolCalendar.mon"), t("schoolCalendar.tue"), t("schoolCalendar.wed"), t("schoolCalendar.thu"), t("schoolCalendar.fri"), t("schoolCalendar.sat"), t("schoolCalendar.sun")].map(day => (
               <div key={day} className="text-center text-sm font-medium text-muted-foreground p-2">
                 {day}
               </div>
@@ -382,11 +384,11 @@ const SchoolCalendar = () => {
       {/* Upcoming Events List */}
       <Card>
         <CardHeader>
-          <CardTitle>Événements à venir</CardTitle>
+          <CardTitle>{t("schoolCalendar.upcomingEvents")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-center py-4 text-muted-foreground">Chargement...</p>
+            <p className="text-center py-4 text-muted-foreground">{t("schoolCalendar.loading")}</p>
           ) : events && events.length > 0 ? (
             <div className="space-y-3">
               {events
@@ -425,7 +427,7 @@ const SchoolCalendar = () => {
             </div>
           ) : (
             <p className="text-center py-8 text-muted-foreground">
-              Aucun événement à venir
+              {t("schoolCalendar.noUpcoming")}
             </p>
           )}
         </CardContent>

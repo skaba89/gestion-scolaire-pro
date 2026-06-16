@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -31,6 +32,7 @@ type Payment = {
 };
 
 const AccountingExports = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { toast } = useToast();
   const { formatCurrency } = useCurrency();
@@ -188,7 +190,7 @@ const AccountingExports = () => {
     link.download = filename;
     link.click();
 
-    toast({ title: "Export réussi", description: `Fichier ${filename} téléchargé` });
+    toast({ title: t("accountingExports.exportSuccess"), description: t("accountingExports.fileDownloaded", { filename }) });
   };
 
   const exportToSage = () => {
@@ -210,7 +212,7 @@ const AccountingExports = () => {
     link.href = URL.createObjectURL(blob);
     link.download = `sage_export_${format(new Date(), "yyyy-MM-dd")}.txt`;
     link.click();
-    toast({ title: "Export Sage réussi" });
+    toast({ title: t("accountingExports.exportSageSuccess") });
   };
 
   const exportToCiel = () => {
@@ -233,14 +235,14 @@ const AccountingExports = () => {
     link.href = URL.createObjectURL(blob);
     link.download = `ciel_export_${format(new Date(), "yyyy-MM-dd")}.csv`;
     link.click();
-    toast({ title: "Export Ciel réussi" });
+    toast({ title: t("accountingExports.exportCielSuccess") });
   };
 
   return (
     <div className="space-y-6">
       <AccountingHeader
-        title="Exports Comptables"
-        description="Exportez vos données vers des logiciels comptables"
+        title={t("accountingExports.pageTitle")}
+        description={t("accountingExports.pageSubtitle")}
       />
 
       <AccountingPeriodSelector

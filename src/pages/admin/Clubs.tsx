@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -24,19 +25,20 @@ import {
   Loader2
 } from "lucide-react";
 
-const CLUB_CATEGORIES: Record<string, { label: string; icon: any; color: string }> = {
-  sports: { label: "Sports", icon: Dumbbell, color: "bg-green-500/10 text-green-600" },
-  arts: { label: "Arts", icon: Palette, color: "bg-purple-500/10 text-purple-600" },
-  music: { label: "Musique", icon: Music, color: "bg-pink-500/10 text-pink-600" },
-  academic: { label: "Académique", icon: BookOpen, color: "bg-blue-500/10 text-blue-600" },
-  technology: { label: "Technologie", icon: Code, color: "bg-cyan-500/10 text-cyan-600" },
-  theater: { label: "Théâtre", icon: Theater, color: "bg-orange-500/10 text-orange-600" },
-  photography: { label: "Photo", icon: Camera, color: "bg-yellow-500/10 text-yellow-600" },
-  other: { label: "Autre", icon: Users, color: "bg-gray-500/10 text-gray-600" },
-};
-
 export default function Clubs() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
+
+  const CLUB_CATEGORIES = useMemo((): Record<string, { label: string; icon: any; color: string }> => ({
+    sports: { label: t("clubs.categorySports"), icon: Dumbbell, color: "bg-green-500/10 text-green-600" },
+    arts: { label: t("clubs.categoryArts"), icon: Palette, color: "bg-purple-500/10 text-purple-600" },
+    music: { label: t("clubs.categoryMusic"), icon: Music, color: "bg-pink-500/10 text-pink-600" },
+    academic: { label: t("clubs.categoryAcademic"), icon: BookOpen, color: "bg-blue-500/10 text-blue-600" },
+    technology: { label: t("clubs.categoryTechnology"), icon: Code, color: "bg-cyan-500/10 text-cyan-600" },
+    theater: { label: t("clubs.categoryTheater"), icon: Theater, color: "bg-orange-500/10 text-orange-600" },
+    photography: { label: t("clubs.categoryPhotography"), icon: Camera, color: "bg-yellow-500/10 text-yellow-600" },
+    other: { label: t("clubs.categoryOther"), icon: Users, color: "bg-gray-500/10 text-gray-600" },
+  }), [t]);
   const queryClient = useQueryClient();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedClub, setSelectedClub] = useState<any | null>(null);
@@ -71,10 +73,10 @@ export default function Clubs() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-clubs", tenant?.id] });
-      toast.success("Club créé avec succès");
+      toast.success(t("clubs.createSuccess"));
       setCreateDialogOpen(false);
     },
-    onError: () => toast.error("Erreur lors de la création"),
+    onError: () => toast.error(t("clubs.createError")),
   });
 
   const deleteClubMutation = useMutation({
@@ -83,7 +85,7 @@ export default function Clubs() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-clubs", tenant?.id] });
-      toast.success("Club supprimé");
+      toast.success(t("clubs.deleteSuccess"));
     },
   });
 
@@ -97,9 +99,9 @@ export default function Clubs() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-club-memberships", tenant?.id] });
-      toast.success("Membre ajouté");
+      toast.success(t("clubs.memberAdded"));
     },
-    onError: () => toast.error("Erreur lors de l'ajout"),
+    onError: () => toast.error(t("clubs.memberAddError")),
   });
 
   const removeMemberMutation = useMutation({
@@ -108,7 +110,7 @@ export default function Clubs() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-club-memberships", tenant?.id] });
-      toast.success("Membre retiré");
+      toast.success(t("clubs.memberRemoved"));
     },
   });
 
@@ -159,8 +161,8 @@ export default function Clubs() {
         {clubs.length === 0 && (
           <div className="col-span-full border-2 border-dashed rounded-lg py-12 text-center">
             <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="font-medium text-lg">Aucun club</h3>
-            <p className="text-muted-foreground">Créez votre premier club étudiant</p>
+            <h3 className="font-medium text-lg">{t("clubs.emptyTitle")}</h3>
+            <p className="text-muted-foreground">{t("clubs.emptyDescription")}</p>
           </div>
         )}
       </div>

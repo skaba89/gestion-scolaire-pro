@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { communicationQueries } from "@/queries/communication";
@@ -8,8 +8,10 @@ import { MessageSquare, Mail, Send, Inbox } from "lucide-react";
 import { AdminMessageComposer } from "@/components/messages/AdminMessageComposer";
 import ExternalMessageComposer from "@/components/messages/ExternalMessageComposer";
 import { MessengerInterface } from "@/components/messages/MessengerInterface";
+import { useTranslation } from "react-i18next";
 
 const MessagesPage = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
 
   // Fetch all users for recipient selection
@@ -23,10 +25,10 @@ const MessagesPage = () => {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">
-          Messagerie
+          {t("adminMessages.pageTitle")}
         </h1>
         <p className="text-muted-foreground">
-          Communiquez avec les parents, enseignants et personnel
+          {t("adminMessages.pageSubtitle")}
         </p>
       </div>
 
@@ -34,23 +36,23 @@ const MessagesPage = () => {
         <TabsList className="grid w-full grid-cols-3 max-w-lg">
           <TabsTrigger value="inbox" className="gap-2">
             <Inbox className="w-4 h-4" />
-            Messages
+            {t("adminMessages.tabMessages")}
           </TabsTrigger>
           <TabsTrigger value="broadcast" className="gap-2">
             <MessageSquare className="w-4 h-4" />
-            Diffusion
+            {t("adminMessages.tabBroadcast")}
           </TabsTrigger>
           <TabsTrigger value="external" className="gap-2">
             <Mail className="w-4 h-4" />
-            Email
+            {t("adminMessages.tabEmail")}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="inbox" className="mt-6">
           <MessengerInterface
             recipients={allUsers || []}
-            recipientLabel="Destinataire"
-            title="Messages"
+            recipientLabel={t("adminMessages.recipientLabel")}
+            title={t("adminMessages.tabMessages")}
             showNewConversation={true}
           />
         </TabsContent>
@@ -61,11 +63,10 @@ const MessagesPage = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-primary" />
-                  Diffusion de messages
+                  {t("adminMessages.broadcastTitle")}
                 </CardTitle>
                 <CardDescription>
-                  Envoyez des notifications en masse aux utilisateurs de la plateforme
-                  (parents, enseignants, personnel).
+                  {t("adminMessages.broadcastDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -75,9 +76,9 @@ const MessagesPage = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Fonctionnalités</CardTitle>
+                <CardTitle>{t("adminMessages.featuresTitle")}</CardTitle>
                 <CardDescription>
-                  La diffusion de messages permet de :
+                  {t("adminMessages.featuresDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -86,9 +87,9 @@ const MessagesPage = () => {
                     <Send className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <p className="font-medium text-sm">Envoi individuel ou groupé</p>
+                    <p className="font-medium text-sm">{t("adminMessages.featureIndividualTitle")}</p>
                     <p className="text-xs text-muted-foreground">
-                      Sélectionnez un ou plusieurs destinataires par rôle
+                      {t("adminMessages.featureIndividualDescription")}
                     </p>
                   </div>
                 </div>
@@ -97,9 +98,9 @@ const MessagesPage = () => {
                     <MessageSquare className="w-4 h-4 text-primary" />
                   </div>
                   <div>
-                    <p className="font-medium text-sm">Notifications en temps réel</p>
+                    <p className="font-medium text-sm">{t("adminMessages.featureRealtimeTitle")}</p>
                     <p className="text-xs text-muted-foreground">
-                      Les destinataires reçoivent une alerte instantanée
+                      {t("adminMessages.featureRealtimeDescription")}
                     </p>
                   </div>
                 </div>
@@ -114,11 +115,10 @@ const MessagesPage = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Mail className="w-5 h-5 text-primary" />
-                  Envoi d'emails
+                  {t("adminMessages.emailTitle")}
                 </CardTitle>
                 <CardDescription>
-                  Envoyez des emails aux utilisateurs. Les emails sont envoyés à leur adresse
-                  email réelle, même s'ils ne sont pas connectés à la plateforme.
+                  {t("adminMessages.emailDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -133,3 +133,4 @@ const MessagesPage = () => {
 };
 
 export default MessagesPage;
+

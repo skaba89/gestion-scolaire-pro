@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   campusQueries,
@@ -9,6 +9,7 @@ import {
 } from "@/queries/campuses";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
 
 // New Modular Components
 import { CampusHeader } from "@/components/campuses/CampusHeader";
@@ -16,6 +17,7 @@ import { CampusTable } from "@/components/campuses/CampusTable";
 import { CampusFormDialog } from "@/components/campuses/CampusFormDialog";
 
 const Campuses = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCampus, setEditingCampus] = useState<Campus | null>(null);
@@ -48,7 +50,7 @@ const Campuses = () => {
     const campus = campuses.find(c => c.id === id);
     if (campus?.is_main) return; // UI handles disabling, but safety first
 
-    if (confirm("Êtes-vous sûr de vouloir supprimer ce campus ?")) {
+    if (confirm(t("campuses.deleteConfirm"))) {
       await deleteMutation.mutateAsync(id);
     }
   };
@@ -86,7 +88,7 @@ const Campuses = () => {
       <Card className="border-warning/50 bg-warning/5">
         <CardContent className="p-6">
           <p className="text-muted-foreground">
-            Veuillez d'abord configurer votre établissement.
+            {t("campuses.noTenantMessage")}
           </p>
         </CardContent>
       </Card>
@@ -116,3 +118,4 @@ const Campuses = () => {
 };
 
 export default Campuses;
+

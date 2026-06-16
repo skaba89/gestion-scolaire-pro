@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+﻿import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
@@ -6,12 +6,14 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
 import { admissionQueries, useUpdateAdmissionStatus, AdmissionStatus, AdmissionApplication } from "@/queries/admissions";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { AdmissionStats } from "@/components/admin/admissions/AdmissionStats";
 import { AdmissionFilters } from "@/components/admin/admissions/AdmissionFilters";
 import { AdmissionTable } from "@/components/admin/admissions/AdmissionTable";
 import { AdmissionHeader } from "@/components/admin/admissions/AdmissionHeader";
 
 const Admissions = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { StudentLabel } = useStudentLabel();
   const [searchTerm, setSearchTerm] = useState("");
@@ -21,7 +23,7 @@ const Admissions = () => {
   const updateStatusMutation = useUpdateAdmissionStatus(tenant?.id || "");
 
   if (error) {
-    toast.error("Erreur lors du chargement des candidatures");
+    toast.error(t("admissions.loadError"));
   }
 
   const filteredApplications = useMemo(() => {
@@ -33,7 +35,7 @@ const Admissions = () => {
       apps = (applications as any).items;
     } else {
       // If we are here, it means applications is either null/undefined or in an unexpected format
-      if (applications) toast.error("Format de données inattendu");
+      if (applications) toast.error(t("admissions.unexpectedFormat"));
       apps = [];
     }
 
@@ -99,7 +101,7 @@ const Admissions = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BookOpen className="w-5 h-5" />
-            Candidatures ({filteredApplications.length})
+            {t("admissions.applicationsTitle")} ({filteredApplications.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -116,3 +118,4 @@ const Admissions = () => {
 };
 
 export default Admissions;
+

@@ -439,21 +439,8 @@ def upgrade() -> None:
     op.create_index("ix_student_badges_tenant_id", "student_badges", ["tenant_id"])
     op.create_index("ix_student_badges_student_id", "student_badges", ["student_id"])
 
-    op.create_table(
-        "career_event_registrations",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("tenant_id", sa.UUID(), nullable=False),
-        sa.Column("event_id", sa.UUID(), nullable=False),
-        sa.Column("student_id", sa.UUID(), nullable=True),
-        sa.Column("alumni_id", sa.UUID(), nullable=True),
-        sa.Column("registered_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["event_id"], ["career_events.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("ix_career_event_registrations_tenant_id", "career_event_registrations", ["tenant_id"])
-    op.create_index("ix_career_event_registrations_event_id", "career_event_registrations", ["event_id"])
+    # NOTE: career_event_registrations is created later (after career_events)
+    # because it has a FK to career_events.id
 
     # =========================================================================
     # 9. ALUMNI — Document Requests
@@ -557,6 +544,23 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_career_events_tenant_id", "career_events", ["tenant_id"])
+
+    # career_event_registrations moved here (after career_events, which it references)
+    op.create_table(
+        "career_event_registrations",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("tenant_id", sa.UUID(), nullable=False),
+        sa.Column("event_id", sa.UUID(), nullable=False),
+        sa.Column("student_id", sa.UUID(), nullable=True),
+        sa.Column("alumni_id", sa.UUID(), nullable=True),
+        sa.Column("registered_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.ForeignKeyConstraint(["event_id"], ["career_events.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index("ix_career_event_registrations_tenant_id", "career_event_registrations", ["tenant_id"])
+    op.create_index("ix_career_event_registrations_event_id", "career_event_registrations", ["event_id"])
 
     op.create_table(
         "mentorship_requests",

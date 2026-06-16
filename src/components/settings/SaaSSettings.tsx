@@ -61,16 +61,14 @@ const SaaSSettings = () => {
     useEffect(() => {
         const fetchSettings = async () => {
             if (!tenant) return;
-            const { data, error } = await apiClient
-                .get('/tenants/settings/', {
-                    params: { tenant_id: tenant.id },
+            const response = await apiClient
+                .get('/tenants/settings/')
+                .catch((err) => {
+                    console.error("Error fetching school settings:", err);
+                    return null;
                 });
 
-            const settingsData = data?.data || data;
-
-            if (error) {
-                console.error("Error fetching school settings:", error);
-            }
+            const settingsData = response?.data?.data || response?.data;
 
             if (settingsData) {
                 setSettings({
@@ -121,8 +119,7 @@ const SaaSSettings = () => {
         setLoading(true);
 
         try {
-            await apiClient.put('/tenants/settings/', {
-                tenant_id: tenant.id,
+            await apiClient.patch('/tenants/settings/', {
                 ...settings,
             });
 

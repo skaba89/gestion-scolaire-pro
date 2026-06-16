@@ -1,8 +1,9 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 import { adminQueries } from "@/queries/admin";
+import { useTranslation } from "react-i18next";
 import { SurveyHeader } from "@/components/admin/surveys/SurveyHeader";
 import { SurveyStats } from "@/components/admin/surveys/SurveyStats";
 import { SurveyList } from "@/components/admin/surveys/SurveyList";
@@ -10,6 +11,7 @@ import { SurveyDialog } from "@/components/admin/surveys/SurveyDialog";
 import { SurveyResultsDialog } from "@/components/admin/surveys/SurveyResultsDialog";
 
 export default function Surveys() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -46,11 +48,11 @@ export default function Surveys() {
     mutationFn: (data: any) => adminQueries.saveSurvey(tenant?.id || "", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      toast.success(selectedSurvey ? "Sondage mis à jour" : "Sondage créé");
+      toast.success(selectedSurvey ? t("surveys.updateSuccess") : t("surveys.createSuccess"));
       resetForm();
     },
     onError: () => {
-      toast.error("Erreur lors de l'enregistrement");
+      toast.error(t("surveys.saveError"));
     },
   });
 
@@ -58,10 +60,10 @@ export default function Surveys() {
     mutationFn: adminQueries.deleteSurvey,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["surveys"] });
-      toast.success("Sondage supprimé");
+      toast.success(t("surveys.deleteSuccess"));
     },
     onError: () => {
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("surveys.deleteError"));
     },
   });
 
@@ -87,22 +89,22 @@ export default function Surveys() {
       target_audience: survey.target_audience || "all",
       is_anonymous: survey.is_anonymous,
       is_active: survey.is_active,
-      starts_at: survey.starts_at ? survey.starts_at.split("T")[0] : "",
-      ends_at: survey.ends_at ? survey.ends_at.split("T")[0] : "",
+      starts_at: survey.starts_at ? survey.starts_at.split("surveys.T")[0] : "",
+      ends_at: survey.ends_at ? survey.ends_at.split("surveys.T")[0] : "",
     });
     setIsDialogOpen(true);
   };
 
   const handleSubmit = () => {
     if (!formData.title) {
-      toast.error("Le titre est requis");
+      toast.error(t("surveys.titleRequired"));
       return;
     }
     saveMutation.mutate({ ...formData, id: selectedSurvey?.id });
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-64">Chargement...</div>;
+    return <div className="flex items-center justify-center h-64">{t("surveys.loading")}</div>;
   }
 
   return (
@@ -143,3 +145,4 @@ export default function Surveys() {
     </div>
   );
 }
+

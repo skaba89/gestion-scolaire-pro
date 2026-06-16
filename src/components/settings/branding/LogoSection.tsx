@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Upload, X, Loader2 } from "lucide-react";
+import { Upload, X, Loader2, ImageOff } from "lucide-react";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ export function LogoSection({ formData, setFormData }: BrandingSectionProps) {
     const { tenant } = useTenant();
     const { toast } = useToast();
     const [isUploading, setIsUploading] = useState(false);
+    const [imgError, setImgError] = useState(false);
 
     const handleLogoUpload = async (file: File) => {
         if (!tenant?.id) return;
@@ -47,6 +48,7 @@ export function LogoSection({ formData, setFormData }: BrandingSectionProps) {
             }
 
             setFormData(prev => ({ ...prev, logo_url: response.data.url }));
+            setImgError(false);
             toast({ title: "Logo téléchargé", description: "Le logo a été mis à jour dans le formulaire." });
         } catch (error: any) {
             toast({ title: "Erreur", description: error.response?.data?.detail || error.message, variant: "destructive" });
@@ -74,8 +76,20 @@ export function LogoSection({ formData, setFormData }: BrandingSectionProps) {
                     <div className="flex flex-col lg:flex-row gap-6">
                         <div className="flex-shrink-0">
                             <div className="w-32 h-32 rounded-xl bg-muted border-2 border-dashed border-border flex items-center justify-center overflow-hidden">
-                                {formData.logo_url ? (
-                                    <img src={resolveUploadUrl(formData.logo_url)} alt="Logo preview" className="w-full h-full object-contain" />
+                                {formData.logo_url && !imgError ? (
+                                    <img
+                                        src={resolveUploadUrl(formData.logo_url)}
+                                        alt="Logo preview"
+                                        className="w-full h-full object-contain"
+                                        onError={() => setImgError(true)}
+                                        onLoad={() => setImgError(false)}
+                                    />
+                                ) : formData.logo_url && imgError ? (
+                                    <div className="text-center text-muted-foreground p-2">
+                                        <ImageOff className="w-8 h-8 mx-auto mb-1 text-amber-500" />
+                                        <p className="text-xs">Logo inaccessible</p>
+                                        <p className="text-xs text-amber-600 mt-1">Re-uploadez le logo</p>
+                                    </div>
                                 ) : (
                                     <div className="text-center text-muted-foreground">
                                         <Upload className="w-8 h-8 mx-auto mb-2" />
@@ -113,7 +127,7 @@ export function LogoSection({ formData, setFormData }: BrandingSectionProps) {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setFormData(prev => ({ ...prev, logo_url: "" }))}
+                                    onClick={() => { setFormData(prev => ({ ...prev, logo_url: "" })); setImgError(false); }}
                                     className="w-full sm:w-auto"
                                 >
                                     <X className="w-4 h-4 mr-2" />

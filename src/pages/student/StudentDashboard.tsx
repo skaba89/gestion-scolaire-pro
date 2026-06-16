@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import {
@@ -39,6 +40,7 @@ import { StudentDigitalBadge } from "@/components/student/StudentDigitalBadge";
 import { CheckInHistoryList } from "@/components/attendance/CheckInHistoryList";
 
 const StudentDashboard = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const { StudentLabel, studentsLabel } = useStudentLabel();
@@ -69,29 +71,29 @@ const StudentDashboard = () => {
 
   const stats = [
     {
-      label: "Moyenne Générale",
+      label: t("studentDashboard.generalAverage"),
       value: averageGrade || "--",
-      suffix: averageGrade ? "/20" : "",
+      suffix: averageGrade ? t("studentDashboard.outOf20") : "",
       icon: TrendingUp,
       color: "text-green-600",
       bgColor: "bg-green-500/10"
     },
     {
-      label: "Notes récentes",
+      label: t("studentDashboard.recentGrades"),
       value: recentGrades?.length || 0,
       icon: FileText,
       color: "text-blue-600",
       bgColor: "bg-blue-500/10"
     },
     {
-      label: "Cours aujourd'hui",
+      label: t("studentDashboard.todayCourses"),
       value: todaySchedule.length,
       icon: Calendar,
       color: "text-primary",
       bgColor: "bg-primary/10"
     },
     {
-      label: "Devoirs à rendre",
+      label: t("studentDashboard.homeworkDue"),
       value: homework?.length || 0,
       icon: ClipboardList,
       color: "text-orange-600",
@@ -100,10 +102,10 @@ const StudentDashboard = () => {
   ];
 
   const quickLinks = [
-    { href: getTenantUrl("/student/grades"), label: "Mes Notes", icon: FileText },
-    { href: getTenantUrl("/student/schedule"), label: "Emploi du temps", icon: Calendar },
-    { href: getTenantUrl("/student/homework"), label: "Devoirs", icon: BookOpen },
-    { href: getTenantUrl("/student/messages"), label: "Messages", icon: MessageSquare },
+    { href: getTenantUrl("/student/grades"), label: t("studentDashboard.myGrades"), icon: FileText },
+    { href: getTenantUrl("/student/schedule"), label: t("studentDashboard.schedule"), icon: Calendar },
+    { href: getTenantUrl("/student/homework"), label: t("studentDashboard.homework"), icon: BookOpen },
+    { href: getTenantUrl("/student/messages"), label: t("studentDashboard.messages"), icon: MessageSquare },
   ];
 
   if (isDataLoading) {
@@ -136,7 +138,7 @@ const StudentDashboard = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
-              Évolution de mes résultats
+              {t("studentDashboard.gradeEvolution")}
             </CardTitle>
           </CardHeader>
           <CardContent className="h-[250px] pt-4">
@@ -196,7 +198,7 @@ const StudentDashboard = () => {
             ) : (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <TrendingUp className="w-12 h-12 mb-2 opacity-10" />
-                <p>Pas encore de notes pour afficher le graphique</p>
+                <p>{t("studentDashboard.noGradesYet")}</p>
               </div>
             )}
           </CardContent>

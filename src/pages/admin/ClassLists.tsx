@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
@@ -29,6 +30,7 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { generateClassListPdf } from "@/utils/classListPdfGenerator";
 
 const ClassLists = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
     const [selectedDept, setSelectedDept] = useState<string>("all");
@@ -126,8 +128,8 @@ const ClassLists = () => {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-display font-bold text-foreground">Listes de Classe</h1>
-                    <p className="text-muted-foreground">Consultez les effectifs par département et par niveau</p>
+                    <h1 className="text-2xl font-display font-bold text-foreground">{t("classLists.pageTitle")}</h1>
+                    <p className="text-muted-foreground">{t("classLists.pageSubtitle")}</p>
                 </div>
             </div>
 
@@ -136,14 +138,14 @@ const ClassLists = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium flex items-center gap-2">
-                                <Building2 className="w-4 h-4" /> Département
+                                <Building2 className="w-4 h-4" /> {t("classLists.department")}
                             </label>
                             <Select value={selectedDept} onValueChange={(v) => { setSelectedDept(v); setPage(1); }}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Tous les départements" />
+                                    <SelectValue placeholder={t("classLists.allDepartments")} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Tous les départements</SelectItem>
+                                    <SelectItem value="all">{t("classLists.allDepartments")}</SelectItem>
                                     {departments.map((dept: any) => (
                                         <SelectItem key={dept.id} value={dept.id}>
                                             {dept.code ? `[${dept.code}] ` : ""}{dept.name}
@@ -155,14 +157,14 @@ const ClassLists = () => {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium flex items-center gap-2">
-                                <Layers className="w-4 h-4" /> Niveau
+                                <Layers className="w-4 h-4" /> {t("classLists.level")}
                             </label>
                             <Select value={selectedLevel} onValueChange={(v) => { setSelectedLevel(v); setPage(1); }}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Tous les niveaux" />
+                                    <SelectValue placeholder={t("classLists.allLevels")} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">Tous les niveaux</SelectItem>
+                                    <SelectItem value="all">{t("classLists.allLevels")}</SelectItem>
                                     {levels.map((level) => (
                                         <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>
                                     ))}
@@ -172,10 +174,10 @@ const ClassLists = () => {
 
                         <div className="md:col-span-2 space-y-2">
                             <label className="text-sm font-medium flex items-center gap-2">
-                                <Search className="w-4 h-4" /> Recherche
+                                <Search className="w-4 h-4" /> {t("classLists.search")}
                             </label>
                             <Input
-                                placeholder={`Rechercher une classe ou un ${studentLabel}...`}
+                                placeholder={t("classLists.searchPlaceholder", { label: studentLabel })}
                                 value={searchTerm}
                                 onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                             />
@@ -185,11 +187,11 @@ const ClassLists = () => {
             </Card>
 
             {isLoading ? (
-                <div className="text-center py-12 text-muted-foreground">Chargement des listes...</div>
+                <div className="text-center py-12 text-muted-foreground">{t("classLists.loading")}</div>
             ) : filteredLists.length === 0 ? (
                 <div className="text-center py-12">
                     <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-                    <p className="text-muted-foreground">Aucune classe trouvée pour ces critères</p>
+                    <p className="text-muted-foreground">{t("classLists.noResults")}</p>
                 </div>
             ) : (
                 <div className="space-y-8">
@@ -221,11 +223,11 @@ const ClassLists = () => {
                                         variant="outline"
                                         size="sm"
                                         onClick={() => generateClassListPdf(classroom, tenant?.name || "")}
-                                        aria-label={`Exporter la liste de ${classroom.name} en PDF`}
+                                        aria-label={t("classLists.exportPdfAria", { name: classroom.name })}
                                         disabled={classroom.students.length === 0}
                                     >
                                         <Download className="w-4 h-4 mr-2" />
-                                        Exporter PDF
+                                        {t("classLists.exportPdf")}
                                     </Button>
                                 </div>
                             </CardHeader>
@@ -233,11 +235,11 @@ const ClassLists = () => {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-12 text-center">N°</TableHead>
-                                            <TableHead className="w-12">Photo</TableHead>
-                                            <TableHead>N° Étudiant</TableHead>
-                                            <TableHead>Nom Complet</TableHead>
-                                            <TableHead className="hidden md:table-cell">Email</TableHead>
+                                            <TableHead className="w-12 text-center">{t("classLists.colNum")}</TableHead>
+                                            <TableHead className="w-12">{t("classLists.colPhoto")}</TableHead>
+                                            <TableHead>{t("classLists.colStudentNum")}</TableHead>
+                                            <TableHead>{t("classLists.colFullName")}</TableHead>
+                                            <TableHead className="hidden md:table-cell">{t("classLists.colEmail")}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -271,7 +273,7 @@ const ClassLists = () => {
                                         {classroom.students.length === 0 && (
                                             <TableRow>
                                                 <TableCell colSpan={5} className="text-center py-6 text-muted-foreground italic">
-                                                    Aucun {studentLabel} inscrit dans cette classe
+                                                    {t("classLists.noStudentsInClass", { label: studentLabel })}
                                                 </TableCell>
                                             </TableRow>
                                         )}
@@ -284,7 +286,7 @@ const ClassLists = () => {
                     {totalPages > 1 && (
                         <div className="flex items-center justify-between pt-2">
                             <p className="text-sm text-muted-foreground">
-                                Page {page} sur {totalPages} · {filteredLists.length} classes
+                                {t("classLists.pageInfo", { page, totalPages, count: filteredLists.length })}
                             </p>
                             <div className="flex items-center gap-2">
                                 <Button
@@ -292,7 +294,7 @@ const ClassLists = () => {
                                     size="sm"
                                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                                     disabled={page === 1}
-                                    aria-label="Page précédente"
+                                    aria-label={t("classLists.prevPage")}
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
@@ -301,7 +303,7 @@ const ClassLists = () => {
                                     size="sm"
                                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                                     disabled={page === totalPages}
-                                    aria-label="Page suivante"
+                                    aria-label={t("classLists.nextPage")}
                                 >
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
