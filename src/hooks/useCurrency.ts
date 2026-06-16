@@ -40,12 +40,41 @@ export const CURRENCIES: Record<string, CurrencyConfig> = {
   AOA: { code: "AOA", symbol: "Kz", name: "Kwanza Angolais", locale: "pt-AO", position: "after" },
 };
 
+const normalizeCurrencyCode = (value?: string | null): string | null => {
+  if (!value) return null;
+  const normalized = value.trim().toUpperCase();
+  if (!normalized) return null;
+
+  const aliases: Record<string, string> = {
+    GNF: "GNF",
+    GNS: "GNF",
+    FG: "GNF",
+    GNF_FRANC: "GNF",
+    FRANC_GUINEEN: "GNF",
+    "FRANC GUINEEN": "GNF",
+    "FRANC GUINÉEN": "GNF",
+    XOF: "XOF",
+    FCFA: "XOF",
+    CFA: "XOF",
+  };
+
+  return aliases[normalized] || normalized;
+};
+
 export const useCurrency = () => {
   const { tenant } = useTenant();
-  
   const settings = tenant?.settings as Record<string, any> | undefined;
-  const currencyCode = settings?.currency || "XOF";
-  const currencyConfig = CURRENCIES[currencyCode] || CURRENCIES.XOF;
+
+  // Prefer the canonical tenant.currency column. Older data may still store the
+  // currency in settings.currency or settings.operational.currency.
+  // Default to GNF because SchoolFlow targets Guinea first.
+  const currencyCode =
+    normalizeCurrencyCode(tenant?.currency) ||
+    normalizeCurrencyCode(settings?.currency) ||
+    normalizeCurrencyCode(settings?.operational?.currency) ||
+    "GNF";
+
+  const currencyConfig = CURRENCIES[currencyCode] || CURRENCIES.GNF;
   
   const formatCurrency = (value: number): string => {
     const formattedNumber = new Intl.NumberFormat(currencyConfig.locale, { 
