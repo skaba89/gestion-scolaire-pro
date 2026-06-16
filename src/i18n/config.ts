@@ -7,6 +7,106 @@ import es from './locales/es.json';
 import ar from './locales/ar.json';
 
 const readableFallbacks: Record<string, string> = {
+    // ── Portal / shell ───────────────────────────────────────────────────────
+    'portal.adminSpace': 'Espace Admin',
+    'portal.teacherSpace': 'Espace Enseignant',
+    'portal.studentSpace': 'Espace Étudiant',
+    'portal.parentSpace': 'Espace Parent',
+
+    // ── Navigation principale ───────────────────────────────────────────────
+    'nav.overview': 'Vue d’ensemble',
+    'nav.dashboard': 'Tableau de bord',
+    'nav.analytics': 'Analyses',
+    'nav.aiInsights': 'Insights IA',
+    'nav.strategicAnalysis': 'Analyse stratégique',
+    'nav.ministryReporting': 'Reporting ministériel',
+    'nav.establishments': 'Établissements',
+    'nav.guides': 'Guides',
+    'nav.testingGuide': 'Guide de test',
+    'nav.universityGuide': 'Guide universitaire',
+    'nav.academicManagement': 'Gestion académique',
+    'nav.admissions': 'Admissions',
+    'nav.students': 'Étudiants',
+    'nav.enrollments': 'Inscriptions',
+    'nav.teachers': 'Enseignants',
+    'nav.grades': 'Notes',
+    'nav.reportCards': 'Bulletins',
+    'nav.certificates': 'Certificats',
+    'nav.structure': 'Structure',
+    'nav.academicYears': 'Années académiques',
+    'nav.terms': 'Périodes',
+    'nav.levels': 'Niveaux',
+    'nav.classrooms': 'Classes',
+    'nav.subjects': 'Matières',
+    'nav.campuses': 'Campus',
+    'nav.departments': 'Départements',
+    'nav.planning': 'Planification',
+    'nav.schedule': 'Emploi du temps',
+    'nav.calendar': 'Calendrier',
+    'nav.bookings': 'Réservations',
+    'nav.events': 'Événements',
+    'nav.attendance': 'Présences',
+    'nav.badges': 'Badges',
+    'nav.liveAttendance': 'Présence en direct',
+    'nav.teacherHours': 'Heures enseignants',
+    'nav.financesSection': 'Finances',
+    'nav.finances': 'Finances',
+    'nav.accountingExports': 'Exports comptables',
+    'nav.learning': 'Apprentissage',
+    'nav.elearning': 'E-learning',
+    'nav.library': 'Bibliothèque',
+    'nav.gamification': 'Gamification',
+    'nav.studentLife': 'Vie étudiante',
+    'nav.clubs': 'Clubs',
+    'nav.careers': 'Carrières & Stages',
+    'nav.alumniMentors': 'Mentors alumni',
+    'nav.alumniRequests': 'Demandes alumni',
+    'nav.communication': 'Communication',
+    'nav.messages': 'Messages',
+    'nav.announcements': 'Annonces',
+    'nav.administration': 'Administration',
+    'nav.users': 'Utilisateurs',
+    'nav.hr': 'Ressources humaines',
+    'nav.security': 'Sécurité',
+    'nav.exports': 'Exports',
+    'nav.auditLogs': 'Journaux d’audit',
+    'nav.settings': 'Paramètres',
+
+    // ── Dashboard admin ─────────────────────────────────────────────────────
+    'dashboard.hello': 'Bonjour,',
+    'dashboard.welcomeTenant': 'Bienvenue dans le tableau de bord de',
+    'dashboard.welcomeNoTenant': 'Bienvenue {{name}}',
+    'dashboard.noTenantDesc': 'Créez ou sélectionnez un établissement pour commencer.',
+    'dashboard.createTenantTitle': 'Créer un établissement',
+    'dashboard.createTenantDesc': 'Configurez votre premier établissement pour démarrer.',
+    'dashboard.createTenantBtn': 'Créer un établissement',
+    'dashboard.statStudents': '{{label}} inscrits',
+    'dashboard.statPendingAdmissions': 'Demandes d’admission en attente',
+    'dashboard.statPendingInvoices': 'Factures en attente',
+    'dashboard.statAcademicYear': 'Année académique',
+    'dashboard.quickActions': 'Actions rapides',
+    'dashboard.quickAdmissions': 'Admissions',
+    'dashboard.quickGrades': 'Notes',
+    'dashboard.quickFinances': 'Finances',
+    'dashboard.setupAcademicYearTitle': 'Année académique à configurer',
+    'dashboard.setupAcademicYearDesc': 'Définissez l’année académique courante pour activer les statistiques et les rapports.',
+    'dashboard.setupAcademicYearBtn': 'Configurer l’année académique',
+    'dashboard.studentsByLevel': 'Effectifs par niveau',
+    'dashboard.attendanceDistribution': 'Répartition des présences',
+    'dashboard.recentActivities': 'Activités récentes',
+    'dashboard.noData': 'Aucune donnée disponible',
+    'dashboard.noRecentActivity': 'Aucune activité récente',
+    'dashboard.noNewEnrollment': 'Aucune nouvelle inscription',
+    'dashboard.noPendingInvoice': 'Aucune facture en attente',
+    'dashboard.viewAllActivities': 'Voir toutes les activités',
+
+    // ── Widgets dashboard ───────────────────────────────────────────────────
+    'security.title': 'Sécurité système',
+    'security.noCriticalThreat': 'Aucune menace critique détectée récemment.',
+    'studentsAtRisk.title': 'Réussite académique',
+    'studentsAtRisk.noData': 'Aucune donnée suffisante pour le moment.',
+
+    // ── Ministry reporting ──────────────────────────────────────────────────
     'ministryDashboard.title': 'Reporting ministériel',
     'ministryDashboard.subtitle': 'Tableau de bord et conformité ministérielle',
     'ministryDashboard.refresh': 'Actualiser',
@@ -82,6 +182,17 @@ const readableFallbacks: Record<string, string> = {
     'ministryDashboard.onboarding.complianceContent': 'Renseignez les informations demandées par l’administration éducative.',
 };
 
+const humanizeMissingKey = (key: string): string => {
+    const lastSegment = key.split('.').pop() || key;
+    const label = lastSegment
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[-_]/g, ' ')
+        .trim();
+
+    if (!label) return key;
+    return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+};
+
 i18n
     .use(LanguageDetector)
     .use(initReactI18next)
@@ -94,6 +205,10 @@ i18n
         },
         fallbackLng: 'fr',
         lng: 'fr',
+        supportedLngs: ['fr', 'en', 'es', 'ar'],
+        nonExplicitSupportedLngs: true,
+        load: 'languageOnly',
+        cleanCode: true,
         debug: false,
         returnNull: false,
         returnEmptyString: false,
@@ -105,7 +220,7 @@ i18n
             caches: ['localStorage'],
             lookupLocalStorage: 'i18nextLng',
         },
-        parseMissingKeyHandler: (key) => readableFallbacks[key] || key,
+        parseMissingKeyHandler: (key) => readableFallbacks[key] || humanizeMissingKey(key),
     });
 
 export default i18n;
