@@ -16,6 +16,48 @@ function isLocalHost(value: string): boolean {
   return /localhost|127\.0\.0\.1/.test(value);
 }
 
+function isRelativeUrl(value: string): boolean {
+  return value.startsWith('/');
+}
+
+/**
+ * In Docker/nginx, the frontend is exposed on a local host port such as 3000/3001
+ * and nginx proxies /api/ to the API container. A runtime config or stale build
+ * that points to http://localhost (without the frontend port) makes the browser
+ * call port 80 and causes ERR_CONNECTION_REFUSED. Normalize that case to /api.
+ */
+function shouldUseDockerProxyForLocalhost(apiUrl: string): boolean {
+  if (!isLocalHost(apiUrl) || isRelativeUrl(apiUrl)) return false;
+
+  try {
+    const parsed = new URL(apiUrl);
+    const appPort = window.location.port;
+    const apiPort = parsed.port;
+
+    // Browser is on http://localhost:3000/3001/etc., but API_URL is
+    // http://localhost or http://localhost:80. That bypasses nginx.
+    if (appPort && (!apiPort || apiPort === '80')) return true;
+
+    // In production builds served by nginx, local API calls must go through /api.
+    if (!import.meta.env.DEV && isLocalHost(parsed.hostname)) return true;
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeApiBaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/$/, '');
+  if (!trimmed) return '';
+
+  if (shouldUseDockerProxyForLocalhost(trimmed)) {
+    return '/api';
+  }
+
+  return trimmed;
+}
+
 /**
  * Resolve the API base URL using this priority:
  *
@@ -24,24 +66,24 @@ function isLocalHost(value: string): boolean {
  *      Supports any hosting (Render, Netlify, S3, Nginx…).
  *
  * 2. Build-time env  (VITE_API_URL)
- *    → Baked in at `npm run build`.  Good for Docker / single-env deploys.
+ *    → Baked in at `npm run build`. Good for Docker / single-env deploys.
  *
  * 3. Sensible defaults
- *    → localhost:8000 when running locally, /api-proxy in production
- *      (requires an nginx / Netlify / Cloudflare proxy).
+ *    → /api in production builds so Docker/nginx proxy is always used,
+ *      http://localhost:8000 only for local Vite dev server.
  */
 function resolveApiBaseUrl(rawValue?: string): string {
   // ── Priority 1: runtime config (editable without rebuild) ─────────────
   const runtimeCfg = (window as any).__SCHOOLFLOW_CONFIG__;
   if (runtimeCfg?.API_URL && typeof runtimeCfg.API_URL === 'string') {
-    const runtimeUrl = runtimeCfg.API_URL.trim();
+    const runtimeUrl = sanitizeApiBaseUrl(runtimeCfg.API_URL);
     if (runtimeUrl) {
       return runtimeUrl;
     }
   }
 
   // ── Priority 2: build-time env var ────────────────────────────────────
-  const trimmed = rawValue?.trim();
+  const trimmed = rawValue ? sanitizeApiBaseUrl(rawValue) : '';
   if (trimmed) {
     const isBrowserLocal = /localhost|127\.0\.0\.1/.test(window.location.hostname);
     if (!isBrowserLocal && isLocalHost(trimmed)) {
@@ -52,8 +94,11 @@ function resolveApiBaseUrl(rawValue?: string): string {
   }
 
   // ── Priority 3: defaults ──────────────────────────────────────────────
-  const isBrowserLocal = /localhost|127\.0\.0\.1/.test(window.location.hostname);
-  return isBrowserLocal ? 'http://localhost:8000' : '/api-proxy';
+  if (import.meta.env.DEV) {
+    return 'http://localhost:8000';
+  }
+
+  return '/api';
 }
 
 export const apiClient = axios.create({
