@@ -26,6 +26,10 @@ psql "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRE
 echo "==> Running Alembic migrations..."
 alembic upgrade head
 
+# Tell the FastAPI lifespan that migrations already ran — prevents each
+# gunicorn worker from re-running "alembic upgrade head" concurrently.
+export SCHOOLFLOW_MIGRATIONS_DONE=true
+
 echo "==> Starting server (port 8000)..."
 if [ "${DEBUG:-false}" = "true" ] || [ "${DEBUG:-false}" = "True" ]; then
   echo "   Mode: development (uvicorn --reload)"

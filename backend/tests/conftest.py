@@ -16,6 +16,11 @@ import os
 os.environ.setdefault("DEBUG", "True")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+# IMPORTANT : le moteur SQLAlchemy est construit depuis DATABASE_URL_SYNC
+# (voir app/core/database.py). On force les trois URLs pour que les tests
+# ne tapent JAMAIS une base dev périmée (ex: schoolflow.db via un .env résiduel).
+os.environ["DATABASE_URL_SYNC"] = os.environ["DATABASE_URL"]
+os.environ["DATABASE_URL_ASYNC"] = os.environ["DATABASE_URL"]
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 

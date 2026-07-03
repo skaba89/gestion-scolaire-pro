@@ -105,28 +105,33 @@ async def lifespan(app: FastAPI):
     # ── STARTUP ──
     logger.info("Academy Guinéenne API starting up...")
 
-    # Auto-run pending Alembic migrations
+    # Auto-run pending Alembic migrations — SKIPPED when start.sh already ran
+    # them (SCHOOLFLOW_MIGRATIONS_DONE=true). Without this guard, every
+    # gunicorn worker re-runs "alembic upgrade head" concurrently at boot.
     from app.core.database import Base, engine
     import app.models  # noqa: F401 — ensure all models are registered
 
-    try:
-        from alembic.config import Config
-        from alembic import command
+    if os.getenv("SCHOOLFLOW_MIGRATIONS_DONE", "").lower() == "true":
+        logger.info("Alembic migrations already applied by start.sh — skipping lifespan migration")
+    else:
+        try:
+            from alembic.config import Config
+            from alembic import command
 
-        backend_dir = os.path.dirname(os.path.dirname(__file__))
-        alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
-        alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
-        alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
-        command.upgrade(alembic_cfg, "head")
-        logger.info("Alembic auto-migration: upgrade head succeeded")
-    except Exception as alembic_err:
-        logger.critical(
-            "Alembic migration FAILED: %s — refusing to start. "
-            "Fix the migration and retry. Do NOT use create_all as a fallback "
-            "as it may create an incomplete or inconsistent schema.",
-            alembic_err,
-        )
-        raise SystemExit(1)
+            backend_dir = os.path.dirname(os.path.dirname(__file__))
+            alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
+            alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+            alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Alembic auto-migration: upgrade head succeeded")
+        except Exception as alembic_err:
+            logger.critical(
+                "Alembic migration FAILED: %s — refusing to start. "
+                "Fix the migration and retry. Do NOT use create_all as a fallback "
+                "as it may create an incomplete or inconsistent schema.",
+                alembic_err,
+            )
+            raise SystemExit(1)
 
     # create_all uniquement en mode SQLite/développement local sans Alembic
     # En production PostgreSQL, Alembic est l'unique source de vérité.
@@ -206,7 +211,7 @@ async def lifespan(app: FastAPI):
                     db.flush()
                     db.execute(
                         text("INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
-                             "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW())"),
+                             "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"),
                         {"id": str(uuid.uuid4()), "uid": admin_id}
                     )
                     db.commit()
