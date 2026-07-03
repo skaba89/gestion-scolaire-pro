@@ -49,8 +49,8 @@ const FinanceSettings = () => {
   const { settings, updateSettings, isLoading: isUpdating } = useSettings();
   const { toast } = useToast();
   const [formData, setFormData] = useState<Partial<FinanceConfig>>({
-    currency: "XOF",
-    currencySymbol: "FCFA",
+    currency: "GNF",
+    currencySymbol: "FG",
     enableOnlinePayments: false,
     bankName: "",
     bankAccount: "",
@@ -74,8 +74,8 @@ const FinanceSettings = () => {
   useEffect(() => {
     if (settings) {
       setFormData({
-        currency: settings.currency || "XOF",
-        currencySymbol: settings.currencySymbol || "FCFA",
+        currency: settings.currency || "GNF",
+        currencySymbol: settings.currencySymbol || "FG",
         enableOnlinePayments: !!settings.enableOnlinePayments,
         bankName: settings.bankName || "",
         bankAccount: settings.bankAccount || "",

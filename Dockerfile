@@ -16,6 +16,8 @@ COPY . .
 # Fallback http://localhost:8000 was causing direct API calls that bypassed nginx.
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
+# Force-clear old service worker caches on first load after deployment
+ENV VITE_FORCE_SW_RESET=true
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 RUN npm run build

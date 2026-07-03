@@ -116,3 +116,6 @@ generate_guide.cjs
 generate_guide.mjs
 *.docx
 
+
+# Runtime uploaded files (local storage fallback)
+backend/uploads/

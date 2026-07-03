@@ -31,7 +31,7 @@ export function OnboardingWizard() {
 
     // Step 1: Identity
     const [schoolName, setSchoolName] = useState(tenant?.name || "");
-    const [currency, setCurrency] = useState(tenant?.settings?.currency || "XOF");
+    const [currency, setCurrency] = useState(tenant?.settings?.currency || "GNF");
 
     // Step 2: Levels
     const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
@@ -125,7 +125,7 @@ export function OnboardingWizard() {
 
         setStep(savedProgress.step);
         setSchoolName(savedProgress.schoolName || "");
-        setCurrency(savedProgress.currency || "XOF");
+        setCurrency(savedProgress.currency || "GNF");
         setSelectedLevels(savedProgress.selectedLevels || []);
         setSelectedSubjects(savedProgress.selectedSubjects || []);
         setDirectorName(savedProgress.directorName || "");
@@ -148,7 +148,7 @@ export function OnboardingWizard() {
         if (!tenant) return;
 
         try {
-            await apiClient.patch('/tenants/settings', updates.settings || {});
+            await apiClient.patch('/tenants/settings/', updates.settings || {});
 
             // Update local context
             setCurrentTenant({
@@ -210,7 +210,7 @@ export function OnboardingWizard() {
                 levelsToCreate.push("Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2", "Doctorat 1", "Doctorat 2", "Doctorat 3");
             }
 
-            await apiClient.post('/tenants/onboarding/levels', levelsToCreate);
+            await apiClient.post('/tenants/onboarding/levels/', levelsToCreate);
 
             await updateTenantSettings({
                 settings: { onboarding_step: 3 }
@@ -230,7 +230,7 @@ export function OnboardingWizard() {
 
         setIsLoading(true);
         try {
-            await apiClient.post('/tenants/onboarding/subjects', selectedSubjects.map(name => ({
+            await apiClient.post('/tenants/onboarding/subjects/', selectedSubjects.map(name => ({
                 name,
                 coefficient: 1
             })));
@@ -283,7 +283,7 @@ export function OnboardingWizard() {
             const signatureUrl = uploadResponse.data.url;
 
             // Complete onboarding
-            await apiClient.patch('/tenants/onboarding/complete', {
+            await apiClient.patch('/tenants/onboarding/complete/', {
                 director_name: directorName,
                 signature_url: signatureUrl
             });

@@ -73,7 +73,7 @@ export const FinalStep = ({ allData, onFinish }: FinalStepProps) => {
 
             // Now that the token has tenant_id, mark onboarding as completed
             try {
-                await apiClient.patch('/tenants/settings', { onboarding_completed: true });
+                await apiClient.patch('/tenants/settings/', { onboarding_completed: true });
             } catch (err) {
                 // Non-critical: onboarding_completed flag will be set on next API call
                 if (import.meta.env.DEV) console.warn("[FinalStep] Could not mark onboarding complete:", err);

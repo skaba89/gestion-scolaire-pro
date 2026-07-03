@@ -311,8 +311,8 @@ export function SystemSettings() {
     breakBetweenSessions: 10,
 
     // Finance
-    currency: "XOF",
-    currencySymbol: "FCFA",
+    currency: "GNF",
+    currencySymbol: "FG",
     fiscalYear: "ACADEMIC",
 
     // Features
@@ -340,8 +340,8 @@ export function SystemSettings() {
         schoolEndTime: settings.schoolEndTime || "16:00",
         classSessionDuration: settings.classSessionDuration || 50,
         breakBetweenSessions: settings.breakBetweenSessions || 10,
-        currency: settings.currency || "XOF",
-        currencySymbol: settings.currencySymbol || "FCFA",
+        currency: settings.currency || "GNF",
+        currencySymbol: settings.currencySymbol || "FG",
         fiscalYear: settings.fiscalYear || "ACADEMIC",
         enable_notifications: settings.enable_notifications !== false,
         enable_api_access: settings.enable_api_access === true,
@@ -422,8 +422,8 @@ export function SystemSettings() {
         schoolEndTime: settings.schoolEndTime || "16:00",
         classSessionDuration: settings.classSessionDuration || 50,
         breakBetweenSessions: settings.breakBetweenSessions || 10,
-        currency: settings.currency || "XOF",
-        currencySymbol: settings.currencySymbol || "FCFA",
+        currency: settings.currency || "GNF",
+        currencySymbol: settings.currencySymbol || "FG",
         fiscalYear: settings.fiscalYear || "ACADEMIC",
         enable_notifications: settings.enable_notifications !== false,
         enable_api_access: settings.enable_api_access === true,

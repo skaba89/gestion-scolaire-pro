@@ -195,7 +195,7 @@ export default function Pricing() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
             {[
               { icon: Shield, title: "Données sécurisées", desc: "Isolation complète par établissement, chiffrement TLS, hébergement RGPD." },
-              { icon: Users, title: "Adapté à l'Afrique", desc: "Conçu pour les établissements francophones, paiements locaux, FCFA natif." },
+              { icon: Users, title: "Adapté à l'Afrique", desc: "Conçu pour les établissements francophones, paiements locaux, multi-devises." },
               { icon: Zap, title: "Prêt en 24h", desc: "Import de vos données existantes, formation incluse, support réactif." },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="flex flex-col items-center gap-3">

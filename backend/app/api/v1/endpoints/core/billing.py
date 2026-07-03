@@ -127,6 +127,7 @@ async def get_subscription(
         "trial_active": trial_active,
         "trial_ends_at": trial_ends_at,
         "billing_email": tenant.billing_email or tenant.email,
+        "stripe_configured": bool(settings.STRIPE_SECRET_KEY),
     }
 
 

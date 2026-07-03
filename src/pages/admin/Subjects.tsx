@@ -279,23 +279,23 @@ const Subjects = () => {
 
       {/* Level Assignment Dialog */}
       <Dialog open={levelDialogOpen} onOpenChange={setLevelDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>{t("subjects.levelDialogTitle", { name: selectedSubject?.name })}</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-4">{t("subjects.levelDialogHint")}</p>
-            <div className="space-y-3">
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">{t("subjects.levelDialogHint")}</p>
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
               {levels.map((level) => {
                 const isAssigned = selectedLevelIds.includes(level.id);
                 return (
                   <div
                     key={level.id}
-                    className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted cursor-pointer"
+                    className="flex items-center space-x-3 p-2.5 rounded-lg border hover:bg-muted cursor-pointer transition-colors"
                     onClick={() => toggleLevelAssignment(level.id)}
                   >
                     <Checkbox checked={isAssigned} disabled={assignLevelMutation.isPending} />
-                    <span className="font-medium">{level.name}</span>
+                    <span className="font-medium text-sm">{level.name}</span>
                     {assignLevelMutation.isPending && <Loader2 className="h-3 w-3 animate-spin ml-auto opacity-50" />}
                   </div>
                 );
@@ -308,11 +308,11 @@ const Subjects = () => {
 
       {/* Rooms Assignment Dialog */}
       <Dialog open={roomsDialogOpen} onOpenChange={setRoomsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md">
           <DialogHeader>
             <DialogTitle>{t("subjects.roomsDialogTitle", { name: selectedSubject?.name })}</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
+          <div>
             {selectedSubject && tenant && (
               <SubjectPreferredRoomsManager subjectId={selectedSubject.id} tenantId={tenant.id} />
             )}

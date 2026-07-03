@@ -1,5 +1,5 @@
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
@@ -319,6 +319,7 @@ async def get_tenant_by_slug(
 
 @router.get("/settings/")
 async def get_tenant_settings(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -336,6 +337,16 @@ async def get_tenant_settings(
         user_db = db.query(User).filter(User.id == user_id).first()
         if user_db:
             tenant_id = getattr(user_db, "tenant_id", None)
+
+    # Fallback: accept X-Tenant-ID header (sent by frontend apiClient).
+    if not tenant_id:
+        header_tid = request.headers.get("X-Tenant-ID")
+        if header_tid:
+            try:
+                UUID(header_tid)
+                tenant_id = header_tid
+            except (ValueError, TypeError):
+                pass
 
     # SUPER_ADMIN has no tenant — return empty settings (not an error)
     if not tenant_id:
@@ -361,6 +372,7 @@ async def get_tenant_settings(
 @router.patch("/settings/")
 async def update_tenant_settings(
     settings_update: Dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write"))
 ):
@@ -372,6 +384,18 @@ async def update_tenant_settings(
         user_db = db.query(User).filter(User.id == user_id).first()
         if user_db:
             tenant_id = getattr(user_db, "tenant_id", None)
+
+    # Fallback: accept X-Tenant-ID header (sent by frontend apiClient).
+    # This covers SUPER_ADMIN users managing a specific tenant via the UI.
+    if not tenant_id:
+        header_tid = request.headers.get("X-Tenant-ID")
+        if header_tid:
+            # Validate format before accepting
+            try:
+                UUID(header_tid)
+                tenant_id = header_tid
+            except (ValueError, TypeError):
+                pass
 
     if not tenant_id:
         raise HTTPException(
@@ -1148,6 +1172,10 @@ async def update_tenant(
 
     for key, value in tenant_updates.items():
         setattr(tenant, key, value)
+
+    # JSON columns need flag_modified for SQLAlchemy to detect changes
+    if "settings" in tenant_updates:
+        flag_modified(tenant, "settings")
 
     tenant.updated_at = datetime.now()
     db.commit()

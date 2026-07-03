@@ -37,9 +37,23 @@ export function TenantRoute({ children }: { children: React.ReactNode }) {
         );
     }
 
-    // If no tenant found, redirect to the tenant's login page instead of /
-    if (!synced || (!tenant && !publicTenant) || (tenant && tenant.slug !== tenantSlug && !publicTenant)) {
-        // Redirect to tenant login, not to root
+    // Wait for sync effect to run before deciding — publicTenant/tenant exists
+    // but synced hasn't been set yet (effect runs after render)
+    if (!synced && (publicTenant || (tenant && tenant.slug === tenantSlug))) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-background">
+                <div className="space-y-4 w-full max-w-md p-8">
+                    <Skeleton className="h-8 w-3/4 mx-auto" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-5/6" />
+                    <Skeleton className="h-32 w-full" />
+                </div>
+            </div>
+        );
+    }
+
+    // If no tenant found after loading and sync attempt, redirect to auth
+    if (!synced && !tenant && !publicTenant) {
         return <Navigate to={tenantSlug ? `/${tenantSlug}/auth` : "/"} replace />;
     }
 

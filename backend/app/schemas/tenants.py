@@ -36,6 +36,9 @@ class TenantUpdate(BaseModel):
 class TenantResponse(TenantBase):
     id: UUID
     currency: Optional[str] = None
+    timezone: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     is_active: bool

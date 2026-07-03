@@ -22,6 +22,7 @@ interface SubscriptionInfo {
   trial_ends_at: string | null;
   billing_email: string | null;
   is_super_admin?: boolean;
+  stripe_configured?: boolean;
 }
 
 // ─── Plan definitions (same as Pricing page) ─────────────────────────────────
@@ -153,6 +154,7 @@ export default function Billing() {
   const currentStatus = sub?.status ?? "trialing";
   const hasActiveStripe = !!sub?.stripe_subscription_id;
   const isActive = ["active", "trialing"].includes(currentStatus);
+  const stripeConfigured = sub?.stripe_configured ?? false;
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto space-y-8">
@@ -166,6 +168,20 @@ export default function Billing() {
           Gérez votre plan, vos factures et vos informations de paiement.
         </p>
       </div>
+
+      {/* Stripe not configured banner */}
+      {!stripeConfigured && (
+        <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+          <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Paiement en ligne non configuré</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+              Le système de paiement Stripe n'est pas encore configuré sur ce serveur.
+              Contactez l'administrateur de la plateforme pour activer la facturation en ligne.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Current plan summary */}
       <Card className={`border-2 ${isActive ? "border-indigo-200 dark:border-indigo-800" : "border-orange-200 dark:border-orange-800"}`}>
@@ -308,9 +324,9 @@ export default function Billing() {
                       size="sm"
                       className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
                       onClick={() => handleUpgrade(plan.id)}
-                      disabled={upgradingPlan === plan.id || checkout.isPending}
+                      disabled={!stripeConfigured || upgradingPlan === plan.id || checkout.isPending}
                     >
-                      {upgradingPlan === plan.id ? "Redirection…" : `Passer au ${plan.name}`}
+                      {!stripeConfigured ? "Non disponible" : upgradingPlan === plan.id ? "Redirection…" : `Passer au ${plan.name}`}
                     </Button>
                   ) : (
                     <Button variant="ghost" size="sm" disabled className="w-full text-gray-400">
