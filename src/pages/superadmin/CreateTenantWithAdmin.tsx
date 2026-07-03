@@ -13,14 +13,15 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Building2, UserPlus, GraduationCap, Shield, CheckCircle2, Copy, ExternalLink } from "lucide-react";
 
+// Système guinéen — modifiable après création
 const defaultLevels = [
-  "CP", "CE1", "CE2", "CM1", "CM2",
-  "6ème", "5ème", "4ème", "3ème",
-  "Seconde", "Première", "Terminale",
+  "CP1", "CP2", "CE1", "CE2", "CM1", "CM2",
+  "7ème", "8ème", "9ème", "10ème",
+  "11ème", "12ème", "Terminale",
 ];
 
 const universityLevels = [
-  "L1", "L2", "L3", "M1", "M2", "Doctorat",
+  "Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2",
 ];
 
 const CreateTenantWithAdmin = () => {

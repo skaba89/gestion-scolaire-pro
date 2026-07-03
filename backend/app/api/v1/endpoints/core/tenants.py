@@ -131,10 +131,11 @@ async def create_tenant(
         )
         db.add(campus)
 
-        # 3. Create Levels
-        levels_to_create = tenant_in.levels if tenant_in.levels else [
-            "CP", "CE1", "CE2", "CM1", "CM2", "6ème", "5ème", "4ème", "3ème", "Seconde", "Première", "Terminale"
-        ]
+        # 3. Create Levels — presets guinéens par type d'établissement
+        from app.core.guinea_presets import guinea_levels_for_type
+        levels_to_create = tenant_in.levels if tenant_in.levels else guinea_levels_for_type(
+            getattr(tenant_in, "type", None)
+        )
         for i, lvl_name in enumerate(levels_to_create):
             level = Level(
                 tenant_id=new_tenant.id,
@@ -791,11 +792,10 @@ async def create_tenant_with_admin(
         )
         db.add(campus)
 
-        # 4. Create Levels
-        levels_to_create = tenant_in.levels or [
-            "CP", "CE1", "CE2", "CM1", "CM2", "6ème", "5ème", "4ème", "3ème",
-            "Seconde", "Première", "Terminale"
-        ]
+        # 4. Create Levels — presets guinéens par type d'établissement
+        # (modifiables ensuite dans les réglages)
+        from app.core.guinea_presets import guinea_levels_for_type
+        levels_to_create = tenant_in.levels or guinea_levels_for_type(tenant_in.type)
         for i, lvl_name in enumerate(levels_to_create):
             level = Level(tenant_id=new_tenant.id, name=lvl_name, order_index=i + 1)
             db.add(level)

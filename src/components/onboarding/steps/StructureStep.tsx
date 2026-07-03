@@ -12,40 +12,70 @@ interface StructureStepProps {
     onUpdate: (data: any) => void;
 }
 
+// Presets du système éducatif guinéen — modifiables après sélection
 const TEMPLATES = {
-    french_primary: {
-        name: "École Primaire Française",
+    guinea_primary: {
+        name: "École Primaire (Guinée)",
         levels: [
-            { name: "CP", order: 1 },
-            { name: "CE1", order: 2 },
-            { name: "CE2", order: 3 },
-            { name: "CM1", order: 4 },
-            { name: "CM2", order: 5 }
+            { name: "CP1", order: 1 },
+            { name: "CP2", order: 2 },
+            { name: "CE1", order: 3 },
+            { name: "CE2", order: 4 },
+            { name: "CM1", order: 5 },
+            { name: "CM2", order: 6 }
         ]
     },
-    french_middle: {
-        name: "Collège Français",
+    guinea_middle: {
+        name: "Collège (Guinée)",
         levels: [
-            { name: "6ème", order: 1 },
-            { name: "5ème", order: 2 },
-            { name: "4ème", order: 3 },
-            { name: "3ème", order: 4 }
+            { name: "7ème", order: 1 },
+            { name: "8ème", order: 2 },
+            { name: "9ème", order: 3 },
+            { name: "10ème", order: 4 }
         ]
     },
-    french_high: {
-        name: "Lycée Français",
+    guinea_high: {
+        name: "Lycée (Guinée)",
         levels: [
-            { name: "Seconde", order: 1 },
-            { name: "Première", order: 2 },
+            { name: "11ème", order: 1 },
+            { name: "12ème", order: 2 },
             { name: "Terminale", order: 3 }
         ]
     },
+    guinea_full: {
+        name: "École complète (Primaire → Lycée)",
+        levels: [
+            { name: "CP1", order: 1 },
+            { name: "CP2", order: 2 },
+            { name: "CE1", order: 3 },
+            { name: "CE2", order: 4 },
+            { name: "CM1", order: 5 },
+            { name: "CM2", order: 6 },
+            { name: "7ème", order: 7 },
+            { name: "8ème", order: 8 },
+            { name: "9ème", order: 9 },
+            { name: "10ème", order: 10 },
+            { name: "11ème", order: 11 },
+            { name: "12ème", order: 12 },
+            { name: "Terminale", order: 13 }
+        ]
+    },
     university: {
-        name: "Université (Licence)",
+        name: "Université (LMD)",
         levels: [
             { name: "Licence 1", order: 1 },
             { name: "Licence 2", order: 2 },
-            { name: "Licence 3", order: 3 }
+            { name: "Licence 3", order: 3 },
+            { name: "Master 1", order: 4 },
+            { name: "Master 2", order: 5 }
+        ]
+    },
+    training: {
+        name: "Centre de formation",
+        levels: [
+            { name: "Année 1", order: 1 },
+            { name: "Année 2", order: 2 },
+            { name: "Année 3", order: 3 }
         ]
     }
 };

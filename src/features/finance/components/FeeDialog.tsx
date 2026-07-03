@@ -24,6 +24,18 @@ interface FeeDialogProps {
     isSaving: boolean;
 }
 
+// Types de frais courants dans les établissements guinéens (suggestions)
+const GUINEA_FEE_PRESETS = [
+    "Frais d'inscription",
+    "Frais de réinscription",
+    "Mensualité",
+    "Transport",
+    "Cantine",
+    "Tenue scolaire",
+    "Fournitures",
+    "Frais d'examen",
+];
+
 export const FeeDialog = ({
     open,
     onOpenChange,
@@ -72,6 +84,20 @@ export const FeeDialog = ({
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                        {!fee && (
+                            <div className="flex flex-wrap gap-1.5">
+                                {GUINEA_FEE_PRESETS.map((preset) => (
+                                    <button
+                                        key={preset}
+                                        type="button"
+                                        onClick={() => form.setValue("name", preset)}
+                                        className="rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                                    >
+                                        {preset}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         <FormField
                             control={form.control}
                             name="name"
@@ -79,7 +105,7 @@ export const FeeDialog = ({
                                 <FormItem>
                                     <FormLabel>Nom du frais</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Ex: Scolarité, Transport..." {...field} />
+                                        <Input placeholder="Ex: Mensualité, Transport..." {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
