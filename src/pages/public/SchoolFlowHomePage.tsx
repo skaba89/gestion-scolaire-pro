@@ -511,33 +511,39 @@ export default function SchoolFlowHomePage() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#1e3a5f] leading-tight tracking-tight">
-              La plateforme{" "}
+              La gestion scolaire{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
-                tout-en-un
+                moderne
               </span>{" "}
-              pour gérer votre établissement
+              pour les établissements guinéens
             </h1>
 
             <p className="text-lg text-gray-600 leading-relaxed max-w-xl">
-              Admissions, notes, présences, finances, RGPD, analytics — tout ce dont votre école,
-              université ou centre de formation a besoin, dans une seule solution sécurisée et
-              conforme.
+              Écoles, collèges, lycées, universités et centres de formation — gérez élèves,
+              notes, présences, frais scolaires et communication parents dans une seule
+              plateforme sécurisée, pensée pour la Guinée.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button
-                onClick={() => navigate("/auth")}
+                onClick={() => navigate("/inscription")}
                 className="flex items-center justify-center gap-2 px-6 py-3.5 bg-[#1e3a5f] text-white font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 transform"
+              >
+                <School className="w-4 h-4" />
+                Créer mon établissement
+              </button>
+              <a
+                href="mailto:sales@schoolflow.pro?subject=Demande%20de%20d%C3%A9monstration"
+                className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-[#1e3a5f] font-semibold rounded-xl border-2 border-[#1e3a5f]/20 hover:border-[#1e3a5f]/40 transition-all"
+              >
+                Demander une démonstration
+              </a>
+              <button
+                onClick={() => navigate("/auth")}
+                className="flex items-center justify-center gap-2 px-6 py-3.5 text-[#1e3a5f] font-semibold rounded-xl hover:bg-[#1e3a5f]/5 transition-all"
               >
                 <LogIn className="w-4 h-4" />
                 Se connecter
-              </button>
-              <button
-                onClick={() => navigate("/annuaire")}
-                className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-[#1e3a5f] font-semibold rounded-xl border-2 border-[#1e3a5f]/20 hover:border-[#1e3a5f]/40 transition-all"
-              >
-                Voir les établissements
-                <School className="w-4 h-4" />
               </button>
             </div>
 
@@ -620,11 +626,12 @@ export default function SchoolFlowHomePage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <span className="inline-block text-blue-600 font-semibold text-sm uppercase tracking-widest mb-3">
-              Témoignages
+              Cas d'usage
             </span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-[#1e3a5f] mb-4">
-              Ce que disent nos utilisateurs
+              Ce que la plateforme apporte au quotidien
             </h2>
+            <p className="text-sm text-gray-400">Exemples illustratifs de bénéfices constatés</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {TESTIMONIALS.map((t) => (
