@@ -23,7 +23,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
-  Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle
+  Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle, Settings
 } from "lucide-react";
 
 interface TenantStat {
@@ -266,6 +266,14 @@ const SuperAdminDashboard = () => {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => navigate(`/super-admin/tenants/${tenant.id}/settings`)}
+                                title="Paramètres de l'établissement"
+                              >
+                                <Settings className="w-4 h-4" />
+                              </Button>
                               <TenantDetailDialog tenant={tenant} />
                               <AddAdminDialog tenant={tenant} onSuccess={() => refetch()} />
                               <TenantToggleDialog tenant={tenant} onSuccess={() => refetch()} />

@@ -70,7 +70,7 @@ export function generateInvoicePDF(invoice: InvoiceData, tenant: TenantData): js
     const pageHeight = doc.internal.pageSize.height;
     const margin = 14;
 
-    const currency = tenant.settings?.currency || "XOF";
+    const currency = tenant.settings?.currency || "GNF";
     const student = invoice.student;
 
     // === EN-TÊTE ===

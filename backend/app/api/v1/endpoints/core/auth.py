@@ -959,8 +959,13 @@ def bootstrap_admin(
         raise HTTPException(status_code=403, detail="Access denied")
 
     # SECURITY: Refuser si un SUPER_ADMIN existe déjà (bootstrap usage unique)
+    # Roles live in user_roles (users has no role column).
     existing_superadmin = db.execute(
-        text("SELECT id FROM users WHERE role = 'SUPER_ADMIN' LIMIT 1")
+        text(
+            "SELECT u.id FROM users u "
+            "JOIN user_roles ur ON ur.user_id = u.id "
+            "WHERE ur.role = 'SUPER_ADMIN' LIMIT 1"
+        )
     ).first()
     if existing_superadmin:
         logger.warning(
@@ -1055,45 +1060,38 @@ def bootstrap_admin(
             db.commit()
             steps.append(f"updated password for existing admin {admin_email}")
 
-            # Ensure SUPER_ADMIN role exists
-            role_row = db.execute(
-                sqlalchemy.text(
-                    "SELECT id FROM user_roles WHERE user_id = :uid AND role = 'SUPER_ADMIN'"
-                ),
-                {"uid": admin_id}
-            ).first()
+            # Ensure SUPER_ADMIN role exists (ORM: UUID formats stay consistent)
+            role_row = (
+                db.query(UserRole)
+                .filter(UserRole.user_id == admin_id, UserRole.role == "SUPER_ADMIN")
+                .first()
+            )
             if not role_row:
-                db.execute(
-                    sqlalchemy.text(
-                        "INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
-                        "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW()) ON CONFLICT DO NOTHING"
-                    ),
-                    {"id": str(_uuid.uuid4()), "uid": admin_id}
-                )
+                db.add(UserRole(user_id=admin_id, tenant_id=None, role="SUPER_ADMIN"))
                 db.commit()
                 steps.append("added SUPER_ADMIN role")
         else:
-            # Admin does NOT exist — create using raw SQL
+            # Admin does NOT exist — create via ORM (robust to schema evolution:
+            # a raw INSERT breaks whenever a NOT NULL column is added, e.g.
+            # must_change_password).
             admin_id = str(_uuid.uuid4())
-            db.execute(
-                sqlalchemy.text(
-                    "INSERT INTO users (id, email, username, password_hash, first_name, last_name, "
-                    "is_active, is_superuser, tenant_id, created_at, updated_at, is_verified, mfa_enabled) "
-                    "VALUES (:id, :email, :username, :pw, 'Super', 'Admin', TRUE, TRUE, NULL, NOW(), NOW(), FALSE, FALSE)"
-                ),
-                {"id": admin_id, "email": admin_email, "username": "admin", "pw": hashed_pw}
+            new_admin = User(
+                id=admin_id,
+                email=admin_email,
+                username="admin",
+                password_hash=hashed_pw,
+                first_name="Super",
+                last_name="Admin",
+                is_active=True,
+                is_superuser=True,
+                tenant_id=None,
             )
+            db.add(new_admin)
             db.commit()
             steps.append(f"created admin {admin_email} with id {admin_id}")
 
-            # Create SUPER_ADMIN role
-            db.execute(
-                sqlalchemy.text(
-                    "INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
-                    "VALUES (:id, :uid, 'SUPER_ADMIN', NULL, NOW(), NOW()) ON CONFLICT DO NOTHING"
-                ),
-                {"id": str(_uuid.uuid4()), "uid": admin_id}
-            )
+            # Create SUPER_ADMIN role (ORM: UUID formats stay consistent)
+            db.add(UserRole(user_id=admin_id, tenant_id=None, role="SUPER_ADMIN"))
             db.commit()
             steps.append("created SUPER_ADMIN role")
 

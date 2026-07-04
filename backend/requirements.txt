@@ -1,5 +1,6 @@
 fastapi>=0.104.0,<0.115.0
 uvicorn[standard]>=0.24.0,<0.31.0
+gunicorn>=21.2.0,<23.0.0
 sqlalchemy>=2.0.0,<2.1.0
 psycopg[binary]>=3.2.0,<4.0.0
 alembic>=1.13.0,<1.14.0
@@ -23,6 +24,7 @@ stripe>=8.0.0,<9.0.0
 
 # AI
 groq>=0.11.0,<1.0.0
+openai>=1.30.0,<2.0.0
 
 # Logging & Monitoring
 python-json-logger>=2.0.7,<3.0.0

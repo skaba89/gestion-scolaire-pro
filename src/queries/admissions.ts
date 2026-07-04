@@ -32,12 +32,26 @@ export interface AdmissionApplication {
     updated_at?: string;
 }
 
+interface AdmissionListResponse {
+    items: AdmissionApplication[];
+    total: number;
+}
+
 export const admissionQueries = {
     all: (tenantId: string) => ({
         queryKey: ["admissions", tenantId] as const,
-        queryFn: async () => {
-            const response = await apiClient.get<AdmissionApplication[]>("/admissions");
-            return response.data;
+        queryFn: async (): Promise<AdmissionApplication[]> => {
+            const response = await apiClient.get<AdmissionListResponse | AdmissionApplication[]>("/admissions/");
+            const data = response.data;
+            // API returns { items: [...], total: N }
+            if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
+                return data.items;
+            }
+            // Fallback: direct array
+            if (Array.isArray(data)) {
+                return data;
+            }
+            return [];
         },
         enabled: !!tenantId,
     }),
@@ -58,7 +72,7 @@ export const useUpdateAdmissionStatus = (tenantId: string) => {
             application: AdmissionApplication;
             tenantName?: string;
         }) => {
-            await apiClient.patch(`/admissions/${id}/status`, { status });
+            await apiClient.patch(`/admissions/${id}/status/`, { status });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["admissions", tenantId] });

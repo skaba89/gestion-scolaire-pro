@@ -203,17 +203,26 @@ i18n
             es: { translation: es },
             ar: { translation: ar },
         },
-        fallbackLng: 'fr',
-        lng: 'fr',
         supportedLngs: ['fr', 'en', 'es', 'ar'],
         nonExplicitSupportedLngs: true,
+        // Normalize 'fr-FR' → 'fr', 'en-US' → 'en', etc.
         load: 'languageOnly',
         cleanCode: true,
+        fallbackLng: 'fr',
+        lng: 'fr',
         debug: false,
         returnNull: false,
         returnEmptyString: false,
+        // Synchronous init — resources are bundled, no async loading needed
+        initImmediate: false,
         interpolation: {
             escapeValue: false,
+        },
+        react: {
+            // CRITICAL: Disable Suspense to prevent race conditions where
+            // components render before i18n is fully initialized, causing
+            // raw translation keys to display instead of translated text.
+            useSuspense: false,
         },
         detection: {
             order: ['localStorage', 'navigator'],

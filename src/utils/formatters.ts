@@ -28,7 +28,7 @@ export const resolveCurrencySymbol = (currencyCode: string): string => {
  * Resolve a currency code to its full display info (symbol, position, locale)
  */
 export const resolveCurrencyConfig = (currencyCode: string) => {
-    return CURRENCIES[currencyCode] || CURRENCIES.XOF;
+    return CURRENCIES[currencyCode] || CURRENCIES.GNF;
 };
 
 /**
@@ -38,8 +38,8 @@ export const resolveCurrencyConfig = (currencyCode: string) => {
  * @param currencyCode - Currency code (e.g., 'XOF', 'EUR'). Required.
  * @returns Formatted currency string (e.g., "1 234,56 FCFA")
  */
-export const formatCurrency = (value: number, currencyCode: string = 'XOF'): string => {
-    const config = CURRENCIES[currencyCode] || CURRENCIES.XOF;
+export const formatCurrency = (value: number, currencyCode: string = 'GNF'): string => {
+    const config = CURRENCIES[currencyCode] || CURRENCIES.GNF;
     const formattedNumber = formatNumber(value, 2);
     if (config.position === "before") {
         return `${config.symbol}${formattedNumber}`;
@@ -54,7 +54,7 @@ export const formatCurrency = (value: number, currencyCode: string = 'XOF'): str
  * @param currencyCode - Currency code from tenant settings (e.g., 'XOF', 'EUR')
  * @returns Formatted currency string
  */
-export const formatPdfCurrency = (value: number, currencyCode: string = 'XOF'): string => {
+export const formatPdfCurrency = (value: number, currencyCode: string = 'GNF'): string => {
     return formatCurrency(value, currencyCode);
 };
 

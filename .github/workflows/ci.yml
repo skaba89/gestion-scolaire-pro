@@ -77,6 +77,26 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
+      - name: Validate Alembic migrations (no multiple heads)
+        run: |
+          cd backend
+          HEADS=$(python -c "
+          from alembic.config import Config
+          from alembic.script import ScriptDirectory
+          cfg = Config('alembic.ini')
+          script = ScriptDirectory.from_config(cfg)
+          heads = script.get_heads()
+          print(len(heads))
+          for h in heads: print(f'  head: {h}')
+          ")
+          echo "Migration heads: $HEADS"
+          HEAD_COUNT=$(echo "$HEADS" | head -1)
+          if [ "$HEAD_COUNT" -gt 1 ]; then
+            echo "::error::Multiple Alembic migration heads detected — merge required"
+            exit 1
+          fi
+          echo "Migration chain OK (single head)"
+
       - name: Validate Python syntax (all app files)
         run: |
           ERRORS=0

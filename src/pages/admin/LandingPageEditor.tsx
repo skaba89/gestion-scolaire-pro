@@ -891,7 +891,7 @@ export default function LandingPageEditor() {
   // Mutation: PATCH /tenants/settings
   const saveMutation = useMutation({
     mutationFn: async (payload: { landing: LandingSettings }) => {
-      const response = await apiClient.patch("/tenants/settings", payload);
+      const response = await apiClient.patch("/tenants/settings/", payload);
       return response.data;
     },
     onSuccess: () => {

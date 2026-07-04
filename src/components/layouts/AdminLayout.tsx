@@ -85,6 +85,7 @@ interface NavItem {
   label: string;
   icon: any;
   permission?: Permission; // Added Permission check
+  beta?: boolean; // Module avancé non finalisé — badge "Bêta" dans le menu
 }
 
 interface NavSection {
@@ -161,9 +162,9 @@ export const AdminLayout = () => {
       items: [
         { href: getTenantUrl("/admin"), label: t("nav.dashboard"), icon: Home, permission: "dashboard:admin" },
         { href: getTenantUrl("/admin/analytics"), label: t("nav.analytics"), icon: BarChart3, permission: "dashboard:admin" },
-        { href: getTenantUrl("/admin/ai-insights"), label: t("nav.aiInsights"), icon: Brain, permission: "ai:read" },
+        { href: getTenantUrl("/admin/ai-insights"), label: t("nav.aiInsights"), icon: Brain, permission: "ai:read", beta: true },
         { href: getTenantUrl("/admin/decision-support"), label: isUniversity ? "Analyse Stratégique" : "Tableau Décisionnel", icon: Target, permission: "dashboard:admin" },
-        { href: getTenantUrl("/admin/ministry-reporting"), label: isUniversity ? "Reporting de l'Enseignement Supérieur" : "Reporting Institutionnel", icon: Shield, permission: "dashboard:admin" },
+        { href: getTenantUrl("/admin/ministry-reporting"), label: isUniversity ? "Reporting de l'Enseignement Supérieur" : "Reporting Institutionnel", icon: Shield, permission: "dashboard:admin", beta: true },
         ...(isSuperAdmin ? [{ href: getTenantUrl("/admin/tenants"), label: "Établissements", icon: Building2 }] : []),
       ],
     },
@@ -246,10 +247,10 @@ export const AdminLayout = () => {
       title: t("nav.learning", "Apprentissage"),
       icon: Monitor,
       items: [
-        { href: getTenantUrl("/admin/elearning"), label: t("nav.elearning"), icon: Monitor, permission: "homework:read" },
+        { href: getTenantUrl("/admin/elearning"), label: t("nav.elearning"), icon: Monitor, permission: "homework:read", beta: true },
         { href: getTenantUrl("/admin/library"), label: t("nav.library"), icon: Library, permission: "homework:read" }, // Loose permission mapping
-        { href: getTenantUrl("/admin/marketplace"), label: "Marketplace Éducatif", icon: ShoppingCart, permission: "homework:read" },
-        { href: getTenantUrl("/admin/gamification"), label: t("nav.gamification"), icon: Award, permission: "students:read" },
+        { href: getTenantUrl("/admin/marketplace"), label: "Marketplace Éducatif", icon: ShoppingCart, permission: "homework:read", beta: true },
+        { href: getTenantUrl("/admin/gamification"), label: t("nav.gamification"), icon: Award, permission: "students:read", beta: true },
       ],
     },
     {
@@ -257,10 +258,10 @@ export const AdminLayout = () => {
       title: t("nav.studentLife", "Vie Étudiante"),
       icon: UsersIcon,
       items: [
-        { href: getTenantUrl("/admin/clubs"), label: t("nav.clubs", "Clubs"), icon: UsersIcon, permission: "events:read" },
-        { href: getTenantUrl("/admin/careers"), label: t("nav.careers", "Carrières & Stages"), icon: GraduationCap, permission: "students:read" },
-        { href: getTenantUrl("/admin/alumni-mentors"), label: t("nav.alumniMentors", "Mentors Alumni"), icon: Users, permission: "users:read" },
-        { href: getTenantUrl("/admin/alumni-requests"), label: t("nav.alumniRequests", "Requêtes Alumni"), icon: FileText, permission: "users:read" },
+        { href: getTenantUrl("/admin/clubs"), label: t("nav.clubs", "Clubs"), icon: UsersIcon, permission: "events:read", beta: true },
+        { href: getTenantUrl("/admin/careers"), label: t("nav.careers", "Carrières & Stages"), icon: GraduationCap, permission: "students:read", beta: true },
+        { href: getTenantUrl("/admin/alumni-mentors"), label: t("nav.alumniMentors", "Mentors Alumni"), icon: Users, permission: "users:read", beta: true },
+        { href: getTenantUrl("/admin/alumni-requests"), label: t("nav.alumniRequests", "Requêtes Alumni"), icon: FileText, permission: "users:read", beta: true },
       ],
     },
     {
@@ -543,6 +544,14 @@ const NavSectionComponent = ({ section, isActive, isItemActive, onItemClick, isC
                 active ? "text-primary-foreground" : "text-muted-foreground group-hover:text-primary"
               )} />
               <span className="truncate">{item.label}</span>
+              {item.beta && (
+                <span className={cn(
+                  "ml-auto shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                  active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-warning/15 text-warning"
+                )}>
+                  Bêta
+                </span>
+              )}
               {active && (
                 <motion.div
                   layoutId="active-nav"

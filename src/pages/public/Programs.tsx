@@ -68,8 +68,8 @@ const Programs = () => {
   });
 
   const settings = tenant?.settings as Record<string, any> | undefined;
-  const currencyCode = settings?.currency || "XOF";
-  const currencyConfig = CURRENCIES[currencyCode] || CURRENCIES.XOF;
+  const currencyCode = settings?.currency || "GNF";
+  const currencyConfig = CURRENCIES[currencyCode] || CURRENCIES.GNF;
 
   const formatAmount = (value: number): string => {
     const formattedNumber = new Intl.NumberFormat(currencyConfig.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);

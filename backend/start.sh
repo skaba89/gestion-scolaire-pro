@@ -49,5 +49,26 @@ psql "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
 echo "==> Running Alembic migrations..."
 alembic upgrade head
 
-echo "==> Starting Uvicorn..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Tell the FastAPI lifespan that migrations already ran — prevents each
+# gunicorn worker from re-running "alembic upgrade head" concurrently.
+export SCHOOLFLOW_MIGRATIONS_DONE=true
+
+echo "==> Starting server (port 8000)..."
+if [ "${DEBUG:-false}" = "true" ] || [ "${DEBUG:-false}" = "True" ]; then
+  echo "   Mode: development (uvicorn --reload)"
+  exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+else
+  WORKERS=${WORKERS:-4}
+  echo "   Mode: production (gunicorn × ${WORKERS} workers)"
+  exec gunicorn app.main:app \
+    --bind 0.0.0.0:8000 \
+    --workers "${WORKERS}" \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --access-logfile - \
+    --error-logfile -
+fi

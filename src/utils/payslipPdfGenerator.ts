@@ -245,7 +245,7 @@ export function generatePayslipPDF(payslip: PayslipData, tenant: TenantData): js
     const pageHeight = doc.internal.pageSize.height;
     const margin = 14;
 
-    const currency = tenant.settings?.currency || "XOF";
+    const currency = tenant.settings?.currency || "GNF";
     const countryCode = tenant.settings?.country || "FR";
     const config = COUNTRY_CONFIGS[countryCode] || COUNTRY_CONFIGS.DEFAULT;
     const employee = payslip.employee;

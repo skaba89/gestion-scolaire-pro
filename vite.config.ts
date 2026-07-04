@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from 'vite-plugin-pwa';
+import { compression } from 'vite-plugin-compression2';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,11 +44,8 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === 'development' && componentTagger(),
-      // ⚠️  NE PAS activer VITE_ENABLE_PWA=true — le projet utilise
-      // sw-schoolflow.js (custom SW, enregistré dans main.tsx).
-      // VitePWA génère un sw.js Workbox séparé qui INTERCEPTERAIT les appels API
-      // et entrerait en conflit avec notre SW custom.
-      // Le mode offline est géré entièrement par sw-schoolflow.js + Dexie (offlineDb.ts).
+      mode === 'production' && compression({ algorithm: 'gzip', threshold: 1024 }),
+      mode === 'production' && compression({ algorithm: 'brotliCompress', threshold: 1024 }),
       enablePwa && VitePWA({
         registerType: 'autoUpdate',
         // Exclusions API complètes — JAMAIS intercepter les appels backend
@@ -118,29 +116,32 @@ export default defineConfig(({ mode }) => {
           entryFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash][extname]',
           manualChunks(id) {
-            // Core: React + everything that depends on React.createContext
             if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router') || id.includes('node_modules/react-i18next') || id.includes('node_modules/i18next') || id.includes('node_modules/scheduler')) {
               return 'vendor-react';
             }
-            // UI: Radix primitives (depend on React but loaded after vendor-react)
             if (id.includes('node_modules/@radix-ui')) {
               return 'vendor-ui';
             }
-            // Data fetching
             if (id.includes('node_modules/@tanstack') || id.includes('node_modules/axios') || id.includes('node_modules/zod') || id.includes('node_modules/react-hook-form') || id.includes('node_modules/@hookform')) {
               return 'vendor-query';
             }
-            // Charts
             if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
               return 'vendor-charts';
             }
-            // PDF generation (lazy-loaded only when needed)
             if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas')) {
               return 'vendor-pdf';
             }
-            // Motion
             if (id.includes('node_modules/framer-motion')) {
               return 'vendor-motion';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('node_modules/date-fns') || id.includes('node_modules/dayjs') || id.includes('node_modules/moment')) {
+              return 'vendor-date';
+            }
+            if (id.includes('node_modules/dexie') || id.includes('node_modules/idb')) {
+              return 'vendor-offline';
             }
           },
         },

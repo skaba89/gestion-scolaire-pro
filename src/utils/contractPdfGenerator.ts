@@ -73,7 +73,7 @@ export function generateCDIContract(contract: ContractData, tenant: TenantData):
     const lineHeight = 6;
     let y = 20;
 
-    const currency = tenant.settings?.currency || "XOF";
+    const currency = tenant.settings?.currency || "GNF";
     const employee = contract.employee;
 
     // === EN-TÊTE ===
@@ -283,7 +283,7 @@ export function generateCDDContract(contract: ContractData, tenant: TenantData):
     const lineHeight = 6;
     let y = 20;
 
-    const currency = tenant.settings?.currency || "XOF";
+    const currency = tenant.settings?.currency || "GNF";
     const employee = contract.employee;
 
     // === EN-TÊTE ===

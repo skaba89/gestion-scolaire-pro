@@ -374,3 +374,97 @@ async def impersonate_tenant(
         "user_email": admin_user.email,
         "warning": "Ce token expire dans 15 minutes. Cette action est auditée.",
     }
+
+
+# ─── Activation manuelle d'abonnement (paiement hors ligne) ──────────────────
+# En Guinée la majorité des écoles paient hors ligne (virement, espèces,
+# mobile money). Le super-admin active l'abonnement après réception du paiement.
+
+from pydantic import BaseModel, field_validator
+
+
+class SubscriptionUpdate(BaseModel):
+    plan: Optional[str] = None            # starter | pro | enterprise
+    status: Optional[str] = None          # trialing | active | past_due | canceled
+    expires_at: Optional[datetime] = None  # date d'expiration (trial_ends_at)
+
+    @field_validator("plan")
+    @classmethod
+    def validate_plan(cls, v):
+        if v is not None and v.lower() not in {"starter", "pro", "enterprise"}:
+            raise ValueError("Plan invalide. Valeurs : starter, pro, enterprise")
+        return v.lower() if v else v
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v):
+        allowed = {"trialing", "active", "past_due", "canceled"}
+        if v is not None and v.lower() not in allowed:
+            raise ValueError(f"Statut invalide. Valeurs : {', '.join(sorted(allowed))}")
+        return v.lower() if v else v
+
+
+@router.patch("/tenants/{tenant_id}/subscription/")
+async def update_tenant_subscription(
+    tenant_id: str,
+    body: SubscriptionUpdate,
+    db: Session = Depends(get_db),
+    current_admin: dict = Depends(_require_super_admin),
+):
+    """Activation/mise à jour manuelle de l'abonnement d'un établissement.
+
+    SUPER_ADMIN uniquement. Utilisé pour les paiements hors ligne
+    (virement bancaire, espèces, mobile money). L'action est auditée.
+    """
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant introuvable.")
+
+    changes = {}
+    if body.plan is not None:
+        changes["plan"] = {"from": tenant.subscription_plan, "to": body.plan}
+        tenant.subscription_plan = body.plan
+    if body.status is not None:
+        changes["status"] = {"from": tenant.subscription_status, "to": body.status}
+        tenant.subscription_status = body.status
+    if body.expires_at is not None:
+        expires_naive = body.expires_at.replace(tzinfo=None)
+        changes["expires_at"] = {
+            "from": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
+            "to": expires_naive.isoformat(),
+        }
+        tenant.trial_ends_at = expires_naive
+
+    if not changes:
+        raise HTTPException(status_code=400, detail="Aucun champ à mettre à jour.")
+
+    db.commit()
+    db.refresh(tenant)
+
+    logger.warning(
+        "SUBSCRIPTION UPDATE: super_admin=%s tenant=%s changes=%s",
+        current_admin["id"], tenant_id, changes,
+    )
+
+    try:
+        from app.utils.audit import log_audit
+        log_audit(
+            db,
+            user_id=current_admin.get("id"),
+            tenant_id=tenant_id,
+            action="UPDATE_SUBSCRIPTION",
+            resource_type="TENANT",
+            resource_id=tenant_id,
+            details=changes,
+        )
+    except Exception as audit_err:
+        logger.warning("Audit log failed for subscription update: %s", audit_err)
+
+    return {
+        "status": "ok",
+        "tenant_id": str(tenant.id),
+        "subscription_plan": tenant.subscription_plan,
+        "subscription_status": tenant.subscription_status,
+        "expires_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
+        "changes": changes,
+    }

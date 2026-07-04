@@ -22,10 +22,6 @@ const Admissions = () => {
   const { data: applications, isLoading, error } = useQuery(admissionQueries.all(tenant?.id || ""));
   const updateStatusMutation = useUpdateAdmissionStatus(tenant?.id || "");
 
-  if (error) {
-    toast.error(t("admissions.loadError"));
-  }
-
   const filteredApplications = useMemo(() => {
     // Extensive safety check for 'applications'
     let apps: any[] = [];
@@ -34,8 +30,6 @@ const Admissions = () => {
     } else if (applications && typeof applications === 'object' && Array.isArray((applications as any).items)) {
       apps = (applications as any).items;
     } else {
-      // If we are here, it means applications is either null/undefined or in an unexpected format
-      if (applications) toast.error(t("admissions.unexpectedFormat"));
       apps = [];
     }
 
@@ -82,7 +76,7 @@ const Admissions = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-h-0">
       <AdmissionHeader />
 
       {/* Stats Cards */}

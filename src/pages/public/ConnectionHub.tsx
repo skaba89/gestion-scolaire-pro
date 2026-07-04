@@ -288,13 +288,7 @@ export default function ConnectionHub() {
   // Load tenants from the public API
   const { data: apiTenants, isLoading } = usePublicTenants();
 
-  // ─── Access Control: Only SUPER_ADMIN can see all establishments ───
-  // Wait for auth to finish loading before deciding
-  if (!authLoading && !isSuperAdmin()) {
-    return <AccessDenied />;
-  }
-
-  // Filter
+  // Filter — le useMemo doit précéder tout return conditionnel (rules-of-hooks)
   const filtered = useMemo(() => {
     let result = apiTenants && apiTenants.length > 0 ? [...apiTenants] : [];
 
@@ -323,6 +317,12 @@ export default function ConnectionHub() {
     const loginUrl = `${window.location.origin}/${slug}/login`;
     window.open(loginUrl, "_blank", "noopener,noreferrer");
   };
+
+  // ─── Access Control: Only SUPER_ADMIN can see all establishments ───
+  // Wait for auth to finish loading before deciding
+  if (!authLoading && !isSuperAdmin()) {
+    return <AccessDenied />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

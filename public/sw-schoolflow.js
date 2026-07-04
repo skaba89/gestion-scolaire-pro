@@ -11,8 +11,8 @@
 // application layer via IndexedDB (Dexie). The SW only manages the app shell.
 // =============================================================================
 
-const CACHE_NAME = "schoolflow-offline-v3";
-const SHELL_CACHE = "schoolflow-shell-v3";
+const CACHE_NAME = "schoolflow-offline-v4";
+const SHELL_CACHE = "schoolflow-shell-v4";
 
 // API patterns to NEVER intercept — always pass through to network
 const API_PATTERNS = [

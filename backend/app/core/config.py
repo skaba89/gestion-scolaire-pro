@@ -236,6 +236,11 @@ class Settings(BaseSettings):
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     GROQ_MAX_TOKENS: int = 4096
 
+    # OpenRouter AI (alternative / fallback provider)
+    OPENROUTER_API_KEY: str = get_secret("OPENROUTER_API_KEY", "")
+    OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct")
+    OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+
     # Observabilité — Sentry
     SENTRY_DSN: str = get_secret("SENTRY_DSN", "")
     SENTRY_ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")

@@ -41,6 +41,7 @@ const SuperAdminDashboard = lazy(() => import("./pages/superadmin/SuperAdminDash
 const CreateTenantWithAdmin = lazy(() => import("./pages/superadmin/CreateTenantWithAdmin"));
 const SaaSDashboard = lazy(() => import("./pages/superadmin/SaaSDashboard"));
 const TenantAuth = lazy(() => import("./pages/TenantAuth"));
+const TenantSettings = lazy(() => import("./pages/superadmin/TenantSettings"));
 const ChangePassword = lazy(() => import("./pages/ChangePassword"));
 
 const PageLoader = () => (
@@ -124,6 +125,7 @@ const AppContent = memo(() => {
                 <Route index element={<SuperAdminDashboard />} />
                 <Route path="saas-dashboard" element={<SaaSDashboard />} />
                 <Route path="tenants" element={<SuperAdminDashboard />} />
+                <Route path="tenants/:tenantId/settings" element={<TenantSettings />} />
                 <Route path="create-tenant" element={<CreateTenantWithAdmin />} />
               </Route>
 

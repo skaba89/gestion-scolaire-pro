@@ -1,5 +1,5 @@
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
@@ -131,10 +131,11 @@ async def create_tenant(
         )
         db.add(campus)
 
-        # 3. Create Levels
-        levels_to_create = tenant_in.levels if tenant_in.levels else [
-            "CP", "CE1", "CE2", "CM1", "CM2", "6ème", "5ème", "4ème", "3ème", "Seconde", "Première", "Terminale"
-        ]
+        # 3. Create Levels — presets guinéens par type d'établissement
+        from app.core.guinea_presets import guinea_levels_for_type
+        levels_to_create = tenant_in.levels if tenant_in.levels else guinea_levels_for_type(
+            getattr(tenant_in, "type", None)
+        )
         for i, lvl_name in enumerate(levels_to_create):
             level = Level(
                 tenant_id=new_tenant.id,
@@ -319,6 +320,7 @@ async def get_tenant_by_slug(
 
 @router.get("/settings/")
 async def get_tenant_settings(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -336,6 +338,16 @@ async def get_tenant_settings(
         user_db = db.query(User).filter(User.id == user_id).first()
         if user_db:
             tenant_id = getattr(user_db, "tenant_id", None)
+
+    # Fallback: accept X-Tenant-ID header (sent by frontend apiClient).
+    if not tenant_id:
+        header_tid = request.headers.get("X-Tenant-ID")
+        if header_tid:
+            try:
+                UUID(header_tid)
+                tenant_id = header_tid
+            except (ValueError, TypeError):
+                pass
 
     # SUPER_ADMIN has no tenant — return empty settings (not an error)
     if not tenant_id:
@@ -361,6 +373,7 @@ async def get_tenant_settings(
 @router.patch("/settings/")
 async def update_tenant_settings(
     settings_update: Dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write"))
 ):
@@ -372,6 +385,18 @@ async def update_tenant_settings(
         user_db = db.query(User).filter(User.id == user_id).first()
         if user_db:
             tenant_id = getattr(user_db, "tenant_id", None)
+
+    # Fallback: accept X-Tenant-ID header (sent by frontend apiClient).
+    # This covers SUPER_ADMIN users managing a specific tenant via the UI.
+    if not tenant_id:
+        header_tid = request.headers.get("X-Tenant-ID")
+        if header_tid:
+            # Validate format before accepting
+            try:
+                UUID(header_tid)
+                tenant_id = header_tid
+            except (ValueError, TypeError):
+                pass
 
     if not tenant_id:
         raise HTTPException(
@@ -767,11 +792,10 @@ async def create_tenant_with_admin(
         )
         db.add(campus)
 
-        # 4. Create Levels
-        levels_to_create = tenant_in.levels or [
-            "CP", "CE1", "CE2", "CM1", "CM2", "6ème", "5ème", "4ème", "3ème",
-            "Seconde", "Première", "Terminale"
-        ]
+        # 4. Create Levels — presets guinéens par type d'établissement
+        # (modifiables ensuite dans les réglages)
+        from app.core.guinea_presets import guinea_levels_for_type
+        levels_to_create = tenant_in.levels or guinea_levels_for_type(tenant_in.type)
         for i, lvl_name in enumerate(levels_to_create):
             level = Level(tenant_id=new_tenant.id, name=lvl_name, order_index=i + 1)
             db.add(level)
@@ -1148,6 +1172,10 @@ async def update_tenant(
 
     for key, value in tenant_updates.items():
         setattr(tenant, key, value)
+
+    # JSON columns need flag_modified for SQLAlchemy to detect changes
+    if "settings" in tenant_updates:
+        flag_modified(tenant, "settings")
 
     tenant.updated_at = datetime.now()
     db.commit()

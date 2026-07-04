@@ -17,7 +17,7 @@ export const CURRENCIES: Record<string, CurrencyConfig> = {
   MAD: { code: "MAD", symbol: "DH", name: "Dirham Marocain", locale: "fr-MA", position: "after" },
   TND: { code: "TND", symbol: "DT", name: "Dinar Tunisien", locale: "fr-TN", position: "after" },
   DZD: { code: "DZD", symbol: "DA", name: "Dinar Algérien", locale: "fr-DZ", position: "after" },
-  GNF: { code: "GNF", symbol: "GNF", name: "Franc Guinéen", locale: "fr-GN", position: "after" },
+  GNF: { code: "GNF", symbol: "FG", name: "Franc Guinéen", locale: "fr-GN", position: "after" },
   NGN: { code: "NGN", symbol: "₦", name: "Naira", locale: "en-NG", position: "before" },
   GHS: { code: "GHS", symbol: "₵", name: "Cédi", locale: "en-GH", position: "before" },
   KES: { code: "KES", symbol: "KSh", name: "Shilling Kenyan", locale: "en-KE", position: "before" },
