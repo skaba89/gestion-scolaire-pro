@@ -1299,13 +1299,17 @@ async def login_diagnostics(
         "DATABASE_DRIVER": "sqlite" if settings.is_sqlite else "postgresql",
     }
 
-    # 5. Redis check
+    # 5. Redis check — via le wrapper préfixé UNIQUEMENT (ne pas mélanger avec
+    # le client brut : le préfixe sfp: est ajouté automatiquement, et le client
+    # brut attend ex= et non expire=).
     try:
         from app.core.cache import redis_client
-        client = await redis_client.client
-        await client.set("sfp:_diag_ping", "1", expire=10)
-        pong = await client.get("_diag_ping")
-        await client.delete("_diag_ping")
+        await redis_client.set("_diag_ping", "1", expire=10)
+        pong = await redis_client.get("_diag_ping")
+        await redis_client.delete("_diag_ping")
+        pong_value = pong.decode() if isinstance(pong, bytes) else pong
+        if pong_value != "1":
+            raise RuntimeError(f"Redis ping mismatch: expected '1', got {pong_value!r}")
         result["components"]["redis"] = {"status": "ok"}
     except Exception as e:
         result["components"]["redis"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}

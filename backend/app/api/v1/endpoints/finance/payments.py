@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
+import uuid as _uuid
 import math, secrets
 from datetime import datetime
 from slowapi import Limiter
@@ -138,9 +139,9 @@ def register_payment(
     tenant_id = _get_tenant_id(current_user)
     user_id = current_user.get("id")
 
-    # 1. Fetch invoice to validate
+    # 1. Fetch invoice to validate (student_id est requis pour le paiement)
     inv = db.execute(text("""
-        SELECT id, total_amount, paid_amount, status FROM invoices
+        SELECT id, student_id, total_amount, paid_amount, status FROM invoices
         WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {"invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
 
@@ -154,15 +155,22 @@ def register_payment(
     new_status = "PAID" if new_paid >= float(inv["total_amount"]) else ("PARTIAL" if new_paid > 0 else "PENDING")
     reference = body.reference or f"PAY-{secrets.token_hex(6).upper()}"
 
-    # 2. Insert payment
+    # 2. Insert payment — colonnes alignées sur le modèle Payment
+    # (pas de received_by dans le schéma ; l'auteur est tracé via l'audit log).
+    # payment_method est un Enum PostgreSQL: CASH, BANK_TRANSFER, MOBILE_MONEY...
+    method_value = (body.method or "CASH").upper().replace(" ", "_")
     payment_id = db.execute(text("""
-        INSERT INTO payments (tenant_id, invoice_id, amount, payment_method, reference, notes, received_by, status, payment_date)
-        VALUES (:tenant_id, :invoice_id, :amount, :method, :reference, :notes, :received_by, 'COMPLETED', NOW())
+        INSERT INTO payments (id, tenant_id, student_id, invoice_id, amount, payment_method,
+                              reference, notes, status, payment_date, created_at, updated_at)
+        VALUES (:id, :tenant_id, :student_id, :invoice_id, :amount, :method,
+                :reference, :notes, 'COMPLETED', CURRENT_DATE, NOW(), NOW())
         RETURNING id
     """), {
-        "tenant_id": tenant_id, "invoice_id": body.invoice_id,
-        "amount": body.amount, "method": body.method,
-        "reference": reference, "notes": body.notes, "received_by": user_id
+        "id": str(_uuid.uuid4()),
+        "tenant_id": tenant_id, "student_id": str(inv["student_id"]),
+        "invoice_id": body.invoice_id,
+        "amount": body.amount, "method": method_value,
+        "reference": reference, "notes": body.notes
     }).scalar()
 
     # 3. Update invoice
@@ -345,16 +353,17 @@ def create_invoice_atomic(
     invoice_number = body.invoice_number or f"INV-{year}-{secrets.token_hex(4).upper()}"
 
     invoice_id = db.execute(text("""
-        INSERT INTO invoices (tenant_id, student_id, invoice_number, total_amount, paid_amount,
+        INSERT INTO invoices (id, tenant_id, student_id, invoice_number, total_amount, paid_amount,
                               subtotal, tax_amount, discount_amount,
                               items, due_date, issue_date, notes, has_payment_plan, installments_count,
                               status, created_at, updated_at)
-        VALUES (:tenant_id, :student_id, :invoice_number, :total_amount, 0,
+        VALUES (:id, :tenant_id, :student_id, :invoice_number, :total_amount, 0,
                 :total_amount, 0, 0,
                 :items, :due_date, COALESCE(:due_date, CURRENT_DATE), :notes, :has_payment_plan, :installments_count,
                 'PENDING', NOW(), NOW())
         RETURNING id
     """), {
+        "id": str(_uuid.uuid4()),
         "tenant_id": tenant_id, "student_id": body.student_id,
         "invoice_number": invoice_number, "total_amount": body.total_amount,
         "items": json.dumps(body.items) if body.items else None,
@@ -539,10 +548,11 @@ def send_payment_reminders(
         if inv.parent_user_id:
             try:
                 db.execute(text("""
-                    INSERT INTO notifications (tenant_id, user_id, type, title, message, is_read, created_at)
-                    VALUES (:tid, :uid, 'PAYMENT_REMINDER', :title, :msg, false, NOW())
+                    INSERT INTO notifications (id, tenant_id, user_id, type, title, message, is_read, created_at)
+                    VALUES (:nid, :tid, :uid, 'PAYMENT_REMINDER', :title, :msg, false, NOW())
                     ON CONFLICT DO NOTHING
                 """), {
+                    "nid": str(_uuid.uuid4()),
                     "tid": tenant_id,
                     "uid": str(inv.parent_user_id),
                     "title": "Rappel de paiement",
@@ -605,10 +615,10 @@ def create_fee(
     tenant_id = _get_tenant_id(current_user)
     try:
         fee_id = db.execute(text("""
-            INSERT INTO fees (tenant_id, name, description, amount, created_at)
-            VALUES (:tenant_id, :name, :description, :amount, NOW())
+            INSERT INTO fees (id, tenant_id, name, description, amount, created_at)
+            VALUES (:id, :tenant_id, :name, :description, :amount, NOW())
             RETURNING id
-        """), {"tenant_id": tenant_id, "name": body.name, "description": body.description, "amount": body.amount}).scalar()
+        """), {"id": str(_uuid.uuid4()), "tenant_id": tenant_id, "name": body.name, "description": body.description, "amount": body.amount}).scalar()
 
         # Audit log BEFORE commit
         log_audit(

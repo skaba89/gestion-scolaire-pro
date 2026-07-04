@@ -27,4 +27,7 @@ USER appuser
 EXPOSE 8000
 
 # Run migrations then start the application
-CMD ["bash", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# start.sh = source unique de démarrage : attente PostgreSQL, fix
+# alembic_version, alembic upgrade head (1 seule fois), export
+# SCHOOLFLOW_MIGRATIONS_DONE, puis uvicorn (DEBUG=true) ou gunicorn.
+CMD ["bash", "/app/start.sh"]
