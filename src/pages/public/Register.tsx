@@ -143,7 +143,7 @@ const INITIAL: FormData = {
 
 export default function Register() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { refreshProfile } = useAuth();
   const { toast } = useToast();
 
   const [step, setStep] = useState(1);
@@ -182,16 +182,21 @@ export default function Register() {
         password: form.password,
       });
 
-      // Store token and redirect to onboarding
+      // Store token + tenant so apiClient sends X-Tenant-ID on every call
       localStorage.setItem("schoolflow:access_token", data.access_token);
+      if (data.tenant_id) {
+        localStorage.setItem("last_tenant_id", data.tenant_id);
+      }
 
       toast({
         title: "🎉 Établissement créé !",
         description: "Votre essai Pro de 30 jours est activé. Configurons votre école.",
       });
 
-      // Small delay so toast is visible, then redirect
-      setTimeout(() => navigate(data.onboarding_url, { replace: true }), 800);
+      // Hydrate the Auth context BEFORE navigating — otherwise the user
+      // lands on onboarding with an empty tenant/profile context.
+      await refreshProfile();
+      navigate(data.onboarding_url, { replace: true });
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       toast({
