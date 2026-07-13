@@ -37,8 +37,8 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Lint (ESLint)
-        run: npm run lint -- --max-warnings 2196
-        # Progressive debt budget: current baseline is 2196 warnings.
+        run: npm run lint -- --max-warnings 2186
+        # Progressive debt budget: current baseline is 2186 warnings.
         # Any increase fails CI; dedicated cleanup PRs will ratchet this down.
 
       - name: Type-check (TypeScript)
