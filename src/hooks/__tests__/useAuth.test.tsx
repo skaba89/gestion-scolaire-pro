@@ -1,146 +1,160 @@
-import { renderHook, waitFor, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { trackLogin, checkAccountLocked } from '@/hooks/useLoginTracking';
+import type { ReactNode } from "react";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Supabase shim removed (P2-22) — replaced by direct API calls via apiClient.
-// Local stub kept for backward-compatible test assertions only.
-const supabase = {
-    auth: {
-        getSession: vi.fn(),
-        signInWithPassword: vi.fn(),
-        signUp: vi.fn(),
-        signOut: vi.fn(),
-        onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
-    },
-    from: vi.fn(() => ({
-        select: vi.fn(() => ({
-            eq: vi.fn(() => ({
-                maybeSingle: vi.fn(),
-                then: vi.fn(),
-            })),
-        })),
-        insert: vi.fn(() => ({
-            maybeSingle: vi.fn(),
-            catch: vi.fn(),
-        })),
-    })),
-};
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
-// Mock login tracking
-vi.mock('@/hooks/useLoginTracking', () => ({
-    trackLogin: vi.fn(),
-    checkAccountLocked: vi.fn(),
+const { mockApiGet, mockApiPost } = vi.hoisted(() => ({
+  mockApiGet: vi.fn(),
+  mockApiPost: vi.fn(),
 }));
 
-describe('useAuth', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        (supabase.auth.getSession as any).mockResolvedValue({ data: { session: null }, error: null });
+vi.mock("@/api/client", () => ({
+  TOKEN_STORAGE_KEY: "schoolflow_access_token",
+  apiClient: {
+    get: mockApiGet,
+    post: mockApiPost,
+  },
+}));
+
+const profileData = {
+  user: {
+    id: "user-123",
+    email: "test@example.com",
+    created_at: "2026-01-01T00:00:00Z",
+  },
+  profile: {
+    first_name: "Ada",
+    last_name: "Lovelace",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  },
+  roles: ["TEACHER"],
+  tenant: {
+    id: "tenant-123",
+    slug: "academy",
+  },
+};
+
+function wrapper({ children }: { children: ReactNode }) {
+  return (
+    <MemoryRouter>
+      <AuthProvider>{children}</AuthProvider>
+    </MemoryRouter>
+  );
+}
+
+describe("useAuth", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it("initializes an anonymous session", async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    expect(result.current.isLoading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
     });
 
-    it('should initialize with loading state', async () => {
-        const wrapper = ({ children }: { children: React.ReactNode }) => (
-            <AuthProvider>{children}</AuthProvider>
-        );
+    expect(result.current.user).toBeNull();
+    expect(mockApiGet).not.toHaveBeenCalled();
+  });
 
-        const { result } = renderHook(() => useAuth(), { wrapper });
+  it("signs in through the API and applies the returned profile", async () => {
+    mockApiPost.mockResolvedValueOnce({ data: { access_token: "access-token" } });
+    mockApiGet.mockResolvedValueOnce({ data: profileData });
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
-        expect(result.current.isLoading).toBe(true);
-
-        await waitFor(() => {
-            expect(result.current.isLoading).toBe(false);
-        });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
     });
 
-    it('should sign in successfully', async () => {
-        const mockUser = { id: 'user-123', email: 'test@example.com' };
-        (checkAccountLocked as any).mockResolvedValue(false);
-        (supabase.auth.signInWithPassword as any).mockResolvedValue({ data: { user: mockUser }, error: null });
-
-        // Mock user profile fetch after login
-        (supabase.from as any).mockReturnValue({
-            select: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                    maybeSingle: vi.fn().mockResolvedValue({ data: { tenant_id: 'tenant-123' } }),
-                    then: vi.fn().mockImplementation((callback) => callback({ data: { tenant_id: 'tenant-123' } })),
-                }),
-            }),
-            insert: vi.fn().mockReturnValue({ catch: vi.fn() }),
-        });
-
-        const wrapper = ({ children }: { children: React.ReactNode }) => (
-            <AuthProvider>{children}</AuthProvider>
-        );
-
-        const { result } = renderHook(() => useAuth(), { wrapper });
-
-        await waitFor(() => {
-            expect(result.current.isLoading).toBe(false);
-        });
-
-        await act(async () => {
-            const response = await result.current.signIn('test@example.com', 'password');
-            expect(response.error).toBeNull();
-        });
-
-        expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
-            email: 'test@example.com',
-            password: 'password',
-        });
-        expect(trackLogin).toHaveBeenCalledWith(expect.objectContaining({
-            success: true,
-            email: 'test@example.com',
-        }));
+    await act(async () => {
+      const response = await result.current.signIn("test@example.com", "password");
+      expect(response).toEqual({ error: null, profileData });
     });
 
-    it('should handle sign in errors', async () => {
-        (checkAccountLocked as any).mockResolvedValue(false);
-        (supabase.auth.signInWithPassword as any).mockResolvedValue({
-            data: { user: null },
-            error: { message: 'Invalid credentials' }
-        });
+    const loginBody = mockApiPost.mock.calls[0][1] as URLSearchParams;
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/login/",
+      expect.any(URLSearchParams),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+    );
+    expect(loginBody.get("username")).toBe("test@example.com");
+    expect(loginBody.get("password")).toBe("password");
+    expect(mockApiGet).toHaveBeenCalledWith("/users/me/", undefined);
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      "schoolflow_access_token",
+      "access-token",
+    );
+    expect(result.current.user?.id).toBe("user-123");
+    expect(result.current.roles).toEqual(["TEACHER"]);
+    expect(result.current.tenant?.slug).toBe("academy");
+  });
 
-        const wrapper = ({ children }: { children: React.ReactNode }) => (
-            <AuthProvider>{children}</AuthProvider>
-        );
+  it("returns the backend authentication error and clears local auth", async () => {
+    const apiError = Object.assign(new Error("Request failed"), {
+      response: {
+        status: 401,
+        data: { detail: "Invalid credentials" },
+      },
+      config: { url: "/auth/login/" },
+    });
+    mockApiPost.mockRejectedValueOnce(apiError);
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
-        const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+    localStorage.setItem("schoolflow_access_token", "stale-token");
 
-        await waitFor(() => {
-            expect(result.current.isLoading).toBe(false);
-        });
-
-        await act(async () => {
-            const response = await result.current.signIn('test@example.com', 'wrong-password');
-            expect(response.error).toBeTruthy();
-        });
-
-        expect(trackLogin).toHaveBeenCalledWith(expect.objectContaining({
-            success: false,
-            email: 'test@example.com',
-        }));
+    await act(async () => {
+      const response = await result.current.signIn("test@example.com", "wrong-password");
+      expect(response.error?.message).toBe(
+        "Invalid credentials (HTTP 401 on /auth/login/)",
+      );
     });
 
-    it('should prevent sign in if account is locked', async () => {
-        (checkAccountLocked as any).mockResolvedValue(true);
+    expect(localStorage.removeItem).toHaveBeenCalledWith("schoolflow_access_token");
+    expect(result.current.user).toBeNull();
+  });
 
-        const wrapper = ({ children }: { children: React.ReactNode }) => (
-            <AuthProvider>{children}</AuthProvider>
-        );
+  it("passes the tenant context to login and profile requests", async () => {
+    mockApiPost.mockResolvedValueOnce({ data: { access_token: "tenant-token" } });
+    mockApiGet.mockResolvedValueOnce({ data: profileData });
+    const { result } = renderHook(() => useAuth(), { wrapper });
 
-        const { result } = renderHook(() => useAuth(), { wrapper });
-
-        await waitFor(() => {
-            expect(result.current.isLoading).toBe(false);
-        });
-
-        await act(async () => {
-            const response = await result.current.signIn('locked@example.com', 'password');
-            expect(response.error).toBeTruthy();
-            expect(response.error?.message).toContain('verrouillé');
-        });
-
-        expect(supabase.auth.signInWithPassword).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
     });
+
+    await act(async () => {
+      const response = await result.current.signIn(
+        "test@example.com",
+        "password",
+        "tenant-123",
+      );
+      expect(response.error).toBeNull();
+    });
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/login/",
+      expect.any(URLSearchParams),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-Tenant-ID": "tenant-123",
+        },
+      },
+    );
+    expect(mockApiGet).toHaveBeenCalledWith("/users/me/", {
+      headers: { "X-Tenant-ID": "tenant-123" },
+    });
+    expect(localStorage.setItem).toHaveBeenCalledWith("last_tenant_id", "tenant-123");
+  });
 });
