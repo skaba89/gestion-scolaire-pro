@@ -12,7 +12,6 @@ import {
     Wallet,
     Briefcase,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import {
     getRoleLabel as getRoleLabelBase,
     getRoleDescription,
