@@ -48,7 +48,7 @@ jobs:
         run: npm install --no-save --package-lock=false --legacy-peer-deps @vitest/coverage-v8@4.0.17
 
       - name: Run stable frontend test baseline with coverage
-        # Twelve reliable suites (61 tests) form the progressive regression gate.
+        # Thirteen reliable suites (73 tests) form the progressive regression gate.
         # Repair stale provider/mocking suites separately, then expand this list.
         run: |
           npm run test -- --run --coverage --reporter=verbose \
@@ -61,6 +61,7 @@ jobs:
             src/features/students/hooks/__tests__/useStudentData.test.tsx \
             src/features/parents/services/__tests__/parentsService.test.ts \
             src/features/parents/hooks/__tests__/useParentData.test.tsx \
+            src/features/grades/__tests__/GradeCard.test.tsx \
             src/components/__tests__/empty-state.test.tsx \
             src/components/__tests__/page-header.test.tsx \
             src/components/__tests__/portal-error-boundary.test.tsx
