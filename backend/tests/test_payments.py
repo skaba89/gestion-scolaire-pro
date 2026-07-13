@@ -1,6 +1,9 @@
 """Tests pour les endpoints finance (paiements, factures)."""
 import uuid
 import pytest
+from fastapi import HTTPException
+from unittest.mock import MagicMock
+from starlette.requests import Request
 from conftest import get_test_client
 
 client = get_test_client()
@@ -189,3 +192,86 @@ class TestPaymentGateways:
         from pydantic import ValidationError
         with pytest.raises(ValidationError):
             ParentPaymentCreate(invoice_id=str(uuid.uuid4()), amount=0, method="MOBILE_MONEY")
+
+
+class TestPaymentIntentValidation:
+    @staticmethod
+    def _request() -> Request:
+        return Request({
+            "type": "http",
+            "scheme": "https",
+            "server": ("schoolflow.test", 443),
+            "path": "/api/v1/payments/intent/",
+            "query_string": b"",
+            "headers": [],
+        })
+
+    def test_requires_an_invoice(self):
+        from app.api.v1.endpoints.finance.payments import create_payment_intent
+        with pytest.raises(HTTPException) as exc_info:
+            create_payment_intent(
+                request=self._request(),
+                amount=50000,
+                method="MOBILE_MONEY",
+                invoice_id=None,
+                db=MagicMock(),
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+            )
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_methods_that_are_not_online_gateways(self):
+        from app.api.v1.endpoints.finance.payments import create_payment_intent
+        with pytest.raises(HTTPException) as exc_info:
+            create_payment_intent(
+                request=self._request(),
+                amount=50000,
+                method="CASH",
+                invoice_id=uuid.uuid4(),
+                db=MagicMock(),
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+            )
+        assert exc_info.value.status_code == 400
+
+    def test_rejects_an_unknown_invoice(self):
+        from app.api.v1.endpoints.finance.payments import create_payment_intent
+        db = MagicMock()
+        db.execute.return_value.mappings.return_value.first.return_value = None
+
+        with pytest.raises(HTTPException) as exc_info:
+            create_payment_intent(
+                request=self._request(),
+                amount=50000,
+                method="MOBILE_MONEY",
+                invoice_id=uuid.uuid4(),
+                db=db,
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+            )
+        assert exc_info.value.status_code == 404
+        db.execute.assert_called_once()
+
+    @pytest.mark.parametrize(
+        ("invoice", "expected_detail"),
+        [
+            ({"status": "PAID"}, "Cette facture est déjà soldée"),
+            (
+                {"status": "PENDING", "total_amount": 50000, "paid_amount": 25000},
+                "Le montant dépasse le reste à payer",
+            ),
+        ],
+    )
+    def test_rejects_paid_invoices_and_overpayments(self, invoice, expected_detail):
+        from app.api.v1.endpoints.finance.payments import create_payment_intent
+        db = MagicMock()
+        db.execute.return_value.mappings.return_value.first.return_value = invoice
+
+        with pytest.raises(HTTPException) as exc_info:
+            create_payment_intent(
+                request=self._request(),
+                amount=50000,
+                method="MOBILE_MONEY",
+                invoice_id=uuid.uuid4(),
+                db=db,
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+            )
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == expected_detail
