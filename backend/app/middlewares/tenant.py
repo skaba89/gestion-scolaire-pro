@@ -23,6 +23,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         public_paths = [
             "/docs", "/openapi.json", "/health", "/health/", "/", "/auth/login",
+            "/tenants/public", "/tenants/public/",
             "/auth/refresh", "/auth/logout", "/users/me", "/users/me/",
             "/favicon.ico", "/favicon.png", "/redoc"
         ]
@@ -124,9 +125,13 @@ class TenantMiddleware(BaseHTTPMiddleware):
                         "Vary": "Origin",
                     }
 
+            # A protected route without a bearer token is an authentication
+            # failure. Return 401 here instead of leaking tenant-resolution details
+            # or allowing a potentially unguarded endpoint to execute.
+            cors_hdrs["WWW-Authenticate"] = "Bearer"
             return JSONResponse(
-                status_code=400,
-                content={"detail": "Identification du tenant manquante (X-Tenant-ID ou JWT claim)"},
+                status_code=401,
+                content={"detail": "Authentification requise"},
                 headers=cors_hdrs,
             )
 
