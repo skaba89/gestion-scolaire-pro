@@ -72,19 +72,11 @@ export const useCreateUser = (tenantId: string) => {
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["users", tenantId] });
-            if (data.generated_password) {
-                // SECURITY: Copy password to clipboard instead of showing in toast
-                navigator.clipboard.writeText(data.generated_password).then(() => {
-                    toast.success(
-                        "Compte créé. Le mot de passe temporaire a été copié dans le presse-papiers.",
-                        { duration: 8000 }
-                    );
-                }).catch(() => {
-                    toast.warning(
-                        "Compte créé. Le mot de passe est dans la réponse API.",
-                        { duration: 8000 }
-                    );
-                });
+            if (data.invitation_sent) {
+                toast.success(
+                    "Compte créé. Une invitation sécurisée a été envoyée par email.",
+                    { duration: 8000 }
+                );
             } else {
                 toast.success("Compte créé avec succès");
             }
@@ -315,39 +307,27 @@ export const useConvertToAccount = (tenantId: string) => {
 
     return useMutation({
         mutationFn: async ({
-            user,
-            tenant,
-            generatedPassword
+            user
         }: {
             user: { id: string; first_name: string; last_name: string; email: string; type: 'student' | 'parent' };
-            tenant: { id: string; name: string; slug: string; logo_url?: string | null };
-            generatedPassword: string;
         }) => {
             const response = await apiClient.post("/users/convert/", {
                 id: user.id,
                 email: user.email,
                 first_name: user.first_name,
                 last_name: user.last_name,
-                type: user.type,
-                password: generatedPassword
+                type: user.type
             });
-            return { ...response.data, generatedPassword };
+            return response.data;
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["users", tenantId] });
             queryClient.invalidateQueries({ queryKey: ["users", "pending", tenantId] });
-            // Use the backend-returned generated_password if available, else the one we sent
-            const password = data.generated_password || data.generatedPassword;
-            // SECURITY: Copy password to clipboard instead of showing in toast
-            if (password) {
-                navigator.clipboard.writeText(password).then(() => {
-                    toast.success(
-                        "Compte créé. Le mot de passe temporaire a été copié dans le presse-papiers.",
-                        { duration: 8000 }
-                    );
-                }).catch(() => {
-                    toast.success("Compte créé avec succès");
-                });
+            if (data.invitation_sent) {
+                toast.success(
+                    "Compte créé. Une invitation sécurisée a été envoyée par email.",
+                    { duration: 8000 }
+                );
             } else {
                 toast.success("Compte créé avec succès");
             }

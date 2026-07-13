@@ -543,11 +543,11 @@ async def change_password(
         for i in range(4, 0, -1):
             old = await client.get(f"sfp:pw_history:{user_id}:{i-1}")
             if old:
-                await client.set(f"sfp:pw_history:{user_id}:{i}", old, expire=86400*365)
+                await client.set(f"sfp:pw_history:{user_id}:{i}", old, ex=86400*365)
         # Store current hash in slot 0
         current_hash = getattr(user, "password_hash", None)
         if current_hash:
-            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, expire=86400*365)
+            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, ex=86400*365)
     except HTTPException:
         raise
     except Exception as exc:
@@ -640,10 +640,10 @@ async def reset_forced_password(
         for i in range(4, 0, -1):
             old = await client.get(f"sfp:pw_history:{user_id}:{i-1}")
             if old:
-                await client.set(f"sfp:pw_history:{user_id}:{i}", old, expire=86400*365)
+                await client.set(f"sfp:pw_history:{user_id}:{i}", old, ex=86400*365)
         current_hash = getattr(user, "password_hash", None)
         if current_hash:
-            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, expire=86400*365)
+            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, ex=86400*365)
     except HTTPException:
         raise
     except Exception as exc:
@@ -1357,53 +1357,38 @@ async def forgot_password(
     Always returns 200 regardless of whether the email exists to prevent
     user enumeration attacks.
     """
-    import secrets
-    from app.services.notifications import EmailSender, Templates
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        deliver_password_setup_link,
+    )
 
     # Lookup user — no error on miss (anti-enumeration)
     user = db.execute(
-        text("SELECT id, first_name, last_name, email FROM users WHERE email = :email AND is_active = true LIMIT 1"),
-        {"email": body.email},
+        text("""
+            SELECT id, first_name, last_name, email
+            FROM users
+            WHERE lower(email) = :email AND is_active = true
+            LIMIT 1
+        """),
+        {"email": str(body.email).strip().lower()},
     ).mappings().first()
 
     if user:
         user_id = str(user["id"])
         user_name = f"{user['first_name'] or ''} {user['last_name'] or ''}".strip() or user["email"]
 
-        # Generate a secure random token and store it in Redis (15-min TTL)
-        reset_token = secrets.token_urlsafe(32)
         try:
-            from app.core.cache import redis_client
-            client = await redis_client.client
-            redis_key = f"sfp:pw_reset:{reset_token}"
-            await client.set(redis_key, user_id, expire=900)  # 15 minutes
-        except Exception as exc:
-            logger.error("Redis unavailable — cannot store reset token: %s", exc)
-            # Still return 200 to the user; the email simply won't be sent
-            return {"message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé."}
-
-        # Build reset URL and send email
-        reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
-        sender = EmailSender(
-            resend_api_key=settings.RESEND_API_KEY,
-            smtp_host=settings.SMTP_HOST,
-            smtp_port=settings.SMTP_PORT,
-            smtp_user=settings.SMTP_USER,
-            smtp_pass=settings.SMTP_PASS,
-            from_email=settings.FROM_EMAIL,
-            from_name=settings.FROM_NAME,
-        )
-        msg = Templates.password_reset(
-            user_name=user_name,
-            reset_url=reset_url,
-            school_name=settings.FROM_NAME,
-            expires_minutes=15,
-        )
-        sent = sender.send(to=user["email"], subject=msg["subject"], html=msg["html"], text=msg["text"])
-        if not sent:
-            logger.warning("Password reset email could not be delivered to %s", body.email)
-
-        logger.info("Password reset requested for user %s", user_id)
+            await deliver_password_setup_link(
+                user_id=user_id,
+                email=user["email"],
+                user_name=user_name,
+                purpose="reset",
+                expires_in=900,
+            )
+            logger.info("Password reset requested for user %s", user_id)
+        except PasswordSetupDeliveryError as exc:
+            # Keep the anti-enumeration response identical while logging delivery failure.
+            logger.error("Password reset link delivery failed for user %s: %s", user_id, exc)
 
     # Always return the same message to prevent email enumeration
     return {"message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé."}
@@ -1418,15 +1403,17 @@ async def reset_password(
 ):
     """Consume a password reset token and set a new password."""
     from app.core.security import get_password_hash
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        consume_password_setup_token,
+        get_password_setup_user_id,
+    )
 
-    # Validate token from Redis
     try:
         from app.core.cache import redis_client
         client = await redis_client.client
-        redis_key = f"sfp:pw_reset:{body.token}"
-        user_id = await client.get(redis_key)
-    except Exception as exc:
-        logger.error("Redis unavailable during password reset: %s", exc)
+        user_id = await get_password_setup_user_id(body.token)
+    except PasswordSetupDeliveryError:
         raise HTTPException(status_code=503, detail="Service temporairement indisponible. Réessayez dans quelques instants.")
 
     if not user_id:
@@ -1456,25 +1443,30 @@ async def reset_password(
         for i in range(4, 0, -1):
             old = await client.get(f"sfp:pw_history:{user_id}:{i-1}")
             if old:
-                await client.set(f"sfp:pw_history:{user_id}:{i}", old, expire=86400 * 365)
+                await client.set(f"sfp:pw_history:{user_id}:{i}", old, ex=86400 * 365)
         current_hash = getattr(user, "password_hash", None)
         if current_hash:
-            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, expire=86400 * 365)
+            await client.set(f"sfp:pw_history:{user_id}:0", current_hash, ex=86400 * 365)
     except HTTPException:
         raise
     except Exception as exc:
         logger.warning("Password history check failed (Redis unavailable): %s", exc)
 
+    try:
+        consumed_user_id = await consume_password_setup_token(body.token)
+    except PasswordSetupDeliveryError:
+        raise HTTPException(status_code=503, detail="Service temporairement indisponible. Réessayez dans quelques instants.")
+    if not consumed_user_id or str(consumed_user_id) != str(user_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Ce lien de réinitialisation a déjà été utilisé ou a expiré.",
+        )
+
     # Update password
     user.password_hash = get_password_hash(body.new_password)
+    user.must_change_password = False
     user.updated_at = datetime.now(timezone.utc)
     db.commit()
-
-    # Consume the token (delete from Redis — single-use)
-    try:
-        await client.delete(redis_key)
-    except Exception:
-        pass
 
     # Invalidate all existing sessions for this user
     await blacklist_all_user_tokens(str(user_id))
@@ -1493,14 +1485,11 @@ async def validate_reset_token(
 
     Used by the frontend to decide whether to show the reset form or an error message.
     """
+    from app.services.account_provisioning import PasswordSetupDeliveryError, get_password_setup_user_id
+
     try:
-        from app.core.cache import redis_client
-        client = await redis_client.client
-        redis_key = f"sfp:pw_reset:{token}"
-        exists = await client.exists(redis_key)
-        return {"valid": bool(exists)}
-    except Exception as exc:
-        logger.error("Redis unavailable during token validation: %s", exc)
+        return {"valid": bool(await get_password_setup_user_id(token))}
+    except PasswordSetupDeliveryError:
         raise HTTPException(status_code=503, detail="Service temporairement indisponible.")
 
 

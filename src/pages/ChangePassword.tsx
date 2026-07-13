@@ -61,11 +61,6 @@ const ChangePassword = () => {
         new_password: password,
       });
 
-      // Update must_change_password flag via API
-      await apiClient.patch("/hr/profiles/me/", {
-        must_change_password: false,
-      });
-
       toast({
         title: "Mot de passe modifié",
         description: "Votre mot de passe a été modifié avec succès. Veuillez vous reconnecter.",
