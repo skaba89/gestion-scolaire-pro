@@ -1,8 +1,0 @@
-[extend]
-useDefault = true
-
-[[allowlists]]
-description = "Known non-secret credential used only by the CI test environment"
-regexTarget = "match"
-paths = ['''^\.github/workflows/ci\.yml$''']
-regexes = ['''test-secret-key-for-ci-min-32-chars''']
