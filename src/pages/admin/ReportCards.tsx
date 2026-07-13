@@ -86,7 +86,7 @@ function openOrDownload(base64Html: string, filename: string, toast: any, t: (k:
   if (printWindow) {
     printWindow.document.write(decodedHtml);
     printWindow.document.close();
-    setTimeout(() => { try { printWindow.print(); } catch {} }, 700);
+    setTimeout(() => { try { printWindow.print(); } catch { /* Window may close before printing. */ } }, 700);
   } else {
     // Popup blocked → download as HTML file
     const blob = new Blob([decodedHtml], { type: "text/html;charset=utf-8" });
