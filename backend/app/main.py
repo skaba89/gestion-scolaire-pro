@@ -491,6 +491,7 @@ async def security_headers_middleware(request: Request, call_next):
 @app.get("/", include_in_schema=False)
 def root():
     return {
+        "message": "SchoolFlow Pro API is operational",
         "service": "SchoolFlow Pro API",
         "version": settings.APP_VERSION,
         "status": "operational",
