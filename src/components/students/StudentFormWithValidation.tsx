@@ -84,10 +84,6 @@ export function StudentFormWithValidation({
 
       await apiClient.post('/students/', [submissionData]);
 
-      if (false) {
-        toast.error(`Failed to create student`);
-        return;
-      }
 
       toast.success("Student created successfully!");
       clearErrors();
