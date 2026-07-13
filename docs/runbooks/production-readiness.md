@@ -98,8 +98,8 @@ Avant prod :
 - HTTPS obligatoire ;
 - CORS limité au domaine réel ;
 - Sentry ou outil équivalent configuré ;
-- sauvegardes PostgreSQL testées ;
-- restauration PostgreSQL testée ;
+- sauvegardes PostgreSQL atomiques avec checksum et copie hors site ;
+- restauration PostgreSQL testée sur une base isolée, durée et résultat archivés ;
 - accès MinIO/S3 sécurisé ;
 - logs et monitoring activés.
 
@@ -139,3 +139,12 @@ Le projet peut être considéré prêt pour une pré-production lorsque :
 - aucun libellé technique visible n’est présent ;
 - la sécurité multi-tenant est testée ;
 - la restauration de backup est testée.
+
+Commande de vérification non destructive :
+
+```bash
+scripts/restore-database.sh --backup /var/backups/schoolflow/schoolflow_backup_YYYYMMDDTHHMMSSZ.dump
+```
+
+La mise en production est bloquée si l’âge de la dernière sauvegarde dépasse le
+RPO approuvé ou si aucun exercice de restauration récent n’est disponible.
