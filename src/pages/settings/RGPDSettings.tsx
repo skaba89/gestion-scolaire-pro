@@ -46,9 +46,7 @@ export default function RGPDSettings() {
     const loadExportHistory = async () => {
         if (!user) return;
         try {
-            const { data } = await apiClient.get('/settings/audit-logs/', {
-                params: { user_id: user.id, action: 'RGPD_DATA_EXPORT', limit: 10 },
-            });
+            const { data } = await apiClient.get('/rgpd/export-history/me/');
             setExportHistory(Array.isArray(data) ? data : []);
         } catch (error: any) {
             toast.error("Impossible de charger l'historique des exports", {
@@ -142,8 +140,8 @@ export default function RGPDSettings() {
                             <div className="space-y-2">
                                 {exportHistory.slice(0, 5).map((export_item: any, index: number) => (
                                     <div key={index} className="flex items-center justify-between text-sm">
-                                        <span className="text-muted-foreground">{new Date(export_item.created_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                                        <span className="text-xs text-muted-foreground">{export_item.new_values?.export_size_kb ? `${Math.round(export_item.new_values.export_size_kb)} KB` : '-'}</span>
+                                        <span className="text-muted-foreground">{new Date(export_item.export_date).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                        <span className="text-xs text-muted-foreground">JSON</span>
                                     </div>
                                 ))}
                             </div>
