@@ -2,11 +2,15 @@
  * Tests for GradeCard Component
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GradeCard } from "@/features/grades/components/GradeCard";
 import type { Grade } from "@/features/grades/types/grades";
+
+vi.mock("@/hooks/useStudentLabel", () => ({
+  useStudentLabel: () => ({ StudentLabel: "Élève" }),
+}));
 
 describe("GradeCard Component", () => {
   const mockGrade: Grade = {
@@ -86,7 +90,7 @@ describe("GradeCard Component", () => {
       <GradeCard grade={mockGrade} onDelete={onDelete} />
     );
 
-    const deleteButton = screen.getByRole("button", { name: /Trash/ });
+    const deleteButton = screen.getByRole("button", { name: /Supprimer/ });
     await user.click(deleteButton);
 
     expect(onDelete).toHaveBeenCalledWith(mockGrade.id);
@@ -136,7 +140,7 @@ describe("GradeCard Component", () => {
       <GradeCard grade={mockGrade} onDelete={undefined} />
     );
 
-    const deleteButton = screen.queryByRole("button", { name: /Trash/ });
+    const deleteButton = screen.queryByRole("button", { name: /Supprimer/ });
     expect(deleteButton).not.toBeInTheDocument();
   });
 });
