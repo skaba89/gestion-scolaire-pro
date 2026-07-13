@@ -504,7 +504,7 @@ def root():
 
 
 def _check_database_and_rls() -> tuple[str, str]:
-    """Check PostgreSQL connectivity and the representative tenant RLS policy."""
+    """Check PostgreSQL connectivity and every tenant table's RLS policy."""
     from app.core.database import SessionLocal
     from sqlalchemy import text as sa_text
 
@@ -527,7 +527,19 @@ def _check_database_and_rls() -> tuple[str, str]:
                         WHERE NOT cls.relrowsecurity
                            OR NOT cls.relforcerowsecurity
                            OR NOT EXISTS (
-                               SELECT 1 FROM pg_policy pol WHERE pol.polrelid = cls.oid
+                               SELECT 1
+                               FROM pg_policy pol
+                               WHERE pol.polrelid = cls.oid
+                                 AND (
+                                     COALESCE(
+                                         pg_get_expr(pol.polqual, pol.polrelid),
+                                         ''
+                                     ) LIKE '%app.current_tenant_id%'
+                                     OR COALESCE(
+                                         pg_get_expr(pol.polwithcheck, pol.polrelid),
+                                         ''
+                                     ) LIKE '%app.current_tenant_id%'
+                                 )
                            )
                     ) AS unprotected_tables
                 FROM pg_class cls
@@ -724,4 +736,3 @@ app.mount("/uploads", _SafeStaticFiles(directory=_upload_dir), name="uploads")
 
 # _ensure_operational_tables() has been extracted to app.core.operational_tables
 # for maintainability. See: app/core/operational_tables.py
-
