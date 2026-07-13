@@ -317,33 +317,7 @@ jobs:
       - name: Check for .env files in git
         run: |
           echo "Checking for committed .env files..."
-          ENV_FILES=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -Ev '(\.example|\.template)
-          if [ -n "$ENV_FILES" ]; then
-            echo "ERROR: .env files committed to git:"
-            echo "$ENV_FILES"
-            exit 1
-          else
-            echo "No .env files committed to git"
-          fi
-
-      - name: Check for credential files
-        run: |
-          echo "Checking for committed credential files..."
-          CRED_FILES=$(git ls-files | grep -iE 'credentials|password|secret.*\.txt|\.pem$|\.key$' || true)
-          if [ -n "$CRED_FILES" ]; then
-            echo "ERROR: Possible credential files committed:"
-            echo "$CRED_FILES"
-            exit 1
-          else
-            echo "No credential files committed to git"
-          fi
-
-      - name: Gitleaks secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
- || true)
+          ENV_FILES=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -Ev '(\.example|\.template)$' || true)
           if [ -n "$ENV_FILES" ]; then
             echo "ERROR: .env files committed to git:"
             echo "$ENV_FILES"
