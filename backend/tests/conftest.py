@@ -20,7 +20,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 # (voir app/core/database.py). On force les trois URLs pour que les tests
 # ne tapent JAMAIS une base dev périmée (ex: schoolflow.db via un .env résiduel).
 os.environ["DATABASE_URL_SYNC"] = os.environ["DATABASE_URL"]
-os.environ["DATABASE_URL_ASYNC"] = os.environ["DATABASE_URL"]
+os.environ["DATABASE_URL_ASYNC"] = "sqlite+aiosqlite:///./test.db"
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 
 
@@ -31,8 +31,14 @@ async def _noop_lifespan(app):
 
 
 def get_test_client():
-    """Create a TestClient with lifespan disabled. Use in integration tests."""
+    """Create a TestClient with an initialized SQLite schema and no external services."""
+    from app.core.database import Base, engine
+    import app.models  # noqa: F401 — register every SQLAlchemy model
     from app.main import app
+
+    # The no-op lifespan deliberately skips Alembic/Redis. Tests still need the
+    # ORM schema so auth and protected-route assertions exercise real code paths.
+    Base.metadata.create_all(bind=engine)
     original = app.router.lifespan_context
     app.router.lifespan_context = _noop_lifespan
     client = TestClient(app, raise_server_exceptions=False)
