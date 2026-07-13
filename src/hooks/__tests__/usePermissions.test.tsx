@@ -2,7 +2,6 @@ import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/contexts/AuthContext';
-import { Permission } from '@/lib/permissions';
 
 // Mock AuthContext
 vi.mock('@/contexts/AuthContext', () => ({
