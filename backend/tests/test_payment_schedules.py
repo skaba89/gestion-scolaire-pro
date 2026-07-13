@@ -35,7 +35,7 @@ class TestScheduleAuthGuards:
         assert resp.status_code in (401, 403, 404)
 
     def test_bulk_delete_requires_auth(self):
-        resp = client.delete(f"{BASE}/", json={"invoice_id": str(uuid.uuid4())})
+        resp = client.request("DELETE", f"{BASE}/", json={"invoice_id": str(uuid.uuid4())})
         assert resp.status_code in (401, 403, 422)
 
 
