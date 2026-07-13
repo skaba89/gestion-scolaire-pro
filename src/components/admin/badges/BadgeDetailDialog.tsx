@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { QRCodeSVG } from "qrcode.react";
 import { Download, Trash2, AlertTriangle } from "lucide-react";
-import { BadgeRenderer } from "@/components/badges/BadgeTemplates";
 
 interface StudentBadge {
     id: string;
