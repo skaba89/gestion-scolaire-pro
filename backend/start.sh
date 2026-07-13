@@ -5,10 +5,17 @@ set -euo pipefail
 
 DB_HOST="${POSTGRES_HOST:-postgres}"
 DB_PORT="${POSTGRES_PORT:-5432}"
-DB_USER="${POSTGRES_USER:-schoolflow}"
-DB_PASSWORD="${POSTGRES_PASSWORD:-schoolflow}"
-DB_NAME="${POSTGRES_DB:-schoolflow}"
 DB_WAIT_TIMEOUT="${DB_WAIT_TIMEOUT:-90}"
+
+# Do not silently fall back to development credentials. A missing database
+# identity must stop the container before migrations or the API are started.
+: "${POSTGRES_USER:?ERROR: POSTGRES_USER is required}"
+: "${POSTGRES_PASSWORD:?ERROR: POSTGRES_PASSWORD is required}"
+: "${POSTGRES_DB:?ERROR: POSTGRES_DB is required}"
+
+DB_USER="$POSTGRES_USER"
+DB_PASSWORD="$POSTGRES_PASSWORD"
+DB_NAME="$POSTGRES_DB"
 
 export PGPASSWORD="$DB_PASSWORD"
 
@@ -42,7 +49,9 @@ done
 echo "==> Fixing alembic_version column size (if table exists)..."
 # alembic_version defaults to VARCHAR(32), but some revision IDs exceed 32 chars.
 # We enlarge it to VARCHAR(256) once; this is a no-op if already large enough.
-psql "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" \
+# Use discrete connection arguments instead of a URI so passwords containing
+# reserved URL characters do not break psql parsing.
+psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
   -c "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(256);" \
   2>/dev/null && echo "   -> column enlarged" || echo "   -> skipped (table may not exist yet — ok on first run)"
 
