@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -38,14 +38,34 @@ function LoginPattern() {
   );
 }
 
+const RETURN_TO_STORAGE_KEY = "schoolflow:return_to";
+
+function getSafeReturnPath(value: unknown): string | null {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : null;
+}
+
 const AuthNative = () => {
-  const { signIn, isLoading } = useAuth();
+  const { signIn, isLoading, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const requestedPath = getSafeReturnPath((location.state as { from?: unknown } | null)?.from);
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+
+    const returnPath = requestedPath || getSafeReturnPath(sessionStorage.getItem(RETURN_TO_STORAGE_KEY));
+    if (returnPath) {
+      sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+      navigate(returnPath, { replace: true });
+    }
+  }, [isLoading, navigate, requestedPath, user]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -56,6 +76,10 @@ const AuthNative = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    if (requestedPath) {
+      sessionStorage.setItem(RETURN_TO_STORAGE_KEY, requestedPath);
     }
 
     setSubmitting(true);
@@ -74,6 +98,13 @@ const AuthNative = () => {
           description,
           variant: "destructive",
         });
+        return;
+      }
+
+      const returnPath = requestedPath || getSafeReturnPath(sessionStorage.getItem(RETURN_TO_STORAGE_KEY));
+      if (returnPath) {
+        sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+        navigate(returnPath, { replace: true });
         return;
       }
 
