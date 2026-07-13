@@ -787,6 +787,41 @@ function FeaturesSection({
   );
 }
 
+function StatItem({ item, index }: { item: any; index: number }) {
+  const color = item.color || '#60a5fa';
+  const numericValue = typeof item.value === 'number'
+    ? item.value
+    : parseInt(String(item.value).replace(/\D/g, '')) || 0;
+  const suffix = typeof item.value === 'string'
+    ? String(item.value).replace(/[\d.,]/g, '')
+    : item.suffix || '';
+  const { count, ref } = useAnimatedCounter(numericValue);
+
+  return (
+    <div key={index} className="group" ref={ref}>
+      {item.icon && (
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-transform group-hover:scale-110"
+          style={{ backgroundColor: `${color}20`, color }}
+        >
+          {item.icon === 'users' && <Users className="w-7 h-7" />}
+          {item.icon === 'award' && <Award className="w-7 h-7" />}
+          {item.icon === 'book' && <BookOpen className="w-7 h-7" />}
+          {item.icon === 'graduation' && <GraduationCap className="w-7 h-7" />}
+          {item.icon === 'star' && <Star className="w-7 h-7" />}
+          {!['users', 'award', 'book', 'graduation', 'star'].includes(item.icon) && (
+            <Target className="w-7 h-7" />
+          )}
+        </div>
+      )}
+      <p className="text-4xl md:text-5xl font-bold mb-2" style={{ color }}>
+        {count}{suffix}
+      </p>
+      <p className="text-white/60 text-sm">{item.label}</p>
+    </div>
+  );
+}
+
 function StatsSection({
   section,
   primaryColor,
@@ -827,36 +862,9 @@ function StatsSection({
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {items.map((item: any, i: number) => {
-            const color = item.color || '#60a5fa';
-            const numericValue = typeof item.value === 'number' ? item.value : parseInt(String(item.value).replace(/\D/g, '')) || 0;
-            const suffix = typeof item.value === 'string' ? String(item.value).replace(/[\d.,]/g, '') : item.suffix || '';
-            const { count, ref } = useAnimatedCounter(numericValue);
-
-            return (
-              <div key={i} className="group" ref={ref}>
-                {item.icon && (
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-transform group-hover:scale-110"
-                    style={{ backgroundColor: `${color}20`, color }}
-                  >
-                    {item.icon === 'users' && <Users className="w-7 h-7" />}
-                    {item.icon === 'award' && <Award className="w-7 h-7" />}
-                    {item.icon === 'book' && <BookOpen className="w-7 h-7" />}
-                    {item.icon === 'graduation' && <GraduationCap className="w-7 h-7" />}
-                    {item.icon === 'star' && <Star className="w-7 h-7" />}
-                    {!['users', 'award', 'book', 'graduation', 'star'].includes(item.icon) && (
-                      <Target className="w-7 h-7" />
-                    )}
-                  </div>
-                )}
-                <p className="text-4xl md:text-5xl font-bold mb-2" style={{ color }}>
-                  {count}{suffix}
-                </p>
-                <p className="text-white/60 text-sm">{item.label}</p>
-              </div>
-            );
-          })}
+          {items.map((item: any, i: number) => (
+            <StatItem key={i} item={item} index={i} />
+          ))}
         </div>
       </div>
     </section>
