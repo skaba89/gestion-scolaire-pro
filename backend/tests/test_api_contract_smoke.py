@@ -13,9 +13,11 @@ from app.main import app
 
 def _registered_prefixes() -> set[str]:
     prefixes: set[str] = set()
-    # FastAPI 0.137+ lazily composes included routers. OpenAPI exposes the
-    # effective registered paths and remains stable across router internals.
-    for path in app.openapi().get("paths", {}):
+    # OpenAPI is stable for documented routes. app.routes also contains
+    # compatibility aliases deliberately hidden from the generated schema.
+    paths = set(app.openapi().get("paths", {}))
+    paths.update(getattr(route, "path", "") for route in app.routes)
+    for path in paths:
         # Most routers are mounted under /api/v1; health probes stay at root.
         api_path = path.removeprefix(settings.API_V1_STR)
         parts = [part for part in api_path.split("/") if part]
