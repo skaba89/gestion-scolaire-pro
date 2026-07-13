@@ -283,6 +283,26 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
 
+      - name: Validate production readiness RLS invariant
+        run: |
+          cd backend
+          python - <<'PY'
+          from app.main import _check_database_and_rls
+
+          status = _check_database_and_rls()
+          if status != ("connected", "active"):
+              raise SystemExit(f"PostgreSQL readiness invariant failed: {status}")
+          print("PostgreSQL tenant RLS readiness invariant is active")
+          PY
+        env:
+          DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
+          DATABASE_URL_SYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
+          DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
+          REDIS_URL: redis://localhost:6379/0
+          DEBUG: "true"
+          SECRET_KEY: test-secret-key-for-ci-min-32-chars
+          BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
+
       - name: Validate backup and restore drill against PostgreSQL
         run: |
           sudo apt-get update -qq

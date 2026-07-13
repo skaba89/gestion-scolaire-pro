@@ -20,7 +20,8 @@ Le smoke test doit valider :
 
 - `docker compose config` ;
 - démarrage de PostgreSQL, Redis, MinIO, API et frontend ;
-- API `/health/` ;
+- API `/health/ready` (DB, Redis et RLS actifs) ;
+- API `/health/live` (processus disponible) ;
 - frontend `http://localhost:3000/` ;
 - une seule head Alembic ;
 - login super admin si `ADMIN_DEFAULT_EMAIL` et `ADMIN_DEFAULT_PASSWORD` sont configurés.

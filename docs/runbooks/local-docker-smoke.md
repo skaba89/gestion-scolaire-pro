@@ -31,7 +31,7 @@ Le script vérifie :
 
 1. `docker compose config`
 2. démarrage de PostgreSQL, Redis, MinIO, API et frontend
-3. endpoint API `/health/`
+3. endpoints API `/health/ready` et `/health/live`
 4. endpoint API `/`
 5. frontend `http://localhost:3000/`
 

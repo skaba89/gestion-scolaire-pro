@@ -164,7 +164,7 @@ scripts/restore-database.sh \
   --confirm "$DB_NAME"
 ```
 
-Appliquer ensuite `alembic upgrade head`, redémarrer l’API, vérifier `/health/`,
+Appliquer ensuite `alembic upgrade head`, redémarrer l’API, vérifier `/health/ready`,
 les parcours critiques et la cohérence des paiements avant de rouvrir le trafic.
 
 ## Surveillance et alertes

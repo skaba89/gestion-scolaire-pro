@@ -23,7 +23,8 @@ Voir `.env.production.template` pour la liste complète.
 
 1. **API sur Render** : service Docker ou Python
    - Start command : `bash start.sh` (exécute alembic upgrade head UNE fois puis gunicorn)
-   - Healthcheck : `/health/`
+   - Readiness : `/health/ready`
+   - Liveness : `/health/live`
    - `DEBUG=False` (désactive /docs et le mode reload)
 2. **Frontend sur Netlify**
    - Build : `npm run build` (avec `--legacy-peer-deps` à l'install)
@@ -50,7 +51,8 @@ docker compose --env-file .env.docker up -d --build
 - [ ] Tous les `CHANGE_ME` remplacés ; secrets ≥ 32 caractères
 - [ ] `DEBUG=False` (vérifier que `/docs` renvoie 404)
 - [ ] `alembic heads` → un seul head ; `alembic current` == head
-- [ ] `curl https://api.../health/` → `{"status":"healthy", ...}`
+- [ ] `curl https://api.../health/ready` → `{"status":"healthy", ...}`
+- [ ] `curl https://api.../health/live` → `{"status":"alive", ...}`
 - [ ] Login super-admin OK, création tenant OK, login tenant admin OK
 - [ ] CORS : uniquement les domaines de production (jamais `*`)
 - [ ] Sauvegardes testées (restaurer un dump sur une base vierge)
