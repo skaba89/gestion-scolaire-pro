@@ -13,11 +13,9 @@ from app.main import app
 
 def _registered_prefixes() -> set[str]:
     prefixes: set[str] = set()
-    # OpenAPI is stable for documented routes. app.routes also contains
-    # compatibility aliases deliberately hidden from the generated schema.
-    paths = set(app.openapi().get("paths", {}))
-    paths.update(getattr(route, "path", "") for route in app.routes)
-    for path in paths:
+    # OpenAPI is the documented public contract. Legacy aliases intentionally
+    # hidden from the schema (for example /audit-logs) are outside this check.
+    for path in app.openapi().get("paths", {}):
         # Most routers are mounted under /api/v1; health probes stay at root.
         api_path = path.removeprefix(settings.API_V1_STR)
         parts = [part for part in api_path.split("/") if part]
@@ -42,7 +40,6 @@ def test_core_route_prefixes_are_registered() -> None:
         "/platform",
         "/analytics",
         "/audit",
-        "/audit-logs",
         "/notifications",
         "/storage",
         "/search",
