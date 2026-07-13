@@ -2,7 +2,6 @@ import { CreditCard, Wallet, Banknote, ShoppingCart, Loader2, Landmark } from "l
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useCurrency } from "@/hooks/useCurrency";
 
 interface OrderCheckoutProps {
