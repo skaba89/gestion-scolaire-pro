@@ -9,7 +9,8 @@ import { TenantRoute } from "@/components/TenantRoute";
 const mockNavigate = vi.fn();
 const mockUseAuth = vi.fn();
 const mockUseTenant = vi.fn();
-const mockFetchTenantBySlug = vi.fn();
+const mockUsePublicTenant = vi.fn();
+const mockSetCurrentTenant = vi.fn();
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -25,6 +26,10 @@ vi.mock("@/contexts/AuthContext", () => ({
 
 vi.mock("@/contexts/TenantContext", () => ({
   useTenant: () => mockUseTenant(),
+}));
+
+vi.mock("@/hooks/usePublicTenant", () => ({
+  usePublicTenant: (slug: string | undefined) => mockUsePublicTenant(slug),
 }));
 
 vi.mock("@/components/auth/TwoFactorChallenge", () => ({
@@ -54,10 +59,9 @@ describe("getRedirectPathForRoles", () => {
 describe("ProtectedRoute", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
-    mockFetchTenantBySlug.mockReset();
     mockUseTenant.mockReturnValue({
       tenant: { id: "tenant-1", slug: "lasource" },
-      fetchTenantBySlug: mockFetchTenantBySlug,
+      setCurrentTenant: mockSetCurrentTenant,
       isLoading: false,
     });
   });
@@ -92,7 +96,7 @@ describe("ProtectedRoute", () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it("redirects unauthenticated users to /auth", async () => {
+  it("redirects unauthenticated users to the tenant auth route", async () => {
     mockUseAuth.mockReturnValue({
       user: null,
       isLoading: false,
@@ -119,7 +123,7 @@ describe("ProtectedRoute", () => {
     );
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/auth", {
+      expect(mockNavigate).toHaveBeenCalledWith("/lasource/auth", {
         state: { from: "/lasource/admin?tab=overview" },
         replace: true,
       });
@@ -159,14 +163,19 @@ describe("ProtectedRoute", () => {
 describe("TenantRoute", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
+    mockUsePublicTenant.mockReset();
+    mockUsePublicTenant.mockReturnValue({ data: undefined, isLoading: false });
+    mockSetCurrentTenant.mockReset();
   });
 
-  it("fetches tenant by slug when tenant is not loaded", () => {
+  it("resolves the public tenant by slug and syncs the tenant context", async () => {
+    const publicTenant = { id: "tenant-2", slug: "isc-paris" };
     mockUseTenant.mockReturnValue({
       tenant: null,
-      fetchTenantBySlug: mockFetchTenantBySlug,
+      setCurrentTenant: mockSetCurrentTenant,
       isLoading: false,
     });
+    mockUsePublicTenant.mockReturnValue({ data: publicTenant, isLoading: false });
 
     render(
       <MemoryRouter initialEntries={["/isc-paris/admin"]}>
@@ -183,13 +192,16 @@ describe("TenantRoute", () => {
       </MemoryRouter>,
     );
 
-    expect(mockFetchTenantBySlug).toHaveBeenCalledWith("isc-paris");
+    expect(mockUsePublicTenant).toHaveBeenCalledWith("isc-paris");
+    await waitFor(() => {
+      expect(mockSetCurrentTenant).toHaveBeenCalledWith(publicTenant);
+    });
   });
 
-  it("renders children when the tenant slug matches", () => {
+  it("renders children when the tenant slug matches", async () => {
     mockUseTenant.mockReturnValue({
       tenant: { id: "tenant-2", slug: "isc-paris" },
-      fetchTenantBySlug: mockFetchTenantBySlug,
+      setCurrentTenant: mockSetCurrentTenant,
       isLoading: false,
     });
 
@@ -208,6 +220,6 @@ describe("TenantRoute", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Tenant content")).toBeInTheDocument();
+    expect(await screen.findByText("Tenant content")).toBeInTheDocument();
   });
 });
