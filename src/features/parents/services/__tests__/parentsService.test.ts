@@ -64,5 +64,16 @@ describe("parentsService", () => {
         params: { student_id: "s1,s2" },
       });
     });
+
+    it("filters invoices for one selected student", async () => {
+      mocks.get.mockResolvedValue({ data: [] });
+
+      const result = await parentsService.getInvoices(["s1", "s2"], "s2");
+
+      expect(result).toEqual([]);
+      expect(mocks.get).toHaveBeenCalledWith("/invoices/", {
+        params: { student_id: "s2" },
+      });
+    });
   });
 });
