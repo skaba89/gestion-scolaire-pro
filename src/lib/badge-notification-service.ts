@@ -213,7 +213,9 @@ export async function triggerHapticFeedback(duration: number = 50): Promise<void
     if (!window.Capacitor || !(window.Capacitor as any).isPluginAvailable?.("Haptics")) return;
     const { Haptics } = (window.Capacitor as any).Plugins;
     await Haptics.vibrate({ duration });
-  } catch {}
+  } catch {
+    // Haptics are optional and may be unavailable on web browsers.
+  }
 }
 
 export async function getNotificationHistory(userId: string, tenantId: string, limit: number = 20) {
