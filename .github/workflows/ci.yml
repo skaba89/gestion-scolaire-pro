@@ -283,6 +283,46 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
 
+      - name: Validate backup and restore drill against PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          BACKUP_DIR="$(mktemp -d)"
+          export BACKUP_DIR
+          export DB_HOST=localhost
+          export DB_PORT=5432
+          export DB_NAME=schoolflow_test
+          export DB_USER=schoolflow
+          export DB_PASSWORD=testpassword
+          export MIN_FREE_SPACE_MB=0
+          export RETENTION_DAYS=1
+
+          cleanup() {
+            PGPASSWORD="$DB_PASSWORD" dropdb \
+              -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+              --if-exists schoolflow_restore_drill >/dev/null 2>&1 || true
+            rm -rf "$BACKUP_DIR"
+          }
+          trap cleanup EXIT
+
+          scripts/backup-database.sh
+          BACKUP_FILE="$(find "$BACKUP_DIR" -maxdepth 1 -name 'schoolflow_backup_*.dump' -type f -print -quit)"
+          test -n "$BACKUP_FILE"
+          scripts/restore-database.sh --backup "$BACKUP_FILE"
+
+          PGPASSWORD="$DB_PASSWORD" createdb \
+            -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+            schoolflow_restore_drill
+          scripts/restore-database.sh \
+            --backup "$BACKUP_FILE" \
+            --target-db schoolflow_restore_drill \
+            --execute \
+            --confirm schoolflow_restore_drill
+          PGPASSWORD="$DB_PASSWORD" psql \
+            -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+            -d schoolflow_restore_drill -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM alembic_version;"
+
       - name: Install coverage tools
         run: pip install pytest-cov
 
