@@ -7,13 +7,14 @@ on.
 """
 from __future__ import annotations
 
-from app.api.v1.router import api_router
+from app.main import app
 
 
 def _registered_prefixes() -> set[str]:
     prefixes: set[str] = set()
-    for route in api_router.routes:
-        path = getattr(route, "path", "") or ""
+    # FastAPI 0.137+ lazily composes included routers. OpenAPI exposes the
+    # effective registered paths and remains stable across router internals.
+    for path in app.openapi().get("paths", {}):
         parts = [part for part in path.split("/") if part]
         if parts:
             prefixes.add(f"/{parts[0]}")
