@@ -3,7 +3,6 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, TrendingUp, TrendingDown } from "lucide-react";
 import { useCurrency } from "@/hooks/useCurrency";
 import {
-    LineChart,
     Line,
     XAxis,
     YAxis,
@@ -11,7 +10,6 @@ import {
     Tooltip,
     Legend,
     ResponsiveContainer,
-    Area,
     ComposedChart,
 } from "recharts";
 
