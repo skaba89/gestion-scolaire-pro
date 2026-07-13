@@ -300,8 +300,6 @@ jobs:
           DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
           REDIS_URL: redis://localhost:6379/0
           DEBUG: "true"
-          SECRET_KEY: test-secret-key-for-ci-min-32-chars
-          BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
 
       - name: Validate backup and restore drill against PostgreSQL
         run: |
