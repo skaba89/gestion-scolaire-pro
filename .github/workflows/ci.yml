@@ -283,16 +283,23 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
 
-      - name: Validate production readiness RLS invariant
+      - name: Validate production readiness dependencies
         run: |
           cd backend
           python - <<'PY'
-          from app.main import _check_database_and_rls
+          import asyncio
 
-          status = _check_database_and_rls()
-          if status != ("connected", "active"):
-              raise SystemExit(f"PostgreSQL readiness invariant failed: {status}")
-          print("PostgreSQL tenant RLS readiness invariant is active")
+          from app.main import _check_cache_readiness, _check_database_and_rls
+
+          database_status = _check_database_and_rls()
+          cache_status = asyncio.run(_check_cache_readiness())
+          if database_status != ("connected", "active"):
+              raise SystemExit(
+                  f"PostgreSQL readiness invariant failed: {database_status}"
+              )
+          if cache_status != "connected":
+              raise SystemExit(f"Redis readiness check failed: {cache_status}")
+          print("PostgreSQL tenant RLS and Redis readiness checks are active")
           PY
         env:
           DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test

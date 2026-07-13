@@ -1,9 +1,21 @@
 """Tests du health check endpoint."""
 from unittest.mock import AsyncMock, PropertyMock, patch
 
+import pytest
+
 from conftest import get_test_client
 
 client = get_test_client()
+
+
+@pytest.fixture(autouse=True)
+def deterministic_cache_readiness():
+    """Keep HTTP unit tests independent from Redis and event-loop ownership."""
+    with patch(
+        "app.main._check_cache_readiness",
+        new=AsyncMock(return_value="connected"),
+    ):
+        yield
 
 
 def test_health_returns_200():
