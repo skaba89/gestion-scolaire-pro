@@ -44,9 +44,6 @@ jobs:
       - name: Type-check (TypeScript)
         run: npm run type-check
 
-      - name: Install Vitest coverage provider
-        run: npm install --no-save --package-lock=false --legacy-peer-deps @vitest/coverage-v8@4.0.17
-
       - name: Run stable frontend test baseline with coverage
         # Auto-discover every Vitest suite so new unit tests enter the gate by default.
         # Playwright end-to-end suites remain isolated by vitest.config.ts.
