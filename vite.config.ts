@@ -44,8 +44,10 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       mode === 'development' && componentTagger(),
-      mode === 'production' && compression({ algorithm: 'gzip', threshold: 1024 }),
-      mode === 'production' && compression({ algorithm: 'brotliCompress', threshold: 1024 }),
+      mode === 'production' && compression({
+        algorithms: ['gzip', 'brotliCompress'],
+        threshold: 1024,
+      }),
       enablePwa && VitePWA({
         registerType: 'autoUpdate',
         // Exclusions API complètes — JAMAIS intercepter les appels backend
