@@ -43,11 +43,6 @@ vi.mock("@/components/ui/button", () => ({
   ),
 }));
 
-vi.mock("lucide-react", () => ({
-  GraduationCap: () => <span>GraduationCap</span>,
-  Shield: () => <span>Shield</span>,
-}));
-
 vi.mock("@/stores", () => ({
   useAppStore: () => ({
     syncAuth: mockSyncAuth,
@@ -103,7 +98,13 @@ describe("Auth page tenant-aware redirects", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Connexion Institutionnelle/i }));
+    fireEvent.change(screen.getByRole("textbox", { name: /Adresse email/i }), {
+      target: { value: "teacher@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/^Mot de passe$/i), {
+      target: { value: "password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Se connecter/i }));
 
     await waitFor(() => {
       expect(sessionStorage.getItem("schoolflow:return_to")).toBe("/isc-paris/teacher");
