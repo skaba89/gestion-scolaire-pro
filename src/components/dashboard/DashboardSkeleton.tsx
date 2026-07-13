@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonStats } from "@/components/ui/skeleton-cards";
-import { motion } from "framer-motion";
 
 export const DashboardSkeleton = () => {
     return (
