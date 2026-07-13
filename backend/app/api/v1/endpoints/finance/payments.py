@@ -1,4 +1,5 @@
 """Payment, Invoice and Fees endpoints"""
+import json
 import logging
 from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -13,7 +14,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import get_current_user, require_permission
+from app.services.payment_gateways import CinetPayGateway, get_gateway
 from app.utils.audit import log_audit
 
 limiter = Limiter(key_func=get_remote_address)
@@ -773,19 +776,145 @@ def send_invoice_email(
 
 @router.post("/intent/")
 def create_payment_intent(
+    request: Request,
     amount: float = Query(..., gt=0, le=10_000_000),
-    method: str = Query(..., description="MOBILE_MONEY, CARD, CASH"),
+    method: str = Query(..., description="MOBILE_MONEY, CINETPAY, PAYTECH"),
     invoice_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """Initiate a multi-method payment (Mobile Money, Card, Cash)."""
-    tenant_id = current_user.get("tenant_id")
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Montant invalide")
-    reference = f"TX_{str(tenant_id)[:8] if tenant_id else 'unknown'}_{method}_{int(amount)}"
+    """Create a real online payment intent, confirmed later by a signed webhook.
+
+    The invoice is deliberately not marked as paid here.  A PENDING payment is
+    persisted first so the CinetPay/PayTech webhook can reconcile it safely.
+    """
+    tenant_id = _get_tenant_id(current_user)
+    if not invoice_id:
+        raise HTTPException(status_code=400, detail="Une facture est requise")
+
+    method_upper = method.upper()
+    if method_upper not in {"MOBILE_MONEY", "CINETPAY", "PAYTECH"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Cette méthode ne peut pas être initiée en ligne",
+        )
+
+    invoice = db.execute(text("""
+        SELECT i.id, i.invoice_number, i.student_id, i.total_amount,
+               i.paid_amount, i.status, COALESCE(i.currency, 'GNF') AS currency,
+               s.first_name, s.last_name,
+               t.name AS tenant_name, t.slug AS tenant_slug, t.settings AS tenant_settings
+        FROM invoices i
+        JOIN students s ON s.id = i.student_id AND s.tenant_id = i.tenant_id
+        JOIN tenants t ON t.id = i.tenant_id
+        WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
+    """), {"invoice_id": str(invoice_id), "tenant_id": tenant_id}).mappings().first()
+
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+    if str(invoice["status"]).upper().endswith("PAID"):
+        raise HTTPException(status_code=400, detail="Cette facture est déjà soldée")
+
+    outstanding = max(
+        0.0,
+        float(invoice["total_amount"] or 0) - float(invoice["paid_amount"] or 0),
+    )
+    if amount > outstanding:
+        raise HTTPException(
+            status_code=400,
+            detail="Le montant dépasse le reste à payer",
+        )
+
+    raw_settings = invoice["tenant_settings"] or {}
+    try:
+        tenant_settings = raw_settings if isinstance(raw_settings, dict) else json.loads(raw_settings)
+    except (TypeError, json.JSONDecodeError):
+        logger.warning("Invalid payment settings for tenant %s", tenant_id)
+        tenant_settings = {}
+
+    gateway = get_gateway(method_upper, tenant_settings)
+    if not gateway:
+        raise HTTPException(
+            status_code=400,
+            detail="Aucune passerelle Mobile Money n'est configurée pour cet établissement",
+        )
+
+    gateway_name = "cinetpay" if isinstance(gateway, CinetPayGateway) else "paytech"
+    backend_url = settings.BACKEND_URL or str(request.base_url).rstrip("/")
+    return_url = (
+        f"{settings.FRONTEND_URL}/{invoice['tenant_slug']}/admin/finances"
+        f"?payment=processing&invoice_id={invoice_id}"
+    )
+    notify_url = f"{backend_url}/api/v1/parents/payments/webhook/{gateway_name}/"
+
+    result = gateway.initiate(
+        amount=amount,
+        currency=str(invoice["currency"] or "GNF"),
+        invoice_id=str(invoice_id),
+        invoice_number=str(invoice["invoice_number"] or invoice_id),
+        student_name=f"{invoice['first_name'] or ''} {invoice['last_name'] or ''}".strip(),
+        tenant_name=str(invoice["tenant_name"] or ""),
+        return_url=return_url,
+        notify_url=notify_url,
+    )
+    if not result.success or not result.payment_url:
+        raise HTTPException(
+            status_code=502,
+            detail=result.error or "La passerelle de paiement est indisponible",
+        )
+
+    payment_id = str(_uuid.uuid4())
+    try:
+        db.execute(text("""
+            INSERT INTO payments
+                (id, tenant_id, student_id, invoice_id, amount, currency,
+                 payment_date, payment_method, status, reference,
+                 transaction_id, notes, created_at, updated_at)
+            VALUES
+                (:id, :tenant_id, :student_id, :invoice_id, :amount, :currency,
+                 CURRENT_DATE, 'MOBILE_MONEY', 'PENDING', :reference,
+                 :gateway_ref, :notes, NOW(), NOW())
+        """), {
+            "id": payment_id,
+            "tenant_id": tenant_id,
+            "student_id": str(invoice["student_id"]),
+            "invoice_id": str(invoice_id),
+            "amount": amount,
+            "currency": str(invoice["currency"] or "GNF"),
+            "reference": result.transaction_id,
+            "gateway_ref": result.gateway_ref,
+            "notes": f"Passerelle {gateway_name}",
+        })
+        log_audit(
+            db,
+            user_id=current_user.get("id"),
+            tenant_id=tenant_id,
+            action="INITIATE_PAYMENT",
+            resource_type="PAYMENT",
+            resource_id=payment_id,
+            details={
+                "invoice_id": str(invoice_id),
+                "method": "MOBILE_MONEY",
+                "gateway": gateway_name,
+                "reference": result.transaction_id,
+                "amount": amount,
+            },
+        )
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("Unable to persist payment intent: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Impossible d'enregistrer l'intention de paiement",
+        ) from exc
+
     return {
-        "status": "pending", "method": method, "amount": amount,
-        "transaction_reference": reference,
-        "payment_url": f"https://mock-payment-gateway.schoolflow.pro/pay/{reference}",
-        "message": "Intention de paiement créée avec succès."
+        "status": "pending",
+        "method": "MOBILE_MONEY",
+        "gateway": gateway_name.upper(),
+        "amount": amount,
+        "transaction_reference": result.transaction_id,
+        "payment_url": result.payment_url,
+        "message": "Paiement initié. La facture sera mise à jour après confirmation de l'opérateur.",
     }

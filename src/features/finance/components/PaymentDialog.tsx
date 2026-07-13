@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
     Select,
@@ -53,6 +52,7 @@ export const PaymentDialog = ({
 }: PaymentDialogProps) => {
     const { formatCurrency } = useCurrency();
     const { StudentLabel } = useStudentLabel();
+    const [isInitiating, setIsInitiating] = useState(false);
 
     const form = useForm<PaymentFormValues>({
         resolver: zodResolver(paymentSchema),
@@ -83,8 +83,9 @@ export const PaymentDialog = ({
         if (!invoice) return;
 
         if (values.payment_method === "mobile_money") {
+            setIsInitiating(true);
             try {
-                const response = await apiClient.post('/payments/intent', null, {
+                const response = await apiClient.post('/payments/intent/', null, {
                     params: {
                         amount: values.amount,
                         method: "MOBILE_MONEY",
@@ -92,24 +93,25 @@ export const PaymentDialog = ({
                     }
                 });
 
-                toast.success(response.data.message || "Redirection vers la passerelle de paiement...");
-                setTimeout(() => {
-                    window.open(response.data.payment_url, '_blank');
-                }, 1500);
+                const paymentUrl = new URL(response.data.payment_url);
+                if (paymentUrl.protocol !== "https:") {
+                    throw new Error("URL de paiement non sécurisée");
+                }
 
-                // Simulate backend webhook closing the payment
-                await onSave({
-                    invoiceId: invoice.id,
-                    amount: values.amount,
-                    method: values.payment_method,
-                    reference: response.data.transaction_reference,
-                    notes: "Via Mobile Money / Wave / Orange",
-                    payment_date: values.payment_date
-                });
+                toast.success(response.data.message || "Redirection vers la passerelle de paiement...");
+                onOpenChange(false);
+                window.open(paymentUrl.toString(), "_blank", "noopener,noreferrer");
                 return;
-            } catch (error: any) {
-                toast.error("Erreur de la passerelle: " + error.message);
+            } catch (error: unknown) {
+                const gatewayError = error as {
+                    message?: string;
+                    response?: { data?: { detail?: string } };
+                };
+                const detail = gatewayError.response?.data?.detail || gatewayError.message || "Erreur inconnue";
+                toast.error("Erreur de la passerelle : " + detail);
                 return;
+            } finally {
+                setIsInitiating(false);
             }
         }
 
@@ -249,8 +251,8 @@ export const PaymentDialog = ({
                             >
                                 Annuler
                             </Button>
-                            <Button type="submit" disabled={isSaving}>
-                                {isSaving ? "Enregistrement..." : "Enregistrer le paiement"}
+                            <Button type="submit" disabled={isSaving || isInitiating}>
+                                {isSaving || isInitiating ? "Enregistrement..." : "Enregistrer le paiement"}
                             </Button>
                         </DialogFooter>
                     </form>
