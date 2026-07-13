@@ -3,7 +3,6 @@
  * Displays notifications from the notification store
  */
 
-import { useEffect } from "react";
 import { useNotificationStore } from "@/stores/notificationStore";
 import {
   Toast,
