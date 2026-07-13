@@ -2,7 +2,8 @@
  * Tests for Notification Store (Zustand)
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import { useNotificationStore, useNotify } from "@/stores/notificationStore";
 
 describe("Notification Store", () => {
@@ -127,8 +128,10 @@ describe("Notification Store", () => {
 
   describe("useNotify helper", () => {
     it("should create success notification", () => {
-      const { success } = useNotify();
-      success("Success message", "With description");
+      const { result } = renderHook(() => useNotify());
+      act(() => {
+        result.current.success("Success message", "With description");
+      });
 
       const { notifications } = useNotificationStore.getState();
       expect(notifications[0].type).toBe("success");
@@ -137,8 +140,10 @@ describe("Notification Store", () => {
     });
 
     it("should create error notification", () => {
-      const { error } = useNotify();
-      error("Error message", "Error details");
+      const { result } = renderHook(() => useNotify());
+      act(() => {
+        result.current.error("Error message", "Error details");
+      });
 
       const { notifications } = useNotificationStore.getState();
       expect(notifications[0].type).toBe("error");
@@ -146,27 +151,33 @@ describe("Notification Store", () => {
     });
 
     it("should create info notification", () => {
-      const { info } = useNotify();
-      info("Info message");
+      const { result } = renderHook(() => useNotify());
+      act(() => {
+        result.current.info("Info message");
+      });
 
       const { notifications } = useNotificationStore.getState();
       expect(notifications[0].type).toBe("info");
     });
 
     it("should create warning notification", () => {
-      const { warning } = useNotify();
-      warning("Warning message");
+      const { result } = renderHook(() => useNotify());
+      act(() => {
+        result.current.warning("Warning message");
+      });
 
       const { notifications } = useNotificationStore.getState();
       expect(notifications[0].type).toBe("warning");
     });
 
     it("should set correct durations per type", () => {
-      const { success, error, info } = useNotify();
+      const { result } = renderHook(() => useNotify());
 
-      success("Success");
-      error("Error");
-      info("Info");
+      act(() => {
+        result.current.success("Success");
+        result.current.error("Error");
+        result.current.info("Info");
+      });
 
       const { notifications } = useNotificationStore.getState();
 
