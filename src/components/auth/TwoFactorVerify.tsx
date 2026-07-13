@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Shield, Mail, RefreshCw, AlertTriangle } from "lucide-react";
+import { Shield, RefreshCw, AlertTriangle } from "lucide-react";
 import { useSend2FACode, useVerify2FACode } from "@/hooks/queries/use2FA";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
