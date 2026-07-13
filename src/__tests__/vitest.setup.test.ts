@@ -33,6 +33,9 @@ describe("Vitest Setup", () => {
 
   it("should have localStorage mock", () => {
     localStorage.setItem("test", "value");
-    expect(localStorage.getItem).toHaveBeenCalled();
+    localStorage.getItem("test");
+
+    expect(localStorage.setItem).toHaveBeenCalledWith("test", "value");
+    expect(localStorage.getItem).toHaveBeenCalledWith("test");
   });
 });
