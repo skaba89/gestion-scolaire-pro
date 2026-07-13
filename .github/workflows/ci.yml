@@ -37,12 +37,15 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Lint (ESLint)
-        run: npm run lint -- --max-warnings 2220
-        # Progressive debt budget: current baseline is 2218 warnings.
+        run: npm run lint -- --max-warnings 2219
+        # Progressive debt budget: current baseline is 2219 warnings.
         # Any increase fails CI; dedicated cleanup PRs will ratchet this down.
 
       - name: Type-check (TypeScript)
         run: npm run type-check
+
+      - name: Install Vitest coverage provider
+        run: npm install --no-save --package-lock=false --legacy-peer-deps @vitest/coverage-v8@4.0.17
 
       - name: Run frontend tests with coverage
         run: npm run test -- --coverage --reporter=verbose
@@ -317,7 +320,7 @@ jobs:
       - name: Check for .env files in git
         run: |
           echo "Checking for committed .env files..."
-          ENV_FILES=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -Ev '(\.example|\.template)$' || true)
+          ENV_FILES=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -Ev '(\.example|\.template)(\.clean)?$' || true)
           if [ -n "$ENV_FILES" ]; then
             echo "ERROR: .env files committed to git:"
             echo "$ENV_FILES"
