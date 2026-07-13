@@ -1,16 +1,22 @@
-from typing import Optional, List
-from pydantic import BaseModel, UUID4
+from typing import Literal, Optional
+from pydantic import BaseModel, Field, UUID4, model_validator
 from datetime import datetime
 
 class DeletionRequestBase(BaseModel):
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=2000)
 
 class DeletionRequestCreate(DeletionRequestBase):
     pass
 
 class DeletionRequestUpdate(BaseModel):
-    status: str
-    rejection_reason: Optional[str] = None
+    status: Literal["PROCESSED", "REJECTED", "CANCELLED"]
+    rejection_reason: Optional[str] = Field(default=None, max_length=2000)
+
+    @model_validator(mode="after")
+    def require_rejection_reason(self):
+        if self.status == "REJECTED" and not (self.rejection_reason or "").strip():
+            raise ValueError("rejection_reason is required when rejecting a request")
+        return self
 
 class UserMin(BaseModel):
     id: UUID4

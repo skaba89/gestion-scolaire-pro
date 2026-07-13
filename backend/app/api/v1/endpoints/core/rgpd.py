@@ -1,20 +1,88 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
-from app.models import AccountDeletionRequest, Profile, User
+from app.models import (
+    AccountDeletionRequest,
+    Attendance,
+    Grade,
+    Invoice,
+    ParentStudent,
+    Payment,
+    Profile,
+    Student,
+    User,
+)
 from app.schemas.rgpd import DeletionRequest, DeletionRequestCreate, DeletionRequestUpdate
 from app.core.security import get_current_user, require_permission
 from app.utils.audit import log_audit
 from app.models.audit_log import AuditLog
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _privacy_tenant_scope(current_user: dict, *, allow_platform_admin: bool = True):
+    """Return the tenant boundary for privacy administration.
+
+    Tenant users must never fall back to an unscoped query when their token is
+    incomplete. Only a platform SUPER_ADMIN may deliberately operate without a
+    tenant context.
+    """
+    tenant_id = current_user.get("tenant_id")
+    if tenant_id:
+        return tenant_id
+    if allow_platform_admin and "SUPER_ADMIN" in current_user.get("roles", []):
+        return None
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tenant context found for privacy administration.",
+    )
+
+
+def _related_student_ids(db: Session, *, user: User, tenant_id) -> list:
+    """Resolve student records owned by a student account or linked parent."""
+    linked_ids = {
+        row[0]
+        for row in db.query(ParentStudent.student_id).filter(
+            ParentStudent.parent_id == user.id,
+            ParentStudent.tenant_id == tenant_id,
+        ).all()
+    }
+    if user.email:
+        linked_ids.update(
+            row[0]
+            for row in db.query(Student.id).filter(
+                Student.tenant_id == tenant_id,
+                Student.email == user.email,
+            ).all()
+        )
+    return list(linked_ids)
+
+
+def _anonymize_user(db: Session, user: User) -> None:
+    """Remove direct identifiers consistently from user and profile records."""
+    anonymous_id = str(user.id).replace("-", "")
+    user.email = f"deleted_{anonymous_id}@schoolflow.deleted"
+    user.username = f"deleted_{anonymous_id}"
+    user.first_name = "Deleted"
+    user.last_name = "User"
+    user.phone = None
+    user.avatar_url = None
+    user.is_active = False
+
+    profile = db.query(Profile).filter(
+        Profile.id == user.id,
+        Profile.tenant_id == user.tenant_id,
+    ).first()
+    if profile:
+        profile.phone = None
+        profile.avatar_url = None
 
 @router.post("/requests/", response_model=DeletionRequest)
 def create_deletion_request(
@@ -74,7 +142,8 @@ def list_deletion_requests(
     query = db.query(AccountDeletionRequest).options(joinedload(AccountDeletionRequest.user))
     
     if any(role in ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR"] for role in roles):
-        if tenant_id and "SUPER_ADMIN" not in roles:
+        tenant_id = _privacy_tenant_scope(current_user)
+        if tenant_id:
             query = query.filter(AccountDeletionRequest.tenant_id == tenant_id)
         return query.all()
     else:
@@ -91,13 +160,15 @@ def process_deletion_request(
     Process (Approve/Reject) a deletion request.
     If approved, trigger actual user anonymization/deletion.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = _privacy_tenant_scope(current_user)
     query = db.query(AccountDeletionRequest).filter(AccountDeletionRequest.id == request_id)
     if tenant_id:
         query = query.filter(AccountDeletionRequest.tenant_id == tenant_id)
     db_obj = query.first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="Request not found")
+    if db_obj.status != "PENDING":
+        raise HTTPException(status_code=409, detail="Deletion request has already been processed")
         
     db_obj.status = update_in.status
     db_obj.rejection_reason = update_in.rejection_reason
@@ -106,22 +177,13 @@ def process_deletion_request(
     
     if update_in.status == "PROCESSED":
         # Perform actual anonymization
-        user_to_delete = db.query(User).filter(User.id == db_obj.user_id).first()
-        if user_to_delete:
-            # 1. Anonymize user in DB
-            user_to_delete.email = f"deleted_{str(user_to_delete.id)[:8]}@schoolflow.deleted"
-            user_to_delete.first_name = "Deleted"
-            user_to_delete.last_name = "User"
-            user_to_delete.is_active = False
-            
-            # 2. Anonymize profile if exists
-            profile = db.query(Profile).filter(Profile.id == user_to_delete.id).first()
-            if profile:
-                profile.phone = None
-                profile.avatar_url = None
-                
-            # 3. User is anonymized in the local DB only (no external identity provider)
-            pass
+        user_to_delete = db.query(User).filter(
+            User.id == db_obj.user_id,
+            User.tenant_id == db_obj.tenant_id,
+        ).first()
+        if not user_to_delete:
+            raise HTTPException(status_code=404, detail="User not found")
+        _anonymize_user(db, user_to_delete)
                 
         # Log audit
         log_audit(
@@ -148,8 +210,7 @@ def get_rgpd_stats(
     """
     from sqlalchemy import text as sql_text
 
-    total_consents = 0 # Placeholder for consent management
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = _privacy_tenant_scope(current_user)
 
     anonymized_query = db.query(User).filter(User.is_active == False)
     if tenant_id:
@@ -161,16 +222,33 @@ def get_rgpd_stats(
         pending_query = pending_query.filter(AccountDeletionRequest.tenant_id == tenant_id)
     pending_requests = pending_query.count()
 
-    # Count actual retention risks (inactive > 5 years)
-    risks_count = db.execute(sql_text(
-        "SELECT COUNT(*) FROM users WHERE is_active = false AND created_at < NOW() - INTERVAL '5 years'"
-    )).scalar() or 0
+    # Count actual granted consents and retention risks in the same tenant scope.
+    if tenant_id:
+        total_consents = db.execute(sql_text(
+            """
+            SELECT COUNT(*) FROM user_consents
+            WHERE consent_given = true AND tenant_id = CAST(:tenant_id AS UUID)
+            """
+        ), {"tenant_id": str(tenant_id)}).scalar() or 0
+    else:
+        total_consents = db.execute(sql_text(
+            "SELECT COUNT(*) FROM user_consents WHERE consent_given = true"
+        )).scalar() or 0
+
+    retention_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=365 * 5)
+    risks_query = db.query(User).filter(
+        User.is_active.is_(False),
+        User.created_at < retention_cutoff,
+    )
+    if tenant_id:
+        risks_query = risks_query.filter(User.tenant_id == tenant_id)
+    risks_count = risks_query.count()
 
     # Count actual RGPD exports from audit logs
-    tenant_id = current_user.get("tenant_id")
-    export_count = db.execute(sql_text(
-        "SELECT COUNT(*) FROM audit_logs WHERE action = 'RGPD_EXPORT' AND (:tenant_id IS NULL OR tenant_id = :tenant_id::uuid)"
-    ), {"tenant_id": str(tenant_id) if tenant_id else None}).scalar() or 0
+    export_query = db.query(AuditLog).filter(AuditLog.action == "RGPD_EXPORT")
+    if tenant_id:
+        export_query = export_query.filter(AuditLog.tenant_id == tenant_id)
+    export_count = export_query.count()
 
     compliance_risks = risks_count
     total_exports = export_count
@@ -196,43 +274,30 @@ def check_legal_retention(
     SECURITY FIX: All queries are now scoped to the current user's tenant
     to prevent cross-tenant data leakage.
     """
-    from sqlalchemy import text as sql_text
-
     uid = str(user_id)
-    # SECURITY FIX: Enforce tenant isolation — require tenant_id from current user context
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tenant context found. Cannot check retention data."
-        )
-    tid = str(tenant_id)
+    tenant_id = _privacy_tenant_scope(current_user, allow_platform_admin=False)
 
-    # Students linked to this user (by user_id FK or profile), scoped to tenant
-    student_row = db.execute(sql_text(
-        "SELECT id FROM students WHERE user_id = :uid AND tenant_id = :tid LIMIT 1"
-    ), {"uid": uid, "tid": tid}).mappings().first()
-    student_id = str(student_row["id"]) if student_row else None
+    target_user = db.query(User).filter(
+        User.id == user_id,
+        User.tenant_id == tenant_id,
+    ).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    grades_count = 0
-    attendance_count = 0
-    if student_id:
-        # SECURITY FIX: Tenant-scoped queries for grades and attendance
-        grades_count = db.execute(sql_text(
-            "SELECT COUNT(*) FROM grades WHERE student_id = :sid AND tenant_id = :tid"
-        ), {"sid": student_id, "tid": tid}).scalar() or 0
-        attendance_count = db.execute(sql_text(
-            "SELECT COUNT(*) FROM attendance WHERE student_id = :sid AND tenant_id = :tid"
-        ), {"sid": student_id, "tid": tid}).scalar() or 0
+    student_ids = _related_student_ids(db, user=target_user, tenant_id=tenant_id)
 
-    # SECURITY FIX: Tenant-scoped queries for payments and invoices
-    payments_count = db.execute(sql_text(
-        "SELECT COUNT(*) FROM payments WHERE user_id = :uid AND tenant_id = :tid"
-    ), {"uid": uid, "tid": tid}).scalar() or 0
+    def count_for_students(model) -> int:
+        if not student_ids:
+            return 0
+        return db.query(model).filter(
+            model.tenant_id == tenant_id,
+            model.student_id.in_(student_ids),
+        ).count()
 
-    invoices_count = db.execute(sql_text(
-        "SELECT COUNT(*) FROM invoices WHERE user_id = :uid AND tenant_id = :tid"
-    ), {"uid": uid, "tid": tid}).scalar() or 0
+    grades_count = count_for_students(Grade)
+    attendance_count = count_for_students(Attendance)
+    payments_count = count_for_students(Payment)
+    invoices_count = count_for_students(Invoice)
 
     has_permanent_data = grades_count > 0
 
@@ -287,7 +352,7 @@ def get_rgpd_audit_logs(
     """
     Get RGPD relevant audit logs.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = _privacy_tenant_scope(current_user)
     query = db.query(AuditLog).filter(
         AuditLog.action.ilike("RGPD_%")
     )
@@ -296,10 +361,14 @@ def get_rgpd_audit_logs(
     logs = query.order_by(AuditLog.created_at.desc()).limit(100).all()
     return logs
 
+class DirectDeletionRequest(BaseModel):
+    reason: str = Field(default="Direct admin action", min_length=3, max_length=2000)
+
+
 @router.post("/direct-delete/{user_id}/")
 def direct_delete_user(
     user_id: uuid.UUID,
-    body: Optional[BaseModel] = None,
+    body: Optional[DirectDeletionRequest] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("rgpd:write"))
 ):
@@ -308,17 +377,8 @@ def direct_delete_user(
     SECURITY FIX: tenant_id is REQUIRED for non-SUPER_ADMIN users.
     The target user must belong to the same tenant as the caller.
     """
-    reason = (body.dict() if body else {}).get("reason", "Direct admin action")
-    tenant_id = current_user.get("tenant_id")
-    roles = current_user.get("roles", [])
-
-    # SECURITY FIX: Require tenant_id for all non-SUPER_ADMIN users
-    is_super_admin = "SUPER_ADMIN" in roles
-    if not tenant_id and not is_super_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tenant context found. Direct deletion requires a valid tenant."
-        )
+    reason = body.reason if body else "Direct admin action"
+    tenant_id = _privacy_tenant_scope(current_user)
 
     query = db.query(User).filter(User.id == user_id)
     if tenant_id:
@@ -330,24 +390,13 @@ def direct_delete_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     # SECURITY FIX: Validate that the target user belongs to the same tenant
-    if tenant_id and user_to_delete.tenant_id != tenant_id:
+    if tenant_id and str(user_to_delete.tenant_id) != str(tenant_id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Target user does not belong to your tenant."
         )
         
-    # Reuse the same logic as process_deletion_request
-    user_to_delete.email = f"deleted_{str(user_to_delete.id)[:8]}@schoolflow.deleted"
-    user_to_delete.first_name = "Deleted"
-    user_to_delete.last_name = "User"
-    user_to_delete.is_active = False
-    
-    profile = db.query(Profile).filter(Profile.id == user_to_delete.id).first()
-    if profile:
-        profile.phone = None
-        profile.avatar_url = None
-        
-    # User is anonymized in the local DB only (no external identity provider)
+    _anonymize_user(db, user_to_delete)
         
     # Log audit
     log_audit(
@@ -375,7 +424,12 @@ def export_user_data(
     tenant_id = current_user.get("tenant_id")
     
     # Gather data from various tables
-    user = db.query(User).filter(User.id == user_id).first()
+    user_query = db.query(User).filter(User.id == user_id)
+    if tenant_id:
+        user_query = user_query.filter(User.tenant_id == tenant_id)
+    user = user_query.first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     profile = db.query(Profile).filter(Profile.id == user_id).first()
     
     export_data = {
@@ -419,22 +473,28 @@ def get_rgpd_export_history(
     Get history of data exports.
     """
     from sqlalchemy import text as sql_text
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = _privacy_tenant_scope(current_user)
 
-    query = sql_text("""
+    tenant_clause = ""
+    params = {}
+    if tenant_id:
+        tenant_clause = "AND al.tenant_id = CAST(:tenant_id AS UUID)"
+        params["tenant_id"] = str(tenant_id)
+
+    query = sql_text(f"""
         SELECT al.id, al.created_at AS export_date,
                u.email AS user_email, u.first_name, u.last_name,
                al.user_id AS requester_id,
                al.details
         FROM audit_logs al
-        LEFT JOIN users u ON u.id = al.user_id
+        LEFT JOIN users u ON u.id::text = al.user_id
         WHERE al.action = 'RGPD_EXPORT'
-          AND (:tenant_id IS NULL OR al.tenant_id = :tenant_id::uuid)
+          {tenant_clause}
         ORDER BY al.created_at DESC
         LIMIT 100
     """)
 
-    rows = db.execute(query, {"tenant_id": str(tenant_id) if tenant_id else None}).mappings().all()
+    rows = db.execute(query, params).mappings().all()
     return [
         {
             "id": str(r["id"]),
@@ -447,6 +507,31 @@ def get_rgpd_export_history(
         for r in rows
     ]
 
+
+@router.get("/export-history/me/")
+def get_my_rgpd_export_history(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return only the authenticated user's own export history."""
+    user_id = str(current_user["id"])
+    tenant_id = current_user.get("tenant_id")
+    query = db.query(AuditLog).filter(
+        AuditLog.action == "RGPD_EXPORT",
+        AuditLog.user_id == user_id,
+    )
+    if tenant_id:
+        query = query.filter(AuditLog.tenant_id == tenant_id)
+    rows = query.order_by(AuditLog.created_at.desc()).limit(10).all()
+    return [
+        {
+            "id": str(row.id),
+            "export_date": row.created_at.isoformat() if row.created_at else None,
+            "details": row.details,
+        }
+        for row in rows
+    ]
+
 @router.get("/retention-risks/")
 def get_rgpd_retention_risks(
     db: Session = Depends(get_db),
@@ -456,21 +541,27 @@ def get_rgpd_retention_risks(
     Get users whose data retention period has expired (inactive > 5 years).
     """
     from sqlalchemy import text as sql_text
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = _privacy_tenant_scope(current_user)
 
-    query = sql_text("""
+    tenant_clause = ""
+    params = {}
+    if tenant_id:
+        tenant_clause = "AND u.tenant_id = CAST(:tenant_id AS UUID)"
+        params["tenant_id"] = str(tenant_id)
+
+    query = sql_text(f"""
         SELECT u.id, u.email, u.first_name, u.last_name, u.created_at,
                u.is_active,
                EXTRACT(YEAR FROM AGE(NOW(), u.created_at))::int AS account_age_years
         FROM users u
         WHERE u.is_active = false
-          AND (:tenant_id IS NULL OR u.tenant_id = :tenant_id::uuid)
+          {tenant_clause}
           AND u.created_at < NOW() - INTERVAL '5 years'
         ORDER BY u.created_at ASC
         LIMIT 100
     """)
 
-    rows = db.execute(query, {"tenant_id": str(tenant_id) if tenant_id else None}).mappings().all()
+    rows = db.execute(query, params).mappings().all()
 
     from datetime import timedelta
     return [
