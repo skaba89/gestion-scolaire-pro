@@ -144,7 +144,11 @@ export function useOfflineSync() {
 
       for (const item of pendingAttendance) {
         const ok = await syncAttendance(item);
-        ok ? synced++ : failed++;
+        if (ok) {
+          synced++;
+        } else {
+          failed++;
+        }
       }
 
       // ── Sync grades ───────────────────────────────────────────────────────
@@ -156,7 +160,11 @@ export function useOfflineSync() {
 
       for (const item of pendingGrades) {
         const ok = await syncGrade(item);
-        ok ? synced++ : failed++;
+        if (ok) {
+          synced++;
+        } else {
+          failed++;
+        }
       }
 
       // ── Clean up old synced records (keep last 7 days) ────────────────────
