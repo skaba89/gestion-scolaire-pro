@@ -37,8 +37,8 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Lint (ESLint)
-        run: npm run lint -- --max-warnings 2219
-        # Progressive debt budget: current baseline is 2219 warnings.
+        run: npm run lint -- --max-warnings 2209
+        # Progressive debt budget: current baseline is 2209 warnings.
         # Any increase fails CI; dedicated cleanup PRs will ratchet this down.
 
       - name: Type-check (TypeScript)
@@ -48,26 +48,9 @@ jobs:
         run: npm install --no-save --package-lock=false --legacy-peer-deps @vitest/coverage-v8@4.0.17
 
       - name: Run stable frontend test baseline with coverage
-        # All sixteen frontend suites (88 tests) form the regression gate.
-        # Repair stale provider/mocking suites separately, then expand this list.
-        run: |
-          npm run test -- --run --coverage --reporter=verbose \
-            src/hooks/__tests__/usePermissions.test.tsx \
-            src/hooks/__tests__/useTenant.test.tsx \
-            src/hooks/__tests__/useAuth.test.tsx \
-            src/__tests__/vitest.setup.test.ts \
-            src/stores/__tests__/notificationStore.test.ts \
-            src/features/homework/__tests__/useHomework.test.tsx \
-            src/features/students/services/__tests__/studentsService.test.ts \
-            src/features/students/hooks/__tests__/useStudentData.test.tsx \
-            src/features/parents/services/__tests__/parentsService.test.ts \
-            src/features/parents/hooks/__tests__/useParentData.test.tsx \
-            src/features/grades/__tests__/GradeCard.test.tsx \
-            src/components/__tests__/route-guards.test.tsx \
-            src/components/__tests__/auth-flow-sync.test.tsx \
-            src/components/__tests__/empty-state.test.tsx \
-            src/components/__tests__/page-header.test.tsx \
-            src/components/__tests__/portal-error-boundary.test.tsx
+        # Auto-discover every Vitest suite so new unit tests enter the gate by default.
+        # Playwright end-to-end suites remain isolated by vitest.config.ts.
+        run: npm run test -- --run --coverage --reporter=verbose
         env:
           CI: true
 
