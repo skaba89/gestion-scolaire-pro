@@ -1,11 +1,12 @@
 import logging
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Any
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import math
 import secrets
 import json
@@ -18,7 +19,7 @@ from app.core.security import get_current_user, require_permission
 from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
-from app.services.payment_gateways import get_gateway
+from app.services.payment_gateways import CinetPayGateway, get_gateway
 
 router = APIRouter()
 
@@ -523,7 +524,7 @@ ONLINE_METHODS = {"CINETPAY", "PAYTECH", "MOBILE_MONEY", "CARD", "STRIPE"}
 
 class ParentPaymentCreate(BaseModel):
     invoice_id: str
-    amount: float
+    amount: float = Field(..., gt=0, le=10_000_000)
     method: str = "CASH"
     reference: Optional[str] = None
     notes: Optional[str] = None
@@ -562,7 +563,7 @@ def create_parent_payment(
     child_ids = [str(c.student_id) for c in children]
 
     inv = db.execute(text(
-        "SELECT id, invoice_number, total_amount, paid_amount, status, student_id "
+        "SELECT id, invoice_number, total_amount, paid_amount, status, student_id, currency "
         "FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id"
     ), {"invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
     if not inv:
@@ -572,8 +573,21 @@ def create_parent_payment(
     if inv["status"] == "PAID":
         raise HTTPException(status_code=400, detail="Invoice is already fully paid")
 
+    outstanding = max(
+        0.0,
+        float(inv["total_amount"] or 0) - float(inv["paid_amount"] or 0),
+    )
+    if body.amount > outstanding:
+        raise HTTPException(status_code=400, detail="Le montant dépasse le reste à payer")
+
     method_upper = body.method.upper()
     is_online = method_upper in ONLINE_METHODS
+
+    if method_upper in {"CARD", "STRIPE"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Le paiement par carte n'est pas configuré pour cet établissement.",
+        )
 
     # ── Online payment via gateway ────────────────────────────────────────────
     if is_online and method_upper not in ("CARD", "STRIPE"):
@@ -596,12 +610,13 @@ def create_parent_payment(
         # Build callback URLs
         backend_url = settings.BACKEND_URL or str(request.base_url).rstrip("/")
         return_url = f"{backend_url}/api/v1/parents/payments/return/?invoice_id={body.invoice_id}"
-        notify_url = f"{backend_url}/api/v1/parents/payments/webhook/{method_upper.lower()}/"
+        gateway_name = "cinetpay" if isinstance(gateway, CinetPayGateway) else "paytech"
+        notify_url = f"{backend_url}/api/v1/parents/payments/webhook/{gateway_name}/"
 
         invoice_number = body.invoiceNumber or str(inv["invoice_number"] or body.invoice_id)
         result = gateway.initiate(
             amount=body.amount,
-            currency=tenant_settings.get("currency", "XOF"),
+            currency=str(inv["currency"] or tenant_settings.get("currency", "GNF")),
             invoice_id=body.invoice_id,
             invoice_number=invoice_number,
             student_name=body.studentName or "",
@@ -619,17 +634,24 @@ def create_parent_payment(
         try:
             payment_id = db.execute(text("""
                 INSERT INTO payments
-                    (tenant_id, invoice_id, amount, payment_method, reference, notes, received_by, status, payment_date)
+                    (id, tenant_id, student_id, invoice_id, amount, currency,
+                     payment_method, reference, transaction_id, notes, status,
+                     payment_date, created_at, updated_at)
                 VALUES
-                    (:tenant_id, :invoice_id, :amount, :method, :reference,
-                     :notes, :received_by, 'PENDING', NOW())
+                    (:id, :tenant_id, :student_id, :invoice_id, :amount, :currency,
+                     'MOBILE_MONEY', :reference, :gateway_ref, :notes, 'PENDING',
+                     CURRENT_DATE, NOW(), NOW())
                 RETURNING id
             """), {
-                "tenant_id": tenant_id, "invoice_id": body.invoice_id,
-                "amount": body.amount, "method": method_upper,
+                "id": str(uuid.uuid4()),
+                "tenant_id": tenant_id,
+                "student_id": str(inv["student_id"]),
+                "invoice_id": body.invoice_id,
+                "amount": body.amount,
+                "currency": str(inv["currency"] or "GNF"),
                 "reference": result.transaction_id,
-                "notes": f"gateway_ref:{result.gateway_ref or ''}",
-                "received_by": user_id,
+                "gateway_ref": result.gateway_ref,
+                "notes": f"Passerelle {gateway_name}",
             }).scalar()
             log_audit(db, user_id=user_id, tenant_id=tenant_id,
                       action="INITIATE_PAYMENT", resource_type="PAYMENT",
@@ -651,19 +673,34 @@ def create_parent_payment(
         }
 
     # ── Direct payment (CASH / BANK_TRANSFER) ────────────────────────────────
+    if method_upper not in {"CASH", "BANK_TRANSFER"}:
+        raise HTTPException(status_code=400, detail="Méthode de paiement non prise en charge")
+
     reference = body.reference or f"PAY-{secrets.token_hex(6).upper()}"
     new_paid = float(inv["paid_amount"] or 0) + body.amount
     new_status = "PAID" if new_paid >= float(inv["total_amount"]) else ("PARTIAL" if new_paid > 0 else "PENDING")
 
     try:
         payment_id = db.execute(text("""
-            INSERT INTO payments (tenant_id, invoice_id, amount, payment_method, reference, notes, received_by, status, payment_date)
-            VALUES (:tenant_id, :invoice_id, :amount, :method, :reference, :notes, :received_by, 'COMPLETED', NOW())
+            INSERT INTO payments
+                (id, tenant_id, student_id, invoice_id, amount, currency,
+                 payment_method, reference, notes, status, payment_date,
+                 created_at, updated_at)
+            VALUES
+                (:id, :tenant_id, :student_id, :invoice_id, :amount, :currency,
+                 :method, :reference, :notes, 'COMPLETED', CURRENT_DATE,
+                 NOW(), NOW())
             RETURNING id
         """), {
-            "tenant_id": tenant_id, "invoice_id": body.invoice_id,
-            "amount": body.amount, "method": method_upper,
-            "reference": reference, "notes": body.notes, "received_by": user_id,
+            "id": str(uuid.uuid4()),
+            "tenant_id": tenant_id,
+            "student_id": str(inv["student_id"]),
+            "invoice_id": body.invoice_id,
+            "amount": body.amount,
+            "currency": str(inv["currency"] or "GNF"),
+            "method": method_upper,
+            "reference": reference,
+            "notes": body.notes,
         }).scalar()
 
         db.execute(text("""
@@ -687,6 +724,13 @@ def create_parent_payment(
 
 # ─── Payment webhooks (gateway callbacks) ─────────────────────────────────────
 
+def _gateway_amount_matches(expected: float, received: float) -> bool:
+    """Reject empty, partial or altered gateway confirmations."""
+    if expected <= 0 or received <= 0:
+        return False
+    return abs(expected - received) <= 0.01
+
+
 def _confirm_gateway_payment(db: Session, transaction_id: str, amount: float, tenant_id_hint: Optional[str] = None):
     """
     Shared logic: find the pending payment by reference and mark it COMPLETED,
@@ -706,6 +750,18 @@ def _confirm_gateway_payment(db: Session, transaction_id: str, amount: float, te
     tenant_id = str(payment["tenant_id"])
     invoice_id = str(payment["invoice_id"])
     pay_amount = float(payment["amount"])
+
+    if tenant_id_hint and tenant_id != str(tenant_id_hint):
+        logger.warning("Webhook tenant mismatch for ref %s", transaction_id)
+        return False
+    if not _gateway_amount_matches(pay_amount, float(amount or 0)):
+        logger.warning(
+            "Webhook amount mismatch for ref %s: expected=%s received=%s",
+            transaction_id,
+            pay_amount,
+            amount,
+        )
+        return False
 
     inv = db.execute(text(
         "SELECT total_amount, paid_amount FROM invoices WHERE id = :id AND tenant_id = :tid"

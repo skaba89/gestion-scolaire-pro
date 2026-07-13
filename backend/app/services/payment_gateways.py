@@ -341,7 +341,28 @@ def get_gateway(method: str, tenant_settings: dict) -> Optional[PaymentGateway]:
         logger.warning("CinetPay credentials not configured for this tenant")
         return None
 
-    if method_upper in ("PAYTECH", "MOBILE_MONEY"):
+    if method_upper == "MOBILE_MONEY":
+        # MOBILE_MONEY is a business method, not a provider.  A tenant can
+        # explicitly select its provider; otherwise prefer CinetPay because it
+        # supports Guinea, then retain PayTech as a configured fallback.
+        preferred = str(tenant_settings.get("mobileMoneyGateway", "")).upper()
+        if preferred in ("CINETPAY", "PAYTECH"):
+            return get_gateway(preferred, tenant_settings)
+
+        if tenant_settings.get("cinetPayApiKey") and tenant_settings.get("cinetPaySiteId"):
+            return CinetPayGateway(
+                api_key=tenant_settings["cinetPayApiKey"],
+                site_id=tenant_settings["cinetPaySiteId"],
+            )
+        if tenant_settings.get("paytechApiKey") and tenant_settings.get("paytechSecretKey"):
+            return PayTechGateway(
+                api_key=tenant_settings["paytechApiKey"],
+                secret_key=tenant_settings["paytechSecretKey"],
+            )
+        logger.warning("No Mobile Money gateway configured for this tenant")
+        return None
+
+    if method_upper == "PAYTECH":
         api_key = tenant_settings.get("paytechApiKey", "")
         secret_key = tenant_settings.get("paytechSecretKey", "")
         if api_key and secret_key:

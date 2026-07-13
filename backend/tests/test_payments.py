@@ -32,6 +32,12 @@ class TestPaymentAuthRequired:
         resp = client.get("/api/v1/payments/stats/")
         assert resp.status_code == 401
 
+    def test_payment_intent_requires_auth(self):
+        resp = client.post(
+            f"/api/v1/payments/intent/?amount=50000&method=MOBILE_MONEY&invoice_id={uuid.uuid4()}"
+        )
+        assert resp.status_code == 401
+
 
 # ─── Schema validation ────────────────────────────────────────────────────────
 
@@ -137,6 +143,27 @@ class TestPaymentGateways:
         assert gw is not None
         assert isinstance(gw, PayTechGateway)
 
+    def test_mobile_money_prefers_cinetpay_for_guinea(self):
+        from app.services.payment_gateways import get_gateway, CinetPayGateway
+        settings = {
+            "cinetPayApiKey": "test-key",
+            "cinetPaySiteId": "test-site",
+            "paytechApiKey": "fallback-key",
+            "paytechSecretKey": "fallback-secret",
+        }
+        assert isinstance(get_gateway("MOBILE_MONEY", settings), CinetPayGateway)
+
+    def test_mobile_money_honours_explicit_provider(self):
+        from app.services.payment_gateways import get_gateway, PayTechGateway
+        settings = {
+            "mobileMoneyGateway": "PAYTECH",
+            "cinetPayApiKey": "test-key",
+            "cinetPaySiteId": "test-site",
+            "paytechApiKey": "paytech-key",
+            "paytechSecretKey": "paytech-secret",
+        }
+        assert isinstance(get_gateway("MOBILE_MONEY", settings), PayTechGateway)
+
     def test_cinetpay_gateway_has_required_methods(self):
         from app.services.payment_gateways import CinetPayGateway
         gw = CinetPayGateway(api_key="k", site_id="s")
@@ -150,3 +177,15 @@ class TestPaymentGateways:
         assert hasattr(gw, "initiate")
         assert hasattr(gw, "verify_webhook")
         assert hasattr(gw, "parse_webhook_status")
+
+    def test_webhook_amount_must_match_pending_payment(self):
+        from app.api.v1.endpoints.operational.parents import _gateway_amount_matches
+        assert _gateway_amount_matches(50000, 50000)
+        assert not _gateway_amount_matches(50000, 49999)
+        assert not _gateway_amount_matches(50000, 0)
+
+    def test_parent_payment_rejects_invalid_amounts(self):
+        from app.api.v1.endpoints.operational.parents import ParentPaymentCreate
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            ParentPaymentCreate(invoice_id=str(uuid.uuid4()), amount=0, method="MOBILE_MONEY")
