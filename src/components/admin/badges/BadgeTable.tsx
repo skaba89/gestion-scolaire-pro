@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { QrCode, Trash2, Edit } from "lucide-react";
+import { QrCode } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 

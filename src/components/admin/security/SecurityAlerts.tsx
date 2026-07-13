@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, AlertTriangle, ShieldCheck, MapPin, Monitor, User, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { cn } from "@/lib/utils";
 
 export const SecurityAlerts = () => {
     // Fetch only WARNING and CRITICAL alerts from the last 7 days
