@@ -37,7 +37,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Lint (ESLint)
-        run: npm run lint --max-warnings 30
+        run: npm run lint -- --max-warnings 30
 
       - name: Type-check (TypeScript)
         run: npm run type-check
@@ -205,6 +205,9 @@ jobs:
           BACKUP_KEEP_MONTHS=6
           EOF
           sed -i 's/^          //' .env.docker.ci
+          # docker-compose.yml references .env.docker through service env_file.
+          # Keep --env-file for Compose interpolation and provide the referenced file.
+          cp .env.docker.ci .env.docker
 
       - name: Validate docker compose config
         run: docker compose --env-file .env.docker.ci -f docker-compose.yml config >/tmp/compose.yml
@@ -297,12 +300,7 @@ jobs:
         run: pip install pip-audit
 
       - name: Run pip-audit on backend
-        run: |
-          pip-audit -r backend/requirements.txt --desc --output=json --output-file=pip-audit-results.json || {
-            echo "::error::Vulnerable Python dependencies found"
-            pip-audit -r backend/requirements.txt --desc
-            exit 1
-          }
+        run: pip-audit -r backend/requirements.txt --desc
 
       - name: Check for .env files in git
         run: |
