@@ -434,14 +434,26 @@ def delete_student_parent_link(
                 DELETE FROM parent_students
                 WHERE parent_id = :pid AND student_id = :sid AND tenant_id = :tid
             """), {"pid": str(parent_id), "sid": str(student_id), "tid": tenant_id})
+        elif student_id:
+            result = db.execute(text("""
+                DELETE FROM parent_students
+                WHERE student_id = :sid AND tenant_id = :tid
+            """), {"sid": str(student_id), "tid": tenant_id})
         else:
-            raise HTTPException(status_code=400, detail="Provide link_id or both parent_id and student_id")
+            raise HTTPException(
+                status_code=400,
+                detail="Provide link_id, student_id, or both parent_id and student_id",
+            )
 
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Link not found")
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="DELETE_PARENT_STUDENT_LINK", resource_type="PARENT_STUDENT",
-                  resource_id=str(link_id) if link_id else f"{parent_id}-{student_id}")
+                  resource_id=(
+                      str(link_id)
+                      if link_id
+                      else f"{parent_id}-{student_id}" if parent_id else str(student_id)
+                  ))
         db.commit()
         return {"status": "success"}
     except HTTPException:
@@ -917,42 +929,6 @@ def list_schedule_slots_alias(
 
 
 # ─── 12. Parents list (/parents/ GET root) ───────────────────────────────────
-# NOTE: This is added directly in parents.py — see the modification there.
-# The alias below is kept in case parents.py already has a GET / that would clash.
-
-parents_list_alias_router = APIRouter()
-
-
-@parents_list_alias_router.get("/")
-def list_all_parents(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    search: Optional[str] = Query(None),
-):
-    """GET /parents/ — list all parents for the tenant."""
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        return []
-    params: dict = {"tenant_id": tenant_id}
-    extra = ""
-    if search:
-        extra = " AND (p.first_name ILIKE :search OR p.last_name ILIKE :search OR p.email ILIKE :search)"
-        params["search"] = f"%{search}%"
-    rows = db.execute(text(f"""
-        SELECT p.*,
-               COALESCE(
-                   ARRAY_AGG(DISTINCT ps.student_id) FILTER (WHERE ps.student_id IS NOT NULL),
-                   ARRAY[]::uuid[]
-               ) AS student_ids
-        FROM parents p
-        LEFT JOIN parent_students ps ON ps.parent_id = p.id AND ps.tenant_id = p.tenant_id
-        WHERE p.tenant_id = :tenant_id {extra}
-        GROUP BY p.id
-        ORDER BY p.last_name, p.first_name
-    """), params).mappings().all()
-    return rows
-
-
 # =============================================================================
 # Achievement Definitions  /achievement-definitions/
 # =============================================================================

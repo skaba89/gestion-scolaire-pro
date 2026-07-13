@@ -53,7 +53,7 @@ export type UserParent = {
 export const parentSchema = z.object({
     first_name: z.string().min(1, "Le prénom est requis"),
     last_name: z.string().min(1, "Le nom est requis"),
-    email: z.string().email("Email invalide").optional().or(z.literal("")),
+    email: z.string().email("Email invalide"),
     phone: z.string().optional(),
     address: z.string().optional(),
 });

@@ -69,6 +69,8 @@ class TestAnonymization:
             first_name="Mariama",
             last_name="Camara",
             phone="+224600000000",
+            address="Conakry",
+            occupation="Commerçante",
             avatar_url="https://example.gn/avatar.jpg",
             is_active=True,
         )
@@ -82,6 +84,8 @@ class TestAnonymization:
         assert user.email == f"deleted_{anonymous_id}@schoolflow.deleted"
         assert user.username == f"deleted_{anonymous_id}"
         assert user.phone is None
+        assert user.address is None
+        assert user.occupation is None
         assert user.avatar_url is None
         assert user.is_active is False
         assert profile.phone is None
@@ -227,6 +231,8 @@ class TestPrivacyActions:
             first_name="Mariama",
             last_name="Camara",
             phone="+224600000000",
+            address="Conakry",
+            occupation="Commerçante",
             avatar_url="avatar.jpg",
             is_active=True,
             created_at=datetime.now(timezone.utc),

@@ -194,10 +194,10 @@ export const useStudentForm = ({ onSuccess, tenantId, editStudent }: UseStudentF
                     tenant_id: tenantId,
                     student_id: studentId,
                     parent_id: p.id,
-                    relationship_type: 'Guardian'
+                    relation_type: 'GUARDIAN'
                 }));
 
-                await apiClient.post('/student-parents/', links);
+                await Promise.all(links.map(link => apiClient.post('/student-parents/', link)));
             }
 
             // 5. Inscription if new and class selected

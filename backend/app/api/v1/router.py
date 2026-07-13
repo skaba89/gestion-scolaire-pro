@@ -15,7 +15,6 @@ from app.api.v1.endpoints.aliases import (
     student_subjects_router,
     push_subscriptions_router,
     presence_router,
-    parents_list_alias_router,
     rooms_alias_router,
     classrooms_alias_router,
     schedule_slots_alias_router,

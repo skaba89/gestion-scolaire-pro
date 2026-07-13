@@ -137,7 +137,7 @@ export const adminQueries = {
             const response = await apiClient.get<any[]>(`/parents/students/${studentId}/parents/`);
             return response.data.map(p => ({
                 id: p.id,
-                relationship: p.relationship,
+                relationship: p.relation_type || p.relationship,
                 is_primary: p.is_primary,
                 type: 'user',
                 parent: p.parent // Assuming backend returns parent details

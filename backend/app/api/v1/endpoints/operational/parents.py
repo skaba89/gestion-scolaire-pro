@@ -2,11 +2,12 @@ import logging
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import and_, func, or_, text
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional, Any
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 import math
 import secrets
 import json
@@ -20,6 +21,7 @@ from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
 from app.services.payment_gateways import CinetPayGateway, get_gateway
+from app.models import ParentStudent as ParentStudentModel, User, UserRole
 
 router = APIRouter()
 
@@ -35,34 +37,64 @@ def list_parents(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
-    params: dict = {"tenant_id": tenant_id}
-    extra = ""
+    query = db.query(User).join(
+        UserRole,
+        and_(
+            UserRole.user_id == User.id,
+            UserRole.tenant_id == User.tenant_id,
+        ),
+    ).filter(
+        User.tenant_id == tenant_id,
+        UserRole.role == "PARENT",
+    )
     if search:
-        extra = " AND (p.first_name ILIKE :search OR p.last_name ILIKE :search OR p.email ILIKE :search)"
-        params["search"] = f"%{search}%"
-    rows = db.execute(text(f"""
-        SELECT p.*,
-               COALESCE(
-                   ARRAY_AGG(DISTINCT ps.student_id) FILTER (WHERE ps.student_id IS NOT NULL),
-                   ARRAY[]::uuid[]
-               ) AS student_ids
-        FROM parents p
-        LEFT JOIN parent_students ps ON ps.parent_id = p.id AND ps.tenant_id = p.tenant_id
-        WHERE p.tenant_id = :tenant_id {extra}
-        GROUP BY p.id
-        ORDER BY p.last_name, p.first_name
-    """), params).mappings().all()
-    return rows
+        pattern = f"%{search.strip()}%"
+        query = query.filter(or_(
+            User.first_name.ilike(pattern),
+            User.last_name.ilike(pattern),
+            User.email.ilike(pattern),
+        ))
+
+    parents = query.order_by(User.last_name, User.first_name).all()
+    parent_ids = [parent.id for parent in parents]
+    links_by_parent: dict[str, list[str]] = {}
+    if parent_ids:
+        links = db.query(ParentStudentModel).filter(
+            ParentStudentModel.tenant_id == tenant_id,
+            ParentStudentModel.parent_id.in_(parent_ids),
+        ).all()
+        for link in links:
+            links_by_parent.setdefault(str(link.parent_id), []).append(str(link.student_id))
+
+    return [
+        {
+            "id": str(parent.id),
+            "tenant_id": str(parent.tenant_id),
+            "first_name": parent.first_name,
+            "last_name": parent.last_name,
+            "email": parent.email,
+            "phone": parent.phone,
+            "occupation": parent.occupation,
+            "address": parent.address,
+            "avatar_url": parent.avatar_url,
+            "is_active": parent.is_active,
+            "is_verified": parent.is_verified,
+            "student_ids": links_by_parent.get(str(parent.id), []),
+            "created_at": parent.created_at,
+            "updated_at": parent.updated_at,
+        }
+        for parent in parents
+    ]
 
 # --- Create parent (POST /parents/) ---
 
 class ParentCreate(BaseModel):
-    first_name: str
-    last_name: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    occupation: Optional[str] = None
-    address: Optional[str] = None
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    phone: Optional[str] = Field(default=None, max_length=20)
+    occupation: Optional[str] = Field(default=None, max_length=100)
+    address: Optional[str] = Field(default=None, max_length=500)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -75,42 +107,106 @@ def create_parent(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    normalized_email = str(parent_in.email).strip().lower()
+    if db.query(User).filter(func.lower(User.email) == normalized_email).first():
+        raise HTTPException(status_code=409, detail="An account already exists for this email")
+
     try:
-        import uuid
-        parent_id = str(uuid.uuid4())
-        db.execute(text("""
-            INSERT INTO parents (id, tenant_id, first_name, last_name, email, phone, occupation, address, created_at, updated_at)
-            VALUES (:id, :tenant_id, :first_name, :last_name, :email, :phone, :occupation, :address, NOW(), NOW())
-            RETURNING id, tenant_id, first_name, last_name, email, phone, occupation, address, created_at, updated_at
-        """), {
-            "id": parent_id,
-            "tenant_id": tenant_id,
-            "first_name": parent_in.first_name,
-            "last_name": parent_in.last_name,
-            "email": parent_in.email,
-            "phone": parent_in.phone,
-            "occupation": parent_in.occupation,
-            "address": parent_in.address,
-        })
+        parent = User(
+            tenant_id=tenant_id,
+            email=normalized_email,
+            username=normalized_email,
+            first_name=parent_in.first_name.strip(),
+            last_name=parent_in.last_name.strip(),
+            phone=parent_in.phone,
+            occupation=parent_in.occupation,
+            address=parent_in.address,
+            password_hash=None,
+            is_active=False,
+            is_verified=False,
+            must_change_password=True,
+        )
+        db.add(parent)
+        db.flush()
+        db.add(UserRole(
+            tenant_id=tenant_id,
+            user_id=parent.id,
+            role="PARENT",
+        ))
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="CREATE_PARENT", resource_type="PARENT",
-                  resource_id=parent_id,
+                  resource_id=str(parent.id),
                   details={"first_name": parent_in.first_name, "last_name": parent_in.last_name})
         db.commit()
+        db.refresh(parent)
         return {
-            "id": parent_id,
+            "id": str(parent.id),
             "tenant_id": str(tenant_id),
-            "first_name": parent_in.first_name,
-            "last_name": parent_in.last_name,
-            "email": parent_in.email,
-            "phone": parent_in.phone,
-            "occupation": parent_in.occupation,
-            "address": parent_in.address,
+            "first_name": parent.first_name,
+            "last_name": parent.last_name,
+            "email": parent.email,
+            "phone": parent.phone,
+            "occupation": parent.occupation,
+            "address": parent.address,
+            "is_active": parent.is_active,
         }
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An account already exists for this email")
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Failed to create parent: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
+
+
+@router.delete("/pending/{parent_id}/")
+def delete_pending_parent(
+    parent_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    """Delete a pending parent identity; active portal accounts are preserved."""
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+
+    parent = db.query(User).join(
+        UserRole,
+        and_(
+            UserRole.user_id == User.id,
+            UserRole.tenant_id == User.tenant_id,
+        ),
+    ).filter(
+        User.id == parent_id,
+        User.tenant_id == tenant_id,
+        UserRole.role == "PARENT",
+    ).first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent not found")
+    if parent.is_active:
+        raise HTTPException(status_code=409, detail="Active parent accounts cannot be deleted here")
+
+    db.query(ParentStudentModel).filter(
+        ParentStudentModel.parent_id == parent.id,
+        ParentStudentModel.tenant_id == tenant_id,
+    ).delete(synchronize_session=False)
+    db.query(UserRole).filter(
+        UserRole.user_id == parent.id,
+        UserRole.tenant_id == tenant_id,
+    ).delete(synchronize_session=False)
+    log_audit(
+        db,
+        user_id=current_user.get("id"),
+        tenant_id=tenant_id,
+        action="DELETE_PENDING_PARENT",
+        resource_type="PARENT",
+        resource_id=str(parent.id),
+    )
+    db.delete(parent)
+    db.commit()
+    return {"status": "deleted", "id": str(parent_id)}
 
 
 # --- Existing endpoints ---
@@ -408,8 +504,8 @@ def get_risk_scores(
 
     # Get children for this parent
     children = db.execute(text(
-        "SELECT student_id FROM parent_students WHERE parent_id = :uid"
-    ), {"uid": user_id}).fetchall()
+        "SELECT student_id FROM parent_students WHERE parent_id = :uid AND tenant_id = :tid"
+    ), {"uid": user_id, "tid": tenant_id}).fetchall()
     if not children:
         return []
 
@@ -450,8 +546,8 @@ def list_parent_payment_schedules(
     # If no specific student_id, scope to parent's children
     if not student_id and user_id:
         children = db.execute(text(
-            "SELECT student_id FROM parent_students WHERE parent_id = :uid"
-        ), {"uid": user_id}).fetchall()
+            "SELECT student_id FROM parent_students WHERE parent_id = :uid AND tenant_id = :tid"
+        ), {"uid": user_id, "tid": tenant_id}).fetchall()
         if not children:
             return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
         child_ids = [str(c.student_id) for c in children]
@@ -556,8 +652,8 @@ def create_parent_payment(
 
     # Verify the invoice belongs to one of the parent's children
     children = db.execute(text(
-        "SELECT student_id FROM parent_students WHERE parent_id = :uid"
-    ), {"uid": user_id}).fetchall()
+        "SELECT student_id FROM parent_students WHERE parent_id = :uid AND tenant_id = :tid"
+    ), {"uid": user_id, "tid": tenant_id}).fetchall()
     if not children:
         raise HTTPException(status_code=403, detail="No children linked")
     child_ids = [str(c.student_id) for c in children]
@@ -924,8 +1020,9 @@ def generate_report_card(
 
     # Verify the student belongs to this parent
     link = db.execute(text(
-        "SELECT 1 FROM parent_students WHERE parent_id = :uid AND student_id = :sid"
-    ), {"uid": user_id, "sid": body.student_id}).first()
+        "SELECT 1 FROM parent_students "
+        "WHERE parent_id = :uid AND student_id = :sid AND tenant_id = :tid"
+    ), {"uid": user_id, "sid": body.student_id, "tid": tenant_id}).first()
     if not link:
         raise HTTPException(status_code=403, detail="Student not linked to your account")
 
@@ -1027,8 +1124,8 @@ def generate_invoice_pdf(
 
     # Verify invoice belongs to parent's child
     children = db.execute(text(
-        "SELECT student_id FROM parent_students WHERE parent_id = :uid"
-    ), {"uid": user_id}).fetchall()
+        "SELECT student_id FROM parent_students WHERE parent_id = :uid AND tenant_id = :tid"
+    ), {"uid": user_id, "tid": tenant_id}).fetchall()
     child_ids = [str(c.student_id) for c in children]
 
     inv = db.execute(text("""
@@ -1158,8 +1255,9 @@ def create_parent_appointment(
     # If student_id provided, verify it's linked to this parent
     if body.student_id:
         link = db.execute(text(
-            "SELECT 1 FROM parent_students WHERE parent_id = :uid AND student_id = :sid"
-        ), {"uid": user_id, "sid": body.student_id}).first()
+            "SELECT 1 FROM parent_students "
+            "WHERE parent_id = :uid AND student_id = :sid AND tenant_id = :tid"
+        ), {"uid": user_id, "sid": body.student_id, "tid": tenant_id}).first()
         if not link:
             raise HTTPException(status_code=403, detail="Student not linked to your account")
 

@@ -20,6 +20,8 @@ class User(Base, UUIDMixin, TimestampMixin):
     first_name = Column(String(100))
     last_name = Column(String(100))
     phone = Column(String(20))
+    address = Column(String(500))
+    occupation = Column(String(100))
     avatar_url = Column(String(500))
 
     is_active = Column(Boolean, default=True)

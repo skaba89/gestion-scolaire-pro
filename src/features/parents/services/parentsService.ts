@@ -9,7 +9,7 @@ export const parentsService = {
         return (data || []).map((item: any) => ({
             id: item.id,
             is_primary: item.is_primary,
-            relationship: item.relationship,
+            relationship: item.relation_type || item.relationship,
             student_id: item.student_id,
             student: item.student || item.students || {}
         }));
