@@ -249,8 +249,8 @@ jobs:
       - name: Validate docker compose config
         run: docker compose --env-file .env.docker.ci -f docker-compose.yml config >/tmp/compose.yml
 
-      - name: Start PostgreSQL service
-        run: docker compose --env-file .env.docker.ci -f docker-compose.yml up postgres -d --wait
+      - name: Start PostgreSQL and Redis services
+        run: docker compose --env-file .env.docker.ci -f docker-compose.yml up postgres redis -d --wait
 
       - name: Wait for PostgreSQL to be ready
         run: |
@@ -298,7 +298,7 @@ jobs:
           DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
           DATABASE_URL_SYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
           DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
-          REDIS_URL: redis://localhost:6379/0
+          REDIS_URL: redis://:testredispassword@localhost:6379/0
           DEBUG: "true"
 
       - name: Validate backup and restore drill against PostgreSQL
@@ -353,6 +353,7 @@ jobs:
           DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
           DATABASE_URL_SYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
           DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
+          REDIS_URL: redis://:testredispassword@localhost:6379/0
           DEBUG: "true"
           SECRET_KEY: test-secret-key-for-ci-min-32-chars
           BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
@@ -365,7 +366,7 @@ jobs:
           path: backend/coverage.xml
           retention-days: 7
 
-      - name: Stop PostgreSQL service
+      - name: Stop integration services
         if: always()
         run: docker compose --env-file .env.docker.ci -f docker-compose.yml down -v
 
