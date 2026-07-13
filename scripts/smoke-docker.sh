@@ -43,14 +43,15 @@ wait_for_url() {
   done
 }
 
-wait_for_url "API health" "$API_URL/health/"
+wait_for_url "API readiness" "$API_URL/health/ready"
+wait_for_url "API liveness" "$API_URL/health/live"
 wait_for_url "API root" "$API_URL/"
 wait_for_url "Frontend" "$FRONTEND_URL/"
 
 if curl -fsS "$API_URL/api/v1/health/" >/dev/null; then
   echo "OK: versioned API health route is reachable"
 else
-  echo "INFO: versioned API health route did not respond; root /health/ is healthy."
+  echo "INFO: versioned API health route did not respond; canonical readiness is healthy."
 fi
 
 echo "Checking Alembic migration graph..."

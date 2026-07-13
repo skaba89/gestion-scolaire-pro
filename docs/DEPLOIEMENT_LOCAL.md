@@ -24,7 +24,8 @@ docker compose --env-file .env.docker up -d --build
 
 # 4. Vérifier
 docker compose ps                       # tous les services "healthy"
-curl http://localhost:8000/health/      # {"status":"ok"} (API directe)
+curl http://localhost:8000/health/ready # dépendances prêtes (API directe)
+curl http://localhost:8000/health/live  # processus vivant
 curl http://localhost:3000              # frontend nginx
 ```
 

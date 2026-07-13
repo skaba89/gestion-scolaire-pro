@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -496,52 +497,125 @@ def root():
         "version": settings.APP_VERSION,
         "status": "operational",
         "docs": "/docs" if settings.DEBUG else None,
-        "health": "/health/",
+        "health": "/health/ready",
+        "liveness": "/health/live",
         "api": settings.API_V1_STR,
     }
 
-@app.get("/health/", tags=["Health"], summary="Health check")
-async def health_check():
-    """Lightweight liveness + readiness probe for load balancers and monitoring."""
+
+def _check_database_and_rls() -> tuple[str, str]:
+    """Check PostgreSQL connectivity and every tenant table's RLS policy."""
     from app.core.database import SessionLocal
     from sqlalchemy import text as sa_text
 
-    db_status = "unreachable"
     try:
         with SessionLocal() as _db:
             _db.execute(sa_text("SELECT 1"))
-        db_status = "connected"
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Readiness database check failed: %s", exc)
+        return "unreachable", "unknown"
 
-    redis_status = "unconfigured"
+    if settings.is_sqlite:
+        return "connected", "skipped"
+
+    try:
+        with SessionLocal() as _db:
+            scoped_tables, unprotected_tables = _db.execute(sa_text("""
+                SELECT
+                    count(*) AS scoped_tables,
+                    count(*) FILTER (
+                        WHERE NOT cls.relrowsecurity
+                           OR NOT cls.relforcerowsecurity
+                           OR NOT EXISTS (
+                               SELECT 1
+                               FROM pg_policy pol
+                               WHERE pol.polrelid = cls.oid
+                                 AND (
+                                     COALESCE(
+                                         pg_get_expr(pol.polqual, pol.polrelid),
+                                         ''
+                                     ) LIKE '%app.current_tenant_id%'
+                                     OR COALESCE(
+                                         pg_get_expr(pol.polwithcheck, pol.polrelid),
+                                         ''
+                                     ) LIKE '%app.current_tenant_id%'
+                                 )
+                           )
+                    ) AS unprotected_tables
+                FROM pg_class cls
+                JOIN pg_namespace ns ON ns.oid = cls.relnamespace
+                WHERE ns.nspname = 'public'
+                  AND cls.relkind IN ('r', 'p')
+                  AND EXISTS (
+                      SELECT 1
+                      FROM pg_attribute attr
+                      WHERE attr.attrelid = cls.oid
+                        AND attr.attname = 'tenant_id'
+                        AND NOT attr.attisdropped
+                  )
+            """)).one()
+        if scoped_tables == 0:
+            return "connected", "missing"
+        return "connected", "active" if unprotected_tables == 0 else "disabled"
+    except Exception as exc:
+        logger.warning("Readiness RLS check failed: %s", exc)
+        return "connected", "unknown"
+
+
+async def _check_cache_readiness() -> str:
+    """Bound Redis readiness latency so a failed cache cannot hang the probe."""
     try:
         from app.core.cache import redis_client
+
         client = await redis_client.client
-        if client:
-            await client.ping()
-            redis_status = "connected"
-    except Exception:
-        redis_status = "unreachable"
+        await asyncio.wait_for(client.ping(), timeout=2.0)
+        return "connected"
+    except Exception as exc:
+        logger.warning("Readiness Redis check failed: %s", exc)
+        return "unreachable"
 
-    # RLS check: verify Row Level Security is enabled on the students table
-    # (representative sentinel for all tenant-scoped tables)
-    rls_status = "skipped"
-    if db_status == "connected" and not settings.is_sqlite:
-        try:
-            with SessionLocal() as _db:
-                row = _db.execute(sa_text(
-                    "SELECT relrowsecurity FROM pg_class WHERE relname = 'students'"
-                )).scalar()
-                rls_status = "active" if row else "disabled"
-        except Exception:
-            rls_status = "unknown"
 
-    healthy = db_status == "connected"
+def _readiness_is_healthy(
+    *,
+    database: str,
+    cache: str,
+    rls: str,
+    is_sqlite: bool,
+) -> bool:
+    if database != "connected":
+        return False
+    if is_sqlite:
+        return True
+    return cache == "connected" and rls == "active"
+
+
+@app.get("/health/live", tags=["Health"], summary="Liveness probe")
+async def liveness_check():
+    """Report only that the API process can serve requests."""
+    return JSONResponse(
+        status_code=200,
+        headers={"Cache-Control": "no-store"},
+        content={"status": "alive", "version": settings.APP_VERSION},
+    )
+
+
+@app.get("/health/ready", tags=["Health"], summary="Readiness probe")
+async def readiness_check():
+    """Require every production-critical dependency before receiving traffic."""
+    db_status, rls_status = await asyncio.to_thread(_check_database_and_rls)
+    redis_status = await _check_cache_readiness()
+    healthy = _readiness_is_healthy(
+        database=db_status,
+        cache=redis_status,
+        rls=rls_status,
+        is_sqlite=settings.is_sqlite,
+    )
+
     return JSONResponse(
         status_code=200 if healthy else 503,
+        headers={"Cache-Control": "no-store"},
         content={
-            "status": "healthy" if healthy else "degraded",
+            "status": "healthy" if healthy else "unhealthy",
             "version": settings.APP_VERSION,
             "components": {
                 "database": db_status,
@@ -550,6 +624,12 @@ async def health_check():
             },
         },
     )
+
+
+@app.get("/health/", tags=["Health"], summary="Compatibility readiness probe")
+async def health_check():
+    """Keep the historical endpoint as an alias of the canonical readiness probe."""
+    return await readiness_check()
 
 
 def _cors_headers_for(request: Request) -> dict:
@@ -656,6 +736,3 @@ app.mount("/uploads", _SafeStaticFiles(directory=_upload_dir), name="uploads")
 
 # _ensure_operational_tables() has been extracted to app.core.operational_tables
 # for maintainability. See: app/core/operational_tables.py
-
-
-
