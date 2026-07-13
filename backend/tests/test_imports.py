@@ -126,5 +126,7 @@ class TestRegistrationGenerator:
     def test_skips_existing(self):
         from app.api.v1.endpoints.core.imports import _generate_registration
         existing = {"ETU000001", "ETU000002"}
+        previous = set(existing)
         num = _generate_registration("t", existing)
-        assert num not in existing
+        assert num not in previous
+        assert num in existing
