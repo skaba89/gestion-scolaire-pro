@@ -9,7 +9,7 @@ export const parentQueries = {
             return response.data.map(item => ({
                 id: item.id,
                 is_primary: item.is_primary,
-                relationship: item.relationship,
+                relationship: item.relation_type || item.relationship,
                 student_id: item.student_id,
                 student: item.student // Backend returns nested student if implemented or we can fetch separate
             }));

@@ -116,7 +116,7 @@ export const CreateParentDialog = ({
                             name="email"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Email</FormLabel>
+                            <FormLabel>Email *</FormLabel>
                                     <FormControl>
                                         <Input type="email" placeholder="email@example.com" {...field} />
                                     </FormControl>
@@ -132,7 +132,7 @@ export const CreateParentDialog = ({
                                 <FormItem>
                                     <FormLabel>Téléphone *</FormLabel>
                                     <FormControl>
-                                        <Input type="tel" placeholder="+33 6 ..." {...field} />
+                                        <Input type="tel" placeholder="+224 6XX XX XX XX" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

@@ -1,9 +1,10 @@
 """Users endpoints — full CRUD + role management"""
-from typing import Optional, List
+from typing import Literal, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import func, text
+from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 import math
 
@@ -11,6 +12,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, ROLE_PERMISSIONS
 from app.core.config import settings
 from app.utils.audit import log_audit
+from app.models import Student, User, UserRole
 import logging
 
 logger = logging.getLogger(__name__)
@@ -429,6 +431,7 @@ def list_pending_users(
                s.registration_number, 'student' as type
         FROM students s
         WHERE s.tenant_id = :tenant_id
+          AND s.user_id IS NULL
           AND (
               s.email IS NULL
               OR s.email NOT IN (
@@ -440,8 +443,20 @@ def list_pending_users(
     """)
     students = db.execute(students_sql, {"tenant_id": tenant_id}).fetchall()
 
-    # Parents are tracked as users with PARENT role — no standalone parents table
-    parents = []
+    # Pending parent identities are inactive users with the PARENT role. Their
+    # stable user ID can already be linked to children before portal activation.
+    parents_sql = text("""
+        SELECT u.id, u.first_name, u.last_name, u.email, u.phone,
+               NULL AS registration_number, 'parent' AS type
+        FROM users u
+        JOIN user_roles ur
+          ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        WHERE u.tenant_id = :tenant_id
+          AND ur.role = 'PARENT'
+          AND u.is_active = false
+        ORDER BY u.last_name, u.first_name
+    """)
+    parents = db.execute(parents_sql, {"tenant_id": tenant_id}).fetchall()
 
     combined = [
         {
@@ -1057,7 +1072,7 @@ class ConvertRequest(BaseModel):
     email: EmailStr
     first_name: str
     last_name: str
-    type: str # 'student' or 'parent'
+    type: Literal["student", "parent"]
     password: Optional[str] = None
 
 @router.post("/convert/")
@@ -1068,13 +1083,13 @@ def convert_to_account(
 ):
     """Convert a student or parent entry into a full user account."""
     tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
 
-    import uuid
     import secrets
     import string
     from app.core.security import get_password_hash
 
-    new_user_id = str(uuid.uuid4())
     role = 'STUDENT' if body.type == 'student' else 'PARENT'
 
     # Generate password if not provided
@@ -1087,43 +1102,92 @@ def convert_to_account(
         raw_password = ''.join(secrets.choice(alphabet) for _ in range(16))
 
     password_hash = get_password_hash(raw_password)
+    normalized_email = str(body.email).strip().lower()
 
-    db.execute(
-        text("""
-            INSERT INTO users (id, email, username, first_name, last_name, password_hash, tenant_id, is_active, created_at, updated_at)
-            VALUES (:id, :email, :email, :first_name, :last_name, :password_hash, :tenant_id, true, NOW(), NOW())
-        """),
-        {"id": new_user_id, "email": body.email, "first_name": body.first_name, "last_name": body.last_name, "password_hash": password_hash, "tenant_id": tenant_id}
-    )
+    try:
+        if body.type == "parent":
+            account = db.query(User).join(
+                UserRole,
+                (UserRole.user_id == User.id) & (UserRole.tenant_id == User.tenant_id),
+            ).filter(
+                User.id == body.id,
+                User.tenant_id == tenant_id,
+                UserRole.role == "PARENT",
+            ).first()
+            if not account:
+                raise HTTPException(status_code=404, detail="Pending parent not found")
+            if account.is_active:
+                raise HTTPException(status_code=409, detail="Parent account is already active")
 
-    db.execute(
-        text("INSERT INTO user_roles (user_id, tenant_id, role, created_at) VALUES (:user_id, :tenant_id, :role, NOW())"),
-        {"user_id": new_user_id, "tenant_id": tenant_id, "role": role}
-    )
+            email_owner = db.query(User).filter(func.lower(User.email) == normalized_email).first()
+            if email_owner and email_owner.id != account.id:
+                raise HTTPException(status_code=409, detail="An account already exists for this email")
 
-    # 2. Update Student/Parent record
-    if body.type not in ("student", "parent"):
-        raise HTTPException(status_code=400, detail="Invalid type")
-    table_map = {"student": "students", "parent": "parents"}
-    table = table_map[body.type]
-    db.execute(
-        text("UPDATE students SET user_id = :user_id WHERE id = :id AND tenant_id = :tenant_id") if body.type == "student"
-        else text("UPDATE parents SET user_id = :user_id WHERE id = :id AND tenant_id = :tenant_id"),
-        {"user_id": new_user_id, "id": body.id, "tenant_id": tenant_id}
-    )
+            account.email = normalized_email
+            account.username = normalized_email
+            account.first_name = body.first_name.strip()
+            account.last_name = body.last_name.strip()
+            account.password_hash = password_hash
+            account.is_active = True
+            account.must_change_password = True
+        else:
+            student = db.query(Student).filter(
+                Student.id == body.id,
+                Student.tenant_id == tenant_id,
+            ).first()
+            if not student:
+                raise HTTPException(status_code=404, detail="Student not found")
+            if student.user_id:
+                raise HTTPException(status_code=409, detail="Student already has a portal account")
+            if db.query(User).filter(func.lower(User.email) == normalized_email).first():
+                raise HTTPException(status_code=409, detail="An account already exists for this email")
 
-    # Log audit BEFORE commit
-    log_audit(
-        db,
-        user_id=current_user.get("id"),
-        tenant_id=tenant_id,
-        action="CONVERT",
-        resource_type="USER",
-        resource_id=new_user_id,
-        details={"email": body.email, "role": role, "source_type": body.type, "source_id": body.id}
-    )
+            account = User(
+                tenant_id=tenant_id,
+                email=normalized_email,
+                username=normalized_email,
+                first_name=body.first_name.strip(),
+                last_name=body.last_name.strip(),
+                password_hash=password_hash,
+                is_active=True,
+                is_verified=False,
+                must_change_password=True,
+            )
+            db.add(account)
+            db.flush()
+            db.add(UserRole(
+                tenant_id=tenant_id,
+                user_id=account.id,
+                role="STUDENT",
+            ))
+            student.user_id = account.id
+            student.email = normalized_email
 
-    db.commit()
+        db.flush()
+        new_user_id = str(account.id)
+
+        # Log audit BEFORE commit
+        log_audit(
+            db,
+            user_id=current_user.get("id"),
+            tenant_id=tenant_id,
+            action="CONVERT",
+            resource_type="USER",
+            resource_id=new_user_id,
+            details={"email": normalized_email, "role": role, "source_type": body.type, "source_id": body.id}
+        )
+
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Account conversion conflicts with existing data")
+    except Exception as exc:
+        db.rollback()
+        logger.error("Account conversion failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=400, detail="Account conversion failed")
 
     # SECURITY: Store generated password in Redis instead of returning in response body.
     if not body.password and raw_password:

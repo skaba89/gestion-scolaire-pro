@@ -89,7 +89,7 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
       await apiClient.post('/parents/link/', {
         student_id: studentId,
         parent_id: selectedParentId,
-        relationship,
+        relation_type: relationship,
         is_primary: false,
         tenant_id: tenantId,
       });
@@ -111,7 +111,7 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
         tenant_id: tenantId,
         student_id: studentId,
         parent_id: parentId,
-        relationship_type: relationship
+        relation_type: relationship
       });
       // apiClient throws on error
     },
@@ -135,8 +135,8 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
   };
 
   const createNewParent = async () => {
-    if (!newParent.first_name || !newParent.last_name) {
-      toast.error("Nom et prénom requis");
+    if (!newParent.first_name || !newParent.last_name || !newParent.email) {
+      toast.error("Nom, prénom et email requis");
       return;
     }
 

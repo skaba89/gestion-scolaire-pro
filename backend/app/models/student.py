@@ -21,6 +21,16 @@ class StudentStatus(str, enum.Enum):
 
 class Student(Base, UUIDMixin, TimestampMixin, TenantMixin):
     __tablename__ = "students"
+
+    # Optional portal identity. A student record can exist before an account is
+    # provisioned; once converted, this provides an explicit and stable link.
+    user_id = Column(
+        GUID(),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     
     # Identification
     registration_number = Column(String(50), unique=True, nullable=False, index=True)
@@ -51,6 +61,7 @@ class Student(Base, UUIDMixin, TimestampMixin, TenantMixin):
     
     # Relationships
     tenant = relationship("Tenant", back_populates="students", primaryjoin="Student.tenant_id == Tenant.id")
+    user = relationship("User", foreign_keys=[user_id])
     grades = relationship("Grade", back_populates="student", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="student", cascade="all, delete-orphan")
     

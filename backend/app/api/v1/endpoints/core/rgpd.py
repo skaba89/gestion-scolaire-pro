@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
 from app.models import (
@@ -59,7 +60,10 @@ def _related_student_ids(db: Session, *, user: User, tenant_id) -> list:
             row[0]
             for row in db.query(Student.id).filter(
                 Student.tenant_id == tenant_id,
-                Student.email == user.email,
+                or_(
+                    Student.user_id == user.id,
+                    and_(Student.user_id.is_(None), Student.email == user.email),
+                ),
             ).all()
         )
     return list(linked_ids)
@@ -73,6 +77,8 @@ def _anonymize_user(db: Session, user: User) -> None:
     user.first_name = "Deleted"
     user.last_name = "User"
     user.phone = None
+    user.address = None
+    user.occupation = None
     user.avatar_url = None
     user.is_active = False
 
@@ -438,6 +444,10 @@ def export_user_data(
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "phone": user.phone,
+            "address": user.address,
+            "occupation": user.occupation,
+            "avatar_url": user.avatar_url,
             "created_at": user.created_at.isoformat() if user.created_at else None
         },
         "profile": {

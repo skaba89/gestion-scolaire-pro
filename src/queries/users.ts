@@ -363,7 +363,7 @@ export const useDeletePendingUser = (tenantId: string) => {
 
     return useMutation({
         mutationFn: async ({ id, type }: { id: string; type: 'student' | 'parent' }) => {
-            const endpoint = type === 'student' ? `/students/${id}/` : `/parents/${id}/`;
+            const endpoint = type === 'student' ? `/students/${id}/` : `/parents/pending/${id}/`;
             await apiClient.delete(endpoint);
         },
         onSuccess: () => {
