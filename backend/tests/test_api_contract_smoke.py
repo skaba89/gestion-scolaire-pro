@@ -7,6 +7,7 @@ on.
 """
 from __future__ import annotations
 
+from app.core.config import settings
 from app.main import app
 
 
@@ -15,7 +16,9 @@ def _registered_prefixes() -> set[str]:
     # FastAPI 0.137+ lazily composes included routers. OpenAPI exposes the
     # effective registered paths and remains stable across router internals.
     for path in app.openapi().get("paths", {}):
-        parts = [part for part in path.split("/") if part]
+        # Most routers are mounted under /api/v1; health probes stay at root.
+        api_path = path.removeprefix(settings.API_V1_STR)
+        parts = [part for part in api_path.split("/") if part]
         if parts:
             prefixes.add(f"/{parts[0]}")
     return prefixes
