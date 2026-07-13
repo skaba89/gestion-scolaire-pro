@@ -162,7 +162,7 @@ export default function AdvancedExports() {
 
       switch (exportType) {
         case "students": {
-          let params: Record<string, string> = {};
+          const params: Record<string, string> = {};
 
           if (selectedClassroom && selectedClassroom !== "all") {
             const { data: enrollmentData } = await apiClient.get("/admissions/enrollments/", {
@@ -210,7 +210,7 @@ export default function AdvancedExports() {
         }
 
         case "grades": {
-          let params: Record<string, string> = {};
+          const params: Record<string, string> = {};
 
           if (selectedTerm && selectedTerm !== "all") {
             const { data: assessmentIds } = await apiClient.get("/assessments/", {
