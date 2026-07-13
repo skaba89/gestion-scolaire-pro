@@ -38,10 +38,10 @@ class UserOut(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    first_name: str = Field(max_length=255)
-    last_name: str = Field(max_length=255)
+    first_name: str = Field(min_length=1, max_length=255)
+    last_name: str = Field(min_length=1, max_length=255)
     password: Optional[str] = None
-    roles: List[str] = []
+    roles: List[str] = Field(min_length=1)
 
 
 class UserUpdate(BaseModel):
@@ -837,45 +837,47 @@ def delete_user(
 
 
 @router.post("/{user_id}/reset-password/")
-def reset_user_password(
+async def reset_user_password(
     user_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
-    """
-    Reset a user's password by generating a temporary password and saving
-    the bcrypt hash to the user's password_hash column.
-
-    SECURITY: The temporary password is stored in Redis with a short TTL (5 min)
-    and a one-time retrieval key is returned instead. The admin must retrieve the
-    password via a separate endpoint within the TTL window.
-
-    Falls back to direct response if Redis is unavailable (with a warning).
-    """
+    """Invalidate the current password and email a single-use reset link."""
     import secrets
-    import string
     from app.core.security import get_password_hash
+    from app.api.v1.endpoints.core.auth import blacklist_all_user_tokens
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        delete_password_setup_token,
+        deliver_password_setup_link,
+    )
 
     tenant_id = current_user.get("tenant_id")
 
     # Verify user exists
     row = db.execute(
-        text("SELECT id, email FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
+        text("""
+            SELECT id, email, first_name, last_name
+            FROM users
+            WHERE id = :user_id AND tenant_id = :tenant_id
+        """),
         {"user_id": user_id, "tenant_id": tenant_id}
     ).fetchone()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    target_email = row[1]
-
-    # Generate a temporary password
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    temp_password = ''.join(secrets.choice(alphabet) for _ in range(16))
-    password_hash = get_password_hash(temp_password)
+    target_email = row.email
+    target_name = f"{row.first_name or ''} {row.last_name or ''}".strip() or target_email
+    # Replace the old password before delivery so compromised credentials stop working.
+    password_hash = get_password_hash(secrets.token_urlsafe(32))
 
     db.execute(
-        text("UPDATE users SET password_hash = :pw, updated_at = NOW() WHERE id = :user_id"),
-        {"pw": password_hash, "user_id": user_id}
+        text("""
+            UPDATE users
+            SET password_hash = :pw, must_change_password = true, updated_at = NOW()
+            WHERE id = :user_id AND tenant_id = :tenant_id
+        """),
+        {"pw": password_hash, "user_id": user_id, "tenant_id": tenant_id}
     )
 
     # Log audit BEFORE commit
@@ -888,57 +890,38 @@ def reset_user_password(
         resource_id=user_id
     )
 
-    db.commit()
-
-    # SECURITY: Store temp password in Redis instead of returning in response body.
-    # This prevents the password from being logged in access logs, proxy logs, etc.
-    # Use a one-time retrieval key that the admin can use within 5 minutes.
-    import hashlib
-    retrieval_key = hashlib.sha256(f"reset_pw:{user_id}:{secrets.token_hex(8)}".encode()).hexdigest()[:16]
+    delivery = None
     try:
-        import asyncio
-        from app.core.cache import redis_client
-        # FIX: Use asyncio.create_task + event loop polling instead of get_event_loop()
-        # which crashes in ASGI context where the loop is already running.
-        try:
-            loop = asyncio.get_running_loop()
-            # We're inside an async-capable context — use nest_asyncio or skip
-            logger.warning("Cannot store temp pw in Redis: sync endpoint called from async event loop. Refusing reset.")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Password reset temporarily unavailable. Please try again.",
-            )
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(
-                redis_client.set(f"temp_pw:{retrieval_key}", temp_password, expire=300)
-            )
-            loop.close()
-            return {
-                "message": "Password reset successfully",
-                "retrieval_key": retrieval_key,
-                "expires_in": 300,
-                "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
-            }
-    except HTTPException:
-        raise
+        delivery = await deliver_password_setup_link(
+            user_id=user_id,
+            email=target_email,
+            user_name=target_name,
+            purpose="reset",
+            expires_in=900,
+        )
+        db.commit()
+    except PasswordSetupDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Password reset email could not be delivered. No account change was made.",
+        ) from exc
     except Exception:
-        pass
+        db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
+        raise
 
-    # Fallback: Redis unavailable — refuse to reset password for security
-    logger.error(
-        "Password reset for user %s: Redis unavailable. Refusing to perform reset "
-        "to avoid returning temp password in response body.",
-        user_id,
-    )
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Password reset temporarily unavailable. Redis is required for secure password delivery. Please try again later.",
-    )
+    await blacklist_all_user_tokens(user_id)
+    return {
+        "message": "Password reset link sent",
+        "email_sent": True,
+        "expires_in": delivery.expires_in,
+    }
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def create_user(
+async def create_user(
     body: UserCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
@@ -950,6 +933,8 @@ def create_user(
     3. Assign roles.
     """
     tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
 
     # SECURITY: Validate roles — prevent privilege escalation
     ALLOWED_ROLES = set(ROLE_PERMISSIONS.keys())
@@ -965,105 +950,84 @@ def create_user(
                 detail=f"Only SUPER_ADMIN can assign the '{role}' role"
             )
 
-    # Check if user exists
-    check = db.execute(
-        text("SELECT id FROM users WHERE email = :email"), {"email": body.email}
-    ).fetchone()
-    if check:
-        raise HTTPException(status_code=400, detail="User with this email already exists")
-
-    # Create user with hashed password (auto-generate if not provided)
-    import uuid
     import secrets
-    import string
     from app.core.security import get_password_hash
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        delete_password_setup_token,
+        deliver_password_setup_link,
+    )
 
-    new_id = str(uuid.uuid4())
-    
+    normalized_email = str(body.email).strip().lower()
+    if db.query(User).filter(func.lower(User.email) == normalized_email).first():
+        raise HTTPException(status_code=409, detail="User with this email already exists")
+
     if body.password:
         raw_password = body.password
         from app.api.v1.endpoints.core.auth import validate_password_strength
         validate_password_strength(raw_password)
     else:
-        # Auto-generate a secure temporary password
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        raw_password = ''.join(secrets.choice(alphabet) for _ in range(16))
-    
-    password_hash = get_password_hash(raw_password)
-    sql = text("""
-        INSERT INTO users (id, email, username, first_name, last_name, password_hash, tenant_id, is_active, created_at, updated_at)
-        VALUES (:id, :email, :email, :first_name, :last_name, :password_hash, :tenant_id, true, NOW(), NOW())
-    """)
-    db.execute(sql, {
-        "id": new_id,
-        "email": body.email,
-        "first_name": body.first_name,
-        "last_name": body.last_name,
-        "password_hash": password_hash,
-        "tenant_id": tenant_id
-    })
+        # The random value is never disclosed; the user chooses a password via email.
+        raw_password = secrets.token_urlsafe(32)
 
-    # Add roles
-    for role in body.roles:
-        db.execute(
-            text("""
-                INSERT INTO user_roles (user_id, tenant_id, role, created_at)
-                VALUES (:user_id, :tenant_id, :role, NOW())
-            """),
-            {"user_id": new_id, "tenant_id": tenant_id, "role": role}
-        )
-    
-    # Log audit BEFORE commit
-    log_audit(
-        db,
-        user_id=current_user.get("id"),
+    account = User(
         tenant_id=tenant_id,
-        action="CREATE",
-        resource_type="USER",
-        resource_id=new_id,
-        details={"email": body.email, "roles": body.roles}
+        email=normalized_email,
+        username=normalized_email,
+        first_name=body.first_name.strip(),
+        last_name=body.last_name.strip(),
+        password_hash=get_password_hash(raw_password),
+        is_active=True,
+        is_verified=False,
+        must_change_password=True,
     )
+    delivery = None
+    try:
+        db.add(account)
+        db.flush()
+        for role in body.roles:
+            db.add(UserRole(tenant_id=tenant_id, user_id=account.id, role=role))
 
-    db.commit()
-
-    # SECURITY: Store generated password in Redis instead of returning in response body.
-    # This prevents the password from being logged in access logs, proxy logs, etc.
-    if not body.password and raw_password:
-        import hashlib
-        retrieval_key = hashlib.sha256(f"create_pw:{new_id}:{secrets.token_hex(8)}".encode()).hexdigest()[:16]
-        try:
-            import asyncio
-            from app.core.cache import redis_client
-            try:
-                loop = asyncio.get_running_loop()
-                return {
-                    "id": new_id,
-                    "email": body.email,
-                    "_password_available_via_redis": True,
-                }
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                loop.run_until_complete(
-                    redis_client.set(f"temp_pw:{retrieval_key}", raw_password, expire=300)
-                )
-                loop.close()
-                return {
-                    "id": new_id,
-                    "email": body.email,
-                    "retrieval_key": retrieval_key,
-                    "expires_in": 300,
-                    "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
-                }
-        except Exception:
-            return {
-                "id": new_id,
-                "email": body.email,
-                "_security_warning": "Redis unavailable — password stored but retrieval key not generated",
-            }
+        log_audit(
+            db,
+            user_id=current_user.get("id"),
+            tenant_id=tenant_id,
+            action="CREATE",
+            resource_type="USER",
+            resource_id=str(account.id),
+            details={"email": normalized_email, "roles": body.roles},
+        )
+        if not body.password:
+            delivery = await deliver_password_setup_link(
+                user_id=str(account.id),
+                email=normalized_email,
+                user_name=f"{account.first_name} {account.last_name}".strip(),
+                purpose="invitation",
+                expires_in=86400,
+            )
+        db.commit()
+    except PasswordSetupDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Invitation email could not be delivered. No account was created.",
+        ) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
+        raise HTTPException(status_code=409, detail="User with this email already exists") from exc
+    except Exception:
+        db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
+        raise
 
     return {
-        "id": new_id,
-        "email": body.email,
+        "id": str(account.id),
+        "email": normalized_email,
+        "invitation_sent": bool(delivery),
+        "expires_in": delivery.expires_in if delivery else None,
     }
 
 
@@ -1076,7 +1040,7 @@ class ConvertRequest(BaseModel):
     password: Optional[str] = None
 
 @router.post("/convert/")
-def convert_to_account(
+async def convert_to_account(
     body: ConvertRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
@@ -1087,8 +1051,12 @@ def convert_to_account(
         raise HTTPException(status_code=403, detail="No tenant context")
 
     import secrets
-    import string
     from app.core.security import get_password_hash
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        delete_password_setup_token,
+        deliver_password_setup_link,
+    )
 
     role = 'STUDENT' if body.type == 'student' else 'PARENT'
 
@@ -1098,12 +1066,12 @@ def convert_to_account(
         from app.api.v1.endpoints.core.auth import validate_password_strength
         validate_password_strength(raw_password)
     else:
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        raw_password = ''.join(secrets.choice(alphabet) for _ in range(16))
+        raw_password = secrets.token_urlsafe(32)
 
     password_hash = get_password_hash(raw_password)
     normalized_email = str(body.email).strip().lower()
 
+    delivery = None
     try:
         if body.type == "parent":
             account = db.query(User).join(
@@ -1177,53 +1145,42 @@ def convert_to_account(
             details={"email": normalized_email, "role": role, "source_type": body.type, "source_id": body.id}
         )
 
+        if not body.password:
+            delivery = await deliver_password_setup_link(
+                user_id=new_user_id,
+                email=normalized_email,
+                user_name=f"{account.first_name} {account.last_name}".strip(),
+                purpose="invitation",
+                expires_in=86400,
+            )
         db.commit()
     except HTTPException:
         db.rollback()
         raise
+    except PasswordSetupDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Invitation email could not be delivered. No account was activated.",
+        ) from exc
     except IntegrityError:
         db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
         raise HTTPException(status_code=409, detail="Account conversion conflicts with existing data")
     except Exception as exc:
         db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
         logger.error("Account conversion failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=400, detail="Account conversion failed")
 
-    # SECURITY: Store generated password in Redis instead of returning in response body.
-    if not body.password and raw_password:
-        import hashlib
-        retrieval_key = hashlib.sha256(f"convert_pw:{new_user_id}:{secrets.token_hex(8)}".encode()).hexdigest()[:16]
-        try:
-            import asyncio
-            from app.core.cache import redis_client
-            try:
-                loop = asyncio.get_running_loop()
-                return {
-                    "userId": new_user_id,
-                    "email": body.email,
-                    "_password_available_via_redis": True,
-                }
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                loop.run_until_complete(
-                    redis_client.set(f"temp_pw:{retrieval_key}", raw_password, expire=300)
-                )
-                loop.close()
-                return {
-                    "userId": new_user_id,
-                    "email": body.email,
-                    "retrieval_key": retrieval_key,
-                    "expires_in": 300,
-                    "note": "Use the retrieval_key with GET /users/me/temp-password/ to retrieve the password. Expires in 5 minutes.",
-                }
-        except Exception:
-            return {
-                "userId": new_user_id,
-                "email": body.email,
-                "_security_warning": "Redis unavailable — password stored but retrieval key not generated",
-            }
-
-    return {"userId": new_user_id, "email": body.email}
+    return {
+        "userId": new_user_id,
+        "email": normalized_email,
+        "invitation_sent": bool(delivery),
+        "expires_in": delivery.expires_in if delivery else None,
+    }
 
 
 # ─── Profile update endpoint ──────────────────────────────────────────────────

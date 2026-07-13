@@ -81,7 +81,6 @@ export function PendingUsersList() {
     const [isCreatingParent, setIsCreatingParent] = useState(false);
     const [userToDelete, setUserToDelete] = useState<PendingUser | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [createdUserCredentials, setCreatedUserCredentials] = useState<{ email: string, password: string } | null>(null);
 
     const queryClient = useQueryClient();
 
@@ -115,8 +114,6 @@ export function PendingUsersList() {
             return;
         }
 
-        const generatedPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-2).toUpperCase();
-
         convertMutation.mutate({
             user: {
                 id: user.id,
@@ -124,17 +121,6 @@ export function PendingUsersList() {
                 last_name: user.last_name,
                 email: user.email,
                 type: user.type
-            },
-            tenant: {
-                id: tenant.id,
-                name: tenant.name,
-                slug: tenant.slug,
-                logo_url: tenant.logo_url
-            },
-            generatedPassword
-        }, {
-            onSuccess: () => {
-                setCreatedUserCredentials({ email: user.email!, password: generatedPassword });
             }
         });
     };
@@ -368,7 +354,7 @@ export function PendingUsersList() {
             <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 flex gap-3 text-sm text-primary/80">
                 <UserCircle2 className="w-5 h-5 shrink-0" />
                 <p>
-                    Les comptes créés ici recevront un email avec leurs identifiants temporaires.
+                    Les comptes créés ici recevront un lien sécurisé à usage unique pour choisir leur mot de passe.
                     Ils seront automatiquement associés à leur fiche {studentLabelLower} ou parent.
                 </p>
             </div>
@@ -399,35 +385,6 @@ export function PendingUsersList() {
                 </AlertDialogContent>
             </AlertDialog>
 
-            <Dialog open={!!createdUserCredentials} onOpenChange={(open) => !open && setCreatedUserCredentials(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Compte créé avec succès</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="bg-muted/50 p-4 rounded-lg space-y-3">
-                            <div>
-                                <Label className="text-xs text-muted-foreground">Email</Label>
-                                <div className="font-mono text-sm font-medium flex items-center justify-between">
-                                    {createdUserCredentials?.email}
-                                </div>
-                            </div>
-                            <div>
-                                <Label className="text-xs text-muted-foreground">Mot de passe temporaire</Label>
-                                <div className="font-mono text-lg font-bold bg-background p-2 rounded border flex items-center justify-between">
-                                    {createdUserCredentials?.password}
-                                </div>
-                            </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                            Veuillez transmettre ces identifiants à l'utilisateur. Il devra changer son mot de passe à la première connexion.
-                        </p>
-                        <Button onClick={() => setCreatedUserCredentials(null)} className="w-full">
-                            Fermer
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

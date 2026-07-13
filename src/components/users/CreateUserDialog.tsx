@@ -43,7 +43,6 @@ const AVAILABLE_ROLES: AppRole[] = [
 export function CreateUserDialog({
   open,
   onOpenChange,
-  tenantId,
   onUserCreated,
 }: CreateUserDialogProps) {
   const { toast } = useToast();
@@ -68,21 +67,18 @@ export function CreateUserDialog({
 
     setIsLoading(true);
     try {
-      // Generate temporary password
-      const tempPassword = Math.random().toString(36).slice(-12);
-
-      await apiClient.post('/users/', {
+      const { data } = await apiClient.post('/users/', {
         email: formData.email,
-        password: tempPassword,
         first_name: formData.firstName,
         last_name: formData.lastName,
-        role: formData.role,
-        tenant_id: tenantId,
+        roles: [formData.role],
       });
 
       toast({
         title: "Succès",
-        description: `Utilisateur ${formData.firstName} ${formData.lastName} créé avec succès`,
+        description: data.invitation_sent
+          ? `Compte créé. Une invitation sécurisée a été envoyée à ${formData.email}.`
+          : `Utilisateur ${formData.firstName} ${formData.lastName} créé avec succès`,
       });
 
       // Reset form

@@ -191,7 +191,8 @@ class TestParentDirectory:
 
 
 class TestAccountConversion:
-    def test_activates_existing_pending_parent(self):
+    @pytest.mark.asyncio
+    async def test_activates_existing_pending_parent(self):
         from app.api.v1.endpoints.core.users import ConvertRequest, convert_to_account
 
         tenant_id = uuid.uuid4()
@@ -211,7 +212,7 @@ class TestAccountConversion:
         db.query.side_effect = [_query(first=parent), _query(first=parent)]
 
         with patch("app.core.security.get_password_hash", return_value="hashed-password"):
-            result = convert_to_account(
+            result = await convert_to_account(
                 body=ConvertRequest(
                     id=str(parent_id),
                     email="parent@example.gn",
@@ -224,13 +225,16 @@ class TestAccountConversion:
                 current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
             )
 
-        assert result == {"userId": str(parent_id), "email": "parent@example.gn"}
+        assert result["userId"] == str(parent_id)
+        assert result["email"] == "parent@example.gn"
+        assert result["invitation_sent"] is False
         assert parent.is_active is True
         assert parent.password_hash == "hashed-password"
         assert parent.first_name == "Fatoumata"
         db.commit.assert_called_once()
 
-    def test_links_new_student_account_explicitly(self):
+    @pytest.mark.asyncio
+    async def test_links_new_student_account_explicitly(self):
         from app.api.v1.endpoints.core.users import ConvertRequest, convert_to_account
         from app.models import User, UserRole
 
@@ -249,7 +253,7 @@ class TestAccountConversion:
         db.flush.side_effect = assign_account_id
 
         with patch("app.core.security.get_password_hash", return_value="hashed-password"):
-            result = convert_to_account(
+            result = await convert_to_account(
                 body=ConvertRequest(
                     id=str(student.id),
                     email="student@example.gn",

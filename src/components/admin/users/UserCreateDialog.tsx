@@ -35,7 +35,6 @@ export function UserCreateDialog() {
         email: "",
         firstName: "",
         lastName: "",
-        password: "",
         role: "TEACHER" as AppRole,
     });
 
@@ -43,15 +42,6 @@ export function UserCreateDialog() {
 
     const getRoleLabel = (role: AppRole) => {
         return getRoleLabelBase(role, StudentLabel);
-    };
-
-    const generatePassword = () => {
-        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        let password = "";
-        for (let i = 0; i < 10; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        setFormData({ ...formData, password });
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -69,7 +59,7 @@ export function UserCreateDialog() {
         }, {
             onSuccess: () => {
                 setIsOpen(false);
-                setFormData({ email: "", firstName: "", lastName: "", password: "", role: "TEACHER" });
+                setFormData({ email: "", firstName: "", lastName: "", role: "TEACHER" });
             }
         });
     };
@@ -86,7 +76,7 @@ export function UserCreateDialog() {
                 <DialogHeader>
                     <DialogTitle>Créer un compte utilisateur</DialogTitle>
                     <DialogDescription>
-                        Créez un compte et envoyez les identifiants par email
+                        Créez un compte et envoyez un lien d'activation sécurisé par email
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="flex-1 px-1 overflow-y-auto">
@@ -130,25 +120,6 @@ export function UserCreateDialog() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="password">Mot de passe temporaire</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    id="password"
-                                    type="text"
-                                    placeholder="Laisser vide pour auto-génération"
-                                    value={formData.password}
-                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                />
-                                <Button type="button" variant="outline" onClick={generatePassword}>
-                                    Générer
-                                </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Laissez vide pour générer automatiquement. L'utilisateur devra changer ce mot de passe à la première connexion.
-                            </p>
-                        </div>
-
-                        <div className="space-y-2">
                             <Label htmlFor="role">
                                 <Shield className="w-4 h-4 inline mr-2" />
                                 Rôle *
@@ -182,7 +153,7 @@ export function UserCreateDialog() {
                                     Création en cours...
                                 </>
                             ) : (
-                                "Créer le compte et envoyer les identifiants"
+                                "Créer le compte et envoyer l'invitation"
                             )}
                         </Button>
                     </form>

@@ -42,7 +42,6 @@ interface ParsedUser {
   lastName: string;
   email: string;
   role: AppRole;
-  password: string;
   status: "pending" | "success" | "error";
   error?: string;
 }
@@ -62,15 +61,6 @@ export const UserImport = ({ onImportComplete }: UserImportProps) => {
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState<{ success: number; failed: number }>({ success: 0, failed: 0 });
   const { StudentLabel } = useStudentLabel();
-
-  const generatePassword = () => {
-    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-    let password = "";
-    for (let i = 0; i < 10; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-  };
 
   const parseCSV = (content: string): ParsedUser[] => {
     const lines = content.trim().split("\n");
@@ -109,7 +99,6 @@ export const UserImport = ({ onImportComplete }: UserImportProps) => {
         lastName: lastNameIdx !== -1 ? values[lastNameIdx] || "" : "",
         email,
         role,
-        password: generatePassword(),
         status: "pending",
       });
     }
@@ -145,14 +134,11 @@ export const UserImport = ({ onImportComplete }: UserImportProps) => {
       const user = updatedUsers[i];
 
       try {
-        const { error } = await apiClient.post('/users/import/', {
+        const { error } = await apiClient.post('/users/', {
           email: user.email,
-          password: user.password,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          tenantId: tenant.id,
-          tenantName: tenant.name,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          roles: [user.role],
         });
 
         if (error) throw error;
@@ -221,7 +207,7 @@ export const UserImport = ({ onImportComplete }: UserImportProps) => {
             Importer des utilisateurs
           </DialogTitle>
           <DialogDescription>
-            Importez plusieurs utilisateurs depuis un fichier CSV. Les identifiants seront envoyés par email.
+            Importez plusieurs utilisateurs depuis un fichier CSV. Un lien d'activation sécurisé sera envoyé par email.
           </DialogDescription>
         </DialogHeader>
 

@@ -711,6 +711,47 @@ class Templates:
         }
 
     @staticmethod
+    def account_invitation(
+        user_name: str,
+        setup_url: str,
+        school_name: str = "SchoolFlow Pro",
+        expires_minutes: int = 15,
+    ) -> dict:
+        """Invitation email for a newly provisioned portal account."""
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px;background:#ffffff">
+          <h2 style="color:#1a56db">Bienvenue sur {school_name}</h2>
+          <p>Bonjour <strong>{user_name}</strong>,</p>
+          <p>Votre établissement a créé votre compte. Utilisez le bouton ci-dessous
+             pour choisir personnellement votre mot de passe.</p>
+          <div style="text-align:center;margin:32px 0">
+            <a href="{setup_url}"
+               style="background:#1a56db;color:#ffffff;padding:14px 32px;text-decoration:none;
+                      border-radius:8px;font-weight:bold;display:inline-block">
+              Activer mon compte
+            </a>
+          </div>
+          <p style="color:#6b7280;font-size:13px">
+            Ce lien à usage unique expire dans <strong>{expires_minutes} minutes</strong>.
+          </p>
+          <p style="color:#6b7280;font-size:13px">
+            Si vous ne reconnaissez pas cette invitation, contactez votre établissement.
+          </p>
+        </div>"""
+        plain = (
+            f"Bonjour {user_name},\n\n"
+            f"Votre compte {school_name} a été créé. Choisissez votre mot de passe "
+            f"avec ce lien valable {expires_minutes} minutes :\n{setup_url}\n"
+        )
+        return {
+            "subject": f"[{school_name}] Activez votre compte",
+            "html": html,
+            "text": plain,
+            "whatsapp_text": plain,
+            "whatsapp_vars": [],
+        }
+
+    @staticmethod
     def bulletin_ready(
         parent_name: str,
         student_name: str,

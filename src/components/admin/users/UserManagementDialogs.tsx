@@ -66,38 +66,18 @@ export function UserManagementDialogs({
     };
 
     // Reset Password Logic
-    const [newPassword, setNewPassword] = useState("");
     const [isResettingPassword, setIsResettingPassword] = useState(false);
 
-    const generateResetPassword = () => {
-        const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-        let password = "";
-        for (let i = 0; i < 10; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        setNewPassword(password);
-    };
-
     const handleResetPassword = async () => {
-        if (!tenant || !resetPasswordUser || !newPassword) return;
+        if (!resetPasswordUser) return;
         setIsResettingPassword(true);
         try {
-            await apiClient.post("/auth/reset-user-password/", {
-                userId: resetPasswordUser.id,
-                newPassword: newPassword,
-                userEmail: resetPasswordUser.email,
-                userName: `${resetPasswordUser.first_name || ""} ${resetPasswordUser.last_name || ""}`.trim() || resetPasswordUser.email,
-                tenantName: tenant.name,
-                tenantSlug: tenant.slug,
-                tenantLogo: tenant.logo_url,
-                appUrl: window.location.origin,
-            });
-            toast.success(`Le nouveau mot de passe a été envoyé à ${resetPasswordUser.email}`);
+            await apiClient.post(`/users/${resetPasswordUser.id}/reset-password/`);
+            toast.success(`Un lien de réinitialisation sécurisé a été envoyé à ${resetPasswordUser.email}`);
             setIsResetPasswordOpen(false);
             setResetPasswordUser(null);
-            setNewPassword("");
         } catch (error: any) {
-            toast.error(error.message || "Impossible de réinitialiser le mot de passe");
+            toast.error(error.response?.data?.detail || error.message || "Impossible de réinitialiser le mot de passe");
         } finally {
             setIsResettingPassword(false);
         }
@@ -185,7 +165,7 @@ export function UserManagementDialogs({
                     <DialogHeader>
                         <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
                         <DialogDescription>
-                            Le nouveau mot de passe sera envoyé par email à l'utilisateur
+                            L'ancien mot de passe sera invalidé et un lien à usage unique sera envoyé par email.
                         </DialogDescription>
                     </DialogHeader>
                     <ScrollArea className="flex-1 px-1 overflow-y-auto">
@@ -194,28 +174,11 @@ export function UserManagementDialogs({
                                 <p className="text-sm font-medium">{resetPasswordUser?.first_name} {resetPasswordUser?.last_name}</p>
                                 <p className="text-sm text-muted-foreground">{resetPasswordUser?.email}</p>
                             </div>
-                            <div className="space-y-2">
-                                <Label>Nouveau mot de passe</Label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        type="text"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="Mot de passe"
-                                    />
-                                    <Button type="button" variant="outline" onClick={generateResetPassword}>
-                                        Générer
-                                    </Button>
-                                </div>
-                                <p className="text-xs text-muted-foreground">
-                                    L'utilisateur devra changer ce mot de passe à la prochaine connexion
-                                </p>
-                            </div>
                             <div className="flex gap-2">
                                 <Button variant="outline" className="flex-1" onClick={() => setIsResetPasswordOpen(false)}>
                                     Annuler
                                 </Button>
-                                <Button className="flex-1" onClick={handleResetPassword} disabled={!newPassword || isResettingPassword}>
+                                <Button className="flex-1" onClick={handleResetPassword} disabled={isResettingPassword}>
                                     {isResettingPassword ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                                     Réinitialiser et envoyer
                                 </Button>
