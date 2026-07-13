@@ -1,95 +1,84 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { studentsService } from "../studentsService";
 
-// Supabase shim removed (P2-22) — replaced by direct API calls via apiClient.
-// Local stub kept for backward-compatible test assertions only.
-const supabase = {
-    from: vi.fn(),
-};
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+}));
+
+vi.mock("@/api/client", () => ({
+  apiClient: {
+    get: mocks.get,
+  },
+}));
 
 describe("studentsService", () => {
-    const mockSingle = vi.fn();
-    const mockEq = vi.fn();
-    const mockSelect = vi.fn();
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
-    beforeEach(() => {
-        vi.clearAllMocks();
+  describe("getProfile", () => {
+    it("returns profile data on success", async () => {
+      const profile = {
+        id: "student-1",
+        first_name: "John",
+        last_name: "Doe",
+      };
+      mocks.get.mockResolvedValue({ data: profile });
 
-        // Setup a more robust mock chain
-        const mockQuery: any = {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            in: vi.fn().mockReturnThis(),
-            order: vi.fn().mockReturnThis(),
-            gte: vi.fn().mockReturnThis(),
-            not: vi.fn().mockReturnThis(),
-            limit: vi.fn().mockReturnThis(),
-            single: vi.fn().mockReturnThis(),
-            maybeSingle: vi.fn().mockReturnThis(),
-            // Make it awaitable
-            then: vi.fn().mockImplementation((onFulfilled) => {
-                return Promise.resolve({ data: [], error: null }).then(onFulfilled);
-            }),
-        };
+      const result = await studentsService.getProfile("user-1", "tenant-1");
 
-        (supabase.from as any).mockReturnValue(mockQuery);
+      expect(result).toEqual(profile);
+      expect(mocks.get).toHaveBeenCalledWith("/students/profile/", {
+        params: { user_id: "user-1", tenant_id: "tenant-1" },
+      });
     });
 
-    describe("getProfile", () => {
-        it("should return profile data on success", async () => {
-            const mockData = { id: "student-1", first_name: "John", last_name: "Doe" };
-            const mockQuery = (supabase.from as any)();
-            mockQuery.then.mockImplementation((onFulfilled: any) => {
-                return Promise.resolve({ data: mockData, error: null }).then(onFulfilled);
-            });
+    it("returns null without user or tenant identifiers", async () => {
+      const result = await studentsService.getProfile("", "");
 
-            const result = await studentsService.getProfile("user-1", "tenant-1");
-
-            expect(result).toEqual(mockData);
-        });
-
-        it("should return null if no user id or tenant id is provided", async () => {
-            const result = await studentsService.getProfile("", "");
-            expect(result).toBeNull();
-            expect(supabase.from).not.toHaveBeenCalled();
-        });
-
-        it("should throw error on database error", async () => {
-            const mockError = new Error("DB Error");
-            const mockQuery = (supabase.from as any)();
-            mockQuery.then.mockImplementation((onFulfilled: any) => {
-                return Promise.resolve({ data: null, error: mockError }).then(onFulfilled);
-            });
-
-            await expect(studentsService.getProfile("user-1", "tenant-1")).rejects.toThrow("DB Error");
-        });
+      expect(result).toBeNull();
+      expect(mocks.get).not.toHaveBeenCalled();
     });
 
-    describe("getEnrollment", () => {
-        it("should return active enrollment data", async () => {
-            const mockData = { id: "enr-1", class_id: "class-1", status: "active" };
-            const mockQuery = (supabase.from as any)();
-            mockQuery.then.mockImplementation((onFulfilled: any) => {
-                return Promise.resolve({ data: mockData, error: null }).then(onFulfilled);
-            });
+    it("propagates API errors", async () => {
+      mocks.get.mockRejectedValue(new Error("DB Error"));
 
-            const result = await studentsService.getEnrollment("student-1");
-
-            expect(result).toEqual(mockData);
-        });
+      await expect(
+        studentsService.getProfile("user-1", "tenant-1")
+      ).rejects.toThrow("DB Error");
     });
+  });
 
-    describe("getGrades", () => {
-        it("should return student grades", async () => {
-            const mockData = [{ id: "grade-1", grade: 15 }];
-            const mockQuery = (supabase.from as any)();
-            mockQuery.then.mockImplementation((onFulfilled: any) => {
-                return Promise.resolve({ data: mockData, error: null }).then(onFulfilled);
-            });
+  describe("getEnrollment", () => {
+    it("returns the active enrollment", async () => {
+      const enrollment = {
+        id: "enr-1",
+        class_id: "class-1",
+        status: "active",
+      };
+      mocks.get.mockResolvedValue({ data: enrollment });
 
-            const result = await studentsService.getGrades("student-1");
+      const result = await studentsService.getEnrollment("student-1");
 
-            expect(result).toEqual(mockData);
-        });
+      expect(result).toEqual(enrollment);
+      expect(mocks.get).toHaveBeenCalledWith(
+        "/students/student-1/enrollment/",
+        { params: { status: "active" } }
+      );
     });
+  });
+
+  describe("getGrades", () => {
+    it("returns student grades", async () => {
+      const grades = [{ id: "grade-1", grade: 15 }];
+      mocks.get.mockResolvedValue({ data: grades });
+
+      const result = await studentsService.getGrades("student-1");
+
+      expect(result).toEqual(grades);
+      expect(mocks.get).toHaveBeenCalledWith("/grades/", {
+        params: { student_id: "student-1" },
+      });
+    });
+  });
 });
