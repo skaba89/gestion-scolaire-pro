@@ -2,8 +2,9 @@
 # SchoolFlow Pro — Continuous Integration Pipeline
 # =============================================================================
 # Runs on push to main and pull_request to main.
-# Four independent jobs: frontend (lint+typecheck+build), backend (syntax+security+pytest),
-# backend-tests (PostgreSQL integration), and security (dependency + secret scanning).
+# Five independent jobs: frontend (lint+typecheck+build), browser smoke (Playwright),
+# backend (syntax+security+pytest), backend-tests (PostgreSQL integration),
+# and security (dependency + secret scanning).
 # Designed to complete in under 5 minutes.
 # =============================================================================
 
@@ -63,6 +64,38 @@ jobs:
         run: npm run build
         env:
           CI: true
+
+  browser-smoke:
+    name: Browser Smoke (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run critical browser smoke tests
+        run: npm run test:e2e:smoke
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-report
+          path: playwright-report/
+          retention-days: 7
 
   backend:
     name: Backend
