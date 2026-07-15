@@ -3,7 +3,15 @@ import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import {
+  OFFLINE_CACHE_BUSTER,
+  OFFLINE_CACHE_MAX_AGE_MS,
+  clearOfflineCache,
+  offlinePersister,
+  shouldDehydrateQuery,
+} from "@/lib/offline-persistence";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
@@ -93,6 +101,8 @@ const AppContent = memo(() => {
   useEffect(() => {
     const handleClearCache = () => {
       queryClient.clear();
+      // Purge aussi le cache offline persisté (règle : rien ne survit au logout).
+      clearOfflineCache();
     };
     window.addEventListener('auth:clear-cache', handleClearCache);
     return () => window.removeEventListener('auth:clear-cache', handleClearCache);
@@ -281,7 +291,15 @@ const App = memo(() => (
     </div>
   }>
     <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: offlinePersister,
+          maxAge: OFFLINE_CACHE_MAX_AGE_MS,
+          buster: OFFLINE_CACHE_BUSTER,
+          dehydrateOptions: { shouldDehydrateQuery },
+        }}
+      >
         <ThemeProvider defaultTheme="system">
           <TooltipProvider>
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -302,7 +320,7 @@ const App = memo(() => (
             </BrowserRouter>
           </TooltipProvider>
         </ThemeProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </HelmetProvider>
   </ErrorBoundary>
 ));
