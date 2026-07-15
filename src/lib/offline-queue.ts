@@ -125,14 +125,15 @@ export async function flushOfflineQueue(
 
   const rejected: QueuedAction[] = [];
   let sent = 0;
-  let index = 0;
 
-  while (index < queue.length) {
-    const action = queue[index];
+  // On traite toujours la tête de file : chaque itération la retire
+  // (succès, rejet ou autre tenant) ou interrompt le flush (hors ligne).
+  while (queue.length > 0) {
+    const action = queue[0];
 
     if (!currentTenantId || action.tenantId !== currentTenantId) {
       // Brouillon d'un autre contexte — jamais rejoué.
-      queue.splice(index, 1);
+      queue.shift();
       continue;
     }
 
@@ -141,7 +142,7 @@ export async function flushOfflineQueue(
       else if (action.method === "PATCH") await client.patch(action.url, action.body);
       else await client.put(action.url, action.body);
       sent += 1;
-      queue.splice(index, 1);
+      queue.shift();
     } catch (error) {
       if (isNetworkError(error)) {
         // Toujours hors ligne : on garde cette action et les suivantes.
@@ -150,7 +151,7 @@ export async function flushOfflineQueue(
       // Le serveur a refusé (validation, permission, conflit) : on abandonne
       // ce brouillon — il ne sera jamais forcé.
       rejected.push(action);
-      queue.splice(index, 1);
+      queue.shift();
     }
   }
 
