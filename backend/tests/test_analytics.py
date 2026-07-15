@@ -34,12 +34,21 @@ class TestMetricsEndpoint:
 
     def test_metrics_blocked_without_secret(self, monkeypatch):
         """When DEBUG=false and no secret provided, must return 403."""
-        import os
-        monkeypatch.setenv("DEBUG", "false")
+        from app.core.config import settings as app_settings
+        # The handler reads settings.DEBUG (frozen at import), not the env var.
+        monkeypatch.setattr(app_settings, "DEBUG", False)
         monkeypatch.delenv("METRICS_SECRET", raising=False)
         resp = client.get("/metrics/")
         # Either 403 (disabled) or 401/403 (auth required)
         assert resp.status_code in (401, 403)
+
+    def test_metrics_allowed_with_valid_secret_in_production(self, monkeypatch):
+        """When DEBUG=false, a valid METRICS_SECRET must let Prometheus scrape."""
+        from app.core.config import settings as app_settings
+        monkeypatch.setattr(app_settings, "DEBUG", False)
+        monkeypatch.setenv("METRICS_SECRET", "test-metrics-secret")
+        resp = client.get("/metrics/", params={"secret": "test-metrics-secret"})
+        assert resp.status_code == 200
 
     def test_metrics_reachable_in_debug(self, monkeypatch):
         """In DEBUG mode, metrics are accessible without authentication."""

@@ -403,7 +403,6 @@ app.state._cors_allowed_origins = origins
 
 # ─── Application middlewares (inner layers) ───────────────────────────────
 app.add_middleware(RequestIDMiddleware)
-app.add_middleware(MetricsMiddleware)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(QuotaMiddleware)
 app.add_middleware(TenantMiddleware)
@@ -488,6 +487,14 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     return response
+
+
+# Registered last so it is the OUTERMOST layer: requests short-circuited by
+# TenantMiddleware or token-version checks (401/403) must still be counted in
+# http_requests_total / authz_denied_total — that traffic is exactly what
+# brute-force and cross-tenant-probe alerting needs to see.
+app.add_middleware(MetricsMiddleware)
+
 
 @app.get("/", include_in_schema=False)
 def root():

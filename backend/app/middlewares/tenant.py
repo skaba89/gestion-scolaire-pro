@@ -25,7 +25,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/docs", "/openapi.json", "/health", "/health/", "/", "/auth/login",
             "/tenants/public", "/tenants/public/",
             "/auth/refresh", "/auth/logout", "/users/me", "/users/me/",
-            "/favicon.ico", "/favicon.png", "/redoc"
+            "/favicon.ico", "/favicon.png", "/redoc",
+            # Prometheus scrape — the endpoint enforces its own METRICS_SECRET
+            # in production (see app/main.py), no JWT/tenant context involved.
+            "/metrics", "/metrics/",
         ]
 
         # Public prefixes that never require tenant identification
