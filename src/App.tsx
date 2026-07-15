@@ -12,6 +12,8 @@ import {
   offlinePersister,
   shouldDehydrateQuery,
 } from "@/lib/offline-persistence";
+import { clearOfflineQueue } from "@/lib/offline-queue";
+import { useOfflineQueueSync } from "@/hooks/useOfflineQueueSync";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
@@ -101,8 +103,10 @@ const AppContent = memo(() => {
   useEffect(() => {
     const handleClearCache = () => {
       queryClient.clear();
-      // Purge aussi le cache offline persisté (règle : rien ne survit au logout).
+      // Purge aussi le cache offline persisté et la file de brouillons
+      // (règle : rien ne survit au logout ni au changement d'utilisateur).
       clearOfflineCache();
+      clearOfflineQueue();
     };
     window.addEventListener('auth:clear-cache', handleClearCache);
     return () => window.removeEventListener('auth:clear-cache', handleClearCache);
@@ -111,6 +115,9 @@ const AppContent = memo(() => {
   // Initialize OneSignal Web Push for PWA/browser users
   // (Native Capacitor push is handled separately in useNativePushNotifications)
   useOneSignalInit();
+
+  // Rejoue les brouillons offline (présences) au démarrage et au retour réseau
+  useOfflineQueueSync();
 
   return (
     <>
