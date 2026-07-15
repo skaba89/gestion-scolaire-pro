@@ -6,3 +6,6 @@
 
 # Optional: Run a secondary backup at 02:00 PM
 # 0 14 * * * root /path/to/schoolflow-pro/scripts/backup-database.sh >> /var/log/schoolflow-backup.log 2>&1
+
+# Expire SaaS subscriptions whose paid period has ended (daily at 03:00 AM)
+0 3 * * * root docker compose -f /path/to/schoolflow-pro/docker-compose.yml exec -T api python -m app.scripts.expire_subscriptions >> /var/log/schoolflow-billing.log 2>&1
