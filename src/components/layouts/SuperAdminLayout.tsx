@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Building2, Plus, LogOut, UserCog, Settings,
-  Menu, X, Home, ChevronRight, LayoutDashboard, Shield, BarChart3
+  Menu, X, Home, ChevronRight, LayoutDashboard, Shield, BarChart3, ReceiptText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
@@ -14,6 +14,7 @@ import { PageTransition } from "@/components/layouts/PageTransition";
 const navItems = [
   { href: "/super-admin", label: "Tableau de bord", icon: LayoutDashboard, end: true },
   { href: "/super-admin/saas-dashboard", label: "SaaS Dashboard", icon: BarChart3 },
+  { href: "/super-admin/subscription-requests", label: "Demandes d'abonnement", icon: ReceiptText },
   { href: "/super-admin/tenants", label: "Établissements", icon: Building2 },
   { href: "/super-admin/create-tenant", label: "Nouvel établissement", icon: Plus },
 ];
