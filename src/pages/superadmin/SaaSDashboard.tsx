@@ -19,8 +19,9 @@ import { toast } from "sonner";
 import {
   TrendingUp, Users, Building2, DollarSign, AlertTriangle, RefreshCw,
   Search, ExternalLink, Zap, Shield, Activity, BarChart3, Globe,
-  ChevronLeft, ChevronRight, LogIn, Crown,
+  ChevronLeft, ChevronRight, LogIn, Crown, Hourglass, Wallet, CalendarClock,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,12 @@ interface SaasMetrics {
   revenue_trend: { month: string; mrr: number }[];
   top_countries: { country: string; count: number }[];
   past_due_list: { id: string; name: string; slug: string; plan: string; since: string | null }[];
+  local_billing?: {
+    active_subscriptions: number;
+    pending_requests: number;
+    mrr_by_currency: { currency: string; mrr: number; arr: number }[];
+    expiring_soon: { tenant_name: string | null; tenant_slug: string | null; plan: string | null; period_end: string }[];
+  };
   generated_at: string;
 }
 
@@ -353,6 +360,52 @@ export default function SaaSDashboard() {
               value={metricsLoading ? "…" : fmt(metrics?.past_due_tenants ?? 0)}
               color="text-orange-600 dark:text-orange-400"
               alert={(metrics?.past_due_tenants ?? 0) > 0}
+            />
+          </div>
+
+          {/* Local billing row (Mobile Money / virement) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <KpiCard
+              icon={Wallet}
+              label="MRR abonnements locaux"
+              value={
+                metricsLoading
+                  ? "…"
+                  : (metrics?.local_billing?.mrr_by_currency ?? [])
+                      .map((m) => `${fmt(m.mrr)} ${m.currency}`)
+                      .join(" + ") || "0"
+              }
+              sub={
+                metrics?.local_billing
+                  ? `${fmt(metrics.local_billing.active_subscriptions)} abonnement(s) actif(s)`
+                  : undefined
+              }
+              color="text-emerald-600 dark:text-emerald-400"
+            />
+            <Link to="/super-admin/subscription-requests" className="block">
+              <KpiCard
+                icon={Hourglass}
+                label="Demandes d'abonnement en attente"
+                value={metricsLoading ? "…" : fmt(metrics?.local_billing?.pending_requests ?? 0)}
+                sub="Cliquer pour rapprocher les paiements"
+                color="text-amber-600 dark:text-amber-400"
+                alert={(metrics?.local_billing?.pending_requests ?? 0) > 0}
+              />
+            </Link>
+            <KpiCard
+              icon={CalendarClock}
+              label="Expirent sous 7 jours"
+              value={metricsLoading ? "…" : fmt(metrics?.local_billing?.expiring_soon?.length ?? 0)}
+              sub={
+                metrics?.local_billing?.expiring_soon?.length
+                  ? metrics.local_billing.expiring_soon
+                      .slice(0, 2)
+                      .map((e) => e.tenant_name ?? e.tenant_slug ?? "?")
+                      .join(", ")
+                  : undefined
+              }
+              color="text-orange-600 dark:text-orange-400"
+              alert={(metrics?.local_billing?.expiring_soon?.length ?? 0) > 0}
             />
           </div>
 
