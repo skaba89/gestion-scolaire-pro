@@ -11,10 +11,8 @@ import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface SubscriptionInfo {
-  plan: "starter" | "pro" | "enterprise";
-  status: "active" | "trialing" | "past_due" | "canceled" | "unpaid";
-  stripe_customer_id: string | null;
-  stripe_subscription_id: string | null;
+  plan: string;
+  status: "active" | "trialing" | "past_due" | "canceled" | "unpaid" | string;
   trial_active: boolean;
   trial_ends_at: string | null;
   billing_email: string | null;
