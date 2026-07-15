@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.models.saas import SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_role import UserRole
@@ -208,6 +209,60 @@ async def get_saas_metrics(
         reverse=True,
     )[:10]
 
+    # ── Local billing (abonnements payés par Mobile Money / virement) ────────
+    # Le MRR réel vient des souscriptions actives × tarif du plan ; il peut
+    # mélanger plusieurs devises (GNF, USD…) → agrégé par devise.
+    active_subs = (
+        db.query(TenantSubscription)
+        .filter(TenantSubscription.status == "active")
+        .all()
+    )
+    plans_by_id = {str(p.id): p for p in db.query(SubscriptionPlan).all()}
+
+    mrr_by_currency: dict[str, float] = {}
+    for sub in active_subs:
+        sub_plan = plans_by_id.get(str(sub.plan_id)) if sub.plan_id else None
+        if not sub_plan:
+            continue
+        monthly = (
+            (sub_plan.price_yearly or 0.0) / 12
+            if sub.billing_cycle == "yearly"
+            else (sub_plan.price_monthly or 0.0)
+        )
+        currency = sub_plan.currency or "USD"
+        mrr_by_currency[currency] = mrr_by_currency.get(currency, 0.0) + monthly
+
+    pending_requests_count = (
+        db.query(func.count(TenantSubscription.id))
+        .filter(TenantSubscription.status == "pending_payment")
+        .scalar()
+        or 0
+    )
+
+    soon = now + timedelta(days=7)
+    expiring_soon = []
+    for sub in active_subs:
+        if sub.current_period_end and now < sub.current_period_end <= soon:
+            sub_tenant = db.query(Tenant).filter(Tenant.id == sub.tenant_id).first()
+            sub_plan = plans_by_id.get(str(sub.plan_id)) if sub.plan_id else None
+            expiring_soon.append({
+                "tenant_name": sub_tenant.name if sub_tenant else None,
+                "tenant_slug": sub_tenant.slug if sub_tenant else None,
+                "plan": sub_plan.slug if sub_plan else None,
+                "period_end": sub.current_period_end.isoformat(),
+            })
+    expiring_soon.sort(key=lambda x: x["period_end"])
+
+    local_billing = {
+        "active_subscriptions": len(active_subs),
+        "pending_requests": int(pending_requests_count),
+        "mrr_by_currency": [
+            {"currency": c, "mrr": round(v, 0), "arr": round(v * 12, 0)}
+            for c, v in sorted(mrr_by_currency.items())
+        ],
+        "expiring_soon": expiring_soon[:10],
+    }
+
     # ── Past due tenants ──────────────────────────────────────────────────────
     past_due_tenants = [
         {
@@ -245,6 +300,8 @@ async def get_saas_metrics(
         "top_countries": top_countries,
         # ── Alerts
         "past_due_list": past_due_tenants,
+        # ── Billing local (Mobile Money / virement)
+        "local_billing": local_billing,
         "generated_at": now.isoformat(),
     }
 
