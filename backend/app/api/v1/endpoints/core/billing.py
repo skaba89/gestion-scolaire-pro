@@ -41,6 +41,10 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.saas import BillingEvent, SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
+from app.services.subscription_maintenance import (
+    apply_plan_quotas,
+    expire_overdue_subscriptions,
+)
 from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
@@ -105,22 +109,6 @@ def _record_billing_event(
         payload=payload,
         processed_at=_now(),
     ))
-
-
-def _apply_plan_quotas(tenant: Tenant, plan: SubscriptionPlan) -> None:
-    """Copy plan limits into tenant.settings so QuotaMiddleware enforces them."""
-    settings_dict = dict(tenant.settings or {})
-    quotas = dict(settings_dict.get("quotas") or {})
-    if plan.max_students is not None:
-        quotas["max_students"] = plan.max_students
-    else:
-        quotas.pop("max_students", None)
-    if plan.max_storage_gb is not None:
-        quotas["max_storage_mb"] = plan.max_storage_gb * 1024
-    else:
-        quotas.pop("max_storage_mb", None)
-    settings_dict["quotas"] = quotas
-    tenant.settings = settings_dict  # reassign to trigger JSON change detection
 
 
 def _plan_to_dict(plan: SubscriptionPlan) -> dict:
@@ -442,7 +430,7 @@ async def confirm_subscription_payment(
     tenant.subscription_plan = plan.slug
     tenant.subscription_status = "active"
     tenant.trial_ends_at = None
-    _apply_plan_quotas(tenant, plan)
+    apply_plan_quotas(tenant, plan)
 
     _record_billing_event(
         db,
@@ -527,4 +515,27 @@ async def reject_subscription_request(
     return {
         "subscription": _subscription_to_dict(subscription),
         "message": "Demande rejetée. L'établissement garde son plan actuel.",
+    }
+
+
+@router.post("/maintenance/expire/")
+async def run_subscription_expiry(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Rétrograde les abonnements dont la période payée est terminée.
+
+    Le même traitement tourne quotidiennement via
+    `python -m app.scripts.expire_subscriptions` (cron/systemd) ; cet
+    endpoint permet un déclenchement manuel et la vérification du résultat.
+    """
+    _require_roles(current_user, "SUPER_ADMIN")
+    summary = expire_overdue_subscriptions(db)
+    return {
+        "expired": summary["expired"],
+        "tenants": summary["tenants"],
+        "message": (
+            f"{summary['expired']} abonnement(s) expiré(s)."
+            if summary["expired"] else "Aucun abonnement à expirer."
+        ),
     }
