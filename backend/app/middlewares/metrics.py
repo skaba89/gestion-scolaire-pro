@@ -32,6 +32,16 @@ try:
         "active_connections_total",
         "Number of active HTTP connections currently being processed",
     )
+    BUSINESS_EVENT_COUNT = Counter(
+        "business_events_total",
+        "Critical business events derived from API traffic",
+        ["event", "outcome"],
+    )
+    AUTHZ_DENIED_COUNT = Counter(
+        "authz_denied_total",
+        "Requests rejected with HTTP 403 (authorization denied)",
+        ["method", "endpoint"],
+    )
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -49,6 +59,32 @@ def _normalise_path(path: str) -> str:
     path = _UUID_RE.sub("{id}", path)
     path = _NUMERIC_RE.sub("/{id}", path)
     return path
+
+
+# (method, normalised path without trailing slash) → business event name.
+# Keys must match paths AFTER _normalise_path (UUIDs already replaced by {id}).
+_BUSINESS_EVENTS = {
+    ("POST", "/api/v1/auth/login"): "login",
+    ("POST", "/api/v1/students"): "student_created",
+    ("POST", "/api/v1/invoices"): "invoice_created",
+    ("POST", "/api/v1/payments/invoices"): "invoice_created",
+    ("POST", "/api/v1/payments/register"): "payment_registered",
+    ("POST", "/api/v1/payments/{id}/reverse"): "payment_reversed",
+    ("POST", "/api/v1/payments/intent"): "payment_intent_created",
+    ("POST", "/api/v1/parents/payments/webhook/cinetpay"): "payment_webhook_received",
+    ("POST", "/api/v1/parents/payments/webhook/paytech"): "payment_webhook_received",
+}
+
+
+def _record_business_metrics(method: str, endpoint: str, status_code: int) -> None:
+    """Increment business counters derived from the HTTP outcome."""
+    if status_code == 403:
+        AUTHZ_DENIED_COUNT.labels(method=method, endpoint=endpoint).inc()
+
+    event = _BUSINESS_EVENTS.get((method, endpoint.rstrip("/") or "/"))
+    if event is not None:
+        outcome = "success" if status_code < 400 else "failure"
+        BUSINESS_EVENT_COUNT.labels(event=event, outcome=outcome).inc()
 
 
 class MetricsMiddleware(BaseHTTPMiddleware):
@@ -78,6 +114,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                 method=request.method,
                 endpoint=endpoint,
             ).observe(duration)
+            _record_business_metrics(request.method, endpoint, response.status_code)
             return response
         except Exception:
             duration = time.perf_counter() - start
