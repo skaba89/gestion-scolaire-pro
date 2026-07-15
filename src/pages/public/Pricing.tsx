@@ -29,8 +29,8 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: "29 $",
-    priceDetail: "/ mois",
+    price: "500 000 GNF",
+    priceDetail: "/ mois — 5 000 000 GNF/an (2 mois offerts)",
     description: "Pour les établissements en croissance avec des besoins avancés.",
     badge: "Recommandé",
     highlight: true,
@@ -51,8 +51,8 @@ const PLANS = [
   {
     id: "enterprise",
     name: "Enterprise",
-    price: "99 $",
-    priceDetail: "/ mois",
+    price: "1 000 000 GNF",
+    priceDetail: "/ mois — 10 000 000 GNF/an (2 mois offerts)",
     description: "Pour les grands établissements et les réseaux multi-campus.",
     badge: null,
     highlight: false,
@@ -83,7 +83,7 @@ const FAQ = [
   },
   {
     q: "Quels modes de paiement acceptez-vous ?",
-    a: "Carte bancaire (Visa, Mastercard), Orange Money, Wave et virement bancaire pour les plans Enterprise.",
+    a: "Orange Money, MTN MoMo et virement bancaire. Votre abonnement est activé dès vérification du paiement — aucune carte bancaire requise.",
   },
   {
     q: "Mes données sont-elles sécurisées ?",
