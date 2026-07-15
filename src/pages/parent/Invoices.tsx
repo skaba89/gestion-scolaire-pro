@@ -93,16 +93,15 @@ const Invoices = () => {
   });
 
   const tenantSettings = (tenant?.settings as Record<string, any>) ?? {};
-  const onlinePaymentsEnabled = tenantSettings.enableOnlinePayments ?? false;
   const mobileMoneyEnabled = tenantSettings.enableMobileMoney ?? false;
   const cinetPayEnabled = tenantSettings.enableCinetPay ?? false;
 
-  // Any online method is available
-  const anyOnlinePayment = onlinePaymentsEnabled || mobileMoneyEnabled || cinetPayEnabled;
+  // Any online method is available (Mobile Money rails only — no card/Stripe)
+  const anyOnlinePayment = mobileMoneyEnabled || cinetPayEnabled;
   // Multiple methods → show picker dialog
-  const multipleOnlineMethods = [onlinePaymentsEnabled, mobileMoneyEnabled, cinetPayEnabled].filter(Boolean).length > 1;
+  const multipleOnlineMethods = [mobileMoneyEnabled, cinetPayEnabled].filter(Boolean).length > 1;
 
-  const handleOnlinePayment = async (invoice: any, method: 'stripe' | 'paytech' | 'cinetpay' = 'cinetpay') => {
+  const handleOnlinePayment = async (invoice: any, method: 'paytech' | 'cinetpay' = 'cinetpay') => {
     if (!invoice || !user) return;
     const remaining = Number(invoice.total_amount) - Number(invoice.paid_amount || 0);
     if (remaining <= 0) {
@@ -355,15 +354,6 @@ const Invoices = () => {
                 </div>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Wave · Orange Money · MTN</span>
                 <span className="text-[9px] text-green-600 font-medium">Sénégal</span>
-              </Button>
-            )}
-            {onlinePaymentsEnabled && (
-              <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-1.5 border-2 hover:border-blue-500 hover:bg-blue-50 transition-all" onClick={() => handleOnlinePayment(paymentMethodDialog.invoice, 'stripe')}>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-blue-600" />
-                  <span className="font-bold text-sm">Carte Bancaire (Stripe)</span>
-                </div>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Visa · Mastercard · American Express</span>
               </Button>
             )}
           </div>
