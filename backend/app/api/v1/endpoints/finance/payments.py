@@ -2,7 +2,7 @@
 import json
 import logging
 from typing import Optional, List, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -469,17 +469,46 @@ def delete_invoice_endpoint(
     return None
 
 
+def _deliver_reminders_background(svc, deliveries: list) -> None:
+    """Send WhatsApp/push/email reminders outside the request path.
+
+    Up to 200 invoices × several external calls each can take minutes;
+    the HTTP worker must not be held for that.
+    """
+    results = {"whatsapp": 0, "push": 0, "email": 0, "errors": 0}
+    for delivery in deliveries:
+        try:
+            result = svc.send_payment_reminder(**delivery)
+            if result.whatsapp:
+                results["whatsapp"] += 1
+            if result.push:
+                results["push"] += 1
+            if result.email:
+                results["email"] += 1
+            if not result.any_sent:
+                results["errors"] += 1
+        except Exception as e:
+            logger.error(
+                "Reminder send failed for invoice %s: %s",
+                delivery.get("invoice_number"), e,
+            )
+            results["errors"] += 1
+    logger.info("Reminder delivery finished: %s", results)
+
+
 @router.post("/send-reminders/")
 @limiter.limit("3/minute")
 def send_payment_reminders(
     request: Request,
     body: InvoiceReminderRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """
     Send payment reminders via WhatsApp, push and email.
     Fetches unpaid/overdue invoices with parent contact info.
+    External delivery runs as a background task after the response.
     """
     from app.services.notifications import build_service_from_db
 
@@ -512,7 +541,8 @@ def send_payment_reminders(
     # Build notification service from tenant settings
     svc = build_service_from_db(db, tenant_id)
 
-    results: dict = {"whatsapp": 0, "push": 0, "email": 0, "in_app": 0, "errors": 0}
+    results: dict = {"in_app": 0}
+    deliveries: list = []
     count = 0
 
     for inv in overdue:
@@ -522,30 +552,18 @@ def send_payment_reminders(
         amount_str = f"{remaining:,.0f}".replace(",", " ")
         due_str = str(inv.due_date) if inv.due_date else "—"
 
-        # ── Real delivery (WhatsApp + Push + Email) ──────────────────────────
+        # ── Real delivery (WhatsApp + Push + Email) — queued for background ──
         if svc and (inv.parent_phone or inv.parent_email):
-            try:
-                result = svc.send_payment_reminder(
-                    to_phone=inv.parent_phone,
-                    to_email=inv.parent_email,
-                    onesignal_user_id=str(inv.parent_user_id) if inv.parent_user_id else None,
-                    parent_name=parent_name,
-                    student_name=student_name,
-                    invoice_number=inv.invoice_number or str(inv.id)[:8],
-                    amount=amount_str,
-                    due_date=due_str,
-                )
-                if result.whatsapp:
-                    results["whatsapp"] += 1
-                if result.push:
-                    results["push"] += 1
-                if result.email:
-                    results["email"] += 1
-                if not result.any_sent:
-                    results["errors"] += 1
-            except Exception as e:
-                logger.error("Reminder send failed for invoice %s: %s", inv.id, e)
-                results["errors"] += 1
+            deliveries.append({
+                "to_phone": inv.parent_phone,
+                "to_email": inv.parent_email,
+                "onesignal_user_id": str(inv.parent_user_id) if inv.parent_user_id else None,
+                "parent_name": parent_name,
+                "student_name": student_name,
+                "invoice_number": inv.invoice_number or str(inv.id)[:8],
+                "amount": amount_str,
+                "due_date": due_str,
+            })
 
         # ── Always insert in-app notification ────────────────────────────────
         if inv.parent_user_id:
@@ -575,14 +593,26 @@ def send_payment_reminders(
         resource_type="INVOICE",
         details={
             "invoice_count": count,
-            "channels": results,
+            "queued_deliveries": len(deliveries),
+            "in_app": results["in_app"],
             "specific_ids": body.invoice_ids,
         }
     )
     db.commit()
 
-    summary = f"{count} rappel(s) — WhatsApp: {results['whatsapp']}, Push: {results['push']}, Email: {results['email']}, In-app: {results['in_app']}"
-    return {"sent": count, "channels": results, "message": summary}
+    if deliveries:
+        background_tasks.add_task(_deliver_reminders_background, svc, deliveries)
+
+    summary = (
+        f"{count} rappel(s) — In-app: {results['in_app']}, "
+        f"WhatsApp/Push/Email: {len(deliveries)} envoi(s) en cours en arrière-plan"
+    )
+    return {
+        "sent": count,
+        "queued": len(deliveries),
+        "channels": results,
+        "message": summary,
+    }
 
 
 # ─── Fees endpoints ───────────────────────────────────────────────────────────

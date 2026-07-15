@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -799,11 +799,50 @@ def _slugify(text: str) -> str:
     return text[:50] or "school"
 
 
+def _send_welcome_email_background(
+    *, to_email: str, first_name: str, school_name: str, slug: str
+) -> None:
+    """Send the school welcome email outside the request path."""
+    from app.services.notifications import EmailSender
+
+    try:
+        sender = EmailSender(
+            resend_api_key=settings.RESEND_API_KEY,
+            smtp_host=settings.SMTP_HOST,
+            smtp_port=settings.SMTP_PORT,
+            smtp_user=settings.SMTP_USER,
+            smtp_pass=settings.SMTP_PASS,
+            from_email=settings.FROM_EMAIL,
+            from_name=settings.FROM_NAME,
+        )
+        dashboard_url = f"{settings.FRONTEND_URL}/{slug}/admin/onboarding"
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
+          <h2 style="color:#1a56db">🎉 Bienvenue sur SchoolFlow Pro !</h2>
+          <p>Bonjour <strong>{first_name}</strong>,</p>
+          <p>Votre établissement <strong>{school_name}</strong> a bien été créé.</p>
+          <p>Vous bénéficiez de <strong>30 jours d'essai gratuit Pro</strong> pour découvrir toutes les fonctionnalités.</p>
+          <div style="margin:24px 0">
+            <a href="{dashboard_url}" style="background:#1a56db;color:#fff;padding:14px 28px;
+               text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block">
+              Configurer mon établissement →
+            </a>
+          </div>
+          <p style="color:#6b7280;font-size:13px">Votre URL de connexion : <strong>{settings.FRONTEND_URL}/{slug}/admin</strong></p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+          <p style="color:#9ca3af;font-size:12px">SchoolFlow Pro — L'ERP scolaire pour l'Afrique francophone</p>
+        </div>"""
+        sender.send(to=to_email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {school_name}", html=html)
+    except Exception as exc:
+        logger.warning("Welcome email failed: %s", exc)
+
+
 @router.post("/register-school/", status_code=status.HTTP_201_CREATED)
 @limiter.limit("3/minute")
 async def register_school(
     request: Request,
     body: RegisterSchoolRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Self-service school registration.
@@ -816,7 +855,6 @@ async def register_school(
     from datetime import timedelta
     from app.core.security import get_password_hash, create_access_token
     from app.models.tenant import Tenant
-    from app.services.notifications import EmailSender, Templates
 
     # 1. Check email uniqueness
     existing_user = db.query(User).filter(User.email == body.email).first()
@@ -879,37 +917,14 @@ async def register_school(
 
     logger.info("New school registered: slug=%s, admin=%s", slug, body.email)
 
-    # 6. Send welcome email (non-blocking)
-    try:
-        sender = EmailSender(
-            resend_api_key=settings.RESEND_API_KEY,
-            smtp_host=settings.SMTP_HOST,
-            smtp_port=settings.SMTP_PORT,
-            smtp_user=settings.SMTP_USER,
-            smtp_pass=settings.SMTP_PASS,
-            from_email=settings.FROM_EMAIL,
-            from_name=settings.FROM_NAME,
-        )
-        dashboard_url = f"{settings.FRONTEND_URL}/{slug}/admin/onboarding"
-        html = f"""
-        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
-          <h2 style="color:#1a56db">🎉 Bienvenue sur SchoolFlow Pro !</h2>
-          <p>Bonjour <strong>{body.first_name}</strong>,</p>
-          <p>Votre établissement <strong>{body.school_name}</strong> a bien été créé.</p>
-          <p>Vous bénéficiez de <strong>30 jours d'essai gratuit Pro</strong> pour découvrir toutes les fonctionnalités.</p>
-          <div style="margin:24px 0">
-            <a href="{dashboard_url}" style="background:#1a56db;color:#fff;padding:14px 28px;
-               text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block">
-              Configurer mon établissement →
-            </a>
-          </div>
-          <p style="color:#6b7280;font-size:13px">Votre URL de connexion : <strong>{settings.FRONTEND_URL}/{slug}/admin</strong></p>
-          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
-          <p style="color:#9ca3af;font-size:12px">SchoolFlow Pro — L'ERP scolaire pour l'Afrique francophone</p>
-        </div>"""
-        sender.send(to=body.email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {body.school_name}", html=html)
-    except Exception as exc:
-        logger.warning("Welcome email failed: %s", exc)
+    # 6. Send welcome email outside the request path
+    background_tasks.add_task(
+        _send_welcome_email_background,
+        to_email=body.email,
+        first_name=body.first_name,
+        school_name=body.school_name,
+        slug=slug,
+    )
 
     # 7. Issue JWT so the user is immediately logged in
     token_data = {
@@ -1345,11 +1360,38 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 
+async def _deliver_reset_link_background(
+    *, user_id: str, email: str, user_name: str
+) -> None:
+    """Deliver the reset link outside the request path.
+
+    SMTP/Resend latency must not delay the anti-enumeration 200 response:
+    a slow send would make "email exists" measurably slower than "no user".
+    """
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        deliver_password_setup_link,
+    )
+
+    try:
+        await deliver_password_setup_link(
+            user_id=user_id,
+            email=email,
+            user_name=user_name,
+            purpose="reset",
+            expires_in=900,
+        )
+        logger.info("Password reset requested for user %s", user_id)
+    except PasswordSetupDeliveryError as exc:
+        logger.error("Password reset link delivery failed for user %s: %s", user_id, exc)
+
+
 @router.post("/forgot-password/", status_code=status.HTTP_200_OK)
 @limiter.limit("3/minute")
 async def forgot_password(
     request: Request,
     body: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Request a password reset email.
@@ -1357,11 +1399,6 @@ async def forgot_password(
     Always returns 200 regardless of whether the email exists to prevent
     user enumeration attacks.
     """
-    from app.services.account_provisioning import (
-        PasswordSetupDeliveryError,
-        deliver_password_setup_link,
-    )
-
     # Lookup user — no error on miss (anti-enumeration)
     user = db.execute(
         text("""
@@ -1374,21 +1411,13 @@ async def forgot_password(
     ).mappings().first()
 
     if user:
-        user_id = str(user["id"])
         user_name = f"{user['first_name'] or ''} {user['last_name'] or ''}".strip() or user["email"]
-
-        try:
-            await deliver_password_setup_link(
-                user_id=user_id,
-                email=user["email"],
-                user_name=user_name,
-                purpose="reset",
-                expires_in=900,
-            )
-            logger.info("Password reset requested for user %s", user_id)
-        except PasswordSetupDeliveryError as exc:
-            # Keep the anti-enumeration response identical while logging delivery failure.
-            logger.error("Password reset link delivery failed for user %s: %s", user_id, exc)
+        background_tasks.add_task(
+            _deliver_reset_link_background,
+            user_id=str(user["id"]),
+            email=user["email"],
+            user_name=user_name,
+        )
 
     # Always return the same message to prevent email enumeration
     return {"message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé."}
