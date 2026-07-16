@@ -6,7 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { FileText, Loader2, Download } from "lucide-react";
-import { generateAnalyticsReport } from "@/lib/pdf/analytics-report";
 import { toast } from "sonner";
 
 export const AnalyticsReportButton = () => {
@@ -36,6 +35,8 @@ export const AnalyticsReportButton = () => {
                 queryClient.fetchQuery(analyticsQueries.studentsAtRisk(tenant.id))
             ]);
 
+            // jspdf (~600 kB) est chargé au clic seulement, pas avec la page.
+            const { generateAnalyticsReport } = await import("@/lib/pdf/analytics-report");
             await generateAnalyticsReport({
                 tenantName: tenant.name,
                 generatedBy: `${profile?.first_name} ${profile?.last_name}`,

@@ -1,5 +1,4 @@
 import { apiClient } from "@/api/client";
-import { jsPDF } from "jspdf";
 import { SentryMonitoring } from "./sentry";
 
 export interface DeletionRequest {
@@ -177,6 +176,9 @@ export const gdprService = {
      * Admin: Generate a formal PDF compliance report
      */
     async generateComplianceReportPDF(logs: any[], tenantName?: string) {
+        // jspdf (~600 kB) est chargé à la génération seulement — ce service
+        // est importé par plusieurs pages de paramètres qui n'exportent pas.
+        const { jsPDF } = await import("jspdf");
         const doc = new jsPDF();
         const now = new Date().toLocaleString();
 

@@ -1,8 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Download, Bell, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { StudentRisk, Prediction, Recommendation } from "@/types/ai";
@@ -18,8 +16,13 @@ interface AIActionsProps {
 
 export function AIActions({ tenantName, studentRisks, predictions, recommendations, onRefresh, isAnalyzing }: AIActionsProps) {
 
-    const handleExportPDF = () => {
+    const handleExportPDF = async () => {
         try {
+            // jspdf (~600 kB) est chargé au clic seulement, pas avec la page.
+            const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+                import("jspdf"),
+                import("jspdf-autotable"),
+            ]);
             const doc = new jsPDF();
             const pageWidth = doc.internal.pageSize.width;
 

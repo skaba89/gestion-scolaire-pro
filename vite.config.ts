@@ -118,6 +118,13 @@ export default defineConfig(({ mode }) => {
           entryFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash][extname]',
           manualChunks(id) {
+            // Le helper de préchargement de Vite est importé statiquement par
+            // TOUS les chunks qui font un import dynamique. Sans cette règle,
+            // Rollup peut le loger dans un gros vendor (ex: vendor-pdf), qui
+            // se retrouve alors tiré au chargement de chaque page.
+            if (id.includes('vite/preload-helper')) {
+              return 'vite-runtime';
+            }
             if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router') || id.includes('node_modules/react-i18next') || id.includes('node_modules/i18next') || id.includes('node_modules/scheduler')) {
               return 'vendor-react';
             }

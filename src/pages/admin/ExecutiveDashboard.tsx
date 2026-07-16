@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { financialKPIs, academicKPIs, operationalKPIs } from "@/queries/dashboardKPIs";
 import { toastService } from "@/utils/toast";
 import { academicYearQueries } from "@/queries/academic-years";
-import { generateDashboardPDF } from "@/utils/dashboardPdfGenerator";
 import { exportToCSV } from "@/utils/exportUtils";
 import { adminQueries } from "@/queries/admin";
 
@@ -217,9 +216,11 @@ export default function ExecutiveDashboard() {
         }).format(amount);
     };
 
-    const handleExportPDF = () => {
+    const handleExportPDF = async () => {
         if (!tenant) return;
 
+        // jspdf (~600 kB) est chargé au clic seulement, pas avec la page.
+        const { generateDashboardPDF } = await import("@/utils/dashboardPdfGenerator");
         generateDashboardPDF({
             tenantName: tenant.name,
             period: period === "month" ? t("executiveDashboard.thisMonth") : period === "quarter" ? t("executiveDashboard.thisQuarter") : t("executiveDashboard.thisYear"),
