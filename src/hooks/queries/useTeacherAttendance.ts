@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 
+import { enqueueAction, isNetworkError } from "@/lib/offline-queue";
+
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
 
 export interface AttendanceRecord {
@@ -59,7 +61,7 @@ export const useTeacherAttendance = (classroomId?: string, date?: string) => {
         enabled: !!classroomId && !!date,
     });
 
-    // 3. Save/Update Attendance Mutation
+    // 3. Save/Update Attendance Mutation (avec brouillon offline)
     const saveAttendance = useMutation({
         mutationFn: async ({
             studentId,
@@ -67,25 +69,84 @@ export const useTeacherAttendance = (classroomId?: string, date?: string) => {
         }: {
             studentId: string;
             status: AttendanceStatus;
-        }) => {
+        }): Promise<{ queued: boolean }> => {
             if (!tenant?.id) throw new Error("Tenant missing");
 
-            const existingRecord = attendanceQuery.data?.find(a => a.student_id === studentId);
+            // Les enregistrements créés hors ligne (id "offline-…") n'existent
+            // pas encore côté serveur : on repart sur un POST.
+            const existingRecord = attendanceQuery.data?.find(
+                a => a.student_id === studentId && !String(a.id).startsWith("offline-"),
+            );
 
-            if (existingRecord) {
-                await apiClient.patch(`/attendance/${existingRecord.id}/`, { status });
-            } else {
-                await apiClient.post("/attendance/", {
-                    student_id: studentId,
-                    class_id: classroomId,
-                    date: date,
-                    status,
-                    tenant_id: tenant.id,
-                    recorded_by: user?.id,
+            const request = existingRecord
+                ? {
+                    method: "PATCH" as const,
+                    url: `/attendance/${existingRecord.id}/`,
+                    body: { status },
+                }
+                : {
+                    method: "POST" as const,
+                    url: "/attendance/",
+                    body: {
+                        student_id: studentId,
+                        class_id: classroomId,
+                        date: date,
+                        status,
+                        tenant_id: tenant.id,
+                        recorded_by: user?.id,
+                    },
+                };
+
+            try {
+                if (request.method === "PATCH") await apiClient.patch(request.url, request.body);
+                else await apiClient.post(request.url, request.body);
+                return { queued: false };
+            } catch (error) {
+                if (!isNetworkError(error)) throw error;
+
+                // Hors ligne : brouillon local, rejoué au retour du réseau.
+                // Un second changement pour le même élève remplace le brouillon
+                // précédent (dedupeKey) — c'est le dernier statut qui compte.
+                enqueueAction({
+                    kind: "attendance",
+                    ...request,
+                    dedupeKey: `attendance:${classroomId}:${date}:${studentId}`,
+                    tenantId: String(tenant.id),
+                    userId: user?.id ? String(user.id) : null,
                 });
+
+                // Mise à jour optimiste de l'écran de pointage.
+                queryClient.setQueryData<AttendanceRecord[]>(
+                    ["attendance-records", classroomId, date],
+                    (records = []) => {
+                        const existing = records.find(r => r.student_id === studentId);
+                        if (existing) {
+                            return records.map(r =>
+                                r.student_id === studentId ? { ...r, status } : r,
+                            );
+                        }
+                        return [
+                            ...records,
+                            {
+                                id: `offline-${studentId}`,
+                                student_id: studentId,
+                                class_id: classroomId ?? null,
+                                date: date ?? "",
+                                status,
+                                recorded_by: user?.id ? String(user.id) : null,
+                                tenant_id: String(tenant.id),
+                            },
+                        ];
+                    },
+                );
+                return { queued: true };
             }
         },
-        onSuccess: () => {
+        onSuccess: ({ queued }) => {
+            if (queued) {
+                toast.info("Hors ligne — présence enregistrée en brouillon, synchronisation au retour du réseau.");
+                return;
+            }
             queryClient.invalidateQueries({ queryKey: ["attendance-records", classroomId, date] });
             toast.success("Présence enregistrée");
         },

@@ -61,9 +61,21 @@ describe("shouldPersistQuery — données sensibles exclues", () => {
 
 describe("clearOfflineCache", () => {
   it("supprime l'entrée localStorage du cache offline", () => {
+    // Le setup global remplace localStorage par des vi.fn() no-op ;
+    // on installe un stockage fonctionnel pour une assertion réelle.
+    const store = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+        setItem: (k: string, v: string) => { store.set(k, String(v)); },
+        removeItem: (k: string) => { store.delete(k); },
+        clear: () => store.clear(),
+      },
+    });
+
     window.localStorage.setItem(OFFLINE_CACHE_KEY, '{"clientState":{}}');
     clearOfflineCache();
-    // Le mock localStorage du setup Vitest renvoie undefined (navigateur : null).
-    expect(window.localStorage.getItem(OFFLINE_CACHE_KEY) ?? null).toBeNull();
+    expect(window.localStorage.getItem(OFFLINE_CACHE_KEY)).toBeNull();
   });
 });
