@@ -74,9 +74,11 @@ export function ContractsTab() {
         }
     };
 
-    const handleDownloadContract = (contract: Contract) => {
+    const handleDownloadContract = async (contract: Contract) => {
         try {
-            const { generateCDIContract, generateCDDContract } = require("@/utils/contractPdfGenerator");
+            // require() n'existe pas dans un build ESM navigateur — import
+            // dynamique (jspdf chargé au clic seulement).
+            const { generateCDIContract, generateCDDContract } = await import("@/utils/contractPdfGenerator");
 
             // Préparer les données du tenant
             const tenantData = {

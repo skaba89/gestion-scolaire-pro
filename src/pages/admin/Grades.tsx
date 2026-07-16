@@ -32,7 +32,6 @@ import {
   Calendar
 } from "lucide-react";
 import { toast } from "sonner";
-import { generateReportCard } from "@/utils/pdfGenerator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -142,12 +141,15 @@ const Grades = () => {
     setSelectedClassroom(value);
   }, []);
 
-  const handleGenerateBulletins = () => {
+  const handleGenerateBulletins = async () => {
     try {
       if (!assessments || assessments.length === 0) {
         toast.info(t("grades.noDataForBulletin"));
         return;
       }
+
+      // jspdf (~600 kB) est chargé au clic seulement, pas avec la page.
+      const { generateReportCard } = await import("@/utils/pdfGenerator");
 
       const firstAssessment = assessments[0] as any;
       const classroom = firstAssessment.classrooms?.name || (classrooms?.[0] as any)?.name || "Classe";

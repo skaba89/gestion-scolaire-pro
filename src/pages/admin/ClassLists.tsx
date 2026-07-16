@@ -27,7 +27,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StudentAvatar } from "@/components/students/StudentAvatar";
 import { referenceQueries } from "@/queries/reference-data";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
-import { generateClassListPdf } from "@/utils/classListPdfGenerator";
+
+// jspdf (~600 kB) est chargé au clic seulement, pas avec la page.
+const exportClassListPdf = async (classroom: unknown, tenantName: string) => {
+    const { generateClassListPdf } = await import("@/utils/classListPdfGenerator");
+    generateClassListPdf(classroom as Parameters<typeof generateClassListPdf>[0], tenantName);
+};
 
 const ClassLists = () => {
     const { t } = useTranslation();
@@ -222,7 +227,7 @@ const ClassLists = () => {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => generateClassListPdf(classroom, tenant?.name || "")}
+                                        onClick={() => exportClassListPdf(classroom, tenant?.name || "")}
                                         aria-label={t("classLists.exportPdfAria", { name: classroom.name })}
                                         disabled={classroom.students.length === 0}
                                     >
