@@ -60,11 +60,12 @@ export default function QrScanPage() {
                 return;
             }
 
-            // Log attendance via API
+            // Log attendance via API. Le serveur horodate (checked_at) ;
+            // `source` note l'origine du pointage.
             await apiClient.post("/school-life/check-ins/", {
                 student_id: student.id,
-                tenant_id: tenant?.id,
-                method: "QR_SCAN"
+                source: "QR_SCAN",
+                direction: "IN",
             });
 
             const newLog: ScanLog = {

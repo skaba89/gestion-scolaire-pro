@@ -5,6 +5,7 @@ import fr from './locales/fr.json';
 import en from './locales/en.json';
 import es from './locales/es.json';
 import ar from './locales/ar.json';
+import zh from './locales/zh.json';
 
 const readableFallbacks: Record<string, string> = {
     // ── Portal / shell ───────────────────────────────────────────────────────
@@ -202,8 +203,9 @@ i18n
             en: { translation: en },
             es: { translation: es },
             ar: { translation: ar },
+            zh: { translation: zh },
         },
-        supportedLngs: ['fr', 'en', 'es', 'ar'],
+        supportedLngs: ['fr', 'en', 'es', 'ar', 'zh'],
         nonExplicitSupportedLngs: true,
         // Normalize 'fr-FR' → 'fr', 'en-US' → 'en', etc.
         load: 'languageOnly',

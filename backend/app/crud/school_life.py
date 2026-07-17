@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from uuid import UUID
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 from app.models import Grade, Assessment, Attendance, SchoolEvent, StudentCheckIn
 from app.schemas.school_life import (
@@ -139,8 +139,12 @@ def get_check_ins(db: Session, tenant_id: UUID, student_ids: Optional[List[UUID]
     return query.order_by(StudentCheckIn.checked_at.desc()).all()
 
 def create_check_in(db: Session, obj_in: StudentCheckInCreate, tenant_id: UUID) -> StudentCheckIn:
+    data = obj_in.model_dump()
+    # Horodatage côté serveur si le client ne le fournit pas (scan QR).
+    if data.get("checked_at") is None:
+        data["checked_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
     db_obj = StudentCheckIn(
-        **obj_in.model_dump(),
+        **data,
         tenant_id=tenant_id
     )
     db.add(db_obj)
