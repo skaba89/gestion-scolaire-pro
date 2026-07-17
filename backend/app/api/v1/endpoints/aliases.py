@@ -26,14 +26,16 @@ from app.core.security import get_current_user, require_permission
 enrollments_alias_router = APIRouter()
 
 
-@enrollments_alias_router.get("/", response_model=List[dict])
+@enrollments_alias_router.get("/")
 def list_enrollments_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:read")),
 ):
     """GET /enrollments/ — mirrors GET /infrastructure/enrollments/"""
     from app.crud import academic as crud
-    return crud.get_enrollments(db, tenant_id=current_user.get("tenant_id"))
+    from app.schemas.academic import Enrollment as EnrollmentSchema
+    rows = crud.get_enrollments(db, tenant_id=current_user.get("tenant_id"))
+    return [EnrollmentSchema.model_validate(r).model_dump(mode="json") for r in rows]
 
 
 class EnrollmentCreateAlias(BaseModel):
@@ -74,7 +76,7 @@ def enrollment_counts_alias(
     rows = db.execute(text("""
         SELECT class_id, COUNT(*) as count
         FROM enrollments
-        WHERE tenant_id = :tenant_id AND class_id = ANY(:class_ids) AND status = 'active'
+        WHERE tenant_id = :tenant_id AND class_id = ANY(:class_ids) AND LOWER(status) = 'active'
         GROUP BY class_id
     """), {"tenant_id": tenant_id, "class_ids": class_ids}).fetchall()
     return {str(r.class_id): r.count for r in rows}
