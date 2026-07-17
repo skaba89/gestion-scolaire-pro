@@ -706,6 +706,11 @@ def update_presence(
         resolved_status = "online"
 
     try:
+        # La table user_presence est créée AVEC RLS par la migration
+        # d5e6f7a8b9c0. On garde un CREATE IF NOT EXISTS comme filet (SQLite,
+        # base non migrée) — sans jamais recréer une table tenant sans RLS :
+        # sur PostgreSQL, si la table manquait, on l'assortit immédiatement de
+        # sa policy tenant pour ne pas casser le health check /health/ready.
         db.execute(text("""
             CREATE TABLE IF NOT EXISTS user_presence (
                 user_id UUID PRIMARY KEY,
@@ -717,6 +722,30 @@ def update_presence(
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
         """))
+        if db.bind and db.bind.dialect.name == "postgresql":
+            db.execute(text(
+                "ALTER TABLE public.user_presence ENABLE ROW LEVEL SECURITY"
+            ))
+            db.execute(text(
+                "ALTER TABLE public.user_presence FORCE ROW LEVEL SECURITY"
+            ))
+            db.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_policy
+                        WHERE polrelid = 'public.user_presence'::regclass
+                    ) THEN
+                        CREATE POLICY schoolflow_tenant_presence
+                        ON public.user_presence
+                        AS PERMISSIVE FOR ALL TO PUBLIC
+                        USING (tenant_id::text = COALESCE(
+                            current_setting('app.current_tenant_id', true), ''))
+                        WITH CHECK (tenant_id::text = COALESCE(
+                            current_setting('app.current_tenant_id', true), ''));
+                    END IF;
+                END $$;
+            """))
         import json as _json
         metadata_payload = body.metadata
         if body.is_typing is not None or body.current_conversation_id is not None:

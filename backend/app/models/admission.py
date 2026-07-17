@@ -19,7 +19,7 @@ class AdmissionApplication(Base):
     __tablename__ = "admission_applications"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     academic_year_id = Column(GUID(), ForeignKey("academic_years.id"), nullable=True)
     level_id = Column(GUID(), ForeignKey("levels.id"), nullable=True)
     

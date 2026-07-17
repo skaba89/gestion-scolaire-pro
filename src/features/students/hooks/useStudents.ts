@@ -11,13 +11,17 @@ import type { StudentFormData, Student } from "../types/students";
 import { toast } from "sonner";
 import { useAuditLog } from "@/hooks/useAuditLog";
 
-export const useStudents = (options?: ListStudentsOptions) => {
+export const useStudents = (options?: ListStudentsOptions | string) => {
   const { currentTenant } = useTenant();
   const queryClient = useQueryClient();
   const { logCreate, logUpdate, logDelete } = useAuditLog();
 
+  // Certains appelants historiques passent le tenantId en argument : seules
+  // les mutations les intéressent, pas la liste.
+  const listOptions = typeof options === "string" ? undefined : options;
+
   // Query key for cache management
-  const queryKey = ["students", currentTenant?.id, options];
+  const queryKey = ["students", currentTenant?.id, listOptions];
 
   // Fetch students with pagination
   const {
@@ -29,7 +33,7 @@ export const useStudents = (options?: ListStudentsOptions) => {
     queryKey,
     queryFn: async () => {
       if (!currentTenant?.id) return { students: [], totalCount: 0 };
-      return studentsService.listStudents(currentTenant.id, options);
+      return studentsService.listStudents(currentTenant.id, listOptions);
     },
     enabled: !!currentTenant?.id,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -53,7 +57,7 @@ export const useStudents = (options?: ListStudentsOptions) => {
 
   // Update student mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<StudentFormData> }) =>
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<StudentFormData> & Record<string, unknown> }) =>
       studentsService.updateStudent(id, updates),
     onMutate: async ({ id, updates }) => {
       // Optimistic update
@@ -193,10 +197,13 @@ export const useStudents = (options?: ListStudentsOptions) => {
     isArchiving: archiveMutation.isPending,
     isCreatingAccount: createAccountMutation.isPending,
 
-    // Legacy aliases for backward compatibility
+    // Legacy aliases for backward compatibility.
+    // IMPORTANT : create/update exposent mutateAsync — les formulaires
+    // attendent l'entité retournée (`const s = await create(...)` puis s.id).
+    // mutate() renverrait undefined et casserait la création d'élève.
     studentList: data?.students || [],
-    create: createMutation.mutate,
-    update: updateMutation.mutate,
+    create: createMutation.mutateAsync,
+    update: updateMutation.mutateAsync,
     delete: deleteMutation.mutate,
   };
 };

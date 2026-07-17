@@ -5,6 +5,6 @@ class Profile(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "profiles"
 
     id = Column(GUID(), ForeignKey("users.id"), primary_key=True)
-    tenant_id = Column(GUID(), ForeignKey("tenants.id"))
+    tenant_id = Column(GUID(), ForeignKey("tenants.id", ondelete="CASCADE"))
     phone = Column(String)
     avatar_url = Column(String)

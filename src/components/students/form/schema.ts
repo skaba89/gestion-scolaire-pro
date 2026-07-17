@@ -4,8 +4,10 @@ export const studentSchema = z.object({
     // Identity
     first_name: z.string().min(1, "Le prénom est requis"),
     last_name: z.string().min(1, "Le nom est requis"),
-    date_of_birth: z.string().optional().or(z.literal("")),
-    gender: z.string().optional(),
+    // Requis côté API (StudentCreate) — les rendre optionnels ici produisait
+    // des 422 bruts au lieu de messages de formulaire.
+    date_of_birth: z.string().min(1, "La date de naissance est requise"),
+    gender: z.enum(["M", "F", "O"], { message: "Le genre est requis" }),
     nationality: z.string().optional(),
     student_id_card: z.string().optional(),
 

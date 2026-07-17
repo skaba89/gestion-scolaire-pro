@@ -10,7 +10,7 @@ class ScheduleSlot(Base):
     __tablename__ = "schedule"
 
     id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(GUID(), ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id = Column(GUID(), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     class_id = Column(GUID(), ForeignKey("classes.id"), nullable=False, index=True)
     subject_id = Column(GUID(), ForeignKey("subjects.id"), nullable=False)
     teacher_id = Column(GUID(), ForeignKey("users.id"), nullable=True)
