@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
+import { useTenantNavigate } from "@/hooks/useTenantNavigate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 const Grades = () => {
   const { t } = useTranslation();
   const { tenant } = useTenant();
+  const navigate = useTenantNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
 
@@ -141,36 +143,13 @@ const Grades = () => {
     setSelectedClassroom(value);
   }, []);
 
-  const handleGenerateBulletins = async () => {
-    try {
-      if (!assessments || assessments.length === 0) {
-        toast.info(t("grades.noDataForBulletin"));
-        return;
-      }
-
-      // jspdf (~600 kB) est chargé au clic seulement, pas avec la page.
-      const { generateReportCard } = await import("@/utils/pdfGenerator");
-
-      const firstAssessment = assessments[0] as any;
-      const classroom = firstAssessment.classrooms?.name || (classrooms?.[0] as any)?.name || "Classe";
-      const subject = firstAssessment.subjects?.name || (subjects?.[0] as any)?.name || "Matière";
-      const term = (currentTerms?.[0] as any)?.name || "Période en cours";
-
-      const sampleStudent = { first_name: "Élève", last_name: "Type" };
-      const sampleClass = { name: classroom };
-      const sampleTerm = { name: term };
-
-      const grades = assessments.slice(0, 10).map((a: any) => ({
-        ...a,
-        score: a.max_score ? Math.round(a.max_score * 0.75) : 15,
-        description: `${subject} - ${a.name}`
-      }));
-
-      generateReportCard(sampleStudent, sampleClass, sampleTerm, grades, tenant);
-      toast.success(t("grades.bulletinGenerated", { count: grades.length }));
-    } catch (e) {
-      toast.error(t("grades.bulletinError"));
-    }
+  // SÉCURITÉ DONNÉES : ce bouton générait un bulletin de DÉMONSTRATION —
+  // élève fictif « Élève Type » et notes inventées (75 % du barème) — qu'un
+  // établissement pouvait imprimer et distribuer comme un vrai bulletin.
+  // Il renvoie désormais vers la page Bulletins, qui construit les bulletins
+  // à partir des notes réelles des élèves.
+  const handleGenerateBulletins = () => {
+    navigate("/admin/report-cards");
   };
 
   return (
