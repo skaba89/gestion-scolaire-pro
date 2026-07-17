@@ -739,8 +739,8 @@ def students_without_badges(db: Session = Depends(get_db), current_user: dict = 
         rows = db.execute(text("""
             SELECT id, first_name, last_name, registration_number
             FROM students
-            WHERE tenant_id = :tid 
-              AND is_archived = false
+            WHERE tenant_id = :tid
+              AND status = 'ACTIVE'
               AND id NOT IN (SELECT student_id FROM student_badges WHERE tenant_id = :tid AND status = 'ACTIVE')
             ORDER BY last_name, first_name
         """), {"tid": tenant_id}).mappings().all()

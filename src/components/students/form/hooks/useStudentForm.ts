@@ -37,7 +37,10 @@ export const useStudentForm = ({ onSuccess, tenantId, editStudent }: UseStudentF
             email: editStudent?.email || "",
             phone: editStudent?.phone || "",
             date_of_birth: editStudent?.date_of_birth || "",
-            gender: editStudent?.gender || "",
+            // L'API renvoie MALE/FEMALE/OTHER, le select manipule M/F/O.
+            gender: ({ MALE: "M", FEMALE: "F", OTHER: "O" } as Record<string, "M" | "F" | "O">)[
+                editStudent?.gender
+            ] ?? editStudent?.gender ?? undefined,
             nationality: editStudent?.nationality || "",
             address: editStudent?.address || "",
             postal_code: editStudent?.postal_code || "",
@@ -62,16 +65,18 @@ export const useStudentForm = ({ onSuccess, tenantId, editStudent }: UseStudentF
     useEffect(() => {
         const generate = async () => {
             if (!editStudent && departmentId && departmentId !== "none" && admissionDate && !registrationNumber) {
-                const { data: dept } = await apiClient.get(`/departments/${departmentId}/`);
-
-                if (dept?.data?.code || dept?.code) {
-                    const year = new Date(admissionDate).getFullYear();
-                    const { data: countData } = await apiClient.get('/students/', {
-                        params: { tenant_id: tenantId, count_only: 'true' },
-                    });
-                    const sequence = ((countData?.data?.count || countData?.count) || 0) + 1;
-                    const matricule = generateMatricule(dept.code, year, sequence);
+                try {
+                    const { data: dept } = await apiClient.get(`/departments/${departmentId}/`);
+                    const deptCode = dept?.data?.code || dept?.code;
+                    const year = new Date(admissionDate).getFullYear().toString();
+                    // generateMatricule(tenantId, deptCode?, year?) gère lui-même
+                    // la séquence — il DOIT être attendu (sinon le champ
+                    // recevrait une Promise).
+                    const matricule = await generateMatricule(tenantId, deptCode, year);
                     form.setValue("registration_number", matricule);
+                } catch {
+                    // Auto-génération best effort — saisie manuelle possible,
+                    // et onSubmit garantit un matricule de secours.
                 }
             }
         };
@@ -136,36 +141,46 @@ export const useStudentForm = ({ onSuccess, tenantId, editStudent }: UseStudentF
             }
 
             // 2. Prepare data
+            // L'API attend l'enum complet (MALE/FEMALE/OTHER), le formulaire
+            // manipule M/F/O.
+            const GENDER_API_VALUES: Record<string, string> = { M: "MALE", F: "FEMALE", O: "OTHER" };
             const studentData: any = {
                 ...values,
+                gender: GENDER_API_VALUES[values.gender] ?? values.gender,
+                // registration_number est requis côté API ; l'auto-génération
+                // du formulaire peut être vidée par l'utilisateur.
+                registration_number:
+                    values.registration_number?.trim() ||
+                    `MAT-${Date.now().toString(36).toUpperCase()}`,
                 department_id: values.department_id === "none" ? null : values.department_id,
                 level_id: values.level_id === "none" ? null : values.level_id,
             };
             // class_id is handled via enrollment, not direct student field usually, but let's keep logic if schema allows
-            // In modern schema, class_id might be on enrollment. 
+            // In modern schema, class_id might be on enrollment.
             // The original code deleted class_id before insert.
             delete studentData.class_id;
+
+            // Les champs texte optionnels vides ("") font échouer la validation
+            // Pydantic (EmailStr/date refusent la chaîne vide) → on les omet.
+            // first_name/last_name restent (requis, déjà validés par le form).
+            const OPTIONAL_TEXT_FIELDS = [
+                "email", "phone", "nationality", "address",
+                "postal_code", "city", "state", "country", "student_id_card", "notes",
+            ];
+            for (const field of OPTIONAL_TEXT_FIELDS) {
+                if (studentData[field] === "" || studentData[field] == null) {
+                    delete studentData[field];
+                }
+            }
 
             let studentId = editStudent?.id;
 
             if (editStudent) {
-                await update({ id: studentId, data: studentData });
+                await update({ id: studentId, updates: studentData });
             } else {
-                // Create returns the new student
-                // Note: create mutator might be void or return data depending on implementation.
-                // Our useStudents hook returns { create, ... } where create is mutateAsync usually
-
-                // We need to return the ID from the service for the next steps (photo, parents, enrollment)
-                // The new useStudents hook exposes `create` which wraps `studentsService.createStudent`
-                // Let's use `studentsService` directly if we need the ID immediately and avoid hook complexity?
-                // Or better, use mutateAsync if available.
-
-                // Reviewing useStudents.ts:
-                // const { mutateAsync: create } = ...
-                // So we can await it.
-
+                // create est mutateAsync : il retourne l'élève créé (avec id)
+                // pour les étapes suivantes (photo, parents, inscription).
                 const newStudent = await create(studentData);
-                // Wait, the create mutation in useStudents.ts calls studentsService.createStudent which returns the student.
                 studentId = newStudent?.id;
             }
 
@@ -174,12 +189,16 @@ export const useStudentForm = ({ onSuccess, tenantId, editStudent }: UseStudentF
             // 3. Handle Photo Upload if needed
             if (photoFile) {
                 const photoUrl = await uploadPhoto(studentId);
-                // Update with photo URL - using the update hook again or direct service?
-                // Direct update via hook is fine
-                await update({ id: studentId, data: { photo_url: photoUrl } });
+                await update({ id: studentId, updates: { photo_url: photoUrl } });
 
-                // Also update profile if it exists (legacy/sync)
-                await apiClient.patch(`/users/profiles/${studentId}/`, { avatar_url: photoUrl });
+                // Sync du profil utilisateur lié s'il existe — best effort :
+                // un élève sans compte n'a pas de profil, ça ne doit pas
+                // faire échouer la création.
+                try {
+                    await apiClient.patch(`/users/profiles/${studentId}/`, { avatar_url: photoUrl });
+                } catch {
+                    // pas de profil lié — ignoré
+                }
             }
 
             // 4. Link Parents

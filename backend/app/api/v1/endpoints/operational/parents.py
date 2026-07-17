@@ -306,13 +306,15 @@ def get_unlinked_students(
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
+    # NOTE: students n'a ni colonne is_archived ni classroom_id (supprimées par
+    # migration) — le statut fait foi et la classe vient de class_name.
     rows = db.execute(text("""
-        SELECT s.id, s.first_name, s.last_name, s.registration_number, s.classroom_id,
-               c.name as classroom_name
+        SELECT s.id, s.first_name, s.last_name, s.registration_number,
+               NULL AS classroom_id,
+               s.class_name AS classroom_name
         FROM students s
-        LEFT JOIN classrooms c ON c.id = s.classroom_id
         WHERE s.tenant_id = :tid
-          AND s.is_archived = false
+          AND s.status = 'ACTIVE'
           AND s.id NOT IN (
               SELECT DISTINCT student_id FROM parent_students WHERE tenant_id = :tid
           )
