@@ -44,7 +44,7 @@ def list_teachers(
     params = {"tid": tenant_id}
 
     if class_id:
-        where_clauses.append("ta.class_id = :class_id")
+        where_clauses.append("ta.classroom_id = :class_id")
         params["class_id"] = class_id
     if subject_id:
         where_clauses.append("ta.subject_id = :subject_id")
@@ -58,7 +58,7 @@ def list_teachers(
     # Count
     count_result = db.execute(text(f"""
         SELECT COUNT(*) FROM teacher_assignments ta
-        JOIN users u ON u.id = ta.teacher_id
+        JOIN users u ON u.id = ta.user_id
         WHERE {where_sql}
     """), params).scalar()
 
@@ -68,12 +68,13 @@ def list_teachers(
 
     rows = db.execute(text(f"""
         SELECT ta.*,
+               ta.user_id as teacher_id, ta.classroom_id as class_id,
                u.first_name as teacher_first_name, u.last_name as teacher_last_name, u.email as teacher_email,
                c.name as class_name,
                s.name as subject_name
         FROM teacher_assignments ta
-        JOIN users u ON u.id = ta.teacher_id
-        LEFT JOIN classrooms c ON c.id = ta.class_id
+        JOIN users u ON u.id = ta.user_id
+        LEFT JOIN classes c ON c.id = ta.classroom_id
         LEFT JOIN subjects s ON s.id = ta.subject_id
         WHERE {where_sql}
         ORDER BY u.last_name, u.first_name
@@ -106,9 +107,9 @@ def create_teacher_assignment(
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
         result = db.execute(text("""
-            INSERT INTO teacher_assignments (id, tenant_id, teacher_id, class_id, subject_id, created_at, updated_at)
+            INSERT INTO teacher_assignments (id, tenant_id, user_id, classroom_id, subject_id, created_at, updated_at)
             VALUES (gen_random_uuid(), :tid, :teacher_id, :class_id, :subject_id, NOW(), NOW())
-            RETURNING id, tenant_id, teacher_id, class_id, subject_id, created_at, updated_at
+            RETURNING id, tenant_id, user_id AS teacher_id, classroom_id AS class_id, subject_id, created_at, updated_at
         """), {
             "tid": tenant_id,
             "teacher_id": assignment.teacher_id,
@@ -141,7 +142,7 @@ def update_teacher_assignment(
         sets = []
         params = {"aid": str(assignment_id), "tid": tenant_id}
         if assignment.class_id is not None:
-            sets.append("class_id = :class_id")
+            sets.append("classroom_id = :class_id")
             params["class_id"] = assignment.class_id
         if assignment.subject_id is not None:
             sets.append("subject_id = :subject_id")
@@ -152,7 +153,7 @@ def update_teacher_assignment(
         query_str = f"""
             UPDATE teacher_assignments SET {', '.join(sets)}
             WHERE id = :aid AND tenant_id = :tid
-            RETURNING id, tenant_id, teacher_id, class_id, subject_id, created_at, updated_at
+            RETURNING id, tenant_id, user_id AS teacher_id, classroom_id AS class_id, subject_id, created_at, updated_at
         """
         result = db.execute(text(query_str), params).mappings().first()
         if not result:
