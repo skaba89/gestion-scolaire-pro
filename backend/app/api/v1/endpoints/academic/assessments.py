@@ -52,7 +52,8 @@ def get_assessments(
 
     query_str = """
         SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id,
-               a.name, a.assessment_type, a.date, a.max_score, a.created_at, a.updated_at,
+               a.name, a.assessment_type, a.date, a.max_score, a.weight, a.description,
+               a.created_at, a.updated_at,
                s.name as subject_name, s.code as subject_code,
                t.name as term_name
         FROM assessments a
@@ -94,6 +95,10 @@ def get_assessments(
             "type": r.get("assessment_type"),
             "date": r["date"].isoformat() if r.get("date") and hasattr(r.get("date"), 'isoformat') else str(r.get("date")) if r.get("date") else None,
             "max_score": float(r["max_score"]) if r.get("max_score") else None,
+            # Le coefficient doit remonter dans la liste : sans lui, la colonne
+            # COEFFICIENT restait vide alors que la valeur est bien en base.
+            "weight": float(r["weight"]) if r.get("weight") is not None else None,
+            "description": r.get("description"),
             "subjects": {"name": r.get("subject_name"), "code": r.get("subject_code")},
             "terms": {"name": r.get("term_name")},
         })

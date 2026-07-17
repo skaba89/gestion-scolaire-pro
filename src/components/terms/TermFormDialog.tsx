@@ -60,13 +60,18 @@ export const TermFormDialog = ({
                 start_date: "",
                 end_date: "",
                 is_active: false,
-                academic_year_id: "",
+                // Pré-sélectionne l'année s'il n'y en a qu'une : `required` sur un
+                // Select Radix n'est pas une validation native, un envoi sans
+                // année partait avec academic_year_id="" et l'API répondait 422.
+                academic_year_id: academicYears.length === 1 ? academicYears[0].id : "",
             });
         }
-    }, [editingTerm, open]);
+    }, [editingTerm, open, academicYears]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        // Garde-fou explicite : le Select Radix n'empêche pas la soumission.
+        if (!formData.academic_year_id) return;
         onSubmit(formData);
     };
 
@@ -96,6 +101,11 @@ export const TermFormDialog = ({
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {academicYears.length === 0 && (
+                                <p className="text-xs text-destructive">
+                                    Créez d'abord une année scolaire.
+                                </p>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <Label>Nom</Label>
@@ -133,7 +143,11 @@ export const TermFormDialog = ({
                             />
                             <Label>Trimestre en cours</Label>
                         </div>
-                        <Button className="w-full" type="submit" disabled={isPending}>
+                        <Button
+                            className="w-full"
+                            type="submit"
+                            disabled={isPending || !formData.academic_year_id}
+                        >
                             {isPending && (
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                             )}
