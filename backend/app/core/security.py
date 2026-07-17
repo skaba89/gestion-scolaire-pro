@@ -282,6 +282,8 @@ ROLE_PERMISSIONS: dict = {
         "incidents:read", "incidents:write",
         "parents:read", "parents:write",
         "admissions:read", "admissions:write",
+        "enrollments:read", "enrollments:write",
+        "certificates:read", "certificates:write",
         "analytics:read",
         "audit:read",
         # Settings (but NOT RGPD deletion)
@@ -293,6 +295,7 @@ ROLE_PERMISSIONS: dict = {
     "DIRECTOR": [
         "users:read", "users:write",
         "students:read", "students:write",
+        "enrollments:read", "enrollments:write",
         "grades:read", "grades:write",
         "attendance:read", "attendance:write",
         "settings:read", "settings:write",
