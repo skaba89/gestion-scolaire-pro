@@ -57,7 +57,7 @@ export const useStudents = (options?: ListStudentsOptions | string) => {
 
   // Update student mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: Partial<StudentFormData> & Record<string, any> }) =>
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<StudentFormData> & Record<string, unknown> }) =>
       studentsService.updateStudent(id, updates),
     onMutate: async ({ id, updates }) => {
       // Optimistic update

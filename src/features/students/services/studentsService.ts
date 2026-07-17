@@ -13,11 +13,19 @@ export interface ListStudentsOptions {
 const ARCHIVED_STATUS = "DROPPED_OUT";
 const ACTIVE_STATUS = "ACTIVE";
 
+type StudentRecord = Record<string, unknown> & { id: string };
+type StudentAccountInput = {
+  id: string;
+  email?: string | null;
+  first_name?: string;
+  last_name?: string;
+};
+
 export const studentsService = {
   /** Liste paginée pour l'administration (GET /students/ → {items,total,...}). */
   async listStudents(tenantId: string, options?: ListStudentsOptions) {
-    if (!tenantId) return { students: [], totalCount: 0 };
-    const { data } = await apiClient.get<{ items: any[]; total: number }>("/students/", {
+    if (!tenantId) return { students: [] as StudentRecord[], totalCount: 0 };
+    const { data } = await apiClient.get<{ items: StudentRecord[]; total: number }>("/students/", {
       params: {
         page: options?.page ?? 1,
         page_size: options?.pageSize ?? 50,
@@ -29,8 +37,8 @@ export const studentsService = {
   },
 
   /** Création (POST /students/) — retourne l'élève créé avec son id. */
-  async createStudent(tenantId: string, studentData: Record<string, any>) {
-    const { data } = await apiClient.post<any>("/students/", {
+  async createStudent(tenantId: string, studentData: Record<string, unknown>) {
+    const { data } = await apiClient.post<StudentRecord>("/students/", {
       ...studentData,
       tenant_id: tenantId,
     });
@@ -38,8 +46,8 @@ export const studentsService = {
   },
 
   /** Mise à jour (PUT /students/{id}/) — retourne l'élève mis à jour. */
-  async updateStudent(id: string, updates: Record<string, any>) {
-    const { data } = await apiClient.put<any>(`/students/${id}/`, updates);
+  async updateStudent(id: string, updates: Record<string, unknown>) {
+    const { data } = await apiClient.put<StudentRecord>(`/students/${id}/`, updates);
     return data;
   },
 
@@ -50,18 +58,18 @@ export const studentsService = {
 
   /** Archive/désarchive via le statut métier. */
   async archiveStudent(id: string, archived: boolean) {
-    const { data } = await apiClient.put<any>(`/students/${id}/`, {
+    const { data } = await apiClient.put<StudentRecord>(`/students/${id}/`, {
       status: archived ? ARCHIVED_STATUS : ACTIVE_STATUS,
     });
     return data;
   },
 
   /** Transforme la fiche élève en compte utilisateur (POST /users/convert/). */
-  async createStudentAccount(student: any, _tenant: any) {
+  async createStudentAccount(student: StudentAccountInput, _tenant: unknown) {
     if (!student?.email) {
       throw new Error("L'élève doit avoir une adresse email pour créer un compte.");
     }
-    const { data } = await apiClient.post<any>("/users/convert/", {
+    const { data } = await apiClient.post<{ delivery?: unknown }>("/users/convert/", {
       type: "student",
       id: student.id,
       email: student.email,
