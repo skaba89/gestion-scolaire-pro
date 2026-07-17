@@ -1,12 +1,15 @@
-import i18n from "i18next";
-import { initReactI18next } from "react-i18next";
-import LanguageDetector from "i18next-browser-languagedetector";
-
-import fr from "./locales/fr.json";
-import en from "./locales/en.json";
-import zh from "./locales/zh.json";
-import es from "./locales/es.json";
-import ar from "./locales/ar.json";
+/**
+ * Ré-export de l'instance i18n canonique.
+ *
+ * ATTENTION : ce module NE DOIT PLUS initialiser i18next. Il existait
+ * auparavant une seconde `i18n.init()` ici, avec un jeu de traductions
+ * réduit (15 clés). Comme i18next est un singleton, importer ce module
+ * (ex. LanguageSwitcher pour `languages`) ré-initialisait l'instance et
+ * corrompait le magasin de traductions : des pages entières (ex. le scan
+ * QR) affichaient les clés « humanisées » (« Page title »…) au lieu du
+ * texte traduit. La configuration unique vit dans `@/i18n/config`.
+ */
+import i18n from "@/i18n/config";
 
 export const languages = [
   { code: "fr", name: "Français", flag: "🇫🇷", dir: "ltr" },
@@ -15,26 +18,5 @@ export const languages = [
   { code: "es", name: "Español", flag: "🇪🇸", dir: "ltr" },
   { code: "ar", name: "العربية", flag: "🇸🇦", dir: "rtl" },
 ];
-
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    resources: {
-      fr: { translation: fr },
-      en: { translation: en },
-      zh: { translation: zh },
-      es: { translation: es },
-      ar: { translation: ar },
-    },
-    fallbackLng: "fr",
-    interpolation: {
-      escapeValue: false,
-    },
-    detection: {
-      order: ["localStorage", "navigator"],
-      caches: ["localStorage"],
-    },
-  });
 
 export default i18n;

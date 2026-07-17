@@ -130,8 +130,13 @@ class StudentCheckInBase(BaseModel):
     source: Optional[str] = None
     student_id: UUID
 
-class StudentCheckInCreate(StudentCheckInBase):
-    pass
+class StudentCheckInCreate(BaseModel):
+    # checked_at est horodaté par le serveur si absent : le scan QR n'a pas à
+    # fournir (ni à être cru sur) l'heure. `source` note l'origine (QR_SCAN…).
+    student_id: UUID
+    checked_at: Optional[datetime] = None
+    direction: str = "IN"
+    source: Optional[str] = None
 
 class StudentCheckIn(StudentCheckInBase):
     id: UUID

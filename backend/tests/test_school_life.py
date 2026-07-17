@@ -75,3 +75,25 @@ class TestSchoolLifeEndpointExistence:
     def test_career_events_endpoint_exists(self):
         resp = client.get("/api/v1/school-life/career-events/")
         assert resp.status_code != 404
+
+
+class TestCheckInSchema:
+    """Régression : le scan QR ne fournit pas checked_at (horodaté serveur)."""
+
+    def test_check_in_create_accepts_payload_without_checked_at(self):
+        import uuid
+        from app.schemas.school_life import StudentCheckInCreate
+
+        obj = StudentCheckInCreate(student_id=uuid.uuid4(), source="QR_SCAN")
+        assert obj.checked_at is None
+        assert obj.source == "QR_SCAN"
+        assert obj.direction == "IN"
+
+    def test_check_in_create_still_accepts_explicit_checked_at(self):
+        import uuid
+        from datetime import datetime
+        from app.schemas.school_life import StudentCheckInCreate
+
+        now = datetime(2026, 7, 17, 8, 0, 0)
+        obj = StudentCheckInCreate(student_id=uuid.uuid4(), checked_at=now, source="MANUAL")
+        assert obj.checked_at == now
