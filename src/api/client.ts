@@ -47,6 +47,44 @@ function shouldUseDockerProxyForLocalhost(apiUrl: string): boolean {
   }
 }
 
+/**
+ * Réduit le `detail` d'une erreur API à une chaîne affichable.
+ *
+ * FastAPI renvoie une chaîne pour les HTTPException, mais un TABLEAU d'objets
+ * `{type, loc, msg, input, ctx}` pour les erreurs de validation (422). Les
+ * composants font `toast(err.response?.data?.detail || '…')` : sans cette
+ * normalisation, l'objet part dans React qui lève l'erreur #31 et l'app plante.
+ */
+export function normalizeApiDetail(detail: unknown): string | undefined {
+  if (detail == null) return undefined;
+  if (typeof detail === 'string') return detail;
+
+  const messageOf = (item: unknown): string => {
+    if (typeof item === 'string') return item;
+    if (item && typeof item === 'object') {
+      const e = item as { msg?: unknown; loc?: unknown };
+      const msg = typeof e.msg === 'string' ? e.msg : '';
+      // loc = ["body", "academic_year_id"] → on garde le nom du champ.
+      const field = Array.isArray(e.loc)
+        ? e.loc.filter((p) => typeof p === 'string' && p !== 'body' && p !== 'query').pop()
+        : undefined;
+      if (msg && field) return `${field} : ${msg}`;
+      if (msg) return msg;
+    }
+    return '';
+  };
+
+  const parts = (Array.isArray(detail) ? detail : [detail]).map(messageOf).filter(Boolean);
+  if (parts.length) return parts.join(' — ');
+
+  // Objet inattendu : ne jamais retourner l'objet lui-même (crash React).
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return undefined;
+  }
+}
+
 function sanitizeApiBaseUrl(value: string): string {
   const trimmed = value.trim().replace(/\/$/, '');
   if (!trimmed) return '';
@@ -214,6 +252,16 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 404 && error.config?.url?.includes('/tenants/')) {
       if (import.meta.env.DEV) console.warn('[API] Tenant 404 — clearing last_tenant_id');
       localStorage.removeItem('last_tenant_id');
+    }
+
+    // Normalise `detail` en CHAÎNE avant de rejeter.
+    // FastAPI/Pydantic renvoie sur 422 un tableau d'objets
+    // ({type, loc, msg, input, ctx}). ~140 endroits font
+    // `toast(err.response?.data?.detail || '...')` : passer l'objet à React
+    // lève « Objects are not valid as a React child » (erreur #31) et fait
+    // planter toute l'application au lieu d'afficher l'erreur de saisie.
+    if (error.response?.data) {
+      error.response.data.detail = normalizeApiDetail(error.response.data.detail);
     }
 
     return Promise.reject(error);
