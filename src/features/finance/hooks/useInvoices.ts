@@ -18,9 +18,18 @@ export const useInvoices = (tenantId?: string, options?: { page?: number; pageSi
             const { data } = await apiClient.get("/payments/invoices/", {
                 params: { page, page_size: pageSize }
             });
+            // L'API renvoie { items, total } ; on tolère aussi les formes
+            // historiques { invoices, totalCount } et un tableau brut.
+            const list = Array.isArray(data?.items)
+                ? data.items
+                : Array.isArray(data?.invoices)
+                    ? data.invoices
+                    : Array.isArray(data)
+                        ? data
+                        : [];
             return {
-                invoices: Array.isArray(data?.invoices) ? data.invoices : (Array.isArray(data) ? data : []),
-                totalCount: data?.totalCount || 0,
+                invoices: list,
+                totalCount: data?.total ?? data?.totalCount ?? list.length,
             };
         },
         enabled: !!tenantId,
