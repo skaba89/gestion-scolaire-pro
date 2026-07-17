@@ -10,7 +10,11 @@ export const invoiceItemSchema = z.object({
 
 export const invoiceSchema = z.object({
     student_id: z.string().uuid("L'étudiant est requis"),
-    invoice_number: z.string().min(1, "Le numéro de facture est requis"),
+    // invoice_number n'est PAS un champ React Hook Form : il est géré par un
+    // useState dédié dans InvoiceDialog et injecté dans onSubmit. Le rendre
+    // requis ici faisait échouer la validation en silence (aucun FormMessage
+    // rattaché) et empêchait toute création de facture via l'UI.
+    invoice_number: z.string().optional(),
     due_date: z.string().min(1, "La date d'échéance est requise"),
     status: z.enum(["PENDING", "PAID", "CANCELLED", "PARTIAL"]).default("PENDING"),
     items: z.array(invoiceItemSchema).min(1, "Au moins un article est requis"),
