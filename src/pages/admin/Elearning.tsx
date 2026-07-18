@@ -80,10 +80,16 @@ export default function Elearning() {
   // Mutations
   const courseMutation = useMutation({
     mutationFn: async (data: any) => {
+      const payload = {
+        ...data,
+        duration_hours: data.duration_hours === "" || data.duration_hours == null
+          ? null
+          : Number(data.duration_hours),
+      };
       if (editingCourse) {
-        await apiClient.put(`/analytics/elearning/courses/${editingCourse.id}/`, data);
+        await apiClient.put(`/analytics/elearning/courses/${editingCourse.id}/`, payload);
       } else {
-        await apiClient.post("/analytics/elearning/courses/", { ...data, tenant_id: tenant?.id });
+        await apiClient.post("/analytics/elearning/courses/", { ...payload, tenant_id: tenant?.id });
       }
     },
     onSuccess: () => {
