@@ -2371,6 +2371,7 @@
     },
     "gamification": {
         "title": "Gamification",
+        "pageDescription": "Gérez les points, badges et classements des étudiants avec un système de récompenses dynamique.",
         "badges": "Badges",
         "leaderboard": "Classement",
         "leaderboardDescription": "Top des étudiants par points",

@@ -18,7 +18,7 @@ export const GamificationHeader = () => {
                     {t("gamification.title", "Gamification")}
                 </h1>
                 <p className="text-muted-foreground mt-1 max-w-lg">
-                    {t("gamification.description", "Gérez les points, badges et classements des étudiants avec un système de récompenses dynamique.")}
+                    {t("gamification.pageDescription", "Gérez les points, badges et classements des étudiants avec un système de récompenses dynamique.")}
                 </p>
             </div>
         </motion.div>

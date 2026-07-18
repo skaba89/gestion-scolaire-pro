@@ -131,6 +131,12 @@ _DDL = [
         updated_at TIMESTAMPTZ
     )""",
     """CREATE INDEX IF NOT EXISTS ix_clubs_tenant_id ON clubs(tenant_id)""",
+    # meeting_day/meeting_time/location : présents dans le schéma Pydantic et
+    # les requêtes SQL de clubs.py depuis toujours, mais jamais ajoutés à la
+    # table -> INSERT en échec systématique (UndefinedColumn) à la création.
+    """ALTER TABLE clubs ADD COLUMN IF NOT EXISTS meeting_day VARCHAR(50)""",
+    """ALTER TABLE clubs ADD COLUMN IF NOT EXISTS meeting_time VARCHAR(50)""",
+    """ALTER TABLE clubs ADD COLUMN IF NOT EXISTS location VARCHAR(255)""",
 
     """CREATE TABLE IF NOT EXISTS club_memberships (
         id UUID PRIMARY KEY,
@@ -1099,6 +1105,27 @@ _DDL = [
         END IF;
     EXCEPTION WHEN OTHERS THEN NULL;
     END $$""",
+
+    # ── Colonnes manquantes sur job_offers/career_events/alumni_mentors ───────
+    # Les formulaires admin (Careers.tsx, AlumniMentorDialog.tsx) collectent
+    # ces champs depuis toujours, mais les CREATE TABLE d'origine ne les
+    # avaient jamais définis -> aucun endpoint d'écriture ne pouvait exister
+    # sans échouer sur UndefinedColumn.
+    """ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS requirements TEXT""",
+    """ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS salary_range VARCHAR(100)""",
+    """ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS start_date DATE""",
+    """ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS end_date DATE""",
+    """ALTER TABLE job_offers ADD COLUMN IF NOT EXISTS external_url VARCHAR(500)""",
+
+    """ALTER TABLE career_events ADD COLUMN IF NOT EXISTS meeting_url VARCHAR(500)""",
+    """ALTER TABLE career_events ADD COLUMN IF NOT EXISTS max_participants INTEGER""",
+    """ALTER TABLE career_events ADD COLUMN IF NOT EXISTS registration_deadline TIMESTAMPTZ""",
+
+    """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS email VARCHAR(255)""",
+    """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS phone VARCHAR(50)""",
+    """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS graduation_year INTEGER""",
+    """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS industry VARCHAR(255)""",
+    """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS max_mentees INTEGER DEFAULT 3""",
 ]
 # fmt: on
 

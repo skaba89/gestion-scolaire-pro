@@ -247,15 +247,21 @@ def get_request_history(
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        """Get the action history for a specific document request."""
+        """Get the action history for a specific document request.
+
+        Accessible by the alumnus who owns the request, or by any staff
+        member of the same tenant (this endpoint is reused by the admin
+        request-management page, not just the alumni self-service one).
+        """
         user_id = current_user.get("id")
+        tenant_id = current_user.get("tenant_id")
         if not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
-        # Ensure the request belongs to this alumni
         check = db.execute(text("""
-            SELECT id FROM alumni_document_requests WHERE id = :id AND alumni_id = :user_id
-        """), {"id": request_id, "user_id": user_id}).fetchone()
+            SELECT id FROM alumni_document_requests
+            WHERE id = :id AND (alumni_id = :user_id OR tenant_id = :tenant_id)
+        """), {"id": request_id, "user_id": user_id, "tenant_id": tenant_id}).fetchone()
         if not check:
             raise HTTPException(status_code=404, detail="Demande introuvable")
 
