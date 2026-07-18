@@ -729,11 +729,12 @@ def send_notification_email(
                     portal_url=data.get("portalUrl", ""),
                 )
             else:
-                # Generic: send via email only
-                from app.services.notifications import Templates
+                # Generic: send via email only (used e.g. by the free-form
+                # "Email" composer in the admin messaging page, one call per
+                # recipient — data.subject/data.message carry the content).
                 result_email = svc.email.send(
                     to=payload.recipientEmail or "",
-                    subject=f"Notification — {payload.type}",
+                    subject=data.get("subject") or f"Notification — {payload.type}",
                     html=f"<p>{data.get('message', payload.type)}</p>",
                 )
                 from app.services.notifications import NotifResult

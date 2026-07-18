@@ -125,12 +125,16 @@ export default function ExternalMessageComposer() {
           name: `${r.first_name || ""} ${r.last_name || ""}`.trim(),
         }));
 
-      await apiClient.post("/communication/send-notification-email/", {
-        recipients: recipientEmails,
-        subject,
-        message,
-        tenant_name: tenant?.name || "Mon Établissement",
-      });
+      // The endpoint sends one notification per call (type-driven templates
+      // for invoice/absence/grade alerts) — loop for this free-form email.
+      await Promise.all(recipientEmails.map(r =>
+        apiClient.post("/communication/send-notification-email/", {
+          type: "custom_message",
+          recipientEmail: r.email,
+          recipientName: r.name,
+          data: { subject, message },
+        })
+      ));
 
       toast({
         title: "Succès",
