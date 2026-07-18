@@ -352,6 +352,51 @@ class AppointmentSlotCreate(BaseModel):
     is_active: bool = True
 
 
+@router.get("/appointment-slots/appointments/")
+def list_teacher_appointments(
+    teacher_id: Optional[str] = None,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:read")),
+):
+    """List booked appointments for a teacher's slots (teacher-facing view).
+
+    Route absente jusqu'ici — le frontend l'appelait déjà (AppointmentSlots.tsx)
+    et recevait un 404 silencieux, laissant la liste des RDV du jour vide.
+    """
+    tenant_id = current_user.get("tenant_id")
+    if not tenant_id:
+        return []
+    conditions = ["a.tenant_id = :tid"]
+    params: Dict[str, Any] = {"tid": tenant_id}
+    if teacher_id:
+        conditions.append("a.teacher_id = :teacher_id")
+        params["teacher_id"] = teacher_id
+    if status:
+        conditions.append("a.status = ANY(:statuses)")
+        params["statuses"] = [s.strip().upper() for s in status.split(",")]
+    where = " AND ".join(conditions)
+    try:
+        rows = db.execute(text(f"""
+            SELECT a.*, s.first_name as student_first_name, s.last_name as student_last_name
+            FROM appointments a
+            LEFT JOIN students s ON a.student_id = s.id
+            WHERE {where}
+            ORDER BY a.appointment_date ASC
+        """), params).mappings().all()
+        items = []
+        for r in rows:
+            d = dict(r)
+            for k, v in d.items():
+                if isinstance(v, datetime):
+                    d[k] = v.isoformat()
+            items.append(d)
+        return items
+    except Exception:
+        # La table 'appointments' peut être absente sur une install ancienne.
+        return []
+
+
 @router.get("/appointment-slots/")
 def list_appointment_slots(
     teacher_id: Optional[str] = None,

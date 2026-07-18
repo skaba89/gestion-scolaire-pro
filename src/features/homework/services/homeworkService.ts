@@ -20,8 +20,8 @@ export const homeworkService = {
       params.due_date_end = filters.dateRange[1];
     }
 
-    const { data } = await apiClient.get<Homework[]>("/homework/", { params });
-    return data || [];
+    const { data } = await apiClient.get<any>("/homework/", { params });
+    return Array.isArray(data) ? data : (data?.items ?? []);
   },
 
   /**
@@ -36,10 +36,11 @@ export const homeworkService = {
    * Get homework submissions for a student
    */
   async getStudentSubmissions(studentId: string, homeworkId?: string) {
-    const params: Record<string, string> = { student_id: studentId };
+    const params: Record<string, string> = {};
     if (homeworkId) params.homework_id = homeworkId;
 
-    const { data } = await apiClient.get<HomeworkSubmission[]>("/homework/submissions/", { params });
+    // student_id est un path param côté API, pas un query param.
+    const { data } = await apiClient.get<HomeworkSubmission[]>(`/homework/submissions/${studentId}/`, { params });
     return data || [];
   },
 

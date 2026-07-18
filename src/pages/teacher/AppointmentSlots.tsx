@@ -53,10 +53,10 @@ export default function AppointmentSlots() {
       const { data } = await apiClient.get("/school-life/appointment-slots/", {
         params: {
           teacher_id: user?.id,
-          from_date: new Date().toISOString().split("T")[0],
+          is_active: true,
         },
       });
-      return data || [];
+      return Array.isArray(data) ? data : (data?.items ?? []);
     },
     enabled: !!user?.id,
   });
