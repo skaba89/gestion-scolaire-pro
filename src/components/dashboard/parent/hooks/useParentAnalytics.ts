@@ -37,10 +37,10 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
     const { data: gradesData = [] } = useQuery({
         queryKey: ["student_grades_analytics", studentId],
         queryFn: async () => {
-            const { data } = await apiClient.get<any[]>("/grades/", {
+            const { data } = await apiClient.get<any>("/grades/", {
                 params: { student_id: studentId, ordering: "created_at" },
             });
-            return data || [];
+            return Array.isArray(data) ? data : (data?.items ?? []);
         }
     });
 
@@ -49,10 +49,10 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
         queryKey: ["student_attendance_analytics", studentId],
         queryFn: async () => {
             const sixMonthsAgo = subMonths(new Date(), 6);
-            const { data } = await apiClient.get<any[]>("/attendance/", {
-                params: { student_id: studentId, date_gte: sixMonthsAgo.toISOString(), ordering: "date" },
+            const { data } = await apiClient.get<any>("/attendance/", {
+                params: { student_id: studentId, date_from: sixMonthsAgo.toISOString().slice(0, 10) },
             });
-            return data || [];
+            return Array.isArray(data) ? data : (data?.items ?? []);
         }
     });
 
