@@ -5,23 +5,23 @@
 # Documentation: https://render.com/docs/blueprint-spec
 # =============================================================================
 #
-# ARCHITECTURE on Render:
-#   - schoolflow-db   (PostgreSQL) — managed database
-#   - schoolflow-api  (FastAPI)    — backend API
-#   - gestion-scolaire-pro (Node)  — frontend SPA + API proxy
+# ARCHITECTURE:
+#   - Neon           (PostgreSQL) — external managed database, NOT provisioned
+#                      by this blueprint. Create it at console.neon.tech and
+#                      paste the pooled connection string into DATABASE_URL
+#                      on the schoolflow-api service in the Render dashboard
+#                      (env vars marked "sync: false" are not set here).
+#   - schoolflow-api  (FastAPI)    — backend API, on Render
+#   - gestion-scolaire-pro (Node)  — frontend SPA + API proxy, on Render
 #
 # The frontend proxies /api/* to the backend, so the browser only talks
 # to one domain. No CORS issues.
 #
+# Why Neon instead of Render's managed Postgres: Neon's free tier has no
+# 90-day expiry (Render's free Postgres does) and includes branching, which
+# is convenient for testing migrations against a copy of production data.
+#
 # =============================================================================
-
-databases:
-  # ─── PostgreSQL (Render Managed) ─────────────────────────────────────────
-  - name: schoolflow-db
-    databaseName: schoolflow
-    region: frankfurt
-    plan: starter
-
 
 services:
   # ─── Redis (token versioning, session mutex) ─────────────────────────────
@@ -46,19 +46,18 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     rootDir: ./backend
     envVars:
-      # --- Database (auto-linked by Render from schoolflow-db) ---
+      # --- Database (Neon — set manually in the Render dashboard) ---
+      # Use the POOLED connection string from Neon (the one with
+      # "-pooler" in the hostname) so the app doesn't exhaust Neon's
+      # direct connection limit under load. Neon's string already
+      # includes "?sslmode=require", which the backend detects
+      # automatically (see backend/app/core/database.py).
       - key: DATABASE_URL
-        fromDatabase:
-          name: schoolflow-db
-          property: connectionString
+        sync: false
       - key: DATABASE_URL_ASYNC
-        fromDatabase:
-          name: schoolflow-db
-          property: connectionString
+        sync: false
       - key: DATABASE_URL_SYNC
-        fromDatabase:
-          name: schoolflow-db
-          property: connectionString
+        sync: false
 
       # --- Application ---
       - key: SECRET_KEY
@@ -92,6 +91,21 @@ services:
           name: gestion-scolaire-pro
           type: web
           property: host
+
+      # --- Frontend URL (used to build links in transactional emails) ---
+      # Render's "fromService: property: host" only returns the bare
+      # hostname (no scheme), but this value is concatenated directly as
+      # "{FRONTEND_URL}/..." in email links (see account_provisioning.py) —
+      # so it must be the FULL URL including "https://". Set manually after
+      # the first deploy once you know the frontend's Render/custom domain.
+      - key: FRONTEND_URL
+        sync: false
+
+      # --- Email (Resend recommandé, gratuit jusqu'à 3000/mois — resend.com) ---
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        value: noreply@schoolflow.pro
 
       # --- Redis (token versioning, session mutex) ---
       - key: REDIS_URL

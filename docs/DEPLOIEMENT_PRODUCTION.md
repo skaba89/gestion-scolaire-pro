@@ -1,6 +1,6 @@
 # Déploiement production
 
-Deux cibles supportées : **Render + Netlify** (SaaS géré) ou **VPS Docker**
+Deux cibles supportées : **Render + Neon** (SaaS géré) ou **VPS Docker**
 (souveraineté des données — recommandé pour les contrats institutionnels guinéens).
 
 ## Variables d'environnement obligatoires
@@ -19,18 +19,45 @@ Optionnelles : `REDIS_URL`, `MINIO_*`, `GROQ_API_KEY`, `SENTRY_DSN`,
 
 Voir `.env.production.template` pour la liste complète.
 
-## Option A — Render (API) + Netlify (frontend)
+## Option A — Render (API + frontend) + Neon (base de données)
 
-1. **API sur Render** : service Docker ou Python
-   - Start command : `bash start.sh` (exécute alembic upgrade head UNE fois puis gunicorn)
-   - Readiness : `/health/ready`
-   - Liveness : `/health/live`
-   - `DEBUG=False` (désactive /docs et le mode reload)
-2. **Frontend sur Netlify**
-   - Build : `npm run build` (avec `--legacy-peer-deps` à l'install)
-   - `VITE_API_URL` = URL publique de l'API Render, **ou** runtime config :
-     éditer `dist/config.js` → `window.__SCHOOLFLOW_CONFIG__ = { API_URL: "https://api.exemple.com" }`
-   - Redirection SPA : `/* → /index.html 200`
+Le dépôt contient un `render.yaml` prêt à l'emploi (déploiement en un clic via
+**Render Blueprints**). Il définit deux services Render (API + frontend) mais
+ne provisionne PAS de base de données — Neon est externe et se configure à la
+main. Pourquoi Neon plutôt que le PostgreSQL managé de Render : le tier
+gratuit Neon n'expire pas après 90 jours (contrairement à celui de Render) et
+propose le branching de base, pratique pour tester une migration sur une
+copie des données de prod.
+
+### 1. Créer la base sur Neon
+
+1. Créer un compte sur [neon.tech](https://neon.tech) et un projet (région la
+   plus proche de `frankfurt`, pour minimiser la latence avec Render).
+2. Dans **Connection Details**, copier la chaîne de connexion **pooled**
+   (celle dont l'hôte contient `-pooler`) — c'est celle qu'il faut utiliser
+   pour l'API en production afin de ne pas épuiser la limite de connexions
+   directes de Neon sous charge.
+3. Vérifier qu'elle contient bien `?sslmode=require` (c'est le cas par
+   défaut) — le backend le détecte automatiquement, aucune config
+   supplémentaire n'est nécessaire (`backend/app/core/database.py`).
+
+### 2. Déployer sur Render
+
+1. `render blueprint apply` (ou "New Blueprint" dans le dashboard Render,
+   en pointant vers ce dépôt) — crée les deux services `schoolflow-api` et
+   `gestion-scolaire-pro` définis dans `render.yaml`.
+2. Sur le service **schoolflow-api**, dans l'onglet Environment, coller la
+   chaîne de connexion Neon (étape 1) dans les trois variables
+   `DATABASE_URL`, `DATABASE_URL_ASYNC`, `DATABASE_URL_SYNC` — elles sont
+   marquées `sync: false` dans le blueprint, donc Render ne les demande pas
+   automatiquement au déploiement, il faut les renseigner à la main.
+3. Les migrations Alembic s'exécutent automatiquement au démarrage de l'API
+   (lifespan handler dans `main.py`) — pas d'étape manuelle.
+4. Readiness : `/health/ready` · Liveness : `/health/live` · `DEBUG=false`
+   (déjà positionné dans le blueprint, désactive `/docs` et le mode reload).
+5. Le frontend (service `gestion-scolaire-pro`, Node + `server.mjs`) proxy
+   `/api/*` vers l'API — un seul domaine côté navigateur, aucun problème CORS.
+   `VITE_API_URL` est résolu automatiquement par Render (`fromService`).
 
 ## Option B — VPS Docker (recommandé Guinée)
 
