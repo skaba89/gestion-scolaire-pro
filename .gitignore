@@ -119,3 +119,7 @@ generate_guide.mjs
 
 # Runtime uploaded files (local storage fallback)
 backend/uploads/
+extra_ids.json
+seed_ctx.json
+api_routes.json
+sweep_admin.json
