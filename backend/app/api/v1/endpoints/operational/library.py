@@ -18,7 +18,7 @@ router = APIRouter()
 
 # --- Category CRUD ---
 
-@router.get("/")
+@router.get("/categories/")
 def list_categories(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
@@ -197,6 +197,11 @@ class ResourceCreate(BaseModel):
     available_copies: int = 1
     file_url: Optional[str] = None
     cover_url: Optional[str] = None
+    external_url: Optional[str] = None
+    publication_year: Optional[int] = None
+    tags: Optional[List[str]] = None
+    is_featured: bool = False
+    is_public: bool = False
 
 
 class ResourceUpdate(BaseModel):
@@ -210,6 +215,11 @@ class ResourceUpdate(BaseModel):
     available_copies: Optional[int] = None
     file_url: Optional[str] = None
     cover_url: Optional[str] = None
+    external_url: Optional[str] = None
+    publication_year: Optional[int] = None
+    tags: Optional[List[str]] = None
+    is_featured: Optional[bool] = None
+    is_public: Optional[bool] = None
 
 
 @router.post("/resources/", status_code=status.HTTP_201_CREATED)
@@ -223,25 +233,33 @@ def create_resource(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
+        import json as _json
         result = db.execute(text("""
             INSERT INTO library_resources (id, tenant_id, title, description, author, resource_type,
-                category_id, isbn, total_copies, available_copies, file_url, cover_url, uploaded_by, created_at, updated_at)
+                category_id, isbn, total_copies, available_copies, file_url, cover_url, external_url,
+                publication_year, tags, is_featured, is_public, uploaded_by, created_at, updated_at)
             VALUES (gen_random_uuid(), :tid, :title, :desc, :author, :rtype, :cid, :isbn,
-                :total, :available, :furl, :curl, :uid, NOW(), NOW())
+                :total, :available, :furl, :curl, :eurl, :pyear, :tags, :featured, :public, :uid, NOW(), NOW())
             RETURNING id, tenant_id, title, description, author, resource_type, category_id,
-                isbn, total_copies, available_copies, file_url, cover_url, uploaded_by, created_at, updated_at
+                isbn, total_copies, available_copies, file_url, cover_url, external_url,
+                publication_year, tags, is_featured, is_public, uploaded_by, created_at, updated_at
         """), {
             "tid": tenant_id,
             "title": resource.title,
             "desc": resource.description,
             "author": resource.author,
             "rtype": resource.resource_type,
-            "cid": resource.category_id,
+            "cid": resource.category_id or None,
             "isbn": resource.isbn,
             "total": resource.total_copies,
             "available": resource.available_copies,
             "furl": resource.file_url,
             "curl": resource.cover_url,
+            "eurl": resource.external_url,
+            "pyear": resource.publication_year,
+            "tags": _json.dumps(resource.tags or []),
+            "featured": resource.is_featured,
+            "public": resource.is_public,
             "uid": current_user.get("id"),
         }).mappings().first()
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
@@ -274,17 +292,25 @@ def update_resource(
             "description": resource.description,
             "author": resource.author,
             "resource_type": resource.resource_type,
-            "category_id": resource.category_id,
+            "category_id": resource.category_id or None,
             "isbn": resource.isbn,
             "total_copies": resource.total_copies,
             "available_copies": resource.available_copies,
             "file_url": resource.file_url,
             "cover_url": resource.cover_url,
+            "external_url": resource.external_url,
+            "publication_year": resource.publication_year,
+            "is_featured": resource.is_featured,
+            "is_public": resource.is_public,
         }
         for col, val in field_map.items():
             if val is not None:
                 sets.append(f"{col} = :{col}")
                 params[col] = val
+        if resource.tags is not None:
+            import json as _json
+            sets.append("tags = :tags")
+            params["tags"] = _json.dumps(resource.tags)
         if not sets:
             raise HTTPException(status_code=400, detail="No fields to update")
         sets.append("updated_at = :now")
@@ -292,7 +318,8 @@ def update_resource(
             UPDATE library_resources SET {', '.join(sets)}
             WHERE id = :rid AND tenant_id = :tid
             RETURNING id, tenant_id, title, description, author, resource_type, category_id,
-                isbn, total_copies, available_copies, file_url, cover_url, uploaded_by, created_at, updated_at
+                isbn, total_copies, available_copies, file_url, cover_url, external_url,
+                publication_year, tags, is_featured, is_public, uploaded_by, created_at, updated_at
         """
         result = db.execute(text(query_str), params).mappings().first()
         if not result:

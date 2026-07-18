@@ -1127,6 +1127,22 @@ _DDL = [
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS industry VARCHAR(255)""",
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS max_mentees INTEGER DEFAULT 3""",
 
+    # ── library_resources : colonnes attendues par le backend et le formulaire
+    # admin depuis toujours (isbn/copies/urls dans le Pydantic+INSERT, tags/
+    # featured/public/publication_year dans ResourceDialog.tsx) mais jamais
+    # créées -> UndefinedColumn systématique à la création d'une ressource.
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS isbn VARCHAR(50)""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS total_copies INTEGER DEFAULT 1""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS available_copies INTEGER DEFAULT 1""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS file_url VARCHAR(1000)""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS cover_url VARCHAR(1000)""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS external_url VARCHAR(1000)""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS publication_year INTEGER""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false""",
+    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0""",
+
     # ── message_reactions ──────────────────────────────────────────────────
     # MessageReactions.tsx (messagerie interne) appelle
     # GET/POST/DELETE /communication/messages/{id}/reactions/ depuis toujours,
