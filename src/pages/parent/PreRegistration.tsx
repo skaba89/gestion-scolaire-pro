@@ -74,7 +74,10 @@ const ParentPreRegistration = () => {
       const { data } = await apiClient.get('/parents/children/', {
         params: { parent_id: user.id, tenant_id: tenant.id, with_enrollments: true },
       });
-      return (Array.isArray(data) ? data.map((d: any) => d.students).filter(Boolean) : []) as StudentWithEnrollments[];
+      // L'API renvoie le champ au singulier "student" (pas "students") —
+      // avec le pluriel, .filter(Boolean) videait systématiquement la
+      // liste : la pré-inscription n'affichait jamais aucun enfant.
+      return (Array.isArray(data) ? data.map((d: any) => d.student).filter(Boolean) : []) as StudentWithEnrollments[];
     },
     enabled: !!user?.id && !!tenant?.id,
   });

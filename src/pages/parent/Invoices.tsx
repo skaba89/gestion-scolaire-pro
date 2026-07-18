@@ -220,8 +220,8 @@ const Invoices = () => {
                   <SelectTrigger className="w-full sm:w-72 bg-card border-primary/20 font-medium"><SelectValue placeholder={t("finance.allChildren")} /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t("finance.allChildren")}</SelectItem>
-                    {children?.map((relation) => (
-                      <SelectItem key={relation.student_id} value={relation.student_id}>{relation.student.first_name} {relation.student.last_name}</SelectItem>
+                    {children?.map((relation: any) => (
+                      <SelectItem key={relation.student_id} value={relation.student_id}>{relation.first_name} {relation.last_name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

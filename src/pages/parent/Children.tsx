@@ -55,11 +55,11 @@ const Children = () => {
       ) : (
         <StaggerContainer delayChildren={0.1}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {children.map((relation, index) => (
-              <StaggerItem key={relation.id} index={index}>
+            {children.map((child: any, index) => (
+              <StaggerItem key={child.student_id} index={index}>
                 <ParentChildInfoCard
-                  student={relation.student}
-                  isPrimary={relation.is_primary}
+                  student={{ ...child, id: child.student_id }}
+                  isPrimary={child.is_primary}
                   getTenantUrl={getTenantUrl}
                   onViewAttendance={setSelectedStudentForAttendance}
                 />

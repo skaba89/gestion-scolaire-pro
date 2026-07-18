@@ -3,21 +3,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ParentChildCard } from "@/components/dashboard/ParentChildCard";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-container";
 
-interface Student {
-    id: string;
+// La forme réelle renvoyée par GET /parents/dashboard/ est PLATE
+// (student_id, first_name...), pas imbriquée sous .student — contrairement
+// à ce que ce composant attendait à l'origine (relation.student.id),
+// ce qui faisait planter ParentChildCard (Cannot read 'id' of undefined).
+interface FlatChild {
+    student_id: string;
     first_name: string;
     last_name: string;
     registration_number: string;
     photo_url: string | null;
 }
 
-interface Relation {
-    id: string;
-    student: Student;
-}
-
 interface ParentChildGridProps {
-    children: Relation[];
+    children: FlatChild[];
     tenantId: string;
 }
 
@@ -44,10 +43,16 @@ export const ParentChildGrid = ({ children, tenantId }: ParentChildGridProps) =>
             ) : (
                 <StaggerContainer delayChildren={0.3}>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        {children.map((relation, index) => (
-                            <StaggerItem key={relation.id} index={index}>
+                        {children.map((child, index) => (
+                            <StaggerItem key={child.student_id} index={index}>
                                 <ParentChildCard
-                                    student={relation.student}
+                                    student={{
+                                        id: child.student_id,
+                                        first_name: child.first_name,
+                                        last_name: child.last_name,
+                                        registration_number: child.registration_number,
+                                        photo_url: child.photo_url,
+                                    }}
                                     tenantId={tenantId}
                                 />
                             </StaggerItem>

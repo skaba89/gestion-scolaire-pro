@@ -57,15 +57,15 @@ const ParentAnalytics = () => {
 
       {children.length === 1 ? (
         <ParentAnalyticsDashboard
-          studentId={(children[0].student as any)?.id}
+          studentId={(children[0] as any)?.student_id}
           tenantId={tenant?.id || ""}
         />
       ) : (
-        <Tabs defaultValue={String((children[0].student as any)?.id)} className="space-y-6">
+        <Tabs defaultValue={String((children[0] as any)?.student_id)} className="space-y-6">
           <TabsList className="flex-wrap h-auto gap-2">
-            {children.map((relation) => {
-              const student = relation.student as any;
-              if (!student) return null;
+            {children.map((relation: any) => {
+              const student = { ...relation, id: relation.student_id };
+              if (!student.id) return null;
               return (
                 <TabsTrigger
                   key={student.id}
@@ -89,9 +89,9 @@ const ParentAnalytics = () => {
             })}
           </TabsList>
 
-          {children.map((relation) => {
-            const student = relation.student as any;
-            if (!student) return null;
+          {children.map((relation: any) => {
+            const student = { ...relation, id: relation.student_id };
+            if (!student.id) return null;
             return (
               <TabsContent key={student.id} value={student.id}>
                 <ParentAnalyticsDashboard
