@@ -58,7 +58,7 @@ const EnrollmentStats = () => {
       const { data } = await apiClient.get("/students/academic-years/", {
         params: { ordering: "-start_date" },
       });
-      return data;
+      return Array.isArray(data) ? data : (data?.items ?? []);
     },
     enabled: !!tenant?.id,
   });
@@ -73,7 +73,7 @@ const EnrollmentStats = () => {
         params.academic_year_id = selectedYear;
       }
       const { data } = await apiClient.get("/admissions/enrollments/", { params });
-      return data;
+      return Array.isArray(data) ? data : (data?.items ?? []);
     },
     enabled: !!tenant?.id,
   });
@@ -84,7 +84,7 @@ const EnrollmentStats = () => {
     queryFn: async () => {
       if (!tenant?.id) return [];
       const { data } = await apiClient.get("/students/");
-      return data;
+      return Array.isArray(data) ? data : (data?.items ?? []);
     },
     enabled: !!tenant?.id,
   });
@@ -95,7 +95,7 @@ const EnrollmentStats = () => {
     queryFn: async () => {
       if (!tenant?.id) return [];
       const { data } = await apiClient.get("/admissions/applications/");
-      return data;
+      return Array.isArray(data) ? data : (data?.items ?? []);
     },
     enabled: !!tenant?.id,
   });
@@ -105,7 +105,7 @@ const EnrollmentStats = () => {
     totalStudents: (students as any[])?.filter(s => s.status === 'ACTIVE' && !s.deleted_at).length || 0,
     archivedStudents: (students as any[])?.filter(s => s.status === 'ARCHIVED' || s.deleted_at).length || 0,
     totalEnrollments: enrollments?.length || 0,
-    activeEnrollments: enrollments?.filter(e => e.status === "ACTIVE").length || 0,
+    activeEnrollments: enrollments?.filter(e => (e.status || "").toUpperCase() === "ACTIVE").length || 0,
     pendingApplications: applications?.filter(a => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW").length || 0,
     acceptedApplications: applications?.filter(a => a.status === "ACCEPTED" || a.status === "CONVERTED_TO_STUDENT").length || 0,
     rejectedApplications: applications?.filter(a => a.status === "REJECTED").length || 0,

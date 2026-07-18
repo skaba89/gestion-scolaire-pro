@@ -74,7 +74,7 @@ const StepBar = ({ current, steps }: { current: Step; steps: { id: string; label
             }
             <span className="hidden sm:inline">{step.label}</span>
           </div>
-          {i < STEPS.length - 1 && (
+          {i < steps.length - 1 && (
             <ChevronRight className="w-4 h-4 text-muted-foreground mx-1" />
           )}
         </div>

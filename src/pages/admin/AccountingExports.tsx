@@ -78,7 +78,9 @@ const AccountingExports = () => {
         },
       });
 
-      return (data as Invoice[]) || [];
+      // L'API renvoie {items: [...]} — unwrap avant cast
+      const rows = Array.isArray(data) ? data : (data?.items ?? []);
+      return (rows as Invoice[]) || [];
     },
     enabled: !!tenant?.id
   });
@@ -123,7 +125,9 @@ const AccountingExports = () => {
         },
       });
 
-      return (data as Payment[]) || [];
+      // L'API renvoie {items: [...]} — unwrap avant cast
+      const rows = Array.isArray(data) ? data : (data?.items ?? []);
+      return (rows as Payment[]) || [];
     },
     enabled: !!tenant?.id
   });

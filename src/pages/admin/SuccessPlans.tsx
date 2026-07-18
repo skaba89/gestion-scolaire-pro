@@ -62,10 +62,11 @@ export default function SuccessPlans() {
   const { data: students } = useQuery({
     queryKey: ["students-simple", tenant?.id],
     queryFn: async () => {
-      const response = await apiClient.get<any[]>("/students/", {
+      const response = await apiClient.get<any>("/students/", {
         params: { ordering: "last_name" }
       });
-      return response.data;
+      const d = response.data;
+      return Array.isArray(d) ? d : (d?.items ?? []);
     },
     enabled: !!tenant?.id,
   });
@@ -73,8 +74,9 @@ export default function SuccessPlans() {
   const { data: plans, isLoading } = useQuery({
     queryKey: ["success-plans", tenant?.id],
     queryFn: async () => {
-      const response = await apiClient.get<any[]>("/school-life/success-plans/");
-      return response.data;
+      const response = await apiClient.get<any>("/school-life/success-plans/");
+      const d = response.data;
+      return Array.isArray(d) ? d : (d?.items ?? []);
     },
     enabled: !!tenant?.id,
   });
