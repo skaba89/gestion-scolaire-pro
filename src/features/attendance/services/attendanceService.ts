@@ -40,19 +40,19 @@ export const attendanceService = {
     }
 
     const { data } = await apiClient.get("/attendance/", { params });
-    return (data || []) as unknown as AttendanceRecord[];
+    return (data?.items ?? data ?? []) as unknown as AttendanceRecord[];
   },
 
   async getStudentAttendance(studentId: string, startDate?: string, endDate?: string) {
     const params: any = { student_id: studentId };
 
     if (startDate && endDate) {
-      params.start_date = startDate;
-      params.end_date = endDate;
+      params.date_from = startDate;
+      params.date_to = endDate;
     }
 
     const { data } = await apiClient.get("/attendance/", { params });
-    const records = (data || []) as unknown as AttendanceRecord[];
+    const records = (data?.items ?? data ?? []) as unknown as AttendanceRecord[];
     return {
       records,
       stats: calculateAttendanceStats(records),
@@ -101,9 +101,9 @@ export const attendanceService = {
 
   async getClassroomAttendance(classroomId: string, date: string) {
     const { data } = await apiClient.get("/attendance/", {
-      params: { class_id: classroomId, date },
+      params: { classroom_id: classroomId, date_from: date, date_to: date },
     });
-    return (data || []) as unknown as AttendanceRecord[];
+    return (data?.items ?? data ?? []) as unknown as AttendanceRecord[];
   },
 
   /**

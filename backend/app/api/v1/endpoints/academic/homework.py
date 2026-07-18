@@ -75,7 +75,7 @@ def list_homework(
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}
 
     if class_id:
-        where.append("h.class_id = :class_id")
+        where.append("h.classroom_id = :class_id")
         params["class_id"] = class_id
     if subject_id:
         where.append("h.subject_id = :subject_id")
@@ -93,7 +93,8 @@ def list_homework(
     where_sql = " AND ".join(where)
 
     items_sql = text(f"""
-        SELECT h.*, s.name as subject_name, p.first_name as teacher_first, p.last_name as teacher_last
+        SELECT h.*, h.classroom_id AS class_id, (h.status = 'PUBLISHED') AS is_published,
+               s.name as subject_name, p.first_name as teacher_first, p.last_name as teacher_last
         FROM homework h
         LEFT JOIN subjects s ON h.subject_id = s.id
         LEFT JOIN users p ON h.teacher_id = p.id
@@ -136,7 +137,8 @@ def get_homework(
     """Get a single homework with its submissions."""
     tenant_id = current_user.get("tenant_id")
     row = db.execute(text("""
-        SELECT h.*, s.name as subject_name, p.first_name as teacher_first, p.last_name as teacher_last
+        SELECT h.*, h.classroom_id AS class_id, (h.status = 'PUBLISHED') AS is_published,
+               s.name as subject_name, p.first_name as teacher_first, p.last_name as teacher_last
         FROM homework h
         LEFT JOIN subjects s ON h.subject_id = s.id
         LEFT JOIN users p ON h.teacher_id = p.id
@@ -222,10 +224,10 @@ def create_homework(
 
     try:
         result = db.execute(text("""
-            INSERT INTO homework (tenant_id, title, description, class_id, subject_id,
-                                  due_date, is_published, content, teacher_id, created_at, updated_at)
+            INSERT INTO homework (tenant_id, title, description, classroom_id, subject_id,
+                                  due_date, status, teacher_id, created_at, updated_at)
             VALUES (:tenant_id, :title, :description, :class_id, :subject_id,
-                    :due_date, :is_published, :content, :teacher_id, NOW(), NOW())
+                    :due_date, :status, :teacher_id, NOW(), NOW())
             RETURNING id
         """), {
             "tenant_id": tenant_id,
@@ -234,8 +236,7 @@ def create_homework(
             "class_id": body.class_id,
             "subject_id": body.subject_id,
             "due_date": body.due_date,
-            "is_published": body.is_published,
-            "content": body.content,
+            "status": "PUBLISHED" if body.is_published else "DRAFT",
             "teacher_id": user_id,
         }).scalar()
 
@@ -267,11 +268,17 @@ def update_homework(
 
     # SECURITY: Whitelist allowed column names in dynamic UPDATE to prevent SQL injection.
     # Keys come from Pydantic model but we enforce a whitelist as defense in depth.
-    ALLOWED_HOMEWORK_COLUMNS = {"title", "description", "class_id", "subject_id", "due_date", "is_published", "content"}
+    # Le contrat API garde class_id/is_published (frontend) ; on les mappe vers
+    # les colonnes réelles classroom_id/status avant l'UPDATE.
+    ALLOWED_HOMEWORK_COLUMNS = {"title", "description", "class_id", "subject_id", "due_date", "is_published"}
     updates = body.model_dump(exclude_unset=True)
     updates = {k: v for k, v in updates.items() if k in ALLOWED_HOMEWORK_COLUMNS}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    if "class_id" in updates:
+        updates["classroom_id"] = updates.pop("class_id")
+    if "is_published" in updates:
+        updates["status"] = "PUBLISHED" if updates.pop("is_published") else "DRAFT"
 
     set_clause = ", ".join([f"{k} = :{k}" for k in updates])
     updates["id"] = homework_id

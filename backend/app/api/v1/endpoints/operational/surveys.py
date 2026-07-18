@@ -90,11 +90,13 @@ def create_survey(survey_data: dict, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=401, detail="Unauthorized")
     if not survey_data.get("title"):
         raise HTTPException(status_code=400, detail="Title is required")
+    import uuid as _uuid
     survey_id = db.execute(text("""
-        INSERT INTO surveys (tenant_id, title, description, target_audience, is_anonymous, is_active, starts_at, ends_at, created_by, created_at)
-        VALUES (:tid, :title, :desc, :audience, :anon, :active, :starts, :ends, :uid, NOW())
+        INSERT INTO surveys (id, tenant_id, title, description, target_audience, is_anonymous, is_active, starts_at, ends_at, created_by, created_at)
+        VALUES (:id, :tid, :title, :desc, :audience, :anon, :active, :starts, :ends, :uid, NOW())
         RETURNING id
     """), {
+        "id": str(_uuid.uuid4()),
         "tid": tenant_id, "title": survey_data["title"], "desc": survey_data.get("description"),
         "audience": survey_data.get("target_audience", "ALL"), "anon": survey_data.get("is_anonymous", False),
         "active": survey_data.get("is_active", True), "starts": survey_data.get("starts_at"),

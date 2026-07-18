@@ -980,6 +980,63 @@ _DDL = [
         UNIQUE (department_id, user_id)
     )""",
     """CREATE INDEX IF NOT EXISTS ix_department_members_tenant ON department_members (tenant_id, user_id)""",
+
+    # ── Défaut UUID manquant sur 30 tables (id UUID PRIMARY KEY sans DEFAULT)
+    # — cause racine de multiples 500 "NotNullViolation ... column id" sur
+    # tout INSERT brut qui omet id. Fix générique plutôt que correctif par table.
+    """ALTER TABLE library_categories ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE library_resources ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE inventory_categories ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE inventory_items ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE inventory_transactions ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE orders ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE order_items ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE clubs ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE club_memberships ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE surveys ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE survey_questions ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE survey_responses ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE announcements ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE conversations ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE conversation_participants ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE messages ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE user_message_status ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE student_forums ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE forum_posts ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE student_badges ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE career_event_registrations ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE alumni_document_requests ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE alumni_request_history ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE job_offers ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE alumni_mentors ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE career_events ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE mentorship_requests ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE job_applications ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE fees ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+    """ALTER TABLE school_settings ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
+
+    # ── FK cassées vers "profiles" (table jamais peuplée, 0 ligne) ────────────
+    # clubs.advisor_id, surveys.created_by, student_forums.created_by
+    # référençaient profiles(id) au lieu de users(id) -> ForeignKeyViolation
+    # systématique dès qu'on essayait d'y mettre un vrai utilisateur.
+    """DO $$ BEGIN
+        ALTER TABLE clubs DROP CONSTRAINT IF EXISTS clubs_advisor_id_fkey;
+        ALTER TABLE clubs ADD CONSTRAINT clubs_advisor_id_fkey
+            FOREIGN KEY (advisor_id) REFERENCES users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    """DO $$ BEGIN
+        ALTER TABLE surveys DROP CONSTRAINT IF EXISTS surveys_created_by_fkey;
+        ALTER TABLE surveys ADD CONSTRAINT surveys_created_by_fkey
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    """DO $$ BEGIN
+        ALTER TABLE student_forums DROP CONSTRAINT IF EXISTS student_forums_created_by_fkey;
+        ALTER TABLE student_forums ADD CONSTRAINT student_forums_created_by_fkey
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
     # ── RLS sur les nouvelles tables opérationnelles (le health check exige
     # une policy tenant sur TOUTE table portant tenant_id) ──────────────────
     """ALTER TABLE library_borrow_records ENABLE ROW LEVEL SECURITY""",
