@@ -74,6 +74,18 @@ interface MessengerInterfaceProps {
   showNewConversation?: boolean;
 }
 
+// The conversations API (GET/POST /communication/conversations/) never
+// returns a "participants" array — only a flat "title"/"sender_name". This
+// derives avatar initials from whichever name is available instead.
+function conversationInitials(conv: any): string {
+  const name: string = conv?.title || conv?.sender_name || conv?.other_name || "";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return parts.length === 1
+    ? parts[0][0].toUpperCase()
+    : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export function MessengerInterface({
   recipients = [],
   recipientLabel = "Destinataire",
@@ -338,13 +350,12 @@ export function MessengerInterface({
                 <div className="relative">
                   <Avatar className="h-12 w-12">
                     <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20">
-                      {conv.participants[0]?.first_name?.[0]}
-                      {conv.participants[0]?.last_name?.[0]}
+                      {conversationInitials(conv)}
                     </AvatarFallback>
                   </Avatar>
-                  {conv.participantIds?.[0] && (
+                  {conv.other_user_id && (
                     <div className="absolute bottom-0 right-0 ring-2 ring-card rounded-full">
-                      <OnlineStatus userId={conv.participantIds[0]} />
+                      <OnlineStatus userId={conv.other_user_id} />
                     </div>
                   )}
                 </div>
@@ -402,13 +413,12 @@ export function MessengerInterface({
               <div className="relative">
                 <Avatar className="h-10 w-10">
                   <AvatarFallback className="bg-gradient-to-br from-primary/20 to-accent/20">
-                    {selectedConv?.participants[0]?.first_name?.[0]}
-                    {selectedConv?.participants[0]?.last_name?.[0]}
+                    {selectedConv && conversationInitials(selectedConv)}
                   </AvatarFallback>
                 </Avatar>
-                {selectedConv?.participantIds?.[0] && (
+                {selectedConv?.other_user_id && (
                   <div className="absolute bottom-0 right-0 ring-2 ring-card rounded-full">
-                    <OnlineStatus userId={selectedConv.participantIds[0]} />
+                    <OnlineStatus userId={selectedConv.other_user_id} />
                   </div>
                 )}
               </div>

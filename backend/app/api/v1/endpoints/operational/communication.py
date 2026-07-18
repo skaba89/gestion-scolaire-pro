@@ -418,6 +418,65 @@ def send_message(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
+class ReactionCreate(BaseModel):
+    emoji: str
+
+
+@router.get("/messages/{message_id}/reactions/")
+def list_message_reactions(
+    message_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    rows = db.execute(text("""
+        SELECT emoji, user_id FROM message_reactions
+        WHERE message_id = :mid AND tenant_id = :tid
+    """), {"mid": message_id, "tid": tenant_id}).fetchall()
+    return [{"emoji": r.emoji, "user_id": str(r.user_id)} for r in rows]
+
+
+@router.post("/messages/{message_id}/reactions/", status_code=status.HTTP_201_CREATED)
+def add_message_reaction(
+    message_id: str,
+    body: ReactionCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    try:
+        db.execute(text("""
+            INSERT INTO message_reactions (tenant_id, message_id, user_id, emoji)
+            VALUES (:tid, :mid, :uid, :emoji)
+        """), {"tid": tenant_id, "mid": message_id, "uid": user_id, "emoji": body.emoji})
+        db.commit()
+        return {"emoji": body.emoji, "user_id": user_id}
+    except Exception as e:
+        db.rollback()
+        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+            raise HTTPException(status_code=409, detail="Reaction already exists")
+        logger.error("Error adding reaction: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to add reaction")
+
+
+@router.delete("/messages/{message_id}/reactions/")
+def remove_message_reaction(
+    message_id: str,
+    emoji: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    tenant_id = current_user.get("tenant_id")
+    user_id = current_user.get("id")
+    db.execute(text("""
+        DELETE FROM message_reactions
+        WHERE message_id = :mid AND user_id = :uid AND emoji = :emoji AND tenant_id = :tid
+    """), {"mid": message_id, "uid": user_id, "emoji": emoji, "tid": tenant_id})
+    db.commit()
+    return {"status": "removed"}
+
+
 @router.get("/messaging/unread-count/")
 def get_unread_count(
     db: Session = Depends(get_db),

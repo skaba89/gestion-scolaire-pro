@@ -1126,6 +1126,32 @@ _DDL = [
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS graduation_year INTEGER""",
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS industry VARCHAR(255)""",
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS max_mentees INTEGER DEFAULT 3""",
+
+    # ── message_reactions ──────────────────────────────────────────────────
+    # MessageReactions.tsx (messagerie interne) appelle
+    # GET/POST/DELETE /communication/messages/{id}/reactions/ depuis toujours,
+    # mais ni la table ni les endpoints n'ont jamais existé -> 404 systématique
+    # sur chaque message affiché.
+    """CREATE TABLE IF NOT EXISTS message_reactions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        emoji VARCHAR(16) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (message_id, user_id, emoji)
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_message_reactions_message_id ON message_reactions(message_id)""",
+    """DO $$ BEGIN
+        ALTER TABLE message_reactions ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE message_reactions FORCE ROW LEVEL SECURITY;
+        CREATE POLICY tenant_isolation_message_reactions ON message_reactions
+            USING (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''))
+            WITH CHECK (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''));
+        CREATE POLICY superadmin_bypass_message_reactions ON message_reactions
+            USING (COALESCE(current_setting('app.is_superadmin', true), 'false') = 'true');
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
 ]
 # fmt: on
 
