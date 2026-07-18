@@ -261,7 +261,10 @@ def get_academic_stats(
                     "name": r.subject_name, # Alias
                     "success_rate": round((r.passing / r.total * 100) if r.total else 0.0, 2),
                     "rate": round((r.passing / r.total * 100) if r.total else 0.0, 2), # Alias
-                    "average_grade": round(float(r.average_grade or 0.0), 2),
+                    # NOTE: l'alias SQL est avg_grade — r.average_grade levait
+                    # AttributeError, avalée par le except → bySubject/byClass
+                    # renvoyaient toujours [] (graphiques dashboard vides).
+                    "average_grade": round(float(r.avg_grade or 0.0), 2),
                 }
                 for r in subject_rows
             ],
