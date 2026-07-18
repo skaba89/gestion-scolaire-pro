@@ -173,15 +173,24 @@ def get_academic_kpis(
         """)
         row = db.execute(sql, params).fetchone()
 
-        total = int(row.total or 0) if row else 0
+        total_graded = int(row.total or 0) if row else 0
         passing = int(row.passing or 0) if row else 0
-        failing = max(0, total - passing)
+        failing = max(0, total_graded - passing)
         avg_grade = round(float(row.avg_grade or 0), 2) if row else 0.0
-        success_rate = round((passing / total * 100) if total > 0 else 0.0, 2)
+        success_rate = round((passing / total_graded * 100) if total_graded > 0 else 0.0, 2)
+
+        # totalStudents = étudiants réellement INSCRITS (et non le nombre de
+        # lignes de notes — un étudiant avec 5 notes comptait pour 5).
+        # Les taux (passing/failing/moyenne) restent calculés sur les notes.
+        enrolled_sql = text(f"""
+            SELECT COUNT(DISTINCT student_id) FROM enrollments
+            WHERE tenant_id = :tenant_id AND LOWER(status) = 'active' {ay_filter}
+        """)
+        enrolled = int(db.execute(enrolled_sql, params).scalar() or 0)
 
         return {
             "overallSuccessRate": success_rate,
-            "totalStudents": total,
+            "totalStudents": enrolled,
             "passingStudents": passing,
             "failingStudents": failing,
             "averageGrade": avg_grade,
