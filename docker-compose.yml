@@ -78,6 +78,15 @@ services:
       # because they differ between host and container networking)
       MINIO_ENDPOINT: minio:9000
       MINIO_SECURE: "false"
+      # MinIO's root credentials double as its API access key/secret. Without
+      # these, app/core/storage.py sees MINIO_ENDPOINT set but no
+      # ACCESS/SECRET_KEY, so self.enabled stays False and every upload
+      # silently falls back to the API container's local disk — which does
+      # not survive a redeploy. Resolved via compose's own ${VAR}
+      # interpolation from .env.docker (requires `--env-file .env.docker`,
+      # the documented invocation — see README.md).
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       # DEBUG vient de .env.docker (via --env-file) — défaut sécurisé: false.
       # Ne JAMAIS forcer true ici: cela écrasait la valeur du fichier env.
       DEBUG: "${DEBUG:-false}"
