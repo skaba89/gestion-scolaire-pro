@@ -117,16 +117,18 @@ export const AdminMessageComposer = () => {
         throw new Error("Sélectionnez au moins un destinataire");
       }
 
-      // Create a conversation
-      const convRes = await apiClient.post("/communication/conversations/", {
-        subject: subject || "Message de l'administration",
-      });
-      const conversation = convRes.data;
-
-      // Send the message
-      await apiClient.post(`/communication/conversations/${conversation.id}/messages/`, {
-        content: message,
-      });
+      // The backend only supports 1-on-1 conversations (recipient_id
+      // required) — create-or-find one per selected recipient and send
+      // the message in each, rather than a single group conversation.
+      for (const recipientId of selectedRecipients) {
+        const convRes = await apiClient.post("/communication/conversations/", {
+          recipient_id: recipientId,
+        });
+        const conversationId = convRes.data.conversation_id;
+        await apiClient.post(`/communication/conversations/${conversationId}/messages/`, {
+          content: subject ? `${subject}\n\n${message}` : message,
+        });
+      }
 
       // Create notifications for all recipients
       const notifications = selectedRecipients.map((recipientId) => ({

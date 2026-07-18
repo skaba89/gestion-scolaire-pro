@@ -150,7 +150,10 @@ def create_bulk_notifications(
     for n in bulk_in.notifications:
         if n.user_id:
             target_user = db.query(User).filter(User.id == n.user_id).first()
-            if target_user and target_user.tenant_id != tenant_id:
+            # str() both sides: target_user.tenant_id is a uuid.UUID from the
+            # ORM, tenant_id comes from the JWT as a plain string — comparing
+            # them directly is always unequal even for the same tenant.
+            if target_user and str(target_user.tenant_id) != str(tenant_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"L'utilisateur cible {n.user_id} n'appartient pas à votre tenant.",

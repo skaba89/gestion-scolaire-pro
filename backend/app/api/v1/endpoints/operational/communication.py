@@ -128,11 +128,18 @@ def get_messaging_users(
 ):
     try:
         tenant_id = current_user.get("tenant_id")
-        result = db.execute(text("""
-            SELECT id, first_name, last_name, email FROM users
-            WHERE tenant_id = :tenant_id
+        rows = db.execute(text("""
+            SELECT u.id, u.first_name, u.last_name, u.email,
+                   array_agg(DISTINCT ur.role) AS roles
+            FROM users u
+            LEFT JOIN user_roles ur ON ur.user_id = u.id
+            WHERE u.tenant_id = :tenant_id
+            GROUP BY u.id, u.first_name, u.last_name, u.email
         """), {"tenant_id": tenant_id}).mappings().all()
-        return result
+        return [
+            {**dict(r), "roles": [role for role in r["roles"] if role]}
+            for r in rows
+        ]
     except Exception as e:
         db.rollback()
         logger.error("Error getting messaging users: %s", e)
