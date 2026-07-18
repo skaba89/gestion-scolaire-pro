@@ -101,10 +101,10 @@ export const adminQueries = {
         queryKey: ["admin-student-grades", tenantId, studentId] as const,
         queryFn: async () => {
             if (!tenantId || !studentId) return [];
-            const response = await apiClient.get<any[]>("/school-life/grades/", {
+            const response = await apiClient.get<any>("/school-life/grades/", {
                 params: { student_id: studentId }
             });
-            return response.data;
+            return Array.isArray(response.data) ? response.data : (response.data?.items ?? []);
         },
     }),
 
@@ -112,10 +112,10 @@ export const adminQueries = {
         queryKey: ["admin-student-attendance", tenantId, studentId] as const,
         queryFn: async () => {
             if (!tenantId || !studentId) return [];
-            const response = await apiClient.get<any[]>("/school-life/attendance/", {
+            const response = await apiClient.get<any>("/school-life/attendance/", {
                 params: { student_ids: [studentId] }
             });
-            return response.data;
+            return Array.isArray(response.data) ? response.data : (response.data?.items ?? []);
         },
     }),
 
@@ -123,10 +123,10 @@ export const adminQueries = {
         queryKey: ["admin-student-invoices", tenantId, studentId] as const,
         queryFn: async () => {
             if (!tenantId || !studentId) return [];
-            const response = await apiClient.get<any[]>("/payments/invoices/", {
+            const response = await apiClient.get<any>("/payments/invoices/", {
                 params: { student_id: studentId }
             });
-            return response.data;
+            return Array.isArray(response.data) ? response.data : (response.data?.items ?? []);
         },
     }),
 
