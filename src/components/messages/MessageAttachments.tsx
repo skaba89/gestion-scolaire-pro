@@ -57,12 +57,12 @@ export const MessageAttachments = ({
           continue;
         }
 
+        // /communication/attachments/upload/ never existed (404 in prod) —
+        // reuse the generic, already-validated storage upload endpoint.
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("conversation_id", conversationId);
-        formData.append("user_id", userId);
 
-        const response = await apiClient.post("/communication/attachments/upload/", formData, {
+        const response = await apiClient.post("/storage/upload/", formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
 
