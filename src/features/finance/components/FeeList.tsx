@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Plus, Pencil, Trash2 } from "lucide-react";
 import { Fee } from "../types";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 interface FeeListProps {
     fees: Fee[];
@@ -23,6 +24,7 @@ interface FeeListProps {
 }
 
 export const FeeList = ({ fees, isLoading, onNewFee, onEditFee, onDeleteFee }: FeeListProps) => {
+    const { studentsLabel } = useStudentLabel();
     const { formatCurrency } = useCurrency();
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
@@ -62,7 +64,7 @@ export const FeeList = ({ fees, isLoading, onNewFee, onEditFee, onDeleteFee }: F
                     <EmptyState
                         icon={FileText}
                         title="Aucun type de frais configuré"
-                        description="Ajoutez des types de frais (ex: Scolarité, Cantine) pour les facturer aux élèves."
+                        description={`Ajoutez des types de frais (ex: Scolarité, Cantine) pour les facturer aux ${studentsLabel}.`}
                         actionLabel="Ajouter un frais"
                         onAction={onNewFee}
                     />

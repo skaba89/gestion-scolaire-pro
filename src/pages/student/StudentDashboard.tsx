@@ -117,9 +117,9 @@ const StudentDashboard = () => {
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-center p-8">
-        <p className="text-lg font-semibold">Profil élève non configuré</p>
+        <p className="text-lg font-semibold">Profil {StudentLabel.toLowerCase()} non configuré</p>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Votre compte n'est pas encore rattaché à une fiche élève.
+          Votre compte n'est pas encore rattaché à une fiche {StudentLabel.toLowerCase()}.
           Contactez l'administration de votre établissement.
         </p>
       </div>

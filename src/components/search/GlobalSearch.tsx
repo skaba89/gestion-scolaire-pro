@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
     CommandDialog,
     CommandEmpty,
@@ -29,6 +29,7 @@ import {
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 interface GlobalSearchProps {
     open: boolean;
@@ -64,31 +65,33 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
     Search,
 };
 
-const QUICK_NAV = [
-    { label: "Tableau de bord", icon: LayoutDashboard, path: "/admin" },
-    { label: "Élèves", icon: GraduationCap, path: "/admin/students" },
-    { label: "Finances", icon: CreditCard, path: "/admin/finances" },
-    { label: "Notes", icon: BarChart3, path: "/admin/grades" },
-    { label: "Enseignants", icon: BookOpen, path: "/admin/teachers" },
-    { label: "Paramètres", icon: Settings, path: "/admin/settings" },
-];
-
-const QUICK_ACTIONS = [
-    { label: "Inscrire un élève", icon: User, path: "/admin/admissions" },
-    { label: "Créer une facture", icon: CreditCard, path: "/admin/finances" },
-    { label: "Saisir des notes", icon: BarChart3, path: "/admin/grades" },
-];
 
 export const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
     const { tenant } = useTenant();
+    const { studentLabel, studentsLabel } = useStudentLabel();
     const [query, setQuery] = useState("");
     const debouncedQuery = useDebounce(query, 350);
     const [results, setResults] = useState<SearchResults>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const abortRef = useRef<AbortController | null>(null);
+
+    const QUICK_NAV = useMemo(() => [
+        { label: "Tableau de bord", icon: LayoutDashboard, path: "/admin" },
+        { label: studentsLabel.charAt(0).toUpperCase() + studentsLabel.slice(1), icon: GraduationCap, path: "/admin/students" },
+        { label: "Finances", icon: CreditCard, path: "/admin/finances" },
+        { label: "Notes", icon: BarChart3, path: "/admin/grades" },
+        { label: "Enseignants", icon: BookOpen, path: "/admin/teachers" },
+        { label: "Paramètres", icon: Settings, path: "/admin/settings" },
+    ], [studentsLabel]);
+
+    const QUICK_ACTIONS = useMemo(() => [
+        { label: `Inscrire un ${studentLabel}`, icon: User, path: "/admin/admissions" },
+        { label: "Créer une facture", icon: CreditCard, path: "/admin/finances" },
+        { label: "Saisir des notes", icon: BarChart3, path: "/admin/grades" },
+    ], [studentLabel]);
 
     // Global search via backend API
     useEffect(() => {
@@ -155,7 +158,7 @@ export const GlobalSearch = ({ open, onOpenChange }: GlobalSearchProps) => {
                     : <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
                 }
                 <CommandInput
-                    placeholder={t("search.placeholder", "Rechercher élèves, enseignants, paiements...")}
+                    placeholder={t("search.placeholder", { label: studentsLabel })}
                     value={query}
                     onValueChange={setQuery}
                     className="border-0 focus:ring-0"

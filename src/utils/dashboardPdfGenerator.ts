@@ -2,9 +2,11 @@ import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 import { format as formatDate } from "date-fns";
 import { fr } from "date-fns/locale";
+import { getStudentLabel } from "@/lib/terminology";
 
 interface DashboardData {
     tenantName: string;
+    tenantType?: string | null;
     period: string;
     financial: {
         totalRevenue: string;
@@ -31,6 +33,7 @@ export function generateDashboardPDF(data: DashboardData) {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     const margin = 14;
+    const studentsLabel = getStudentLabel({ type: data.tenantType }, { plural: true, capitalize: true });
 
     // Header
     doc.setFont("helvetica", "bold");
@@ -72,9 +75,9 @@ export function generateDashboardPDF(data: DashboardData) {
         head: [['Indicateur', 'Valeur']],
         body: [
             ['Taux de Réussite Global', data.academic.successRate],
-            ['Nombre d\'Élèves', data.academic.totalStudents.toString()],
+            [`Nombre d'${studentsLabel}`, data.academic.totalStudents.toString()],
             ['Moyenne Générale', data.academic.averageGrade],
-            ['Élèves en Difficulté', data.academic.failingStudents.toString()]
+            [`${studentsLabel} en Difficulté`, data.academic.failingStudents.toString()]
         ],
         theme: 'striped',
         headStyles: { fillColor: [16, 185, 129] }
@@ -88,7 +91,7 @@ export function generateDashboardPDF(data: DashboardData) {
         startY: operationalY + 5,
         head: [['Indicateur', 'Valeur']],
         body: [
-            ['Présence Élèves', data.operational.attendanceRate],
+            [`Présence ${studentsLabel}`, data.operational.attendanceRate],
             ['Présence Enseignants', data.operational.teacherAttendance],
             ['Total Heures Profs', data.operational.teacherHours || "0h"],
             ['Total Inscriptions', data.operational.enrollments.toString()],

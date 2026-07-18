@@ -2,9 +2,11 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { getStudentLabel } from "@/lib/terminology";
 
 interface ReportData {
     tenantName: string;
+    tenantType?: string | null;
     generatedBy: string;
     currency: {
         code: string;
@@ -25,6 +27,8 @@ export const generateAnalyticsReport = async (data: ReportData) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const dateStr = format(new Date(), "PPpp", { locale: fr });
+    const studentLabel = getStudentLabel({ type: data.tenantType });
+    const studentsLabel = getStudentLabel({ type: data.tenantType }, { plural: true, capitalize: true });
 
     // --- Header ---
     doc.setFontSize(20);
@@ -110,12 +114,12 @@ export const generateAnalyticsReport = async (data: ReportData) => {
     yPos = (doc as any).lastAutoTable.finalY + 15;
 
     // Students at Risk
-    doc.text("Élèves à Risque Identifiés (IA)", 14, yPos);
+    doc.text(`${studentsLabel} à Risque Identifiés (IA)`, 14, yPos);
     yPos += 5;
 
     autoTable(doc, {
         startY: yPos,
-        head: [["Élève", "Moyenne", "Absences", "Niveau de Risque"]],
+        head: [[studentLabel.charAt(0).toUpperCase() + studentLabel.slice(1), "Moyenne", "Absences", "Niveau de Risque"]],
         body: data.academic.risks.map(item => [
             `${item.first_name} ${item.last_name}`,
             `${item.avg_grade}/100`,

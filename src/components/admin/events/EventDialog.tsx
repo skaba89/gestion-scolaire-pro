@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 import {
     Select,
     SelectContent,
@@ -58,6 +59,7 @@ export const EventDialog = ({
     onSubmit,
     initialData
 }: EventDialogProps) => {
+    const { studentsLabel } = useStudentLabel();
     const form = useForm<EventFormValues>({
         resolver: zodResolver(eventSchema),
         defaultValues: {
@@ -207,7 +209,7 @@ export const EventDialog = ({
                                                 <div>
                                                     <FormLabel>Inscription requise</FormLabel>
                                                     <FormDescription className="text-[10px]">
-                                                        Les parents/élèves doivent s'inscrire
+                                                        Les parents/{studentsLabel} doivent s'inscrire
                                                     </FormDescription>
                                                 </div>
                                                 <FormControl>

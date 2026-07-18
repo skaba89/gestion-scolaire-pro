@@ -134,7 +134,7 @@ const ClassLists = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-display font-bold text-foreground">{t("classLists.pageTitle")}</h1>
-                    <p className="text-muted-foreground">{t("classLists.pageSubtitle")}</p>
+                    <p className="text-muted-foreground">{t("classLists.pageSubtitle", { label: studentsLabel })}</p>
                 </div>
             </div>
 

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ const getRiskIcon = (level: RiskLevel) => {
 
 export const TeacherRiskDashboard = () => {
     const { t } = useTranslation();
+    const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
     const { user } = useAuth();
     const { tenant } = useTenant();
     const [searchTerm, setSearchTerm] = useState("");
@@ -166,7 +168,7 @@ export const TeacherRiskDashboard = () => {
 
         // Header
         doc.setFontSize(18);
-        doc.text(t("teacherRisk.reportTitle"), pageWidth / 2, 20, { align: "center" });
+        doc.text(t("teacherRisk.reportTitle", { label: studentsLabel }), pageWidth / 2, 20, { align: "center" });
 
         doc.setFontSize(10);
         doc.text(`${t("teacherRisk.generatedOn")} ${new Date().toLocaleDateString("fr-FR")}`, pageWidth / 2, 28, { align: "center" });
@@ -177,16 +179,16 @@ export const TeacherRiskDashboard = () => {
         doc.text(t("teacherRisk.alertSummary"), 14, 45);
         autoTable(doc, {
             startY: 50,
-            head: [[t("teacherRisk.totalStudents"), t("teacherRisk.criticalAlerts"), t("teacherRisk.highAlerts"), t("teacherRisk.moderateAlerts")]],
+            head: [[t("teacherRisk.totalStudents", { Label: StudentsLabel }), t("teacherRisk.criticalAlerts"), t("teacherRisk.highAlerts"), t("teacherRisk.moderateAlerts")]],
             body: [[stats.total, stats.critical, stats.high, stats.moderate]],
             theme: "grid"
         });
 
         // Student List
-        doc.text(t("teacherRisk.studentDetail"), 14, (doc as any).lastAutoTable.finalY + 15);
+        doc.text(t("teacherRisk.studentDetail", { Label: StudentLabel }), 14, (doc as any).lastAutoTable.finalY + 15);
         autoTable(doc, {
             startY: (doc as any).lastAutoTable.finalY + 20,
-            head: [[t("teacherRisk.colStudent"), t("teacherRisk.colClass"), t("teacherRisk.colScore"), t("teacherRisk.colLevel"), t("teacherRisk.colLastCalc")]],
+            head: [[t("teacherRisk.colStudent", { Label: StudentLabel }), t("teacherRisk.colClass"), t("teacherRisk.colScore"), t("teacherRisk.colLevel"), t("teacherRisk.colLastCalc")]],
             body: filteredStudents.map(s => [
                 s.student_name,
                 s.class_name,
@@ -211,7 +213,7 @@ export const TeacherRiskDashboard = () => {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">{t("teacherRisk.pageTitle")}</h1>
+                    <h1 className="text-3xl font-bold">{t("teacherRisk.pageTitle", { Label: StudentsLabel })}</h1>
                     <p className="text-muted-foreground">{t("teacherRisk.pageSubtitle")}</p>
                 </div>
                 <Button onClick={handleExportPDF} variant="outline">
@@ -300,7 +302,7 @@ export const TeacherRiskDashboard = () => {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <Input
-                                placeholder={t("teacherRisk.searchPlaceholder")}
+                                placeholder={t("teacherRisk.searchPlaceholder", { label: studentLabel })}
                                 className="pl-9"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -325,13 +327,13 @@ export const TeacherRiskDashboard = () => {
             {/* Students List */}
             <Card>
                 <CardHeader>
-                    <CardTitle>{t("teacherRisk.studentList")} ({filteredStudents.length})</CardTitle>
+                    <CardTitle>{t("teacherRisk.studentList", { label: studentsLabel })} ({filteredStudents.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {filteredStudents.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                             <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                            <p>{t("teacherRisk.noStudentFound")}</p>
+                            <p>{t("teacherRisk.noStudentFound", { label: studentLabel })}</p>
                         </div>
                     ) : (
                         <div className="space-y-3">

@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { getStudentLabel } from '@/lib/terminology';
 
 export const generateReportCard = (
     student: any,
@@ -20,7 +21,7 @@ export const generateReportCard = (
     doc.setFontSize(12);
     doc.setTextColor(100, 100, 100);
     doc.text(`Bulletin de Notes : ${term?.name || 'Trimestre'}`, 14, 30);
-    doc.text(`Élève : ${student?.first_name} ${student?.last_name}`, 14, 38);
+    doc.text(`${getStudentLabel(tenant, { capitalize: true })} : ${student?.first_name} ${student?.last_name}`, 14, 38);
     doc.text(`Classe : ${classroom?.name}`, 14, 46);
     doc.text(`Date d'édition : ${format(new Date(), 'dd MMMM yyyy', { locale: fr })}`, 14, 54);
 

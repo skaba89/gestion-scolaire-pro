@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CommandDialog,
@@ -28,6 +28,7 @@ import { useCommandPaletteStore } from "@/hooks/useCommandPalette";
 import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/api/client";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 interface NavItem {
   label: string;
@@ -35,9 +36,10 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const NAV_ITEMS: NavItem[] = [
+function useNavItems(studentsLabel: string): NavItem[] {
+  return useMemo(() => [
   { label: "Tableau de bord", path: "/admin/dashboard", icon: Home },
-  { label: "Élèves", path: "/admin/students", icon: GraduationCap },
+  { label: studentsLabel.charAt(0).toUpperCase() + studentsLabel.slice(1), path: "/admin/students", icon: GraduationCap },
   { label: "Enseignants", path: "/admin/teachers", icon: Users },
   { label: "Classes", path: "/admin/classes", icon: BookOpen },
   { label: "Notes & Bulletins", path: "/admin/grades", icon: BarChart3 },
@@ -49,7 +51,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Rapports", path: "/admin/reports", icon: FileText },
   { label: "Finance", path: "/admin/finance", icon: DollarSign },
   { label: "Paramètres", path: "/admin/settings", icon: Settings },
-];
+  ], [studentsLabel]);
+}
 
 interface StudentResult {
   id: string;
@@ -62,6 +65,8 @@ export function CommandPalette() {
   const { isOpen, close } = useCommandPaletteStore();
   const navigate = useNavigate();
   const { getTenantUrl } = useTenantUrl();
+  const { studentLabel, studentsLabel } = useStudentLabel();
+  const NAV_ITEMS = useNavItems(studentsLabel);
   const [search, setSearch] = useState("");
   const [students, setStudents] = useState<StudentResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -127,7 +132,7 @@ export function CommandPalette() {
   return (
     <CommandDialog open={isOpen} onOpenChange={handleOpenChange}>
       <CommandInput
-        placeholder="Rechercher une page, un élève… (⌘K)"
+        placeholder={`Rechercher une page, un ${studentLabel}… (⌘K)`}
         value={search}
         onValueChange={setSearch}
       />
@@ -154,7 +159,7 @@ export function CommandPalette() {
         {students.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Élèves">
+            <CommandGroup heading={studentsLabel.charAt(0).toUpperCase() + studentsLabel.slice(1)}>
               {students.map((student) => (
                 <CommandItem
                   key={student.id}

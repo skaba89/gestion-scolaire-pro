@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { History, User, MessageSquare, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 interface GradeHistorySheetProps {
     gradeId?: string;
@@ -28,6 +29,7 @@ interface GradeHistorySheetProps {
 }
 
 const GradeHistorySheet = ({ gradeId, isOpen, onOpenChange, studentName }: GradeHistorySheetProps) => {
+    const { studentLabel } = useStudentLabel();
     const { data: history, isLoading } = useQuery({
         queryKey: ["grade-history", gradeId],
         queryFn: async () => {
@@ -49,7 +51,7 @@ const GradeHistorySheet = ({ gradeId, isOpen, onOpenChange, studentName }: Grade
                         <SheetTitle>Historique de modification</SheetTitle>
                     </div>
                     <SheetDescription>
-                        Traçabilité des changements pour <strong>{studentName || "cet élève"}</strong>
+                        Traçabilité des changements pour <strong>{studentName || `cet ${studentLabel}`}</strong>
                     </SheetDescription>
                 </SheetHeader>
 

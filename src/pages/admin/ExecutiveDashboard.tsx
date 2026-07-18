@@ -223,6 +223,7 @@ export default function ExecutiveDashboard() {
         const { generateDashboardPDF } = await import("@/utils/dashboardPdfGenerator");
         generateDashboardPDF({
             tenantName: tenant.name,
+            tenantType: tenant.type,
             period: period === "month" ? t("executiveDashboard.thisMonth") : period === "quarter" ? t("executiveDashboard.thisQuarter") : t("executiveDashboard.thisYear"),
             financial: {
                 totalRevenue: formatCurrency(revenue?.totalRevenue || 0),

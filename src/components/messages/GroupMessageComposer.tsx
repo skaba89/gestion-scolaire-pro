@@ -24,10 +24,12 @@ import {
 import { Users, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useBulkNotifications } from "@/hooks/useNotifications";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 export const GroupMessageComposer = () => {
   const { user } = useAuth();
   const { tenant } = useTenant();
+  const { studentLabel } = useStudentLabel();
   const bulkNotify = useBulkNotifications();
   const [open, setOpen] = useState(false);
   const [selectedClassroom, setSelectedClassroom] = useState("");
@@ -82,7 +84,7 @@ export const GroupMessageComposer = () => {
         params: { class_id: selectedClassroom, status: "active" }
       });
       const enrollments = enrollRes.data || [];
-      if (!enrollments.length) throw new Error("Aucun élève dans cette classe");
+      if (!enrollments.length) throw new Error(`Aucun ${studentLabel} dans cette classe`);
 
       const studentIds = enrollments.map((e: any) => e.student_id);
 

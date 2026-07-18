@@ -39,6 +39,7 @@ export const AnalyticsReportButton = () => {
             const { generateAnalyticsReport } = await import("@/lib/pdf/analytics-report");
             await generateAnalyticsReport({
                 tenantName: tenant.name,
+                tenantType: tenant.type,
                 generatedBy: `${profile?.first_name} ${profile?.last_name}`,
                 currency: {
                     code: currency.code,

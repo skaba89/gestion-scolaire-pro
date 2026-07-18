@@ -41,7 +41,7 @@ interface BatchBadgePrintProps {
 
 export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProps) {
   const { tenant } = useTenant();
-  const { studentsLabel } = useStudentLabel();
+  const { studentLabel, studentsLabel } = useStudentLabel();
   const { toast } = useToast();
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -317,7 +317,7 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Aucun élève inscrit dans cette classe pour l'année en cours
+                  Aucun {studentLabel} inscrit dans cette classe pour l'année en cours
                 </AlertDescription>
               </Alert>
             ) : selectedClassroom && students.length > 0 ? (
@@ -325,7 +325,7 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
                 <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                   <div className="flex items-center gap-2">
                     <Users className="h-5 w-5 text-muted-foreground" />
-                    <span className="font-medium">{students.length} élève(s)</span>
+                    <span className="font-medium">{students.length} {students.length > 1 ? studentsLabel : studentLabel}</span>
                   </div>
                   <div className="flex gap-4 text-sm">
                     <span className="text-green-600">{studentsWithBadge.length} avec badge</span>
@@ -337,7 +337,7 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription className="flex items-center justify-between">
-                      <span>{studentsWithoutBadge.length} élève(s) n'ont pas encore de badge</span>
+                      <span>{studentsWithoutBadge.length} {studentsWithoutBadge.length > 1 ? studentsLabel : studentLabel} n'ont pas encore de badge</span>
                       <Button
                         size="sm"
                         variant="outline"

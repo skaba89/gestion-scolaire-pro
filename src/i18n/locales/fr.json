@@ -774,19 +774,19 @@
         "onlineDesc": "Soumettez la demande de pré-réinscription pour réserver la place de vos {{studentsLabel}}. L'administration validera ensuite votre demande."
     },
     "teacherRisk": {
-        "pageTitle": "Élèves à Risque",
+        "pageTitle": "{{Label}} à Risque",
         "pageSubtitle": "Système d'alerte précoce pour vos classes",
         "exportPdf": "Exporter PDF",
-        "reportTitle": "Rapport des Élèves à Risque",
+        "reportTitle": "Rapport des {{label}} à Risque",
         "generatedOn": "Généré le:",
         "institution": "Établissement:",
         "alertSummary": "Résumé des Alertes",
-        "totalStudents": "Total Élèves",
+        "totalStudents": "Total {{Label}}",
         "criticalAlerts": "Alertes Critiques",
         "highAlerts": "Alertes Élevées",
         "moderateAlerts": "Alertes Modérées",
-        "studentDetail": "Détail par Élève",
-        "colStudent": "Élève",
+        "studentDetail": "Détail par {{Label}}",
+        "colStudent": "{{Label}}",
         "colClass": "Classe",
         "colScore": "Score",
         "colLevel": "Niveau",
@@ -797,10 +797,10 @@
         "high": "Élevé",
         "moderate": "Modéré",
         "recommendations": "Recommandations",
-        "searchPlaceholder": "Rechercher un élève ou une classe...",
+        "searchPlaceholder": "Rechercher un {{label}} ou une classe...",
         "all": "Tous",
-        "studentList": "Liste des élèves",
-        "noStudentFound": "Aucun élève trouvé",
+        "studentList": "Liste des {{label}}",
+        "noStudentFound": "Aucun {{label}} trouvé",
         "contact": "Contacter",
         "interview": "Entretien"
     },
@@ -2166,7 +2166,7 @@
     },
     "classLists": {
         "pageTitle": "Listes de Classes",
-        "pageSubtitle": "Consultez et exportez les listes d'élèves par classe",
+        "pageSubtitle": "Consultez et exportez les listes d'{{label}} par classe",
         "department": "Département",
         "level": "Niveau",
         "search": "Recherche",
@@ -2418,7 +2418,7 @@
         "cookiesDescription": "Ce site utilise des cookies pour améliorer votre expérience. Vous pouvez personnaliser vos préférences ci-dessous."
     },
     "search": {
-        "placeholder": "Rechercher...",
+        "placeholder": "Rechercher {{label}}, enseignants, paiements...",
         "noResults": "Aucun résultat trouvé"
     },
     "studentDetail": {

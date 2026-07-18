@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { ScrollProgress } from "@/components/ui/scroll-progress";
 import {
   Building2,
@@ -27,11 +28,12 @@ export const DepartmentLayout = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const { getTenantUrl } = useTenantUrl();
+  const { StudentsLabel } = useStudentLabel();
 
   const navItems = [
     { href: getTenantUrl("/department"), label: t("nav.dashboard"), icon: Home },
     { href: getTenantUrl("/department/classrooms"), label: t("nav.classrooms"), icon: Building2 },
-    { href: getTenantUrl("/department/students"), label: t("nav.students"), icon: Users },
+    { href: getTenantUrl("/department/students"), label: StudentsLabel, icon: Users },
     { href: getTenantUrl("/department/teachers"), label: t("nav.teachers"), icon: GraduationCap },
     { href: getTenantUrl("/department/exams"), label: "Examens", icon: FileText },
     { href: getTenantUrl("/department/attendance"), label: t("nav.attendance"), icon: Activity },

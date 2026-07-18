@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { offlineDb, queueAttendance, type CachedStudent, type AttendanceStatus, type PendingAttendance } from "@/lib/offlineDb";
 import { useTenant } from "@/contexts/TenantContext";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 import {
   WifiOff, UserCheck, UserX, Clock, AlertCircle,
   CheckCircle2, Trash2, RefreshCw, Database
@@ -43,6 +44,7 @@ interface Props {
 
 export function OfflineAttendance({ classroomId, classroomName, onSyncRequested }: Props) {
   const { tenant } = useTenant();
+  const { studentLabel, studentsLabel } = useStudentLabel();
   const { toast } = useToast();
 
   const [students, setStudents] = useState<CachedStudent[]>([]);
@@ -106,7 +108,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
     if (!tenant) return;
     const entries = Object.entries(attendanceMap).filter(([, status]) => status !== "");
     if (entries.length === 0) {
-      toast({ title: "Rien à enregistrer", description: "Sélectionnez le statut de chaque élève" });
+      toast({ title: "Rien à enregistrer", description: `Sélectionnez le statut de chaque ${studentLabel}` });
       return;
     }
 
@@ -166,7 +168,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
           <Database className="w-10 h-10 mx-auto mb-3 text-amber-500" />
           <p className="font-semibold text-amber-800">Aucune donnée en cache pour cette classe</p>
           <p className="text-sm text-amber-700 mt-1">
-            Connectez-vous au moins une fois avec internet pour mettre en cache les données des élèves.
+            Connectez-vous au moins une fois avec internet pour mettre en cache les données des {studentsLabel}.
           </p>
         </CardContent>
       </Card>
@@ -222,7 +224,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            {loadingStudents ? "Chargement..." : `${students.length} élèves — ${format(new Date(selectedDate + "T00:00:00"), "EEEE d MMMM yyyy", { locale: fr })}`}
+            {loadingStudents ? "Chargement..." : `${students.length} ${studentsLabel} — ${format(new Date(selectedDate + "T00:00:00"), "EEEE d MMMM yyyy", { locale: fr })}`}
           </CardTitle>
           <CardDescription>Appuyez sur un statut pour l'enregistrer hors-ligne</CardDescription>
         </CardHeader>

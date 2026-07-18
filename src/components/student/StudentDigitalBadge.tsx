@@ -12,6 +12,7 @@ import { QrCode, User, School, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/contexts/TenantContext";
 import { resolveUploadUrl } from "@/utils/url";
+import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 interface StudentDigitalBadgeProps {
     student: {
@@ -26,6 +27,7 @@ interface StudentDigitalBadgeProps {
 
 export const StudentDigitalBadge = ({ student, className }: StudentDigitalBadgeProps) => {
     const { tenant } = useTenant();
+    const { StudentLabel } = useStudentLabel();
 
     const handleDownload = () => {
         const svg = document.getElementById("student-qr-code");
@@ -90,7 +92,7 @@ export const StudentDigitalBadge = ({ student, className }: StudentDigitalBadgeP
                                     )}
                                 </div>
                                 <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider">
-                                    Élève Officiel
+                                    {StudentLabel} Officiel
                                 </Badge>
                             </div>
 
