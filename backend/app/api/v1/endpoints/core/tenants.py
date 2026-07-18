@@ -1416,14 +1416,16 @@ async def get_men_guinea_rapport(
             {"tid": tid_uuid}
         ).scalar() or 0
     except Exception:
+        db.rollback()
         total_students = 0
 
     try:
         male_students = db.execute(
-            text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid AND status = 'ACTIVE' AND gender = 'male'"),
+            text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid AND status = 'ACTIVE' AND gender = 'MALE'"),
             {"tid": tid_uuid}
         ).scalar() or 0
     except Exception:
+        db.rollback()
         male_students = 0
 
     female_students = total_students - male_students
@@ -1438,17 +1440,18 @@ async def get_men_guinea_rapport(
             {"tid": tid_uuid}
         ).scalar() or 0
     except Exception:
+        db.rollback()
         total_teachers = 0
 
     try:
         level_rows = db.execute(
             text("""
                 SELECT l.name, COUNT(s.id) AS total,
-                       SUM(CASE WHEN s.gender = 'male' THEN 1 ELSE 0 END) AS male,
-                       SUM(CASE WHEN s.gender = 'female' THEN 1 ELSE 0 END) AS female
+                       SUM(CASE WHEN s.gender = 'MALE' THEN 1 ELSE 0 END) AS male,
+                       SUM(CASE WHEN s.gender = 'FEMALE' THEN 1 ELSE 0 END) AS female
                 FROM levels l
                 LEFT JOIN classrooms c ON c.level_id = l.id AND c.tenant_id = :tid
-                LEFT JOIN enrollments e ON e.class_id = c.id AND e.status = 'ACTIVE'
+                LEFT JOIN enrollments e ON e.class_id = c.id AND LOWER(e.status) = 'active'
                 LEFT JOIN students s ON s.id = e.student_id
                 WHERE l.tenant_id = :tid
                 GROUP BY l.name, l.order_index
@@ -1461,6 +1464,7 @@ async def get_men_guinea_rapport(
             for r in level_rows
         ]
     except Exception:
+        db.rollback()
         levels = []
 
     current_year_row = db.execute(

@@ -151,17 +151,17 @@ def get_teacher_recipients(
         parents = db.execute(text("""
             SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, 'Parent' as info
             FROM teacher_assignments ta
-            JOIN enrollments e ON e.class_id = ta.class_id AND e.status = 'active'
+            JOIN enrollments e ON e.class_id = ta.classroom_id AND e.status = 'active'
             JOIN parent_students ps ON ps.student_id = e.student_id
             JOIN users u ON u.id = ps.parent_id
-            WHERE ta.teacher_id = :user_id AND ta.tenant_id = :tenant_id
+            WHERE ta.user_id = :user_id AND ta.tenant_id = :tenant_id
         """), {"user_id": user_id, "tenant_id": tenant_id}).mappings().all()
         
         teachers = db.execute(text("""
             SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, 'Enseignant' as info
             FROM teacher_assignments ta
-            JOIN users u ON u.id = ta.teacher_id
-            WHERE ta.tenant_id = :tenant_id AND ta.teacher_id != :user_id
+            JOIN users u ON u.id = ta.user_id
+            WHERE ta.tenant_id = :tenant_id AND ta.user_id != :user_id
         """), {"user_id": user_id, "tenant_id": tenant_id}).mappings().all()
         
         def fmt(row):
@@ -484,7 +484,7 @@ def list_forums(db: Session = Depends(get_db), current_user: dict = Depends(get_
         return db.execute(text("""
             SELECT f.*, p.first_name, p.last_name
             FROM student_forums f
-            LEFT JOIN profiles p ON p.id = f.created_by
+            LEFT JOIN users p ON p.id = f.created_by
             WHERE f.tenant_id = :tid
             ORDER BY f.created_at DESC
         """), {"tid": tenant_id}).mappings().all()

@@ -932,6 +932,116 @@ _DDL = [
         ALTER TABLE levels ADD CONSTRAINT uq_levels_tenant_name UNIQUE (tenant_id, name);
     EXCEPTION WHEN OTHERS THEN NULL;
     END $$""",
+    # ── Emprunts bibliothèque (utilisé par /library/borrowers|borrow|return) ──
+    """CREATE TABLE IF NOT EXISTS library_borrow_records (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        resource_id UUID NOT NULL,
+        borrowed_by UUID NOT NULL,
+        borrowed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        due_date DATE,
+        returned_at TIMESTAMPTZ,
+        status VARCHAR(20) NOT NULL DEFAULT 'BORROWED',
+        notes TEXT
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_library_borrow_tenant ON library_borrow_records (tenant_id, status)""",
+    # ── Rendus de devoirs (utilisé par /homework-submissions/) ────────────────
+    """CREATE TABLE IF NOT EXISTS homework_submissions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        homework_id UUID NOT NULL,
+        student_id UUID NOT NULL,
+        content TEXT,
+        grade NUMERIC(5,2),
+        feedback TEXT,
+        graded_at TIMESTAMPTZ,
+        graded_by UUID,
+        submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_homework_submissions_tenant ON homework_submissions (tenant_id, homework_id)""",
+    # ── Incidents : la table des migrations est plus pauvre que le module —
+    # ajout additif des colonnes attendues (title, occurred_at, location,
+    # resolved_by, resolution, action_taken, notes)
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS title VARCHAR(255)""",
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ DEFAULT NOW()""",
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS location VARCHAR(255)""",
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolved_by UUID""",
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolution TEXT""",
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS action_taken TEXT""",
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS notes TEXT""",
+    # ── Membres de département (portail département) ──────────────────────────
+    """CREATE TABLE IF NOT EXISTS department_members (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role VARCHAR(50) DEFAULT 'MEMBER',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (department_id, user_id)
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_department_members_tenant ON department_members (tenant_id, user_id)""",
+    # ── RLS sur les nouvelles tables opérationnelles (le health check exige
+    # une policy tenant sur TOUTE table portant tenant_id) ──────────────────
+    """ALTER TABLE library_borrow_records ENABLE ROW LEVEL SECURITY""",
+    """ALTER TABLE library_borrow_records FORCE ROW LEVEL SECURITY""",
+    """DO $$ BEGIN
+        DROP POLICY IF EXISTS "tenant_isolation_library_borrow_records" ON library_borrow_records;
+        CREATE POLICY "tenant_isolation_library_borrow_records" ON library_borrow_records
+        AS PERMISSIVE FOR ALL TO PUBLIC
+        USING (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''))
+        WITH CHECK (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''));
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    """DO $$ BEGIN
+        DROP POLICY IF EXISTS "superadmin_bypass_library_borrow_records" ON library_borrow_records;
+        CREATE POLICY "superadmin_bypass_library_borrow_records" ON library_borrow_records
+        AS PERMISSIVE FOR ALL TO PUBLIC
+        USING (COALESCE(current_setting('app.is_superadmin', true), 'false') = 'true');
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    """ALTER TABLE homework_submissions ENABLE ROW LEVEL SECURITY""",
+    """ALTER TABLE homework_submissions FORCE ROW LEVEL SECURITY""",
+    """DO $$ BEGIN
+        DROP POLICY IF EXISTS "tenant_isolation_homework_submissions" ON homework_submissions;
+        CREATE POLICY "tenant_isolation_homework_submissions" ON homework_submissions
+        AS PERMISSIVE FOR ALL TO PUBLIC
+        USING (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''))
+        WITH CHECK (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''));
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    """DO $$ BEGIN
+        DROP POLICY IF EXISTS "superadmin_bypass_homework_submissions" ON homework_submissions;
+        CREATE POLICY "superadmin_bypass_homework_submissions" ON homework_submissions
+        AS PERMISSIVE FOR ALL TO PUBLIC
+        USING (COALESCE(current_setting('app.is_superadmin', true), 'false') = 'true');
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    """ALTER TABLE department_members ENABLE ROW LEVEL SECURITY""",
+    """ALTER TABLE department_members FORCE ROW LEVEL SECURITY""",
+    """DO $$ BEGIN
+        DROP POLICY IF EXISTS "tenant_isolation_department_members" ON department_members;
+        CREATE POLICY "tenant_isolation_department_members" ON department_members
+        AS PERMISSIVE FOR ALL TO PUBLIC
+        USING (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''))
+        WITH CHECK (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''));
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    """DO $$ BEGIN
+        DROP POLICY IF EXISTS "superadmin_bypass_department_members" ON department_members;
+        CREATE POLICY "superadmin_bypass_department_members" ON department_members
+        AS PERMISSIVE FOR ALL TO PUBLIC
+        USING (COALESCE(current_setting('app.is_superadmin', true), 'false') = 'true');
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
+    # ── Vue de compatibilité : beaucoup de SQL brut référence "classrooms"
+    # alors que la table réelle s'appelle "classes". La vue (auto-updatable)
+    # répare d'un coup tous ces chemins sans toucher aux 19 requêtes.
+    """DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_class WHERE relname = 'classrooms') THEN
+            CREATE VIEW classrooms AS SELECT * FROM classes;
+        END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$""",
 ]
 # fmt: on
 

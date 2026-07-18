@@ -388,7 +388,7 @@ def list_user_profiles(
                    ARRAY[]::text[]
                ) AS roles
         FROM users u
-        LEFT JOIN profiles p ON p.user_id = u.id
+        LEFT JOIN profiles p ON p.id = u.id
         WHERE {' AND '.join(where)}
         ORDER BY u.last_name, u.first_name
         LIMIT 200

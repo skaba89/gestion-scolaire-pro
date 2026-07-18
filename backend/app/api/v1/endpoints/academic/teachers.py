@@ -216,13 +216,13 @@ def get_teacher_dashboard(
 
     # 1. Classes and Subjects (Assignments)
     assignments = [dict(r) for r in db.execute(text("""
-        SELECT ta.id, ta.class_id, ta.subject_id,
+        SELECT ta.id, ta.classroom_id AS class_id, ta.subject_id,
                c.id as class_id, c.name as class_name,
                s.id as subject_id, s.name as subject_name
         FROM teacher_assignments ta
-        LEFT JOIN classrooms c ON ta.class_id = c.id
+        LEFT JOIN classrooms c ON ta.classroom_id = c.id
         LEFT JOIN subjects s ON ta.subject_id = s.id
-        WHERE ta.teacher_id = :teacher_id AND ta.tenant_id = :tenant_id
+        WHERE ta.user_id = :teacher_id AND ta.tenant_id = :tenant_id
     """), {"teacher_id": teacher_id, "tenant_id": tenant_id}).mappings().all()]
 
     formatted_assignments = []
@@ -261,11 +261,11 @@ def get_teacher_dashboard(
     # 3. Recent assessments for this teacher's assigned subjects
     assessments = [dict(r) for r in db.execute(text("""
         SELECT DISTINCT a.id, a.name, a.max_score, a.assessment_type, a.date,
-               s.name as subject_name
+               a.created_at, s.name as subject_name
         FROM assessments a
         LEFT JOIN subjects s ON a.subject_id = s.id
         INNER JOIN teacher_assignments ta ON ta.subject_id = a.subject_id
-        WHERE ta.teacher_id = :teacher_id AND a.tenant_id = :tenant_id
+        WHERE ta.user_id = :teacher_id AND a.tenant_id = :tenant_id
         ORDER BY a.created_at DESC LIMIT 5
     """), {"teacher_id": teacher_id, "tenant_id": tenant_id}).mappings().all()]
 

@@ -1166,7 +1166,7 @@ def get_analytics_risk_scores(
             params["ids"] = ids
 
     rows = db.execute(text(f"""
-        SELECT sr.student_id, sr.risk_level, sr.risk_score, sr.risk_factors,
+        SELECT sr.student_id, sr.risk_level, sr.risk_score, sr.factors AS risk_factors,
                sr.calculated_at, u.first_name, u.last_name
         FROM student_risk_scores sr
         LEFT JOIN users u ON u.id = sr.student_id

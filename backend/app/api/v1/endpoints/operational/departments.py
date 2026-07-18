@@ -133,14 +133,14 @@ def department_dashboard(
 
             # Teachers
             stats["totalTeachers"] = db.execute(text("""
-                SELECT COUNT(DISTINCT ta.teacher_id) FROM teacher_assignments ta
-                WHERE ta.class_id = ANY(:class_ids) AND ta.tenant_id = :tenant_id
+                SELECT COUNT(DISTINCT ta.user_id) FROM teacher_assignments ta
+                WHERE ta.classroom_id = ANY(:class_ids) AND ta.tenant_id = :tenant_id
             """), params_cls).scalar() or 0
 
             # Subjects
             stats["totalSubjects"] = db.execute(text("""
                 SELECT COUNT(DISTINCT ta.subject_id) FROM teacher_assignments ta
-                WHERE ta.class_id = ANY(:class_ids) AND ta.tenant_id = :tenant_id
+                WHERE ta.classroom_id = ANY(:class_ids) AND ta.tenant_id = :tenant_id
             """), params_cls).scalar() or 0
 
             # Attendance (last 30 days)
@@ -333,10 +333,10 @@ def department_teachers(
                 array_agg(DISTINCT c.name) FILTER (WHERE c.name IS NOT NULL) AS classrooms,
                 COUNT(DISTINCT ta.id) AS assignment_count
             FROM teacher_assignments ta
-            JOIN users u ON u.id = ta.teacher_id
+            JOIN users u ON u.id = ta.user_id
             LEFT JOIN subjects sub ON sub.id = ta.subject_id
-            LEFT JOIN classrooms c ON c.id = ta.class_id
-            WHERE ta.class_id = ANY(:class_ids) AND ta.tenant_id = :tenant_id
+            LEFT JOIN classrooms c ON c.id = ta.classroom_id
+            WHERE ta.classroom_id = ANY(:class_ids) AND ta.tenant_id = :tenant_id
             GROUP BY u.id, u.first_name, u.last_name, u.email, u.phone, u.avatar_url
             ORDER BY u.last_name
         """), {"class_ids": class_ids, "tenant_id": tenant_id}).fetchall()
