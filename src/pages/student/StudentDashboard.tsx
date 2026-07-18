@@ -112,6 +112,20 @@ const StudentDashboard = () => {
     return <TableSkeleton columns={4} rows={10} />;
   }
 
+  // Compte utilisateur sans fiche élève liée (cas administratif : compte
+  // créé sans rattachement) — état informatif au lieu d'un plantage.
+  if (!student) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-center p-8">
+        <p className="text-lg font-semibold">Profil élève non configuré</p>
+        <p className="text-sm text-muted-foreground max-w-sm">
+          Votre compte n'est pas encore rattaché à une fiche élève.
+          Contactez l'administration de votre établissement.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row gap-6 items-stretch">

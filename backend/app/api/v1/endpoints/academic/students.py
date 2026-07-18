@@ -81,12 +81,22 @@ def get_student_dashboard(
     if not user_id or not tenant_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    # Le lien fiable est user_id (renseigné par l'admin lors de la création
+    # de compte) ; email n'est souvent pas rempli côté fiche élève. On essaie
+    # user_id d'abord, puis email en repli pour les anciennes fiches.
     student_res = db.execute(text("""
-        SELECT * FROM students 
-        WHERE email = :email AND tenant_id = :tenant_id
+        SELECT * FROM students
+        WHERE user_id = :user_id AND tenant_id = :tenant_id
         LIMIT 1
-    """), {"email": current_user.get("email"), "tenant_id": tenant_id}).mappings().first()
-    
+    """), {"user_id": user_id, "tenant_id": tenant_id}).mappings().first()
+
+    if not student_res and current_user.get("email"):
+        student_res = db.execute(text("""
+            SELECT * FROM students
+            WHERE email = :email AND tenant_id = :tenant_id
+            LIMIT 1
+        """), {"email": current_user.get("email"), "tenant_id": tenant_id}).mappings().first()
+
     if not student_res:
          raise HTTPException(status_code=404, detail="Student profile not found")
          
