@@ -681,9 +681,9 @@ def public_tenant_info(slug: str, db: Session = Depends(get_db)):
     tenant_id = str(tenant["id"])
 
     levels = db.execute(text("""
-        SELECT id, name, description, order_index
+        SELECT id, name, label, order_index
         FROM levels
-        WHERE tenant_id = :tenant_id AND is_active = TRUE
+        WHERE tenant_id = :tenant_id
         ORDER BY order_index ASC, name ASC
     """), {"tenant_id": tenant_id}).mappings().all()
 
@@ -706,7 +706,7 @@ def public_tenant_info(slug: str, db: Session = Depends(get_db)):
         "country": tenant["country"],
         "admissions_open": settings.get("admissions_open", True),
         "levels": [
-            {"id": str(l["id"]), "name": l["name"], "description": l["description"]}
+            {"id": str(l["id"]), "name": l["name"], "description": l["label"]}
             for l in levels
         ],
         "current_academic_year": {
