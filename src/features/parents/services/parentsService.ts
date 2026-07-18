@@ -17,13 +17,13 @@ export const parentsService = {
 
     async getUnpaidInvoices(studentIds: string[]) {
         if (!studentIds.length) return [];
-        const { data } = await apiClient.get<any[]>("/invoices/", {
+        const { data } = await apiClient.get<any>("/invoices/", {
             params: {
                 student_id: studentIds.join(","),
                 status: "PENDING,PARTIAL,OVERDUE",
             },
         });
-        return data || [];
+        return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
     async getInvoices(studentIds: string[], selectedStudentId?: string) {
@@ -34,8 +34,8 @@ export const parentsService = {
         } else {
             params.student_id = studentIds.join(",");
         }
-        const { data } = await apiClient.get<any[]>("/invoices/", { params });
-        return data || [];
+        const { data } = await apiClient.get<any>("/invoices/", { params });
+        return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
     async getNotifications(userId: string) {
@@ -68,25 +68,25 @@ export const parentsService = {
 
     async getRecentGrades(studentIds: string[]) {
         if (!studentIds.length) return [];
-        const { data } = await apiClient.get<any[]>("/grades/", {
+        const { data } = await apiClient.get<any>("/grades/", {
             params: {
                 student_id: studentIds.join(","),
                 limit: "5",
             },
         });
-        return data || [];
+        return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
     async getAttendanceAlerts(studentIds: string[]) {
         if (!studentIds.length) return [];
-        const { data } = await apiClient.get<any[]>("/attendance/", {
+        const { data } = await apiClient.get<any>("/attendance/", {
             params: {
                 student_id: studentIds.join(","),
                 status: "ABSENT,LATE",
                 limit: "5",
             },
         });
-        return data || [];
+        return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
     async getChildCheckInHistory(studentIds: string[]) {
@@ -108,8 +108,8 @@ export const parentsService = {
         } else {
             params.student_id = studentIds.join(",");
         }
-        const { data } = await apiClient.get<any[]>("/grades/", { params });
-        return data || [];
+        const { data } = await apiClient.get<any>("/grades/", { params });
+        return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
     async getStudentDetails(studentId: string) {
@@ -132,10 +132,10 @@ export const parentsService = {
 
     async getStudentAllGradesDetailed(studentId: string) {
         if (!studentId) return [];
-        const { data } = await apiClient.get<any[]>("/grades/", {
+        const { data } = await apiClient.get<any>("/grades/", {
             params: { student_id: studentId, detailed: "true" },
         });
-        return data || [];
+        return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
     async getStudentAllEnrollments(studentId: string) {
@@ -148,10 +148,10 @@ export const parentsService = {
 
     async getStudentAllAttendance(studentId: string) {
         if (!studentId) return [];
-        const { data } = await apiClient.get<any[]>("/attendance/", {
+        const { data } = await apiClient.get<any>("/attendance/", {
             params: { student_id: studentId },
         });
-        return data || [];
+        return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
     async getChildrenTeachers(userId: string, tenantId: string) {
