@@ -58,17 +58,16 @@ export default function ClassSessionAttendance() {
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [showScanner, setShowScanner] = useState(false);
 
-  // Get teacher assignments
+  // Get teacher assignments (mêmes données que le dashboard enseignant —
+  // /school-life/check-ins/assignments/ est un endpoint différent, sans
+  // rapport, sur les affectations de check-in par session).
   const { data: assignments } = useQuery({
     queryKey: ['teacher-assignments', user?.id, tenant?.id],
     queryFn: async () => {
-      const { data } = await apiClient.get("/school-life/check-ins/assignments/", {
-        params: {
-          teacher_id: user?.id,
-          tenant_id: tenant?.id,
-        },
+      const { data } = await apiClient.get("/teachers/dashboard", {
+        params: { teacher_id: user?.id },
       });
-      return data || [];
+      return data?.assignments || [];
     },
     enabled: !!user?.id && !!tenant?.id,
   });
@@ -97,7 +96,8 @@ export default function ClassSessionAttendance() {
           status: 'active',
         },
       });
-      return (data && data.length > 0 ? data[0] : null) as Session | null;
+      const items = data?.items ?? [];
+      return (items.length > 0 ? items[0] : null) as Session | null;
     },
     enabled: !!selectedClassroom && !!selectedSubject && !!tenant?.id,
   });
@@ -118,7 +118,7 @@ export default function ClassSessionAttendance() {
           status: 'active',
         },
       });
-      return data || [];
+      return data?.items ?? [];
     },
     enabled: !!selectedClassroom && !!tenant?.id,
   });
