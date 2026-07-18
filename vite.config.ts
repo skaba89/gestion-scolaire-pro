@@ -19,6 +19,13 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.NODE_ENV': JSON.stringify(mode),
       'process.env': {},
+      // Horodatage de build — sert à invalider automatiquement le cache
+      // offline persisté (localStorage) à chaque déploiement. Sans ça, une
+      // réponse API mise en cache AVANT un correctif de forme de données
+      // survit indéfiniment et fait planter l'app malgré le fix (vécu :
+      // /homework/ était passé de tableau brut à {items:[...]}, le cache
+      // persisté gardait l'ancienne forme et crashait le rendu).
+      '__BUILD_TIME__': JSON.stringify(new Date().toISOString()),
     },
     server: {
       // SECURITY: Default to localhost; use 0.0.0.0 only when network access is explicitly needed

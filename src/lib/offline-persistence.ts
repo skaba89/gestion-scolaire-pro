@@ -16,8 +16,14 @@ import type { Query } from "@tanstack/react-query";
 
 export const OFFLINE_CACHE_KEY = "schoolflow:offline-cache";
 export const OFFLINE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 h
-// À incrémenter si la forme des données persistées change.
-export const OFFLINE_CACHE_BUSTER = "offline-v1";
+// Lié à l'horodatage de build (__BUILD_TIME__, injecté par vite.config.ts) :
+// chaque déploiement invalide automatiquement le cache offline persisté.
+// Avant ce fix, une valeur figée en dur ("offline-v1") ne changeait jamais
+// entre deux déploiements — une réponse API mise en cache avant un correctif
+// de forme de données (ex: /homework/ passé de tableau brut à {items:[...]})
+// survivait au déploiement du fix et faisait planter l'app malgré tout.
+export const OFFLINE_CACHE_BUSTER =
+  typeof __BUILD_TIME__ !== "undefined" ? __BUILD_TIME__ : "offline-v1";
 
 // Liste blanche : correspondance EXACTE sur queryKey[0].
 const PERSISTED_QUERY_KEYS = new Set<string>([
