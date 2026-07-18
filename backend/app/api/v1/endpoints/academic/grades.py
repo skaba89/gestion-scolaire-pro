@@ -45,6 +45,51 @@ def list_grades(
             pages=1,
         )
 
+    # ── Règle métier / confidentialité ────────────────────────────────────
+    # STUDENT ne voit que ses propres notes ; PARENT uniquement celles de
+    # ses enfants. Sans ce filtre, tout porteur de grades:read voyait les
+    # notes de TOUT l'établissement.
+    from sqlalchemy import text as sa_text
+    roles = set(current_user.get("roles", []))
+    user_id = current_user.get("id")
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if not privileged and roles & {"STUDENT", "PARENT"}:
+        allowed_ids = set()
+        if "STUDENT" in roles:
+            rows = db.execute(sa_text(
+                "SELECT id FROM students WHERE tenant_id = :tid AND (user_id = :uid "
+                "OR email = (SELECT email FROM users WHERE id = :uid))"
+            ), {"tid": tenant_id, "uid": user_id}).fetchall()
+            allowed_ids.update(str(r[0]) for r in rows)
+        if "PARENT" in roles:
+            rows = db.execute(sa_text(
+                "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
+            ), {"tid": tenant_id, "uid": user_id}).fetchall()
+            allowed_ids.update(str(r[0]) for r in rows)
+        if student_id is not None:
+            if str(student_id) not in allowed_ids:
+                return GradeList(items=[], total=0, page=page, page_size=page_size, pages=1)
+        elif len(allowed_ids) == 1:
+            student_id = UUID(next(iter(allowed_ids)))
+        elif not allowed_ids:
+            return GradeList(items=[], total=0, page=page, page_size=page_size, pages=1)
+        else:
+            # Parent de plusieurs enfants sans filtre explicite : agréger
+            all_items, all_total = [], 0
+            for sid in allowed_ids:
+                g, t = crud_grade.get_grades(
+                    db=db, tenant_id=tenant_id, skip=0, limit=page_size,
+                    student_id=UUID(sid), subject=subject,
+                    academic_year=academic_year, assessment_id=assessment_id,
+                    class_id=class_id,
+                )
+                all_items.extend(g)
+                all_total += t
+            return GradeList(items=all_items[:page_size], total=all_total,
+                             page=page, page_size=page_size,
+                             pages=math.ceil(all_total / page_size) if all_total else 1)
+
     skip = (page - 1) * page_size
     grades, total = crud_grade.get_grades(
         db=db,

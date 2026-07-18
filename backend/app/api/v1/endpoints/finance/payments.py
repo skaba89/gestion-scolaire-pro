@@ -286,6 +286,21 @@ def list_invoices(
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
     filters = ""
+
+    # ── Règle métier : un PARENT ne voit que les factures de SES enfants ──
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT",
+                          "SECRETARY", "STAFF"}
+    if "PARENT" in roles and not privileged:
+        child_rows = db.execute(text(
+            "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
+        ), {"tid": tenant_id, "uid": current_user.get("id")}).fetchall()
+        child_ids = [str(r[0]) for r in child_rows]
+        if not child_ids:
+            return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 0}
+        filters += " AND i.student_id = ANY(:parent_children)"
+        params["parent_children"] = child_ids
+
     if student_id:
         filters += " AND i.student_id = :student_id"
         params["student_id"] = student_id
