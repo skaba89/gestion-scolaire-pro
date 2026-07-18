@@ -124,10 +124,10 @@ def get_student_dashboard(
     homework = []
     if class_id:
         homework = [dict(r) for r in db.execute(text("""
-            SELECT h.*, s.name as subject_name
+            SELECT h.*, h.classroom_id AS class_id, s.name as subject_name
             FROM homework h
             LEFT JOIN subjects s ON h.subject_id = s.id
-            WHERE h.class_id = :class_id AND h.due_date >= CURRENT_DATE
+            WHERE h.classroom_id = :class_id AND h.due_date >= CURRENT_DATE
             ORDER BY h.due_date ASC LIMIT 5
         """), {"class_id": class_id}).mappings().all()]
         
