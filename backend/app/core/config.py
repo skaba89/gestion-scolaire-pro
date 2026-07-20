@@ -20,6 +20,24 @@ def get_secret(secret_name: str, default: str = "") -> str:
     return os.getenv(secret_name, default)
 
 
+def parse_int_env(name: str, default: int) -> int:
+    """Read an int env var, tolerating unset/empty/invalid values.
+
+    Unlike ``int(os.getenv(name, str(default)))``, this does not crash when
+    the variable exists but is set to an empty string (a common state for
+    optional env vars left blank in .env files) — it falls back to
+    ``default`` instead of raising ValueError at import time.
+    """
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("%s invalid: %r — using default %s", name, raw, default)
+        return default
+
+
 def is_sqlite_url(url: str) -> bool:
     """Check if a database URL uses SQLite."""
     return url.startswith("sqlite:") if url else False
@@ -122,8 +140,8 @@ class Settings(BaseSettings):
     # Render Starter (1 dyno) → 1 worker → 30 connexions max.
     # Render Standard (2+ dynos) → configurer DATABASE_POOL_SIZE=5, MAX_OVERFLOW=10
     # pour rester sous la limite PostgreSQL de 97 connexions (Render managed PG).
-    DATABASE_POOL_SIZE: int = int(os.getenv("DATABASE_POOL_SIZE", "10"))
-    DATABASE_MAX_OVERFLOW: int = int(os.getenv("DATABASE_MAX_OVERFLOW", "20"))
+    DATABASE_POOL_SIZE: int = parse_int_env("DATABASE_POOL_SIZE", 5)
+    DATABASE_MAX_OVERFLOW: int = parse_int_env("DATABASE_MAX_OVERFLOW", 10)
 
     @field_validator("DATABASE_URL_ASYNC", "DATABASE_URL_SYNC", mode="before")
     @classmethod
