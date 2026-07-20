@@ -1,11 +1,14 @@
 """
 AI Service for SchoolFlow Pro.
 
-Supports two providers with automatic fallback:
-  1. Groq       — fast inference (primary if GROQ_API_KEY is set)
-  2. OpenRouter  — multi-model gateway (fallback, or primary if Groq is absent)
+Supports several providers with automatic fallback, tried in order:
+  1. Groq        — fast inference (primary if GROQ_API_KEY is set)
+  2. OpenRouter  — multi-model gateway
+  3. Gemini      — Google, via its OpenAI-compatible endpoint
+  4. GLM         — Zhipu AI, via its OpenAI-compatible endpoint
 
-Both expose an OpenAI-compatible API so a single client pattern works.
+Any provider missing its API key is skipped. OpenRouter, Gemini and GLM all
+expose an OpenAI-compatible API so a single client wrapper covers them.
 """
 
 import logging
@@ -52,18 +55,18 @@ AUDIT_SYSTEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# OpenRouter client (uses openai SDK with custom base_url)
+# Generic OpenAI-compatible client (OpenRouter, Gemini, GLM all expose one)
 # ---------------------------------------------------------------------------
 
-class _OpenRouterClient:
-    """Lightweight async wrapper around OpenRouter's OpenAI-compatible API."""
+class _OpenAICompatibleClient:
+    """Lightweight async wrapper around an OpenAI-compatible chat API."""
 
     def __init__(self, api_key: str, base_url: str, model: str):
         try:
             from openai import AsyncOpenAI
         except ImportError:
             raise ImportError(
-                "The 'openai' package is required for OpenRouter support. "
+                "The 'openai' package is required for this provider. "
                 "Install it with: pip install openai"
             )
         self._client = AsyncOpenAI(
@@ -94,32 +97,30 @@ class _OpenRouterClient:
 
 
 class GroqService:
-    """AI service with Groq (primary) and OpenRouter (fallback) support."""
+    """AI service with automatic fallback: Groq -> OpenRouter -> Gemini -> GLM."""
 
     def __init__(self) -> None:
-        # --- Groq client ---
+        # --- Groq client (native SDK, not OpenAI-compatible) ---
         groq_key = settings.GROQ_API_KEY
         self._groq: Optional[AsyncGroq] = (
             AsyncGroq(api_key=groq_key) if groq_key else None
         )
         self._groq_model: str = settings.GROQ_MODEL
 
-        # --- OpenRouter client ---
-        or_key = settings.OPENROUTER_API_KEY
-        self._openrouter: Optional[_OpenRouterClient] = None
-        if or_key:
+        # --- OpenAI-compatible fallback providers, tried in this order ---
+        self._fallbacks: list[tuple[str, _OpenAICompatibleClient, str]] = []
+        for name, api_key, base_url, model in (
+            ("openrouter", settings.OPENROUTER_API_KEY, settings.OPENROUTER_BASE_URL, settings.OPENROUTER_MODEL),
+            ("gemini", settings.GEMINI_API_KEY, settings.GEMINI_BASE_URL, settings.GEMINI_MODEL),
+            ("glm", settings.GLM_API_KEY, settings.GLM_BASE_URL, settings.GLM_MODEL),
+        ):
+            if not api_key:
+                continue
             try:
-                self._openrouter = _OpenRouterClient(
-                    api_key=or_key,
-                    base_url=settings.OPENROUTER_BASE_URL,
-                    model=settings.OPENROUTER_MODEL,
-                )
-                logger.info(
-                    "OpenRouter AI provider configured (model=%s)",
-                    settings.OPENROUTER_MODEL,
-                )
+                client = _OpenAICompatibleClient(api_key=api_key, base_url=base_url, model=model)
+                self._fallbacks.append((name, client, model))
             except ImportError as exc:
-                logger.warning("OpenRouter disabled: %s", exc)
+                logger.warning("%s disabled: %s", name, exc)
 
         self._max_tokens: int = settings.GROQ_MAX_TOKENS
 
@@ -127,14 +128,13 @@ class GroqService:
         providers = []
         if self._groq:
             providers.append(f"Groq({self._groq_model})")
-        if self._openrouter:
-            providers.append(f"OpenRouter({settings.OPENROUTER_MODEL})")
+        providers.extend(f"{name}({model})" for name, _, model in self._fallbacks)
         if providers:
             logger.info("AI providers active: %s", " -> ".join(providers))
         else:
             logger.warning(
-                "No AI provider configured. Set GROQ_API_KEY or "
-                "OPENROUTER_API_KEY to enable AI features."
+                "No AI provider configured. Set GROQ_API_KEY, OPENROUTER_API_KEY, "
+                "GEMINI_API_KEY or GLM_API_KEY to enable AI features."
             )
 
     # ------------------------------------------------------------------
@@ -142,14 +142,14 @@ class GroqService:
     # ------------------------------------------------------------------
 
     def _is_available(self) -> bool:
-        return self._groq is not None or self._openrouter is not None
+        return self._groq is not None or bool(self._fallbacks)
 
     @property
     def _active_model_name(self) -> str:
         if self._groq:
             return self._groq_model
-        if self._openrouter:
-            return settings.OPENROUTER_MODEL
+        if self._fallbacks:
+            return self._fallbacks[0][2]
         return "none"
 
     async def _stream_completion(
@@ -159,11 +159,11 @@ class GroqService:
         max_tokens: Optional[int] = None,
         temperature: float = 0.7,
     ) -> AsyncGenerator[str, None]:
-        """Yield text chunks. Tries Groq first, falls back to OpenRouter."""
+        """Yield text chunks. Tries Groq first, then each fallback in order."""
         if not self._is_available():
             yield (
                 "⚠️ Service AI non disponible. Veuillez configurer "
-                "GROQ_API_KEY ou OPENROUTER_API_KEY."
+                "GROQ_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY ou GLM_API_KEY."
             )
             return
 
@@ -189,10 +189,10 @@ class GroqService:
             except Exception as exc:
                 logger.warning("Groq streaming error, trying fallback: %s", exc)
 
-        # --- Fallback to OpenRouter ---
-        if self._openrouter:
+        # --- Fall back through each configured provider in order ---
+        for name, client, _model in self._fallbacks:
             try:
-                response = await self._openrouter.create(
+                response = await client.create(
                     messages=messages,
                     max_tokens=tokens,
                     temperature=temperature,
@@ -204,7 +204,7 @@ class GroqService:
                         yield delta.content
                 return
             except Exception as exc:
-                logger.error("OpenRouter streaming also failed: %s", exc)
+                logger.warning("%s streaming failed, trying next: %s", name, exc)
 
         yield "Erreur de connexion au service IA. Veuillez réessayer."
 
@@ -219,7 +219,7 @@ class GroqService:
         fallback = {
             "content": (
                 "⚠️ Service AI non disponible. Veuillez configurer "
-                "GROQ_API_KEY ou OPENROUTER_API_KEY."
+                "GROQ_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY ou GLM_API_KEY."
             ),
             "model": self._active_model_name,
             "provider": "none",
@@ -260,10 +260,10 @@ class GroqService:
             except Exception as exc:
                 logger.warning("Groq completion error, trying fallback: %s", exc)
 
-        # --- Fallback to OpenRouter ---
-        if self._openrouter:
+        # --- Fall back through each configured provider in order ---
+        for name, client, model in self._fallbacks:
             try:
-                response = await self._openrouter.create(
+                response = await client.create(
                     messages=messages,
                     max_tokens=tokens,
                     temperature=temperature,
@@ -276,8 +276,8 @@ class GroqService:
                         if response.choices
                         else ""
                     ),
-                    "model": response.model or settings.OPENROUTER_MODEL,
-                    "provider": "openrouter",
+                    "model": response.model or model,
+                    "provider": name,
                     "tokens": {
                         "prompt": usage.prompt_tokens if usage else 0,
                         "completion": usage.completion_tokens if usage else 0,
@@ -285,7 +285,7 @@ class GroqService:
                     },
                 }
             except Exception as exc:
-                logger.error("OpenRouter completion also failed: %s", exc)
+                logger.warning("%s completion failed, trying next: %s", name, exc)
 
         return {
             **fallback,

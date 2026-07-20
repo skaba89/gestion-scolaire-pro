@@ -259,6 +259,18 @@ class Settings(BaseSettings):
     OPENROUTER_MODEL: str = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct")
     OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
+    # Google Gemini (OpenAI-compatible endpoint — fallback provider)
+    GEMINI_API_KEY: str = get_secret("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_BASE_URL: str = os.getenv(
+        "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai"
+    )
+
+    # Zhipu GLM (OpenAI-compatible endpoint — fallback provider)
+    GLM_API_KEY: str = get_secret("GLM_API_KEY", "")
+    GLM_MODEL: str = os.getenv("GLM_MODEL", "glm-4.6")
+    GLM_BASE_URL: str = os.getenv("GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4")
+
     # Observabilité — Sentry
     SENTRY_DSN: str = get_secret("SENTRY_DSN", "")
     SENTRY_ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
