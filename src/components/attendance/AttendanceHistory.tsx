@@ -48,7 +48,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
       // Get attendance for last 3 months
       const threeMonthsAgo = subMonths(new Date(), 3);
       
-      const { data } = await apiClient.get<any[]>("/attendance/", {
+      const { data } = await apiClient.get<any>("/attendance/", {
         params: {
           student_id: studentId,
           tenant_id: tenant.id,
@@ -56,7 +56,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
           ordering: "-date",
         },
       });
-      return data;
+      return Array.isArray(data) ? data : (data?.items ?? []);
     },
     enabled: !!studentId && !!tenant?.id,
   });
