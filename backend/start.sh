@@ -67,7 +67,7 @@ if [ "${DEBUG:-false}" = "true" ] || [ "${DEBUG:-false}" = "True" ]; then
   echo "   Mode: development (uvicorn --reload)"
   exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 else
-  WORKERS=${WORKERS:-4}
+  WORKERS=${WORKERS:-2}
   echo "   Mode: production (gunicorn × ${WORKERS} workers)"
   exec gunicorn app.main:app \
     --bind 0.0.0.0:8000 \

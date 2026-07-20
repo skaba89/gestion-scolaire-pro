@@ -86,6 +86,29 @@ export function OnboardingWizard() {
         return true;
     };
 
+    // Force sending the current tenant on every onboarding API call, so the
+    // backend has a valid tenant even if the JWT/user-in-DB tenant_id lookup
+    // is momentarily inconsistent right after tenant creation.
+    const getTenantRequestConfig = () => {
+        const tenantId = tenant?.id || localStorage.getItem("last_tenant_id");
+        if (!tenantId) {
+            throw new Error("Tenant introuvable. Veuillez vous reconnecter via l'URL de votre établissement.");
+        }
+        localStorage.setItem("last_tenant_id", tenantId);
+        return {
+            headers: {
+                "X-Tenant-ID": tenantId,
+            },
+        };
+    };
+
+    // Keep last_tenant_id in sync as soon as the tenant context resolves.
+    useEffect(() => {
+        if (tenant?.id) {
+            localStorage.setItem("last_tenant_id", tenant.id);
+        }
+    }, [tenant?.id]);
+
     // Check for saved progress on mount
     useEffect(() => {
         if (!user?.id) return;
@@ -148,7 +171,7 @@ export function OnboardingWizard() {
         if (!tenant) return;
 
         try {
-            await apiClient.patch('/tenants/settings/', updates.settings || {});
+            await apiClient.patch('/tenants/settings/', updates.settings || {}, getTenantRequestConfig());
 
             // Update local context
             setCurrentTenant({
@@ -178,8 +201,12 @@ export function OnboardingWizard() {
                 settings: { currency, onboarding_step: 2 }
             });
             setStep(2);
-        } catch (error) {
-            toast.error("Erreur lors de la mise à jour");
+        } catch (error: any) {
+            if (error?.message?.includes("Tenant introuvable")) {
+                toast.error("Votre établissement n'est pas chargé. Déconnectez-vous puis reconnectez-vous via l'URL de votre établissement.");
+            } else {
+                toast.error("Erreur lors de la mise à jour");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -210,14 +237,18 @@ export function OnboardingWizard() {
                 levelsToCreate.push("Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2", "Doctorat 1", "Doctorat 2", "Doctorat 3");
             }
 
-            await apiClient.post('/tenants/onboarding/levels/', levelsToCreate);
+            await apiClient.post('/tenants/onboarding/levels/', levelsToCreate, getTenantRequestConfig());
 
             await updateTenantSettings({
                 settings: { onboarding_step: 3 }
             });
             setStep(3);
-        } catch (error) {
-            toast.error("Erreur lors de la création des niveaux");
+        } catch (error: any) {
+            if (error?.message?.includes("Tenant introuvable")) {
+                toast.error("Votre établissement n'est pas chargé. Déconnectez-vous puis reconnectez-vous via l'URL de votre établissement.");
+            } else {
+                toast.error("Erreur lors de la création des niveaux");
+            }
             if (import.meta.env.DEV) console.error(error);
         } finally {
             setIsLoading(false);
@@ -233,15 +264,19 @@ export function OnboardingWizard() {
             await apiClient.post('/tenants/onboarding/subjects/', selectedSubjects.map(name => ({
                 name,
                 coefficient: 1
-            })));
+            })), getTenantRequestConfig());
 
             await updateTenantSettings({
                 settings: { onboarding_step: 4 }
             });
             setStep(4);
 
-        } catch (error) {
-            toast.error("Erreur lors de la création des matières");
+        } catch (error: any) {
+            if (error?.message?.includes("Tenant introuvable")) {
+                toast.error("Votre établissement n'est pas chargé. Déconnectez-vous puis reconnectez-vous via l'URL de votre établissement.");
+            } else {
+                toast.error("Erreur lors de la création des matières");
+            }
             if (import.meta.env.DEV) console.error(error);
         } finally {
             setIsLoading(false);
@@ -276,8 +311,12 @@ export function OnboardingWizard() {
             const formData = new FormData();
             formData.append('file', blob, `signature-${Date.now()}.png`);
 
+            const tenantConfig = getTenantRequestConfig();
             const uploadResponse = await apiClient.post('/storage/upload/', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: {
+                    ...tenantConfig.headers,
+                    'Content-Type': 'multipart/form-data',
+                },
             });
 
             const signatureUrl = uploadResponse.data.url;
@@ -286,7 +325,7 @@ export function OnboardingWizard() {
             await apiClient.patch('/tenants/onboarding/complete/', {
                 director_name: directorName,
                 signature_url: signatureUrl
-            });
+            }, getTenantRequestConfig());
 
             // IMPORTANT: Update local state before navigating to break the loop!
             if (tenant) {
@@ -306,8 +345,12 @@ export function OnboardingWizard() {
             toast.success("Configuration terminée avec succès !");
             navigate(`/${tenantSlug}/admin`);
 
-        } catch (error) {
-            toast.error("Erreur lors de l'enregistrement de la signature");
+        } catch (error: any) {
+            if (error?.message?.includes("Tenant introuvable")) {
+                toast.error("Votre établissement n'est pas chargé. Déconnectez-vous puis reconnectez-vous via l'URL de votre établissement.");
+            } else {
+                toast.error("Erreur lors de l'enregistrement de la signature");
+            }
             if (import.meta.env.DEV) console.error(error);
         } finally {
             setIsLoading(false);

@@ -68,8 +68,9 @@ docker compose --env-file .env.docker up -d --build
 
 - Mettre un reverse-proxy TLS devant le port frontend (Caddy ou Traefik ;
   Caddy = TLS automatique Let's Encrypt).
-- `DEBUG=False` dans .env.docker (le compose le force à true pour le dev local —
-  créer un `docker-compose.prod.yml` qui l'écrase si besoin).
+- `docker-compose.yml` lit `DEBUG` depuis `.env.docker` (`DEBUG: "${DEBUG:-false}"`) —
+  il ne force aucune valeur. Mettre `DEBUG=False` dans `.env.docker` en
+  production/préproduction.
 - Sauvegardes : le service `db-backup` produit des dumps quotidiens ;
   externaliser le dossier de backups (rclone vers un stockage distant).
 
