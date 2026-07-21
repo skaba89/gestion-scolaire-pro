@@ -299,6 +299,15 @@ ROLE_PERMISSIONS: dict = {
         "grades:read", "grades:write",
         "attendance:read", "attendance:write",
         "settings:read", "settings:write",
+        # Academic structure — frontend already shows DIRECTOR these as
+        # levels:manage/subjects:manage/academic_years:manage/terms:manage/
+        # classrooms:manage (src/lib/permissions.ts); backend previously had
+        # no matching write permission, so those buttons 403'd on save.
+        "levels:read", "levels:write",
+        "subjects:read", "subjects:write",
+        "academic_years:read", "academic_years:write",
+        "terms:read", "terms:write",
+        "classrooms:read", "classrooms:write",
         "analytics:read", "reports:read", "finance:read",
         "audit:read", "audit:write",
         "rgpd:read", "rgpd:write",

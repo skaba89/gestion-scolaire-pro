@@ -88,3 +88,30 @@ def test_create_tenant_requires_tenants_write_permission():
 
     with SessionLocal() as db:
         assert db.query(Tenant).filter(Tenant.slug == payload["slug"]).first() is None
+
+
+def test_director_can_write_levels_and_subjects():
+    """Regression test: DIRECTOR's frontend UI shows levels:manage/subjects:manage
+    (src/lib/permissions.ts) but the backend previously granted no matching
+    levels:write/subjects:write, so DIRECTOR's edit buttons always 403'd.
+    See docs/PERMISSIONS_MATRIX.md.
+    """
+    tenant_id = _make_tenant("École Director")
+    director = {"id": str(uuid.uuid4()), "roles": ["DIRECTOR"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(director).post(
+            "/api/v1/tenants/onboarding/levels/",
+            json=["6ème", "5ème"],
+            headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+
+        resp = _as(director).post(
+            "/api/v1/tenants/onboarding/subjects/",
+            json=[{"name": "Mathématiques"}],
+            headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)

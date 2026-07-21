@@ -48,7 +48,7 @@ utilisent `require_permission("levels:write" | "subjects:write" |
 |---|---|---|---|
 | SUPER_ADMIN | `*` | `settings:manage`, `tenant:manage` | ✅ |
 | TENANT_ADMIN | `settings:read`, `settings:write` | `settings:manage`, `tenant:manage` | ✅ |
-| DIRECTOR | `settings:read`, `settings:write` | `settings:read` seulement (pas `settings:manage`) | ⚠️ Le frontend est **plus restrictif** que le backend : DIRECTOR peut PATCH `/tenants/settings/` via l'API mais l'UI ne lui montre aucun bouton d'édition. Pas un risque de sécurité (juste une fonctionnalité backend inutilisable), mais vaut la peine d'être aligné si DIRECTOR doit un jour éditer les paramètres depuis l'UI. |
+| DIRECTOR | `settings:read`, `settings:write` | `settings:read` seulement (pas `settings:manage`) | ⚠️ Le frontend reste **plus restrictif** que le backend sur les paramètres généraux : DIRECTOR peut PATCH `/tenants/settings/` via l'API mais l'UI ne lui montre aucun bouton d'édition. Pas un risque de sécurité, juste une fonctionnalité backend inutilisée — laissé tel quel. |
 | DEPARTMENT_HEAD, TEACHER, STUDENT, PARENT, STAFF, ACCOUNTANT, SECRETARY | `settings:read` uniquement | pas de mapping `settings:*` dans leur liste frontend (accès implicitement lecture seule via les pages qui vérifient `settings:read`) | ✅ |
 
 ## Levels (`/admin/levels`, `POST/PATCH/DELETE .../levels/`)
@@ -57,7 +57,7 @@ utilisent `require_permission("levels:write" | "subjects:write" |
 |---|---|---|---|
 | SUPER_ADMIN | `*` | `levels:manage` | ✅ |
 | TENANT_ADMIN | `levels:read`, `levels:write` | `levels:manage` | ✅ |
-| **DIRECTOR** | **`levels:read` absent, `levels:write` absent** (DIRECTOR n'a aucune permission `levels:*` en backend) | **`levels:manage`** | 🔴 **Incohérent.** Le menu affiche la page Niveaux et son bouton d'édition à un DIRECTOR (le frontend croit qu'il a le droit), mais toute tentative d'écriture recevra un `403 Permission refusée: levels:write` du backend. À corriger en ajoutant `levels:read`/`levels:write` au rôle DIRECTOR côté backend **si le métier confirme que DIRECTOR doit gérer les niveaux** — c'est un changement de périmètre de rôle, volontairement laissé hors de cette passe (voir Phase 8 du rapport). |
+| **DIRECTOR** | `levels:read`, `levels:write` ✅ (corrigé) | `levels:manage` | ✅ **Corrigé** — `levels:read`/`levels:write` ajoutés au rôle DIRECTOR dans `backend/app/core/security.py` pour aligner le backend sur ce que l'UI promettait déjà. Testé (`test_director_can_write_levels_and_subjects`). |
 | DEPARTMENT_HEAD | aucune permission `levels:*` | aucune permission `levels:*` | ✅ (les deux sont cohérents : DEPARTMENT_HEAD ne gère pas les niveaux) |
 
 ## Subjects (`/admin/subjects`, `POST/PATCH/DELETE .../subjects/`)
@@ -66,23 +66,23 @@ utilisent `require_permission("levels:write" | "subjects:write" |
 |---|---|---|---|
 | SUPER_ADMIN | `*` | `subjects:manage` | ✅ |
 | TENANT_ADMIN | `subjects:read`, `subjects:write` | `subjects:manage` | ✅ |
-| **DIRECTOR** | **`subjects:write` absent** (settings seulement) | **`subjects:manage`** | 🔴 Même incohérence que pour `levels` — bouton d'édition visible, écriture backend refusée. |
+| **DIRECTOR** | `subjects:read`, `subjects:write` ✅ (corrigé) | `subjects:manage` | ✅ **Corrigé** — même fix que pour `levels`. |
 | DEPARTMENT_HEAD | `subjects:read`, `subjects:write` | `subjects:manage` | ✅ |
 | TEACHER | `subjects:read` | pas de `subjects:manage` (lecture implicite via pages qui vérifient `subjects:read`) | ✅ |
 | ALUMNI | `subjects:read` | pas de mapping frontend dédié | ✅ (pas de page Subjects exposée aux alumni) |
 
 ## Résumé des actions
 
-- **Aucun changement de permission appliqué dans cette passe** — seule la
-  cartographie ci-dessus a été produite, conformément à la consigne de ne
-  pas changer massivement les permissions en une fois.
-- **Recommandation** (à valider métier avant implémentation) : soit ajouter
-  `levels:write`/`subjects:write` au rôle DIRECTOR en backend (aligne le
-  backend sur ce que l'UI promet déjà), soit retirer `levels:manage`/
-  `subjects:manage` du rôle DIRECTOR en frontend (aligne l'UI sur ce que le
-  backend autorise déjà). Les deux sont des changements d'une ligne, mais
-  changent le périmètre réel du rôle DIRECTOR — à trancher côté produit, pas
-  techniquement.
-- Étendre cet audit à `academic_years`, `terms`, `classrooms` (même famille
-  d'incohérence probable pour DIRECTOR, non vérifié en détail ici) et aux
-  autres modules (finance, RH, communication) dans une passe ultérieure.
+- **Corrigé** : `levels:read`/`write`, `subjects:read`/`write`,
+  `academic_years:read`/`write`, `terms:read`/`write`,
+  `classrooms:read`/`write` ajoutés au rôle DIRECTOR côté backend
+  (`backend/app/core/security.py`) — ces 5 ressources étaient déjà
+  promises côté frontend (`*:manage`) mais bloquées en 403 côté API.
+  Testé (`backend/tests/test_tenant_isolation.py`).
+- **Non corrigé, volontairement** : DIRECTOR reste sans `settings:manage`
+  côté frontend malgré `settings:write` côté backend — asymétrie inverse
+  (backend plus permissif que l'UI), sans risque de sécurité, laissée telle
+  quelle en attendant une décision produit sur si DIRECTOR doit éditer les
+  paramètres généraux depuis l'interface.
+- Étendre cet audit aux autres modules (finance, RH, communication) dans une
+  passe ultérieure si besoin.
