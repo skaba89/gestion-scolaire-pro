@@ -16,6 +16,27 @@ actuel constaté par lecture directe des deux fichiers (pas une spec — un
 audit), pour les 4 zones prioritaires demandées : onboarding, settings,
 levels, subjects.
 
+## Rôles
+
+Les 11 rôles définis côté backend (`ROLE_PERMISSIONS` dans
+`backend/app/core/security.py`), tous repris à l'identique côté frontend
+(`src/lib/permissions.ts`) :
+
+`SUPER_ADMIN`, `TENANT_ADMIN`, `DIRECTOR`, `DEPARTMENT_HEAD`, `TEACHER`,
+`STUDENT`, `PARENT`, `ALUMNI`, `STAFF`, `ACCOUNTANT`, `SECRETARY`.
+
+`SUPER_ADMIN` a `"*"` côté backend (toutes permissions, `tenant_id` NULL,
+niveau plateforme). Tous les autres rôles sont scopés à un tenant.
+
+## Pages & endpoints concernés (zones auditées)
+
+| Zone | Pages frontend | Endpoints backend |
+|---|---|---|
+| Onboarding | `src/components/onboarding/OnboardingWizard.tsx`, `SchoolWizard.tsx` | `POST /tenants/onboarding/levels/`, `POST /tenants/onboarding/subjects/`, `PATCH /tenants/onboarding/complete/` |
+| Settings | `src/pages/admin/Settings.tsx`, `src/components/settings/SecuritySettings.tsx` | `GET/PATCH /tenants/settings/`, `GET/PATCH /tenants/security-settings/`, `GET/PATCH /tenants/men-guinea/`, `GET /tenants/men-guinea/rapport/` |
+| Levels | `src/pages/admin/Levels.tsx` | `GET/POST/PATCH/DELETE /levels/` |
+| Subjects | `src/pages/admin/Subjects.tsx` | `GET/POST/PATCH/DELETE /subjects/` |
+
 ## Convention de mapping
 
 | Frontend (`manage`) | Backend équivalent le plus proche |
