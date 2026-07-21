@@ -64,43 +64,53 @@ cd gestion-scolaire-pro
 cp .env.docker.example .env.docker
 ```
 
-Modifier `.env.docker` et définir au minimum :
+Le fichier fonctionne tel quel avec ses valeurs `CHANGE_ME_...` par défaut (pratique
+pour un premier test local). Pour un usage réel, remplacez au minimum :
 
 ```ini
 # Généré avec : openssl rand -hex 32
 SECRET_KEY=<votre_clé_secrète_64_caractères>
+BOOTSTRAP_SECRET=<autre_clé_générée_avec_openssl>
 
-# Mots de passe forts
+# Mots de passe forts — SANS caractères spéciaux (@ : / # espace), qui cassent
+# le parsing des URLs de connexion plus bas dans le fichier.
 POSTGRES_PASSWORD=<mot_de_passe_postgres>
+REDIS_PASSWORD=<mot_de_passe_redis>
 MINIO_ROOT_PASSWORD=<mot_de_passe_minio_8_car_min>
 PGADMIN_PASSWORD=<mot_de_passe_pgadmin>
+ADMIN_DEFAULT_PASSWORD=<mot_de_passe_super_admin_8_car_min>
 ```
+
+**Important** : si vous changez `POSTGRES_PASSWORD` ou `REDIS_PASSWORD`, reportez
+la **même valeur exacte** dans `DATABASE_URL` / `DATABASE_URL_ASYNC` /
+`DATABASE_URL_SYNC` et `REDIS_URL` un peu plus bas dans le fichier — rien ne les
+synchronise automatiquement.
 
 ### 3. Lancer tous les services
 
 ```bash
-docker compose --env-file .env.docker up -d
+docker compose --env-file .env.docker up -d --build
 ```
 
-Cela démarre : PostgreSQL, Redis, MinIO, l'API, le frontend, PgAdmin et le service de sauvegarde.
+⚠️ Toujours passer `--env-file .env.docker` (jamais `docker compose up` seul) :
+sans lui, Docker Compose retombe sur un `.env` par défaut absent ou différent,
+ce qui casse le port du frontend et les identifiants MinIO/PgAdmin.
 
-### 4. Appliquer les migrations de base de données
+Cela démarre : PostgreSQL, Redis, MinIO, l'API, le frontend, PgAdmin et le service
+de sauvegarde. **Aucune étape manuelle n'est nécessaire ensuite** : les migrations
+Alembic s'appliquent automatiquement au démarrage de l'API, qui crée aussi
+automatiquement le compte SUPER_ADMIN à partir de `ADMIN_DEFAULT_EMAIL` /
+`ADMIN_DEFAULT_PASSWORD` (par défaut : `admin@schoolflow.local` / la valeur de
+`ADMIN_DEFAULT_PASSWORD` dans `.env.docker`).
+
+Vérifier que tout est sain :
 
 ```bash
-docker compose exec api alembic upgrade head
+docker compose --env-file .env.docker ps
+curl http://localhost:8000/health/ready
 ```
 
-### 5. Créer le compte administrateur
-
-```bash
-docker compose exec api python -m app.scripts.create_admin
-```
-
-Cela crée automatiquement :
-- Un tenant par défaut (`Default School`, slug `default`)
-- Un utilisateur SUPER_ADMIN (`admin@schoolflow.local` / `Admin@123456`)
-
-### 6. Accéder à l'application
+### 4. Accéder à l'application
 
 - **Frontend** : http://localhost:3000
 - **Page de connexion** : http://localhost:3000/auth
@@ -133,7 +143,6 @@ python -m venv venv
 source venv/bin/activate  # ou venv\Scripts\activate sur Windows
 pip install -r requirements.txt
 alembic upgrade head
-python -m app.scripts.create_admin
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -151,37 +160,35 @@ Le frontend est accessible sur http://localhost:5173 (port Vite par défaut).
 
 ## Premier compte administrateur
 
-Le script `create_admin` crée automatiquement un compte SUPER_ADMIN si aucun n'existe.
+L'API crée automatiquement un compte SUPER_ADMIN (tenant_id NULL, accès à
+`/super-admin`) à chaque démarrage si aucun utilisateur avec cet email n'existe
+déjà — pas de script ni d'étape manuelle à lancer.
 
-**Identifiants par défaut :**
+**Identifiants par défaut**, définis par `ADMIN_DEFAULT_EMAIL` /
+`ADMIN_DEFAULT_PASSWORD` dans `.env.docker` (ou `.env` en dev local) :
 
 | Champ | Valeur |
 |-------|--------|
-| Email | `admin@schoolflow.local` |
-| Mot de passe | `Admin@123456` |
+| Email | valeur de `ADMIN_DEFAULT_EMAIL` (`admin@schoolflow.local` par défaut) |
+| Mot de passe | valeur de `ADMIN_DEFAULT_PASSWORD` dans votre `.env.docker` |
 | Rôle | SUPER_ADMIN |
-| Tenant | Default School (`default`) |
 
-> ⚠️ **Important** : Changez ce mot de passe immédiatement après la première connexion.
+> ⚠️ **Important** : Changez `ADMIN_DEFAULT_PASSWORD` avant tout déploiement
+> réel — la valeur `.env.docker.example` n'est qu'un espace réservé.
 
 ### Créer un admin personnalisé
 
-```bash
-# Modifier les constantes dans backend/app/scripts/create_admin.py
-# Puis relancer :
-cd backend
-python -m app.scripts.create_admin
-```
+Changez `ADMIN_DEFAULT_EMAIL` / `ADMIN_DEFAULT_PASSWORD` dans `.env.docker`
+**avant** le premier démarrage, puis lancez normalement `docker compose up`.
 
 ---
 
 ## Connexion
 
 1. Accédez à http://localhost:3000/auth
-2. Entrez l'email : `admin@schoolflow.local`
-3. Entrez le mot de passe : `Admin@123456`
-4. Cliquez sur "Se connecter"
-5. Vous êtes redirigé vers le tableau de bord admin
+2. Entrez l'email et le mot de passe définis par `ADMIN_DEFAULT_EMAIL` / `ADMIN_DEFAULT_PASSWORD`
+3. Cliquez sur "Se connecter"
+4. Vous êtes redirigé vers le tableau de bord Super Admin (http://localhost:3000/super-admin)
 
 ---
 
@@ -272,7 +279,7 @@ gestion-scolaire-pro/
 │   │   ├── middlewares/           # Tenant, metrics, quota
 │   │   └── services/             # WebSocket, realtime
 │   ├── alembic/                  # Migrations de base de données
-│   ├── scripts/                  # Scripts utilitaires (create_admin, seed)
+│   ├── scripts/                  # Scripts utilitaires (seed_demo_tenants, expire_subscriptions)
 │   └── tests/                    # Tests unitaires
 ├── src/                          # Frontend React
 │   ├── api/                      # Client HTTP (Axios)
@@ -307,7 +314,6 @@ gestion-scolaire-pro/
 | `make verify` | Vérifications du projet (fichiers, node_modules, etc.) |
 | `make frontend` | Lint, type-check, tests et build frontend |
 | `make backend` | Installation et tests backend |
-| `cd backend && python -m app.scripts.create_admin` | Crée le compte SUPER_ADMIN |
 | `cd backend && python -m app.scripts.seed_demo_tenants` | Initialise des données de démo |
 
 ---

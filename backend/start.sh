@@ -4,7 +4,12 @@
 set -euo pipefail
 
 DB_HOST="${POSTGRES_HOST:-postgres}"
-DB_PORT="${POSTGRES_PORT:-5432}"
+# Always 5432: this is the postgres container's port on the internal Docker
+# network, which POSTGRES_PORT does not affect — that variable only remaps
+# the HOST-side port in docker-compose.yml's "ports:" mapping. Using it here
+# would break this in-network connection for anyone who changes POSTGRES_PORT
+# to avoid a local port conflict.
+DB_PORT=5432
 DB_WAIT_TIMEOUT="${DB_WAIT_TIMEOUT:-90}"
 
 # Do not silently fall back to development credentials. A missing database

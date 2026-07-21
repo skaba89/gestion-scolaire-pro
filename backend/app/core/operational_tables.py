@@ -1172,6 +1172,83 @@ _DDL = [
 # fmt: on
 
 
+_TENANT_SETTING = "app.current_tenant_id"
+
+
+def _sweep_operational_rls(conn) -> None:
+    """Force RLS on every tenant_id table this module creates, generically.
+
+    Individual DDL entries above sometimes hand-roll their own RLS/policy
+    statements, but that pattern is easy to forget for a new table — this is
+    exactly how 24 operational tables (homework, exams, webhooks, gamification,
+    etc.) ended up unprotected on a fresh database despite Alembic's own
+    catch-all RLS migration, since that migration only sees tables that exist
+    *during* `alembic upgrade head`, which runs before this module ever
+    executes. Discover-and-fix here instead of relying on every future DDL
+    block to remember its own RLS statements.
+    """
+    quote = conn.dialect.identifier_preparer.quote
+    tables = conn.execute(
+        text(
+            """
+            SELECT cls.relname
+            FROM pg_class cls
+            JOIN pg_namespace ns ON ns.oid = cls.relnamespace
+            WHERE ns.nspname = 'public'
+              AND cls.relkind IN ('r', 'p')
+              AND EXISTS (
+                  SELECT 1 FROM pg_attribute attr
+                  WHERE attr.attrelid = cls.oid
+                    AND attr.attname = 'tenant_id'
+                    AND NOT attr.attisdropped
+              )
+            """
+        )
+    ).scalars()
+
+    for table_name in tables:
+        qualified_table = f"{quote('public')}.{quote(table_name)}"
+        try:
+            conn.execute(text(f"ALTER TABLE {qualified_table} ENABLE ROW LEVEL SECURITY"))
+            conn.execute(text(f"ALTER TABLE {qualified_table} FORCE ROW LEVEL SECURITY"))
+
+            has_policy = conn.execute(
+                text(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1 FROM pg_policy pol
+                        JOIN pg_class cls ON cls.oid = pol.polrelid
+                        JOIN pg_namespace ns ON ns.oid = cls.relnamespace
+                        WHERE ns.nspname = 'public' AND cls.relname = :table_name
+                          AND (
+                              COALESCE(pg_get_expr(pol.polqual, pol.polrelid), '') LIKE :setting
+                              OR COALESCE(pg_get_expr(pol.polwithcheck, pol.polrelid), '') LIKE :setting
+                          )
+                    )
+                    """
+                ),
+                {"table_name": table_name, "setting": f"%{_TENANT_SETTING}%"},
+            ).scalar()
+
+            if not has_policy:
+                policy = quote(f"tenant_isolation_{table_name}")
+                tenant_expr = (
+                    "tenant_id::text = COALESCE("
+                    f"current_setting('{_TENANT_SETTING}', true), '')"
+                )
+                conn.execute(
+                    text(
+                        f"CREATE POLICY {policy} ON {qualified_table} "
+                        "AS PERMISSIVE FOR ALL TO PUBLIC "
+                        f"USING ({tenant_expr}) WITH CHECK ({tenant_expr})"
+                    )
+                )
+            conn.commit()
+        except Exception as exc:
+            conn.rollback()
+            logger.warning("RLS sweep skipped for %s: %s", table_name, exc)
+
+
 def ensure_operational_tables(engine) -> None:
     """Execute all operational DDL statements.
 
@@ -1187,3 +1264,5 @@ def ensure_operational_tables(engine) -> None:
             except Exception as exc:
                 conn.rollback()
                 logger.warning("Operational DDL skipped: %s (%s)", stmt[:80], exc)
+
+        _sweep_operational_rls(conn)
