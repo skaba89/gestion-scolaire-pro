@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform
+from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise
 from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys
@@ -68,6 +68,11 @@ api_router.include_router(ai.router, prefix="/ai", tags=["AI"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
 api_router.include_router(billing.router, prefix="/billing", tags=["Billing"])
 api_router.include_router(platform.router, prefix="/platform", tags=["Platform (SaaS)"])
+# saas_enterprise.py was written for Phase 4 (plans, quotas, branding, custom
+# domains) but never wired into the router — the endpoints existed only as
+# unreachable code (verified: /platform/domains/me/ 404'd even with a valid
+# SUPER_ADMIN token). No route prefix collides with platform.router above.
+api_router.include_router(saas_enterprise.router, prefix="/platform", tags=["Platform (SaaS Enterprise)"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
 api_router.include_router(data_imports.router, prefix="/import", tags=["Data Import"])
 
