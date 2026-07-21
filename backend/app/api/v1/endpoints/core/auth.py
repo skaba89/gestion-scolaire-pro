@@ -887,7 +887,13 @@ async def register_school(
         subscription_status="trialing",
         trial_ends_at=trial_ends,
         billing_email=body.email,
-        settings={},
+        settings={
+            "onboarding_step": 1,
+            "onboarding_completed": False,
+            "currency": "GNF",
+            "timezone": "Africa/Conakry",
+            "locale": "fr-GN",
+        },
     )
     db.add(tenant)
     db.flush()

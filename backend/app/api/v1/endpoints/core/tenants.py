@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 from app.schemas.tenants import (
     TenantCreate,
@@ -34,8 +35,7 @@ router = APIRouter()
 async def create_tenant(
     tenant_in: TenantCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    _perm: None = Depends(lambda: require_permission("tenants:write"))
+    current_user: dict = Depends(require_permission("tenants:write")),
 ):
     """
     Create a new tenant and initialize default data (academic year, campus, levels, subjects).
@@ -378,41 +378,10 @@ async def update_tenant_settings(
     current_user: dict = Depends(require_permission("settings:write"))
 ):
     """Update settings for the current tenant."""
-    tenant_id = current_user.get("tenant_id")
-
-    if not tenant_id:
-        user_id = current_user.get("id")
-        user_db = db.query(User).filter(User.id == user_id).first()
-        if user_db:
-            tenant_id = getattr(user_db, "tenant_id", None)
-
-    # Fallback: accept X-Tenant-ID header (sent by frontend apiClient).
-    # This covers SUPER_ADMIN users managing a specific tenant via the UI.
-    if not tenant_id:
-        header_tid = request.headers.get("X-Tenant-ID")
-        if header_tid:
-            # Validate format before accepting
-            try:
-                UUID(header_tid)
-                tenant_id = header_tid
-            except (ValueError, TypeError):
-                pass
-
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tenant ID not found. Please log out and log back in to refresh your session."
-        )
-    
-    try:
-        tid_uuid = UUID(tenant_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid tenant ID")
-
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = str(tid_uuid)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
-        
+
     current_settings = tenant.settings or {}
     updated_settings = {**current_settings, **settings_update}
     tenant.settings = updated_settings
@@ -437,6 +406,7 @@ async def update_tenant_settings(
 
 @router.get("/security-settings/")
 async def get_security_settings(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read"))
 ):
@@ -444,22 +414,8 @@ async def get_security_settings(
     Retrieve security settings for the current tenant.
     Stored as settings.security in the tenant JSON column.
     """
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
-        if user_db:
-            tenant_id = user_db.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID not found")
-
-    try:
-        tid_uuid = UUID(tenant_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid tenant ID")
-
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
     tenant_settings = tenant.settings or {}
     # Return security sub-section with sensible defaults
@@ -479,6 +435,7 @@ async def get_security_settings(
 @router.patch("/security-settings/")
 async def update_security_settings(
     security_update: Dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write"))
 ):
@@ -486,22 +443,9 @@ async def update_security_settings(
     Update security settings for the current tenant.
     Merges into settings.security sub-key.
     """
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
-        if user_db:
-            tenant_id = user_db.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID not found")
-
-    try:
-        tid_uuid = UUID(tenant_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid tenant ID")
-
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = str(tid_uuid)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
     current_settings = tenant.settings or {}
     current_security = current_settings.get("security", {})
@@ -1110,7 +1054,21 @@ async def get_tenant(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Fetch specific tenant details."""
+    """Fetch specific tenant details.
+
+    TENANT_ADMIN (and other non-super roles) may only read their own tenant.
+    SUPER_ADMIN can read any tenant. Mirrors the same check already enforced
+    in update_tenant below.
+    """
+    roles = current_user.get("roles", [])
+    is_super_admin = "SUPER_ADMIN" in roles
+    caller_tenant_id = str(current_user.get("tenant_id") or "")
+    if not is_super_admin and caller_tenant_id != str(tenant_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vous ne pouvez consulter que votre propre établissement.",
+        )
+
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -1196,14 +1154,14 @@ async def update_tenant(
 @router.post("/onboarding/levels/")
 async def setup_tenant_levels(
     levels_in: List[str],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("levels:write"))
 ):
     """Batch create levels during onboarding."""
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="No tenant associated")
-    
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = str(tid_uuid)
+
     # Clean existing levels if any
     db.execute(text("DELETE FROM levels WHERE tenant_id = :tid"), {"tid": tenant_id})
     
@@ -1217,14 +1175,14 @@ async def setup_tenant_levels(
 @router.post("/onboarding/subjects/")
 async def setup_tenant_subjects(
     subjects_in: List[Dict[str, Any]],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("subjects:write"))
 ):
     """Batch create subjects during onboarding."""
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="No tenant associated")
-    
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = str(tid_uuid)
+
     db.execute(text("DELETE FROM subjects WHERE tenant_id = :tid"), {"tid": tenant_id})
     
     for sub in subjects_in:
@@ -1242,16 +1200,14 @@ async def setup_tenant_subjects(
 @router.patch("/onboarding/complete/")
 async def complete_onboarding(
     data: Dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write"))
 ):
     """Complete onboarding with signature and director name."""
-    tenant_id = current_user.get("tenant_id")
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-    
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-        
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
+
     current_settings = tenant.settings or {}
     current_settings["director_name"] = data.get("director_name")
     current_settings["signature_url"] = data.get("signature_url")
@@ -1279,6 +1235,7 @@ MEN_GUINEA_FIELDS = [
 
 @router.get("/men-guinea/")
 async def get_men_guinea_settings(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
@@ -1286,22 +1243,8 @@ async def get_men_guinea_settings(
     GET /tenants/men-guinea/
     Returns the MEN Guinée compliance fields stored in settings.men_guinea.
     """
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
-        if user_db:
-            tenant_id = user_db.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="Tenant ID introuvable")
-
-    try:
-        tid_uuid = UUID(tenant_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="ID tenant invalide")
-
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant non trouvé")
 
     men_data = (tenant.settings or {}).get("men_guinea", {})
     # Compute compliance score
@@ -1319,6 +1262,7 @@ async def get_men_guinea_settings(
 @router.patch("/men-guinea/")
 async def update_men_guinea_settings(
     data: Dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
@@ -1327,22 +1271,9 @@ async def update_men_guinea_settings(
     Updates MEN Guinée compliance fields in settings.men_guinea.
     Only fields in MEN_GUINEA_FIELDS are accepted.
     """
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
-        if user_db:
-            tenant_id = user_db.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="Tenant ID introuvable")
-
-    try:
-        tid_uuid = UUID(tenant_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="ID tenant invalide")
-
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = str(tid_uuid)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant non trouvé")
 
     # Only allow whitelisted fields
     unknown = set(data.keys()) - set(MEN_GUINEA_FIELDS)

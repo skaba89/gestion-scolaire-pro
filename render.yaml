@@ -82,8 +82,11 @@ services:
         generateValue: true
       - key: METRICS_SECRET
         generateValue: true
+      # Set to true after the first SUPER_ADMIN has logged in and enrolled
+      # MFA — left true here would lock that very first login out, since no
+      # account can have MFA configured before it exists.
       - key: ENFORCE_MFA
-        value: "true"
+        value: "false"
 
       # --- CORS ---
       - key: BACKEND_CORS_ORIGINS

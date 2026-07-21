@@ -61,6 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setTenant(null);
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+    // Stale last_tenant_id would otherwise survive logout and get reused as
+    // a fallback tenant context for whichever account logs in next.
+    localStorage.removeItem("last_tenant_id");
     // Signal React Query to clear all cached data on logout
     window.dispatchEvent(new CustomEvent('auth:clear-cache'));
   }, []);
