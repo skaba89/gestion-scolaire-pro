@@ -261,6 +261,7 @@ async def list_tenants(
 
 @router.get("/INFOS/", response_model=dict)
 async def get_tenant_infos(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -269,25 +270,8 @@ async def get_tenant_infos(
     This endpoint is used by the QuickEnrollmentDialog and other frontend
     components that need tenant metadata (name, settings, etc.).
     """
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        # Fallback: look up user's tenant from DB
-        user_id = current_user.get("id")
-        if user_id:
-            user_db = db.query(User).filter(User.id == user_id).first()
-            if user_db:
-                tenant_id = user_db.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Aucun tenant associé")
-
-    try:
-        tid_uuid = UUID(tenant_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID tenant invalide")
-
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant non trouvé")
 
     return {
         "id": str(tenant.id),
@@ -307,16 +291,24 @@ async def get_tenant_infos(
     }
 
 
-@router.get("/slug/{slug}/", response_model=TenantResponse)
+@router.get("/slug/{slug}/", response_model=TenantPublicResponse)
 async def get_tenant_by_slug(
     slug: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Public endpoint to fetch tenant info by slug (for landing pages)."""
-    tenant = db.query(Tenant).filter(Tenant.slug == slug, Tenant.is_active == True).first()
+    """Public endpoint to fetch safe tenant landing data by slug.
+
+    Unauthenticated — must never return tenant.settings (security config,
+    MEN Guinée compliance data, director signature URLs, etc. all live in
+    that JSON blob). Reuses the same safe projection as /public/{slug}/.
+    """
+    tenant = db.query(Tenant).filter(
+        Tenant.slug == slug,
+        Tenant.is_active == True,
+    ).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    return tenant
+    return _build_public_response(tenant, db)
 
 @router.get("/settings/")
 async def get_tenant_settings(
@@ -1313,6 +1305,7 @@ async def update_men_guinea_settings(
 
 @router.get("/men-guinea/rapport/")
 async def get_men_guinea_rapport(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
@@ -1321,22 +1314,8 @@ async def get_men_guinea_rapport(
     Generates a full MEN Guinée compliance report as a JSON object
     (school identity + live stats). Frontend renders it as a printable page.
     """
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        user_db = db.query(User).filter(User.id == current_user.get("id")).first()
-        if user_db:
-            tenant_id = user_db.tenant_id
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="Tenant ID introuvable")
-
-    try:
-        tid_uuid = UUID(tenant_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="ID tenant invalide")
-
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant non trouvé")
 
     men = (tenant.settings or {}).get("men_guinea", {})
 
@@ -1344,7 +1323,7 @@ async def get_men_guinea_rapport(
     try:
         total_students = db.execute(
             text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid AND status = 'ACTIVE'"),
-            {"tid": tid_uuid}
+            {"tid": str(tid_uuid)}
         ).scalar() or 0
     except Exception:
         db.rollback()
@@ -1353,7 +1332,7 @@ async def get_men_guinea_rapport(
     try:
         male_students = db.execute(
             text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid AND status = 'ACTIVE' AND gender = 'MALE'"),
-            {"tid": tid_uuid}
+            {"tid": str(tid_uuid)}
         ).scalar() or 0
     except Exception:
         db.rollback()
@@ -1368,7 +1347,7 @@ async def get_men_guinea_rapport(
                 "JOIN user_roles ur ON ur.user_id = u.id "
                 "WHERE u.tenant_id = :tid AND ur.role = 'TEACHER'"
             ),
-            {"tid": tid_uuid}
+            {"tid": str(tid_uuid)}
         ).scalar() or 0
     except Exception:
         db.rollback()
@@ -1388,7 +1367,7 @@ async def get_men_guinea_rapport(
                 GROUP BY l.name, l.order_index
                 ORDER BY l.order_index
             """),
-            {"tid": tid_uuid}
+            {"tid": str(tid_uuid)}
         ).fetchall()
         levels = [
             {"level": r[0], "total": r[1] or 0, "male": r[2] or 0, "female": r[3] or 0}
@@ -1400,7 +1379,7 @@ async def get_men_guinea_rapport(
 
     current_year_row = db.execute(
         text("SELECT name FROM academic_years WHERE tenant_id = :tid AND is_current = true LIMIT 1"),
-        {"tid": tid_uuid}
+        {"tid": str(tid_uuid)}
     ).fetchone()
     current_year = current_year_row[0] if current_year_row else "—"
 

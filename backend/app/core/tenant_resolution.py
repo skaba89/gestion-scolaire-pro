@@ -1,15 +1,7 @@
 """Shared tenant-id resolution for tenant-scoped endpoints.
 
-``get_current_user()`` already resolves ``tenant_id`` fresh from the database
-on every request, and already injects ``X-Tenant-ID`` for SUPER_ADMIN users
-with no tenant of their own. This helper exists to remove the ~7 near-identical
-copies of "if not tenant_id: look it up again; validate UUID; check the tenant
-exists" that had accumulated across ``tenants.py`` — each one slightly
-different, easy to get wrong when adding a new endpoint. It adds one more
-safety net (an explicit ownership check) as defense in depth, not as a fix
-for a reachable cross-tenant bug: a non-SUPER_ADMIN's ``tenant_id`` always
-comes straight from their own user row, so it cannot already point at another
-tenant.
+This helper centralizes tenant resolution and ownership validation to keep
+all tenant-scoped endpoints consistent and reduce cross-tenant access risk.
 """
 from uuid import UUID
 

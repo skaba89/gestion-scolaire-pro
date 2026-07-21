@@ -115,3 +115,84 @@ def test_director_can_write_levels_and_subjects():
         assert resp.status_code == 200, resp.text
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_public_slug_endpoint_never_returns_settings():
+    """GET /tenants/slug/{slug}/ is unauthenticated -- must never leak
+    tenant.settings (security config, MEN Guinee data, signature URLs, ...).
+    """
+    tenant_id = _make_tenant("Ecole Publique")
+    with SessionLocal() as db:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        tenant.settings = {
+            "security": {"two_factor_required": True},
+            "director_name": "Secret Director",
+            "signature_url": "https://example.com/secret-signature.png",
+        }
+        slug = tenant.slug
+        db.commit()
+
+    resp = client.get(f"/api/v1/tenants/slug/{slug}/")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "settings" not in body
+    assert "director_name" not in body
+    assert "signature_url" not in body
+    assert body["slug"] == slug
+
+
+def test_tenant_infos_endpoint_resolves_current_tenant():
+    tenant_id = _make_tenant("Ecole Infos")
+    admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(admin).get("/api/v1/tenants/INFOS/", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["id"] == tenant_id
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_men_guinea_rapport_resolves_current_tenant():
+    tenant_id = _make_tenant("Ecole MEN")
+    admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(admin).get("/api/v1/tenants/men-guinea/rapport/", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_full_onboarding_cycle_still_works_for_tenant_admin():
+    """End-to-end regression: levels -> subjects -> complete, all via
+    resolve_current_tenant_id, must still succeed for a normal TENANT_ADMIN.
+    """
+    tenant_id = _make_tenant("Ecole Onboarding")
+    admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(admin).post(
+            "/api/v1/tenants/onboarding/levels/", json=["Lycee"], headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+
+        resp = _as(admin).post(
+            "/api/v1/tenants/onboarding/subjects/",
+            json=[{"name": "Francais"}],
+            headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+
+        resp = _as(admin).patch(
+            "/api/v1/tenants/onboarding/complete/",
+            json={"director_name": "M. Test", "signature_url": "https://example.com/sig.png"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    with SessionLocal() as db:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        assert tenant.settings.get("onboarding_completed") is True
