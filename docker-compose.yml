@@ -126,19 +126,6 @@ services:
       - schoolflow-network
     mem_limit: 128m
 
-  pgadmin:
-    image: dpage/pgadmin4:8.13
-    env_file: .env.docker
-    # PGADMIN_DEFAULT_EMAIL and PGADMIN_DEFAULT_PASSWORD come from .env.docker
-    ports:
-      - "127.0.0.1:${PGADMIN_PORT:-5050}:80"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - schoolflow-network
-    mem_limit: 256m
-
   db-backup:
     image: prodrigestivill/postgres-backup-local:16-alpine
     restart: always

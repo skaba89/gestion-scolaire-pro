@@ -77,7 +77,6 @@ BOOTSTRAP_SECRET=<autre_clé_générée_avec_openssl>
 POSTGRES_PASSWORD=<mot_de_passe_postgres>
 REDIS_PASSWORD=<mot_de_passe_redis>
 MINIO_ROOT_PASSWORD=<mot_de_passe_minio_8_car_min>
-PGADMIN_PASSWORD=<mot_de_passe_pgadmin>
 ADMIN_DEFAULT_PASSWORD=<mot_de_passe_super_admin_8_car_min>
 ```
 
@@ -94,9 +93,9 @@ docker compose --env-file .env.docker up -d --build
 
 ⚠️ Toujours passer `--env-file .env.docker` (jamais `docker compose up` seul) :
 sans lui, Docker Compose retombe sur un `.env` par défaut absent ou différent,
-ce qui casse le port du frontend et les identifiants MinIO/PgAdmin.
+ce qui casse le port du frontend et les identifiants MinIO.
 
-Cela démarre : PostgreSQL, Redis, MinIO, l'API, le frontend, PgAdmin et le service
+Cela démarre : PostgreSQL, Redis, MinIO, l'API, le frontend et le service
 de sauvegarde. **Aucune étape manuelle n'est nécessaire ensuite** : les migrations
 Alembic s'appliquent automatiquement au démarrage de l'API, qui crée aussi
 automatiquement le compte SUPER_ADMIN à partir de `ADMIN_DEFAULT_EMAIL` /
@@ -115,7 +114,6 @@ curl http://localhost:8000/health/ready
 - **Frontend** : http://localhost:3000
 - **Page de connexion** : http://localhost:3000/auth
 - **API Swagger** : http://localhost:8000/docs
-- **PgAdmin** : http://localhost:5050
 - **MinIO Console** : http://localhost:9001
 
 ---
@@ -201,7 +199,6 @@ Changez `ADMIN_DEFAULT_EMAIL` / `ADMIN_DEFAULT_PASSWORD` dans `.env.docker`
 | API | http://localhost:8000 | FastAPI |
 | API Docs (Swagger) | http://localhost:8000/docs | Documentation interactive |
 | API Docs (ReDoc) | http://localhost:8000/redoc | Documentation ReDoc |
-| PgAdmin | http://localhost:5050 | Administration PostgreSQL |
 | MinIO Console | http://localhost:9001 | Console de gestion MinIO |
 | MinIO API | http://localhost:9002 | API S3-compatible |
 
