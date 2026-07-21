@@ -107,3 +107,25 @@ utilisent `require_permission("levels:write" | "subjects:write" |
   paramètres généraux depuis l'interface.
 - Étendre cet audit aux autres modules (finance, RH, communication) dans une
   passe ultérieure si besoin.
+
+## À auditer ensuite
+
+Modules non couverts par cet audit (backend `read`/`write`/`delete` vs.
+frontend `read`/`manage`, cohérence par rôle) — même méthode à appliquer
+avant d'y toucher massivement :
+
+- Finance
+- Paiements
+- Factures
+- RH
+- Messages
+- Journaux d'audit (audit logs)
+- Imports / Exports
+- Bulletins (report cards)
+- Parents
+- Enseignants
+- Élèves
+
+Ne pas refondre ces permissions en une seule passe — documenter d'abord,
+harmoniser module par module dans des PR séparées, comme fait ici pour
+onboarding/settings/levels/subjects.

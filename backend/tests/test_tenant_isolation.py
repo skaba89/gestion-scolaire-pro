@@ -196,3 +196,68 @@ def test_full_onboarding_cycle_still_works_for_tenant_admin():
     with SessionLocal() as db:
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         assert tenant.settings.get("onboarding_completed") is True
+
+
+def test_get_settings_tenant_admin_receives_own_settings():
+    tenant_id = _make_tenant("Ecole Settings A")
+    with SessionLocal() as db:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        tenant.settings = {"currency": "GNF"}
+        db.commit()
+
+    admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+    try:
+        resp = _as(admin).get("/api/v1/tenants/settings/", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["currency"] == "GNF"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_get_settings_tenant_admin_cannot_target_another_tenant_via_header():
+    tenant_a = _make_tenant("Ecole Settings B")
+    tenant_b = _make_tenant("Ecole Settings C")
+    with SessionLocal() as db:
+        db.query(Tenant).filter(Tenant.id == tenant_a).update({"settings": {"marker": "A"}})
+        db.query(Tenant).filter(Tenant.id == tenant_b).update({"settings": {"marker": "B"}})
+        db.commit()
+
+    admin_a = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_a}
+    try:
+        resp = _as(admin_a).get(
+            "/api/v1/tenants/settings/",
+            headers={**HEADERS, "X-Tenant-ID": tenant_b},
+        )
+        assert resp.status_code == 200, resp.text
+        # Header is ignored for non-SUPER_ADMIN: still gets their own tenant's settings
+        assert resp.json()["marker"] == "A"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_get_settings_super_admin_without_header_gets_empty_dict():
+    super_admin = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}
+    try:
+        resp = _as(super_admin).get("/api/v1/tenants/settings/", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {}
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_get_settings_super_admin_with_header_gets_targeted_tenant():
+    tenant_id = _make_tenant("Ecole Settings D")
+    with SessionLocal() as db:
+        db.query(Tenant).filter(Tenant.id == tenant_id).update({"settings": {"marker": "targeted"}})
+        db.commit()
+
+    super_admin = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}
+    try:
+        resp = _as(super_admin).get(
+            "/api/v1/tenants/settings/",
+            headers={**HEADERS, "X-Tenant-ID": tenant_id},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["marker"] == "targeted"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)

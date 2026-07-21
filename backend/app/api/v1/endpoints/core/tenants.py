@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
-from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_resolution import resolve_current_tenant_id, resolve_optional_tenant_settings_context
 from app.utils.audit import log_audit
 from app.schemas.tenants import (
     TenantCreate,
@@ -321,45 +321,11 @@ async def get_tenant_settings(
     Returns empty dict for SUPER_ADMIN users who have no tenant context —
     the frontend SettingsProvider will merge these with DEFAULT_SETTINGS.
     """
-    tenant_id = current_user.get("tenant_id")
-
-    # Robust fallback: if tenant_id is not in token (e.g. just after onboarding
-    # or a super admin acting cross-tenant), look it up in the database.
-    if not tenant_id:
-        user_id = current_user.get("id")
-        user_db = db.query(User).filter(User.id == user_id).first()
-        if user_db:
-            tenant_id = getattr(user_db, "tenant_id", None)
-
-    # Fallback: accept X-Tenant-ID header (sent by frontend apiClient).
-    if not tenant_id:
-        header_tid = request.headers.get("X-Tenant-ID")
-        if header_tid:
-            try:
-                UUID(header_tid)
-                tenant_id = header_tid
-            except (ValueError, TypeError):
-                pass
-
-    # SUPER_ADMIN has no tenant — return empty settings (not an error)
-    if not tenant_id:
-        user_roles = current_user.get("roles", [])
-        if "SUPER_ADMIN" in user_roles:
-            return {}
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Tenant ID not found. Please log out and log back in to refresh your session."
-        )
-
-    try:
-        tid_uuid = UUID(str(tenant_id))
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid tenant ID format")
+    tid_uuid = resolve_optional_tenant_settings_context(request, current_user, db)
+    if tid_uuid is None:
+        return {}
 
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    if not tenant:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
-
     return tenant.settings or {}
 
 @router.patch("/settings/")
@@ -699,7 +665,13 @@ async def create_tenant_with_admin(
             address=tenant_in.address,
             website=tenant_in.website,
             is_active=True,
-            settings={"onboarding_completed": True, "onboarding_step": 4}
+            settings={
+                "onboarding_completed": True,
+                "onboarding_step": 4,
+                "currency": "GNF",
+                "timezone": "Africa/Conakry",
+                "locale": "fr-GN",
+            }
         )
         db.add(new_tenant)
         db.flush()
@@ -932,6 +904,10 @@ async def toggle_tenant_status(
     Toggle tenant is_active flag. When deactivating, all user sessions for this
     tenant are revoked by incrementing the Redis token_version for every user.
     """
+    # Defense in depth: tenants:write already excludes TENANT_ADMIN, but a
+    # platform-wide activate/deactivate switch deserves an explicit check too.
+    _require_super_admin(current_user)
+
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement non trouvé")
@@ -998,6 +974,10 @@ async def delete_tenant(
     SUPER_ADMIN only — the ``tenants:delete`` permission is exclusive to SUPER_ADMIN
     (TENANT_ADMIN explicitly excludes it).
     """
+    # Defense in depth on top of the tenants:delete permission check — this is
+    # an irreversible hard delete, worth a second explicit guard.
+    _require_super_admin(current_user)
+
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement non trouvé")

@@ -66,3 +66,25 @@ def resolve_current_tenant_id(
             )
 
     return tenant_uuid
+
+
+def resolve_optional_tenant_settings_context(
+    request: Request,
+    current_user: dict,
+    db: Session,
+):
+    """Like resolve_current_tenant_id, but returns None instead of raising
+    when a SUPER_ADMIN has no tenant context at all (no tenant_id, no
+    X-Tenant-ID header). Callers should treat None as "return empty/default
+    settings" rather than an error — a platform-level SUPER_ADMIN browsing
+    without a selected tenant is a normal, expected state for settings-style
+    endpoints.
+    """
+    roles = current_user.get("roles", []) or []
+    is_super_admin = "SUPER_ADMIN" in roles
+    has_header_tenant = bool(request.headers.get("X-Tenant-ID"))
+
+    if is_super_admin and not current_user.get("tenant_id") and not has_header_tenant:
+        return None
+
+    return resolve_current_tenant_id(request, current_user, db)
