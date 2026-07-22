@@ -2,6 +2,8 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import { usePublicTenant } from "@/hooks/usePublicTenant";
+import { resolveUploadUrl } from "@/utils/url";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,49 +27,27 @@ const PublicCalendar = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { t } = useTranslation();
 
-  const { data: tenant, isLoading: tenantLoading } = useQuery({
-    queryKey: ["public-tenant", tenantSlug],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/admissions/public/tenants/', {
-        params: { slug: tenantSlug, is_active: true },
-      });
-      return Array.isArray(data) ? data[0] ?? null : data;
-    },
-    enabled: !!tenantSlug,
-  });
+  const { data: tenant, isLoading: tenantLoading } = usePublicTenant(tenantSlug);
 
   const { data: academicYear } = useQuery({
-    queryKey: ["public-academic-year", tenant?.id],
+    queryKey: ["public-academic-year", tenant?.slug],
     queryFn: async () => {
-      const { data } = await apiClient.get('/admissions/public/academic-years/', {
-        params: { tenant_id: tenant!.id, is_current: true },
-      });
-      return Array.isArray(data) ? data[0] ?? null : data;
+      if (!tenant?.slug) return null;
+      try {
+        const { data } = await apiClient.get(`/tenants/slug/${tenant.slug}/academic-years/current/`);
+        return data;
+      } catch {
+        return null;
+      }
     },
-    enabled: !!tenant?.id,
+    enabled: !!tenant?.slug,
   });
 
-  const { data: terms } = useQuery({
-    queryKey: ["public-terms", academicYear?.id],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/admissions/public/terms/', {
-        params: { academic_year_id: academicYear!.id },
-      });
-      return Array.isArray(data) ? data : [];
-    },
-    enabled: !!academicYear?.id,
-  });
-
-  const { data: events, isLoading: eventsLoading } = useQuery({
-    queryKey: ["public-events", tenant?.id],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/admissions/public/events/', {
-        params: { tenant_id: tenant!.id, is_public: true, end_date_from: new Date().toISOString() },
-      });
-      return Array.isArray(data) ? data : [];
-    },
-    enabled: !!tenant?.id,
-  });
+  // Aucun endpoint public n'expose périodes/événements par établissement pour
+  // l'instant — les sections concernées gèrent déjà les tableaux vides.
+  const terms: any[] = [];
+  const events: any[] = [];
+  const eventsLoading = false;
 
   if (tenantLoading) {
     return (
@@ -125,9 +105,9 @@ const PublicCalendar = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">
-              {tenant.logo_url ? (
+              {tenant.landing?.logo_url ? (
                 <img
-                  src={tenant.logo_url}
+                  src={resolveUploadUrl(tenant.landing.logo_url)}
                   alt={tenant.name}
                   className="h-12 w-auto object-contain"
                 />

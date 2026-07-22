@@ -410,6 +410,12 @@ def public_apply(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found or inactive")
 
+    # level_id/academic_year_id are optional in the public form — the frontend
+    # sends "" (not omitted) when nothing is selected, which Postgres rejects
+    # as an invalid UUID. Normalize blank strings to NULL.
+    academic_year_id = payload.get("academic_year_id") or None
+    level_id = payload.get("level_id") or None
+
     row = db.execute(text("""
         INSERT INTO admission_applications (
             id, tenant_id, academic_year_id, level_id,
@@ -427,9 +433,9 @@ def public_apply(
             NOW(), NOW(), NOW()
         ) RETURNING *
     """), {
-        "tenant_id": tenant_id, 
-        "academic_year_id": payload.get("academic_year_id"),
-        "level_id": payload.get("level_id"),
+        "tenant_id": tenant_id,
+        "academic_year_id": academic_year_id,
+        "level_id": level_id,
         "student_first_name": payload.get("student_first_name"), 
         "student_last_name": payload.get("student_last_name"),
         "student_date_of_birth": payload.get("student_date_of_birth"), 

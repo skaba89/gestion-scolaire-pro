@@ -76,7 +76,7 @@ const AdmissionForm = () => {
     queryKey: ["public-tenant", tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return null;
-      const { data } = await apiClient.get(`/tenants/slug/${tenantSlug}`);
+      const { data } = await apiClient.get(`/tenants/slug/${tenantSlug}/`);
       return data;
     },
     enabled: !!tenantSlug,
@@ -86,7 +86,7 @@ const AdmissionForm = () => {
     queryKey: ["public-levels", tenant?.slug],
     queryFn: async () => {
       if (!tenant?.slug) return [];
-      const { data } = await apiClient.get<any[]>(`/tenants/slug/${tenant.slug}/levels`);
+      const { data } = await apiClient.get<any[]>(`/tenants/slug/${tenant.slug}/levels/`);
       return data || [];
     },
     enabled: !!tenant?.slug,
@@ -97,7 +97,7 @@ const AdmissionForm = () => {
     queryFn: async () => {
       if (!tenant?.slug) return null;
       try {
-        const { data } = await apiClient.get(`/tenants/slug/${tenant.slug}/academic-years/current`);
+        const { data } = await apiClient.get(`/tenants/slug/${tenant.slug}/academic-years/current/`);
         return data;
       } catch (e) {
         return null;
@@ -115,7 +115,7 @@ const AdmissionForm = () => {
       };
 
       const { data: response } = await apiClient.post(
-        `/operational/admissions/public/apply`,
+        `/admissions/public/apply/`,
         payload
       );
       return response;

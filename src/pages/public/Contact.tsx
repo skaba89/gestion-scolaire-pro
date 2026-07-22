@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import { useMutation } from "@tanstack/react-query";
+import { usePublicTenant } from "@/hooks/usePublicTenant";
+import { resolveUploadUrl } from "@/utils/url";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,16 +45,7 @@ const Contact = () => {
   const [formData, setFormData] = useState<ContactFormData>({ name: "", email: "", phone: "", subject: "", message: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof ContactFormData, string>>>({});
 
-  const { data: tenant, isLoading: tenantLoading } = useQuery({
-    queryKey: ["public-tenant", tenantSlug],
-    queryFn: async () => {
-      const { data } = await apiClient.get('/admissions/public/tenants/', {
-        params: { slug: tenantSlug, is_active: true },
-      });
-      return Array.isArray(data) ? data[0] ?? null : data;
-    },
-    enabled: !!tenantSlug,
-  });
+  const { data: tenant, isLoading: tenantLoading } = usePublicTenant(tenantSlug);
 
   const submitMutation = useMutation({
     mutationFn: async (data: ContactFormData) => {
@@ -93,7 +85,7 @@ const Contact = () => {
   if (submitted) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="bg-gradient-hero text-primary-foreground"><div className="container mx-auto px-4 py-4"><div className="flex items-center justify-between"><Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">{tenant.logo_url ? (<img src={tenant.logo_url} alt={tenant.name} className="h-12 w-auto object-contain" />) : (<div className="h-12 w-12 rounded-lg bg-primary-foreground/20 flex items-center justify-center"><GraduationCap className="w-6 h-6" /></div>)}<span className="font-display font-bold text-xl hidden sm:block">{tenant.name}</span></Link><LanguageSwitcher /></div></div></header>
+        <header className="bg-gradient-hero text-primary-foreground"><div className="container mx-auto px-4 py-4"><div className="flex items-center justify-between"><Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">{tenant.landing?.logo_url ? (<img src={resolveUploadUrl(tenant.landing.logo_url)} alt={tenant.name} className="h-12 w-auto object-contain" />) : (<div className="h-12 w-12 rounded-lg bg-primary-foreground/20 flex items-center justify-center"><GraduationCap className="w-6 h-6" /></div>)}<span className="font-display font-bold text-xl hidden sm:block">{tenant.name}</span></Link><LanguageSwitcher /></div></div></header>
         <div className="container mx-auto px-4 py-20"><Card className="max-w-lg mx-auto text-center"><CardContent className="p-12"><div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6"><CheckCircle className="w-8 h-8 text-green-500" /></div><h1 className="text-2xl font-display font-bold text-foreground mb-4">Message envoyé!</h1><p className="text-muted-foreground mb-6">Nous avons bien reçu votre message et vous répondrons dans les plus brefs délais.</p><Link to={`/ecole/${tenantSlug}`}><Button><ArrowLeft className="w-4 h-4 mr-2" />Retour à l'accueil</Button></Link></CardContent></Card></div>
       </div>
     );
@@ -101,7 +93,7 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-gradient-hero text-primary-foreground"><div className="container mx-auto px-4 py-4"><div className="flex items-center justify-between"><Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">{tenant.logo_url ? (<img src={tenant.logo_url} alt={tenant.name} className="h-12 w-auto object-contain" />) : (<div className="h-12 w-12 rounded-lg bg-primary-foreground/20 flex items-center justify-center"><GraduationCap className="w-6 h-6" /></div>)}<span className="font-display font-bold text-xl hidden sm:block">{tenant.name}</span></Link><div className="flex items-center gap-4"><LanguageSwitcher /><Link to={`/admissions/${tenantSlug}`}><Button className="bg-sky hover:bg-sky/90"><UserPlus className="w-4 h-4 mr-2" />Postuler</Button></Link></div></div></div></header>
+      <header className="bg-gradient-hero text-primary-foreground"><div className="container mx-auto px-4 py-4"><div className="flex items-center justify-between"><Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">{tenant.landing?.logo_url ? (<img src={resolveUploadUrl(tenant.landing.logo_url)} alt={tenant.name} className="h-12 w-auto object-contain" />) : (<div className="h-12 w-12 rounded-lg bg-primary-foreground/20 flex items-center justify-center"><GraduationCap className="w-6 h-6" /></div>)}<span className="font-display font-bold text-xl hidden sm:block">{tenant.name}</span></Link><div className="flex items-center gap-4"><LanguageSwitcher /><Link to={`/admissions/${tenantSlug}`}><Button className="bg-sky hover:bg-sky/90"><UserPlus className="w-4 h-4 mr-2" />Postuler</Button></Link></div></div></div></header>
       <div className="bg-muted/50 border-b"><div className="container mx-auto px-4 py-3"><nav className="flex items-center gap-2 text-sm"><Link to={`/ecole/${tenantSlug}`} className="text-muted-foreground hover:text-foreground">Accueil</Link><ChevronRight className="w-4 w-4 text-muted-foreground" /><span className="text-foreground font-medium">Contact</span></nav></div></div>
       <section className="bg-gradient-to-b from-muted/50 to-background py-16"><div className="container mx-auto px-4"><div className="max-w-3xl"><h1 className="text-4xl md:text-5xl font-display font-bold text-foreground mb-4">Contactez-nous</h1><p className="text-lg text-muted-foreground">Une question ? Besoin d'informations ? Notre équipe est à votre disposition pour vous accompagner.</p></div></div></section>
       <div className="container mx-auto px-4 py-12">
