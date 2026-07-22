@@ -23,7 +23,8 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
-  Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle, Settings
+  Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle, Settings,
+  CreditCard,
 } from "lucide-react";
 
 interface TenantStat {
@@ -40,7 +41,18 @@ interface TenantStat {
   student_count: number;
   user_count: number;
   admin_count: number;
+  subscription_plan: string;
+  subscription_status: string;
 }
+
+const SUBSCRIPTION_PLANS = [
+  { value: "starter", label: "Starter" },
+  { value: "pro", label: "Pro" },
+  { value: "enterprise", label: "Enterprise" },
+] as const;
+
+const getPlanLabel = (plan: string) =>
+  SUBSCRIPTION_PLANS.find((p) => p.value === plan)?.label || plan;
 
 const getTypeLabel = (type: string) => {
   const map: Record<string, string> = {
@@ -230,6 +242,7 @@ const SuperAdminDashboard = () => {
                         <TableHead>Admins</TableHead>
                         <TableHead>Utilisateurs</TableHead>
                         <TableHead>Élèves</TableHead>
+                        <TableHead>Abonnement</TableHead>
                         <TableHead>Statut</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -260,6 +273,9 @@ const SuperAdminDashboard = () => {
                           <TableCell>{tenant.user_count}</TableCell>
                           <TableCell>{tenant.student_count}</TableCell>
                           <TableCell>
+                            <Badge variant="outline">{getPlanLabel(tenant.subscription_plan)}</Badge>
+                          </TableCell>
+                          <TableCell>
                             <Badge variant={tenant.is_active ? "default" : "secondary"}>
                               {tenant.is_active ? "Actif" : "Inactif"}
                             </Badge>
@@ -276,6 +292,7 @@ const SuperAdminDashboard = () => {
                               </Button>
                               <TenantDetailDialog tenant={tenant} />
                               <AddAdminDialog tenant={tenant} onSuccess={() => refetch()} />
+                              <TenantSubscriptionDialog tenant={tenant} onSuccess={() => refetch()} />
                               <TenantToggleDialog tenant={tenant} onSuccess={() => refetch()} />
                               <TenantDeleteDialog tenant={tenant} onSuccess={() => refetch()} />
                               <Button
@@ -465,6 +482,88 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Tenant Subscription Dialog ─────────────────────────────────────────────
+// No "free" plan on purpose: the backend (PATCH /platform/tenants/{id}/subscription/)
+// already rejects anything outside starter/pro/enterprise, this list just mirrors it.
+
+function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState(tenant.subscription_plan);
+
+  const handleSave = async () => {
+    if (plan === tenant.subscription_plan) {
+      setOpen(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      await apiClient.patch(`/platform/tenants/${tenant.id}/subscription/`, { plan });
+      toast.success(`Abonnement de ${tenant.name} mis à jour : ${getPlanLabel(plan)}.`);
+      setOpen(false);
+      onSuccess();
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || "Erreur lors du changement d'abonnement";
+      toast.error(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setPlan(tenant.subscription_plan);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" title="Changer l'abonnement">
+          <CreditCard className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5" />
+            Changer l'abonnement
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            <p><strong>Établissement :</strong> {tenant.name}</p>
+            <p><strong>Plan actuel :</strong> {getPlanLabel(tenant.subscription_plan)}</p>
+          </div>
+          <div className="space-y-2">
+            <Label>Nouveau plan</Label>
+            <Select value={plan} onValueChange={setPlan}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUBSCRIPTION_PLANS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Annuler</Button>
+          </DialogClose>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? "Enregistrement..." : "Enregistrer"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

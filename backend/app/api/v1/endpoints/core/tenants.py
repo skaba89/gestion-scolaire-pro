@@ -890,6 +890,8 @@ async def get_super_admin_tenant_stats(
             "student_count": student_counts.get(t.id, 0),
             "user_count": user_counts.get(t.id, 0),
             "admin_count": admin_counts.get(t.id, 0),
+            "subscription_plan": t.subscription_plan or "starter",
+            "subscription_status": t.subscription_status or "trialing",
         })
     return result
 
