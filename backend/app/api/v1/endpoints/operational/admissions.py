@@ -4,20 +4,26 @@ Admissions module — workflow complet:
                                     ↘ REJECTED
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel
 from datetime import date, datetime
+import json
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+import uuid
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.storage import storage_client
 from app.utils.audit import log_audit
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ─── State machine ────────────────────────────────────────────────────────────
@@ -394,6 +400,72 @@ def delete_admission(
         raise HTTPException(status_code=400,
             detail="Application not found or not in DRAFT status")
     db.commit()
+ADMISSION_DOC_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf"}
+ADMISSION_DOC_MAX_SIZE = 8 * 1024 * 1024  # 8 MB
+
+
+@router.post("/public/upload-document/", status_code=201)
+@limiter.limit("20/minute")
+async def public_upload_document(
+    request: Request,
+    tenant_id: str = Form(...),
+    document_type: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload a single admission document before/with candidature submission.
+
+    Public + unauthenticated (candidates have no account yet). Scoped to a
+    tenant_id so files land under a per-tenant prefix; returns a storage key
+    to attach to the /public/apply/ payload's `documents` field.
+    """
+    from app.models import Tenant
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.is_active == True).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found or inactive")
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+    extension = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if extension not in ADMISSION_DOC_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type de fichier '.{extension}' non autorisé. Formats acceptés : "
+                   f"{', '.join(sorted(ADMISSION_DOC_EXTENSIONS))}",
+        )
+
+    content = await file.read()
+    if len(content) > ADMISSION_DOC_MAX_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Fichier trop volumineux. Taille maximale : {ADMISSION_DOC_MAX_SIZE // (1024*1024)} Mo.",
+        )
+
+    try:
+        import magic
+        mime_type = magic.from_buffer(content, mime=True)
+    except Exception:
+        mime_type = file.content_type or "application/octet-stream"
+
+    ALLOWED_MIME_TYPES = {
+        "image/jpeg", "image/png", "image/webp", "application/pdf",
+    }
+    if mime_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail="Contenu de fichier non autorisé.")
+
+    await file.seek(0)
+    object_name = f"admissions/{tenant_id}/{uuid.uuid4()}.{extension}"
+    storage_client.upload_file(file_data=file.file, object_name=object_name, content_type=file.content_type)
+    url = storage_client.get_presigned_url(object_name)
+
+    return {
+        "key": object_name,
+        "url": url,
+        "filename": file.filename,
+        "document_type": document_type,
+    }
+
+
 @router.post("/public/apply/", status_code=201)
 def public_apply(
     payload: dict,
@@ -415,6 +487,7 @@ def public_apply(
     # as an invalid UUID. Normalize blank strings to NULL.
     academic_year_id = payload.get("academic_year_id") or None
     level_id = payload.get("level_id") or None
+    documents = payload.get("documents") or None
 
     row = db.execute(text("""
         INSERT INTO admission_applications (
@@ -422,20 +495,21 @@ def public_apply(
             student_first_name, student_last_name, student_date_of_birth,
             student_gender, student_address, student_previous_school,
             parent_first_name, parent_last_name, parent_email, parent_phone,
-            parent_address, parent_occupation, status, notes, 
+            parent_address, parent_occupation, status, notes, documents,
             submitted_at, created_at, updated_at
         ) VALUES (
             gen_random_uuid(), :tenant_id, :academic_year_id, :level_id,
             :student_first_name, :student_last_name, :student_date_of_birth,
             :student_gender, :student_address, :student_previous_school,
             :parent_first_name, :parent_last_name, :parent_email, :parent_phone,
-            :parent_address, :parent_occupation, 'SUBMITTED', :notes,
+            :parent_address, :parent_occupation, 'SUBMITTED', :notes, :documents,
             NOW(), NOW(), NOW()
         ) RETURNING *
     """), {
         "tenant_id": tenant_id,
         "academic_year_id": academic_year_id,
         "level_id": level_id,
+        "documents": json.dumps(documents) if documents is not None else None,
         "student_first_name": payload.get("student_first_name"), 
         "student_last_name": payload.get("student_last_name"),
         "student_date_of_birth": payload.get("student_date_of_birth"), 

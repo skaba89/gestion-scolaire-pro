@@ -27,11 +27,12 @@ interface TenantInfo {
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  PRIMARY: "École primaire",
-  SECONDARY: "Lycée / Collège",
-  UNIVERSITY: "Université",
-  VOCATIONAL: "Formation professionnelle",
-  OTHER: "Établissement scolaire",
+  primary_school: "École Primaire",
+  middle_school: "Collège",
+  high_school: "Lycée",
+  university: "Université",
+  training_center: "Centre de Formation",
+  school: "Établissement Scolaire",
 };
 
 export default function EnrollmentHub() {

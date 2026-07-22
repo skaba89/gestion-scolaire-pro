@@ -24,11 +24,48 @@ import {
   Calendar,
   CheckCircle,
   ArrowLeft,
-  Loader2
+  Loader2,
+  FileText,
+  Upload,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+
+interface RequiredDocument {
+  type: string;
+  label: string;
+}
+
+interface UploadedDocument {
+  key: string;
+  url: string;
+  filename: string;
+  document_type: string;
+}
+
+const BASE_REQUIRED_DOCUMENTS: RequiredDocument[] = [
+  { type: "birth_certificate", label: "Extrait de naissance ou carte d'identité" },
+  { type: "id_photo", label: "Photo d'identité récente" },
+];
+
+// Un candidat qui postule à un niveau autre que le tout premier de
+// l'établissement est considéré comme un transfert : on exige en plus
+// le dossier scolaire de l'année précédente.
+const TRANSFER_REQUIRED_DOCUMENTS: RequiredDocument[] = [
+  { type: "previous_transcript", label: "Relevé de notes de l'année précédente" },
+  { type: "previous_school_certificate", label: "Certificat de scolarité (établissement précédent)" },
+];
+
+function getRequiredDocuments(levelId: string, levels: any[] | undefined): RequiredDocument[] {
+  if (!levelId || !levels || levels.length === 0) return BASE_REQUIRED_DOCUMENTS;
+  const sorted = [...levels].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+  const isEntryLevel = sorted[0]?.id === levelId;
+  return isEntryLevel
+    ? BASE_REQUIRED_DOCUMENTS
+    : [...BASE_REQUIRED_DOCUMENTS, ...TRANSFER_REQUIRED_DOCUMENTS];
+}
 
 const applicationSchema = z.object({
   student_first_name: z.string().min(2, "Le prénom doit contenir au moins 2 caractères").max(50),
@@ -54,6 +91,9 @@ const AdmissionForm = () => {
   const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [documents, setDocuments] = useState<Record<string, UploadedDocument>>({});
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<ApplicationFormData>({
     student_first_name: "",
@@ -106,12 +146,54 @@ const AdmissionForm = () => {
     enabled: !!tenant?.slug,
   });
 
+  const requiredDocuments = getRequiredDocuments(formData.level_id, levels);
+
+  const uploadMutation = useMutation({
+    mutationFn: async ({ file, documentType }: { file: File; documentType: string }) => {
+      if (!tenant?.id) throw new Error("Établissement non chargé");
+      const form = new FormData();
+      form.append("tenant_id", tenant.id);
+      form.append("document_type", documentType);
+      form.append("file", file);
+      const { data } = await apiClient.post<UploadedDocument>(
+        "/admissions/public/upload-document/",
+        form,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      setDocuments((prev) => ({ ...prev, [data.document_type]: data }));
+      setDocumentsError(null);
+    },
+    onError: (error: any) => {
+      const msg = error.response?.data?.detail || "Échec de l'envoi du document. Réessayez.";
+      toast.error(msg);
+    },
+    onSettled: () => setUploadingType(null),
+  });
+
+  const handleDocumentUpload = (documentType: string, file: File | null) => {
+    if (!file) return;
+    setUploadingType(documentType);
+    uploadMutation.mutate({ file, documentType });
+  };
+
+  const removeDocument = (documentType: string) => {
+    setDocuments((prev) => {
+      const next = { ...prev };
+      delete next[documentType];
+      return next;
+    });
+  };
+
   const submitMutation = useMutation({
     mutationFn: async (data: ApplicationFormData) => {
       const payload = {
         ...data,
         tenant_id: tenant?.id,
         academic_year_id: academicYear?.id,
+        documents: Object.values(documents),
       };
 
       const { data: response } = await apiClient.post(
@@ -133,6 +215,16 @@ const AdmissionForm = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setDocumentsError(null);
+
+    const missingDocs = requiredDocuments.filter((doc) => !documents[doc.type]);
+    if (missingDocs.length > 0) {
+      setDocumentsError(
+        `Documents manquants : ${missingDocs.map((d) => d.label).join(", ")}`
+      );
+      toast.error("Veuillez téléverser tous les documents obligatoires");
+      return;
+    }
 
     const result = applicationSchema.safeParse(formData);
     if (!result.success) {
@@ -461,6 +553,75 @@ const AdmissionForm = () => {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Documents */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Documents à fournir
+              </CardTitle>
+              <CardDescription>
+                {formData.level_id
+                  ? "Documents obligatoires pour le niveau sélectionné"
+                  : "Sélectionnez un niveau ci-dessus pour connaître les documents requis"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {requiredDocuments.map((doc) => {
+                const uploaded = documents[doc.type];
+                const isUploading = uploadingType === doc.type;
+                return (
+                  <div key={doc.type} className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{doc.label} *</p>
+                      {uploaded ? (
+                        <p className="text-xs text-green-600 truncate flex items-center gap-1 mt-1">
+                          <CheckCircle className="w-3 h-3 flex-shrink-0" />
+                          {uploaded.filename}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-1">PDF, JPG ou PNG — 8 Mo max</p>
+                      )}
+                    </div>
+                    {uploaded ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeDocument(doc.type)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    ) : (
+                      <Label
+                        htmlFor={`doc-${doc.type}`}
+                        className="inline-flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+                      >
+                        {isUploading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                        Téléverser
+                        <input
+                          id={`doc-${doc.type}`}
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp"
+                          className="hidden"
+                          disabled={isUploading}
+                          onChange={(e) => handleDocumentUpload(doc.type, e.target.files?.[0] ?? null)}
+                        />
+                      </Label>
+                    )}
+                  </div>
+                );
+              })}
+              {documentsError && (
+                <p className="text-xs text-destructive">{documentsError}</p>
+              )}
             </CardContent>
           </Card>
 
