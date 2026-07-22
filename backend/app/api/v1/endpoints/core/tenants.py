@@ -1,5 +1,5 @@
 from typing import Any, Dict, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
@@ -239,6 +239,7 @@ async def create_tenant(
 
 @router.get("/", response_model=List[TenantResponse])
 async def list_tenants(
+    response: Response,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("tenants:read")),
     page: int = Query(1, ge=1),
@@ -253,11 +254,14 @@ async def list_tenants(
         # Default behaviour: return ALL results as a plain list (backward-compatible)
         return query.all()
 
-    # Explicit pagination requested (page_size < 100)
+    # Explicit pagination requested (page_size < 100). response_model is a plain
+    # list, so the total goes in a header instead of wrapping the body — a dict
+    # body here used to violate response_model and crash with a 500 (audit P0).
     total = query.count()
     offset = (page - 1) * page_size
     tenants = query.offset(offset).limit(page_size).all()
-    return {"items": tenants, "total": total}
+    response.headers["X-Total-Count"] = str(total)
+    return tenants
 
 @router.get("/INFOS/", response_model=dict)
 async def get_tenant_infos(
@@ -430,6 +434,7 @@ async def update_security_settings(
 
 @router.get("/public/", response_model=List[TenantPublicCard])
 async def list_public_tenants(
+    response: Response,
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1),
@@ -470,9 +475,13 @@ async def list_public_tenants(
     if page_size >= 100:
         return cards
 
-    # Explicit pagination: wrap in paginated envelope
+    # Explicit pagination requested (page_size < 100). response_model is a
+    # plain list, so the total goes in a header instead of wrapping the body —
+    # a dict body here used to violate response_model and crash with a 500
+    # (audit P0: GET /tenants/public/?page_size=10 -> 500 ResponseValidationError).
     total = query.count()
-    return {"items": cards, "total": total}
+    response.headers["X-Total-Count"] = str(total)
+    return cards
 
 
 def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:

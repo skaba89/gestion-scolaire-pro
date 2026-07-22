@@ -105,7 +105,7 @@ export const AdminLayout = () => {
   const { termLabel, termsLabel, levelLabel, classroomLabel, subjectLabel, subjectsLabel, isUniversity } = useTerminology();
   const { settings } = useSettings();
   const { getTenantUrl } = useTenantUrl();
-  const { tenant } = useTenant(); // Add useTenant hook
+  const { tenant, isLoading: isTenantLoading } = useTenant(); // Add useTenant hook
 
   // Realtime sync disabled (migrated from Supabase)
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -142,7 +142,11 @@ export const AdminLayout = () => {
   const onboardingCompleted = tenant?.settings?.onboarding_completed;
   const tenantId = tenant?.id;
   useEffect(() => {
-    if (!tenantId || onboardingCompleted) return;
+    // Wait for the tenant fetch to actually resolve — right after a fresh
+    // login `tenant` is briefly undefined, which made onboardingCompleted
+    // falsy and bounced already-onboarded admins back into the wizard
+    // (audit P1: onboarding loop on re-login).
+    if (isTenantLoading || !tenantId || onboardingCompleted) return;
     if (!hasRoleRef.current("TENANT_ADMIN") && !hasRoleRef.current("DIRECTOR")) return;
 
     const url = `/${tenantSlug}/admin/onboarding`;
@@ -150,7 +154,7 @@ export const AdminLayout = () => {
       navigate(url, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId, onboardingCompleted, tenantSlug, location.pathname, navigate]);
+  }, [isTenantLoading, tenantId, onboardingCompleted, tenantSlug, location.pathname, navigate]);
 
   // Define all sections with permissions (memoized to prevent infinite re-renders)
   const allNavSections: NavSection[] = useMemo(() => [
