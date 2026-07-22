@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { usePublicTenant } from "@/hooks/usePublicTenant";
 import { resolveUploadUrl } from "@/utils/url";
+import { tenantHeroStyle } from "@/utils/tenantBranding";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +90,7 @@ const AdmissionInfo = () => {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <header className="bg-gradient-hero relative overflow-hidden">
+      <header className="bg-gradient-hero relative overflow-hidden" style={tenantHeroStyle(tenant.landing)}>
         <div className="container mx-auto px-4 py-12 relative">
           <Link to={`/${tenantSlug}`} className="inline-flex items-center text-primary-foreground/80 hover:text-primary-foreground mb-6"><ArrowLeft className="w-4 h-4 mr-2" />Retour à l'accueil</Link>
           <div className="flex flex-col md:flex-row items-center gap-6">

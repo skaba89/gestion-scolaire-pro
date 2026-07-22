@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { usePublicTenant } from "@/hooks/usePublicTenant";
 import { resolveUploadUrl } from "@/utils/url";
+import { tenantHeroStyle } from "@/utils/tenantBranding";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -62,7 +63,7 @@ const Programs = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-gradient-hero text-primary-foreground"><div className="container mx-auto px-4 py-4"><div className="flex items-center justify-between"><Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">{tenant.landing?.logo_url ? (<img src={resolveUploadUrl(tenant.landing.logo_url)} alt={tenant.name} className="h-12 w-auto object-contain" />) : (<div className="h-12 w-12 rounded-lg bg-primary-foreground/20 flex items-center justify-center"><GraduationCap className="w-6 h-6" /></div>)}<span className="font-display font-bold text-xl hidden sm:block">{tenant.name}</span></Link><div className="flex items-center gap-4"><LanguageSwitcher /><Link to={`/admissions/${tenantSlug}`}><Button className="bg-sky hover:bg-sky/90"><UserPlus className="w-4 h-4 mr-2" />Postuler</Button></Link></div></div></div></header>
+      <header className="bg-gradient-hero text-primary-foreground" style={tenantHeroStyle(tenant.landing)}><div className="container mx-auto px-4 py-4"><div className="flex items-center justify-between"><Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">{tenant.landing?.logo_url ? (<img src={resolveUploadUrl(tenant.landing.logo_url)} alt={tenant.name} className="h-12 w-auto object-contain" />) : (<div className="h-12 w-12 rounded-lg bg-primary-foreground/20 flex items-center justify-center"><GraduationCap className="w-6 h-6" /></div>)}<span className="font-display font-bold text-xl hidden sm:block">{tenant.name}</span></Link><div className="flex items-center gap-4"><LanguageSwitcher /><Link to={`/admissions/${tenantSlug}`}><Button className="bg-sky hover:bg-sky/90"><UserPlus className="w-4 h-4 mr-2" />Postuler</Button></Link></div></div></div></header>
       <div className="bg-muted/50 border-b"><div className="container mx-auto px-4 py-3"><nav className="flex items-center gap-2 text-sm"><Link to={`/ecole/${tenantSlug}`} className="text-muted-foreground hover:text-foreground">Accueil</Link><ChevronRight className="w-4 w-4 text-muted-foreground" /><span className="text-foreground font-medium">Programmes & Formations</span></nav></div></div>
       <PublicProgramsHero title="Nos Programmes & Formations" description="Découvrez l'ensemble de nos formations et trouvez le programme qui correspond à vos ambitions." />
       <PublicProgramsGrid levels={levels || []} fees={fees || []} levelsLoading={levelsLoading} tenantSlug={tenantSlug || ""} formatAmount={formatAmount} />

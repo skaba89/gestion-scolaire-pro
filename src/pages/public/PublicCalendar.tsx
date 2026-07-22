@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { usePublicTenant } from "@/hooks/usePublicTenant";
 import { resolveUploadUrl } from "@/utils/url";
+import { tenantHeroStyle } from "@/utils/tenantBranding";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -101,7 +102,7 @@ const PublicCalendar = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-gradient-hero text-primary-foreground">
+      <header className="bg-gradient-hero text-primary-foreground" style={tenantHeroStyle(tenant.landing)}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to={`/ecole/${tenantSlug}`} className="flex items-center gap-3">
