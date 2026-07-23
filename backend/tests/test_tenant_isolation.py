@@ -1,6 +1,8 @@
 """Cross-tenant isolation for GET /tenants/{tenant_id}/ (Tech Lead audit, Phase 1)."""
 import uuid
 
+import pytest
+
 from conftest import get_test_client
 
 client = get_test_client()
@@ -359,3 +361,56 @@ def test_create_tenant_initializes_currency_timezone_locale():
         assert tenant.settings["currency"] == "GNF"
         assert tenant.settings["timezone"] == "Africa/Conakry"
         assert tenant.settings["locale"] == "fr-GN"
+        assert tenant.settings["onboarding_step"] == 1
+        assert tenant.settings["onboarding_completed"] is False
+
+
+# --- Phase 3: CORS must expose X-Total-Count (Tech Lead audit) -------------
+# Without it in expose_headers, the browser's CORS policy strips the header
+# from what JS can read — response.headers.get("x-total-count") returns null
+# in the browser even though curl sees it fine (curl isn't CORS-gated).
+
+def test_cors_exposes_x_total_count_header():
+    origin = "http://localhost:3000"  # DEBUG-mode default allowed origin
+    resp = client.get(
+        "/api/v1/tenants/public/?page_size=10",
+        headers={"Origin": origin},
+    )
+    assert resp.status_code == 200, resp.text
+    assert "X-Total-Count" in resp.headers
+    expose_headers = resp.headers.get("access-control-expose-headers", "")
+    assert "X-Total-Count" in expose_headers
+
+
+# --- Phase 6: TenantMiddleware exemptions narrowed to exact paths ----------
+# These used to be broad prefix matches ("/tenants/settings", "/storage/",
+# etc.) that only skipped RLS/tenant_id extraction in the middleware — the
+# routes themselves already required Depends(get_current_user). This test
+# locks in that a request with NO token still gets 401 (defense in depth:
+# a future route added under one of these prefixes can't silently inherit
+# an exemption meant for a different, already-authenticated endpoint).
+
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("GET", "/api/v1/tenants/settings/"),
+        ("GET", "/api/v1/tenants/security-settings/"),
+        ("POST", "/api/v1/tenants/onboarding/levels/"),
+        ("POST", "/api/v1/storage/upload/"),
+    ],
+)
+def test_sensitive_routes_require_auth(method, path):
+    resp = client.request(method, path)
+    assert resp.status_code == 401, f"{method} {path} -> {resp.status_code}, expected 401"
+
+
+def test_public_slug_route_still_public_without_auth():
+    """/tenants/slug/{slug}/ must remain reachable with no token (public
+    tenant landing page lookup) — narrowing the exemptions above must not
+    have collateral-damaged this genuinely public route."""
+    tenant_id = _make_tenant("Ecole Middleware Public")
+    with SessionLocal() as db:
+        slug = db.query(Tenant).filter(Tenant.id == tenant_id).first().slug
+
+    resp = client.get(f"/api/v1/tenants/slug/{slug}/")
+    assert resp.status_code == 200, resp.text

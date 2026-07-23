@@ -395,7 +395,10 @@ app.add_middleware(
     allow_credentials=allow_credentials,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "X-Tenant-ID", "Content-Type", "X-Request-ID", "Accept"],
-    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "X-Request-ID"],
+    # X-Total-Count: pagination header on GET /tenants/ and /tenants/public/
+    # (see tenants.py) — without it here, browsers strip the header from the
+    # JS-visible response and the frontend can never read the real total.
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "X-Request-ID", "X-Total-Count"],
 )
 
 # Store allowed origins on app state so exception handlers can use them for CORS

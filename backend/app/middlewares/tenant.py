@@ -21,6 +21,15 @@ class TenantMiddleware(BaseHTTPMiddleware):
         if path.startswith(settings.API_V1_STR):
             check_path = path[len(settings.API_V1_STR):]
 
+        # "Public" here means: this middleware skips JWT-based tenant_id
+        # extraction / RLS context setup for the path. It does NOT mean the
+        # endpoint itself is unauthenticated — every route below (except the
+        # genuinely public ones, commented individually) enforces its own
+        # Depends(get_current_user)/Depends(require_permission(...)) and
+        # resolves its tenant via resolve_current_tenant_id() instead of RLS
+        # context. Kept as an explicit exact-path list (rather than broad
+        # prefixes) so a *future* endpoint added under e.g. "/tenants/..."
+        # doesn't silently inherit an exemption meant for a specific route.
         public_paths = [
             "/docs", "/openapi.json", "/health", "/health/", "/", "/auth/login",
             "/tenants/public", "/tenants/public/",
@@ -29,21 +38,45 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # Prometheus scrape — the endpoint enforces its own METRICS_SECRET
             # in production (see app/main.py), no JWT/tenant context involved.
             "/metrics", "/metrics/",
+
+            # --- Authenticated, but resolve their own tenant (not via RLS
+            # context from this middleware) — see resolve_current_tenant_id()
+            # in tenants.py. Exact paths, not prefixes: a new route under
+            # /tenants/ must opt in explicitly, not inherit this by accident.
+            "/tenants/settings", "/tenants/settings/",                     # GET/PATCH — Depends(get_current_user)
+            "/tenants/security-settings", "/tenants/security-settings/",   # GET/PATCH — Depends(get_current_user)
+            "/tenants/onboarding/levels", "/tenants/onboarding/levels/",
+            "/tenants/onboarding/subjects", "/tenants/onboarding/subjects/",
+            "/tenants/onboarding/complete", "/tenants/onboarding/complete/",
+
+            # --- File storage — each route requires Depends(get_current_user)
+            # individually (see storage.py). Upload has a fixed path; the
+            # presigned-url GET needs a prefix below because object_name is a
+            # ":path" converter (can contain slashes).
+            "/storage/upload", "/storage/upload/",
+
+            # --- Genuinely public, single fixed path, no dynamic segment.
+            "/webhooks/events", "/webhooks/events/",
         ]
 
-        # Public prefixes that never require tenant identification
+        # Public prefixes — kept ONLY where the route has a dynamic path
+        # segment ({slug}, {domain}, {object_name:path}, ...) and therefore
+        # cannot be listed as an exact path above.
         public_prefixes = [
             "/health",
             "/auth/",
-            "/tenants/slug/",
+            "/tenants/slug/",            # /tenants/slug/{slug}/ — public tenant lookup
             "/tenants/public/",
-            "/tenants/by-domain/",
-            "/tenants/settings",       # endpoint handles its own auth + tenant resolution
-            "/tenants/security-settings",
-            "/tenants/onboarding",     # onboarding endpoints handle their own auth
-            "/storage/",               # file upload/download handles its own auth
-            "/webhooks/events/",       # public endpoint to list available event types
-            "/admissions/public/",     # public enrollment portal (no auth required)
+            "/tenants/by-domain/",       # /tenants/by-domain/{domain}/
+            "/storage/presigned-url/",   # /storage/presigned-url/{object_name:path}/ — auth enforced in-route
+            # Public enrollment portal — genuinely unauthenticated by design
+            # (candidates have no account yet). 5 fixed sub-routes + one with
+            # a {slug} segment (tenant-info); kept as a prefix rather than
+            # listing all 6 to avoid missing a future addition to this
+            # deliberately-public portal (unlike the tenant-scoped routes
+            # above, accidentally exempting a new /admissions/public/* route
+            # doesn't leak cross-tenant data — it's public by design).
+            "/admissions/public/",
         ]
 
         is_public = (
