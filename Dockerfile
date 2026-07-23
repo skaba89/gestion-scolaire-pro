@@ -7,12 +7,20 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 # Install dependencies first (layer caching).
-# We intentionally use npm install instead of npm ci because the current lockfile
-# can miss transitive/root package entries after large dependency additions.
-# npm install keeps Docker builds aligned with package.json and avoids missing
-# modules such as @radix-ui/react-dropdown-menu during Vite production builds.
+# npm ci: strict, reproducible install from package-lock.json only (fails
+# loudly if the lockfile and package.json drift apart, instead of silently
+# rewriting the lockfile like `npm install` would). Verified compatible
+# before this switch: `npm ci --legacy-peer-deps` succeeds cleanly against
+# the current lockfile (1010 packages, no errors) — the earlier "lockfile
+# can miss entries" issue no longer applies now that the lockfile has been
+# kept in sync via repeated `npm install` runs during dependency updates.
+# If a future dependency change breaks `npm ci` again, run `npm install`
+# locally to repair package-lock.json and commit the result — don't revert
+# to `npm install` inside the Dockerfile, which reintroduces non-reproducible
+# builds (supply-chain risk: a transitive dependency can resolve to a
+# different version between two otherwise-identical builds).
 COPY package.json package-lock.json ./
-RUN npm install --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 
 # Copy source and build
 COPY . .
@@ -27,7 +35,11 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 # ─── Production: Nginx serves static files (with brotli module) ──────────────
-FROM fholzer/nginx-brotli:latest
+# Pinned by digest (not :latest) for reproducible, supply-chain-safe builds —
+# two builds run months apart must produce the same base image. Re-pin by
+# running: docker pull fholzer/nginx-brotli:latest && docker inspect
+# fholzer/nginx-brotli:latest --format='{{index .RepoDigests 0}}'
+FROM fholzer/nginx-brotli@sha256:139a061272fa40c82f18c0eb0bdaa14dde350a739a6138d14ca03d3010683f69
 
 # Replace main nginx.conf (pid → /tmp, no user directive, temp paths → /tmp)
 COPY docker/nginx-main.conf /etc/nginx/nginx.conf
