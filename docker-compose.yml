@@ -70,6 +70,10 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      # Read-only: lets tests/test_backup_scripts.py exercise the real
+      # backup/restore scripts (REPO_ROOT/scripts/...) from inside the
+      # container instead of only from a full local checkout.
+      - ./scripts:/scripts:ro
     # All env vars come from .env.docker — no ${VAR} substitution that would
     # accidentally pick up the local .env (which has SQLite URLs).
     env_file: .env.docker
