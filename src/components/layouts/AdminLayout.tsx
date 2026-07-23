@@ -153,7 +153,6 @@ export const AdminLayout = () => {
     if (location.pathname !== url) {
       navigate(url, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTenantLoading, tenantId, onboardingCompleted, tenantSlug, location.pathname, navigate]);
 
   // Define all sections with permissions (memoized to prevent infinite re-renders)
@@ -293,7 +292,6 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/settings"), label: t("nav.settings"), icon: Settings, permission: "settings:read" },
       ],
     },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [t, getTenantUrl, isSuperAdmin, StudentsLabel, termsLabel, levelLabel, classroomLabel, subjectsLabel, isUniversity]);
 
   // Filter sections and items based on permissions

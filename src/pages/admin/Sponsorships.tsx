@@ -69,7 +69,6 @@ export default function Sponsorships() {
     queryKey: ["students-for-sponsorship", tenant?.id],
     queryFn: async (): Promise<Student[]> => {
       if (!tenant?.id) return [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       try {
         const { data } = await apiClient.get("/students/", {
           params: { status: "ACTIVE" }

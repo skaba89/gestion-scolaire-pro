@@ -18,7 +18,6 @@ export function initSentry() {
     if (!SENTRY_DSN) {
         // Only warn in development — silence in production (intentional opt-out)
         if (import.meta.env.DEV) {
-            // eslint-disable-next-line no-console
             console.warn('[Sentry] DSN not configured. Error monitoring disabled.');
         }
         return;
