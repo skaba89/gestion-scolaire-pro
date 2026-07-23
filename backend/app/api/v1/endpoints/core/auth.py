@@ -50,6 +50,37 @@ async def is_token_blacklisted(token_jti: str) -> bool:
         return False
 
 
+async def register_active_session(user_id: str, token_jti: str) -> None:
+    """Register a newly issued token as an active session, enforcing the
+    5-concurrent-sessions cap.
+
+    Previously this only happened in /auth/refresh/, so the very first
+    token issued by /auth/login/ was never tracked — a user could log in
+    on far more than 5 devices as long as they never called refresh from
+    the extra ones. Raises 429 if the user already has 5 active sessions.
+
+    Fails open (logs a warning, does not block login) if Redis is down —
+    consistent with every other Redis-optional check in this module.
+    """
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        session_key = f"sfp:active_sessions:{user_id}"
+        current_sessions = await client.smembers(session_key)
+        if len(current_sessions) >= 5:
+            logger.warning("Login blocked: user %s has too many active sessions (%d)", user_id, len(current_sessions))
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many active sessions. Please log out from other devices.",
+            )
+        await client.sadd(session_key, token_jti)
+        await client.expire(session_key, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Session tracking failed (Redis unavailable): %s", exc)
+
+
 async def blacklist_all_user_tokens(user_id: str, except_jti: str = None) -> int:
     """Blacklist all active tokens for a user by incrementing their token version.
 
@@ -257,6 +288,10 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 
         import hashlib
         token_jti = hashlib.sha256(f"{user.id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
+
+        # SECURITY: Register this session and enforce the 5-concurrent-sessions
+        # cap at login time (previously only enforced on /auth/refresh/).
+        await register_active_session(str(user.id), token_jti)
 
         # Create access token (wrap in try/except to catch SECRET_KEY issues)
         try:

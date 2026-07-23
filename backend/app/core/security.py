@@ -104,7 +104,7 @@ async def _get_token_version_from_redis(user_id: str) -> int:
         return 0
 
 
-def get_current_user(
+async def get_current_user(
     request: Request,
     token: dict = Depends(verify_token),
 ) -> dict:
@@ -118,6 +118,11 @@ def get_current_user(
 
     Note: Token version validation (logout-all) is handled by the calling
     async endpoint via ``validate_token_version()`` since Redis access is async.
+
+    SECURITY: Rejects tokens blacklisted via /auth/logout/, /auth/logout-all/,
+    or a password change. Previously the blacklist was only checked in
+    /auth/refresh/, so a logged-out token stayed valid on every other
+    authenticated route until it naturally expired.
     """
     from app.core.database import SessionLocal
     from app.models.user import User
@@ -130,6 +135,27 @@ def get_current_user(
             detail="Token missing subject",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # SECURITY: Check the blacklist before anything else so a revoked token
+    # never reaches the DB lookup. Deferred import to avoid a circular import
+    # (app.api.v1.endpoints.core.auth imports several names from this module).
+    #
+    # Fail-open by design if Redis is unavailable: the rest of this codebase
+    # already fails open for every other Redis-optional security feature
+    # (login lockout, session limits, password history) — a hard fail-closed
+    # here would 401 every authenticated user platform-wide on a transient
+    # Redis blip, which is a worse outage than a revoked token staying valid
+    # for at most its remaining lifetime (<= ACCESS_TOKEN_EXPIRE_MINUTES).
+    # This is a deliberate, documented trade-off, not an oversight.
+    token_jti = token.get("jti")
+    if token_jti:
+        from app.api.v1.endpoints.core.auth import is_token_blacklisted
+        if await is_token_blacklisted(token_jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     with SessionLocal() as db:
         # SECURITY: Reset RLS context on this independent session to prevent
