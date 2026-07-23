@@ -110,6 +110,23 @@ services:
       - key: FROM_EMAIL
         value: noreply@schoolflow.pro
 
+      # --- Fichiers (S3-compatible — externe, comme Neon, pas provisionné par
+      # ce blueprint). Recommandé : Cloudflare R2 (10 Go gratuits, pas de
+      # frais de sortie — dashboard R2 > "Manage API Tokens").
+      # IMPORTANT : MINIO_ENDPOINT doit inclure le schéma "https://" (ex.
+      # "https://<account_id>.r2.cloudflarestorage.com"), sinon
+      # backend/app/core/storage.py désactive TLS et la connexion échoue.
+      # Sans ces 3 variables, le backend retombe sur un stockage disque
+      # local éphémère (perdu à chaque redéploiement) — voir README.
+      - key: MINIO_ENDPOINT
+        sync: false
+      - key: MINIO_ACCESS_KEY
+        sync: false
+      - key: MINIO_SECRET_KEY
+        sync: false
+      - key: MINIO_BUCKET
+        value: schoolflow
+
       # --- Redis (token versioning, session mutex) ---
       - key: REDIS_URL
         fromService:

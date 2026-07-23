@@ -284,6 +284,28 @@ le blueprint, pas quelque chose à ajouter.
    `backend/app/main.py` — ne pas les lancer manuellement dans la commande
    de build, `alembic.ini` n'a pas d'URL statique).
 
+### Configurer le stockage fichiers (Cloudflare R2 — à faire manuellement)
+
+Même principe que Neon : `render.yaml` déclare les variables mais ne
+provisionne rien. Sans elles, signatures/logos/documents uploadés sont
+perdus à chaque redéploiement (stockage local éphémère). Le backend est
+compatible avec n'importe quel stockage S3-compatible ; R2 est recommandé
+pour son plan gratuit (10 Go, aucun frais de sortie).
+
+1. Créer un compte sur [dash.cloudflare.com](https://dash.cloudflare.com) →
+   **R2** → créer un bucket (ex. `schoolflow`).
+2. **Manage R2 API Tokens** → créer un token avec accès lecture/écriture sur
+   ce bucket → noter l'**Access Key ID** et la **Secret Access Key**.
+3. Dans le dashboard Render, sur `schoolflow-api` → **Environment** :
+   - `MINIO_ENDPOINT` = `https://<account_id>.r2.cloudflarestorage.com`
+     (⚠️ inclure `https://` — sans le schéma, `storage.py` désactive TLS et
+     la connexion échoue silencieusement en repli local)
+   - `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` = les valeurs du token R2
+   - `MINIO_BUCKET` a déjà la valeur `schoolflow` par défaut dans
+     `render.yaml` (à adapter si le bucket a un autre nom)
+4. Redéployer `schoolflow-api` — le bucket est vérifié/créé automatiquement
+   au premier upload.
+
 ### ⚠️ Limites connues avant un trafic de production réel
 
 Le plan `free` (Render + Neon) est suffisant pour une démo ou un pilote,
@@ -294,12 +316,8 @@ mais **pas pour un trafic réel** :
 - Neon free : un seul nœud actif, pas de réplique de lecture — point de
   défaillance unique pour la lecture ET l'écriture (mais persistant, contrairement
   au Postgres gratuit de Render qui expire après 30 jours).
-- **Stockage de fichiers non provisionné** : `render.yaml` ne définit aucun
-  service MinIO/S3 ; sans `MINIO_ENDPOINT`/`MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`
-  configurés manuellement (même principe que Neon — service S3-compatible
-  externe, ex. Cloudflare R2 ou Backblaze B2), le backend retombe sur un
-  stockage local **éphémère** : signatures, logos et documents uploadés sont
-  perdus à chaque redéploiement de `schoolflow-api`.
+- R2 free : 10 Go de stockage et 1M requêtes Classe A/mois — suffisant pour
+  un pilote, à surveiller si le volume de documents/signatures grossit.
 
 Autre limite structurelle à connaître : **aucune file de jobs asynchrones**
 (Celery/RQ/arq) n'est en place. Les opérations lourdes (génération de PDF,
