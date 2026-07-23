@@ -115,6 +115,12 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     if (!profile?.tenant_id) {
       if (!authTenant) {
         setCurrentTenant(null);
+        // Reset so a subsequent re-login for the SAME tenant id doesn't hit
+        // the "already resolved" guard below and skip syncing the fresh
+        // authTenant (was causing a stale/settings-less currentTenant after
+        // logout -> login, which bounced already-onboarded admins back into
+        // the onboarding wizard).
+        resolvedTenantId.current = null;
       }
       setIsLoading(false);
       return;
