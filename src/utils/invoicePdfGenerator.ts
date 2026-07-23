@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import { formatPdfCurrency, formatNumber, safeFormatDate } from "./formatters";
 
 interface InvoiceItem {
@@ -179,7 +179,7 @@ export function generateInvoicePDF(invoice: InvoiceData, tenant: TenantData): js
         ]);
     }
 
-    (doc as any).autoTable({
+    autoTable(doc, {
         startY: startY,
         head: [['DESCRIPTION', 'QTÉ', 'PRIX UNITAIRE', 'TOTAL']],
         body: tableBody,
@@ -227,7 +227,7 @@ export function generateInvoicePDF(invoice: InvoiceData, tenant: TenantData): js
             s.status === 'PAID' ? 'PAYÉ' : 'EN ATTENTE'
         ]);
 
-        (doc as any).autoTable({
+        autoTable(doc, {
             startY: finalTableY + 5,
             head: [['N°', 'DATE LIMITE', 'MONTANT', 'STATUT']],
             body: scheduleBody,

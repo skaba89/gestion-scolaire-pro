@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 interface Student {
     id: string;
@@ -70,7 +70,7 @@ export function generateClassListPdf(classroom: ClassroomData, tenantName: strin
         "", // Signature column
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
         startY: 56,
         head: [["N°", "N° Étudiant", "Nom", "Prénom", "Email", "Émargement"]],
         body: tableBody,

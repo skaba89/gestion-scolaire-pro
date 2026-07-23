@@ -260,6 +260,28 @@ Le fichier `render.yaml` contient la configuration complète pour Render.com :
 - `schoolflow-redis` : Redis managé
 - `schoolflow-db` : PostgreSQL 16 managé
 
+### ⚠️ Limites connues avant un trafic de production réel
+
+`render.yaml` est actuellement configuré sur le **plan `free`** pour les trois
+services (frontend/api/db). C'est suffisant pour une démo ou un pilote, mais
+**pas pour un trafic réel** :
+
+- Aucun autoscaling, les instances s'endorment après inactivité.
+- Ressources CPU/RAM limitées, aucune garantie de SLA.
+- Un seul nœud PostgreSQL : pas de réplique de lecture, point de défaillance
+  unique pour la lecture ET l'écriture.
+
+Autre limite structurelle à connaître : **aucune file de jobs asynchrones**
+(Celery/RQ/arq) n'est en place. Les opérations lourdes (génération de PDF,
+imports en masse, envoi de notifications) s'exécutent de façon synchrone
+dans la requête HTTP — acceptable à faible volume, mais bloquant et fragile
+sous charge.
+
+Avant d'ouvrir le service à un trafic réel : migrer vers un plan payant
+dimensionné et introduire une file de jobs asynchrones. Voir la feuille de
+route production-ready (issues #19/#22/#23/#24) pour le détail des chantiers
+restants (scalabilité, data/BI, mobile/offline, SaaS entreprise).
+
 ---
 
 ## Structure du projet

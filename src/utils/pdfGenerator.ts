@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { getStudentLabel } from '@/lib/terminology';
@@ -34,7 +34,7 @@ export const generateReportCard = (
         a.description || ''
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
         startY: 65,
         head: [['Matière', 'Type', 'Coef.', 'Note', 'Appréciation']],
         body: tableData,

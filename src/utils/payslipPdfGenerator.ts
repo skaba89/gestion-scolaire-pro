@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { formatPdfCurrency, formatNumber, safeFormatDate } from "./formatters";
@@ -402,7 +402,7 @@ export function generatePayslipPDF(payslip: PayslipData, tenant: TenantData): js
         { content: formatPdfCurrency(totalEmployer, currency), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
         startY: startY,
         head: [['LIBELLÉ', 'BASE', 'TAUX\nSAL.', 'MONTANT\nSALARIAL', 'TAUX\nPAT.', 'MONTANT\nPATRONAL']],
         body: tableData,

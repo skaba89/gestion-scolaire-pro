@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import { format as formatDate } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getStudentLabel } from "@/lib/terminology";
@@ -53,7 +53,7 @@ export function generateDashboardPDF(data: DashboardData) {
     doc.setTextColor(30, 41, 59);
     doc.text("1. Indicateurs Financiers", margin, 40);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
         startY: 45,
         head: [['Indicateur', 'Valeur']],
         body: [
@@ -70,7 +70,7 @@ export function generateDashboardPDF(data: DashboardData) {
     const academicY = (doc as any).lastAutoTable.finalY + 15;
     doc.text("2. Performance Académique", margin, academicY);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
         startY: academicY + 5,
         head: [['Indicateur', 'Valeur']],
         body: [
@@ -87,7 +87,7 @@ export function generateDashboardPDF(data: DashboardData) {
     const operationalY = (doc as any).lastAutoTable.finalY + 15;
     doc.text("3. Efficacité Opérationnelle", margin, operationalY);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
         startY: operationalY + 5,
         head: [['Indicateur', 'Valeur']],
         body: [
