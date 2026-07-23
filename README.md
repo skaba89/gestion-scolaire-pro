@@ -250,26 +250,56 @@ L'authentification est **100% JWT natif** signée avec HS256. Aucun service d'id
 
 ---
 
-## Déploiement cloud (Render)
+## Déploiement cloud (Render + Neon)
 
-Le fichier `render.yaml` contient la configuration complète pour Render.com :
+Le fichier `render.yaml` contient la configuration complète pour Render.com.
+Trois services y sont définis :
 
-- `schoolflow-frontend` : service Docker (port 10000)
-- `schoolflow-api` : service Python 3.11
-- `schoolflow-minio` : service Docker (stockage S3)
-- `schoolflow-redis` : Redis managé
-- `schoolflow-db` : PostgreSQL 16 managé
+- `gestion-scolaire-pro` : frontend (React SPA + proxy `/api/*`), plan `free`
+- `schoolflow-api` : backend FastAPI, plan `free`
+- `schoolflow-redis` : Redis managé par Render, plan `free`
+
+**La base de données n'est pas un service Render** : `render.yaml` est conçu
+pour pointer vers un projet [Neon](https://neon.tech) externe (Postgres
+serverless, plan gratuit **sans expiration à 30 jours** contrairement au
+Postgres géré par Render). C'est un choix architectural déjà en place dans
+le blueprint, pas quelque chose à ajouter.
+
+### Configurer Neon (à faire manuellement — 5 minutes)
+
+1. Créer un compte sur [console.neon.tech](https://console.neon.tech) et un
+   nouveau projet (région la plus proche de `frankfurt`, où tournent les
+   services Render, pour minimiser la latence).
+2. Dans l'onglet **Connection Details** du projet, copier la chaîne de
+   connexion **pooled** (celle avec `-pooler` dans le nom d'hôte — pas la
+   chaîne directe, pour ne pas épuiser la limite de connexions de Neon).
+3. Dans le dashboard Render, sur le service `schoolflow-api` → **Environment** :
+   coller cette même chaîne pooled dans les trois variables `DATABASE_URL`,
+   `DATABASE_URL_ASYNC` et `DATABASE_URL_SYNC` (marquées `sync: false` dans
+   `render.yaml`, donc à définir à la main — le backend normalise
+   automatiquement le préfixe du driver et détecte `sslmode=require`, aucune
+   autre config n'est nécessaire côté code).
+4. Redéployer `schoolflow-api` : les migrations Alembic s'exécutent
+   automatiquement au démarrage (géré par le lifecycle de l'app, voir
+   `backend/app/main.py` — ne pas les lancer manuellement dans la commande
+   de build, `alembic.ini` n'a pas d'URL statique).
 
 ### ⚠️ Limites connues avant un trafic de production réel
 
-`render.yaml` est actuellement configuré sur le **plan `free`** pour les trois
-services (frontend/api/db). C'est suffisant pour une démo ou un pilote, mais
-**pas pour un trafic réel** :
+Le plan `free` (Render + Neon) est suffisant pour une démo ou un pilote,
+mais **pas pour un trafic réel** :
 
-- Aucun autoscaling, les instances s'endorment après inactivité.
+- Aucun autoscaling côté Render, les instances s'endorment après inactivité.
 - Ressources CPU/RAM limitées, aucune garantie de SLA.
-- Un seul nœud PostgreSQL : pas de réplique de lecture, point de défaillance
-  unique pour la lecture ET l'écriture.
+- Neon free : un seul nœud actif, pas de réplique de lecture — point de
+  défaillance unique pour la lecture ET l'écriture (mais persistant, contrairement
+  au Postgres gratuit de Render qui expire après 30 jours).
+- **Stockage de fichiers non provisionné** : `render.yaml` ne définit aucun
+  service MinIO/S3 ; sans `MINIO_ENDPOINT`/`MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`
+  configurés manuellement (même principe que Neon — service S3-compatible
+  externe, ex. Cloudflare R2 ou Backblaze B2), le backend retombe sur un
+  stockage local **éphémère** : signatures, logos et documents uploadés sont
+  perdus à chaque redéploiement de `schoolflow-api`.
 
 Autre limite structurelle à connaître : **aucune file de jobs asynchrones**
 (Celery/RQ/arq) n'est en place. Les opérations lourdes (génération de PDF,
@@ -277,9 +307,11 @@ imports en masse, envoi de notifications) s'exécutent de façon synchrone
 dans la requête HTTP — acceptable à faible volume, mais bloquant et fragile
 sous charge.
 
-Avant d'ouvrir le service à un trafic réel : migrer vers un plan payant
-dimensionné et introduire une file de jobs asynchrones. Voir la feuille de
-route production-ready (issues #19/#22/#23/#24) pour le détail des chantiers
+Avant d'ouvrir le service à un trafic réel : configurer un stockage S3
+persistant (le plus urgent — sans ça, les documents uploadés ne survivent
+pas à un redéploiement), migrer vers des plans payants dimensionnés, et
+introduire une file de jobs asynchrones. Voir la feuille de route
+production-ready (issues #19/#22/#23/#24) pour le détail des chantiers
 restants (scalabilité, data/BI, mobile/offline, SaaS entreprise).
 
 ---
