@@ -65,7 +65,10 @@ async def create_tenant(
             is_active=True,
             settings={
                 "onboarding_step": 4 if is_full_wizard else 1,
-                "onboarding_completed": True if is_full_wizard else False
+                "onboarding_completed": True if is_full_wizard else False,
+                "currency": tenant_in.currency or "GNF",
+                "timezone": "Africa/Conakry",
+                "locale": "fr-GN",
             }
         )
         db.add(new_tenant)
@@ -222,7 +225,7 @@ async def create_tenant(
             tenant_id=new_tenant.id,
             action="CREATE_TENANT",
             resource_type="TENANT",
-            resource_id=new_tenant.id,
+            resource_id=str(new_tenant.id),
             details={"name": new_tenant.name, "slug": new_tenant.slug}
         )
 
@@ -250,18 +253,19 @@ async def list_tenants(
     # For now, let's just returns all active tenants
     query = db.query(Tenant).filter(Tenant.is_active == True).order_by(Tenant.name)
 
+    # response_model is a plain list, so the total always goes in a header
+    # instead of wrapping the body — a dict body here used to violate
+    # response_model and crash with a 500 (audit P0).
+    total = query.count()
+    response.headers["X-Total-Count"] = str(total)
+
     if page_size >= 100:
         # Default behaviour: return ALL results as a plain list (backward-compatible)
         return query.all()
 
-    # Explicit pagination requested (page_size < 100). response_model is a plain
-    # list, so the total goes in a header instead of wrapping the body — a dict
-    # body here used to violate response_model and crash with a 500 (audit P0).
-    total = query.count()
+    # Explicit pagination requested (page_size < 100)
     offset = (page - 1) * page_size
-    tenants = query.offset(offset).limit(page_size).all()
-    response.headers["X-Total-Count"] = str(total)
-    return tenants
+    return query.offset(offset).limit(page_size).all()
 
 @router.get("/INFOS/", response_model=dict)
 async def get_tenant_infos(
@@ -446,6 +450,13 @@ async def list_public_tenants(
         .order_by(Tenant.name)
     )
 
+    # response_model is a plain list, so the total always goes in a header
+    # instead of wrapping the body — a dict body here used to violate
+    # response_model and crash with a 500 (audit P0: GET /tenants/public/
+    # ?page_size=10 -> 500 ResponseValidationError).
+    total = query.count()
+    response.headers["X-Total-Count"] = str(total)
+
     if page_size >= 100:
         # Default behaviour: return ALL results as a plain list (backward-compatible)
         tenants = query.all()
@@ -472,15 +483,6 @@ async def list_public_tenants(
             )
         )
 
-    if page_size >= 100:
-        return cards
-
-    # Explicit pagination requested (page_size < 100). response_model is a
-    # plain list, so the total goes in a header instead of wrapping the body —
-    # a dict body here used to violate response_model and crash with a 500
-    # (audit P0: GET /tenants/public/?page_size=10 -> 500 ResponseValidationError).
-    total = query.count()
-    response.headers["X-Total-Count"] = str(total)
     return cards
 
 

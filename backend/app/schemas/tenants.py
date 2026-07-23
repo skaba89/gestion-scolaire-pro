@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 from datetime import datetime
 
@@ -42,7 +42,7 @@ class TenantResponse(TenantBase):
     created_at: datetime
     updated_at: datetime
     is_active: bool
-    settings: Optional[Dict[str, Any]] = {}
+    settings: Optional[Dict[str, Any]] = Field(default_factory=dict)
     # Extra fields for super admin views
     student_count: Optional[int] = None
     user_count: Optional[int] = None
@@ -98,8 +98,8 @@ class TenantLandingSettings(BaseModel):
     custom_domain: Optional[str] = None
     show_stats: bool = True
     show_programs: bool = True
-    gallery: List[str] = []
-    announcements: List[TenantLandingAnnouncement] = []
+    gallery: List[str] = Field(default_factory=list)
+    announcements: List[TenantLandingAnnouncement] = Field(default_factory=list)
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     facebook_url: Optional[str] = None
@@ -142,8 +142,8 @@ class TenantPublicResponse(BaseModel):
     is_active: bool
     landing: TenantLandingSettings
     stats: TenantPublicStats
-    programs: List[Any] = []
-    departments: List[Any] = []
-    announcements: List[TenantLandingAnnouncement] = []
+    programs: List[Any] = Field(default_factory=list)
+    departments: List[Any] = Field(default_factory=list)
+    announcements: List[TenantLandingAnnouncement] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

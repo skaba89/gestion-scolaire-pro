@@ -261,3 +261,101 @@ def test_get_settings_super_admin_with_header_gets_targeted_tenant():
         assert resp.json()["marker"] == "targeted"
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+# --- API contract: GET /tenants/ and GET /tenants/public/ (Tech Lead audit, Phase 4) ---
+# Both endpoints keep response_model=List[...]; the total count is only ever
+# exposed via the X-Total-Count header, never by wrapping the body in a dict
+# (that used to violate response_model and crash with a 500).
+
+def test_list_tenants_page_size_ge_100_returns_plain_list():
+    _make_tenant("Ecole Liste A")
+    super_admin = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}
+    try:
+        resp = _as(super_admin).get("/api/v1/tenants/?page_size=100", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert isinstance(resp.json(), list)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_list_tenants_page_size_lt_100_returns_plain_list():
+    _make_tenant("Ecole Liste B")
+    super_admin = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}
+    try:
+        resp = _as(super_admin).get("/api/v1/tenants/?page_size=10", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert isinstance(resp.json(), list)
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_list_tenants_exposes_x_total_count_in_both_cases():
+    _make_tenant("Ecole Liste C")
+    super_admin = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}
+    try:
+        resp_full = _as(super_admin).get("/api/v1/tenants/?page_size=100", headers=HEADERS)
+        assert resp_full.status_code == 200, resp_full.text
+        assert "X-Total-Count" in resp_full.headers
+        assert int(resp_full.headers["X-Total-Count"]) >= 1
+
+        resp_paginated = _as(super_admin).get("/api/v1/tenants/?page_size=10", headers=HEADERS)
+        assert resp_paginated.status_code == 200, resp_paginated.text
+        assert "X-Total-Count" in resp_paginated.headers
+        assert int(resp_paginated.headers["X-Total-Count"]) >= 1
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_list_public_tenants_page_size_ge_100_returns_plain_list():
+    _make_tenant("Ecole Publique Liste A")
+    resp = client.get("/api/v1/tenants/public/?page_size=100")
+    assert resp.status_code == 200, resp.text
+    assert isinstance(resp.json(), list)
+
+
+def test_list_public_tenants_page_size_lt_100_returns_plain_list():
+    _make_tenant("Ecole Publique Liste B")
+    resp = client.get("/api/v1/tenants/public/?page_size=10")
+    assert resp.status_code == 200, resp.text
+    assert isinstance(resp.json(), list)
+
+
+def test_list_public_tenants_exposes_x_total_count_in_both_cases():
+    _make_tenant("Ecole Publique Liste C")
+    resp_full = client.get("/api/v1/tenants/public/?page_size=100")
+    assert resp_full.status_code == 200, resp_full.text
+    assert "X-Total-Count" in resp_full.headers
+    assert int(resp_full.headers["X-Total-Count"]) >= 1
+
+    resp_paginated = client.get("/api/v1/tenants/public/?page_size=10")
+    assert resp_paginated.status_code == 200, resp_paginated.text
+    assert "X-Total-Count" in resp_paginated.headers
+    assert int(resp_paginated.headers["X-Total-Count"]) >= 1
+
+
+def test_create_tenant_initializes_currency_timezone_locale():
+    """Every new tenant (not just the full wizard) must get Guinea-consistent
+    defaults in settings, matching create-with-admin's own template."""
+    super_admin = {
+        "id": str(uuid.uuid4()),
+        "roles": ["SUPER_ADMIN"],
+        "tenant_id": None,
+        "email": "super-admin-contract-test@example.com",
+    }
+    slug = f"contract-{uuid.uuid4().hex[:8]}"
+    try:
+        resp = _as(super_admin).post(
+            "/api/v1/tenants/",
+            json={"name": "Ecole Contrat Settings", "slug": slug, "type": "SCHOOL"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 201, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    with SessionLocal() as db:
+        tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
+        assert tenant.settings["currency"] == "GNF"
+        assert tenant.settings["timezone"] == "Africa/Conakry"
+        assert tenant.settings["locale"] == "fr-GN"
