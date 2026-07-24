@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise, ministry
-from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework
+from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework, transcripts
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys
 from app.api.v1.endpoints.operational import departments as dept_portal
@@ -80,6 +80,7 @@ api_router.include_router(data_imports.router, prefix="/import", tags=["Data Imp
 # Academic routes
 api_router.include_router(students.router, prefix="/students", tags=["Students"])
 api_router.include_router(grades.router, prefix="/grades", tags=["Grades"])
+api_router.include_router(transcripts.router, prefix="/transcripts", tags=["Transcripts (Relevés de notes)"])
 api_router.include_router(academic_years.router, prefix="/academic-years", tags=["Academic Years"])
 api_router.include_router(campuses.router, prefix="/campuses", tags=["Campuses"])
 api_router.include_router(levels.router, prefix="/levels", tags=["Levels"])
