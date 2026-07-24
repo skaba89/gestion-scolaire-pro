@@ -115,3 +115,32 @@ class TestMinistryOverviewShape:
             "inactive_establishments", "by_region", "by_type",
         }
         assert set(resp.json().keys()) == expected_keys
+
+
+class TestMinistryOverviewExport:
+    EXPORT_URL = "/api/v1/ministry/overview/export/"
+
+    def test_export_requires_ministry_read(self):
+        resp = client.get(self.EXPORT_URL, headers=_as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": str(uuid.uuid4())}))
+        assert resp.status_code == 403, resp.text
+
+    def test_export_returns_csv_with_expected_rows(self):
+        region = f"region-{uuid.uuid4().hex[:8]}"
+        _make_tenant("École Export Test", region=region, ttype="primary", active=True)
+
+        resp = client.get(self.EXPORT_URL, headers=_as({"id": str(uuid.uuid4()), "roles": ["MINISTRY_ADMIN"], "tenant_id": None}))
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "attachment" in resp.headers.get("content-disposition", "")
+
+        body = resp.text
+        assert "categorie,cle,valeur" in body
+        assert f"region,{region},1" in body
+
+    def test_export_never_leaks_individual_tenant_fields(self):
+        unique_name = f"École Export Secrète {uuid.uuid4().hex[:8]}"
+        _make_tenant(unique_name, region="test-region-export")
+
+        resp = client.get(self.EXPORT_URL, headers=_as({"id": str(uuid.uuid4()), "roles": ["MINISTRY_ADMIN"], "tenant_id": None}))
+        assert resp.status_code == 200, resp.text
+        assert unique_name not in resp.text
