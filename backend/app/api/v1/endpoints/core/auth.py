@@ -620,9 +620,30 @@ async def logout_all_devices(request: Request, current_user: dict = Depends(get_
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token_str = auth_header.split(" ")[1]
+        # SECURITY: Extract JTI from the token payload (not from a hash of the
+        # raw token string) — the token was minted with jti = sha256("user_id:
+        # timestamp")[:16] (see create_access_token/login), so hashing the
+        # token string itself produces a different key and the blacklist
+        # entry below silently never matches on lookup. Same fix already
+        # applied in /auth/logout/ above; kept in sync here.
         import hashlib
-        token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
-        await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+        try:
+            import jwt as jwt_lib
+            payload = jwt_lib.decode(
+                token_str,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_exp": False},
+                audience="schoolflow-api",
+                issuer="schoolflow-pro",
+            )
+            token_jti = payload.get("jti")
+            if token_jti:
+                await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+        except Exception:
+            # Fallback: blacklist by token hash if payload extraction fails
+            token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
+            await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
 
     # Bump token version — invalidates all existing tokens for this user
     new_version = await blacklist_all_user_tokens(user_id)

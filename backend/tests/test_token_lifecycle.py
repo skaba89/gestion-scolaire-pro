@@ -293,3 +293,47 @@ class TestLogoutAllInvalidatesOldTokens:
         new_token = _login(email)["access_token"]
         me_resp = client.get(ME_URL, headers={"Authorization": f"Bearer {new_token}"})
         assert me_resp.status_code == 200, me_resp.text
+
+    def test_calling_token_is_immediately_blacklisted_by_real_jti(self):
+        """logout-all must blacklist the JTI actually embedded in the calling
+        token's payload, not a hash of the raw token string. Before this fix,
+        /auth/logout-all/ computed sha256(token_str) — a value that never
+        matches the token's own "jti" claim (minted as sha256(f"{user_id}:
+        {timestamp}")[:16] at login) — so the immediate-blacklist write was
+        silently a no-op: it stored an entry under a key nothing ever looks
+        up. The token still got rejected end-to-end because
+        validate_token_version() independently catches it via the Redis
+        version bump, so this asserts the actual mechanism directly rather
+        than relying on that separate safety net to mask the bug: monkeypatch
+        blacklist_token() to capture the jti it's called with, and confirm it
+        matches the token's real "jti" claim instead of sha256(token_str)."""
+        import app.api.v1.endpoints.core.auth as auth_module
+
+        email = _fresh_super_admin()
+        token = _login(email)["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = _decode_unverified(token)
+        real_jti = payload["jti"]
+
+        captured_jtis = []
+        original = auth_module.blacklist_token
+
+        async def _capture(token_jti, expires_in_seconds):
+            captured_jtis.append(token_jti)
+            return await original(token_jti, expires_in_seconds)
+
+        auth_module.blacklist_token = _capture
+        try:
+            resp = client.post(LOGOUT_ALL_URL, headers=headers)
+            assert resp.status_code == 200, resp.text
+        finally:
+            auth_module.blacklist_token = original
+
+        assert real_jti in captured_jtis, (
+            f"logout-all must blacklist the token's actual jti claim ({real_jti!r}), "
+            f"not a hash of the raw token string; got {captured_jtis!r}"
+        )
+
+        # End-to-end: the very token used to call logout-all is now rejected.
+        after = client.get(ME_URL, headers=headers)
+        assert after.status_code == 401, after.text
