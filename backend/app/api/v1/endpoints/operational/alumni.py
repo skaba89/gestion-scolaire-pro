@@ -109,6 +109,8 @@ def alumni_dashboard(
 
 @router.get("/document-requests/")
 def list_document_requests(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -125,7 +127,8 @@ def list_document_requests(
             FROM alumni_document_requests
             WHERE alumni_id = :user_id
             ORDER BY created_at DESC
-        """), {"user_id": user_id}).fetchall()
+            LIMIT :limit OFFSET :offset
+        """), {"user_id": user_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
 
         return [{
             "id": str(r.id),

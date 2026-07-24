@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Any
@@ -71,18 +71,24 @@ def create_category(name: str, db: Session = Depends(get_db), current_user: dict
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/items/")
-def list_items(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_items(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
     try:
         rows = db.execute(text("""
-            SELECT i.*, c.name as category_name 
-            FROM inventory_items i 
-            LEFT JOIN inventory_categories c ON c.id = i.category_id 
-            WHERE i.tenant_id = :tid 
+            SELECT i.*, c.name as category_name
+            FROM inventory_items i
+            LEFT JOIN inventory_categories c ON c.id = i.category_id
+            WHERE i.tenant_id = :tid
             ORDER BY i.name
-        """), {"tid": tenant_id}).fetchall()
+            LIMIT :limit OFFSET :offset
+        """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
         return [{**dict(r._mapping), "category": {"id": r.category_id, "name": r.category_name}} for r in rows]
     except Exception as e:
         logger.error("list_items failed: %s", e)
@@ -153,18 +159,26 @@ def delete_item(item_id: str, db: Session = Depends(get_db), current_user: dict 
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/transactions/")
-def list_transactions(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_transactions(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
     try:
+        # SCALABILITY: this is an append-only movement log with no purge
+        # policy — without LIMIT it grows without bound as stock moves.
         return db.execute(text("""
-            SELECT t.*, i.name as item_name 
-            FROM inventory_transactions t 
-            JOIN inventory_items i ON i.id = t.item_id 
-            WHERE t.tenant_id = :tid 
+            SELECT t.*, i.name as item_name
+            FROM inventory_transactions t
+            JOIN inventory_items i ON i.id = t.item_id
+            WHERE t.tenant_id = :tid
             ORDER BY t.created_at DESC
-        """), {"tid": tenant_id}).mappings().all()
+            LIMIT :limit OFFSET :offset
+        """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
     except Exception as e:
         logger.error("list_transactions failed: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
@@ -197,7 +211,12 @@ def adjust_stock(body: AdjustmentBody, db: Session = Depends(get_db), current_us
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/orders/")
-def list_orders(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_orders(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
@@ -208,7 +227,8 @@ def list_orders(db: Session = Depends(get_db), current_user: dict = Depends(get_
             LEFT JOIN students s ON s.id = o.student_id
             WHERE o.tenant_id = :tid
             ORDER BY o.created_at DESC
-        """), {"tid": tenant_id}).fetchall()
+            LIMIT :limit OFFSET :offset
+        """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
         return [{**dict(r._mapping), "student": {"id": r.student_id, "first_name": r.first_name, "last_name": r.last_name, "registration_number": r.registration_number}} for r in rows]
     except Exception as e:
         logger.error("list_orders failed: %s", e)

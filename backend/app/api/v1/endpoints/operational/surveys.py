@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Dict, Any, Optional
@@ -41,7 +41,12 @@ class SubmitResponse(BaseModel):
 # --- Existing endpoints ---
 
 @router.get("/")
-def list_surveys(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_surveys(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
@@ -51,7 +56,8 @@ def list_surveys(db: Session = Depends(get_db), current_user: dict = Depends(get
         LEFT JOIN users p ON p.id = s.created_by
         WHERE s.tenant_id = :tid
         ORDER BY s.created_at DESC
-    """), {"tid": tenant_id}).mappings().all()
+        LIMIT :limit OFFSET :offset
+    """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
     return rows
 
 

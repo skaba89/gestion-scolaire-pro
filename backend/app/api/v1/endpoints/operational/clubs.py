@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -177,7 +177,12 @@ def delete_club(
 # --- Memberships ---
 
 @router.get("/memberships/")
-def list_memberships(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_memberships(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
@@ -186,7 +191,9 @@ def list_memberships(db: Session = Depends(get_db), current_user: dict = Depends
         FROM club_memberships m
         JOIN students s ON s.id = m.student_id
         WHERE m.tenant_id = :tid
-    """), {"tid": tenant_id}).fetchall()
+        ORDER BY m.id
+        LIMIT :limit OFFSET :offset
+    """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
     return [{
         **dict(r._mapping),
         "student": {"id": r.student_id, "first_name": r.first_name, "last_name": r.last_name}

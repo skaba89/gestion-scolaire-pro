@@ -35,18 +35,23 @@ class ConversationCreate(BaseModel):
 
 @router.get("/announcements/")
 def get_announcements(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         tenant_id = current_user.get("tenant_id")
         query = text("""
-            SELECT id, tenant_id, author_id, title, content, target_roles, pinned, published_at, created_at, deleted_at 
-            FROM announcements 
+            SELECT id, tenant_id, author_id, title, content, target_roles, pinned, published_at, created_at, deleted_at
+            FROM announcements
             WHERE tenant_id = :tenant_id AND deleted_at IS NULL
             ORDER BY pinned DESC, created_at DESC
+            LIMIT :limit OFFSET :offset
         """)
-        result = db.execute(query, {"tenant_id": tenant_id}).mappings().all()
+        result = db.execute(query, {
+            "tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size,
+        }).mappings().all()
         return result
     except Exception as e:
         db.rollback()
@@ -123,6 +128,8 @@ def delete_announcement(
 
 @router.get("/messaging/users/")
 def get_messaging_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -135,7 +142,11 @@ def get_messaging_users(
             LEFT JOIN user_roles ur ON ur.user_id = u.id
             WHERE u.tenant_id = :tenant_id
             GROUP BY u.id, u.first_name, u.last_name, u.email
-        """), {"tenant_id": tenant_id}).mappings().all()
+            ORDER BY u.last_name, u.first_name
+            LIMIT :limit OFFSET :offset
+        """), {
+            "tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size,
+        }).mappings().all()
         return [
             {**dict(r), "roles": [role for role in r["roles"] if role]}
             for r in rows
@@ -192,6 +203,8 @@ def get_teacher_recipients(
 
 @router.get("/conversations/")
 def list_conversations(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -231,7 +244,11 @@ def list_conversations(
             GROUP BY c.id, c.type, c.title, c.tenant_id, c.created_at, m.content, m.created_at,
                      sender.first_name, sender.last_name
             ORDER BY COALESCE(m.created_at, c.created_at) DESC
-        """), {"user_id": user_id, "tenant_id": tenant_id}).fetchall()
+            LIMIT :limit OFFSET :offset
+        """), {
+            "user_id": user_id, "tenant_id": tenant_id,
+            "limit": page_size, "offset": (page - 1) * page_size,
+        }).fetchall()
 
         return [{
             "id": str(r.id), "type": r.type, "title": r.title or r.other_name,
@@ -542,7 +559,12 @@ def poll_new_messages(
 # --- Forums ---
 
 @router.get("/forums/")
-def list_forums(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_forums(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     try:
         tenant_id = current_user.get("tenant_id")
         if not tenant_id:
@@ -553,7 +575,8 @@ def list_forums(db: Session = Depends(get_db), current_user: dict = Depends(get_
             LEFT JOIN users p ON p.id = f.created_by
             WHERE f.tenant_id = :tid
             ORDER BY f.created_at DESC
-        """), {"tid": tenant_id}).mappings().all()
+            LIMIT :limit OFFSET :offset
+        """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
     except Exception as e:
         db.rollback()
         logger.error("Error listing forums: %s", e)

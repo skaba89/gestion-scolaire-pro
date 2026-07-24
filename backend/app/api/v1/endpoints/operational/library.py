@@ -152,6 +152,8 @@ def list_resources(
     category: Optional[str] = None,
     resource_type: Optional[str] = None,
     search: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -177,7 +179,9 @@ def list_resources(
         query += " AND (r.title ILIKE :s OR r.description ILIKE :s OR r.author ILIKE :s)"
         params["s"] = f"%{search}%"
 
-    query += " ORDER BY r.created_at DESC"
+    query += " ORDER BY r.created_at DESC LIMIT :limit OFFSET :offset"
+    params["limit"] = page_size
+    params["offset"] = (page - 1) * page_size
     rows = db.execute(text(query), params).fetchall()
     return [{
         **dict(r._mapping),
@@ -477,6 +481,8 @@ def return_resource(
 
 @router.get("/borrowers/")
 def list_borrowers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -492,7 +498,8 @@ def list_borrowers(
         JOIN users u ON u.id = br.borrowed_by
         WHERE br.tenant_id = :tid AND br.status = 'BORROWED'
         ORDER BY br.due_date ASC
-    """), {"tid": tenant_id}).fetchall()
+        LIMIT :limit OFFSET :offset
+    """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
     return [{
         **dict(r._mapping),
         "resource": {"title": r.resource_title, "type": r.resource_type},

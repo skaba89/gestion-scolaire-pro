@@ -32,6 +32,8 @@ def list_parents(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     search: Optional[str] = Query(None, description="Search by first_name, last_name, or email"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
 ):
     """List all parents for the tenant. GET /parents/"""
     tenant_id = current_user.get("tenant_id")
@@ -55,7 +57,12 @@ def list_parents(
             User.email.ilike(pattern),
         ))
 
-    parents = query.order_by(User.last_name, User.first_name).all()
+    parents = (
+        query.order_by(User.last_name, User.first_name)
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+        .all()
+    )
     parent_ids = [parent.id for parent in parents]
     links_by_parent: dict[str, list[str]] = {}
     if parent_ids:
@@ -299,6 +306,8 @@ def remove_parent_student_link(
 
 @router.get("/unlinked-students/")
 def get_unlinked_students(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
@@ -319,7 +328,8 @@ def get_unlinked_students(
               SELECT DISTINCT student_id FROM parent_students WHERE tenant_id = :tid
           )
         ORDER BY s.last_name, s.first_name
-    """), {"tid": tenant_id}).mappings().all()
+        LIMIT :limit OFFSET :offset
+    """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
     return rows
 
 

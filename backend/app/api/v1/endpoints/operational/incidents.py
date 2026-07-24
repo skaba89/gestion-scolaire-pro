@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Any
@@ -52,10 +52,18 @@ class AssignRequest(BaseModel):
 # --- List Incidents ---
 
 @router.get("/")
-def list_incidents(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_incidents(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         return []
+    # SCALABILITY: bounded by page_size — this table has no purge policy and
+    # grows indefinitely, so an unbounded SELECT would eventually load the
+    # entire tenant's incident history into memory on every page view.
     rows = db.execute(text("""
         SELECT i.*,
                u1.first_name as reporter_first_name, u1.last_name as reporter_last_name,
@@ -65,7 +73,8 @@ def list_incidents(db: Session = Depends(get_db), current_user: dict = Depends(g
         LEFT JOIN users u2 ON u2.id = i.resolved_by
         WHERE i.tenant_id = :tid
         ORDER BY i.occurred_at DESC
-    """), {"tid": tenant_id}).fetchall()
+        LIMIT :limit OFFSET :offset
+    """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
 
     return [{
         **dict(r._mapping),

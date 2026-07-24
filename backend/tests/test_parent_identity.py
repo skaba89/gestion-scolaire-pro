@@ -14,6 +14,11 @@ def _query(*, first=None, all_rows=None, deleted=0):
     query.join.return_value = query
     query.filter.return_value = query
     query.order_by.return_value = query
+    # Chained by list_parents()'s pagination (national-audit Phase 3) — left
+    # unconfigured, MagicMock auto-generates a fresh unrelated mock per call,
+    # which breaks the chain and makes query.all() return an empty result.
+    query.limit.return_value = query
+    query.offset.return_value = query
     query.first.return_value = first
     query.all.return_value = all_rows or []
     query.delete.return_value = deleted
@@ -169,6 +174,13 @@ class TestParentDirectory:
             db=db,
             current_user={"tenant_id": str(tenant_id)},
             search="Aïssa",
+            # Calling the route function directly bypasses FastAPI's request
+            # cycle, which is what normally resolves Query(1, ge=1) defaults
+            # into plain ints — passed explicitly here to match what a real
+            # request without page/page_size params would actually receive
+            # (added for national-audit Phase 3 pagination).
+            page=1,
+            page_size=200,
         )
 
         assert result[0]["id"] == str(parent_id)

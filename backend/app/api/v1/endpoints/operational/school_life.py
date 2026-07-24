@@ -356,6 +356,8 @@ class AppointmentSlotCreate(BaseModel):
 def list_teacher_appointments(
     teacher_id: Optional[str] = None,
     status: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:read")),
 ):
@@ -376,6 +378,8 @@ def list_teacher_appointments(
         conditions.append("a.status = ANY(:statuses)")
         params["statuses"] = [s.strip().upper() for s in status.split(",")]
     where = " AND ".join(conditions)
+    params["limit"] = page_size
+    params["offset"] = (page - 1) * page_size
     try:
         rows = db.execute(text(f"""
             SELECT a.*, s.first_name as student_first_name, s.last_name as student_last_name
@@ -383,6 +387,7 @@ def list_teacher_appointments(
             LEFT JOIN students s ON a.student_id = s.id
             WHERE {where}
             ORDER BY a.appointment_date ASC
+            LIMIT :limit OFFSET :offset
         """), params).mappings().all()
         items = []
         for r in rows:
@@ -751,7 +756,12 @@ def create_check_in(
 # --- Badges ---
 
 @router.get("/badges/")
-def list_badges(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_badges(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
     try:
         tenant_id = current_user.get("tenant_id")
         if not tenant_id:
@@ -763,7 +773,8 @@ def list_badges(db: Session = Depends(get_db), current_user: dict = Depends(get_
             JOIN students s ON s.id = b.student_id
             WHERE b.tenant_id = :tid
             ORDER BY b.issued_at DESC
-        """), {"tid": tenant_id}).fetchall()
+            LIMIT :limit OFFSET :offset
+        """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
         return [{
             **dict(r._mapping),
             "student": {"id": r.student_id, "first_name": r.first_name, "last_name": r.last_name, "registration_number": r.registration_number, "photo_url": r.photo_url}
@@ -799,6 +810,8 @@ def students_without_badges(db: Session = Depends(get_db), current_user: dict = 
 @router.get("/event-registrations/")
 def list_event_registrations(
     student_id: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -806,13 +819,14 @@ def list_event_registrations(
         tenant_id = current_user.get("tenant_id")
         if not tenant_id:
             return []
-        params: dict = {"tid": tenant_id}
+        params: dict = {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}
         where = "WHERE tenant_id = :tid"
         if student_id:
             where += " AND student_id = :student_id"
             params["student_id"] = student_id
         rows = db.execute(text(
-            f"SELECT event_id, id, student_id, registered_at FROM career_event_registrations {where} ORDER BY registered_at DESC"
+            f"SELECT event_id, id, student_id, registered_at FROM career_event_registrations {where} "
+            "ORDER BY registered_at DESC LIMIT :limit OFFSET :offset"
         ), params).mappings().all()
         return [dict(r) for r in rows]
     except Exception as e:
