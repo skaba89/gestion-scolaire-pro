@@ -14,6 +14,11 @@ httpx>=0.28.0,<0.29.0
 requests>=2.31.0,<3.0.0
 minio>=7.2.0,<8.0.0
 redis>=5.0.0,<6.0.0
+arq>=0.26.0,<1.0.0
+# National audit Phase 6 quick-win: app/middlewares/metrics.py already codes
+# against this but the dependency was missing, so PROMETHEUS_AVAILABLE was
+# silently False and /metrics/ never actually exposed Prometheus metrics.
+prometheus-client>=0.20.0,<1.0.0
 aiosqlite>=0.20.0,<1.0.0
 python-dotenv>=1.0.0,<2.0.0
 email-validator>=2.1.0,<3.0.0

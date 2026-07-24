@@ -964,14 +964,30 @@ async def register_school(
 
     logger.info("New school registered: slug=%s, admin=%s", slug, body.email)
 
-    # 6. Send welcome email outside the request path
-    background_tasks.add_task(
-        _send_welcome_email_background,
+    # 6. Send welcome email outside the request path — via the persistent
+    # Arq/Redis queue (app/workers/tasks.py:send_welcome_email) so a
+    # restart or a second API replica doesn't lose it. Falls back to the
+    # old in-process BackgroundTasks path (fire-and-forget, lost on
+    # restart) only if enqueueing itself fails, e.g. Redis unreachable —
+    # registration must never fail because of this (national audit Phase 5).
+    from app.core.jobs import enqueue_job
+
+    job_id = await enqueue_job(
+        "send_welcome_email",
+        tenant_id=str(tenant.id),
         to_email=body.email,
         first_name=body.first_name,
         school_name=body.school_name,
         slug=slug,
     )
+    if job_id is None:
+        background_tasks.add_task(
+            _send_welcome_email_background,
+            to_email=body.email,
+            first_name=body.first_name,
+            school_name=body.school_name,
+            slug=slug,
+        )
 
     # 7. Issue JWT so the user is immediately logged in
     token_data = {

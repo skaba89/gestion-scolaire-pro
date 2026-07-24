@@ -40,3 +40,4 @@ from app.models.saas import (
     BillingEvent,
     TenantDomain,
 )
+from app.models.job import Job

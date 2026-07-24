@@ -107,6 +107,37 @@ services:
       - schoolflow-network
     mem_limit: 512m
 
+  # National audit Phase 5: Arq worker processing jobs enqueued via
+  # app/core/jobs.py (currently: send_welcome_email — see
+  # app/workers/tasks.py and docs/ASYNC_JOBS_GUIDE.md). Same image/env/
+  # volumes as `api` since it imports the same app code, but runs the Arq
+  # worker loop instead of the HTTP server — no ports exposed, nothing
+  # depends on this container being healthy (the API falls back to
+  # in-process BackgroundTasks if no worker is consuming the queue).
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    env_file: .env.docker
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      DEBUG: "${DEBUG:-false}"
+    command: ["python", "-m", "arq", "app.workers.tasks.WorkerSettings"]
+    networks:
+      - schoolflow-network
+    mem_limit: 256m
+
   frontend:
     build:
       context: .
