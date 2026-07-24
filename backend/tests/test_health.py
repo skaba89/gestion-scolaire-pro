@@ -122,6 +122,49 @@ def test_production_readiness_accepts_all_critical_dependencies():
     assert response.headers["cache-control"] == "no-store"
 
 
+def test_health_has_storage_component():
+    """National audit Phase 6: MinIO readiness must be reported too."""
+    response = client.get("/health")
+    data = response.json()
+    assert "storage" in data["components"]
+
+
+def test_readiness_accepts_storage_disabled():
+    """A dev/staging environment deliberately not configured for MinIO
+    (local-disk fallback, see app/core/storage.py) must not be reported
+    unhealthy for a dependency it isn't even using."""
+    from app.main import settings
+
+    with (
+        patch.object(type(settings), "is_sqlite", new_callable=PropertyMock, return_value=False),
+        patch("app.main._check_database_and_rls", return_value=("connected", "active")),
+        patch("app.main._check_cache_readiness", new=AsyncMock(return_value="connected")),
+        patch("app.main._check_storage_readiness", new=AsyncMock(return_value="disabled")),
+    ):
+        response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json()["components"]["storage"] == "disabled"
+
+
+def test_readiness_rejects_unreachable_storage_when_minio_is_configured():
+    """Unlike "disabled", "unreachable" means MinIO IS configured but the
+    endpoint can't actually be reached — that must fail readiness, since
+    uploads (signatures, documents, receipts) would silently break."""
+    from app.main import settings
+
+    with (
+        patch.object(type(settings), "is_sqlite", new_callable=PropertyMock, return_value=False),
+        patch("app.main._check_database_and_rls", return_value=("connected", "active")),
+        patch("app.main._check_cache_readiness", new=AsyncMock(return_value="connected")),
+        patch("app.main._check_storage_readiness", new=AsyncMock(return_value="unreachable")),
+    ):
+        response = client.get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.json()["components"]["storage"] == "unreachable"
+
+
 def test_root_returns_200():
     """L'endpoint racine doit retourner 200."""
     response = client.get("/")

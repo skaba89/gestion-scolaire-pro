@@ -585,17 +585,41 @@ async def _check_cache_readiness() -> str:
         return "unreachable"
 
 
+async def _check_storage_readiness() -> str:
+    """MinIO readiness — reports "disabled" (not a failure) when the app is
+    deliberately running on the local-disk fallback (see app/core/storage.py),
+    so a dev/staging environment without MinIO configured doesn't report
+    unhealthy for a component it isn't even using.
+    """
+    try:
+        from app.core.storage import storage_client
+
+        minio = storage_client._minio
+        if not minio.enabled:
+            return "disabled"
+        return await asyncio.wait_for(
+            asyncio.to_thread(minio.client.bucket_exists, minio.bucket_name),
+            timeout=2.0,
+        ) and "connected" or "unreachable"
+    except Exception as exc:
+        logger.warning("Readiness MinIO check failed: %s", exc)
+        return "unreachable"
+
+
 def _readiness_is_healthy(
     *,
     database: str,
     cache: str,
     rls: str,
+    storage: str,
     is_sqlite: bool,
 ) -> bool:
     if database != "connected":
         return False
     if is_sqlite:
         return True
+    if storage == "unreachable":
+        return False
     return cache == "connected" and rls == "active"
 
 
@@ -614,10 +638,12 @@ async def readiness_check():
     """Require every production-critical dependency before receiving traffic."""
     db_status, rls_status = await asyncio.to_thread(_check_database_and_rls)
     redis_status = await _check_cache_readiness()
+    storage_status = await _check_storage_readiness()
     healthy = _readiness_is_healthy(
         database=db_status,
         cache=redis_status,
         rls=rls_status,
+        storage=storage_status,
         is_sqlite=settings.is_sqlite,
     )
 
@@ -631,6 +657,7 @@ async def readiness_check():
                 "database": db_status,
                 "cache": redis_status,
                 "rls": rls_status,
+                "storage": storage_status,
             },
         },
     )
