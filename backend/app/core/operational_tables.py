@@ -642,6 +642,10 @@ _DDL = [
     )""",
     """CREATE INDEX IF NOT EXISTS ix_appointments_tenant_id ON appointments(tenant_id)""",
     """CREATE INDEX IF NOT EXISTS ix_appointments_parent_id ON appointments(parent_id)""",
+    # Composite for list_teacher_appointments()'s ORDER BY appointment_date —
+    # runtime-only table, see the incidents comment above for why this lives
+    # here rather than in the 20260724_0001 migration.
+    """CREATE INDEX IF NOT EXISTS ix_appointments_tenant_date ON appointments (tenant_id, appointment_date)""",
 
     # ── Check-In Sessions ──────────────────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS check_in_sessions (
@@ -975,6 +979,12 @@ _DDL = [
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolution TEXT""",
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS action_taken TEXT""",
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS notes TEXT""",
+    # Composite (tenant_id, occurred_at) for list_incidents()'s
+    # WHERE tenant_id = :tid ORDER BY occurred_at DESC LIMIT :limit — this
+    # table only exists at runtime (created above, not by an Alembic
+    # migration), so 20260724_0001's migration-time creation attempt is a
+    # no-op for it; added here instead so it's never missing.
+    """CREATE INDEX IF NOT EXISTS ix_incidents_tenant_occurred ON incidents (tenant_id, occurred_at)""",
     # ── Membres de département (portail département) ──────────────────────────
     """CREATE TABLE IF NOT EXISTS department_members (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
