@@ -231,3 +231,65 @@ class TestActiveSessionsAtLogin:
         for i in range(5):
             fresh = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
             assert fresh.status_code == 200, f"login #{i+1} after logout-all failed: {fresh.text}"
+
+
+# ─── National audit Phase 1 — logout-all must actually invalidate old tokens ─
+#
+# Found during the national-scale security audit: blacklist_all_user_tokens()
+# bumps sfp:user_token_version:{user_id} in Redis, but validate_token_version()
+# — the only function that reads that counter back — was defined and never
+# called anywhere. /auth/logout-all/ therefore only cleared the active-session
+# tracking set (proven by the tests above); it did NOT invalidate any token
+# already issued. Fixed by wiring validate_token_version() into
+# get_current_user() (all authenticated routes) and into /auth/refresh/
+# (before minting a replacement token).
+class TestLogoutAllInvalidatesOldTokens:
+    def test_old_token_rejected_after_logout_all(self):
+        """A token obtained BEFORE logout-all must stop working on an
+        ordinary authenticated route afterwards — this is the actual bug:
+        previously it kept working until its natural 30-minute expiry."""
+        email = _fresh_super_admin()
+        old_token = _login(email)["access_token"]
+        headers = {"Authorization": f"Bearer {old_token}"}
+
+        # Works before logout-all.
+        before = client.get(ME_URL, headers=headers)
+        assert before.status_code == 200, before.text
+
+        # A second, unrelated session calls logout-all.
+        other_token = _login(email)["access_token"]
+        resp = client.post(LOGOUT_ALL_URL, headers={"Authorization": f"Bearer {other_token}"})
+        assert resp.status_code == 200, resp.text
+
+        # The OLD token (issued before logout-all) must now be rejected.
+        after = client.get(ME_URL, headers=headers)
+        assert after.status_code == 401, after.text
+
+    def test_old_token_cannot_refresh_after_logout_all(self):
+        """A stale token must not be able to mint itself a fresh, valid
+        token via /auth/refresh/ — previously refresh only re-stamped the
+        NEW token with the current version without checking the OLD one,
+        so a logged-out-all token could refresh its way back to validity."""
+        email = _fresh_super_admin()
+        old_token = _login(email)["access_token"]
+
+        other_token = _login(email)["access_token"]
+        resp = client.post(LOGOUT_ALL_URL, headers={"Authorization": f"Bearer {other_token}"})
+        assert resp.status_code == 200, resp.text
+
+        refresh_resp = client.post(REFRESH_URL, headers={"Authorization": f"Bearer {old_token}"})
+        assert refresh_resp.status_code == 401, refresh_resp.text
+
+    def test_fresh_login_after_logout_all_still_works(self):
+        """logout-all must not lock the user out permanently: a brand-new
+        login (which stamps the token with the current Redis version)
+        must succeed and remain usable."""
+        email = _fresh_super_admin()
+        first_token = _login(email)["access_token"]
+
+        resp = client.post(LOGOUT_ALL_URL, headers={"Authorization": f"Bearer {first_token}"})
+        assert resp.status_code == 200, resp.text
+
+        new_token = _login(email)["access_token"]
+        me_resp = client.get(ME_URL, headers={"Authorization": f"Bearer {new_token}"})
+        assert me_resp.status_code == 200, me_resp.text

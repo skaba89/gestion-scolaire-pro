@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, get_current_user, require_permission, verify_password, verify_token_raw
+from app.core.security import create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
 from app.models.user import User
 from app.models.user_role import UserRole
 
@@ -407,6 +407,12 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
             detail="Token has been revoked",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # SECURITY: Reject refresh for a token invalidated by logout-all. Without
+    # this, a token whose version was bumped stale by /auth/logout-all/ could
+    # still refresh itself into a brand-new, fully valid token — silently
+    # undoing the logout-all instead of being rejected by it.
+    await validate_token_version(user_id, payload.get("tv", 0))
 
     # 3. Verify user still exists and is active
     from app.models.user import User

@@ -405,12 +405,28 @@ async def impersonate_tenant(
 
     from app.core.security import create_access_token
 
+    # SECURITY: Embed the impersonated admin's current token version, exactly
+    # like /auth/login/ does. Without this the token defaults to tv=0, which
+    # validate_token_version() now rejects as a "legacy" token for any admin
+    # who has ever called logout-all — this would have broken impersonation
+    # for every such tenant admin the moment the logout-all fix landed.
+    impersonation_token_version = 0
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        version_str = await client.get(f"sfp:user_token_version:{admin_user.id}")
+        if version_str:
+            impersonation_token_version = int(version_str)
+    except Exception:
+        pass
+
     token = create_access_token(
         data={
             "sub": str(admin_user.id),
             "roles": ["TENANT_ADMIN"],
             "tenant_id": str(tenant_id),
             "impersonated_by": current_admin["id"],
+            "tv": impersonation_token_version,
         },
         expires_delta=timedelta(minutes=15),
     )

@@ -157,6 +157,15 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+    # SECURITY: Enforce logout-all. blacklist_all_user_tokens() only bumps
+    # sfp:user_token_version:{user_id} in Redis — nothing previously read it
+    # back on the request path, so /auth/logout-all/ silently did nothing:
+    # every token issued before the call stayed valid until its natural
+    # ACCESS_TOKEN_EXPIRE_MINUTES expiry. validate_token_version() existed
+    # but was dead code (defined, never invoked). Wiring it in here mirrors
+    # the blacklist check above and covers every authenticated route.
+    await validate_token_version(user_id, token.get("tv", 0))
+
     with SessionLocal() as db:
         # SECURITY: Reset RLS context on this independent session to prevent
         # connection pool leaks. Without this, the query could be filtered by
