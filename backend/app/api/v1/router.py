@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise
+from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise, ministry
 from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys
@@ -43,6 +43,7 @@ api_router.include_router(health.router, prefix="/health", tags=["Health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
+api_router.include_router(ministry.router, prefix="/ministry", tags=["Ministry (National Supervision)"])
 api_router.include_router(rgpd.router, prefix="/rgpd", tags=["RGPD"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit Logs"])

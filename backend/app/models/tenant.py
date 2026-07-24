@@ -37,7 +37,15 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     secretary_name = Column(String(255))
     secretary_signature_url = Column(String(500))
     city = Column(String(255))
-    
+    # National audit Phase 2: minimal geographic grouping above the tenant
+    # itself, so a future ministry dashboard can aggregate by region without
+    # needing the full Pays/Préfecture/Commune/Académie hierarchy — added
+    # progressively per the audit's own rule against a one-shot RBAC/model
+    # overhaul. Free text (not an enum/FK) deliberately: each country's
+    # administrative regions differ, and validating against a fixed list
+    # would block onboarding for the very first non-Guinea tenant.
+    region = Column(String(100), nullable=True, index=True)
+
     # Relationships
     users = relationship("User", back_populates="tenant")
     students = relationship("Student", back_populates="tenant")

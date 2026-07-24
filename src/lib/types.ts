@@ -11,7 +11,12 @@ export type AppRole =
   | "ACCOUNTANT"
   | "STAFF"
   | "SECRETARY"
-  | "ALUMNI";
+  | "ALUMNI"
+  // National audit Phase 2 — first institutional role above TENANT_ADMIN,
+  // platform-level (no tenant_id), read-only cross-tenant AGGREGATE counts
+  // only (see backend/app/api/v1/endpoints/core/ministry.py). No dedicated
+  // UI page yet — deferred to Phase 7 (module ministère).
+  | "MINISTRY_ADMIN";
 
 export type AdmissionStatus =
   | "DRAFT"

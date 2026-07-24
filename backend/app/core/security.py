@@ -385,6 +385,14 @@ ROLE_PERMISSIONS: dict = {
                   "enrollments:read", "enrollments:write",
                   "certificates:read", "certificates:write",
                   "inventory:read", "inventory:write"],
+    # National audit Phase 2 — first institutional role above TENANT_ADMIN.
+    # Deliberately narrow: a single permission for cross-tenant AGGREGATE
+    # counts only (app/api/v1/endpoints/core/ministry.py). MINISTRY_ADMIN
+    # never gets "*" or per-tenant permissions like students:read — it must
+    # never be able to read one establishment's actual student/financial
+    # records, only how many establishments/students exist per region/type.
+    # Platform-level like SUPER_ADMIN (tenant_id NULL on its UserRole row).
+    "MINISTRY_ADMIN": ["ministry:read"],
 }
 
 def require_permission(permission: str):
