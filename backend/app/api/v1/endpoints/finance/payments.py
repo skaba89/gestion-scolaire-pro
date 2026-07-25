@@ -1,4 +1,5 @@
 """Payment, Invoice and Fees endpoints"""
+import base64
 import json
 import logging
 from typing import Optional, List, Any
@@ -125,6 +126,83 @@ def list_payments(
 
     return {"items": items, "total": int(total or 0), "page": page, "page_size": page_size,
             "pages": math.ceil(float(total or 0) / page_size) if total and total > 0 else 1}
+
+
+def _receipt_html(*, tenant_name: str, receipt_number: str, student_name: str,
+                   registration_number: str, amount: float, currency: str,
+                   payment_date: str, method: str, status_label: str, reversed_notes: str = "") -> str:
+    """Minimal, print-friendly HTML receipt — same base64-encoded-HTML
+    pattern already used for bulletins (school_life.py:generate-report-
+    card/v2/), so the frontend can reuse the exact same "open + browser
+    print-to-PDF" flow instead of introducing a new PDF rendering path."""
+    esc = lambda s: (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    reversed_block = (
+        f'<p style="color:#b91c1c;font-weight:bold;">Paiement annulé — {esc(reversed_notes)}</p>'
+        if status_label == "REVERSED" else ""
+    )
+    return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<title>Reçu {esc(receipt_number)}</title>
+<style>
+body {{ font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; color: #1f2937; }}
+h1 {{ font-size: 20px; border-bottom: 2px solid #1f2937; padding-bottom: 8px; }}
+table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
+td {{ padding: 6px 0; }}
+td:first-child {{ color: #6b7280; width: 40%; }}
+.amount {{ font-size: 24px; font-weight: bold; margin-top: 16px; }}
+</style></head><body>
+<h1>{esc(tenant_name)}</h1>
+<p>Reçu de paiement N° <strong>{esc(receipt_number)}</strong></p>
+{reversed_block}
+<table>
+<tr><td>Élève / Étudiant</td><td>{esc(student_name)}</td></tr>
+<tr><td>N° d'inscription</td><td>{esc(registration_number)}</td></tr>
+<tr><td>Date</td><td>{esc(payment_date)}</td></tr>
+<tr><td>Mode de paiement</td><td>{esc(method)}</td></tr>
+<tr><td>Statut</td><td>{esc(status_label)}</td></tr>
+</table>
+<p class="amount">{amount:,.0f} {esc(currency)}</p>
+</body></html>"""
+
+
+@router.get("/{payment_id}/receipt/")
+def get_payment_receipt(
+    payment_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("payments:read")),
+):
+    """Reçu de paiement numéroté (numéro = la référence unique déjà générée
+    à l'enregistrement du paiement — voir reference dans register_payment).
+    Retourne du HTML encodé en base64, même format que les bulletins, pour
+    que le frontend imprime en PDF via la même mécanique déjà en place."""
+    tenant_id = _get_tenant_id(current_user)
+
+    row = db.execute(text("""
+        SELECT p.reference, p.amount, p.currency, p.payment_date, p.payment_method, p.status, p.notes,
+               s.first_name, s.last_name, s.registration_number,
+               t.name AS tenant_name
+        FROM payments p
+        LEFT JOIN students s ON p.student_id = s.id
+        LEFT JOIN tenants t ON p.tenant_id = t.id
+        WHERE p.id = :pid AND p.tenant_id = :tid
+    """), {"pid": payment_id, "tid": tenant_id}).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Paiement introuvable")
+
+    html_content = _receipt_html(
+        tenant_name=row["tenant_name"] or "",
+        receipt_number=row["reference"] or payment_id,
+        student_name=f"{row['first_name'] or ''} {row['last_name'] or ''}".strip(),
+        registration_number=row["registration_number"] or "",
+        amount=float(row["amount"] or 0),
+        currency=row["currency"] or "GNF",
+        payment_date=row["payment_date"].isoformat() if row["payment_date"] else "",
+        method=row["payment_method"] or "",
+        status_label=row["status"] or "",
+        reversed_notes=row["notes"] or "",
+    )
+    encoded = base64.b64encode(html_content.encode("utf-8")).decode("ascii")
+    return {"html": encoded, "format": "html", "receipt_number": row["reference"] or payment_id}
 
 
 @router.post("/register/", status_code=status.HTTP_201_CREATED)
