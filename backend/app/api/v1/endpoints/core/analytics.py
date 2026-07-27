@@ -635,8 +635,6 @@ def get_dashboard_kpis(
             "collectionRate": round(collection_rate, 2),
             "attendanceRate": round(attendance_rate, 2),
             "avgGrade": round(avg_grade, 1),
-            "activeCourses": 0, # Placeholder
-            "colleaguesCount": 0 # Placeholder
         }
     except Exception as e:
         # SECURITY (Phase 4, commercialisation): returning all-zero KPIs on
@@ -655,8 +653,6 @@ def get_dashboard_kpis(
             "collectionRate": 0,
             "attendanceRate": 0,
             "avgGrade": 0,
-            "activeCourses": 0,
-            "colleaguesCount": 0,
             "degraded": True,
         }
 
