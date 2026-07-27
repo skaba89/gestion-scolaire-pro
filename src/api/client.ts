@@ -174,9 +174,23 @@ apiClient.interceptors.response.use(
       _retryCount?: number;
     };
 
-    // Retry automatique sur erreurs serveur transitoires (502, 503, 504)
+    // Retry automatique sur erreurs serveur transitoires (502, 503, 504) ET
+    // sur coupures réseau pures (pas de réponse du tout — le cas le plus
+    // fréquent en connexion mobile instable en Guinée, distinct d'un 5xx).
+    // Limité aux GET : une requête de mutation (POST/PUT/PATCH/DELETE) dont
+    // la RÉPONSE s'est perdue en route a pu quand même s'exécuter côté
+    // serveur — la rejouer risquerait un paiement ou une inscription en
+    // double. Les GET sont sans effet de bord, donc sûrs à rejouer.
     const httpStatus = error.response?.status;
-    if (httpStatus && RETRYABLE_STATUS_CODES.includes(httpStatus) && originalRequest) {
+    const isNetworkError = !error.response && (
+      error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' || error.message === 'Network Error'
+    );
+    const requestMethod = originalRequest?.method?.toUpperCase();
+    const shouldRetry =
+      (httpStatus && RETRYABLE_STATUS_CODES.includes(httpStatus)) ||
+      (isNetworkError && requestMethod === 'GET');
+
+    if (shouldRetry && originalRequest) {
       const retryCount = originalRequest._retryCount ?? 0;
       if (retryCount < MAX_AUTO_RETRIES) {
         originalRequest._retryCount = retryCount + 1;
