@@ -1,6 +1,8 @@
 """Tests pour l'endpoint d'import CSV d'étudiants."""
 import io
 import csv
+import uuid
+
 import pytest
 from conftest import get_test_client
 
@@ -130,3 +132,70 @@ class TestRegistrationGenerator:
         num = _generate_registration("t", existing)
         assert num not in previous
         assert num in existing
+
+
+# ─── Confirm import — audit trail (Phase 2, commercialisation) ──────────────
+#
+# The import endpoint mutates real student data (potentially hundreds of
+# rows) but had no audit log call at all — no way to answer "who imported
+# these students, and when" after the fact. This proves the fix, on a real
+# Postgres-backed tenant since confirm_student_import's INSERT uses
+# gen_random_uuid() (Postgres-only).
+
+from app.core.database import SessionLocal, engine  # noqa: E402
+from app.core.security import create_access_token, get_current_user  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models.audit_log import AuditLog  # noqa: E402
+from app.models.tenant import Tenant  # noqa: E402
+
+pytestmark = pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="confirm_student_import uses gen_random_uuid() (Postgres-only).",
+)
+
+
+def _make_pro_tenant() -> str:
+    tenant_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.add(Tenant(
+            id=tenant_id, name="École Import Audit Test", slug=f"import-audit-{tenant_id[:8]}",
+            type="primary", country="GN", is_active=True, settings={},
+            subscription_plan="pro", subscription_status="trialing",
+        ))
+        db.commit()
+    return tenant_id
+
+
+def _as(user: dict) -> dict:
+    app.dependency_overrides[get_current_user] = lambda: user
+    token = create_access_token({"sub": user["id"], "tenant_id": user.get("tenant_id"), "roles": user.get("roles", [])})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(autouse=True)
+def _clear_import_overrides():
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
+
+
+class TestConfirmImportAuditLog:
+    def test_confirm_import_writes_audit_log(self):
+        tenant_id = _make_pro_tenant()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        csv_bytes = _make_csv([VALID_ROW])
+
+        resp = client.post(
+            "/api/v1/import/students/confirm/",
+            files={"file": ("students.csv", io.BytesIO(csv_bytes), "text/csv")},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["created"] == 1
+
+        with SessionLocal() as db:
+            entry = db.query(AuditLog).filter(
+                AuditLog.tenant_id == tenant_id, AuditLog.action == "IMPORT_STUDENTS",
+            ).first()
+            assert entry is not None
+            assert entry.details.get("created") == 1
+            assert entry.details.get("filename") == "students.csv"

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, require_plan
+from app.utils.audit import log_audit
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -320,6 +321,16 @@ async def confirm_student_import(
             logger.warning("Import row %s error: %s", i, exc)
             error_rows.append({"row": i, "error": str(exc), "data": dict(row)})
             skipped += 1
+
+    # SECURITY (Phase 2, commercialisation): imports were creating/modifying
+    # student data with zero audit trail — no way to answer "who imported
+    # these 200 students, and when" after the fact. Logged before commit,
+    # same pattern as every other data-mutating endpoint in this codebase.
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=tenant_id,
+        action="IMPORT_STUDENTS", resource_type="STUDENT",
+        details={"created": created, "skipped": skipped, "total": len(rows), "filename": file.filename},
+    )
 
     try:
         db.commit()
