@@ -166,6 +166,33 @@ def test_men_guinea_rapport_resolves_current_tenant():
         app.dependency_overrides.pop(get_current_user, None)
 
 
+def test_men_guinea_settings_endpoint_not_shadowed_by_tenant_id_route():
+    """Régression : GET/PATCH /tenants/men-guinea/ (un seul segment) était
+    enregistré APRES GET/PATCH /tenants/{tenant_id}/ dans le fichier, or
+    FastAPI matche les routes dans l'ordre d'enregistrement. "men-guinea"
+    matchait donc le pattern {tenant_id} en premier, échouait la validation
+    UUID, et renvoyait 422 au lieu d'atteindre le vrai handler -- trouvé en
+    rejouant le dashboard ministère en navigateur (jamais couvert par un
+    test, car /rapport/ a deux segments et ne collisionne pas)."""
+    tenant_id = _make_tenant("Ecole MEN Settings")
+    admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(admin).get("/api/v1/tenants/men-guinea/", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert "_compliance_score" in resp.json()
+
+        resp = _as(admin).patch(
+            "/api/v1/tenants/men-guinea/",
+            json={"region_academique": "Conakry"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["region_academique"] == "Conakry"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
 def test_full_onboarding_cycle_still_works_for_tenant_admin():
     """End-to-end regression: levels -> subjects -> complete, all via
     resolve_current_tenant_id, must still succeed for a normal TENANT_ADMIN.

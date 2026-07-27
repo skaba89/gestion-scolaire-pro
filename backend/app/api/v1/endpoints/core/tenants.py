@@ -1044,182 +1044,15 @@ async def delete_tenant(
     return {"detail": "Établissement supprimé définitivement"}
 
 
-@router.get("/{tenant_id}/", response_model=TenantResponse)
-async def get_tenant(
-    tenant_id: UUID,  # Enforce UUID type to avoid matching static routes like "settings"
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Fetch specific tenant details.
-
-    TENANT_ADMIN (and other non-super roles) may only read their own tenant.
-    SUPER_ADMIN can read any tenant. Mirrors the same check already enforced
-    in update_tenant below.
-    """
-    roles = current_user.get("roles", [])
-    is_super_admin = "SUPER_ADMIN" in roles
-    caller_tenant_id = str(current_user.get("tenant_id") or "")
-    if not is_super_admin and caller_tenant_id != str(tenant_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez consulter que votre propre établissement.",
-        )
-
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-    return tenant
-
-
-@router.patch("/{tenant_id}/", response_model=TenantResponse)
-async def update_tenant(
-    tenant_id: UUID,
-    tenant_updates: Dict[str, Any],
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write"))
-):
-    """Update general tenant fields (name, type, contact info, etc.).
-
-    TENANT_ADMIN can update their own tenant only.
-    SUPER_ADMIN can update any tenant (and may also set is_active).
-    """
-    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    is_super_admin = "SUPER_ADMIN" in current_user.get("roles", [])
-
-    # TENANT_ADMIN may only update their own tenant
-    if not is_super_admin:
-        caller_tenant_id = str(current_user.get("tenant_id") or "")
-        if caller_tenant_id != str(tenant_id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Vous ne pouvez modifier que votre propre établissement.",
-            )
-
-    # SUPER_ADMIN may also toggle is_active; TENANT_ADMIN may not
-    ALLOWED_FIELDS_ADMIN = {
-        # Basic identity
-        "name", "official_name", "type",
-        # Contact
-        "email", "phone", "address", "website", "city", "country",
-        # Locale
-        "currency", "timezone",
-        # Branding
-        "logo_url", "favicon_url",
-        # Signatures (used by SignatureSettings)
-        "director_name", "director_signature_url",
-        "secretary_name", "secretary_signature_url",
-        # Generic settings JSON column (used by many settings components)
-        "settings",
-    }
-    ALLOWED_FIELDS_SUPER = ALLOWED_FIELDS_ADMIN | {"is_active", "slug"}
-    allowed = ALLOWED_FIELDS_SUPER if is_super_admin else ALLOWED_FIELDS_ADMIN
-
-    unknown_fields = set(tenant_updates.keys()) - allowed
-    if unknown_fields:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Fields not allowed: {', '.join(sorted(unknown_fields))}"
-        )
-
-    for key, value in tenant_updates.items():
-        setattr(tenant, key, value)
-
-    # JSON columns need flag_modified for SQLAlchemy to detect changes
-    if "settings" in tenant_updates:
-        flag_modified(tenant, "settings")
-
-    tenant.updated_at = datetime.now()
-    db.commit()
-    db.refresh(tenant)
-
-    log_audit(
-        db,
-        user_id=current_user.get("id"),
-        tenant_id=tenant_id,
-        action="UPDATE_TENANT",
-        resource_type="TENANT",
-        resource_id=tenant_id,
-        details=tenant_updates
-    )
-
-    return tenant
-
-@router.post("/onboarding/levels/")
-async def setup_tenant_levels(
-    levels_in: List[str],
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("levels:write"))
-):
-    """Batch create levels during onboarding."""
-    tid_uuid = resolve_current_tenant_id(request, current_user, db)
-    tenant_id = str(tid_uuid)
-
-    # Clean existing levels if any
-    db.execute(text("DELETE FROM levels WHERE tenant_id = :tid"), {"tid": tenant_id})
-    
-    for i, name in enumerate(levels_in):
-        level = Level(tenant_id=tenant_id, name=name, order_index=i+1)
-        db.add(level)
-    
-    db.commit()
-    return {"message": f"{len(levels_in)} levels created"}
-
-@router.post("/onboarding/subjects/")
-async def setup_tenant_subjects(
-    subjects_in: List[Dict[str, Any]],
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("subjects:write"))
-):
-    """Batch create subjects during onboarding."""
-    tid_uuid = resolve_current_tenant_id(request, current_user, db)
-    tenant_id = str(tid_uuid)
-
-    db.execute(text("DELETE FROM subjects WHERE tenant_id = :tid"), {"tid": tenant_id})
-    
-    for sub in subjects_in:
-        subject = Subject(
-            tenant_id=tenant_id,
-            name=sub["name"],
-            code=sub.get("code", sub["name"][:3].upper()),
-            coefficient=sub.get("coefficient", 1)
-        )
-        db.add(subject)
-        
-    db.commit()
-    return {"message": f"{len(subjects_in)} subjects created"}
-
-@router.patch("/onboarding/complete/")
-async def complete_onboarding(
-    data: Dict[str, Any],
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write"))
-):
-    """Complete onboarding with signature and director name."""
-    tid_uuid = resolve_current_tenant_id(request, current_user, db)
-    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-
-    current_settings = tenant.settings or {}
-    current_settings["director_name"] = data.get("director_name")
-    current_settings["signature_url"] = data.get("signature_url")
-    
-    # Update settings
-    current_settings["onboarding_completed"] = True
-    current_settings["onboarding_step"] = 4
-    
-    tenant.settings = current_settings
-    flag_modified(tenant, 'settings')
-    
-    db.commit()
-    return {"message": "Onboarding completed successfully"}
 # ─────────────────────────────────────────────────────────────────────────────
 # MEN Guinée — Conformité administrative
 # Fields stored in tenant.settings["men_guinea"] (no migration needed)
+#
+# Registered BEFORE /{tenant_id}/ below: FastAPI/Starlette matches routes in
+# registration order, and a single path segment like "men-guinea" matches the
+# `/{tenant_id}/` pattern too — if that route were registered first it would
+# claim the request and 422 (UUID validation failure) before this literal
+# route ever got a chance to run.
 # ─────────────────────────────────────────────────────────────────────────────
 
 MEN_GUINEA_FIELDS = [
@@ -1417,6 +1250,181 @@ async def get_men_guinea_rapport(
         "date_rapport": datetime.now().strftime("%d/%m/%Y"),
         "heure_rapport": datetime.now().strftime("%H:%M"),
     }
+
+
+@router.get("/{tenant_id}/", response_model=TenantResponse)
+async def get_tenant(
+    tenant_id: UUID,  # Enforce UUID type to avoid matching static routes like "settings"
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Fetch specific tenant details.
+
+    TENANT_ADMIN (and other non-super roles) may only read their own tenant.
+    SUPER_ADMIN can read any tenant. Mirrors the same check already enforced
+    in update_tenant below.
+    """
+    roles = current_user.get("roles", [])
+    is_super_admin = "SUPER_ADMIN" in roles
+    caller_tenant_id = str(current_user.get("tenant_id") or "")
+    if not is_super_admin and caller_tenant_id != str(tenant_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vous ne pouvez consulter que votre propre établissement.",
+        )
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    return tenant
+
+
+@router.patch("/{tenant_id}/", response_model=TenantResponse)
+async def update_tenant(
+    tenant_id: UUID,
+    tenant_updates: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write"))
+):
+    """Update general tenant fields (name, type, contact info, etc.).
+
+    TENANT_ADMIN can update their own tenant only.
+    SUPER_ADMIN can update any tenant (and may also set is_active).
+    """
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    is_super_admin = "SUPER_ADMIN" in current_user.get("roles", [])
+
+    # TENANT_ADMIN may only update their own tenant
+    if not is_super_admin:
+        caller_tenant_id = str(current_user.get("tenant_id") or "")
+        if caller_tenant_id != str(tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous ne pouvez modifier que votre propre établissement.",
+            )
+
+    # SUPER_ADMIN may also toggle is_active; TENANT_ADMIN may not
+    ALLOWED_FIELDS_ADMIN = {
+        # Basic identity
+        "name", "official_name", "type",
+        # Contact
+        "email", "phone", "address", "website", "city", "country",
+        # Locale
+        "currency", "timezone",
+        # Branding
+        "logo_url", "favicon_url",
+        # Signatures (used by SignatureSettings)
+        "director_name", "director_signature_url",
+        "secretary_name", "secretary_signature_url",
+        # Generic settings JSON column (used by many settings components)
+        "settings",
+    }
+    ALLOWED_FIELDS_SUPER = ALLOWED_FIELDS_ADMIN | {"is_active", "slug"}
+    allowed = ALLOWED_FIELDS_SUPER if is_super_admin else ALLOWED_FIELDS_ADMIN
+
+    unknown_fields = set(tenant_updates.keys()) - allowed
+    if unknown_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Fields not allowed: {', '.join(sorted(unknown_fields))}"
+        )
+
+    for key, value in tenant_updates.items():
+        setattr(tenant, key, value)
+
+    # JSON columns need flag_modified for SQLAlchemy to detect changes
+    if "settings" in tenant_updates:
+        flag_modified(tenant, "settings")
+
+    tenant.updated_at = datetime.now()
+    db.commit()
+    db.refresh(tenant)
+
+    log_audit(
+        db,
+        user_id=current_user.get("id"),
+        tenant_id=tenant_id,
+        action="UPDATE_TENANT",
+        resource_type="TENANT",
+        resource_id=tenant_id,
+        details=tenant_updates
+    )
+
+    return tenant
+
+@router.post("/onboarding/levels/")
+async def setup_tenant_levels(
+    levels_in: List[str],
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("levels:write"))
+):
+    """Batch create levels during onboarding."""
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = str(tid_uuid)
+
+    # Clean existing levels if any
+    db.execute(text("DELETE FROM levels WHERE tenant_id = :tid"), {"tid": tenant_id})
+    
+    for i, name in enumerate(levels_in):
+        level = Level(tenant_id=tenant_id, name=name, order_index=i+1)
+        db.add(level)
+    
+    db.commit()
+    return {"message": f"{len(levels_in)} levels created"}
+
+@router.post("/onboarding/subjects/")
+async def setup_tenant_subjects(
+    subjects_in: List[Dict[str, Any]],
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("subjects:write"))
+):
+    """Batch create subjects during onboarding."""
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = str(tid_uuid)
+
+    db.execute(text("DELETE FROM subjects WHERE tenant_id = :tid"), {"tid": tenant_id})
+    
+    for sub in subjects_in:
+        subject = Subject(
+            tenant_id=tenant_id,
+            name=sub["name"],
+            code=sub.get("code", sub["name"][:3].upper()),
+            coefficient=sub.get("coefficient", 1)
+        )
+        db.add(subject)
+        
+    db.commit()
+    return {"message": f"{len(subjects_in)} subjects created"}
+
+@router.patch("/onboarding/complete/")
+async def complete_onboarding(
+    data: Dict[str, Any],
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write"))
+):
+    """Complete onboarding with signature and director name."""
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
+
+    current_settings = tenant.settings or {}
+    current_settings["director_name"] = data.get("director_name")
+    current_settings["signature_url"] = data.get("signature_url")
+    
+    # Update settings
+    current_settings["onboarding_completed"] = True
+    current_settings["onboarding_step"] = 4
+    
+    tenant.settings = current_settings
+    flag_modified(tenant, 'settings')
+    
+    db.commit()
+    return {"message": "Onboarding completed successfully"}
 
 
 @router.get("/slug/{slug}/levels/", response_model=List[dict])
