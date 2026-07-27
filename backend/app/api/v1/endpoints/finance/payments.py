@@ -1,9 +1,12 @@
 """Payment, Invoice and Fees endpoints"""
 import base64
+import csv
+import io
 import json
 import logging
 from typing import Optional, List, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -126,6 +129,69 @@ def list_payments(
 
     return {"items": items, "total": int(total or 0), "page": page, "page_size": page_size,
             "pages": math.ceil(float(total or 0) / page_size) if total and total > 0 else 1}
+
+
+@router.get("/export/")
+def export_payments_csv(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("payments:read")),
+    student_id: Optional[str] = None,
+    status_filter: Optional[str] = Query(None, alias="status"),
+):
+    """Export CSV des paiements — Phase 1 (commercialisation), pièce
+    explicitement demandée par l'audit et absente jusqu'ici (seuls les
+    agrégats /analytics/ étaient exportables, jamais la liste brute des
+    paiements). Même filtre tenant_id que list_payments/register_payment ;
+    aucune limite de page ici par construction (c'est un export), mais
+    borné à 5000 lignes pour éviter un export incontrôlé sur un tenant à
+    très fort volume — au-delà, recommander un export par période.
+    """
+    tenant_id = _get_tenant_id(current_user)
+    params: dict = {"tenant_id": tenant_id}
+    extra = ""
+    if student_id:
+        extra += " AND p.student_id = :student_id"
+        params["student_id"] = student_id
+    if status_filter:
+        extra += " AND p.status = :status_filter"
+        params["status_filter"] = status_filter
+
+    rows = db.execute(text(f"""
+        SELECT p.reference, p.payment_date, p.amount, p.currency, p.payment_method, p.status,
+               s.first_name, s.last_name, s.registration_number, i.invoice_number
+        FROM payments p
+        LEFT JOIN students s ON p.student_id = s.id
+        LEFT JOIN invoices i ON p.invoice_id = i.id
+        WHERE p.tenant_id = :tenant_id {extra}
+        ORDER BY p.payment_date DESC
+        LIMIT 5000
+    """), params).fetchall()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["reference", "date", "eleve", "matricule", "facture", "montant", "devise", "mode", "statut"])
+    for r in rows:
+        writer.writerow([
+            r.reference or "", r.payment_date.isoformat() if r.payment_date else "",
+            f"{r.first_name or ''} {r.last_name or ''}".strip(), r.registration_number or "",
+            r.invoice_number or "", r.amount, r.currency or "GNF", r.payment_method, r.status,
+        ])
+    buffer.seek(0)
+    content = "﻿" + buffer.getvalue()  # BOM for Excel UTF-8 compatibility
+
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=tenant_id,
+        action="EXPORT_PAYMENTS", resource_type="PAYMENT",
+        details={"count": len(rows), "student_id": student_id, "status": status_filter},
+    )
+    db.commit()
+
+    date_str = datetime.now().strftime("%Y%m%d")
+    return StreamingResponse(
+        iter([content.encode("utf-8-sig")]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="paiements_{date_str}.csv"'},
+    )
 
 
 def _receipt_html(*, tenant_name: str, receipt_number: str, student_name: str,

@@ -139,3 +139,53 @@ class TestPaymentReceipt:
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
         resp = client.get(f"/api/v1/payments/{uuid.uuid4()}/receipt/", headers=headers)
         assert resp.status_code == 404, resp.text
+
+
+class TestPaymentsExport:
+    """GET /payments/export/ — Phase 1 commercialisation (national audit) :
+    seuls les agrégats /analytics/ étaient exportables avant ce commit,
+    jamais la liste brute des paiements — une école demande souvent un
+    export brut pour son comptable, pas seulement des KPI agrégés."""
+
+    def test_export_returns_csv_with_expected_row(self):
+        ctx = _build_payment()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get("/api/v1/payments/export/", headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("text/csv")
+        assert "attachment" in resp.headers.get("content-disposition", "")
+
+        body = resp.text
+        assert "reference,date,eleve" in body
+        assert "Ibrahima Sow" in body
+        assert "250000.0" in body or "250000" in body
+
+    def test_export_requires_payments_read_permission(self):
+        ctx = _build_payment()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get("/api/v1/payments/export/", headers=headers)
+        assert resp.status_code == 403, resp.text
+
+    def test_export_never_leaks_another_tenants_payments(self):
+        ctx_a = _build_payment(tenant_name="École Export A")
+        ctx_b = _build_payment(tenant_name="École Export B")
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx_a["tenant_id"]})
+        resp = client.get("/api/v1/payments/export/", headers=headers)
+        assert resp.status_code == 200, resp.text
+
+        with SessionLocal() as db:
+            other_payment = db.query(Payment).filter(Payment.id == ctx_b["payment_id"]).first()
+            assert other_payment.reference not in resp.text
+
+    def test_export_filters_by_status(self):
+        ctx = _build_payment(status=PaymentStatus.REVERSED)
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get("/api/v1/payments/export/", params={"status": "COMPLETED"}, headers=headers)
+        assert resp.status_code == 200, resp.text
+        with SessionLocal() as db:
+            payment = db.query(Payment).filter(Payment.id == ctx["payment_id"]).first()
+            assert payment.reference not in resp.text  # REVERSED, filtered out by status=COMPLETED
