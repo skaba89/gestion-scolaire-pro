@@ -36,17 +36,39 @@ from app.models.tenant import Tenant
 router = APIRouter()
 
 
-def _compute_overview(db: Session) -> dict:
-    total = db.query(func.count(Tenant.id)).scalar() or 0
-    active = db.query(func.count(Tenant.id)).filter(Tenant.is_active.is_(True)).scalar() or 0
+def _regional_director_region(db: Session, current_user: dict) -> str | None:
+    """REGIONAL_DIRECTOR is not platform-level — their own tenant_id is set,
+    and their visibility must be narrowed to that tenant's region (absolute
+    rule: "un rôle régional ne doit voir que sa région"). Returns None for
+    any other role (no narrowing), or the region string (possibly None if
+    their own tenant has no region set — treated as "no visible region" in
+    the caller, not as "see everything")."""
+    if "REGIONAL_DIRECTOR" not in (current_user.get("roles") or []):
+        return None
+    if set(current_user.get("roles") or []) & {"SUPER_ADMIN", "MINISTRY_ADMIN"}:
+        return None  # a platform-level role always wins — full visibility
+    own_tenant_id = current_user.get("tenant_id")
+    if not own_tenant_id:
+        return ""
+    own_tenant = db.query(Tenant).filter(Tenant.id == own_tenant_id).first()
+    return (own_tenant.region if own_tenant else None) or ""
+
+
+def _compute_overview(db: Session, *, region_filter: str | None = None) -> dict:
+    query = db.query(Tenant)
+    if region_filter is not None:
+        query = query.filter(Tenant.region == (region_filter or None))
+
+    total = query.with_entities(func.count(Tenant.id)).scalar() or 0
+    active = query.with_entities(func.count(Tenant.id)).filter(Tenant.is_active.is_(True)).scalar() or 0
 
     by_region_rows = (
-        db.query(Tenant.region, func.count(Tenant.id))
+        query.with_entities(Tenant.region, func.count(Tenant.id))
         .group_by(Tenant.region)
         .all()
     )
     by_type_rows = (
-        db.query(Tenant.type, func.count(Tenant.id))
+        query.with_entities(Tenant.type, func.count(Tenant.id))
         .group_by(Tenant.type)
         .all()
     )
@@ -63,24 +85,28 @@ def _compute_overview(db: Session) -> dict:
 @router.get("/overview/")
 def get_national_overview(
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(require_permission("ministry:read")),
+    current_user: dict = Depends(require_permission("ministry:read")),
 ):
     """Aggregate counts only — total establishments, active/inactive,
     grouped by region and by type. Never returns an individual tenant's
     name, contact info, or any data belonging to its students/staff.
+    Narrowed to the caller's own region for REGIONAL_DIRECTOR.
     """
-    return _compute_overview(db)
+    region_filter = _regional_director_region(db, current_user)
+    return _compute_overview(db, region_filter=region_filter)
 
 
 @router.get("/overview/export/")
 def export_national_overview_csv(
     db: Session = Depends(get_db),
-    _current_user: dict = Depends(require_permission("ministry:read")),
+    current_user: dict = Depends(require_permission("ministry:read")),
 ):
     """CSV export of the same aggregate — Phase 7's "Exports: CSV" starting
-    point. Same data, same never-per-tenant-detail boundary as /overview/.
+    point. Same data, same never-per-tenant-detail boundary as /overview/,
+    and same region-narrowing for REGIONAL_DIRECTOR.
     """
-    data = _compute_overview(db)
+    region_filter = _regional_director_region(db, current_user)
+    data = _compute_overview(db, region_filter=region_filter)
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)

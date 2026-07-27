@@ -16,7 +16,12 @@ export type AppRole =
   // platform-level (no tenant_id), read-only cross-tenant AGGREGATE counts
   // only (see backend/app/api/v1/endpoints/core/ministry.py). No dedicated
   // UI page yet — deferred to Phase 7 (module ministère).
-  | "MINISTRY_ADMIN";
+  | "MINISTRY_ADMIN"
+  // National audit Phase 7 — second institutional role. NOT platform-level
+  // (keeps a normal tenant_id) but also granted ministry:read, narrowed to
+  // their own tenant's region only (see _regional_director_region() in
+  // ministry.py). No dedicated UI page yet.
+  | "REGIONAL_DIRECTOR";
 
 export type AdmissionStatus =
   | "DRAFT"

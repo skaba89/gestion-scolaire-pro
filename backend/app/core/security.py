@@ -393,6 +393,13 @@ ROLE_PERMISSIONS: dict = {
     # records, only how many establishments/students exist per region/type.
     # Platform-level like SUPER_ADMIN (tenant_id NULL on its UserRole row).
     "MINISTRY_ADMIN": ["ministry:read"],
+    # National audit Phase 7 — second institutional role. Unlike
+    # MINISTRY_ADMIN, a REGIONAL_DIRECTOR is NOT platform-level: they keep
+    # their normal tenant_id (they run one establishment) but are also
+    # granted ministry:read so the /ministry/overview/ endpoint can identify
+    # them and narrow the aggregate to their own tenant's region only —
+    # enforced in ministry.py, not by this permission alone.
+    "REGIONAL_DIRECTOR": ["ministry:read"],
 }
 
 def require_permission(permission: str):

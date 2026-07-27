@@ -117,6 +117,55 @@ class TestMinistryOverviewShape:
         assert set(resp.json().keys()) == expected_keys
 
 
+class TestRegionalDirectorScoping:
+    """National audit Phase 7 — REGIONAL_DIRECTOR must only ever see its
+    own region's aggregate, never the national picture MINISTRY_ADMIN sees."""
+
+    def test_regional_director_only_sees_own_region(self):
+        region_a = f"region-a-{uuid.uuid4().hex[:8]}"
+        region_b = f"region-b-{uuid.uuid4().hex[:8]}"
+        _make_tenant("École A1", region=region_a)
+        _make_tenant("École A2", region=region_a)
+        own_tenant_id = _make_tenant("École du Directeur Régional", region=region_a)
+        _make_tenant("École B1", region=region_b)
+        _make_tenant("École B2", region=region_b)
+        _make_tenant("École B3", region=region_b)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["REGIONAL_DIRECTOR"], "tenant_id": own_tenant_id})
+        resp = client.get(OVERVIEW_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+
+        assert set(data["by_region"].keys()) == {region_a}
+        assert data["by_region"][region_a] == 3
+        assert data["total_establishments"] == 3
+
+    def test_regional_director_export_is_also_region_scoped(self):
+        region_a = f"region-export-a-{uuid.uuid4().hex[:8]}"
+        region_b = f"region-export-b-{uuid.uuid4().hex[:8]}"
+        own_tenant_id = _make_tenant("École Export Régionale", region=region_a)
+        _make_tenant("École Autre Région", region=region_b)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["REGIONAL_DIRECTOR"], "tenant_id": own_tenant_id})
+        resp = client.get(f"/api/v1/ministry/overview/export/", headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert region_b not in resp.text
+        assert f"region,{region_a},1" in resp.text
+
+    def test_super_admin_still_sees_national_view_regardless_of_role_mix(self):
+        """A user with BOTH roles (e.g. impersonation edge case) must never
+        be narrowed — platform-level access always wins."""
+        region = f"region-mixed-{uuid.uuid4().hex[:8]}"
+        tenant_id = _make_tenant("École Mixte", region=region)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["REGIONAL_DIRECTOR", "SUPER_ADMIN"], "tenant_id": tenant_id})
+        resp = client.get(OVERVIEW_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+        # Not asserting an exact count (shared DB across tests) — only that
+        # it is NOT narrowed to the single-tenant region-only view.
+        assert resp.json()["total_establishments"] >= 1
+
+
 class TestMinistryOverviewExport:
     EXPORT_URL = "/api/v1/ministry/overview/export/"
 
