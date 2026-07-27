@@ -8,6 +8,20 @@ de code — c'est la procédure de test à suivre avec un compte marchand réel
 avant de vendre "paiement en ligne" comme prêt à un client payant. Voir
 aussi `docs/PAYMENTS_READINESS.md` (état général du module paiements).
 
+**Mise à jour** : un vrai bug bloquant a été trouvé et corrigé pendant la
+préparation de cette checklist — `TenantMiddleware` n'exemptait pas les
+deux chemins webhook de son exigence de JWT, donc **tout appel webhook
+CinetPay/PayTech était rejeté en 401** avant même d'atteindre le handler
+(qui vérifie l'authenticité lui-même). Corrigé (`app/middlewares/
+tenant.py`), vérifié par test et en direct sur la stack Docker. Les
+échecs de webhook sont maintenant journalisés dans
+`payment_webhook_events`, consultables via
+`GET /platform/tenants/{id}/health/`. **Ce correctif doit néanmoins être
+re-vérifié contre l'URL réellement déployée** (reverse proxy, CDN, ou
+configuration réseau différente pourraient réintroduire un blocage
+similaire) avant le premier paiement réel — c'est justement l'objet de
+l'étape 6 ci-dessous.
+
 ## 1. Variables et compte marchand nécessaires
 
 | Élément | Où | Détail |
