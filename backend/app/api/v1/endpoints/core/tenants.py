@@ -475,7 +475,11 @@ async def list_public_tenants(
                 slug=t.slug,
                 type=t.type,
                 address=t.address,
-                email=t.email,
+                # SECURITY (P1, national audit): t.email is a copy of the
+                # registering admin's personal account email, not a public
+                # contact — never surface it here. Only the explicitly
+                # published landing.contact_email is allowed.
+                email=landing_raw.get("contact_email"),
                 website=t.website,
                 logo_url=landing_raw.get("logo_url"),
                 description=landing_raw.get("description"),
@@ -574,13 +578,20 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
     except Exception:
         pass
 
+    # SECURITY (P1, national audit): tenant.email/tenant.phone are copies of
+    # the registering ADMIN's personal account email/phone (set verbatim
+    # from body.email/body.phone in the onboarding endpoint — see
+    # auth.py:register_school), not a school-official public contact. This
+    # public, unauthenticated response must never surface them. The only
+    # email/phone allowed here are the ones the establishment explicitly
+    # opted to publish via its landing page settings.
     return TenantPublicResponse(
         id=tenant.id,
         name=tenant.name,
         slug=tenant.slug,
         type=tenant.type,
-        email=tenant.email,
-        phone=tenant.phone,
+        email=landing.contact_email,
+        phone=landing.contact_phone,
         address=tenant.address,
         website=tenant.website,
         is_active=tenant.is_active,
