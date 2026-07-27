@@ -30,14 +30,27 @@ au fichier/endpoint qui l'implémente.
 | Manque | Priorité | Impact |
 |---|---|---|
 | Export PDF de la liste des paiements (seul le CSV existe ; le reçu individuel est HTML→PDF navigateur, pas un export PDF en masse) | P2 | Confort comptable, pas bloquant — le CSV s'ouvre dans Excel/LibreOffice sans problème |
-| Numérotation de reçu séquentielle par tenant (actuellement `PAY-{année}-{hex aléatoire}`, unique mais pas incrémental type "0001, 0002...") | P2 | Certaines administrations préfèrent une numérotation séquentielle pour la comptabilité légale — à vérifier avec un client pilote avant de considérer que c'est un vrai blocage |
-| Test en conditions réelles avec des identifiants CinetPay/PayTech réels | P1 pour un client payant en ligne, non bloquant pour paiement manuel | Le paiement manuel contrôlé fonctionne dès aujourd'hui ; l'intégration en ligne est codée et sécurisée mais jamais exercée contre l'API réelle du fournisseur |
+| Test en conditions réelles avec des identifiants CinetPay/PayTech réels | P1 pour un client payant en ligne, non bloquant pour paiement manuel | Le paiement manuel contrôlé fonctionne dès aujourd'hui ; l'intégration en ligne est codée et sécurisée mais jamais exercée contre l'API réelle du fournisseur — voir `docs/ONLINE_PAYMENT_PILOT_CHECKLIST.md` |
 | Vue frontend dédiée "tableau des impayés" avec actions groupées (relancer tous, exporter la liste) | P2 | Les données existent (`debt-aging`), la vue UI n'a pas été auditée dans cette passe (hors périmètre backend) |
+
+**Numérotation de reçu séquentielle** : ✅ livrée. `register_payment` génère
+désormais par défaut `REC-{année}-{compteur:05d}-{tenant_court}` (compteur
+atomique par tenant et par année civile, table
+`payment_reference_counters`), construit sur l'hypothèse documentée
+"séquence par établissement, remise à zéro chaque année" — à confirmer
+avec le premier client si un format différent est légalement exigé. Le
+suffixe `{tenant_court}` existe uniquement parce que `payments.reference`
+est unique **au niveau plateforme**, pas par tenant (trouvé par le test de
+cette fonctionnalité elle-même : deux établissements différents
+généraient tous deux "REC-2026-00001" pour leur premier paiement de
+l'année, provoquant une violation de contrainte unique). Un appelant peut
+toujours fournir sa propre référence (`body.reference`), qui prime
+totalement sur ce compteur.
 
 ## Risques
 
 - **CinetPay/PayTech non testés en conditions réelles** : le code suit la documentation officielle et est structurellement sain (signature vérifiée, montant validé côté webhook via `_gateway_amount_matches`), mais un premier paiement réel doit être fait avec un établissement pilote avant promesse commerciale ferme sur le paiement en ligne.
-- **Numérotation de reçu non séquentielle** : à clarifier avec le premier client — si une numérotation légale séquentielle est exigée, c'est un changement de schéma mineur (ajouter un compteur par tenant), pas une refonte.
+- **Bug bloquant trouvé et corrigé** : `TenantMiddleware` rejetait en 401 tout appel aux webhooks CinetPay/PayTech (aucune exemption JWT pour ces deux chemins) — aucun paiement en ligne n'aurait jamais pu se confirmer. Corrigé dans `app/middlewares/tenant.py`, vérifié par test et en direct.
 
 ## Endpoints (référence complète)
 

@@ -50,6 +50,38 @@ def _get_tenant_id(current_user: dict):
     return tenant_id
 
 
+def _next_payment_reference(db: Session, tenant_id: str, *, prefix: str = "REC") -> str:
+    """Sequential, per-tenant, per-calendar-year receipt reference:
+    REC-{year}-{seq:05d}-{tenant_short}. Replaces the previous random-hex
+    default (PAY-{hex}) which some administrations flagged as insufficient
+    for legal accounting (docs/PAYMENTS_READINESS.md). Atomic via a single
+    INSERT ... ON CONFLICT DO UPDATE — safe under concurrent requests
+    without an explicit row lock. Existing payments keep their old
+    reference untouched; a caller-supplied `reference` still overrides
+    this entirely (see register_payment below).
+
+    The trailing {tenant_short} (6 hex chars of the tenant's own id) is
+    NOT part of the "sequential" promise — the counter itself is a clean
+    1, 2, 3... per tenant per year. It exists solely because
+    `payments.reference` is unique PLATFORM-WIDE, not per tenant (found
+    by this feature's own test: two different schools' first payment of
+    the year both produced "REC-2026-00001" and the second insert failed
+    on a UniqueViolation). Changing that column's constraint to a
+    composite (tenant_id, reference) unique index would be the cleaner
+    long-term fix but touches an existing, working index — out of scope
+    for this pass."""
+    year = datetime.now().year
+    seq = db.execute(text("""
+        INSERT INTO payment_reference_counters (id, tenant_id, year, last_value, updated_at)
+        VALUES (gen_random_uuid(), :tid, :year, 1, NOW())
+        ON CONFLICT (tenant_id, year)
+        DO UPDATE SET last_value = payment_reference_counters.last_value + 1, updated_at = NOW()
+        RETURNING last_value
+    """), {"tid": tenant_id, "year": year}).scalar()
+    tenant_short = str(tenant_id).replace("-", "")[:6]
+    return f"{prefix}-{year}-{seq:05d}-{tenant_short}"
+
+
 # ─── Schemas inline ───────────────────────────────────────────────────────────
 
 class RegisterPaymentRequest(BaseModel):
@@ -300,7 +332,7 @@ def register_payment(
 
     new_paid = float(inv["paid_amount"] or 0) + body.amount
     new_status = "PAID" if new_paid >= float(inv["total_amount"]) else ("PARTIAL" if new_paid > 0 else "PENDING")
-    reference = body.reference or f"PAY-{secrets.token_hex(6).upper()}"
+    reference = body.reference or _next_payment_reference(db, tenant_id)
 
     # 2. Insert payment — colonnes alignées sur le modèle Payment
     # (pas de received_by dans le schéma ; l'auteur est tracé via l'audit log).

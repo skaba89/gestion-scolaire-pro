@@ -42,3 +42,4 @@ from app.models.saas import (
 )
 from app.models.job import Job
 from app.models.payment_webhook_event import PaymentWebhookEvent
+from app.models.payment_reference_counter import PaymentReferenceCounter
