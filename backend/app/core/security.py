@@ -400,6 +400,13 @@ ROLE_PERMISSIONS: dict = {
     # them and narrow the aggregate to their own tenant's region only —
     # enforced in ministry.py, not by this permission alone.
     "REGIONAL_DIRECTOR": ["ministry:read"],
+    # National audit Phase 5 (préfecture/commune roadmap) — same pattern as
+    # REGIONAL_DIRECTOR, one step narrower each: PREFECTURE_ADMIN keeps
+    # their own tenant_id and is narrowed to their own tenant's prefecture,
+    # COMMUNE_ADMIN to their own tenant's commune. Enforced in ministry.py,
+    # not by this permission alone.
+    "PREFECTURE_ADMIN": ["ministry:read"],
+    "COMMUNE_ADMIN": ["ministry:read"],
 }
 
 def require_permission(permission: str):

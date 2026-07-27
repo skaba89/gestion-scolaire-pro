@@ -23,7 +23,10 @@ from app.models.tenant import Tenant  # noqa: E402
 OVERVIEW_URL = "/api/v1/ministry/overview/"
 
 
-def _make_tenant(name: str, *, region: str | None, ttype: str = "primary", active: bool = True) -> str:
+def _make_tenant(
+    name: str, *, region: str | None, ttype: str = "primary", active: bool = True,
+    prefecture: str | None = None, commune: str | None = None,
+) -> str:
     tenant_id = str(uuid.uuid4())
     with SessionLocal() as db:
         db.add(Tenant(
@@ -33,6 +36,8 @@ def _make_tenant(name: str, *, region: str | None, ttype: str = "primary", activ
             type=ttype,
             country="GN",
             region=region,
+            prefecture=prefecture,
+            commune=commune,
             is_active=active,
             settings={},
         ))
@@ -120,7 +125,8 @@ class TestMinistryOverviewShape:
 
         expected_keys = {
             "total_establishments", "active_establishments",
-            "inactive_establishments", "by_region", "by_type",
+            "inactive_establishments", "by_region", "by_prefecture",
+            "by_commune", "by_type",
         }
         assert set(resp.json().keys()) == expected_keys
 
@@ -171,6 +177,67 @@ class TestRegionalDirectorScoping:
         assert resp.status_code == 200, resp.text
         # Not asserting an exact count (shared DB across tests) — only that
         # it is NOT narrowed to the single-tenant region-only view.
+        assert resp.json()["total_establishments"] >= 1
+
+
+class TestPrefectureAndCommuneScoping:
+    """National audit Phase 5 (préfecture/commune roadmap) — PREFECTURE_ADMIN
+    and COMMUNE_ADMIN follow the exact same narrowing pattern already proven
+    for REGIONAL_DIRECTOR, one level narrower each."""
+
+    def test_prefecture_admin_only_sees_own_prefecture(self):
+        pref_a = f"pref-a-{uuid.uuid4().hex[:8]}"
+        pref_b = f"pref-b-{uuid.uuid4().hex[:8]}"
+        _make_tenant("École Préf A1", region="r", prefecture=pref_a)
+        own_tenant_id = _make_tenant("École du Préfet", region="r", prefecture=pref_a)
+        _make_tenant("École Préf B1", region="r", prefecture=pref_b)
+        _make_tenant("École Préf B2", region="r", prefecture=pref_b)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["PREFECTURE_ADMIN"], "tenant_id": own_tenant_id})
+        resp = client.get(OVERVIEW_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+
+        assert set(data["by_prefecture"].keys()) == {pref_a}
+        assert data["by_prefecture"][pref_a] == 2
+        assert data["total_establishments"] == 2
+
+    def test_commune_admin_only_sees_own_commune(self):
+        commune_a = f"commune-a-{uuid.uuid4().hex[:8]}"
+        commune_b = f"commune-b-{uuid.uuid4().hex[:8]}"
+        own_tenant_id = _make_tenant("École de la Mairie", region="r", commune=commune_a)
+        _make_tenant("École Autre Commune 1", region="r", commune=commune_b)
+        _make_tenant("École Autre Commune 2", region="r", commune=commune_b)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["COMMUNE_ADMIN"], "tenant_id": own_tenant_id})
+        resp = client.get(OVERVIEW_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+
+        assert set(data["by_commune"].keys()) == {commune_a}
+        assert data["by_commune"][commune_a] == 1
+        assert data["total_establishments"] == 1
+
+    def test_scoped_role_with_unset_field_sees_nothing_not_everything(self):
+        """Absolute rule: a PREFECTURE_ADMIN whose own tenant has no
+        prefecture set must see zero establishments, never fall back to
+        the national view."""
+        _make_tenant("École Avec Préfecture", region="r", prefecture=f"pref-{uuid.uuid4().hex[:8]}")
+        own_tenant_id = _make_tenant("École Sans Préfecture", region="r", prefecture=None)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["PREFECTURE_ADMIN"], "tenant_id": own_tenant_id})
+        resp = client.get(OVERVIEW_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["total_establishments"] == 0
+
+    def test_super_admin_beats_commune_admin_role_mix(self):
+        commune = f"commune-mixed-{uuid.uuid4().hex[:8]}"
+        tenant_id = _make_tenant("École Mixte Commune", region="r", commune=commune)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["COMMUNE_ADMIN", "SUPER_ADMIN"], "tenant_id": tenant_id})
+        resp = client.get(OVERVIEW_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
         assert resp.json()["total_establishments"] >= 1
 
 

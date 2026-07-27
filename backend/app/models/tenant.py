@@ -45,6 +45,11 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     # administrative regions differ, and validating against a fixed list
     # would block onboarding for the very first non-Guinea tenant.
     region = Column(String(100), nullable=True, index=True)
+    # National audit Phase 5: next level down the same deliberately-additive
+    # hierarchy as `region` above — free text, nullable, indexed. Enables
+    # PREFECTURE_ADMIN/COMMUNE_ADMIN narrowing in ministry.py.
+    prefecture = Column(String(100), nullable=True, index=True)
+    commune = Column(String(100), nullable=True, index=True)
 
     # Relationships
     users = relationship("User", back_populates="tenant")

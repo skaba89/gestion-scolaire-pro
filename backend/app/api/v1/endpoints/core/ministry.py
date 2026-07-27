@@ -26,7 +26,7 @@ import io
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
+from sqlalchemy import func, false
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -36,28 +36,51 @@ from app.models.tenant import Tenant
 router = APIRouter()
 
 
-def _regional_director_region(db: Session, current_user: dict) -> str | None:
-    """REGIONAL_DIRECTOR is not platform-level — their own tenant_id is set,
-    and their visibility must be narrowed to that tenant's region (absolute
-    rule: "un rôle régional ne doit voir que sa région"). Returns None for
-    any other role (no narrowing), or the region string (possibly None if
-    their own tenant has no region set — treated as "no visible region" in
-    the caller, not as "see everything")."""
-    if "REGIONAL_DIRECTOR" not in (current_user.get("roles") or []):
-        return None
-    if set(current_user.get("roles") or []) & {"SUPER_ADMIN", "MINISTRY_ADMIN"}:
-        return None  # a platform-level role always wins — full visibility
-    own_tenant_id = current_user.get("tenant_id")
-    if not own_tenant_id:
-        return ""
-    own_tenant = db.query(Tenant).filter(Tenant.id == own_tenant_id).first()
-    return (own_tenant.region if own_tenant else None) or ""
+# Narrower-to-widest order — the first matching institutional role in this
+# list determines the caller's scope. A platform-level role (SUPER_ADMIN,
+# MINISTRY_ADMIN) always wins over any of these and sees everything.
+_SCOPE_ROLES = (
+    ("COMMUNE_ADMIN", "commune"),
+    ("PREFECTURE_ADMIN", "prefecture"),
+    ("REGIONAL_DIRECTOR", "region"),
+)
 
 
-def _compute_overview(db: Session, *, region_filter: str | None = None) -> dict:
+def _institutional_scope(db: Session, current_user: dict) -> tuple[str, str] | None:
+    """Returns (field, value) to narrow the overview to, or None for no
+    narrowing (platform-level role, or the caller holds none of the scoped
+    institutional roles). `value` may be "" if the caller's own tenant has
+    that field unset — treated as "no visible establishment", never as
+    "see everything" (absolute rule: a scoped role must never see beyond
+    its own scope just because that scope isn't configured yet).
+    """
+    roles = set(current_user.get("roles") or [])
+    if roles & {"SUPER_ADMIN", "MINISTRY_ADMIN"}:
+        return None  # platform-level always wins — full visibility
+
+    for role, field in _SCOPE_ROLES:
+        if role in roles:
+            own_tenant_id = current_user.get("tenant_id")
+            if not own_tenant_id:
+                return (field, "")
+            own_tenant = db.query(Tenant).filter(Tenant.id == own_tenant_id).first()
+            value = getattr(own_tenant, field, None) if own_tenant else None
+            return (field, value or "")
+
+    return None
+
+
+def _compute_overview(db: Session, *, scope: tuple[str, str] | None = None) -> dict:
     query = db.query(Tenant)
-    if region_filter is not None:
-        query = query.filter(Tenant.region == (region_filter or None))
+    if scope is not None:
+        field, value = scope
+        if not value:
+            # The caller's own tenant has this field unset — they must see
+            # NO establishment, never every tenant that also has it unset
+            # (which `column IS NULL` would otherwise match).
+            query = query.filter(false())
+        else:
+            query = query.filter(getattr(Tenant, field) == value)
 
     total = query.with_entities(func.count(Tenant.id)).scalar() or 0
     active = query.with_entities(func.count(Tenant.id)).filter(Tenant.is_active.is_(True)).scalar() or 0
@@ -65,6 +88,16 @@ def _compute_overview(db: Session, *, region_filter: str | None = None) -> dict:
     by_region_rows = (
         query.with_entities(Tenant.region, func.count(Tenant.id))
         .group_by(Tenant.region)
+        .all()
+    )
+    by_prefecture_rows = (
+        query.with_entities(Tenant.prefecture, func.count(Tenant.id))
+        .group_by(Tenant.prefecture)
+        .all()
+    )
+    by_commune_rows = (
+        query.with_entities(Tenant.commune, func.count(Tenant.id))
+        .group_by(Tenant.commune)
         .all()
     )
     by_type_rows = (
@@ -78,6 +111,8 @@ def _compute_overview(db: Session, *, region_filter: str | None = None) -> dict:
         "active_establishments": active,
         "inactive_establishments": total - active,
         "by_region": {(region or "non renseignée"): count for region, count in by_region_rows},
+        "by_prefecture": {(prefecture or "non renseignée"): count for prefecture, count in by_prefecture_rows},
+        "by_commune": {(commune or "non renseignée"): count for commune, count in by_commune_rows},
         "by_type": {(etype or "inconnu"): count for etype, count in by_type_rows},
     }
 
@@ -88,12 +123,13 @@ def get_national_overview(
     current_user: dict = Depends(require_permission("ministry:read")),
 ):
     """Aggregate counts only — total establishments, active/inactive,
-    grouped by region and by type. Never returns an individual tenant's
-    name, contact info, or any data belonging to its students/staff.
-    Narrowed to the caller's own region for REGIONAL_DIRECTOR.
+    grouped by region, prefecture, commune and by type. Never returns an
+    individual tenant's name, contact info, or any data belonging to its
+    students/staff. Narrowed to the caller's own scope for REGIONAL_DIRECTOR
+    (region), PREFECTURE_ADMIN (prefecture) or COMMUNE_ADMIN (commune).
     """
-    region_filter = _regional_director_region(db, current_user)
-    return _compute_overview(db, region_filter=region_filter)
+    scope = _institutional_scope(db, current_user)
+    return _compute_overview(db, scope=scope)
 
 
 @router.get("/overview/export/")
@@ -103,10 +139,10 @@ def export_national_overview_csv(
 ):
     """CSV export of the same aggregate — Phase 7's "Exports: CSV" starting
     point. Same data, same never-per-tenant-detail boundary as /overview/,
-    and same region-narrowing for REGIONAL_DIRECTOR.
+    and same scope-narrowing.
     """
-    region_filter = _regional_director_region(db, current_user)
-    data = _compute_overview(db, region_filter=region_filter)
+    scope = _institutional_scope(db, current_user)
+    data = _compute_overview(db, scope=scope)
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -116,6 +152,10 @@ def export_national_overview_csv(
     writer.writerow(["total", "etablissements_inactifs", data["inactive_establishments"]])
     for region, count in data["by_region"].items():
         writer.writerow(["region", region, count])
+    for prefecture, count in data["by_prefecture"].items():
+        writer.writerow(["prefecture", prefecture, count])
+    for commune, count in data["by_commune"].items():
+        writer.writerow(["commune", commune, count])
     for etype, count in data["by_type"].items():
         writer.writerow(["type", etype, count])
     buffer.seek(0)

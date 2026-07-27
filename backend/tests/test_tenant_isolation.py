@@ -193,6 +193,34 @@ def test_men_guinea_settings_endpoint_not_shadowed_by_tenant_id_route():
         app.dependency_overrides.pop(get_current_user, None)
 
 
+def test_tenant_admin_can_declare_region_prefecture_commune():
+    """Régression : la colonne `region` existait depuis la Phase 2 mais
+    n'était settable nulle part dans l'API -- une école ne pouvait jamais
+    déclarer sa propre région, ce qui rendait le narrowing REGIONAL_DIRECTOR
+    invérifiable en conditions réelles. Trouvé en câblant PREFECTURE_ADMIN/
+    COMMUNE_ADMIN (Phase 5) sur le même modèle."""
+    tenant_id = _make_tenant("Ecole Geo")
+    admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(admin).patch(
+            f"/api/v1/tenants/{tenant_id}/",
+            json={"region": "Kankan", "prefecture": "Kankan", "commune": "Kankan-Centre"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["region"] == "Kankan"
+        assert body["prefecture"] == "Kankan"
+        assert body["commune"] == "Kankan-Centre"
+
+        resp = _as(admin).get(f"/api/v1/tenants/{tenant_id}/", headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["region"] == "Kankan"
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
 def test_full_onboarding_cycle_still_works_for_tenant_admin():
     """End-to-end regression: levels -> subjects -> complete, all via
     resolve_current_tenant_id, must still succeed for a normal TENANT_ADMIN.

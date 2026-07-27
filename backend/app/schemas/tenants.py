@@ -39,6 +39,9 @@ class TenantResponse(TenantBase):
     timezone: Optional[str] = None
     city: Optional[str] = None
     country: Optional[str] = None
+    region: Optional[str] = None
+    prefecture: Optional[str] = None
+    commune: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     is_active: bool

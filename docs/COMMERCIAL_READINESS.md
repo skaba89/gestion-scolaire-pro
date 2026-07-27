@@ -30,21 +30,21 @@ Money, Wave), supervision institutionnelle et reporting national.
 - Gestion élèves/enseignants/classes/notes/présences.
 - Paiement manuel contrôlé, reçu numéroté, annulation tracée, historique, relance impayés, dashboard financier, export CSV.
 - Import Excel élèves (modèle, aperçu, validation, rapport).
-- Dashboard direction (élèves à risque, impayés, présence, notes).
+- Dashboard direction (élèves à risque, impayés, présence, notes) — les deux champs placeholder (cours actifs, collègues) ont été retirés, plus aucune donnée factice affichée.
 - Portail parent.
+- Reporting institutionnel/ministère : agrégats nationaux, régionaux, préfectoraux et communaux, tous fonctionnels et testés (rôles `MINISTRY_ADMIN`/`REGIONAL_DIRECTOR`/`PREFECTURE_ADMIN`/`COMMUNE_ADMIN`).
 - Sécurité : logout-all fonctionnel, MFA, RLS, aucune fuite de donnée personnelle publique connue.
 
 ## 5. Ce qui est en bêta
 
-- Paiement en ligne (Mobile Money/Orange Money/Wave) : codé et sécurisé (signature webhook vérifiée) mais jamais exercé avec un compte marchand réel — à valider avec le premier client payant en ligne.
-- Reporting institutionnel/ministère : agrégats nationaux et régionaux fonctionnels et testés ; préfecture/commune non construites.
-- Dashboard direction : quelques KPI marginaux non branchés (nombre de cours actifs, collègues) — n'affecte pas l'argumentaire principal.
+- Paiement en ligne (Mobile Money/Orange Money/Wave) : codé et sécurisé (signature webhook vérifiée) mais jamais exercé avec un compte marchand réel — bloqué sans identifiants marchands CinetPay/PayTech réels, à valider avec le premier client payant en ligne.
 
 ## 6. Ce qui n'est pas encore prêt
 
 - Import Excel Enseignants/Parents (le mapping de colonnes existe pour les enseignants, mais aucun endpoint fonctionnel).
 - Alertes automatiques (5xx, paiement échoué, import échoué, backup échoué) — tout se surveille manuellement à ce jour.
-- Rôles institutionnels préfecture/commune/université (roadmap 90 jours).
+- Rôle institutionnel université (`UNIVERSITY_RECTOR`) et accès inspecteur national (`NATIONAL_INSPECTOR`) — pas construits, périmètre à définir avec un vrai interlocuteur avant de coder quoi que ce soit.
+- Sélecteur préfecture/commune côté UI onboarding/paramètres établissement — le backend accepte déjà ces champs (`PATCH /tenants/{id}/`), il manque le formulaire.
 - Monitoring par tenant ventilé (les données existent en partie, pas de dashboard support unifié).
 
 ## 7. Offre pilote
@@ -67,9 +67,12 @@ relevé de notes multi-périodes) est déjà fonctionnel et testé.
 
 ## 10. Offre ministère
 
-Positionnement Enterprise, en construction — ne pas vendre de promesse
-ferme sur les fonctionnalités préfecture/commune tant qu'elles ne sont
-pas livrées (voir roadmap `docs/MINISTRY_DASHBOARD_READINESS.md`).
+Positionnement Enterprise. Les agrégats national/régional/préfectoral/
+communal sont livrés et testés (voir `docs/MINISTRY_DASHBOARD_READINESS.md`)
+— reste à construire avant tout engagement ferme : le sélecteur UI
+préfecture/commune côté établissement, et les rôles inspecteur national/
+recteur université (périmètre non défini). Ne pas promettre ces deux
+derniers avant d'avoir un vrai interlocuteur pour les cadrer.
 
 ## 11. Prérequis techniques
 

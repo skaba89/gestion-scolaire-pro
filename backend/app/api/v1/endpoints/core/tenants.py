@@ -1319,6 +1319,12 @@ async def update_tenant(
         # Signatures (used by SignatureSettings)
         "director_name", "director_signature_url",
         "secretary_name", "secretary_signature_url",
+        # Geographic grouping — drives REGIONAL_DIRECTOR/PREFECTURE_ADMIN/
+        # COMMUNE_ADMIN narrowing in ministry.py. Was previously unset
+        # anywhere in the API despite the `region` column existing since
+        # Phase 2 (national audit) — a school could never actually declare
+        # its own region/prefecture/commune.
+        "region", "prefecture", "commune",
         # Generic settings JSON column (used by many settings components)
         "settings",
     }
