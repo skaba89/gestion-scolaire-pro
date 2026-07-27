@@ -1,7 +1,17 @@
 """Tests for school_life operational endpoints — auth guards + shape checks."""
+import base64
+import uuid
+from datetime import date
+
 from conftest import get_test_client
 
 client = get_test_client()
+
+from app.core.database import SessionLocal  # noqa: E402
+from app.core.security import create_access_token, get_current_user  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models.student import Gender, Student, StudentStatus  # noqa: E402
+from app.models.tenant import Tenant  # noqa: E402
 
 SCHOOL_LIFE_ENDPOINTS = [
     "/api/v1/school-life/appointment-slots/",
@@ -97,3 +107,58 @@ class TestCheckInSchema:
         now = datetime(2026, 7, 17, 8, 0, 0)
         obj = StudentCheckInCreate(student_id=uuid.uuid4(), checked_at=now, source="MANUAL")
         assert obj.checked_at == now
+
+
+def _as(user: dict) -> dict:
+    app.dependency_overrides[get_current_user] = lambda: user
+    token = create_access_token({"sub": user["id"], "tenant_id": user.get("tenant_id"), "roles": user.get("roles", [])})
+    return {"Authorization": f"Bearer {token}"}
+
+
+class TestGenerateReportCardV2:
+    """Régression : le template HTML du bulletin plantait avec un
+    NameError ('safe_name' is not defined) dès qu'un élève réel était
+    fourni, car {safe_name}/{safe_term} étaient interprétés comme des
+    expressions f-string au lieu de rester du texte littéral remplacé
+    ensuite par .replace(). Aucun test existant n'exerçait ce chemin
+    avec des données réelles (seul le 401/422 sans auth était couvert),
+    ce qui a laissé le bug invisible jusqu'à une vérification manuelle
+    en navigateur."""
+
+    def test_generates_html_bulletin_without_crashing(self):
+        tenant_id = str(uuid.uuid4())
+        student_id = str(uuid.uuid4())
+
+        with SessionLocal() as db:
+            db.add(Tenant(
+                id=tenant_id, name="Ecole Bulletin Test", slug=f"bulletin-{tenant_id[:8]}",
+                type="secondary", country="GN", is_active=True, settings={},
+            ))
+            db.commit()
+
+            db.add(Student(
+                id=student_id, tenant_id=tenant_id,
+                registration_number=f"REG-{student_id[:8]}",
+                first_name="Mariam", last_name="Diallo",
+                date_of_birth=date(2009, 3, 15), gender=Gender.FEMALE,
+                status=StudentStatus.ACTIVE,
+            ))
+            db.commit()
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        resp = client.post(
+            "/api/v1/school-life/generate-report-card/v2/",
+            json={
+                "student_id": student_id,
+                "term_id": str(uuid.uuid4()),
+                "classroom_id": str(uuid.uuid4()),
+            },
+            headers=headers,
+        )
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        html = base64.b64decode(body["html"]).decode("utf-8")
+        assert "Mariam Diallo" in html
+        assert "safe_name" not in html
+        assert "safe_term" not in html

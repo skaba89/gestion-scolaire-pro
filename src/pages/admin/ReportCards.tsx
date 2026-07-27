@@ -158,17 +158,38 @@ const ReportCards = () => {
       const enrollmentsRes = await apiClient.get<any[]>("/infrastructure/enrollments/", {
         params: { class_id: selectedClassroom, status: "active" },
       });
-      const studentList = (enrollmentsRes.data || [])
-        .map((e: any) => e.student || e.students)
-        .filter(Boolean) as Student[];
+      const enrollments = (enrollmentsRes.data || []).filter(
+        (e: any) => e.class_id === selectedClassroom
+      );
+      let studentList: Student[] = [];
+      if (enrollments.length > 0) {
+        // The enrollments endpoint only returns student_id (no embedded
+        // student object), so the enrolled students must be fetched separately.
+        const studentsRes = await apiClient
+          .get<any>("/students/", { params: { page_size: 100 } })
+          .catch(() => ({ data: { items: [] } }));
+        const studentsById = new Map(
+          (studentsRes.data?.items || []).map((s: any) => [s.id, s])
+        );
+        studentList = enrollments
+          .map((e: any) => studentsById.get(e.student_id))
+          .filter(Boolean) as Student[];
+      }
       if (studentList.length === 0) {
         return { students: [] as Student[], gradesMap: new Map<string, GradeData[]>() };
       }
-      const gradesRes = await apiClient
-        .get<any[]>("/grades/", { params: { student_ids: studentList.map((s) => s.id) } })
-        .catch(() => ({ data: [] }));
+      // Assessments have no class_id link in the database (the "Classes"
+      // picker on evaluation creation isn't persisted anywhere), so grades
+      // can't be filtered by class server-side — fetch per enrolled student.
+      const gradesResponses = await Promise.all(
+        studentList.map((s) =>
+          apiClient
+            .get<any>("/grades/", { params: { student_id: s.id, page_size: 100 } })
+            .catch(() => ({ data: { items: [] } }))
+        )
+      );
       const gradesMap = new Map<string, GradeData[]>();
-      (gradesRes.data || []).forEach((g: any) => {
+      gradesResponses.flatMap((r) => r.data?.items || []).forEach((g: any) => {
         const sg = gradesMap.get(g.student_id) || [];
         sg.push({
           student_id: g.student_id,

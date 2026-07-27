@@ -43,7 +43,9 @@ export const useEnrollments = (tenantId: string, academicYearId?: string, classr
 
     const enrollStudents = useMutation({
         mutationFn: async (enrollments: any[]) => {
-            await apiClient.post("/enrollments/bulk/", { enrollments });
+            for (const enrollment of enrollments) {
+                await apiClient.post("/enrollments/", enrollment);
+            }
         },
         onMutate: async (newEnrollments: any[]) => {
             await queryClient.cancelQueries({ queryKey: ["enrollments", tenantId] });

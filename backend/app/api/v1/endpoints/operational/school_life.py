@@ -1511,7 +1511,7 @@ def _build_bulletin_v2(
 function downloadHtml() {{
   const a = document.createElement('a');
   a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(document.documentElement.outerHTML);
-  a.download = 'bulletin_{safe_name}_{safe_term}.html';
+  a.download = 'bulletin_{{safe_name}}_{{safe_term}}.html';
   a.click();
 }}
 </script>
