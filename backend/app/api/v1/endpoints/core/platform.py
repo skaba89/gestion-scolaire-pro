@@ -541,3 +541,129 @@ async def update_tenant_subscription(
         "expires_at": tenant.trial_ends_at.isoformat() if tenant.trial_ends_at else None,
         "changes": changes,
     }
+
+
+# ─── Tenant support health (Priorité 3 — commercialisation) ──────────────────
+#
+# GET /platform/tenants/{id}/health/ — SUPER_ADMIN/support only. Aggregates
+# data that already exists (tenant_quota_usage via SaaSQuotaService, jobs,
+# audit_logs) into one screen instead of building a new tracking table.
+# Deliberately returns counts/timestamps/status only — never a student,
+# parent, or teacher's name/email. tenant_id is never sent to Prometheus
+# (see docs/TENANT_MONITORING.md) — this is a request-scoped SQL read, not
+# a metrics-pipeline label.
+
+@router.get("/tenants/{tenant_id}/health/")
+async def get_tenant_health(
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(_require_super_admin),
+):
+    """Support dashboard for one tenant: active status, quota usage,
+    recent failed jobs, last import, last activity, global health status.
+
+    No personal data (student/parent/teacher names, emails) is included —
+    only counts, statuses and timestamps.
+    """
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # ── Quota usage (reuses the existing SaaS quota engine — no new table) ──
+    from app.services.saas_quota_service import SaaSQuotaService
+    try:
+        usage_report = SaaSQuotaService(db).get_usage_report(tenant, recalculate=True)
+    except Exception as exc:
+        logger.warning("Quota report failed for tenant %s: %s", tenant_id, exc)
+        usage_report = None
+
+    # ── Recent failed background jobs ───────────────────────────────────────
+    from app.models.job import Job
+    failed_jobs = (
+        db.query(Job)
+        .filter(Job.tenant_id == tenant_id, Job.status == "FAILED")
+        .order_by(Job.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    failed_jobs_payload = [
+        {
+            "id": str(j.id),
+            "job_type": j.job_type,
+            "error": (j.error or "")[:300] or None,
+            "retry_count": j.retry_count,
+            "created_at": j.created_at.isoformat() if j.created_at else None,
+            "finished_at": j.finished_at.isoformat() if j.finished_at else None,
+        }
+        for j in failed_jobs
+    ]
+
+    # ── Last import (students/parents/teachers) ─────────────────────────────
+    from app.models.audit_log import AuditLog
+    last_import = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.action.in_(["IMPORT_STUDENTS", "IMPORT_PARENTS", "IMPORT_TEACHERS"]),
+        )
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    last_import_payload = None
+    if last_import:
+        last_import_payload = {
+            "action": last_import.action,
+            "created_at": last_import.created_at.isoformat() if last_import.created_at else None,
+            # `details` on import audit logs is aggregate counts only
+            # (created/skipped/total/filename) — never per-row personal data.
+            "summary": last_import.details,
+        }
+
+    # ── Last activity (most recent audit log entry of any kind) ────────────
+    last_activity_row = (
+        db.query(AuditLog)
+        .filter(AuditLog.tenant_id == tenant_id)
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    last_activity_at = last_activity_row.created_at.isoformat() if last_activity_row and last_activity_row.created_at else None
+
+    # ── Last failed payment webhook — not tracked anywhere yet ──────────────
+    # CinetPay/PayTech webhook handlers (app/api/v1/endpoints/operational/
+    # parents.py) only logger.warning() on verification failure; nothing is
+    # persisted to a queryable table. Honest "not available" rather than
+    # inventing a new log table for this pass (see
+    # docs/ONLINE_PAYMENT_PILOT_CHECKLIST.md).
+    last_failed_payment_webhook = None
+    last_failed_payment_webhook_note = (
+        "Non journalisé en base — les échecs de vérification webhook ne sont "
+        "actuellement loggés que côté serveur (logger.warning), pas persistés."
+    )
+
+    # ── Global health verdict ────────────────────────────────────────────────
+    has_blocking_quota = bool(usage_report and usage_report.get("has_blocking_limit"))
+    has_quota_warning = bool(usage_report and usage_report.get("has_warning"))
+    if not tenant.is_active:
+        overall_status = "inactive"
+    elif has_blocking_quota or len(failed_jobs_payload) >= 5:
+        overall_status = "critical"
+    elif has_quota_warning or failed_jobs_payload:
+        overall_status = "degraded"
+    else:
+        overall_status = "healthy"
+
+    return {
+        "tenant_id": str(tenant.id),
+        "tenant_name": tenant.name,
+        "is_active": tenant.is_active,
+        "subscription_plan": tenant.subscription_plan or "starter",
+        "subscription_status": tenant.subscription_status or "trialing",
+        "quota": usage_report,
+        "failed_jobs_recent": failed_jobs_payload,
+        "last_import": last_import_payload,
+        "last_failed_payment_webhook": last_failed_payment_webhook,
+        "last_failed_payment_webhook_note": last_failed_payment_webhook_note,
+        "last_activity_at": last_activity_at,
+        "overall_status": overall_status,
+        "generated_at": _now_utc().isoformat(),
+    }
