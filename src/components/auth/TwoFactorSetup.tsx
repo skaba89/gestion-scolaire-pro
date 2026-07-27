@@ -40,7 +40,7 @@ export const TwoFactorSetup = ({ open, onOpenChange, onComplete }: TwoFactorSetu
             const result = await enable2FAMutation.mutateAsync();
             setBackupCodes(result.backupCodes);
             setStep(4);
-        } catch (error) {
+        } catch (_error) {
             // Error handled by mutation
         }
     };

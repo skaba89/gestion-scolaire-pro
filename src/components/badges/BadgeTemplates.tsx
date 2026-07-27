@@ -1,9 +1,7 @@
 
 import React from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { BADGE_TEMPLATES, BadgeProps } from "./BadgeConstants";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { BadgeProps } from "./BadgeConstants";
 import { resolveUploadUrl } from "@/utils/url";
 
 const StandardBadge = ({ student, badge, tenant, academicYear }: BadgeProps) => (

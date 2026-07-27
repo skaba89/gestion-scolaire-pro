@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,10 +27,6 @@ interface DisplayMessage {
   content: string;
   isError?: boolean;
 }
-
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const WELCOME_KEY = "ai_chat_welcome_shown";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -76,13 +72,6 @@ export const AIChatWidget = () => {
       ]);
     }
   }, [isOpen, messages.length, profile?.first_name, tenant?.name]);
-
-  // Build conversation history from messages (excluding errors)
-  const buildConversationHistory = useCallback((): ChatMessage[] => {
-    return messages
-      .filter((m) => !m.isError)
-      .map((m) => ({ role: m.role, content: m.content }));
-  }, [messages]);
 
   const handleSend = async () => {
     const messageText = input.trim();

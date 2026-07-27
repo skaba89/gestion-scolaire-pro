@@ -26,7 +26,7 @@ export const TwoFactorChallenge: React.FC<TwoFactorChallengeProps> = ({ onSucces
             } else {
                 toast.error(error || "Code incorrect");
             }
-        } catch (err) {
+        } catch (_err) {
             toast.error("Erreur de vérification");
         } finally {
             setIsLoading(false);

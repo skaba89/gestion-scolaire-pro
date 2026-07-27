@@ -17,13 +17,6 @@ interface Classroom {
 }
 
 const COLORS = ["#22c55e", "#ef4444", "#f59e0b", "#3b82f6"];
-const STATUS_LABELS: Record<string, string> = {
-  PRESENT: "Présent",
-  ABSENT: "Absent",
-  LATE: "Retard",
-  EXCUSED: "Excusé",
-};
-
 export function ClassAttendanceStats() {
   const { tenant } = useTenant();
   const { studentsLabel } = useStudentLabel();

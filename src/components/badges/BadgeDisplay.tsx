@@ -9,7 +9,7 @@
  */
 
 import React from "react";
-import { BadgeDefinition, BadgeTemplate } from "@/lib/badges-types";
+import { BadgeDefinition } from "@/lib/badges-types";
 import { cn } from "@/lib/utils";
 
 interface BadgeDisplayProps {

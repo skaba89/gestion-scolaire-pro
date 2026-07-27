@@ -3,10 +3,7 @@ import { BadgeDefinition, UserBadge } from "@/lib/badges-types";
 import { BadgeDisplay } from "./BadgeDisplay";
 import { Button } from "@/components/ui/button";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Share2, Check, Lock, Sparkles, TrendingUp, Info } from "lucide-react";
 import { cn } from "@/lib/utils";

@@ -8,11 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
-import { QRCodeSVG } from "qrcode.react";
-import { Printer, Loader2, Users, AlertCircle, Download, FileImage, LayoutTemplate, Trash2 } from "lucide-react";
+import { Printer, Loader2, Users, AlertCircle, Download, LayoutTemplate, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BadgeRenderer } from "./BadgeTemplates";
-import { BADGE_TEMPLATES, BadgeTemplate } from "./BadgeConstants";
+import { BADGE_TEMPLATES } from "./BadgeConstants";
 
 type ClassRoom = {
   id: string;

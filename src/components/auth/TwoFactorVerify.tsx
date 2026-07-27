@@ -43,7 +43,7 @@ export const TwoFactorVerify = ({ onVerified, onCancel }: TwoFactorVerifyProps) 
             }
 
             onVerified();
-        } catch (error) {
+        } catch (_error) {
             setAttempts(prev => prev + 1);
             setCode("");
         }
