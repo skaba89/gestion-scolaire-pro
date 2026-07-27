@@ -22,8 +22,29 @@ from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
 from app.services.payment_gateways import CinetPayGateway, get_gateway
 from app.models import ParentStudent as ParentStudentModel, User, UserRole
+from app.models.payment_webhook_event import PaymentWebhookEvent
 
 router = APIRouter()
+
+
+def _log_webhook_event(
+    db: Session, *, tenant_id: Optional[str], gateway: str,
+    transaction_id: Optional[str], outcome: str, reason: Optional[str] = None,
+) -> None:
+    """Persist one row per webhook call so support can answer "did a
+    webhook ever arrive, and what happened" — previously only a
+    logger.warning() on failure, not queryable (see
+    GET /platform/tenants/{id}/health/). Committed in its own transaction
+    so a failure downstream in the caller never rolls this log back."""
+    try:
+        db.add(PaymentWebhookEvent(
+            tenant_id=tenant_id, gateway=gateway, transaction_id=transaction_id,
+            outcome=outcome, reason=(reason or "")[:500] or None,
+        ))
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Failed to persist webhook event log: %s", exc)
 
 # --- List all parents ---
 
@@ -910,6 +931,8 @@ async def cinetpay_webhook(request: Request, db: Session = Depends(get_db)):
     # Find the tenant from the invoice so we can load credentials
     transaction_id = payload.get("cpm_trans_id") or payload.get("transaction_id", "")
     if not transaction_id:
+        _log_webhook_event(db, tenant_id=None, gateway="cinetpay", transaction_id=None,
+                            outcome="ignored", reason="no transaction_id in payload")
         return {"status": "ignored", "reason": "no transaction_id"}
 
     # Load payment record to find the tenant
@@ -934,6 +957,8 @@ async def cinetpay_webhook(request: Request, db: Session = Depends(get_db)):
             gw = CinetPayGateway(api_key=api_key, site_id=site_id)
             if not gw.verify_webhook(payload, {}):
                 logger.warning("CinetPay webhook verification failed for %s", transaction_id)
+                _log_webhook_event(db, tenant_id=tenant_id, gateway="cinetpay", transaction_id=transaction_id,
+                                    outcome="rejected", reason="verification failed")
                 return {"status": "rejected", "reason": "verification failed"}
             pay_status = gw.parse_webhook_status(payload)
             if pay_status == "COMPLETED":
@@ -942,8 +967,19 @@ async def cinetpay_webhook(request: Request, db: Session = Depends(get_db)):
                 if confirmed:
                     db.commit()
                     logger.info("CinetPay payment confirmed: %s", transaction_id)
+                    _log_webhook_event(db, tenant_id=tenant_id, gateway="cinetpay", transaction_id=transaction_id,
+                                        outcome="confirmed", reason=None)
                     return {"status": "ok"}
+            _log_webhook_event(db, tenant_id=tenant_id, gateway="cinetpay", transaction_id=transaction_id,
+                                outcome="processed", reason=f"status={pay_status}")
+            return {"status": "processed"}
 
+        _log_webhook_event(db, tenant_id=tenant_id, gateway="cinetpay", transaction_id=transaction_id,
+                            outcome="ignored", reason="gateway not configured for tenant")
+        return {"status": "processed"}
+
+    _log_webhook_event(db, tenant_id=None, gateway="cinetpay", transaction_id=transaction_id,
+                        outcome="ignored", reason="no matching payment reference")
     return {"status": "processed"}
 
 
@@ -959,6 +995,8 @@ async def paytech_webhook(request: Request, db: Session = Depends(get_db)):
     logger.info("PayTech webhook received: %s", payload)
     transaction_id = payload.get("ref_command", "")
     if not transaction_id:
+        _log_webhook_event(db, tenant_id=None, gateway="paytech", transaction_id=None,
+                            outcome="ignored", reason="no transaction_id in payload")
         return {"status": "ignored"}
 
     payment_row = db.execute(text(
@@ -988,8 +1026,23 @@ async def paytech_webhook(request: Request, db: Session = Depends(get_db)):
                     if confirmed:
                         db.commit()
                         logger.info("PayTech payment confirmed: %s", transaction_id)
+                        _log_webhook_event(db, tenant_id=tenant_id, gateway="paytech", transaction_id=transaction_id,
+                                            outcome="confirmed", reason=None)
                         return {"status": "ok"}
+                _log_webhook_event(db, tenant_id=tenant_id, gateway="paytech", transaction_id=transaction_id,
+                                    outcome="processed", reason=f"status={pay_status}")
+                return {"status": "processed"}
 
+            _log_webhook_event(db, tenant_id=tenant_id, gateway="paytech", transaction_id=transaction_id,
+                                outcome="rejected", reason="verification failed")
+            return {"status": "processed"}
+
+        _log_webhook_event(db, tenant_id=tenant_id, gateway="paytech", transaction_id=transaction_id,
+                            outcome="ignored", reason="gateway not configured for tenant")
+        return {"status": "processed"}
+
+    _log_webhook_event(db, tenant_id=None, gateway="paytech", transaction_id=transaction_id,
+                        outcome="ignored", reason="no matching payment reference")
     return {"status": "processed"}
 
 

@@ -57,6 +57,20 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
             # --- Genuinely public, single fixed path, no dynamic segment.
             "/webhooks/events", "/webhooks/events/",
+
+            # --- CinetPay/PayTech payment gateway webhooks (IPN). The
+            # provider never has (or can obtain) a JWT for this platform —
+            # each handler verifies authenticity itself (CinetPay: server-
+            # to-server re-check; PayTech: HMAC-SHA256 signature), same
+            # pattern as /metrics above. Without this exemption, this
+            # middleware rejects every webhook call with 401 before it ever
+            # reaches the handler — found via a failing test while adding
+            # payment_webhook_events logging (see
+            # docs/ONLINE_PAYMENT_PILOT_CHECKLIST.md — this must be
+            # re-verified against the real deployed URL before the first
+            # live payment test, not just locally).
+            "/parents/payments/webhook/cinetpay", "/parents/payments/webhook/cinetpay/",
+            "/parents/payments/webhook/paytech", "/parents/payments/webhook/paytech/",
         ]
 
         # Public prefixes — kept ONLY where the route has a dynamic path

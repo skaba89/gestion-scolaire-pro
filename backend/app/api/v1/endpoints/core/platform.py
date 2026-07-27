@@ -628,17 +628,28 @@ async def get_tenant_health(
     )
     last_activity_at = last_activity_row.created_at.isoformat() if last_activity_row and last_activity_row.created_at else None
 
-    # ── Last failed payment webhook — not tracked anywhere yet ──────────────
+    # ── Last failed payment webhook ─────────────────────────────────────────
     # CinetPay/PayTech webhook handlers (app/api/v1/endpoints/operational/
-    # parents.py) only logger.warning() on verification failure; nothing is
-    # persisted to a queryable table. Honest "not available" rather than
-    # inventing a new log table for this pass (see
-    # docs/ONLINE_PAYMENT_PILOT_CHECKLIST.md).
-    last_failed_payment_webhook = None
-    last_failed_payment_webhook_note = (
-        "Non journalisé en base — les échecs de vérification webhook ne sont "
-        "actuellement loggés que côté serveur (logger.warning), pas persistés."
+    # parents.py) now persist one row per webhook call via
+    # payment_webhook_events (was: logger.warning() only, not queryable —
+    # see docs/ONLINE_PAYMENT_PILOT_CHECKLIST.md).
+    from app.models.payment_webhook_event import PaymentWebhookEvent
+    last_failed_webhook_row = (
+        db.query(PaymentWebhookEvent)
+        .filter(PaymentWebhookEvent.tenant_id == tenant_id, PaymentWebhookEvent.outcome == "rejected")
+        .order_by(PaymentWebhookEvent.created_at.desc())
+        .first()
     )
+    last_failed_payment_webhook = None
+    last_failed_payment_webhook_note = None
+    if last_failed_webhook_row:
+        last_failed_payment_webhook = {
+            "gateway": last_failed_webhook_row.gateway,
+            "reason": last_failed_webhook_row.reason,
+            "created_at": last_failed_webhook_row.created_at.isoformat() if last_failed_webhook_row.created_at else None,
+        }
+    else:
+        last_failed_payment_webhook_note = "Aucun échec de webhook enregistré pour cet établissement."
 
     # ── Global health verdict ────────────────────────────────────────────────
     has_blocking_quota = bool(usage_report and usage_report.get("has_blocking_limit"))

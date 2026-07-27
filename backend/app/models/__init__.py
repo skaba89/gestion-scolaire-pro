@@ -41,3 +41,4 @@ from app.models.saas import (
     TenantDomain,
 )
 from app.models.job import Job
+from app.models.payment_webhook_event import PaymentWebhookEvent

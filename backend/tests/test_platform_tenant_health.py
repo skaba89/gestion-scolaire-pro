@@ -1,10 +1,12 @@
 """GET /platform/tenants/{id}/health/ — dashboard support tenant (Priorité 3).
 
 SUPER_ADMIN only. Aggregates tenant active status, quota usage, recent
-failed jobs, last import and last activity into one screen, reusing
-existing data (tenant_quota_usage via SaaSQuotaService, jobs, audit_logs)
-rather than a new tracking table. Must never expose a student/parent/
-teacher's name or email.
+failed jobs, last import, last failed payment webhook and last activity
+into one screen, reusing existing data where possible (tenant_quota_usage
+via SaaSQuotaService, jobs, audit_logs) plus one minimal new table
+(payment_webhook_events — see test_import_parents.py-style history: this
+is the follow-up that replaced the earlier honest "not tracked" note with
+real data). Must never expose a student/parent/teacher's name or email.
 """
 import uuid
 from datetime import datetime, timezone
@@ -19,6 +21,7 @@ from app.core.security import get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.audit_log import AuditLog  # noqa: E402
 from app.models.job import Job  # noqa: E402
+from app.models.payment_webhook_event import PaymentWebhookEvent  # noqa: E402
 from app.models.student import Gender, Student, StudentStatus  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 
@@ -193,14 +196,66 @@ class TestLastImport:
         assert resp.json()["last_import"] is None
 
 
-class TestPaymentWebhookNote:
-    def test_webhook_failure_field_is_honest_about_unavailability(self):
-        """No table persists webhook failures today -- the endpoint must say
-        so explicitly rather than fabricate a value."""
+class TestPaymentWebhookFailures:
+    def test_no_failures_yet_returns_null_with_explicit_note(self):
         tenant_id = _make_tenant()
         headers = _as(SUPER_ADMIN)
         resp = client.get(_url(tenant_id), headers=headers)
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["last_failed_payment_webhook"] is None
-        assert "note" in str(body.get("last_failed_payment_webhook_note", "")).lower() or body["last_failed_payment_webhook_note"]
+        assert body["last_failed_payment_webhook_note"]
+
+    def test_rejected_webhook_is_reflected(self):
+        """Régression : les échecs de vérification webhook n'étaient
+        auparavant loggés que côté serveur (logger.warning), jamais
+        persistés -- payment_webhook_events comble ce manque."""
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            db.add(PaymentWebhookEvent(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, gateway="cinetpay",
+                transaction_id="TXN-FAIL-1", outcome="rejected",
+                reason="verification failed",
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            ))
+            db.commit()
+
+        headers = _as(SUPER_ADMIN)
+        resp = client.get(_url(tenant_id), headers=headers)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["last_failed_payment_webhook"] is not None
+        assert body["last_failed_payment_webhook"]["gateway"] == "cinetpay"
+        assert body["last_failed_payment_webhook"]["reason"] == "verification failed"
+        assert body["last_failed_payment_webhook_note"] is None
+
+    def test_confirmed_webhook_is_not_reported_as_failure(self):
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            db.add(PaymentWebhookEvent(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, gateway="paytech",
+                transaction_id="TXN-OK-1", outcome="confirmed",
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            ))
+            db.commit()
+
+        headers = _as(SUPER_ADMIN)
+        resp = client.get(_url(tenant_id), headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["last_failed_payment_webhook"] is None
+
+    def test_other_tenant_failures_not_included(self):
+        tenant_a = _make_tenant("École Webhook A")
+        tenant_b = _make_tenant("École Webhook B")
+        with SessionLocal() as db:
+            db.add(PaymentWebhookEvent(
+                id=str(uuid.uuid4()), tenant_id=tenant_b, gateway="cinetpay",
+                transaction_id="TXN-B", outcome="rejected", reason="verification failed",
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            ))
+            db.commit()
+
+        headers = _as(SUPER_ADMIN)
+        resp = client.get(_url(tenant_a), headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["last_failed_payment_webhook"] is None
