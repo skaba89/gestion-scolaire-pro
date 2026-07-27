@@ -639,6 +639,11 @@ def get_dashboard_kpis(
             "colleaguesCount": 0 # Placeholder
         }
     except Exception as e:
+        # SECURITY (Phase 4, commercialisation): returning all-zero KPIs on
+        # any DB error is indistinguishable from "this school genuinely has
+        # 0 students" — a director sees an empty dashboard with no signal
+        # that something is actually broken. Surface it explicitly instead
+        # of masking the failure (see docs/DIRECTION_DASHBOARD_READINESS.md).
         logger.error("Error in get_dashboard_kpis: %s", e, exc_info=True)
         return {
             "totalStudents": 0,
@@ -651,7 +656,8 @@ def get_dashboard_kpis(
             "attendanceRate": 0,
             "avgGrade": 0,
             "activeCourses": 0,
-            "colleaguesCount": 0
+            "colleaguesCount": 0,
+            "degraded": True,
         }
 
 @router.get("/ministry-kpis/")
