@@ -81,6 +81,9 @@ export interface Tenant {
   type: string;
   country?: string;
   currency?: string;
+  region?: string;
+  prefecture?: string;
+  commune?: string;
   is_active: boolean;
   settings?: TenantSettings;
   created_at: string;

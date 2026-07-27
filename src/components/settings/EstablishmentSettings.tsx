@@ -35,6 +35,9 @@ const EstablishmentSettings = () => {
     phone: "",
     address: "",
     website: "",
+    region: "",
+    prefecture: "",
+    commune: "",
   });
 
   useEffect(() => {
@@ -46,6 +49,9 @@ const EstablishmentSettings = () => {
         phone: tenant.phone || "",
         address: tenant.address || "",
         website: tenant.website || "",
+        region: tenant.region || "",
+        prefecture: tenant.prefecture || "",
+        commune: tenant.commune || "",
       });
     }
   }, [tenant]);
@@ -62,6 +68,9 @@ const EstablishmentSettings = () => {
         phone: formData.phone,
         address: formData.address,
         website: formData.website,
+        region: formData.region,
+        prefecture: formData.prefecture,
+        commune: formData.commune,
       });
 
       if (setCurrentTenant) {
@@ -170,6 +179,39 @@ const EstablishmentSettings = () => {
               placeholder="Adresse complète de l'établissement"
               rows={3}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="region">Région</Label>
+            <Input
+              id="region"
+              value={formData.region}
+              onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+              placeholder="Ex: Conakry"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="prefecture">Préfecture</Label>
+            <Input
+              id="prefecture"
+              value={formData.prefecture}
+              onChange={(e) => setFormData({ ...formData, prefecture: e.target.value })}
+              placeholder="Ex: Kankan"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="commune">Commune</Label>
+            <Input
+              id="commune"
+              value={formData.commune}
+              onChange={(e) => setFormData({ ...formData, commune: e.target.value })}
+              placeholder="Ex: Kaloum"
+            />
+            <p className="text-xs text-muted-foreground">
+              Utilisé pour le rattachement aux tableaux de bord ministère/région/préfecture/commune.
+            </p>
           </div>
         </div>
 
