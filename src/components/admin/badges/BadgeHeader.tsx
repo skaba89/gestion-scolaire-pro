@@ -12,7 +12,7 @@ interface BadgeHeaderProps {
 
 export function BadgeHeader({
     studentsLabel,
-    studentLabel,
+    studentLabel: _studentLabel,
     onRefresh,
     onShowScanner,
     onOpenCreateDialog,

@@ -31,8 +31,8 @@ interface BadgeTableProps {
 export function BadgeTable({
     badges,
     onSelect,
-    onUpdateStatus,
-    onDelete,
+    onUpdateStatus: _onUpdateStatus,
+    onDelete: _onDelete,
     statusLabels,
     statusColors,
 }: BadgeTableProps) {

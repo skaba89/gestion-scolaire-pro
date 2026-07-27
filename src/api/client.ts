@@ -245,7 +245,7 @@ apiClient.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return apiClient(originalRequest);
         }
-      } catch (refreshError) {
+      } catch (_refreshError) {
         // Refresh failed, proceed to logout
       }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,7 @@ const RISK_COLORS: Record<string, string> = {
 
 export const AnalyticsAITab = () => {
     const { tenant } = useTenant();
-    const { studentLabel, studentsLabel, StudentLabel, StudentsLabel } = useStudentLabel();
-    const queryClient = useQueryClient();
+    const { studentsLabel, StudentLabel, StudentsLabel } = useStudentLabel();
     const [isCalculating, setIsCalculating] = useState(false);
 
     // Fetch AI proxy/Risk Scores

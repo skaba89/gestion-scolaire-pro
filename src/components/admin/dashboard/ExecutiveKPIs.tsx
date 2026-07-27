@@ -5,12 +5,6 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useCurrency } from "@/hooks/useCurrency";
 import { StatsSkeleton } from "@/components/ui/SkeletonLibrary";
 
-interface SectionProps {
-    period: string;
-    currency: string;
-    isLoading?: boolean;
-}
-
 export const FinancialExecutiveKPIs = ({
     data,
     period,
@@ -77,7 +71,7 @@ export const AcademicExecutiveKPIs = ({
     riskScores?: { total: number; critical: number; high: number; moderate: number; low: number };
     isLoading?: boolean;
 }) => {
-    const { studentLabel, studentsLabel, StudentLabel, StudentsLabel } = useStudentLabel();
+    const { studentsLabel, StudentsLabel } = useStudentLabel();
     if (isLoading) return <StatsSkeleton count={4} />;
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

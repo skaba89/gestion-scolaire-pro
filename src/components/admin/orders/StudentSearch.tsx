@@ -16,7 +16,7 @@ interface StudentSearchProps {
 
 export const StudentSearch = ({ onSelect, selectedStudent }: StudentSearchProps) => {
     const { tenant } = useTenant();
-    const { studentLabel, studentsLabel } = useStudentLabel();
+    const { studentLabel } = useStudentLabel();
     const [searchTerm, setSearchTerm] = useState("");
 
     const { students = [] } = useStudents(tenant?.id || "", false, {
