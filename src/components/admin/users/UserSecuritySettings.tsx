@@ -38,7 +38,7 @@ export const UserSecuritySettings = ({ tenantId }: UserSecuritySettingsProps) =>
                     );
                 }
             });
-        } catch (error: any) {
+        } catch (_error) {
             // Error handled in mutation
         }
     };

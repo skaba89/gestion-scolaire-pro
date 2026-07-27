@@ -27,16 +27,13 @@ import {
     XCircle,
     Shield,
     KeyRound,
-    Loader2,
     UserX,
     UserCheck,
-    ArrowDown,
 } from "lucide-react";
 import {
     Pagination,
     PaginationContent,
     PaginationItem,
-    PaginationLink,
     PaginationNext,
     PaginationPrevious,
 } from "@/components/ui/pagination";
@@ -54,11 +51,10 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
-import { StaggerContainer, StaggerItem } from "@/components/layouts/PageTransition";
 
 import { exportToCSV } from "@/utils/exportUtils";
 import { toast } from "sonner";
-import { Download, Search } from "lucide-react";
+import { Download } from "lucide-react";
 import { resolveUploadUrl } from "@/utils/url";
 
 interface UserTableProps {

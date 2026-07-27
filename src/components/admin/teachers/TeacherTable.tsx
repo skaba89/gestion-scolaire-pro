@@ -1,20 +1,17 @@
-import { useRef } from "react";
 import {
     Table,
     TableBody,
-    TableCell,
     TableHead,
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { GraduationCap, UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { GraduationCap } from "lucide-react";
 import { StaffProfile as TeacherProfile } from "@/features/staff/types";
 import { TeacherRow } from "./TeacherRow";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StaggerContainer, StaggerItem } from "@/components/layouts/PageTransition";
+import { StaggerContainer } from "@/components/layouts/PageTransition";
 import {
     Pagination,
     PaginationContent,

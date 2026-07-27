@@ -28,7 +28,7 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 export function UserCreateDialog() {
     const { tenant } = useTenant();
     const { hasRole } = useAuth();
-    const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
+    const { studentLabel, StudentLabel, studentsLabel } = useStudentLabel();
     const [isOpen, setIsOpen] = useState(false);
 
     const [formData, setFormData] = useState({

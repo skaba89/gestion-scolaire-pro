@@ -15,7 +15,7 @@ interface StudentRiskListProps {
 export function StudentRiskList({ studentRisks, classrooms }: StudentRiskListProps) {
     const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
 
-    const filteredRisks = studentRisks.filter((s) => {
+    const filteredRisks = studentRisks.filter((_s) => {
         if (selectedClassroom === "all") return true;
         // Note: The hook returns classroom name, but logic might need ID.
         // Assuming for now simple filtering. 

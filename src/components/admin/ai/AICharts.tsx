@@ -8,7 +8,7 @@ interface AIChartsProps {
     classrooms: { id: string; name: string }[];
 }
 
-export function AICharts({ studentRisks, classrooms }: AIChartsProps) { // Added classrooms as a prop although not strictly used in logic below yet, kept for consistency or future use
+export function AICharts({ studentRisks, classrooms: _classrooms }: AIChartsProps) { // Added classrooms as a prop although not strictly used in logic below yet, kept for consistency or future use
     const getGradeDistributionData = () => {
         const distribution = [
             { name: "Excellent (≥80%)", value: studentRisks.filter(s => s.avgGrade >= 80).length, fill: "hsl(142, 76%, 36%)" },
@@ -77,7 +77,7 @@ export function AICharts({ studentRisks, classrooms }: AIChartsProps) { // Added
                                     outerRadius={80}
                                     paddingAngle={5}
                                     dataKey="value"
-                                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                                 >
                                     {getGradeDistributionData().map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.fill} />

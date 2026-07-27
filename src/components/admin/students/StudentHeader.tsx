@@ -14,7 +14,7 @@ interface StudentHeaderProps {
 }
 
 export const StudentHeader = ({
-    studentsLabel,
+    studentsLabel: _studentsLabel,
     StudentsLabel,
     studentLabel,
     getLabel,
