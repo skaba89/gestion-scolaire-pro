@@ -8,6 +8,7 @@ actual new behavior (Subject.ects and generic Term already existed).
 import uuid
 from datetime import date
 
+import pytest
 from conftest import get_test_client
 
 client = get_test_client()
@@ -30,7 +31,14 @@ def _as(user: dict) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def teardown_function():
+@pytest.fixture(autouse=True)
+def _clear_overrides():
+    """A module-level teardown_function() only fires for bare test
+    functions, NOT for methods inside a `class Test...:` block — it would
+    silently leak get_current_user's override into every test file that
+    runs afterward in the same pytest session (national audit finding).
+    An autouse fixture tears down reliably in both cases."""
+    yield
     app.dependency_overrides.pop(get_current_user, None)
 
 
