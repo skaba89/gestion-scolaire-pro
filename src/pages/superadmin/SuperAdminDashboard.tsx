@@ -24,7 +24,7 @@ import { fr } from "date-fns/locale";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
   Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle, Settings,
-  CreditCard,
+  CreditCard, Activity,
 } from "lucide-react";
 
 interface TenantStat {
@@ -291,6 +291,7 @@ const SuperAdminDashboard = () => {
                                 <Settings className="w-4 h-4" />
                               </Button>
                               <TenantDetailDialog tenant={tenant} />
+                              <TenantHealthDialog tenant={tenant} />
                               <AddAdminDialog tenant={tenant} onSuccess={() => refetch()} />
                               <TenantSubscriptionDialog tenant={tenant} onSuccess={() => refetch()} />
                               <TenantToggleDialog tenant={tenant} onSuccess={() => refetch()} />
@@ -379,6 +380,116 @@ function TenantDetailDialog({ tenant }: { tenant: TenantStat }) {
             )}
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Tenant Health Dialog (dashboard support tenant) ─────────────────────────
+// Consumes GET /platform/tenants/{id}/health/ — quota usage, recent failed
+// jobs, last import, last failed payment webhook, overall status. Fetched
+// lazily (enabled: open) so listing tenants never triggers N health queries.
+
+const HEALTH_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  healthy: "default",
+  degraded: "secondary",
+  critical: "destructive",
+  inactive: "outline",
+};
+
+const HEALTH_STATUS_LABEL: Record<string, string> = {
+  healthy: "Sain",
+  degraded: "Dégradé",
+  critical: "Critique",
+  inactive: "Inactif",
+};
+
+function TenantHealthDialog({ tenant }: { tenant: TenantStat }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["tenant-health", tenant.id],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/platform/tenants/${tenant.id}/health/`);
+      return data;
+    },
+    enabled: open,
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" title="Santé de l'établissement (support)">
+          <Activity className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Santé — {tenant.name}
+          </DialogTitle>
+        </DialogHeader>
+        {isLoading ? (
+          <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+        ) : isError ? (
+          <div className="text-center py-8 text-destructive">Erreur lors du chargement</div>
+        ) : data ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Statut global</span>
+              <Badge variant={HEALTH_STATUS_VARIANT[data.overall_status] || "outline"}>
+                {HEALTH_STATUS_LABEL[data.overall_status] || data.overall_status}
+              </Badge>
+            </div>
+
+            {data.quota?.quotas && (
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">Quotas</p>
+                {data.quota.quotas.map((q: any) => (
+                  <div key={q.resource} className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{q.resource}</span>
+                    <span className={q.warning ? "text-amber-600 font-medium" : ""}>
+                      {q.used}{q.limit !== null ? ` / ${q.limit}` : " (illimité)"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-1 text-sm">
+              <p>
+                <strong>Jobs échoués récents :</strong>{" "}
+                {data.failed_jobs_recent?.length || 0}
+              </p>
+              {data.failed_jobs_recent?.slice(0, 3).map((j: any) => (
+                <p key={j.id} className="text-xs text-muted-foreground pl-3">
+                  {j.job_type} — {j.error || "erreur inconnue"}
+                </p>
+              ))}
+            </div>
+
+            <div className="space-y-1 text-sm">
+              <p>
+                <strong>Dernier import :</strong>{" "}
+                {data.last_import
+                  ? `${data.last_import.action} (${format(new Date(data.last_import.created_at), "dd MMM yyyy à HH:mm", { locale: fr })})`
+                  : "Aucun"}
+              </p>
+              <p>
+                <strong>Dernier webhook paiement échoué :</strong>{" "}
+                {data.last_failed_payment_webhook
+                  ? `${data.last_failed_payment_webhook.gateway} — ${data.last_failed_payment_webhook.reason || "sans détail"}`
+                  : data.last_failed_payment_webhook_note || "Aucun"}
+              </p>
+              <p>
+                <strong>Dernière activité :</strong>{" "}
+                {data.last_activity_at
+                  ? format(new Date(data.last_activity_at), "dd MMM yyyy à HH:mm", { locale: fr })
+                  : "Aucune"}
+              </p>
+            </div>
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
