@@ -81,19 +81,36 @@ facture réelle d'un élève existant.
       `COMPLETED` erroné) — cohérent avec la règle absolue du projet
       "ne jamais supprimer, toujours tracer".
 
-## 4. Ce qui n'est PAS couvert par ce test
+## 4. Ce qui EST couvert / persisté aujourd'hui (mise à jour)
 
-- **Aucun log de webhook échoué n'est persisté en base** aujourd'hui
-  (seulement `logger.warning`, non queryable) — voir
-  `GET /platform/tenants/{id}/health/`
-  (`last_failed_payment_webhook_note`). Un `test_pg_dump`-style suivi
-  structuré des échecs webhook est un P2 pour une phase ultérieure, pas
-  un blocage pour le premier paiement pilote.
-- **Numérotation de reçu séquentielle** — le reçu est unique
-  (`PAY-{année}-{hex}`) mais pas incrémental (0001, 0002...). À clarifier
-  avec le premier client réel si une comptabilité légale l'exige.
+- **Chaque appel webhook CinetPay/PayTech est journalisé en base**, quel
+  que soit son résultat (`confirmed`/`rejected`/`ignored`/`processed`),
+  dans la table `payment_webhook_events`. Ce n'est plus seulement un
+  `logger.warning()` non interrogeable — les colonnes persistées sont :
+  `tenant_id`, `gateway` (`cinetpay`/`paytech`), `transaction_id`,
+  `outcome`, `reason` (raison courte, jamais le payload brut — qui peut
+  contenir des données payeur), `created_at`. Consultable via
+  `GET /platform/tenants/{id}/health/` (`last_failed_payment_webhook`
+  pour le dernier échec ; `last_failed_payment_webhook_note` reste
+  renseigné uniquement quand aucun échec n'a encore été enregistré pour
+  ce tenant). Voir `app/models/payment_webhook_event.py` et
+  `backend/tests/test_payment_webhook_events.py`.
+- **Numérotation de reçu séquentielle** — livrée : `REC-{année}-
+  {compteur:05d}-{tenant_court}`, compteur atomique par tenant et par
+  année civile (table `payment_reference_counters`). Un appelant peut
+  toujours fournir sa propre référence, qui prime sur ce compteur. Voir
+  `docs/PAYMENTS_READINESS.md` pour le détail et l'hypothèse assumée
+  (remise à zéro annuelle — à confirmer avec le premier client si un
+  format différent est légalement exigé).
 
-## 5. Verdict attendu à l'issue de ce test
+## 5. Ce qui n'est TOUJOURS PAS couvert par ce test
+
+- Ce test de bout en bout doit être **exécuté au moins une fois contre un
+  compte marchand réel** — rien ci-dessus ne remplace ce test réel, qui
+  reste le seul moyen de vérifier que `BACKEND_URL` est bien
+  publiquement accessible depuis CinetPay/PayTech en conditions réelles.
+
+## 6. Verdict attendu à l'issue de ce test
 
 - ✅ Si les 10 étapes passent : le paiement en ligne peut être promis
   comme "prêt" au premier client payant en ligne.

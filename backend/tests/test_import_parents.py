@@ -119,6 +119,66 @@ class TestPreview:
         data = resp.json()
         assert data["has_errors"] is True
 
+    def test_preview_detects_column_mapping(self):
+        """Colonnes françaises standard -> mapping canonique correctement
+        résolu, retourné tel quel dans la réponse preview (pas juste un
+        has_errors=False générique)."""
+        tenant_id = _make_pro_tenant()
+        _, reg = _make_student(tenant_id, reg="ETU-PREVIEW-MAP")
+        rows = [{
+            "prenom": "Mapping", "nom": "Test",
+            "email": f"mapping.{uuid.uuid4().hex[:6]}@ecole.gn",
+            "telephone": "+224620000099", "matricule_eleve": reg,
+        }]
+        resp = client.post(
+            PREVIEW_URL,
+            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
+            headers=_admin_headers(tenant_id),
+        )
+        assert resp.status_code == 200, resp.text
+        mapping = resp.json()["mapping"]
+        assert mapping["first_name"] == "prenom"
+        assert mapping["last_name"] == "nom"
+        assert mapping["email"] == "email"
+        assert mapping["student_registration_numbers"] == "matricule_eleve"
+        assert resp.json()["has_errors"] is False
+
+    def test_preview_missing_email_only_is_flagged(self):
+        """Isole le champ email : tout le reste est valide, seul l'email est
+        vide -- doit produire une erreur mentionnant précisément 'email'."""
+        tenant_id = _make_pro_tenant()
+        _, reg = _make_student(tenant_id, reg="ETU-PREVIEW-EMAIL")
+        rows = [{"prenom": "Sans", "nom": "Email", "email": "", "matricule_eleve": reg}]
+        resp = client.post(
+            PREVIEW_URL,
+            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
+            headers=_admin_headers(tenant_id),
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["has_errors"] is True
+        assert any("email" in e for e in data["validation_errors"])
+
+    def test_preview_missing_student_reference_is_flagged(self):
+        """Isole la référence élève : nom/prénom/email valides, mais aucun
+        matricule ni email élève -- doit être détecté dès la preview, pas
+        seulement à la confirmation."""
+        tenant_id = _make_pro_tenant()
+        rows = [{
+            "prenom": "Orphelin", "nom": "Preview",
+            "email": f"orphan-preview.{uuid.uuid4().hex[:6]}@ecole.gn",
+            "matricule_eleve": "",
+        }]
+        resp = client.post(
+            PREVIEW_URL,
+            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
+            headers=_admin_headers(tenant_id),
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["has_errors"] is True
+        assert any("élève référencé" in e for e in data["validation_errors"])
+
 
 class TestImportValidParents:
     def test_import_creates_real_linked_parent_account(self):
@@ -243,6 +303,54 @@ class TestImportAlreadyExistingParent:
         assert resp2.status_code == 200, resp2.text
         assert resp2.json()["created_links"] == 0
         assert resp2.json()["skipped_links"] == 1
+
+
+class TestCrossTenantEmail:
+    def test_parent_email_used_by_another_tenant_is_refused(self):
+        """`User.email` est unique au niveau plateforme (pas par tenant,
+        voir test_import_teachers.py). Un import parent ne doit jamais
+        réutiliser silencieusement -- ni écraser -- le compte d'un autre
+        établissement : la ligne doit être rejetée avec une erreur
+        explicite, sans créer de lien ni modifier le compte existant."""
+        tenant_a = _make_pro_tenant("École A - Email Existant")
+        tenant_b = _make_pro_tenant("École B - Tente Import")
+        shared_email = f"cross-tenant.{uuid.uuid4().hex[:6]}@ecole.gn"
+
+        # Parent already exists in tenant A.
+        _, reg_a = _make_student(tenant_a, reg="ETU-XT-A")
+        rows_a = [{"prenom": "Original", "nom": "DeA", "email": shared_email, "matricule_eleve": reg_a}]
+        resp_a = client.post(
+            CONFIRM_URL,
+            files={"file": ("a.csv", io.BytesIO(_make_csv(rows_a)), "text/csv")},
+            headers=_admin_headers(tenant_a),
+        )
+        assert resp_a.status_code == 200, resp_a.text
+        assert resp_a.json()["created_parents"] == 1
+
+        # Tenant B tries to import a parent with the SAME email.
+        _, reg_b = _make_student(tenant_b, reg="ETU-XT-B")
+        rows_b = [{"prenom": "Intrus", "nom": "DeB", "email": shared_email, "matricule_eleve": reg_b}]
+        resp_b = client.post(
+            CONFIRM_URL,
+            files={"file": ("b.csv", io.BytesIO(_make_csv(rows_b)), "text/csv")},
+            headers=_admin_headers(tenant_b),
+        )
+        assert resp_b.status_code == 200, resp_b.text
+        body_b = resp_b.json()
+        assert body_b["created_parents"] == 0
+        assert body_b["reused_parents"] == 0
+        assert body_b["created_links"] == 0
+        assert any("autre établissement" in e["error"] for e in body_b["errors"])
+
+        with SessionLocal() as db:
+            # Exactly one account exists, still owned by tenant A, name untouched.
+            accounts = db.query(User).filter(User.email == shared_email).all()
+            assert len(accounts) == 1
+            assert str(accounts[0].tenant_id) == tenant_a
+            assert accounts[0].first_name == "Original"
+
+            # No link was ever created for tenant B.
+            assert db.query(ParentStudent).filter(ParentStudent.tenant_id == tenant_b).count() == 0
 
 
 class TestFileWithErrors:

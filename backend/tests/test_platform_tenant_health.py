@@ -195,6 +195,66 @@ class TestLastImport:
         assert resp.status_code == 200, resp.text
         assert resp.json()["last_import"] is None
 
+    def test_last_import_reflects_import_parents(self):
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            db.add(AuditLog(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=str(uuid.uuid4()),
+                action="IMPORT_PARENTS", resource_type="PARENT",
+                details={"created_parents": 3, "created_links": 4, "filename": "parents.csv"},
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            ))
+            db.commit()
+
+        headers = _as(SUPER_ADMIN)
+        resp = client.get(_url(tenant_id), headers=headers)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["last_import"]["action"] == "IMPORT_PARENTS"
+        assert body["last_import"]["summary"]["created_parents"] == 3
+
+    def test_last_import_reflects_import_teachers(self):
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            db.add(AuditLog(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=str(uuid.uuid4()),
+                action="IMPORT_TEACHERS", resource_type="TEACHER",
+                details={"created": 5, "skipped": 0, "filename": "teachers.csv"},
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            ))
+            db.commit()
+
+        headers = _as(SUPER_ADMIN)
+        resp = client.get(_url(tenant_id), headers=headers)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["last_import"]["action"] == "IMPORT_TEACHERS"
+        assert body["last_import"]["summary"]["created"] == 5
+
+    def test_last_import_picks_most_recent_across_import_types(self):
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            db.add(AuditLog(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=str(uuid.uuid4()),
+                action="IMPORT_STUDENTS", resource_type="STUDENT",
+                details={"created": 1, "filename": "old.csv"},
+                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc).replace(tzinfo=None),
+            ))
+            db.add(AuditLog(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=str(uuid.uuid4()),
+                action="IMPORT_PARENTS", resource_type="PARENT",
+                details={"created_parents": 2, "filename": "recent.csv"},
+                created_at=datetime(2026, 6, 1, tzinfo=timezone.utc).replace(tzinfo=None),
+            ))
+            db.commit()
+
+        headers = _as(SUPER_ADMIN)
+        resp = client.get(_url(tenant_id), headers=headers)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["last_import"]["action"] == "IMPORT_PARENTS"
+        assert body["last_import"]["summary"]["filename"] == "recent.csv"
+
 
 class TestPaymentWebhookFailures:
     def test_no_failures_yet_returns_null_with_explicit_note(self):

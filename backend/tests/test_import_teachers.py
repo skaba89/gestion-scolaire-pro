@@ -18,6 +18,7 @@ from app.core.database import SessionLocal, engine  # noqa: E402
 from app.core.security import create_access_token, get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.audit_log import AuditLog  # noqa: E402
+from app.models.employee import Employee  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.models.user_role import UserRole  # noqa: E402
@@ -119,6 +120,20 @@ class TestPreview:
         assert resp.status_code == 200, resp.text
         assert resp.json()["mapping"]["subjects"] is not None
 
+    def test_preview_missing_email_only_is_flagged(self):
+        """Isole le champ email : nom/prénom valides, seul l'email est vide."""
+        tenant_id = _make_pro_tenant()
+        rows = [{**VALID_ROW, "email": ""}]
+        resp = client.post(
+            PREVIEW_URL,
+            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
+            headers=_admin_headers(tenant_id),
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["has_errors"] is True
+        assert any("email" in e for e in data["validation_errors"])
+
 
 class TestImportValidTeachers:
     def test_import_creates_real_teacher_account_with_role(self):
@@ -214,6 +229,42 @@ class TestFileWithErrors:
         body = resp.json()
         assert body["created"] == 0
         assert body["skipped"] == 1
+
+
+class TestFieldsNotYetPersisted:
+    """L'import lit matières/diplôme/département/type de contrat/date
+    d'embauche/salaire (voir TEACHER_COLUMN_MAP + docstring de
+    confirm_teacher_import) mais ne les persiste nulle part encore --
+    seul le compte users+user_roles TEACHER est créé. Ce test verrouille
+    ce comportement explicitement : si quelqu'un ajoute la persistance
+    plus tard, ce test doit être mis à jour consciemment plutôt que de
+    laisser une régression silencieuse passer inaperçue dans l'autre sens."""
+
+    def test_subjects_department_contract_salary_are_read_but_not_persisted(self):
+        tenant_id = _make_pro_tenant()
+        email = f"notpersisted.{uuid.uuid4().hex[:6]}@ecole.gn"
+        rows = [{
+            **VALID_ROW, "email": email,
+            "matieres": "Mathématiques,Physique", "departement": "Sciences",
+            "type_contrat": "CDI", "diplome": "Doctorat", "date_embauche": "01/09/2020",
+        }]
+        resp = client.post(
+            CONFIRM_URL,
+            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
+            headers=_admin_headers(tenant_id),
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["created"] == 1
+
+        with SessionLocal() as db:
+            teacher = db.query(User).filter(User.email == email).first()
+            assert teacher is not None
+            # No Employee row (department/contract/salary/hire_date's natural
+            # home) was created as a side effect of this import.
+            assert db.query(Employee).filter(Employee.email == email).count() == 0
+            # User itself has no column to hold these values -- nothing to
+            # assert missing on it beyond confirming the import didn't error
+            # trying to write them somewhere that doesn't exist.
 
 
 class TestTenantIsolation:
