@@ -7,11 +7,54 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
-from app.models import Notification, PushSubscription, User
+from app.models import Notification, PushSubscription, User, NotificationPreference
 from app.schemas.push_subscription import PushSubscriptionCreate, PushSubscriptionInDB
 from app.schemas.notification import NotificationResponse, NotificationCreate, NotificationBulkCreate, NotificationUpdate
+from app.schemas.notification_preference import NotificationPreferenceInDB, NotificationPreferenceUpdate
 
 router = APIRouter()
+
+# ─── Notification Preferences ────────────────────────────────────────────────
+# Source of truth for which notification categories a user wants. Previously
+# only kept in the browser's localStorage (src/hooks/usePushNotifications.ts),
+# so preferences never synced across a user's devices. One row per user
+# (not per device) — get-or-create on first read.
+
+@router.get("/preferences/", response_model=NotificationPreferenceInDB)
+def read_notification_preferences(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user.get("id")
+    tenant_id = current_user.get("tenant_id")
+    prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
+    if not prefs:
+        prefs = NotificationPreference(user_id=user_id, tenant_id=tenant_id)
+        db.add(prefs)
+        db.commit()
+        db.refresh(prefs)
+    return prefs
+
+@router.put("/preferences/", response_model=NotificationPreferenceInDB)
+def update_notification_preferences(
+    update_in: NotificationPreferenceUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user.get("id")
+    tenant_id = current_user.get("tenant_id")
+    prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
+    if not prefs:
+        prefs = NotificationPreference(user_id=user_id, tenant_id=tenant_id)
+        db.add(prefs)
+
+    for field, value in update_in.dict(exclude_unset=True).items():
+        if value is not None:
+            setattr(prefs, field, value)
+
+    db.commit()
+    db.refresh(prefs)
+    return prefs
 
 # ─── Push Subscriptions ──────────────────────────────────────────────────────
 

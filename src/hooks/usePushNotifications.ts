@@ -40,7 +40,8 @@ export const usePushNotifications = () => {
       setPermission(Notification.permission);
     }
 
-    // Load preferences from localStorage
+    // Load a cached copy immediately (avoids a flash of defaults while the
+    // API call below resolves, and covers offline use).
     const savedPrefs = localStorage.getItem("notificationPreferences");
     if (savedPrefs) {
       try {
@@ -52,6 +53,34 @@ export const usePushNotifications = () => {
 
     setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    // Server is the source of truth (syncs preferences across a user's
+    // devices) — the localStorage copy above is only a same-device cache
+    // used before this resolves and as an offline fallback.
+    if (!user?.id) return;
+
+    let cancelled = false;
+    apiClient.get('/notifications/preferences/')
+      .then(({ data }) => {
+        if (cancelled) return;
+        const fetched: NotificationPreferences = {
+          grades: data.grades,
+          absences: data.absences,
+          messages: data.messages,
+          homework: data.homework,
+          events: data.events,
+          payments: data.payments,
+        };
+        setPreferences(fetched);
+        localStorage.setItem("notificationPreferences", JSON.stringify(fetched));
+      })
+      .catch((error) => {
+        console.error("Error loading notification preferences:", error);
+      });
+
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   useEffect(() => {
     const checkSubscription = async () => {
@@ -189,6 +218,11 @@ export const usePushNotifications = () => {
     const updated = { ...preferences, ...newPreferences };
     setPreferences(updated);
     localStorage.setItem("notificationPreferences", JSON.stringify(updated));
+
+    apiClient.put('/notifications/preferences/', newPreferences).catch((error) => {
+      console.error("Error saving notification preferences:", error);
+      toast.error("Erreur lors de l'enregistrement des préférences");
+    });
   }, [preferences]);
 
   const showNotification = useCallback((
