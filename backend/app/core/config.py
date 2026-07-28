@@ -249,6 +249,11 @@ class Settings(BaseSettings):
     # URL base utilisée dans les emails (lien de reset, etc.)
     FRONTEND_URL: str = get_secret("FRONTEND_URL", "http://localhost:3000")
 
+    # Adresse support/technique recevant les alertes automatiques
+    # (webhook paiement rejeté, etc.). Vide par défaut = alertes désactivées,
+    # jamais une erreur bloquante — voir docs/TENANT_MONITORING.md.
+    ALERT_EMAIL: str = get_secret("ALERT_EMAIL", "")
+
     # Groq AI
     GROQ_API_KEY: str = get_secret("GROQ_API_KEY", "")
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")

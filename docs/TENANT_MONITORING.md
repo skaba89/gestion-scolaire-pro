@@ -25,8 +25,8 @@ promesse au-delà de ce qui est vérifié dans le code.
 | Erreurs 4xx/5xx par tenant | P2 | Le middleware `metrics.py` (Prometheus) n'inclut pas `tenant_id` — voir stratégie ci-dessous |
 | Temps de réponse moyen par tenant | P2 | Même limitation |
 | Imports échoués par tenant (agrégé, pas juste le rapport d'un import) | P2 | Chaque import produit un rapport individuel (voir `docs/IMPORT_EXCEL_READINESS.md`) mais rien n'agrège "combien d'imports ont échoué ce mois pour ce tenant" |
-| Alertes automatiques (5xx, paiement échoué, import échoué, backup échoué, tenant inactif) | P2 | Aucun système d'alerte configuré — actuellement, tout se découvre en consultant les logs ou `/health/ready` manuellement |
-| Dashboard Grafana ou écran admin dédié | P2 | Les données existent partiellement (`tenant_quota_usage`, `jobs`) mais aucune vue agrégée ne les présente ensemble |
+| Alertes automatiques (5xx, import échoué, backup échoué, tenant inactif) | P2 | **Paiement webhook rejeté : ✅ livré** (voir ci-dessous). Les 4 autres (5xx, import, backup, inactivité) restent à construire — nécessitent des seuils/destinataires métier à valider avec le support, pas un simple choix technique. |
+| Dashboard Grafana ou écran admin dédié | ✅ livré | `GET /platform/tenants/{id}/health/` (SUPER_ADMIN) + écran `TenantHealthDialog` dans le SaaS Dashboard — statut global, quotas, jobs échoués, dernier import, dernier webhook paiement échoué, dernière activité. Pas de Grafana, juste un écran admin, comme recommandé ci-dessous. |
 
 ## Stratégie recommandée : table agrégée, pas Prometheus par tenant
 
@@ -47,25 +47,27 @@ approche plutôt que d'ajouter des labels Prometheus :
 3. Exposer un endpoint admin `GET /platform/tenants/{id}/health/` (super-admin/support uniquement) qui lit cette table.
 4. Dashboard support = un simple écran frontend consommant cet endpoint, pas besoin de Grafana pour un premier support opérationnel.
 
-## Alertes recommandées (à construire, pas encore en place)
+## Alertes
 
-| Alerte | Seuil suggéré | Canal |
-|---|---|---|
-| Taux d'erreur 5xx | > 5% des requêtes sur 15 min pour un tenant | Slack/email support |
-| Paiement webhook échoué | tout échec de vérification de signature | Email immédiat (signal de fraude potentielle ou mauvaise config) |
-| Import échoué | > 50% de lignes en erreur sur un import | Email au support + à l'établissement |
-| Backup échoué | tout échec de sauvegarde quotidienne | Alerte immédiate équipe technique (P1 opérationnel) |
-| Tenant inactif anormal | 0 connexion depuis 14 jours sur un tenant payant actif | Email commercial (risque de churn) |
+| Alerte | Seuil | Canal | État |
+|---|---|---|---|
+| Paiement webhook rejeté | tout échec de vérification de signature CinetPay/PayTech | Email à `ALERT_EMAIL` (env var backend, vide = désactivé) | ✅ livré — `_send_webhook_rejection_alert()` dans `app/api/v1/endpoints/operational/parents.py`, planifié via `BackgroundTasks` pour ne jamais ralentir la réponse au fournisseur. Testé (`tests/test_payment_webhook_events.py::TestWebhookRejectionAlert`). |
+| Taux d'erreur 5xx | > 5% des requêtes sur 15 min pour un tenant | Slack/email support | ⏳ à construire — nécessite d'abord la ventilation 5xx par tenant (voir tableau ci-dessus) |
+| Import échoué | > 50% de lignes en erreur sur un import | Email au support + à l'établissement | ⏳ à construire — seuil "50%" à valider avec le support avant implémentation |
+| Backup échoué | tout échec de sauvegarde quotidienne | Alerte immédiate équipe technique (P1 opérationnel) | ⏳ à construire — le script de backup accepte déjà `ALERT_EMAIL`/`ALERT_WEBHOOK` en variables (voir `tests/test_backup_scripts.py`), reste à vérifier qu'ils sont bien câblés en production |
+| Tenant inactif anormal | 0 connexion depuis 14 jours sur un tenant payant actif | Email commercial (risque de churn) | ⏳ à construire — décision commerciale sur le destinataire, pas un choix technique |
 
-## Dashboard support (à construire)
+## Dashboard support
 
-Un écran admin minimal suffit pour démarrer, pas besoin de Grafana :
-liste des tenants avec statut, dernière activité, quota utilisé,
-dernier backup, jobs en erreur récents — consommant l'endpoint de santé
-par tenant recommandé ci-dessus.
+✅ livré : `GET /platform/tenants/{id}/health/` (SUPER_ADMIN uniquement) +
+écran `TenantHealthDialog` (bouton "Santé de l'établissement" dans le
+tableau des établissements du SaaS Dashboard) — statut global, quotas,
+jobs échoués récents, dernier import, dernier webhook paiement rejeté,
+dernière activité. Pas besoin de Grafana pour ce premier support
+opérationnel, conforme à la recommandation initiale de ce document.
 
 ## Limites actuelles
 
-- Aucune alerte automatique n'existe à ce jour — toute anomalie doit être découverte manuellement via `/health/ready`, les logs, ou un ticket client.
+- Une seule alerte automatique existe à ce jour (webhook paiement rejeté) — les 4 autres du tableau ci-dessus restent à découvrir manuellement via le dashboard support, les logs, ou un ticket client.
 - Le "dernier backup" n'est vérifiable qu'au niveau plateforme, pas encore par tenant individuel (peu critique tant qu'un seul cluster PostgreSQL sert tous les tenants — la sauvegarde est de toute façon globale).
 - Aucune donnée personnelle n'est exposée dans les métriques actuelles (`/metrics` expose des compteurs Python/GC et des agrégats de requêtes, jamais de contenu métier) — à maintenir strictement lors de toute extension.

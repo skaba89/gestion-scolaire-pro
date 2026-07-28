@@ -1,6 +1,6 @@
 import logging
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.exc import IntegrityError
@@ -21,21 +21,61 @@ from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
 from app.services.payment_gateways import CinetPayGateway, get_gateway
+from app.services.notifications import EmailSender
 from app.models import ParentStudent as ParentStudentModel, User, UserRole
 from app.models.payment_webhook_event import PaymentWebhookEvent
 
 router = APIRouter()
 
 
+def _send_webhook_rejection_alert(gateway: str, transaction_id: Optional[str], reason: Optional[str]) -> None:
+    """Best-effort email to support when a payment webhook is rejected —
+    a rejected signature/verification can mean fraud attempt or a broken
+    gateway config, either way support should know without having to poll
+    GET /platform/tenants/{id}/health/ manually. No-ops silently if
+    ALERT_EMAIL isn't configured (see docs/TENANT_MONITORING.md — this was
+    the one "alerte automatique" item still fully missing from that audit)."""
+    if not settings.ALERT_EMAIL:
+        return
+    try:
+        sender = EmailSender(
+            resend_api_key=settings.RESEND_API_KEY,
+            smtp_host=settings.SMTP_HOST,
+            smtp_port=settings.SMTP_PORT,
+            smtp_user=settings.SMTP_USER,
+            smtp_pass=settings.SMTP_PASS,
+            from_email=settings.FROM_EMAIL,
+            from_name=settings.FROM_NAME,
+        )
+        subject = f"[SchoolFlow] Webhook paiement rejeté — {gateway}"
+        html = (
+            f"<p>Un webhook <strong>{gateway}</strong> a été rejeté (signature ou "
+            f"vérification invalide).</p>"
+            f"<p><strong>Transaction :</strong> {transaction_id or 'inconnue'}<br>"
+            f"<strong>Raison :</strong> {reason or 'non précisée'}</p>"
+            f"<p>Cause fréquente : tentative de fraude, identifiants marchand mal "
+            f"configurés, ou changement d'infrastructure côté fournisseur. "
+            f"Voir <code>GET /platform/tenants/{{id}}/health/</code> pour le détail "
+            f"par établissement.</p>"
+        )
+        sender.send(settings.ALERT_EMAIL, subject, html)
+    except Exception as exc:
+        logger.warning("Failed to send webhook rejection alert: %s", exc)
+
+
 def _log_webhook_event(
     db: Session, *, tenant_id: Optional[str], gateway: str,
     transaction_id: Optional[str], outcome: str, reason: Optional[str] = None,
+    background_tasks: Optional[BackgroundTasks] = None,
 ) -> None:
     """Persist one row per webhook call so support can answer "did a
     webhook ever arrive, and what happened" — previously only a
     logger.warning() on failure, not queryable (see
     GET /platform/tenants/{id}/health/). Committed in its own transaction
-    so a failure downstream in the caller never rolls this log back."""
+    so a failure downstream in the caller never rolls this log back.
+    A "rejected" outcome also schedules a best-effort alert email (never
+    inline — always via BackgroundTasks so a slow/unreachable mail
+    provider never delays the webhook response back to the gateway)."""
     try:
         db.add(PaymentWebhookEvent(
             tenant_id=tenant_id, gateway=gateway, transaction_id=transaction_id,
@@ -45,6 +85,9 @@ def _log_webhook_event(
     except Exception as exc:
         db.rollback()
         logger.warning("Failed to persist webhook event log: %s", exc)
+
+    if outcome == "rejected" and background_tasks is not None:
+        background_tasks.add_task(_send_webhook_rejection_alert, gateway, transaction_id, reason)
 
 # --- List all parents ---
 
@@ -913,7 +956,7 @@ def _confirm_gateway_payment(db: Session, transaction_id: str, amount: float, te
 
 
 @router.post("/payments/webhook/cinetpay/")
-async def cinetpay_webhook(request: Request, db: Session = Depends(get_db)):
+async def cinetpay_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     CinetPay IPN (Instant Payment Notification) webhook.
     CinetPay POSTs this URL when a payment is completed.
@@ -958,7 +1001,8 @@ async def cinetpay_webhook(request: Request, db: Session = Depends(get_db)):
             if not gw.verify_webhook(payload, {}):
                 logger.warning("CinetPay webhook verification failed for %s", transaction_id)
                 _log_webhook_event(db, tenant_id=tenant_id, gateway="cinetpay", transaction_id=transaction_id,
-                                    outcome="rejected", reason="verification failed")
+                                    outcome="rejected", reason="verification failed",
+                                    background_tasks=background_tasks)
                 return {"status": "rejected", "reason": "verification failed"}
             pay_status = gw.parse_webhook_status(payload)
             if pay_status == "COMPLETED":
@@ -984,7 +1028,7 @@ async def cinetpay_webhook(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/payments/webhook/paytech/")
-async def paytech_webhook(request: Request, db: Session = Depends(get_db)):
+async def paytech_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """PayTech IPN webhook."""
     try:
         payload = await request.json()
@@ -1034,7 +1078,8 @@ async def paytech_webhook(request: Request, db: Session = Depends(get_db)):
                 return {"status": "processed"}
 
             _log_webhook_event(db, tenant_id=tenant_id, gateway="paytech", transaction_id=transaction_id,
-                                outcome="rejected", reason="verification failed")
+                                outcome="rejected", reason="verification failed",
+                                background_tasks=background_tasks)
             return {"status": "processed"}
 
         _log_webhook_event(db, tenant_id=tenant_id, gateway="paytech", transaction_id=transaction_id,

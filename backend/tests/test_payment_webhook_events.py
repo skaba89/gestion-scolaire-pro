@@ -10,12 +10,14 @@ would require mocking the external CinetPay/PayTech API.
 """
 import uuid
 from datetime import date
+from unittest.mock import MagicMock, patch
 
 import pytest
 from conftest import get_test_client
 
 client = get_test_client()
 
+from app.core.config import settings  # noqa: E402
 from app.core.database import SessionLocal, engine  # noqa: E402
 from app.models.payment import Payment, PaymentMethod, PaymentStatus  # noqa: E402
 from app.models.payment_webhook_event import PaymentWebhookEvent  # noqa: E402
@@ -132,6 +134,87 @@ class TestCinetPayWebhookLogging:
             assert event.tenant_id == uuid.UUID(tenant_id) or str(event.tenant_id) == tenant_id
             assert event.outcome == "ignored"
             assert event.reason == "gateway not configured for tenant"
+
+
+class TestWebhookRejectionAlert:
+    """A rejected webhook (bad signature/verification) schedules a
+    best-effort support email — see docs/TENANT_MONITORING.md, the one
+    "alerte automatique" item that was still fully missing. Tested at the
+    unit level (like tests/test_async_email_delivery.py) rather than
+    through the full HTTP path, which would require mocking the external
+    CinetPay/PayTech gateway verification to reach the rejected branch."""
+
+    def test_noop_when_alert_email_not_configured(self, monkeypatch):
+        from app.api.v1.endpoints.operational.parents import _send_webhook_rejection_alert
+
+        monkeypatch.setattr(settings, "ALERT_EMAIL", "")
+        with patch("app.api.v1.endpoints.operational.parents.EmailSender") as mock_sender_cls:
+            _send_webhook_rejection_alert("cinetpay", "TXN-1", "verification failed")
+            mock_sender_cls.assert_not_called()
+
+    def test_sends_email_when_configured(self, monkeypatch):
+        from app.api.v1.endpoints.operational.parents import _send_webhook_rejection_alert
+
+        monkeypatch.setattr(settings, "ALERT_EMAIL", "support@schoolflow.pro")
+        mock_instance = MagicMock()
+        with patch(
+            "app.api.v1.endpoints.operational.parents.EmailSender", return_value=mock_instance,
+        ):
+            _send_webhook_rejection_alert("cinetpay", "TXN-42", "verification failed")
+
+        mock_instance.send.assert_called_once()
+        call_args = mock_instance.send.call_args
+        assert call_args[0][0] == "support@schoolflow.pro"
+        assert "cinetpay" in call_args[0][1].lower()
+        assert "TXN-42" in call_args[0][2]
+
+    def test_send_failure_never_raises(self, monkeypatch):
+        """A broken/unreachable mail provider must never break the webhook
+        response back to the gateway (this runs inside a BackgroundTask,
+        but the function itself must stay exception-safe regardless)."""
+        from app.api.v1.endpoints.operational.parents import _send_webhook_rejection_alert
+
+        monkeypatch.setattr(settings, "ALERT_EMAIL", "support@schoolflow.pro")
+        mock_instance = MagicMock()
+        mock_instance.send.side_effect = RuntimeError("SMTP down")
+        with patch(
+            "app.api.v1.endpoints.operational.parents.EmailSender", return_value=mock_instance,
+        ):
+            _send_webhook_rejection_alert("paytech", "TXN-99", "verification failed")  # must not raise
+
+    def test_log_webhook_event_schedules_alert_only_for_rejected(self):
+        from app.api.v1.endpoints.operational.parents import _log_webhook_event
+
+        tenant_id = _make_tenant("École Alerte Webhook")
+        mock_bg = MagicMock()
+
+        with SessionLocal() as db:
+            _log_webhook_event(
+                db, tenant_id=tenant_id, gateway="cinetpay", transaction_id="TXN-CONFIRMED",
+                outcome="confirmed", background_tasks=mock_bg,
+            )
+        mock_bg.add_task.assert_not_called()
+
+        with SessionLocal() as db:
+            _log_webhook_event(
+                db, tenant_id=tenant_id, gateway="cinetpay", transaction_id="TXN-REJECTED",
+                outcome="rejected", reason="verification failed", background_tasks=mock_bg,
+            )
+        mock_bg.add_task.assert_called_once()
+        args = mock_bg.add_task.call_args[0]
+        assert args[1:] == ("cinetpay", "TXN-REJECTED", "verification failed")
+
+    def test_log_webhook_event_without_background_tasks_does_not_crash(self):
+        """Callers that don't pass background_tasks (none currently, but the
+        parameter is optional) must not crash — silently skips scheduling."""
+        from app.api.v1.endpoints.operational.parents import _log_webhook_event
+
+        tenant_id = _make_tenant("École Alerte Sans BG")
+        with SessionLocal() as db:
+            _log_webhook_event(
+                db, tenant_id=tenant_id, gateway="paytech", transaction_id="TXN-NOBG",
+                outcome="rejected", reason="verification failed",
+            )  # background_tasks defaults to None — must not raise
 
 
 class TestPayTechWebhookLogging:
