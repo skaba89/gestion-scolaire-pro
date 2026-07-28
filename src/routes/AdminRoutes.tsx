@@ -70,6 +70,7 @@ const AcademicRules = lazy(() => import("@/pages/admin/AcademicRules"));
 const Marketplace = lazy(() => import("@/pages/admin/Marketplace"));
 const DecisionDashboard = lazy(() => import("@/pages/admin/DecisionDashboard"));
 const QrScanPage = lazy(() => import("@/pages/admin/QrScanPage"));
+const KioskDevices = lazy(() => import("@/pages/admin/KioskDevices"));
 const Onboarding = lazy(() => import("@/pages/admin/Onboarding"));
 const MinistryDashboard = lazy(() => import("@/pages/admin/MinistryDashboard"));
 const DataImport = lazy(() => import("@/pages/admin/DataImport"));
@@ -149,6 +150,7 @@ export const AdminRoutes = () => {
             <Route path="marketplace" element={<Marketplace />} />
             <Route path="decision-support" element={<DecisionDashboard />} />
             <Route path="scan" element={<QrScanPage />} />
+            <Route path="kiosk-devices" element={<KioskDevices />} />
             <Route path="ministry-reporting" element={<MinistryDashboard />} />
             <Route path="data-import" element={<DataImport />} />
             <Route path="landing" element={<LandingPageEditor />} />

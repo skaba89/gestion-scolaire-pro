@@ -195,6 +195,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/report-cards"), label: t("nav.reportCards"), icon: FileText, permission: "report_cards:read" },
         { href: getTenantUrl("/admin/certificates"), label: t("nav.certificates"), icon: Award, permission: "certificates:read" },
         { href: getTenantUrl("/admin/scan"), label: "Scan Présence", icon: ScanLine, permission: "attendance:read" },
+        { href: getTenantUrl("/admin/kiosk-devices"), label: "Appareils kiosque", icon: ScanLine, permission: "settings:read" },
       ],
     },
     {

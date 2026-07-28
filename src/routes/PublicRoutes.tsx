@@ -26,6 +26,7 @@ const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const Pricing = lazy(() => import("@/pages/public/Pricing"));
 const Register = lazy(() => import("@/pages/public/Register"));
+const KioskScanPage = lazy(() => import("@/pages/public/KioskScanPage"));
 
 export const PublicRoutes = () => {
     return (
@@ -63,6 +64,7 @@ export const PublicRoutes = () => {
             <Route path="/programmes/:tenantSlug" element={<Programs />} />
             <Route path="/calendrier/:tenantSlug" element={<PublicCalendar />} />
             <Route path="/contact/:tenantSlug" element={<Contact />} />
+            <Route path="/kiosk/:tenantSlug" element={<KioskScanPage />} />
             <Route path="/install" element={<Install />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<TermsOfService />} />

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise, ministry
 from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework, transcripts
 from app.api.v1.endpoints.finance import payments, payment_schedules
-from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys
+from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys, kiosk
 from app.api.v1.endpoints.operational import departments as dept_portal
 from app.api.v1.endpoints.operational import alumni as alumni_portal
 from app.api.v1.endpoints.operational import inventory, library, clubs, incidents
@@ -101,6 +101,7 @@ api_router.include_router(payment_schedules.router, prefix="/payment-schedules",
 api_router.include_router(infrastructure.router, prefix="/infrastructure", tags=["Infrastructure"])
 api_router.include_router(hr.router, prefix="/hr", tags=["Human Resources"])
 api_router.include_router(school_life.router, prefix="/school-life", tags=["School Life"])
+api_router.include_router(kiosk.router, prefix="/kiosk", tags=["Kiosk"])
 api_router.include_router(parents.router, prefix="/parents", tags=["Parents"])
 api_router.include_router(admissions.router, prefix="/admissions", tags=["Admissions"])
 api_router.include_router(schedule.router, prefix="/schedule", tags=["Schedule"])

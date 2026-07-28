@@ -71,6 +71,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # live payment test, not just locally).
             "/parents/payments/webhook/cinetpay", "/parents/payments/webhook/cinetpay/",
             "/parents/payments/webhook/paytech", "/parents/payments/webhook/paytech/",
+
+            # --- QR kiosk scan. A kiosk is a shared, unattended device with
+            # no staff JWT on it by design — it authenticates itself via the
+            # X-Kiosk-Token header (verified inside the handler, tenant
+            # resolved from the token's owning device, not from RLS
+            # context). Device management (create/list/revoke) is NOT
+            # exempted here — that stays behind normal JWT + role check.
+            "/kiosk/scan", "/kiosk/scan/",
         ]
 
         # Public prefixes — kept ONLY where the route has a dynamic path
