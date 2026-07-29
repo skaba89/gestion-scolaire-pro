@@ -502,31 +502,31 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState("TENANT_ADMIN");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !firstName || !lastName || !password) {
+    if (!email || !firstName || !lastName) {
       toast.error("Veuillez remplir tous les champs");
       return;
     }
     setLoading(true);
     try {
+      // No password field by design — SUPER_ADMIN never sets or sees this
+      // account's credential, only triggers an emailed activation link
+      // (see create_tenant_admin_user() in the backend).
       await apiClient.post(`/tenants/${tenant.id}/create-admin/`, {
         email,
         first_name: firstName,
         last_name: lastName,
-        password,
         role,
       });
-      toast.success(`Utilisateur ${email} créé avec succès pour ${tenant.name}`);
+      toast.success(`Utilisateur ${email} créé — lien d'activation envoyé par email`);
       setOpen(false);
       setEmail("");
       setFirstName("");
       setLastName("");
-      setPassword("");
       onSuccess();
     } catch (err: any) {
       const detail = err?.response?.data?.detail || "Erreur lors de la création";
@@ -566,10 +566,6 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-1.5">
-            <Label>Mot de passe *</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Minimum 8 caractères" />
-          </div>
-          <div className="space-y-1.5">
             <Label>Rôle</Label>
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger>
@@ -584,12 +580,16 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
               </SelectContent>
             </Select>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Un email avec un lien de création de mot de passe sera envoyé à cette adresse.
+            Vous ne définissez ni ne voyez jamais son mot de passe.
+          </p>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
             <Button type="submit" disabled={loading}>
-              {loading ? "Création..." : "Créer l'utilisateur"}
+              {loading ? "Envoi en cours..." : "Créer et envoyer l'invitation"}
             </Button>
           </DialogFooter>
         </form>

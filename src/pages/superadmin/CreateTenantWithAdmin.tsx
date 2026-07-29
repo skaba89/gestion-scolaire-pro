@@ -40,11 +40,12 @@ const CreateTenantWithAdmin = () => {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
 
-  // Admin user fields
+  // Admin user fields — no password field by design: SUPER_ADMIN never
+  // sets or sees this account's credential, only triggers an emailed
+  // activation link (see create_tenant_with_admin() in the backend).
   const [adminEmail, setAdminEmail] = useState("");
   const [adminFirstName, setAdminFirstName] = useState("");
   const [adminLastName, setAdminLastName] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
 
   if (!hasRole("SUPER_ADMIN")) {
     return (
@@ -85,12 +86,8 @@ const CreateTenantWithAdmin = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !slug || !adminEmail || !adminFirstName || !adminLastName || !adminPassword) {
+    if (!name || !slug || !adminEmail || !adminFirstName || !adminLastName) {
       toast.error(t("messages.fillRequired", { defaultValue: "Veuillez remplir tous les champs obligatoires" }));
-      return;
-    }
-    if (adminPassword.length < 8) {
-      toast.error(t("messages.passwordTooShort", { defaultValue: "Le mot de passe doit contenir au moins 8 caractères" }));
       return;
     }
 
@@ -109,7 +106,6 @@ const CreateTenantWithAdmin = () => {
         admin_email: adminEmail,
         admin_first_name: adminFirstName,
         admin_last_name: adminLastName,
-        admin_password: adminPassword,
         levels,
       });
 
@@ -139,7 +135,8 @@ const CreateTenantWithAdmin = () => {
                 {tenantCreatedMessage(createdName)}
               </h2>
               <p className="text-sm text-green-700 mt-1">
-                L'administrateur peut maintenant se connecter et configurer l'établissement.
+                Un email avec un lien de création de mot de passe a été envoyé à l'administrateur.
+                Il pourra ensuite se connecter et configurer l'établissement.
               </p>
             </div>
             <div className="bg-white border border-green-200 rounded-lg p-4 text-left space-y-3">
@@ -337,18 +334,10 @@ const CreateTenantWithAdmin = () => {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="admin-password">Mot de passe *</Label>
-              <Input
-                id="admin-password"
-                type="password"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="Minimum 8 caractères"
-                required
-                minLength={8}
-              />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Un email avec un lien de création de mot de passe sera envoyé à cette
+              adresse. Vous ne définissez ni ne voyez jamais son mot de passe.
+            </p>
           </CardContent>
         </Card>
 

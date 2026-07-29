@@ -66,19 +66,21 @@ class TenantWithAdminCreate(BaseModel):
     country: Optional[str] = "GN"
     currency: Optional[str] = "GNF"
     levels: Optional[List[str]] = None
-    # Admin user fields
+    # Admin user fields — no password field by design: SUPER_ADMIN never
+    # sets or sees the establishment admin's credential, only triggers an
+    # emailed activation link (see create_tenant_with_admin()).
     admin_email: str
     admin_first_name: str
     admin_last_name: str
-    admin_password: str
 
 
 class TenantAdminUserCreate(BaseModel):
-    """Schema for creating an admin user for an existing tenant (SUPER_ADMIN only)."""
+    """Schema for creating an admin user for an existing tenant (SUPER_ADMIN only).
+
+    No password field by design — see create_tenant_admin_user()."""
     email: str
     first_name: str
     last_name: str
-    password: str
     role: str = "TENANT_ADMIN"
 
 

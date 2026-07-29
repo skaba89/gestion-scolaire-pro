@@ -664,6 +664,13 @@ async def create_tenant_with_admin(
     """
     _require_super_admin(current_user)
 
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        delete_password_setup_token,
+        deliver_password_setup_link,
+    )
+    delivery = None
+
     try:
         # Check if slug exists
         existing = db.query(Tenant).filter(Tenant.slug == tenant_in.slug).first()
@@ -742,17 +749,22 @@ async def create_tenant_with_admin(
             )
             db.add(subject)
 
-        # 6. Create Admin User for this tenant
+        # 6. Create Admin User for this tenant — SUPER_ADMIN never sets or
+        # sees this password (see create_tenant_admin_user's docstring for
+        # the rationale). A random, never-disclosed value is set and a
+        # single-use activation link is emailed instead.
+        import secrets
         from app.core.security import get_password_hash
         admin_user = User(
             email=tenant_in.admin_email,
             username=tenant_in.admin_email,
             first_name=tenant_in.admin_first_name,
             last_name=tenant_in.admin_last_name,
-            password_hash=get_password_hash(tenant_in.admin_password),
+            password_hash=get_password_hash(secrets.token_urlsafe(32)),
             tenant_id=new_tenant.id,
             is_active=True,
-            is_verified=True
+            is_verified=True,
+            must_change_password=True,
         )
         db.add(admin_user)
         db.flush()
@@ -764,9 +776,6 @@ async def create_tenant_with_admin(
             role="TENANT_ADMIN"
         )
         db.add(admin_role)
-
-        db.commit()
-        db.refresh(new_tenant)
 
         log_audit(
             db,
@@ -781,6 +790,27 @@ async def create_tenant_with_admin(
             }
         )
 
+        # 8. Email the activation link — if this fails, roll back the whole
+        # tenant rather than leave an establishment with an admin who can
+        # never log in (same all-or-nothing rule as create_tenant_admin_user).
+        try:
+            delivery = await deliver_password_setup_link(
+                user_id=str(admin_user.id),
+                email=tenant_in.admin_email,
+                user_name=f"{tenant_in.admin_first_name} {tenant_in.admin_last_name}".strip(),
+                purpose="invitation",
+                expires_in=86400,
+            )
+        except PasswordSetupDeliveryError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="L'email d'invitation n'a pas pu être envoyé. Aucun établissement n'a été créé.",
+            ) from exc
+
+        db.commit()
+        db.refresh(new_tenant)
+
         logger.info(f"Tenant '{new_tenant.name}' created with admin {tenant_in.admin_email}")
         return new_tenant
 
@@ -791,6 +821,8 @@ async def create_tenant_with_admin(
         logger.error("Error creating tenant with admin: %s", e)
         logger.error(error_traceback)
         db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
         raise HTTPException(status_code=500, detail="Erreur lors de la création du tenant")
 
 
@@ -803,6 +835,13 @@ async def create_tenant_admin_user(
 ):
     """
     SUPER_ADMIN only: Create an admin user for a specific existing tenant.
+
+    SUPER_ADMIN never sets or sees this account's password — a random,
+    never-disclosed value is set server-side and a single-use password
+    creation link is emailed to the new admin instead (same pattern as
+    create_user()/reset_user_password() in users.py). This is deliberate:
+    a platform operator must not be able to know or choose the credential
+    of an establishment's administrator.
     """
     _require_super_admin(current_user)
 
@@ -828,43 +867,72 @@ async def create_tenant_admin_user(
     if existing_user:
         raise HTTPException(status_code=400, detail="Un utilisateur avec cet email existe déjà")
 
+    import secrets
     from app.core.security import get_password_hash
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        delete_password_setup_token,
+        deliver_password_setup_link,
+    )
+
     new_user = User(
         email=body.email,
         username=body.email,
         first_name=body.first_name,
         last_name=body.last_name,
-        password_hash=get_password_hash(body.password),
+        # Never disclosed to anyone — the admin sets their own password via
+        # the emailed link below.
+        password_hash=get_password_hash(secrets.token_urlsafe(32)),
         tenant_id=tenant.id,
         is_active=True,
-        is_verified=True
+        is_verified=True,
+        must_change_password=True,
     )
-    db.add(new_user)
-    db.flush()
 
-    user_role = UserRole(
-        user_id=new_user.id,
-        tenant_id=tenant.id,
-        role=body.role
-    )
-    db.add(user_role)
-    db.commit()
+    delivery = None
+    try:
+        db.add(new_user)
+        db.flush()
 
-    log_audit(
-        db,
-        user_id=current_user.get("id"),
-        tenant_id=tenant.id,
-        action="CREATE_TENANT_ADMIN",
-        resource_type="USER",
-        resource_id=new_user.id,
-        details={"email": body.email, "role": body.role, "tenant": tenant.name}
-    )
+        db.add(UserRole(user_id=new_user.id, tenant_id=tenant.id, role=body.role))
+
+        log_audit(
+            db,
+            user_id=current_user.get("id"),
+            tenant_id=tenant.id,
+            action="CREATE_TENANT_ADMIN",
+            resource_type="USER",
+            resource_id=new_user.id,
+            details={"email": body.email, "role": body.role, "tenant": tenant.name},
+        )
+
+        delivery = await deliver_password_setup_link(
+            user_id=str(new_user.id),
+            email=body.email,
+            user_name=f"{body.first_name} {body.last_name}".strip(),
+            purpose="invitation",
+            expires_in=86400,
+        )
+        db.commit()
+    except PasswordSetupDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="L'email d'invitation n'a pas pu être envoyé. Aucun compte n'a été créé.",
+        ) from exc
+    except Exception:
+        db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
+        raise
 
     return {
-        "message": f"Utilisateur {body.email} créé avec le rôle {body.role} pour {tenant.name}",
+        "message": f"Utilisateur {body.email} créé avec le rôle {body.role} pour {tenant.name} — lien d'activation envoyé par email",
         "user_id": str(new_user.id),
         "email": body.email,
         "role": body.role,
+        "invitation_sent": True,
+        "expires_in": delivery.expires_in,
     }
 
 
