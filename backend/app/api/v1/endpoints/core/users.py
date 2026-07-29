@@ -167,7 +167,15 @@ def list_users(
     """List all users for the current tenant (paginated)."""
     tenant_id = current_user.get("tenant_id")
 
-    where_clauses = ["u.tenant_id = :tenant_id"]
+    where_clauses = [
+        "u.tenant_id = :tenant_id",
+        # Defense-in-depth: a platform SUPER_ADMIN (tenant_id IS NULL) can
+        # never match the clause above, but this makes the invariant
+        # explicit and future-proof rather than relying solely on that
+        # coincidence — an establishment's user management must never be
+        # able to list/manage the platform account.
+        "NOT EXISTS (SELECT 1 FROM user_roles ur_sa WHERE ur_sa.user_id = u.id AND ur_sa.role = 'SUPER_ADMIN')",
+    ]
     params: dict = {"tenant_id": tenant_id}
 
     if search:

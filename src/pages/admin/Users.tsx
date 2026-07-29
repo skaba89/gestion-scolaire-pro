@@ -77,14 +77,15 @@ const UsersPage = () => {
 
   // Computed & Filtered Data - Still used for SuperAdmin filtering which is complex for server
   const finalUsers = useMemo(() => {
-    return users.filter((user) => {
-      // Hide SUPER_ADMIN users if current user is not SUPER_ADMIN
-      const isSuperAdmin = hasRole("SUPER_ADMIN");
-      if (!isSuperAdmin && user.roles.includes("SUPER_ADMIN")) return false;
-
-      return true;
-    });
-  }, [users, hasRole]);
+    // A platform SUPER_ADMIN (tenant_id=NULL, not a member of any
+    // establishment) must never appear in an establishment's user
+    // management screen — not even to another SUPER_ADMIN browsing that
+    // establishment. There is no legitimate reason to manage the platform
+    // account from inside a tenant's admin panel, and showing it here
+    // previously (conditioned on the viewer's own role) invited confusion
+    // about who actually belongs to this establishment.
+    return users.filter((user) => !user.roles.includes("SUPER_ADMIN"));
+  }, [users]);
 
   const isAdmin = hasRole("TENANT_ADMIN") || hasRole("SUPER_ADMIN");
 
