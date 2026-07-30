@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -74,13 +75,24 @@ from fastapi.exceptions import HTTPException
 setup_logging(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
-# Render/Cloudflare proxy IPs — only trust X-Forwarded-For from these
-_TRUSTED_PROXY_IPS = {
-    "127.0.0.1",
-    "::1",
-    # Render internal proxy ranges
-    "10.0.0.0", "172.16.0.0", "192.168.0.0",
-}
+# Render/Cloudflare proxy IPs — only trust X-Forwarded-For from these.
+# These are CIDR *networks*, not literal address prefixes — a direct
+# `str.startswith("10.0.0.0")` check (the previous implementation) never
+# matches a real internal address like "10.0.4.23" (only literal strings
+# starting with "10.0.0.0" would), so it silently never trusted Render's
+# actual proxy IPs. Every request then fell back to get_remote_address(),
+# which behind Render/Cloudflare resolves to the same edge connection for
+# all traffic — collapsing every client onto one shared rate-limit bucket
+# (discovered when a single visitor exhausted the 5/minute bootstrap
+# limit and it never reset until the in-memory limiter was restarted).
+_TRUSTED_PROXY_NETWORKS = [
+    ipaddress.ip_network("127.0.0.1/32"),
+    ipaddress.ip_network("::1/128"),
+    # Render internal proxy ranges (RFC 1918 private space)
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+]
 
 def _get_client_ip(request: Request) -> str:
     """Extract real client IP, respecting X-Forwarded-For from trusted proxies.
@@ -89,10 +101,16 @@ def _get_client_ip(request: Request) -> str:
     a known proxy. Otherwise, clients can spoof this header to bypass rate limiting.
     """
     client_host = request.client.host if request.client else None
-    if client_host and any(client_host.startswith(prefix) for prefix in _TRUSTED_PROXY_IPS):
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+    if client_host:
+        try:
+            addr = ipaddress.ip_address(client_host)
+            is_trusted = any(addr in network for network in _TRUSTED_PROXY_NETWORKS)
+        except ValueError:
+            is_trusted = False
+        if is_trusted:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
     return get_remote_address(request)
 
 limiter = Limiter(
