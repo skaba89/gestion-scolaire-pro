@@ -247,10 +247,14 @@ export const ChatBot = () => {
   return (
     <>
       {/* Chat Button */}
+      {/* Sits above the mobile bottom nav bar (h-16 + safe-area) on screens
+          below lg, where MobileBottomNav is visible; reverts to the corner
+          on lg+ where there's no bottom nav to clear. */}
       <Button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "fixed bottom-4 right-4 z-50 h-14 w-14 rounded-full shadow-lg",
+          "fixed right-4 z-50 h-14 w-14 rounded-full shadow-lg",
+          "bottom-[calc(5rem+env(safe-area-inset-bottom))] lg:bottom-4",
           "bg-primary hover:bg-primary/90 text-primary-foreground",
           "transition-all duration-300 hover:scale-105",
           isOpen && "rotate-90"
@@ -271,30 +275,32 @@ export const ChatBot = () => {
           aria-label={t("chatbot.title", "Assistant IA")}
           aria-modal="false"
           className={cn(
-            "fixed z-50 shadow-2xl border-border/50",
-            "bottom-20 right-4 w-[calc(100vw-2rem)] max-w-[400px]",
-            "sm:bottom-20 sm:right-4",
+            "fixed z-50 shadow-2xl border-border/50 flex flex-col",
+            "right-4 w-[calc(100vw-2rem)] max-w-[400px]",
+            "bottom-[calc(9rem+env(safe-area-inset-bottom))] lg:bottom-20",
+            "max-h-[min(600px,calc(100dvh-9rem-env(safe-area-inset-bottom)))]",
+            "lg:max-h-[min(600px,calc(100dvh-6rem))]",
             "animate-in slide-in-from-bottom-5 fade-in duration-300"
           )}
         >
-          <CardHeader className="bg-primary text-primary-foreground rounded-t-lg py-3 px-4 flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
+          <CardHeader className="bg-primary text-primary-foreground rounded-t-lg py-3 px-4 flex flex-row items-center justify-between flex-shrink-0">
+            <CardTitle className="flex items-center gap-2 text-base min-w-0">
               <AIAvatar avatarUrl={assistantAvatarUrl} size="md" onHeader />
               <span className="truncate">{assistantName}</span>
             </CardTitle>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20"
+              className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/20 flex-shrink-0"
               onClick={clearChat}
               aria-label={t("chatbot.clear", "Effacer la conversation")}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             </Button>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 flex flex-col flex-1 min-h-0">
             <ScrollArea
-              className="h-[350px] sm:h-[400px] p-4"
+              className="flex-1 min-h-[200px] p-4"
               ref={scrollRef}
               role="log"
               aria-live="polite"
@@ -342,7 +348,7 @@ export const ChatBot = () => {
 
             {/* Quick Suggestions */}
             {messages.length <= 1 && !isLoading && (
-              <div className="px-4 pb-2" role="region" aria-label={t("chatbot.suggestionsLabel", "Suggestions rapides")}>
+              <div className="px-4 pb-2 flex-shrink-0" role="region" aria-label={t("chatbot.suggestionsLabel", "Suggestions rapides")}>
                 <p className="text-xs text-muted-foreground mb-2">Suggestions :</p>
                 <div className="flex flex-wrap gap-2" role="list">
                   {suggestions.map((suggestion, i) => (
@@ -359,7 +365,7 @@ export const ChatBot = () => {
               </div>
             )}
 
-            <div className="p-4 border-t border-border">
+            <div className="p-4 border-t border-border flex-shrink-0">
               <div className="flex gap-2">
                 <Input
                   value={input}
