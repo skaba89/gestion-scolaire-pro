@@ -525,12 +525,20 @@ class EmailSender:
             msg.attach(MIMEText(html, "html", "utf-8"))
 
             context = ssl.create_default_context()
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.ehlo()
-                server.starttls(context=context)
-                if self.smtp_pass:
-                    server.login(self.smtp_user, self.smtp_pass)
-                server.sendmail(self.from_email, [to], msg.as_string())
+            if self.smtp_port == 465:
+                # Port 465 = implicit TLS from connection start (no STARTTLS handshake).
+                with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=15, context=context) as server:
+                    server.ehlo()
+                    if self.smtp_pass:
+                        server.login(self.smtp_user, self.smtp_pass)
+                    server.sendmail(self.from_email, [to], msg.as_string())
+            else:
+                with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=15) as server:
+                    server.ehlo()
+                    server.starttls(context=context)
+                    if self.smtp_pass:
+                        server.login(self.smtp_user, self.smtp_pass)
+                    server.sendmail(self.from_email, [to], msg.as_string())
             logger.info("Email sent via SMTP to %s", to)
             return True
         except Exception as e:
