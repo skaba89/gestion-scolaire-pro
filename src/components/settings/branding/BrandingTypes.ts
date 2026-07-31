@@ -14,6 +14,8 @@ export interface BrandingFormData {
     menu_bg_color: string;
     tab_active_color: string;
     student_label_mode: "automatic" | "student" | "pupil";
+    ai_assistant_name: string;
+    ai_assistant_avatar_url: string;
 }
 
 export interface BrandingSectionProps {

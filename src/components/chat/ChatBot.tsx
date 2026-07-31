@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageCircle, X, Send, Bot, User, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { useSettings } from "@/hooks/useSettings";
+import { resolveUploadUrl } from "@/utils/url";
 
 interface Message {
   role: "user" | "assistant";
@@ -26,6 +28,45 @@ function resolveChatApiBaseUrl(): string {
 }
 
 const CHAT_URL = `${resolveChatApiBaseUrl()}/api/v1/ai/chat`;
+
+// AI assistant avatar: shows the tenant's custom photo if configured,
+// otherwise falls back to a branded gradient badge with a bot icon.
+function AIAvatar({
+  avatarUrl,
+  size = "sm",
+  onHeader = false,
+}: {
+  avatarUrl?: string;
+  size?: "sm" | "md";
+  onHeader?: boolean;
+}) {
+  const dimension = size === "md" ? "w-9 h-9" : "w-8 h-8";
+  const iconSize = size === "md" ? "h-5 w-5" : "h-4 w-4";
+  const [imgError, setImgError] = useState(false);
+
+  if (avatarUrl && !imgError) {
+    return (
+      <img
+        src={resolveUploadUrl(avatarUrl)}
+        alt="Assistant IA"
+        className={cn(dimension, "rounded-full object-cover flex-shrink-0 border border-border/50")}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        dimension,
+        "rounded-full flex-shrink-0 flex items-center justify-center",
+        onHeader ? "bg-white/15" : "bg-gradient-to-br from-primary to-primary/60"
+      )}
+    >
+      <Bot className={cn(iconSize, onHeader ? "text-primary-foreground" : "text-primary-foreground")} aria-hidden="true" />
+    </div>
+  );
+}
 
 export const ChatBot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -46,7 +87,13 @@ export const ChatBot = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { profile } = useAuth();
   const { tenant } = useTenant();
+  const { settings } = useSettings();
   const { t, i18n } = useTranslation();
+
+  const assistantAvatarUrl = settings.ai_assistant_avatar_url;
+  const assistantName =
+    settings.ai_assistant_name?.trim() ||
+    `${t("chatbot.title")} · ${tenant?.name || "votre établissement"}`;
 
   // Dynamic suggestions based on language
   const suggestions = [
@@ -232,8 +279,8 @@ export const ChatBot = () => {
         >
           <CardHeader className="bg-primary text-primary-foreground rounded-t-lg py-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-5 w-5" aria-hidden="true" />
-              {t("chatbot.title")} - {tenant?.name || "Assistant"}
+              <AIAvatar avatarUrl={assistantAvatarUrl} size="md" onHeader />
+              <span className="truncate">{assistantName}</span>
             </CardTitle>
             <Button
               variant="ghost"
@@ -263,9 +310,7 @@ export const ChatBot = () => {
                     )}
                   >
                     {message.role === "assistant" && (
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Bot className="h-4 w-4 text-primary" />
-                      </div>
+                      <AIAvatar avatarUrl={assistantAvatarUrl} />
                     )}
                     <div
                       className={cn(
@@ -286,9 +331,7 @@ export const ChatBot = () => {
                 ))}
                 {isLoading && messages[messages.length - 1]?.role === "user" && (
                   <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Bot className="h-4 w-4 text-primary" />
-                    </div>
+                    <AIAvatar avatarUrl={assistantAvatarUrl} />
                     <div className="bg-muted rounded-lg px-3 py-2">
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     </div>

@@ -8,6 +8,7 @@ import { Save, RotateCcw, Loader2 } from "lucide-react";
 
 import { BrandingFormData } from "./branding/BrandingTypes";
 import { LogoSection } from "./branding/LogoSection";
+import { AIAssistantSection } from "./branding/AIAssistantSection";
 import { ColorSection } from "./branding/ColorSection";
 import { TypographySection } from "./branding/TypographySection";
 import { AdvancedColorsSection } from "./branding/AdvancedColorsSection";
@@ -36,6 +37,8 @@ export function BrandingSettings() {
     menu_bg_color: "#ffffff",
     tab_active_color: "#3b82f6",
     student_label_mode: "automatic",
+    ai_assistant_name: "",
+    ai_assistant_avatar_url: "",
   });
 
   // Load settings on mount
@@ -57,6 +60,8 @@ export function BrandingSettings() {
         menu_bg_color: settings.menu_bg_color || "#ffffff",
         tab_active_color: settings.tab_active_color || settings.primary_color || "#3b82f6",
         student_label_mode: settings.student_label_mode || "automatic",
+        ai_assistant_name: settings.ai_assistant_name || "",
+        ai_assistant_avatar_url: settings.ai_assistant_avatar_url || "",
       });
     }
   }, [settings, tenant]);
@@ -99,6 +104,8 @@ export function BrandingSettings() {
         menu_bg_color: settings.menu_bg_color || "#ffffff",
         tab_active_color: settings.tab_active_color || settings.primary_color || "#3b82f6",
         student_label_mode: settings.student_label_mode || "automatic",
+        ai_assistant_name: settings.ai_assistant_name || "",
+        ai_assistant_avatar_url: settings.ai_assistant_avatar_url || "",
       });
     }
   };
@@ -106,6 +113,7 @@ export function BrandingSettings() {
   return (
     <div className="space-y-6">
       <LogoSection formData={formData} setFormData={handleUpdateFormData} />
+      <AIAssistantSection formData={formData} setFormData={handleUpdateFormData} />
       <ColorSection formData={formData} setFormData={handleUpdateFormData} />
       <TypographySection formData={formData} setFormData={handleUpdateFormData} />
       <AdvancedColorsSection formData={formData} setFormData={handleUpdateFormData} />

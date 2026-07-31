@@ -28,6 +28,8 @@ export interface TenantSettingsSchema {
     tab_active_color?: string;
     student_label_mode?: 'automatic' | 'student' | 'pupil';
     language?: string;
+    ai_assistant_name?: string;
+    ai_assistant_avatar_url?: string;
     [key: string]: any;
 }
 
