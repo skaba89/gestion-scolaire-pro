@@ -62,7 +62,9 @@ async function proxyRequest(req, res, urlPath) {
   // Build the backend URL: only strip /api-proxy/ prefix.
   // Do NOT strip /api/ — the backend routes ARE under /api/v1/... so the
   // full /api/v1/... path must be forwarded as-is.
-  let backendPath = urlPath;
+  // IMPORTANT: use the raw req.url (not the query-stripped urlPath) so query
+  // strings (?token=..., ?page=...) are preserved when forwarding to the backend.
+  let backendPath = req.url;
   if (backendPath.startsWith("/api-proxy/")) {
     backendPath = backendPath.slice(11); // remove "/api-proxy"
   } else if (backendPath === "/api-proxy") {
