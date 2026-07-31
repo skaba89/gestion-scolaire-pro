@@ -103,9 +103,16 @@ def get_db():
         yield db
     except Exception as exc:
         # Only log actual database/sqlalchemy errors, not HTTP exceptions raised
-        # by endpoint handlers (e.g. 401/403/404) which propagate through yield.
+        # by endpoint handlers (e.g. 401/403/404), nor the rate limiter's
+        # RateLimitExceeded (@limiter.limit(...) checks inside the endpoint
+        # body, after get_db() already opened a session) — both propagate
+        # through yield same as a real DB error, but neither is one. Without
+        # this exclusion, every 429 gets misleadingly logged as
+        # "Database error in get_db()", which sent a live debugging session
+        # down the wrong path (see commit history).
         from fastapi import HTTPException as _HTTPException
-        if not isinstance(exc, _HTTPException):
+        from slowapi.errors import RateLimitExceeded as _RateLimitExceeded
+        if not isinstance(exc, (_HTTPException, _RateLimitExceeded)):
             import logging
             logging.getLogger(__name__).error(
                 "Database error in get_db(): %s", exc
