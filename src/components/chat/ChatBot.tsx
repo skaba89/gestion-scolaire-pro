@@ -300,7 +300,7 @@ export const ChatBot = () => {
           </CardHeader>
           <CardContent className="p-0 flex flex-col flex-1 min-h-0">
             <ScrollArea
-              className="flex-1 min-h-[200px] p-4"
+              className="flex-1 min-h-0 p-4"
               ref={scrollRef}
               role="log"
               aria-live="polite"
