@@ -894,7 +894,14 @@ def _send_welcome_email_background(
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
           <p style="color:#9ca3af;font-size:12px">SchoolFlow Pro — L'ERP scolaire pour l'Afrique francophone</p>
         </div>"""
-        sender.send(to=to_email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {school_name}", html=html)
+        sent = sender.send(to=to_email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {school_name}", html=html)
+        if sent is not True:
+            # Never claim success when the provider didn't confirm it — this
+            # is the fire-and-forget fallback path (Redis unreachable), so
+            # there's no job row to mark FAILED, only a log line to act on.
+            logger.warning("Welcome email not confirmed sent for %s", to_email)
+        else:
+            logger.info("Welcome email sent for %s", to_email)
     except Exception as exc:
         logger.warning("Welcome email failed: %s", exc)
 

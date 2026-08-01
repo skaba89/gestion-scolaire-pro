@@ -135,3 +135,72 @@ class TestSendWelcomeEmailTask:
             job = db.query(Job).filter(Job.id == result["job_id"]).first()
             assert job.status == "FAILED"
             assert "SMTP unreachable" in job.error
+
+    @pytest.mark.asyncio
+    async def test_provider_returns_false_marks_job_failed(self, monkeypatch):
+        """The exact bug this audit targets: EmailSender.send() returning
+        False (both Resend and SMTP declined, no exception raised) must be
+        treated as a failure, not silently recorded as SUCCESS."""
+        from app.services.notifications import EmailSender
+
+        monkeypatch.setattr(EmailSender, "send", lambda self, to, subject, html, text=None: False)
+
+        tenant_id = _make_tenant()
+        result = await send_welcome_email(
+            {}, tenant_id=tenant_id, to_email="directeur@ecole.example",
+            first_name="Mariama", school_name="École Test", slug="ecole-test",
+        )
+
+        assert result["sent"] is False
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job.status == "FAILED"
+
+    @pytest.mark.asyncio
+    async def test_dashboard_link_uses_full_frontend_url(self, monkeypatch):
+        """The link in the welcome email must be built from FRONTEND_URL
+        (with scheme) — a bare hostname or a stale localhost:3000 value
+        would send new schools a broken onboarding link."""
+        from app.core.config import settings
+        from app.services.notifications import EmailSender
+
+        captured = {}
+        monkeypatch.setattr(settings, "FRONTEND_URL", "https://app.schoolflow.pro")
+
+        def _capture_html(self, to, subject, html, text=None):
+            captured["html"] = html
+            return True
+
+        monkeypatch.setattr(EmailSender, "send", _capture_html)
+
+        tenant_id = _make_tenant()
+        await send_welcome_email(
+            {}, tenant_id=tenant_id, to_email="directeur@ecole.example",
+            first_name="Ousmane", school_name="École Lien Test", slug="ecole-lien-test",
+        )
+
+        assert "https://app.schoolflow.pro/ecole-lien-test/admin/onboarding" in captured["html"]
+
+    @pytest.mark.asyncio
+    async def test_never_logs_the_resend_api_key_or_smtp_password(self, monkeypatch, caplog):
+        from app.core.config import settings
+        from app.services.notifications import EmailSender
+
+        monkeypatch.setattr(settings, "RESEND_API_KEY", "re_super_secret_do_not_log_12345")
+        monkeypatch.setattr(settings, "SMTP_PASS", "smtp_super_secret_do_not_log_67890")
+
+        def _raise(self, to, subject, html, text=None):
+            raise ConnectionError("provider down (simulated)")
+
+        monkeypatch.setattr(EmailSender, "send", _raise)
+
+        tenant_id = _make_tenant()
+        with caplog.at_level("DEBUG"):
+            await send_welcome_email(
+                {}, tenant_id=tenant_id, to_email="directeur@ecole.example",
+                first_name="Fatoumata", school_name="École Secrets Test", slug="ecole-secrets-test",
+            )
+
+        log_text = caplog.text
+        assert "re_super_secret_do_not_log_12345" not in log_text
+        assert "smtp_super_secret_do_not_log_67890" not in log_text

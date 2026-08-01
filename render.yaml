@@ -64,6 +64,11 @@ services:
         generateValue: true
       - key: DEBUG
         value: "false"
+      # Drives the SECRET_KEY strength check (config.py) and Sentry
+      # environment tagging. Without this, the "production" SECRET_KEY
+      # length enforcement never activates on Render.
+      - key: ENVIRONMENT
+        value: production
       - key: LOG_LEVEL
         value: INFO
       - key: PYTHON_VERSION
@@ -105,10 +110,29 @@ services:
         sync: false
 
       # --- Email (Resend recommandé, gratuit jusqu'à 3000/mois — resend.com) ---
+      # IMPORTANT: FROM_EMAIL must be on a domain VERIFIED in the Resend
+      # dashboard (Domains > your domain > DKIM/SPF/DMARC all "Verified").
+      # The placeholder "noreply@schoolflow.pro" below will silently fail
+      # deliverability (or Resend will reject the send outright) until you
+      # either verify schoolflow.pro or replace it with your own verified
+      # domain. See docs/RENDER_RESEND_DEPLOYMENT_CHECKLIST.md.
       - key: RESEND_API_KEY
         sync: false
       - key: FROM_EMAIL
         value: noreply@schoolflow.pro
+      - key: FROM_NAME
+        value: SchoolFlow Pro
+      # --- SMTP fallback (used only if Resend is unset or its call fails —
+      # see backend/app/services/notifications.py EmailSender.send()).
+      # Optional: leave unset to run with Resend as the sole provider.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
 
       # --- Fichiers (S3-compatible — externe, comme Neon, pas provisionné par
       # ce blueprint). Recommandé : Cloudflare R2 (10 Go gratuits, pas de
@@ -136,6 +160,62 @@ services:
 
       # --- AI (optionnel) ---
       - key: GROQ_API_KEY
+        sync: false
+
+  # ─── Background worker (Arq) — welcome emails and future async jobs ──────
+  # Without this service, enqueue_job() in app/core/jobs.py pushes jobs onto
+  # Redis but nothing ever consumes them: registration still succeeds (the
+  # BackgroundTasks fallback only kicks in if enqueueing itself fails, not
+  # if the queue is simply never drained), but the welcome email silently
+  # never sends and the "jobs" table row stays stuck at RUNNING forever.
+  - type: worker
+    name: schoolflow-worker
+    runtime: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: arq app.workers.tasks.WorkerSettings
+    rootDir: ./backend
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_ASYNC
+        sync: false
+      - key: DATABASE_URL_SYNC
+        sync: false
+      # Must be set to the SAME value as schoolflow-api's SECRET_KEY (copy
+      # it from that service's Environment tab). The worker imports the
+      # same Settings class, which refuses to start in production without
+      # a SECRET_KEY of at least 32 characters — even though this worker
+      # doesn't itself verify JWTs, it shares the validation.
+      - key: SECRET_KEY
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: REDIS_URL
+        fromService:
+          name: schoolflow-redis
+          type: redis
+          property: connectionString
+      - key: FRONTEND_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        value: noreply@schoolflow.pro
+      - key: FROM_NAME
+        value: SchoolFlow Pro
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
         sync: false
 
   # ─── Frontend (React SPA + API proxy via server.mjs) ─────────────────────

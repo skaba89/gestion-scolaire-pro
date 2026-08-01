@@ -92,7 +92,16 @@ async def send_welcome_email(
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
           <p style="color:#9ca3af;font-size:12px">SchoolFlow Pro — L'ERP scolaire pour l'Afrique francophone</p>
         </div>"""
-        sender.send(to=to_email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {school_name}", html=html)
+        sent = sender.send(to=to_email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {school_name}", html=html)
+        if sent is not True:
+            # Both Resend and SMTP fallback declined/failed without raising
+            # (e.g. bad recipient, provider outage) — this is a real
+            # delivery failure, not a job crash. Never log the API key or
+            # SMTP credentials here, only the recipient (already stored in
+            # payload) and a generic reason.
+            logger.warning("send_welcome_email: provider returned no success for %s", to_email)
+            _job_finished(job_id, success=False, error="Email provider did not confirm delivery")
+            return {"job_id": job_id, "sent": False, "error": "Email provider did not confirm delivery"}
         _job_finished(job_id, success=True, result={"sent_to": to_email})
         return {"job_id": job_id, "sent": True}
     except Exception as exc:

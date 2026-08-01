@@ -11,7 +11,10 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, EmailStr
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import func, case, text
 from sqlalchemy.orm import Session
 
@@ -24,6 +27,7 @@ from app.models.user_role import UserRole
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 # ─── SUPER_ADMIN guard ────────────────────────────────────────────────────────
 
@@ -678,3 +682,74 @@ async def get_tenant_health(
         "overall_status": overall_status,
         "generated_at": _now_utc().isoformat(),
     }
+
+
+# ─── Email deliverability (Render + Resend audit) ─────────────────────────────
+# GET  /platform/email/health/       — configuration status, no secrets ever
+# POST /platform/email/test-send/    — send a real test email, rate-limited
+
+class EmailTestSendRequest(BaseModel):
+    to_email: EmailStr
+
+
+@router.get("/email/health/")
+async def get_email_health(_admin: dict = Depends(_require_super_admin)):
+    """Non-secret snapshot of email configuration, for verifying a Render
+    deploy before relying on it in production. Never returns API keys,
+    SMTP passwords, or any other secret value — only booleans/derived facts.
+    """
+    from app.core.config import settings
+
+    from_email = (settings.FROM_EMAIL or "").strip()
+    from_domain = from_email.split("@", 1)[1] if "@" in from_email else None
+    frontend_url = (settings.FRONTEND_URL or "").strip()
+
+    return {
+        "resend_configured": bool(settings.RESEND_API_KEY),
+        "smtp_configured": bool(settings.SMTP_HOST and settings.SMTP_USER),
+        "from_email_domain": from_domain,
+        "frontend_url_configured": bool(frontend_url),
+        "frontend_url_has_https": frontend_url.startswith("https://"),
+        "alert_email_configured": bool(settings.ALERT_EMAIL),
+    }
+
+
+@router.post("/email/test-send/")
+@limiter.limit("5/hour")
+async def send_test_email(
+    request: Request,
+    body: EmailTestSendRequest,
+    _admin: dict = Depends(_require_super_admin),
+):
+    """Send a real test email through the configured provider(s) (Resend,
+    then SMTP fallback) to verify deliverability end-to-end after a Render
+    deploy or a Resend domain change. SUPER_ADMIN only, strictly
+    rate-limited — this makes a real outbound send, unlike /email/health/.
+    """
+    from app.core.config import settings
+    from app.services.notifications import EmailSender
+
+    sender = EmailSender(
+        resend_api_key=settings.RESEND_API_KEY,
+        smtp_host=settings.SMTP_HOST,
+        smtp_port=settings.SMTP_PORT,
+        smtp_user=settings.SMTP_USER,
+        smtp_pass=settings.SMTP_PASS,
+        from_email=settings.FROM_EMAIL,
+        from_name=settings.FROM_NAME,
+    )
+    sent = sender.send(
+        to=body.to_email,
+        subject="SchoolFlow Pro — Email de test (platform admin)",
+        html=(
+            "<p>Ceci est un email de test envoyé depuis le tableau de bord "
+            "SUPER_ADMIN de SchoolFlow Pro pour vérifier la configuration "
+            "Resend/SMTP de ce déploiement.</p>"
+        ),
+    )
+    if sent is not True:
+        raise HTTPException(
+            status_code=502,
+            detail="L'envoi a échoué (Resend et SMTP indisponibles ou mal configurés).",
+        )
+    return {"sent": True, "to": body.to_email}
