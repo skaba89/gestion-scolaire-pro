@@ -181,6 +181,56 @@ def get_student_dashboard(
         "submissions": []
     }
 
+@router.get("/messaging-recipients/")
+def get_student_messaging_recipients(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Recipients a student is allowed to message: the teachers assigned to
+    their active class. Mirrors the teacher-side symmetric endpoint
+    (communication.get_teacher_recipients), which already lets those same
+    teachers message this student's parents and fellow teachers."""
+    user_id = current_user.get("id")
+    tenant_id = current_user.get("tenant_id")
+    if not user_id or not tenant_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    student_res = db.execute(text("""
+        SELECT id FROM students
+        WHERE user_id = :user_id AND tenant_id = :tenant_id
+        LIMIT 1
+    """), {"user_id": user_id, "tenant_id": tenant_id}).mappings().first()
+
+    if not student_res and current_user.get("email"):
+        student_res = db.execute(text("""
+            SELECT id FROM students
+            WHERE email = :email AND tenant_id = :tenant_id
+            LIMIT 1
+        """), {"email": current_user.get("email"), "tenant_id": tenant_id}).mappings().first()
+
+    if not student_res:
+        return []
+
+    student_id = str(student_res["id"])
+
+    rows = db.execute(text("""
+        SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, 'Enseignant' as info
+        FROM enrollments e
+        JOIN teacher_assignments ta ON ta.classroom_id = e.class_id AND ta.tenant_id = :tenant_id
+        JOIN users u ON u.id = ta.user_id
+        WHERE e.student_id = :student_id AND e.status = 'active'
+        ORDER BY u.last_name, u.first_name
+    """), {"student_id": student_id, "tenant_id": tenant_id}).mappings().all()
+
+    return [{
+        "id": str(r["id"]),
+        "name": f"{r.get('first_name', '')} {r.get('last_name', '')}".strip(),
+        "first_name": r.get("first_name", ""),
+        "last_name": r.get("last_name", ""),
+        "email": r.get("email", ""),
+        "info": r.get("info", ""),
+    } for r in rows]
+
 @router.get("/{student_id}/", response_model=Student)
 def get_student(
     student_id: UUID,
