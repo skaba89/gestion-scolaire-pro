@@ -45,3 +45,4 @@ from app.models.payment_webhook_event import PaymentWebhookEvent
 from app.models.payment_reference_counter import PaymentReferenceCounter
 from app.models.notification_preference import NotificationPreference
 from app.models.kiosk_device import KioskDevice
+from app.models.notification_event import NotificationEvent

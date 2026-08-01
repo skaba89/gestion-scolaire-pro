@@ -76,11 +76,12 @@ class WhatsAppSender:
     # Pre-defined message templates (must be approved in Meta Business Manager)
     # Keys map to (template_name, language_code, components builder)
     TEMPLATES: dict[str, str] = {
-        "payment_reminder": "payment_reminder_school",
-        "absence_alert":    "absence_alert_school",
-        "grade_alert":      "grade_alert_school",
-        "homework_due":     "homework_due_school",
-        "bulletin_ready":   "bulletin_ready_school",
+        "payment_reminder":  "payment_reminder_school",
+        "absence_alert":     "absence_alert_school",
+        "grade_alert":       "grade_alert_school",
+        "homework_due":      "homework_due_school",
+        "bulletin_ready":    "bulletin_ready_school",
+        "account_invitation": "account_invitation_school",
     }
 
     def __init__(self, access_token: str, phone_number_id: str):
@@ -98,20 +99,12 @@ class WhatsAppSender:
             return cleaned[1:]
         return cleaned
 
-    def send_text(self, to_phone: str, body: str) -> bool:
+    def _post_message(self, payload: dict, *, log_context: str) -> tuple[bool, Optional[str], Optional[str]]:
+        """Shared HTTP call — returns (success, provider_message_id, error_detail).
+
+        Never raises. `error_detail` is a short, loggable string (no token,
+        no full payload) suitable for storing in NotificationEvent.error_reason.
         """
-        Send a free-form text message.
-        Only works within a 24h customer-service window (customer messaged first).
-        For proactive messages, use send_template() instead.
-        """
-        phone = self._normalize_phone(to_phone)
-        payload = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": phone,
-            "type": "text",
-            "text": {"preview_url": False, "body": body},
-        }
         try:
             resp = httpx.post(
                 f"{self.BASE_URL}/{self.phone_id}/messages",
@@ -121,13 +114,37 @@ class WhatsAppSender:
             )
             data = resp.json()
             if resp.status_code == 200 and data.get("messages"):
-                logger.info("WhatsApp text sent to %s***", phone[:6])
-                return True
-            logger.warning("WhatsApp text failed: %s", data)
-            return False
+                message_id = data["messages"][0].get("id")
+                logger.info("WhatsApp %s sent (id=%s)", log_context, message_id)
+                return True, message_id, None
+            error_detail = str(data.get("error", data))[:500]
+            logger.warning("WhatsApp %s failed: %s", log_context, error_detail)
+            return False, None, error_detail
         except Exception as e:
-            logger.error("WhatsApp send_text error: %s", e)
-            return False
+            logger.error("WhatsApp %s error: %s", log_context, e)
+            return False, None, str(e)[:500]
+
+    def send_text(self, to_phone: str, body: str) -> bool:
+        """
+        Send a free-form text message.
+        Only works within a 24h customer-service window (customer messaged first).
+        For proactive messages, use send_template() instead.
+        """
+        success, _, _ = self.send_text_full(to_phone, body)
+        return success
+
+    def send_text_full(self, to_phone: str, body: str) -> tuple[bool, Optional[str], Optional[str]]:
+        """Same as send_text() but returns (success, provider_message_id, error) —
+        the message id is required to match incoming webhook status updates."""
+        phone = self._normalize_phone(to_phone)
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": phone,
+            "type": "text",
+            "text": {"preview_url": False, "body": body},
+        }
+        return self._post_message(payload, log_context="text")
 
     def send_template(
         self,
@@ -140,6 +157,17 @@ class WhatsAppSender:
         Send a pre-approved template message (works for proactive outreach).
         body_vars: list of parameter values for {{1}}, {{2}}, etc. in the template.
         """
+        success, _, _ = self.send_template_full(to_phone, template_name, language, body_vars)
+        return success
+
+    def send_template_full(
+        self,
+        to_phone: str,
+        template_name: str,
+        language: str = "fr",
+        body_vars: Optional[list[str]] = None,
+    ) -> tuple[bool, Optional[str], Optional[str]]:
+        """Same as send_template() but returns (success, provider_message_id, error)."""
         phone = self._normalize_phone(to_phone)
         components = []
         if body_vars:
@@ -159,22 +187,7 @@ class WhatsAppSender:
                 "components": components,
             },
         }
-        try:
-            resp = httpx.post(
-                f"{self.BASE_URL}/{self.phone_id}/messages",
-                json=payload,
-                headers=self.headers,
-                timeout=10.0,
-            )
-            data = resp.json()
-            if resp.status_code == 200 and data.get("messages"):
-                logger.info("WhatsApp template '%s' sent to %s***", template_name, phone[:6])
-                return True
-            logger.warning("WhatsApp template failed: %s", data)
-            return False
-        except Exception as e:
-            logger.error("WhatsApp send_template error: %s", e)
-            return False
+        return self._post_message(payload, log_context=f"template '{template_name}'")
 
     def send_smart(
         self,
@@ -198,6 +211,26 @@ class WhatsAppSender:
                 return True
         # Fall back to text (session window only)
         return self.send_text(to_phone, body)
+
+    def send_smart_full(
+        self,
+        to_phone: str,
+        body: str,
+        template: Optional[str] = None,
+        template_vars: Optional[list[str]] = None,
+        language: str = "fr",
+    ) -> tuple[bool, Optional[str], Optional[str]]:
+        """Same as send_smart() but returns (success, provider_message_id, error)."""
+        if template and template in self.TEMPLATES:
+            success, message_id, error = self.send_template_full(
+                to_phone,
+                template_name=self.TEMPLATES[template],
+                language=language,
+                body_vars=template_vars,
+            )
+            if success:
+                return success, message_id, error
+        return self.send_text_full(to_phone, body)
 
 
 # ─── OneSignal Push Notifications ─────────────────────────────────────────────
