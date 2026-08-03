@@ -9,10 +9,27 @@ d'orchestration (`whatsapp_service.py`), jobs Arq. Testé (34 tests).
 — validation Meta, réception des statuts (idempotente), vérification de
 signature HMAC si `whatsappAppSecret` configuré. Testé (12 tests).
 
-**Étapes suivantes** (non commencées) : branchement sur paiement/absence/notes/
-bulletin, endpoints admin de configuration (`/notifications/settings/`),
-interface frontend, persistance des messages entrants
-(`message_threads`/`message_items`).
+**Étape 3 (livrée)** : `GET/PATCH /api/v1/notifications/settings/` et
+`POST /api/v1/notifications/whatsapp/test/` — configuration et test réel par
+tenant, sans jamais exposer de secret. Testé (17 tests).
+
+**Étape 4 (livrée, partielle)** : branchement métier.
+- Rappels de paiement (`POST /payments/send-reminders/`) : pipeline complet
+  tracé — job Arq dédié par facture, idempotent, avec fallback si Redis est
+  indisponible. Testé (5 tests, dont 2 Postgres-only non exécutés localement).
+- Absence/notes/bulletin (`POST /communication/send-notification-email/`) :
+  tracking ajouté (`notification_events` créé après chaque tentative
+  WhatsApp) sur le chemin **synchrone existant**, sans le faire passer par
+  la queue Arq — cet endpoint répond immédiatement au frontend avec le
+  résultat réel de l'envoi, contrat préservé. Limite : `provider_message_id`
+  n'est pas capturé sur ce chemin (contrairement aux paiements), donc les
+  mises à jour de statut par webhook (delivered/read) ne s'appliquent pas
+  à ces événements. Testé (5 tests).
+
+**Étapes suivantes** (non commencées) : migrer absence/notes/bulletin vers
+la queue Arq (comme les paiements) pour capturer `provider_message_id` et
+sortir l'appel WhatsApp du chemin de requête HTTP, interface frontend,
+persistance des messages entrants (`message_threads`/`message_items`).
 
 ## Architecture
 

@@ -772,6 +772,41 @@ def send_notification_email(
             if result.email:
                 channels_used.append("email")
 
+            # ── Track the WhatsApp attempt in notification_events ──────────
+            # This endpoint sends synchronously (the frontend awaits the
+            # actual result to show immediate feedback), unlike the payment
+            # reminders' Arq pipeline — that response-timing contract stays
+            # unchanged here. What's added is visibility: absence/grade/
+            # bulletin WhatsApp sends now show up in the same admin/support
+            # notification history as payment reminders. provider_message_id
+            # is left unset here (WhatsAppSender.send_smart(), used by
+            # NotificationService, doesn't return it) — a real limitation
+            # versus the tracked pipeline, so webhook status updates
+            # (delivered/read) never reach events logged from this endpoint.
+            if svc.whatsapp and payload.recipientPhone and payload.type in (
+                "invoice_reminder", "absence_alert", "grade_alert", "bulletin_ready",
+            ):
+                from app.services.whatsapp_service import create_pending_event, mark_event_failed, mark_event_sent
+
+                event_type_map = {
+                    "invoice_reminder": "payment_reminder",
+                    "absence_alert": "absence_alert",
+                    "grade_alert": "grade_alert",
+                    "bulletin_ready": "bulletin_ready",
+                }
+                notif_event = create_pending_event(
+                    db, tenant_id=tenant_id, event_type=event_type_map[payload.type], channel="whatsapp",
+                    recipient_phone=payload.recipientPhone, payload=data,
+                    student_id=data.get("studentId"), parent_id=data.get("parentId"),
+                )
+                if result.whatsapp:
+                    mark_event_sent(db, notif_event, None)
+                else:
+                    mark_event_failed(
+                        db, notif_event,
+                        "; ".join(getattr(result, "errors", None) or []) or "Envoi WhatsApp échoué",
+                    )
+
     # ── Log to notifications table (audit trail) ──────────────────────────────
     try:
         db.execute(text("""
