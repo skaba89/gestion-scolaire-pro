@@ -1,18 +1,25 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from pydantic import BaseModel, ConfigDict
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import text
 from typing import List, Optional
 from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
-from app.models import Notification, PushSubscription, User, NotificationPreference
+from app.core.tenant_resolution import resolve_current_tenant_id
+from app.models import Notification, PushSubscription, User, NotificationPreference, Tenant
 from app.schemas.push_subscription import PushSubscriptionCreate, PushSubscriptionInDB
 from app.schemas.notification import NotificationResponse, NotificationCreate, NotificationBulkCreate, NotificationUpdate
 from app.schemas.notification_preference import NotificationPreferenceInDB, NotificationPreferenceUpdate
+from app.utils.audit import log_audit
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 # ─── Notification Preferences ────────────────────────────────────────────────
 # Source of truth for which notification categories a user wants. Previously
@@ -209,6 +216,138 @@ def create_bulk_notifications(
     
     db.commit()
     return {"status": "ok", "count": len(bulk_in.notifications)}
+
+# ─── Notification channel settings (WhatsApp / Push / SMS) ───────────────────
+# Config lives in tenant.settings using the exact flat keys NotificationService
+# already reads (app/services/notifications.py) — no separate storage, no
+# duplication. Secrets are never returned in full, only *Configured booleans,
+# same pattern as GET /platform/email/health/.
+#
+# IMPORTANT: these must be registered BEFORE /{notification_id}/ below —
+# otherwise FastAPI matches "settings"/"whatsapp" as a path parameter value
+# for that route first (found via a failing test: PATCH /settings/ returned
+# a 422 "invalid UUID" from update_notification, not from this endpoint).
+
+_NOTIFICATION_SECRET_KEYS = {
+    "whatsappAccessToken", "whatsappVerifyToken", "whatsappAppSecret",
+    "oneSignalApiKey", "androidSmsGatewayToken", "africastalkingApiKey",
+}
+
+
+@router.get("/settings/")
+async def get_notification_channel_settings(
+    request: Request,
+    db: Session = Depends(get_db),
+    # settings:read is deliberately NOT used here — it's shared with public
+    # branding settings and granted to nearly every role (teachers, parents,
+    # students...). WhatsApp configuration status is admin-only, so this
+    # reuses settings:write (TENANT_ADMIN/DIRECTOR/SUPER_ADMIN) for both
+    # reading and writing.
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    """Notification channel configuration for the current tenant. Never
+    returns a secret value — only whether each credential is configured."""
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    settings = (tenant.settings if tenant else None) or {}
+
+    return {
+        "whatsappEnabled": bool(settings.get("whatsappEnabled")),
+        "whatsappConfigured": bool(settings.get("whatsappAccessToken") and settings.get("whatsappPhoneId")),
+        "whatsappPhoneId": settings.get("whatsappPhoneId") or None,  # not secret — useful to display as-is
+        "whatsappBusinessAccountId": settings.get("whatsappBusinessAccountId") or None,
+        "whatsappVerifyTokenConfigured": bool(settings.get("whatsappVerifyToken")),
+        "whatsappAppSecretConfigured": bool(settings.get("whatsappAppSecret")),
+        "whatsappDefaultLanguage": settings.get("whatsappDefaultLanguage", "fr"),
+        "notificationChannels": settings.get("notificationChannels", ["whatsapp", "push", "sms", "email"]),
+        "oneSignalConfigured": bool(settings.get("oneSignalAppId") and settings.get("oneSignalApiKey")),
+        "smsConfigured": bool(settings.get("smsProvider")),
+    }
+
+
+class NotificationChannelSettingsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    whatsappEnabled: Optional[bool] = None
+    whatsappAccessToken: Optional[str] = None
+    whatsappPhoneId: Optional[str] = None
+    whatsappBusinessAccountId: Optional[str] = None
+    whatsappVerifyToken: Optional[str] = None
+    whatsappAppSecret: Optional[str] = None
+    whatsappDefaultLanguage: Optional[str] = None
+    notificationChannels: Optional[List[str]] = None
+
+
+@router.patch("/settings/")
+async def update_notification_channel_settings(
+    body: NotificationChannelSettingsUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+
+    updates = body.model_dump(exclude_unset=True)
+    tenant.settings = {**(tenant.settings or {}), **updates}
+    flag_modified(tenant, "settings")
+    db.commit()
+
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=str(tenant_id),
+        action="UPDATE_NOTIFICATION_SETTINGS", resource_type="TENANT", resource_id=str(tenant_id),
+        details={k: ("***" if k in _NOTIFICATION_SECRET_KEYS else v) for k, v in updates.items()},
+    )
+    # log_audit() only flushes (see app/utils/audit.py) — without an explicit
+    # commit here the audit row is silently lost when this request's session
+    # closes uncommitted. Found by test_patch_is_audited.
+    db.commit()
+
+    return await get_notification_channel_settings(request, db, current_user)
+
+
+class WhatsAppTestSendRequest(BaseModel):
+    to_phone: str
+
+
+@router.post("/whatsapp/test/")
+@limiter.limit("5/hour")
+async def send_whatsapp_test_message(
+    request: Request,
+    body: WhatsAppTestSendRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    """Send a real WhatsApp text message to `to_phone` to verify this
+    tenant's configuration end-to-end. Logged both as a NotificationEvent
+    (whatsapp_service — same as any other send) and as an audit log entry."""
+    from app.services.whatsapp_service import send_text_message
+
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+
+    event = send_text_message(
+        db, tenant_id=str(tenant_id), tenant_settings=tenant.settings or {},
+        to_phone=body.to_phone,
+        body=f"Message de test SchoolFlow Pro — configuration WhatsApp validée pour {tenant.name}.",
+        event_type="config_test", user_id=current_user.get("id"),
+    )
+
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=str(tenant_id),
+        action="WHATSAPP_TEST_SEND", resource_type="TENANT", resource_id=str(tenant_id),
+        details={"status": event.status},
+    )
+    db.commit()  # log_audit() only flushes — see note above in update_notification_channel_settings
+
+    if event.status != "SENT":
+        raise HTTPException(status_code=502, detail=event.error_reason or "Échec de l'envoi WhatsApp")
+    return {"sent": True, "notification_event_id": str(event.id)}
+
 
 @router.patch("/{notification_id}/", response_model=NotificationResponse)
 def update_notification(
