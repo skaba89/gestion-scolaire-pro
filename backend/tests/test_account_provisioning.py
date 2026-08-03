@@ -212,6 +212,13 @@ async def test_admin_reset_rolls_back_when_email_delivery_fails():
         with pytest.raises(HTTPException) as exc_info:
             await reset_user_password(
                 user_id=user_id,
+                request=Request({
+                    "type": "http",
+                    "method": "POST",
+                    "path": f"/api/v1/users/{user_id}/reset-password/",
+                    "headers": [],
+                    "client": ("testclient", 50000),
+                }),
                 db=db,
                 current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
             )

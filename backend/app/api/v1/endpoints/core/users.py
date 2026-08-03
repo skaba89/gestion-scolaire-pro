@@ -1,6 +1,6 @@
 """Users endpoints — full CRUD + role management"""
 from typing import Literal, Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func, text
@@ -847,6 +847,7 @@ def delete_user(
 @router.post("/{user_id}/reset-password/")
 async def reset_user_password(
     user_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
@@ -854,13 +855,22 @@ async def reset_user_password(
     import secrets
     from app.core.security import get_password_hash
     from app.api.v1.endpoints.core.auth import blacklist_all_user_tokens
+    from app.core.tenant_resolution import resolve_current_tenant_id
     from app.services.account_provisioning import (
         PasswordSetupDeliveryError,
         delete_password_setup_token,
         deliver_password_setup_link,
     )
 
-    tenant_id = current_user.get("tenant_id")
+    # NOT current_user.get("tenant_id") directly — a SUPER_ADMIN's JWT has
+    # tenant_id=NULL, and the lookup below used a raw `tenant_id = :tenant_id`
+    # comparison, which never matches any row when the bind value is NULL
+    # (SQL's `x = NULL` is always unknown/false, never true). That silently
+    # 404'd on every attempt to reset a tenant admin's password as
+    # SUPER_ADMIN, with no indication why. resolve_current_tenant_id() falls
+    # back to the X-Tenant-ID header for SUPER_ADMIN, matching every other
+    # tenant-scoped endpoint in this codebase.
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     # Verify user exists
     row = db.execute(

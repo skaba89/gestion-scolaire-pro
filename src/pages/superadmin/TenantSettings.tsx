@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, Building2, Save, Loader2, Palette, Globe, CreditCard,
-  MapPin, Image, Phone, Mail, BookOpen, Settings, Shield, FileText
+  MapPin, Image, Phone, Mail, BookOpen, Settings, Shield, FileText, KeyRound
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -37,6 +37,14 @@ interface TenantDetail {
   is_active: boolean;
   created_at: string;
   settings: Record<string, any> | null;
+}
+
+interface TenantAdmin {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  is_active: boolean;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -137,6 +145,28 @@ export default function TenantSettings() {
       return data;
     },
     enabled: !!tenantId,
+  });
+
+  const { data: admins, isLoading: adminsLoading } = useQuery<TenantAdmin[]>({
+    queryKey: ["tenant-admins", tenantId],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/tenants/${tenantId}/admins/`);
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
+  const resetAdminPasswordMutation = useMutation({
+    mutationFn: async (adminId: string) => {
+      await apiClient.post(`/tenants/${tenantId}/admins/${adminId}/reset-password/`);
+    },
+    onSuccess: (_data, adminId) => {
+      const admin = admins?.find((a) => a.id === adminId);
+      toast.success(`Lien de réinitialisation envoyé à ${admin?.email || "l'administrateur"}`);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Erreur lors de l'envoi du lien de réinitialisation");
+    },
   });
 
   // Populate form when tenant loads
@@ -445,6 +475,61 @@ export default function TenantSettings() {
                   rows={3}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="w-5 h-5" />
+                Administration
+              </CardTitle>
+              <CardDescription>
+                Réinitialiser l'accès de l'administrateur de cet établissement (un lien à usage unique lui sera envoyé par email)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {adminsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Chargement...
+                </div>
+              ) : !admins || admins.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Aucun compte administrateur trouvé pour cet établissement.
+                </p>
+              ) : (
+                admins.map((admin) => (
+                  <div
+                    key={admin.id}
+                    className="flex items-center justify-between gap-4 p-3 rounded-lg border"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        {admin.first_name} {admin.last_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{admin.email}</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 shrink-0"
+                      disabled={resetAdminPasswordMutation.isPending}
+                      onClick={() => {
+                        if (confirm(`Envoyer un lien de réinitialisation de mot de passe à ${admin.email} ?`)) {
+                          resetAdminPasswordMutation.mutate(admin.id);
+                        }
+                      }}
+                    >
+                      {resetAdminPasswordMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <KeyRound className="w-4 h-4" />
+                      )}
+                      Réinitialiser le mot de passe
+                    </Button>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>

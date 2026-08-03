@@ -936,6 +936,144 @@ async def create_tenant_admin_user(
     }
 
 
+@router.get("/{tenant_id}/admins/")
+async def list_tenant_admins(
+    tenant_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """SUPER_ADMIN only: list the TENANT_ADMIN accounts of a specific tenant.
+
+    Used by the platform tenant-settings screen to know which account(s) a
+    "reset admin password" action would target, without the operator ever
+    needing to enter that tenant's own admin console.
+    """
+    _require_super_admin(current_user)
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Établissement non trouvé")
+
+    rows = db.execute(
+        text("""
+            SELECT DISTINCT u.id, u.email, u.first_name, u.last_name, u.is_active
+            FROM users u
+            JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            WHERE u.tenant_id = :tenant_id AND ur.role = 'TENANT_ADMIN'
+            ORDER BY u.last_name, u.first_name
+        """),
+        {"tenant_id": str(tenant_id)},
+    ).fetchall()
+
+    return [
+        {
+            "id": str(row.id),
+            "email": row.email,
+            "first_name": row.first_name,
+            "last_name": row.last_name,
+            "is_active": row.is_active,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/{tenant_id}/admins/{user_id}/reset-password/")
+async def reset_tenant_admin_password(
+    tenant_id: UUID,
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """SUPER_ADMIN only: reset a specific tenant's admin password and email
+    them a single-use reset link.
+
+    This mirrors reset_user_password() in users.py exactly, but is reachable
+    directly from the platform's tenant-settings screen (by tenant_id) —
+    that screen has no X-Tenant-ID header pointing at the target tenant
+    (the operator never "enters" the establishment), so the tenant-scoped
+    /users/{user_id}/reset-password/ endpoint is unusable from there.
+    """
+    _require_super_admin(current_user)
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Établissement non trouvé")
+
+    row = db.execute(
+        text("""
+            SELECT u.id, u.email, u.first_name, u.last_name
+            FROM users u
+            JOIN user_roles ur ON ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+            WHERE u.id = :user_id AND u.tenant_id = :tenant_id AND ur.role = 'TENANT_ADMIN'
+        """),
+        {"user_id": str(user_id), "tenant_id": str(tenant_id)},
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Administrateur non trouvé pour cet établissement")
+
+    import secrets
+    from app.core.security import get_password_hash
+    from app.api.v1.endpoints.core.auth import blacklist_all_user_tokens
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        delete_password_setup_token,
+        deliver_password_setup_link,
+    )
+
+    target_email = row.email
+    target_name = f"{row.first_name or ''} {row.last_name or ''}".strip() or target_email
+    password_hash = get_password_hash(secrets.token_urlsafe(32))
+
+    db.execute(
+        text("""
+            UPDATE users
+            SET password_hash = :pw, must_change_password = true, updated_at = NOW()
+            WHERE id = :user_id AND tenant_id = :tenant_id
+        """),
+        {"pw": password_hash, "user_id": str(user_id), "tenant_id": str(tenant_id)},
+    )
+
+    log_audit(
+        db,
+        user_id=current_user.get("id"),
+        tenant_id=str(tenant_id),
+        action="RESET_PASSWORD",
+        resource_type="USER",
+        resource_id=str(user_id),
+        details={"triggered_by": "SUPER_ADMIN", "tenant": tenant.name},
+    )
+
+    delivery = None
+    try:
+        delivery = await deliver_password_setup_link(
+            user_id=str(user_id),
+            email=target_email,
+            user_name=target_name,
+            purpose="reset",
+            expires_in=900,
+        )
+        db.commit()
+    except PasswordSetupDeliveryError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="L'email de réinitialisation n'a pas pu être envoyé. Aucun changement n'a été effectué.",
+        ) from exc
+    except Exception:
+        db.rollback()
+        if delivery:
+            await delete_password_setup_token(delivery.token)
+        raise
+
+    await blacklist_all_user_tokens(str(user_id))
+    return {
+        "message": "Lien de réinitialisation envoyé",
+        "email_sent": True,
+        "email": target_email,
+        "expires_in": delivery.expires_in,
+    }
+
+
 @router.get("/super-admin/stats/")
 async def get_super_admin_tenant_stats(
     db: Session = Depends(get_db),
