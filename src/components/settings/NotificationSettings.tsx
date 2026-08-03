@@ -11,9 +11,10 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   Bell, Save, Mail, AlertTriangle, MessageSquare,
-  Smartphone, ExternalLink, Eye, EyeOff, CheckCircle2,
-  Info, ChevronDown, ChevronUp, Radio
+  Smartphone, CheckCircle2, Info, Radio
 } from "lucide-react";
+import { SecretInput, ChannelSection } from "./notifications/shared";
+import { WhatsAppSettingsSection } from "./notifications/WhatsAppSettingsSection";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -29,8 +30,6 @@ interface NotificationConfig {
   absenceAlertDelay: number;
   paymentReminderDays: number;
   // WhatsApp Cloud API
-  whatsappAccessToken: string;
-  whatsappPhoneId: string;
   // OneSignal Push
   oneSignalAppId: string;
   oneSignalApiKey: string;
@@ -59,8 +58,6 @@ const DEFAULT_CONFIG: NotificationConfig = {
   lowGradeThreshold: 10,
   absenceAlertDelay: 0,
   paymentReminderDays: 7,
-  whatsappAccessToken: "",
-  whatsappPhoneId: "",
   oneSignalAppId: "",
   oneSignalApiKey: "",
   smsProvider: "",
@@ -78,95 +75,6 @@ const DEFAULT_CONFIG: NotificationConfig = {
   fromName: "",
 };
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-const SecretInput = ({
-  id, label, value, onChange, placeholder, hint,
-}: {
-  id: string; label: string; value: string;
-  onChange: (v: string) => void; placeholder?: string; hint?: string;
-}) => {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <div className="relative">
-        <Input
-          id={id}
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="pr-10 font-mono text-sm"
-          autoComplete="off"
-        />
-        <button
-          type="button"
-          onClick={() => setShow(!show)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-        >
-          {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-        </button>
-      </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-};
-
-const ChannelSection = ({
-  icon, title, badge, badgeColor, description, docsUrl, children, defaultOpen = false,
-}: {
-  icon: React.ReactNode; title: string; badge?: string; badgeColor?: string;
-  description: string; docsUrl?: string; children: React.ReactNode; defaultOpen?: boolean;
-}) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="rounded-lg border bg-card overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors text-left"
-      >
-        <div className="flex-1 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
-            {icon}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-medium">{title}</span>
-              {badge && (
-                <Badge variant="outline" className={`text-xs ${badgeColor}`}>
-                  {badge}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">{description}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {docsUrl && (
-            <a
-              href={docsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              Docs <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-          {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-        </div>
-      </button>
-      {open && (
-        <div className="px-4 pb-4 border-t bg-muted/10 pt-4 space-y-4">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 const NotificationSettings = () => {
@@ -175,6 +83,7 @@ const NotificationSettings = () => {
   const [loading, setLoading] = useState(false);
   const [testingChannel, setTestingChannel] = useState<string | null>(null);
   const [config, setConfig] = useState<NotificationConfig>(DEFAULT_CONFIG);
+  const [hasWhatsApp, setHasWhatsApp] = useState(false);
 
   useEffect(() => {
     if (tenant?.settings) {
@@ -187,8 +96,6 @@ const NotificationSettings = () => {
         lowGradeThreshold: s.lowGradeThreshold ?? 10,
         absenceAlertDelay: s.absenceAlertDelay ?? 0,
         paymentReminderDays: s.paymentReminderDays ?? 7,
-        whatsappAccessToken: s.whatsappAccessToken ?? "",
-        whatsappPhoneId: s.whatsappPhoneId ?? "",
         oneSignalAppId: s.oneSignalAppId ?? "",
         oneSignalApiKey: s.oneSignalApiKey ?? "",
         smsProvider: s.smsProvider ?? "",
@@ -260,7 +167,6 @@ const NotificationSettings = () => {
     }
   };
 
-  const hasWhatsApp = Boolean(config.whatsappAccessToken && config.whatsappPhoneId);
   const hasOneSignal = Boolean(config.oneSignalAppId && config.oneSignalApiKey);
   const hasSms = Boolean(
     (config.smsProvider === "android_gateway" && config.androidSmsGatewayUrl) ||
@@ -445,60 +351,11 @@ const NotificationSettings = () => {
         <CardContent className="space-y-4">
 
           {/* ── WhatsApp Cloud API ─────────────────────────────────── */}
-          <ChannelSection
-            icon={<MessageSquare className="w-5 h-5 text-green-600" />}
-            title="WhatsApp Cloud API"
-            badge="Gratuit · 1 000 conv/mois"
-            badgeColor="border-green-500 text-green-700 bg-green-50"
-            description="Envoie des messages WhatsApp aux parents via l'API officielle Meta"
-            docsUrl="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
-            defaultOpen={!hasWhatsApp}
-          >
-            <div className="flex items-start gap-2 p-3 rounded-md bg-blue-50 border border-blue-200">
-              <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-              <div className="text-xs text-blue-700 space-y-1">
-                <p className="font-medium">Comment obtenir vos clés :</p>
-                <ol className="list-decimal list-inside space-y-0.5">
-                  <li>Créez une app sur <strong>developers.facebook.com</strong></li>
-                  <li>Ajoutez le produit <strong>WhatsApp</strong></li>
-                  <li>Copiez le <strong>Phone Number ID</strong> et le <strong>Token d'accès permanent</strong></li>
-                  <li>Vérifiez votre numéro d'entreprise</li>
-                </ol>
-              </div>
-            </div>
-
-            <SecretInput
-              id="waToken"
-              label="Token d'accès permanent"
-              value={config.whatsappAccessToken}
-              onChange={(v) => set({ whatsappAccessToken: v })}
-              placeholder="EAAxxxxxxxx..."
-              hint="Générez un token permanent dans les paramètres de l'app Meta"
-            />
-            <div className="space-y-1.5">
-              <Label htmlFor="waPhoneId">Phone Number ID</Label>
-              <Input
-                id="waPhoneId"
-                value={config.whatsappPhoneId}
-                onChange={(e) => set({ whatsappPhoneId: e.target.value })}
-                placeholder="123456789012345"
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Visible dans WhatsApp &gt; Configuration du numéro de téléphone
-              </p>
-            </div>
-            {hasWhatsApp && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleTestChannel("whatsapp")}
-                disabled={testingChannel === "whatsapp"}
-              >
-                {testingChannel === "whatsapp" ? "Envoi..." : "Tester WhatsApp"}
-              </Button>
-            )}
-          </ChannelSection>
+          {/* Dedicated component: reads/writes via /notifications/settings/
+              and /notifications/whatsapp/test/, which never round-trip a
+              secret value through the browser — unlike the other channels
+              below, still backed by the shared /tenants/{id}/ PATCH. */}
+          <WhatsAppSettingsSection onConfiguredChange={setHasWhatsApp} />
 
           {/* ── OneSignal Push ─────────────────────────────────────── */}
           <ChannelSection
