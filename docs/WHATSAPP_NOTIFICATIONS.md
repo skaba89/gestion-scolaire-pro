@@ -3,13 +3,16 @@
 ## État du chantier
 
 **Étape 1 (livrée)** : modèle de données (`notification_events`), service
-d'orchestration (`whatsapp_service.py`), jobs Arq. Testé (34 tests), pas
-encore branché sur les événements métier ni sur un endpoint webhook réel.
+d'orchestration (`whatsapp_service.py`), jobs Arq. Testé (34 tests).
 
-**Étapes suivantes** (non commencées) : endpoint webhook FastAPI, branchement
-sur paiement/absence/notes/bulletin, endpoints admin de configuration
-(`/notifications/settings/`), interface frontend, persistance des messages
-entrants (`message_threads`/`message_items`).
+**Étape 2 (livrée)** : endpoint webhook `GET/POST /api/v1/whatsapp/webhook/`
+— validation Meta, réception des statuts (idempotente), vérification de
+signature HMAC si `whatsappAppSecret` configuré. Testé (12 tests).
+
+**Étapes suivantes** (non commencées) : branchement sur paiement/absence/notes/
+bulletin, endpoints admin de configuration (`/notifications/settings/`),
+interface frontend, persistance des messages entrants
+(`message_threads`/`message_items`).
 
 ## Architecture
 
@@ -40,12 +43,23 @@ plateforme :
 ```json
 {
   "whatsappAccessToken": "EAAxxxxx...",
-  "whatsappPhoneId": "1234567890"
+  "whatsappPhoneId": "1234567890",
+  "whatsappVerifyToken": "un-secret-choisi-par-vous",
+  "whatsappAppSecret": "app-secret-meta-optionnel"
 }
 ```
 
-À ajouter dans une prochaine étape : `whatsappVerifyToken` (validation
-webhook), `whatsappBusinessAccountId`, `whatsappDefaultLanguage`.
+- `whatsappVerifyToken` : requis pour que le handshake GET Meta fonctionne
+  (Meta → Configuration → Webhook → "Verify Token", même valeur des deux
+  côtés).
+- `whatsappAppSecret` : optionnel mais recommandé — active la vérification
+  de signature HMAC sur chaque événement POST (Meta → Paramètres de l'app →
+  "App Secret"). Sans lui, les événements sont quand même traités, mais
+  n'importe qui connaissant l'URL du webhook pourrait injecter de faux
+  statuts.
+
+À ajouter dans une prochaine étape : `whatsappBusinessAccountId`,
+`whatsappDefaultLanguage`.
 
 ## Templates Meta
 
@@ -93,19 +107,26 @@ support, pas un entrepôt de données personnelles.
 
 ## Limites connues de cette étape
 
-- Pas d'endpoint webhook FastAPI encore branché (le service est prêt, pas
-  l'endpoint) — un message entrant d'un parent n'est donc pas encore reçu
-  en pratique.
 - Pas de persistance des messages entrants (`message_threads`/`message_items`
   n'existent pas encore) — `process_webhook_event()` les compte sans les
-  stocker.
+  stocker. Un parent qui répond sur WhatsApp aujourd'hui : l'événement est
+  reçu et compté, mais son contenu n'est pas encore consultable côté admin.
+- Vérification de signature POST optionnelle (seulement si
+  `whatsappAppSecret` est configuré pour le tenant concerné) — sans elle,
+  n'importe qui connaissant l'URL du webhook pourrait injecter de faux
+  statuts de livraison pour un tenant sans `whatsappAppSecret`.
+- Le handshake GET essaie le `whatsappVerifyToken` de **tous** les tenants
+  jusqu'à trouver une correspondance — acceptable au volume actuel, mais à
+  revoir (ex: un token par app Meta plutôt que par tenant) si le nombre
+  d'établissements devient important.
 - Aucun branchement sur les événements métier réels (paiement, absence,
   notes, bulletin) — les wrappers existent mais rien ne les appelle encore
   automatiquement.
-- Aucune UI admin pour configurer `whatsappAccessToken`/`whatsappPhoneId`
-  par établissement — à faire manuellement en base pour l'instant.
+- Aucune UI admin pour configurer `whatsappAccessToken`/`whatsappPhoneId`/
+  `whatsappVerifyToken`/`whatsappAppSecret` par établissement — à faire
+  manuellement en base pour l'instant.
 
-## Erreurs fréquentes (une fois le webhook branché)
+## Erreurs fréquentes
 
 - **"Template not approved"** : le template n'a pas encore été validé côté
   Meta Business Manager — vérifier son statut dans le dashboard Meta.

@@ -79,6 +79,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # context). Device management (create/list/revoke) is NOT
             # exempted here — that stays behind normal JWT + role check.
             "/kiosk/scan", "/kiosk/scan/",
+
+            # --- WhatsApp Cloud API webhook (Meta). Meta never has (or can
+            # obtain) a JWT for this platform, and the tenant isn't known
+            # until the handler resolves it from the payload's
+            # phone_number_id — same pattern as the payment webhooks above.
+            # GET is Meta's one-time verify-token handshake; POST delivers
+            # message/status events, authenticated by matching a configured
+            # whatsappVerifyToken (GET) or, where available, Meta's payload
+            # signature (POST) inside the handler itself, not here.
+            "/whatsapp/webhook", "/whatsapp/webhook/",
         ]
 
         # Public prefixes — kept ONLY where the route has a dynamic path

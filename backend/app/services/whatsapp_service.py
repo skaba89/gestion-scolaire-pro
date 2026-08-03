@@ -338,7 +338,7 @@ def verify_webhook(mode: Optional[str], token: Optional[str], challenge: Optiona
     return None
 
 
-def _resolve_tenant_settings_by_phone_id(db: Session, phone_number_id: str) -> Optional[tuple[str, dict]]:
+def resolve_tenant_settings_by_phone_id(db: Session, phone_number_id: str) -> Optional[tuple[str, dict]]:
     """Meta's webhook payload identifies the receiving number by
     `phone_number_id`, not by tenant — find which tenant owns it. Iterates
     in Python rather than a JSON-operator SQL WHERE clause so this works
