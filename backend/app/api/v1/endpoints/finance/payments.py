@@ -661,13 +661,27 @@ def delete_invoice_endpoint(
 
 
 def _deliver_reminders_background(svc, deliveries: list) -> None:
-    """Send WhatsApp/push/email reminders outside the request path.
+    """Send push/email (and WhatsApp as a fallback — see below) reminders
+    outside the request path.
 
     Up to 200 invoices × several external calls each can take minutes;
     the HTTP worker must not be held for that.
+
+    WhatsApp is normally sent separately via the tracked Arq pipeline
+    (send_payment_reminders() enqueues send_whatsapp_notification per
+    invoice, logged in notification_events with retry/webhook-status
+    tracking) — each delivery dict here carries a "_skip_whatsapp" flag
+    set to True when that enqueue succeeded, so this path doesn't send
+    WhatsApp a second time. If the enqueue failed (e.g. Redis down),
+    "_skip_whatsapp" is False and WhatsApp goes out through this
+    untracked path instead, same as before this pipeline existed —
+    push/email are unaffected either way.
     """
     results = {"whatsapp": 0, "push": 0, "email": 0, "errors": 0}
+    original_whatsapp = getattr(svc, "whatsapp", None)
     for delivery in deliveries:
+        skip_whatsapp = delivery.pop("_skip_whatsapp", False)
+        svc.whatsapp = None if skip_whatsapp else original_whatsapp
         try:
             result = svc.send_payment_reminder(**delivery)
             if result.whatsapp:
@@ -684,12 +698,13 @@ def _deliver_reminders_background(svc, deliveries: list) -> None:
                 delivery.get("invoice_number"), e,
             )
             results["errors"] += 1
+    svc.whatsapp = original_whatsapp
     logger.info("Reminder delivery finished: %s", results)
 
 
 @router.post("/send-reminders/")
 @limiter.limit("3/minute")
-def send_payment_reminders(
+async def send_payment_reminders(
     request: Request,
     body: InvoiceReminderRequest,
     background_tasks: BackgroundTasks,
@@ -701,6 +716,7 @@ def send_payment_reminders(
     Fetches unpaid/overdue invoices with parent contact info.
     External delivery runs as a background task after the response.
     """
+    from app.core.jobs import enqueue_job
     from app.services.notifications import build_service_from_db
 
     tenant_id = _get_tenant_id(current_user)
@@ -709,7 +725,7 @@ def send_payment_reminders(
     base_query = """
         SELECT
             i.id, i.invoice_number, i.total_amount, i.paid_amount, i.due_date,
-            s.first_name AS student_first, s.last_name AS student_last,
+            s.id AS student_id, s.first_name AS student_first, s.last_name AS student_last,
             -- Parent contact info via parent_students
             u.email AS parent_email,
             u.phone AS parent_phone,
@@ -743,7 +759,32 @@ def send_payment_reminders(
         amount_str = f"{remaining:,.0f}".replace(",", " ")
         due_str = str(inv.due_date) if inv.due_date else "—"
 
-        # ── Real delivery (WhatsApp + Push + Email) — queued for background ──
+        invoice_number = inv.invoice_number or str(inv.id)[:8]
+
+        # ── WhatsApp: tracked pipeline (notification_events + retry + webhook
+        # status), one job per invoice, idempotent on invoice id so calling
+        # this endpoint twice for the same invoice never double-sends.
+        whatsapp_queued = False
+        if inv.parent_phone:
+            job_id = await enqueue_job(
+                "send_whatsapp_notification",
+                tenant_id=str(tenant_id),
+                event_type="payment_reminder",
+                to_phone=inv.parent_phone,
+                template_key="payment_reminder",
+                body_vars=[parent_name, invoice_number, amount_str, due_str, (svc.school_name if svc else "SchoolFlow Pro")],
+                fallback_text=(
+                    f"Rappel de paiement : la facture {invoice_number} de {amount_str} "
+                    f"est en attente (échéance : {due_str})."
+                ),
+                student_id=str(inv.student_id) if inv.student_id else None,
+                parent_id=str(inv.parent_user_id) if inv.parent_user_id else None,
+                _job_id=f"wa:payment_reminder:{inv.id}",
+            )
+            whatsapp_queued = job_id is not None
+
+        # ── Push + Email (+ WhatsApp fallback if the enqueue above failed) —
+        # queued for background via the older untracked path.
         if svc and (inv.parent_phone or inv.parent_email):
             deliveries.append({
                 "to_phone": inv.parent_phone,
@@ -751,9 +792,10 @@ def send_payment_reminders(
                 "onesignal_user_id": str(inv.parent_user_id) if inv.parent_user_id else None,
                 "parent_name": parent_name,
                 "student_name": student_name,
-                "invoice_number": inv.invoice_number or str(inv.id)[:8],
+                "invoice_number": invoice_number,
                 "amount": amount_str,
                 "due_date": due_str,
+                "_skip_whatsapp": whatsapp_queued,
             })
 
         # ── Always insert in-app notification ────────────────────────────────

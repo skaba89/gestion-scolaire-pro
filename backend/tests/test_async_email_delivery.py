@@ -98,3 +98,48 @@ class TestReminderBackgroundDelivery:
         _deliver_reminders_background(svc, deliveries)
         # La 2e livraison a bien été tentée malgré l'échec de la 1re.
         assert svc.send_payment_reminder.call_count == 2
+
+    def test_skip_whatsapp_flag_disables_whatsapp_for_that_delivery_only(self):
+        """WhatsApp is normally sent separately via the tracked Arq
+        pipeline (send_payment_reminders() in payments.py) — when that
+        enqueue succeeded, _skip_whatsapp=True must stop this untracked
+        path from also sending WhatsApp (avoiding a duplicate message),
+        while push/email for that same delivery still go through."""
+        from app.api.v1.endpoints.finance.payments import _deliver_reminders_background
+
+        svc = MagicMock()
+        svc.whatsapp = "a-configured-whatsapp-sender"
+        captured_whatsapp_state = []
+
+        def _record_and_return(**kwargs):
+            captured_whatsapp_state.append(svc.whatsapp)
+            return self._make_result(push=True, email=True)
+
+        svc.send_payment_reminder.side_effect = _record_and_return
+        deliveries = [
+            {"invoice_number": "INV-1", "to_phone": "+224600000001", "_skip_whatsapp": True},
+            {"invoice_number": "INV-2", "to_phone": "+224600000002", "_skip_whatsapp": False},
+        ]
+        _deliver_reminders_background(svc, deliveries)
+
+        assert captured_whatsapp_state[0] is None  # skipped -> whatsapp disabled for this call
+        assert captured_whatsapp_state[1] == "a-configured-whatsapp-sender"  # not skipped -> restored
+        # The mock's whatsapp attribute must end up restored to its original
+        # value once the whole batch is done, not left disabled.
+        assert svc.whatsapp == "a-configured-whatsapp-sender"
+
+    def test_skip_whatsapp_defaults_to_false_when_absent(self):
+        """Deliveries built before this pipeline existed (or from any other
+        caller) have no "_skip_whatsapp" key at all — WhatsApp must still
+        be attempted, matching the pre-existing behavior exactly."""
+        from app.api.v1.endpoints.finance.payments import _deliver_reminders_background
+
+        svc = MagicMock()
+        svc.whatsapp = "configured"
+        captured = []
+        svc.send_payment_reminder.side_effect = lambda **kw: (captured.append(svc.whatsapp), self._make_result(whatsapp=True))[1]
+
+        deliveries = [{"invoice_number": "INV-1", "to_phone": "+224600000000"}]
+        _deliver_reminders_background(svc, deliveries)
+
+        assert captured == ["configured"]
