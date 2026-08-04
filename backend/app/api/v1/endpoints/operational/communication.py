@@ -483,6 +483,21 @@ _WHATSAPP_REPLY_ROLES = {
 }
 
 
+def _utc_iso(dt) -> Optional[str]:
+    """message_threads/message_items store UTC timestamps in a Postgres
+    TIMESTAMP WITHOUT TIME ZONE column — SQLAlchemy round-trips them as
+    naive datetimes, so a plain .isoformat() produces a string with no 'Z'
+    or offset. A browser's `new Date(...)` then parses that as LOCAL time
+    instead of UTC, shifting every relative timestamp in the UI by the
+    viewer's UTC offset. These values are always UTC by construction
+    (created_at/updated_at default to datetime.now(timezone.utc)), so it's
+    safe to always append 'Z' here rather than trust tzinfo being present.
+    """
+    if dt is None:
+        return None
+    return dt.isoformat() + ("Z" if dt.tzinfo is None else "")
+
+
 @router.get("/whatsapp-threads/")
 def list_whatsapp_threads(
     request: Request,
@@ -525,8 +540,8 @@ def list_whatsapp_threads(
                 "student_name": f"{student.first_name} {student.last_name}".strip() if student else None,
                 "last_message": last_item.body[:200] if last_item else None,
                 "last_message_direction": last_item.direction if last_item else None,
-                "last_message_at": last_item.created_at.isoformat() if last_item else None,
-                "updated_at": thread.updated_at.isoformat() if thread.updated_at else None,
+                "last_message_at": _utc_iso(last_item.created_at) if last_item else None,
+                "updated_at": _utc_iso(thread.updated_at),
             })
         return result
     except HTTPException:
@@ -572,7 +587,7 @@ def list_whatsapp_thread_messages(
             "sender_type": item.sender_type,
             "body": item.body,
             "status": item.status,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
+            "created_at": _utc_iso(item.created_at),
         } for item in items]
     except HTTPException:
         raise

@@ -110,6 +110,11 @@ class TestListWhatsAppThreads:
         assert threads[0]["student_name"] == "Ibrahima Bah"
         assert threads[0]["last_message"] == "Bonjour, mon fils est malade."
         assert threads[0]["last_message_direction"] == "INBOUND"
+        # Naive UTC timestamps must carry an explicit 'Z' — otherwise a
+        # browser's `new Date(...)` parses them as local time instead of
+        # UTC, shifting every relative timestamp in the UI.
+        assert threads[0]["last_message_at"].endswith("Z")
+        assert threads[0]["updated_at"].endswith("Z")
 
     def test_forbidden_for_non_admin_role(self):
         tenant_id = _make_tenant()
@@ -150,6 +155,7 @@ class TestListWhatsAppThreadMessages:
         assert messages[0]["direction"] == "INBOUND"
         assert messages[1]["body"] == "Réponse de l'école"
         assert messages[1]["direction"] == "OUTBOUND"
+        assert messages[0]["created_at"].endswith("Z")
 
     def test_thread_from_another_tenant_returns_404(self):
         tenant_a = _make_tenant()
