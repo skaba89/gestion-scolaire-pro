@@ -156,6 +156,7 @@ def read_users_me(
 
 @router.get("/")
 def list_users(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
     page: int = Query(1, ge=1),
@@ -165,7 +166,14 @@ def list_users(
     is_active: Optional[bool] = None,
 ):
     """List all users for the current tenant (paginated)."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    # NOT current_user.get("tenant_id") directly — same class of bug as
+    # reset_user_password(): a SUPER_ADMIN's JWT has tenant_id=NULL, and the
+    # raw `u.tenant_id = :tenant_id` comparison below never matches any row
+    # when the bind value is NULL, silently returning an empty page instead
+    # of an error. resolve_current_tenant_id() falls back to the
+    # X-Tenant-ID header for SUPER_ADMIN.
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     where_clauses = [
         "u.tenant_id = :tenant_id",
@@ -425,13 +433,15 @@ def list_user_profiles(
 
 @router.get("/pending/")
 def list_pending_users(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1),
 ):
     """List students who don't have a linked user account yet (matched by email)."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     # Students whose email doesn't match any user in the same tenant
     students_sql = text("""
@@ -491,11 +501,13 @@ def list_pending_users(
 @router.get("/{user_id}/")
 def get_user(
     user_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
 ):
     """Get a single user by ID."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     # Build SQL based on database type (PostgreSQL vs SQLite)
     if settings.is_sqlite:
         sql_raw = """
@@ -549,11 +561,13 @@ def get_user(
 def update_user(
     user_id: str,
     body: UserUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
     """Update user profile fields (first_name, last_name, email, avatar_url, is_active)."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     updates = body.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
@@ -606,11 +620,13 @@ def update_user(
 def toggle_user_status(
     user_id: str,
     body: ToggleStatusRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
     """Activate or deactivate a user account."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     # Prevent self-deactivation
     if user_id == current_user.get("id") and not body.is_active:
@@ -650,11 +666,13 @@ def toggle_user_status(
 def update_user_roles(
     user_id: str,
     body: RoleUpdateRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
     """Replace all roles for a user (within the current tenant)."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     # SECURITY: Validate roles — prevent privilege escalation
     ALLOWED_ROLES = set(ROLE_PERMISSIONS.keys())
@@ -716,11 +734,13 @@ class AssignRoleRequest(BaseModel):
 def assign_role(
     user_id: str,
     body: AssignRoleRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
     """Assign a single role to a user."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     # SECURITY: Validate role — prevent privilege escalation
     ALLOWED_ROLES = set(ROLE_PERMISSIONS.keys())
@@ -778,11 +798,13 @@ def assign_role(
 def remove_role(
     user_id: str,
     role: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
     """Remove a single role from a user."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     result = db.execute(
         text("DELETE FROM user_roles WHERE user_id = :user_id AND tenant_id = :tenant_id AND role = :role"),
@@ -809,11 +831,13 @@ def remove_role(
 @router.delete("/{user_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:delete")),
 ):
     """Permanently delete a user from the tenant."""
-    tenant_id = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     if user_id == current_user.get("id"):
         raise HTTPException(

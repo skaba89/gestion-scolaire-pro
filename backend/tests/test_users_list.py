@@ -72,6 +72,12 @@ def _admin_headers(tenant_id: str) -> dict:
     return _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
 
 
+def _super_admin_headers_with_tenant_header(tenant_id: str) -> dict:
+    headers = _as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None})
+    headers["X-Tenant-ID"] = tenant_id
+    return headers
+
+
 class TestListUsersExcludesSuperAdmin:
     def test_normal_tenant_users_are_listed(self):
         tenant_id = _make_tenant()
@@ -96,3 +102,22 @@ class TestListUsersExcludesSuperAdmin:
         assert body["total"] == 1  # only the TEACHER, never the rogue SUPER_ADMIN
         returned_ids = {u["id"] for u in body["items"]}
         assert rogue_super_admin_id not in returned_ids
+
+
+class TestListUsersAsSuperAdmin:
+    """A platform SUPER_ADMIN has tenant_id=NULL on their own JWT — the
+    endpoint must resolve the X-Tenant-ID header instead of returning an
+    empty page (the bug reported as "I don't see the user in the list").
+    """
+
+    def test_super_admin_sees_tenant_users_via_header(self):
+        tenant_id = _make_tenant()
+        _make_user(tenant_id, role="TEACHER", email=f"teacher.{uuid.uuid4().hex[:6]}@ecole.gn")
+
+        resp = client.get(USERS_URL, headers=_super_admin_headers_with_tenant_header(tenant_id))
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["total"] == 1
+
+    def test_super_admin_without_header_gets_400_not_empty_page(self):
+        resp = client.get(USERS_URL, headers=_as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}))
+        assert resp.status_code == 400, resp.text
