@@ -4,10 +4,11 @@ import { useTenant } from "@/contexts/TenantContext";
 import { communicationQueries } from "@/queries/communication";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, Mail, Send, Inbox } from "lucide-react";
+import { MessageSquare, Mail, Send, Inbox, MessageCircle } from "lucide-react";
 import { AdminMessageComposer } from "@/components/messages/AdminMessageComposer";
 import ExternalMessageComposer from "@/components/messages/ExternalMessageComposer";
 import { MessengerInterface } from "@/components/messages/MessengerInterface";
+import { WhatsAppThreadsPanel } from "@/components/messages/WhatsAppThreadsPanel";
 import { useTranslation } from "react-i18next";
 
 const MessagesPage = () => {
@@ -33,10 +34,14 @@ const MessagesPage = () => {
       </div>
 
       <Tabs defaultValue="inbox" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-lg">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
           <TabsTrigger value="inbox" className="gap-2">
             <Inbox className="w-4 h-4" />
             {t("adminMessages.tabMessages")}
+          </TabsTrigger>
+          <TabsTrigger value="whatsapp" className="gap-2">
+            <MessageCircle className="w-4 h-4" />
+            WhatsApp
           </TabsTrigger>
           <TabsTrigger value="broadcast" className="gap-2">
             <MessageSquare className="w-4 h-4" />
@@ -55,6 +60,10 @@ const MessagesPage = () => {
             title={t("adminMessages.tabMessages")}
             showNewConversation={true}
           />
+        </TabsContent>
+
+        <TabsContent value="whatsapp" className="mt-6">
+          <WhatsAppThreadsPanel />
         </TabsContent>
 
         <TabsContent value="broadcast" className="mt-6">

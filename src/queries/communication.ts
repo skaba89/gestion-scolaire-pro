@@ -129,6 +129,72 @@ export const useCreateConversation = () => {
     });
 };
 
+export interface WhatsAppThread {
+    id: string;
+    status: string;
+    parent_name: string | null;
+    student_name: string | null;
+    last_message: string | null;
+    last_message_direction: "INBOUND" | "OUTBOUND" | null;
+    last_message_at: string | null;
+    updated_at: string | null;
+}
+
+export interface WhatsAppThreadMessage {
+    id: string;
+    direction: "INBOUND" | "OUTBOUND";
+    sender_type: string;
+    body: string;
+    status: string;
+    created_at: string | null;
+}
+
+export const useWhatsAppThreads = () => {
+    return useQuery({
+        queryKey: ["whatsapp-threads"],
+        queryFn: async () => {
+            const response = await apiClient.get<WhatsAppThread[]>("/communication/whatsapp-threads/");
+            return response.data;
+        },
+        refetchInterval: 30000,
+    });
+};
+
+export const useWhatsAppThreadMessages = (threadId: string | null) => {
+    return useQuery({
+        queryKey: ["whatsapp-thread-messages", threadId],
+        queryFn: async () => {
+            if (!threadId) return [];
+            const response = await apiClient.get<WhatsAppThreadMessage[]>(
+                `/communication/whatsapp-threads/${threadId}/messages/`,
+            );
+            return response.data;
+        },
+        enabled: !!threadId,
+        refetchInterval: 15000,
+    });
+};
+
+export const useReplyWhatsApp = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ threadId, body }: { threadId: string; body: string }) => {
+            const response = await apiClient.post(
+                `/communication/conversations/${threadId}/reply-whatsapp/`,
+                { body },
+            );
+            return response.data;
+        },
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["whatsapp-thread-messages", variables.threadId] });
+            queryClient.invalidateQueries({ queryKey: ["whatsapp-threads"] });
+        },
+        onError: (error: any) => {
+            toast.error("Erreur lors de l'envoi : " + (error.response?.data?.detail || error.message));
+        },
+    });
+};
+
 export const useUnreadCount = () => {
     return useQuery({
         queryKey: ["unread-messages-count"],

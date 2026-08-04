@@ -473,14 +473,112 @@ def send_message(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
-# Roles allowed to reply to a parent's inbound WhatsApp message on behalf
-# of the school — mirrors the "admin/teacher role" rule from the brief;
-# a plain STUDENT/PARENT/ALUMNI account is never allowed here even if it
-# happens to be the thread's own parent (this endpoint is school -> parent
-# only, not parent -> school, which arrives via the webhook instead).
+# Roles allowed to see/reply to parents' WhatsApp conversations on behalf
+# of the school — a plain STUDENT/PARENT/ALUMNI account never sees this
+# list even if it happens to be a thread's own parent (this is the
+# school-side inbox; the parent's own view of the conversation is
+# WhatsApp itself, not this admin screen).
 _WHATSAPP_REPLY_ROLES = {
     "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "DEPARTMENT_HEAD", "TEACHER", "SECRETARY",
 }
+
+
+@router.get("/whatsapp-threads/")
+def list_whatsapp_threads(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """School-side inbox of WhatsApp conversations — one row per
+    message_threads, most recently active first, with the last message's
+    preview so the list can render without a second round-trip per row."""
+    from app.models import MessageItem, MessageThread, ParentStudent, Student, User
+
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        roles = current_user.get("roles", [])
+        if not (_WHATSAPP_REPLY_ROLES & set(roles)):
+            raise HTTPException(status_code=403, detail="Accès refusé")
+
+        threads = (
+            db.query(MessageThread)
+            .filter(MessageThread.tenant_id == tenant_id)
+            .order_by(MessageThread.updated_at.desc())
+            .limit(200)
+            .all()
+        )
+
+        result = []
+        for thread in threads:
+            last_item = (
+                db.query(MessageItem)
+                .filter(MessageItem.thread_id == thread.id)
+                .order_by(MessageItem.created_at.desc())
+                .first()
+            )
+            parent = db.query(User).filter(User.id == thread.parent_id).first() if thread.parent_id else None
+            student = db.query(Student).filter(Student.id == thread.student_id).first() if thread.student_id else None
+            result.append({
+                "id": str(thread.id),
+                "status": thread.status,
+                "parent_name": f"{parent.first_name} {parent.last_name}".strip() if parent else None,
+                "student_name": f"{student.first_name} {student.last_name}".strip() if student else None,
+                "last_message": last_item.body[:200] if last_item else None,
+                "last_message_direction": last_item.direction if last_item else None,
+                "last_message_at": last_item.created_at.isoformat() if last_item else None,
+                "updated_at": thread.updated_at.isoformat() if thread.updated_at else None,
+            })
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error listing WhatsApp threads: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.get("/whatsapp-threads/{thread_id}/messages/")
+def list_whatsapp_thread_messages(
+    request: Request,
+    thread_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Full message history for one WhatsApp thread, oldest first."""
+    from app.models import MessageItem, MessageThread
+
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        roles = current_user.get("roles", [])
+        if not (_WHATSAPP_REPLY_ROLES & set(roles)):
+            raise HTTPException(status_code=403, detail="Accès refusé")
+
+        thread = (
+            db.query(MessageThread)
+            .filter(MessageThread.id == thread_id, MessageThread.tenant_id == tenant_id)
+            .first()
+        )
+        if not thread:
+            raise HTTPException(status_code=404, detail="Conversation introuvable")
+
+        items = (
+            db.query(MessageItem)
+            .filter(MessageItem.thread_id == thread_id)
+            .order_by(MessageItem.created_at.asc())
+            .all()
+        )
+        return [{
+            "id": str(item.id),
+            "direction": item.direction,
+            "sender_type": item.sender_type,
+            "body": item.body,
+            "status": item.status,
+            "created_at": item.created_at.isoformat() if item.created_at else None,
+        } for item in items]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error listing WhatsApp thread messages: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/conversations/{conversation_id}/reply-whatsapp/", status_code=status.HTTP_202_ACCEPTED)
