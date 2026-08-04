@@ -12,7 +12,7 @@ import {
   offlinePersister,
   shouldDehydrateQuery,
 } from "@/lib/offline-persistence";
-import { clearOfflineQueue } from "@/lib/offline-queue";
+import { clearOfflineQueue } from "@/offline/syncEngine";
 import { useOfflineQueueSync } from "@/hooks/useOfflineQueueSync";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";

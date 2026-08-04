@@ -10,6 +10,7 @@ from datetime import date
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
+from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 
@@ -196,6 +197,17 @@ def create_attendance(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+
+    idem_key = request.headers.get("x-idempotency-key")
+    request_body = record.model_dump(mode="json")
+    if idem_key:
+        cached = get_idempotent_response_or_lock(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+            method="POST", endpoint="/attendance/", request_body=request_body,
+        )
+        if cached is not None:
+            return cached[0]
+
     query = text("""
         INSERT INTO attendance (id, tenant_id, student_id, date, status, reason, subject_id, classroom_id, created_at, updated_at)
         VALUES (gen_random_uuid(), :tenant_id, :student_id, :date, :status, :reason, :subject_id, :classroom_id, NOW(), NOW())
@@ -212,7 +224,14 @@ def create_attendance(
             "classroom_id": record.classroom_id,
         }).mappings().first()
         db.commit()
-        return dict(result)
+        response = dict(result)
+        if idem_key:
+            store_idempotent_response(
+                db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+                method="POST", endpoint="/attendance/", request_body=request_body,
+                response_body=response, status_code=201,
+            )
+        return response
     except Exception as e:
         db.rollback()
         logger.error("Failed to create attendance: %s", e, exc_info=True)
@@ -289,6 +308,18 @@ def update_attendance(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+
+    idem_key = request.headers.get("x-idempotency-key")
+    endpoint = f"/attendance/{attendance_id}/"
+    request_body = payload.model_dump(mode="json")
+    if idem_key:
+        cached = get_idempotent_response_or_lock(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+            method="PATCH", endpoint=endpoint, request_body=request_body,
+        )
+        if cached is not None:
+            return cached[0]
+
     result = db.execute(text("""
         UPDATE attendance
         SET status = :status, reason = :reason, updated_at = NOW()
@@ -305,7 +336,14 @@ def update_attendance(
         raise HTTPException(status_code=404, detail="Attendance record not found")
 
     db.commit()
-    return dict(result)
+    response = dict(result)
+    if idem_key:
+        store_idempotent_response(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+            method="PATCH", endpoint=endpoint, request_body=request_body,
+            response_body=response, status_code=200,
+        )
+    return response
 
 
 # ─── DELETE /attendance/{id} ──────────────────────────────────────────────────

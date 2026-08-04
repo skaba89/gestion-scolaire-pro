@@ -218,6 +218,26 @@ async def send_bulk_whatsapp_notifications(ctx: dict, *, tenant_id: str, notific
         return {"job_id": job_id, "sent": sent, "failed": failed, "error": str(exc)}
 
 
+async def send_whatsapp_reply_job(ctx: dict, *, tenant_id: str, message_item_id: str) -> dict:
+    """Actually sends a school→parent WhatsApp reply queued by
+    POST /communication/conversations/{thread_id}/reply-whatsapp/ (Phase 4).
+    Off the request path for the same reason as send_whatsapp_notification —
+    a slow/rate-limited Graph API call must never make that endpoint hang."""
+    job_id = _job_started("send_whatsapp_reply_job", tenant_id, {"message_item_id": message_item_id})
+    try:
+        from app.services.whatsapp_service import send_whatsapp_reply
+
+        with SessionLocal() as db:
+            tenant_settings = _fetch_tenant_settings(db, tenant_id)
+            send_whatsapp_reply(db, tenant_id=tenant_id, tenant_settings=tenant_settings, message_item_id=message_item_id)
+        _job_finished(job_id, success=True, result={"message_item_id": message_item_id})
+        return {"job_id": job_id}
+    except Exception as exc:
+        logger.warning("send_whatsapp_reply_job failed: %s", exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "error": str(exc)}
+
+
 async def retry_failed_notifications(ctx: dict, *, tenant_id: Optional[str] = None, max_retry_count: int = 3) -> dict:
     """Re-attempt WhatsApp sends that previously FAILED, up to
     `max_retry_count` attempts. Deliberately re-resolves the recipient's
@@ -312,6 +332,7 @@ class WorkerSettings:
         send_welcome_email,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,
+        send_whatsapp_reply_job,
         retry_failed_notifications,
         sync_whatsapp_statuses,
     ]

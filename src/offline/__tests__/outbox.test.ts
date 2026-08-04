@@ -1,33 +1,19 @@
-/** Tests de la file d'actions offline (Phase 6, PR 4). */
+/** Tests de la file d'actions offline IndexedDB (Phase 6, WhatsApp/offline
+ * hardening brief) — remplace src/lib/__tests__/offline-queue.test.ts. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { offlineDb } from "@/offline/db";
 import {
   OFFLINE_QUEUE_CAP,
-  OFFLINE_QUEUE_KEY,
   clearOfflineQueue,
   enqueueAction,
   flushOfflineQueue,
   getQueuedActions,
   isNetworkError,
   queueLength,
-} from "@/lib/offline-queue";
+} from "@/offline/outbox";
 
 const TENANT = "tenant-1";
-
-// Le setup global remplace localStorage par des vi.fn() no-op ; ces tests
-// ont besoin d'un stockage fonctionnel (isolé à ce fichier par Vitest).
-function installFunctionalStorage() {
-  const store = new Map<string, string>();
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: {
-      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
-      setItem: (k: string, v: string) => { store.set(k, String(v)); },
-      removeItem: (k: string) => { store.delete(k); },
-      clear: () => store.clear(),
-    },
-  });
-}
 
 function makeAttendance(studentId: string, status = "PRESENT") {
   return {
@@ -49,9 +35,8 @@ function serverError(status: number) {
   return { request: {}, response: { status }, message: `HTTP ${status}` };
 }
 
-beforeEach(() => {
-  installFunctionalStorage();
-  clearOfflineQueue();
+beforeEach(async () => {
+  await offlineDb.offline_actions.clear();
 });
 
 describe("isNetworkError", () => {
@@ -67,47 +52,54 @@ describe("isNetworkError", () => {
 });
 
 describe("enqueueAction", () => {
-  it("ajoute une action horodatée et identifiée", () => {
-    const entry = enqueueAction(makeAttendance("s1"));
+  it("ajoute une action horodatée, identifiée et avec une idempotencyKey", async () => {
+    const entry = await enqueueAction(makeAttendance("s1"));
     expect(entry.id).toBeTruthy();
+    expect(entry.idempotencyKey).toBeTruthy();
     expect(entry.createdAt).toBeTruthy();
-    expect(queueLength()).toBe(1);
+    expect(entry.status).toBe("PENDING");
+    expect(await queueLength()).toBe(1);
   });
 
-  it("déduplique par dedupeKey — le dernier statut gagne", () => {
-    enqueueAction(makeAttendance("s1", "PRESENT"));
-    enqueueAction(makeAttendance("s1", "ABSENT"));
-    const queue = getQueuedActions();
+  it("déduplique par dedupeKey — le dernier statut gagne, nouvelle idempotencyKey", async () => {
+    const first = await enqueueAction(makeAttendance("s1", "PRESENT"));
+    const second = await enqueueAction(makeAttendance("s1", "ABSENT"));
+    const queue = await getQueuedActions();
     expect(queue).toHaveLength(1);
     expect(queue[0].body.status).toBe("ABSENT");
+    expect(queue[0].idempotencyKey).not.toBe(first.idempotencyKey);
+    expect(queue[0].idempotencyKey).toBe(second.idempotencyKey);
   });
 
-  it("borne la taille de la file en gardant les plus récentes", () => {
+  it("borne la taille de la file en gardant les plus récentes", async () => {
     for (let i = 0; i < OFFLINE_QUEUE_CAP + 10; i++) {
-      enqueueAction(makeAttendance(`s${i}`));
+      await enqueueAction(makeAttendance(`s${i}`));
     }
-    const queue = getQueuedActions();
+    const queue = await getQueuedActions();
     expect(queue).toHaveLength(OFFLINE_QUEUE_CAP);
     expect(queue[queue.length - 1].body.student_id).toBe(`s${OFFLINE_QUEUE_CAP + 9}`);
   });
 });
 
 describe("flushOfflineQueue", () => {
-  it("rejoue en séquence et vide la file en cas de succès", async () => {
-    enqueueAction(makeAttendance("s1"));
-    enqueueAction(makeAttendance("s2"));
+  it("rejoue en séquence, envoie X-Idempotency-Key et vide la file en cas de succès", async () => {
+    const a1 = await enqueueAction(makeAttendance("s1"));
+    await enqueueAction(makeAttendance("s2"));
     const client = { post: vi.fn().mockResolvedValue({}), patch: vi.fn(), put: vi.fn() };
 
     const result = await flushOfflineQueue(TENANT, client);
 
     expect(result).toEqual({ sent: 2, rejected: [], remaining: 0 });
     expect(client.post).toHaveBeenCalledTimes(2);
-    expect(queueLength()).toBe(0);
+    expect(client.post.mock.calls[0][2]).toEqual({
+      headers: { "X-Idempotency-Key": a1.idempotencyKey },
+    });
+    expect(await queueLength()).toBe(0);
   });
 
   it("abandonne définitivement les actions refusées par le serveur", async () => {
-    enqueueAction(makeAttendance("s1"));
-    enqueueAction(makeAttendance("s2"));
+    await enqueueAction(makeAttendance("s1"));
+    await enqueueAction(makeAttendance("s2"));
     const client = {
       post: vi.fn()
         .mockRejectedValueOnce(serverError(403))
@@ -125,20 +117,20 @@ describe("flushOfflineQueue", () => {
   });
 
   it("s'arrête sur une erreur réseau et conserve le reste", async () => {
-    enqueueAction(makeAttendance("s1"));
-    enqueueAction(makeAttendance("s2"));
+    await enqueueAction(makeAttendance("s1"));
+    await enqueueAction(makeAttendance("s2"));
     const client = { post: vi.fn().mockRejectedValue(networkError()), patch: vi.fn(), put: vi.fn() };
 
     const result = await flushOfflineQueue(TENANT, client);
 
     expect(result).toEqual({ sent: 0, rejected: [], remaining: 2 });
     expect(client.post).toHaveBeenCalledTimes(1); // pas d'acharnement
-    expect(queueLength()).toBe(2);
+    expect(await queueLength()).toBe(2);
   });
 
   it("ignore et retire les brouillons d'un autre tenant (sécurité)", async () => {
-    enqueueAction({ ...makeAttendance("s1"), tenantId: "autre-tenant" });
-    enqueueAction(makeAttendance("s2"));
+    await enqueueAction({ ...makeAttendance("s1"), tenantId: "autre-tenant" });
+    await enqueueAction(makeAttendance("s2"));
     const client = { post: vi.fn().mockResolvedValue({}), patch: vi.fn(), put: vi.fn() };
 
     const result = await flushOfflineQueue(TENANT, client);
@@ -146,26 +138,25 @@ describe("flushOfflineQueue", () => {
     expect(result.sent).toBe(1);
     expect(client.post).toHaveBeenCalledTimes(1);
     expect(client.post.mock.calls[0][1].student_id).toBe("s2");
-    expect(queueLength()).toBe(0);
+    expect(await queueLength()).toBe(0);
   });
 
   it("ne rejoue rien sans tenant courant", async () => {
-    enqueueAction(makeAttendance("s1"));
+    await enqueueAction(makeAttendance("s1"));
     const client = { post: vi.fn(), patch: vi.fn(), put: vi.fn() };
 
     const result = await flushOfflineQueue(null, client);
 
     expect(result.sent).toBe(0);
     expect(client.post).not.toHaveBeenCalled();
-    expect(queueLength()).toBe(0); // purgée : contexte inconnu
+    expect(await queueLength()).toBe(0); // purgée : contexte inconnu
   });
 });
 
 describe("clearOfflineQueue", () => {
-  it("purge la file (logout)", () => {
-    enqueueAction(makeAttendance("s1"));
-    clearOfflineQueue();
-    expect(queueLength()).toBe(0);
-    expect(window.localStorage.getItem(OFFLINE_QUEUE_KEY) ?? null).toBeNull();
+  it("purge la file (logout)", async () => {
+    await enqueueAction(makeAttendance("s1"));
+    await clearOfflineQueue();
+    expect(await queueLength()).toBe(0);
   });
 });

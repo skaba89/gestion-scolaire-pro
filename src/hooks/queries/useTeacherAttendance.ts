@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 
-import { enqueueAction, isNetworkError } from "@/lib/offline-queue";
+import { enqueueAction, isNetworkError } from "@/offline/syncEngine";
 
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
 
@@ -107,7 +107,7 @@ export const useTeacherAttendance = (classroomId?: string, date?: string) => {
                 // Hors ligne : brouillon local, rejoué au retour du réseau.
                 // Un second changement pour le même élève remplace le brouillon
                 // précédent (dedupeKey) — c'est le dernier statut qui compte.
-                enqueueAction({
+                await enqueueAction({
                     kind: "attendance",
                     ...request,
                     dedupeKey: `attendance:${classroomId}:${date}:${studentId}`,

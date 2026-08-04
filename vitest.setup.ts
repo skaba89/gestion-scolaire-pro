@@ -6,6 +6,9 @@
 import { afterEach, beforeAll, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+// jsdom has no IndexedDB implementation — the offline outbox (src/offline/db.ts,
+// Dexie-backed) needs one to run under Vitest.
+import "fake-indexeddb/auto";
 
 // Cleanup after each test
 afterEach(() => {

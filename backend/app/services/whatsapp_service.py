@@ -413,6 +413,74 @@ def _find_or_create_thread(
     return thread
 
 
+def apply_webhook_status_to_message_item(db: Session, provider_message_id: str, new_status: str) -> bool:
+    """Mirror of apply_webhook_status() for MessageItem (Phase 4 replies) —
+    a school→parent reply sent via send_whatsapp_reply() has its own
+    provider_message_id independent of NotificationEvent, so a delivery
+    status webhook must update both tables to stay in sync. Same
+    replay-safety rule: an unknown provider_message_id is a no-op, not an
+    error."""
+    from app.models import MessageItem
+
+    item = db.query(MessageItem).filter(MessageItem.provider_message_id == provider_message_id).first()
+    if not item:
+        return False
+
+    ts = datetime.now(timezone.utc)
+    item.status = new_status
+    if new_status == "DELIVERED":
+        item.delivered_at = ts
+    elif new_status == "READ":
+        item.read_at = ts
+    db.commit()
+    return True
+
+
+def send_whatsapp_reply(
+    db: Session, *, tenant_id: str, tenant_settings: dict, message_item_id: str,
+):
+    """Actually send a school→parent reply queued by the
+    POST /communication/conversations/{thread_id}/reply-whatsapp/ endpoint
+    (see app/workers/tasks.py:send_whatsapp_reply_job, which calls this off
+    the HTTP request path). Looks up the recipient's phone from the
+    thread's parent (never trusts a phone number from the request body),
+    sends as free text (24h session window), and updates the MessageItem
+    in place — this table IS the reply's record, unlike template sends
+    which get a separate NotificationEvent.
+    """
+    from app.models import MessageItem, MessageThread, User
+
+    item = db.query(MessageItem).filter(
+        MessageItem.id == message_item_id, MessageItem.tenant_id == tenant_id
+    ).first()
+    if not item:
+        return
+    thread = db.query(MessageThread).filter(MessageThread.id == item.thread_id).first()
+    if not thread or not thread.parent_id:
+        item.status = "FAILED"
+        db.commit()
+        return
+    parent = db.query(User).filter(User.id == thread.parent_id).first()
+    if not parent or not parent.phone:
+        item.status = "FAILED"
+        db.commit()
+        return
+
+    token = tenant_settings.get("whatsappAccessToken", "")
+    phone_id = tenant_settings.get("whatsappPhoneId", "")
+    if not token or not phone_id:
+        item.status = "FAILED"
+        db.commit()
+        return
+
+    sender = WhatsAppSender(token, phone_id)
+    success, provider_message_id, _error = sender.send_text_full(parent.phone, item.body)
+    item.status = "SENT" if success else "FAILED"
+    if provider_message_id:
+        item.provider_message_id = provider_message_id
+    db.commit()
+
+
 def process_webhook_event(db: Session, payload: dict) -> dict:
     """POST /whatsapp/webhook/ body handler. Never raises — a malformed or
     unrecognized payload is logged and counted, not a 500. Applies status
@@ -449,7 +517,8 @@ def process_webhook_event(db: Session, payload: dict) -> dict:
                     ts_raw = status.get("timestamp")
                     ts = datetime.fromtimestamp(int(ts_raw), tz=timezone.utc) if ts_raw else None
                     matched = apply_webhook_status(db, provider_message_id, raw_status, ts)
-                    if matched:
+                    matched_reply = apply_webhook_status_to_message_item(db, provider_message_id, raw_status)
+                    if matched or matched_reply:
                         summary["statuses_processed"] += 1
                     else:
                         summary["unmatched"] += 1

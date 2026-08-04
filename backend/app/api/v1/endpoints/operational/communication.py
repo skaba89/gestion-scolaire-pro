@@ -8,8 +8,10 @@ from uuid import UUID
 import datetime, json
 
 from app.core.database import get_db
+from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,6 +32,12 @@ class MessageCreate(BaseModel):
 class ConversationCreate(BaseModel):
     recipient_id: str
     initial_message: Optional[str] = None
+
+
+class WhatsAppReplyCreate(BaseModel):
+    body: str
+    parent_id: Optional[str] = None
+    student_id: Optional[str] = None
 
 
 # ─── Announcements ────────────────────────────────────────────────────────────
@@ -420,6 +428,17 @@ def send_message(
         if not part:
             raise HTTPException(status_code=403, detail="Accès refusé")
 
+        idem_key = request.headers.get("x-idempotency-key")
+        endpoint = f"/communication/conversations/{conversation_id}/messages/"
+        request_body = body.model_dump(mode="json")
+        if idem_key:
+            cached = get_idempotent_response_or_lock(
+                db, tenant_id=tenant_id, user_id=user_id, key=idem_key,
+                method="POST", endpoint=endpoint, request_body=request_body,
+            )
+            if cached is not None:
+                return cached[0]
+
         msg_id = db.execute(text("""
             INSERT INTO messages (conversation_id, sender_id, content, tenant_id, created_at)
             VALUES (:conv_id, :sender_id, :content, :tenant_id, NOW())
@@ -437,13 +456,129 @@ def send_message(
         """), {"msg_id": str(msg_id), "sender_id": user_id, "conv_id": conversation_id})
 
         db.commit()
-        return {"id": str(msg_id), "created_at": datetime.datetime.now().isoformat()}
+        response = {"id": str(msg_id), "created_at": datetime.datetime.now().isoformat()}
+        if idem_key:
+            store_idempotent_response(
+                db, tenant_id=tenant_id, user_id=user_id, key=idem_key,
+                method="POST", endpoint=endpoint, request_body=request_body,
+                response_body=response, status_code=201,
+            )
+        return response
     except HTTPException:
         raise
     except Exception as e:
         db.rollback()
         logger.error("Error sending message: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+# Roles allowed to reply to a parent's inbound WhatsApp message on behalf
+# of the school — mirrors the "admin/teacher role" rule from the brief;
+# a plain STUDENT/PARENT/ALUMNI account is never allowed here even if it
+# happens to be the thread's own parent (this endpoint is school -> parent
+# only, not parent -> school, which arrives via the webhook instead).
+_WHATSAPP_REPLY_ROLES = {
+    "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "DEPARTMENT_HEAD", "TEACHER", "SECRETARY",
+}
+
+
+@router.post("/conversations/{conversation_id}/reply-whatsapp/", status_code=status.HTTP_202_ACCEPTED)
+async def reply_whatsapp(
+    request: Request,
+    conversation_id: str,
+    body: WhatsAppReplyCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Reply to a parent's WhatsApp conversation as the school.
+    `conversation_id` here is a message_threads.id (Phase 3) — a real
+    WhatsApp back-and-forth with a parent, not the internal staff-to-staff
+    `conversations` table used by the rest of this router. The actual send
+    happens in an Arq job (send_whatsapp_reply_job), never inside this
+    request — a slow/rate-limited Graph API call must not block the caller.
+    """
+    from app.models import MessageItem, MessageThread
+
+    try:
+        if not body.body or not body.body.strip():
+            raise HTTPException(status_code=400, detail="Le message ne peut pas être vide")
+
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        roles = current_user.get("roles", [])
+        is_allowed_role = bool(_WHATSAPP_REPLY_ROLES & set(roles))
+
+        thread = (
+            db.query(MessageThread)
+            .filter(MessageThread.id == conversation_id, MessageThread.tenant_id == tenant_id)
+            .first()
+        )
+        if not thread:
+            raise HTTPException(status_code=404, detail="Conversation introuvable")
+
+        is_participant = str(thread.created_by) == str(current_user.get("id")) if thread.created_by else False
+        if not is_allowed_role and not is_participant:
+            raise HTTPException(status_code=403, detail="Accès refusé")
+
+        idem_key = request.headers.get("x-idempotency-key")
+        endpoint = f"/communication/conversations/{conversation_id}/reply-whatsapp/"
+        request_body = body.model_dump(mode="json")
+        if idem_key:
+            cached = get_idempotent_response_or_lock(
+                db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+                method="POST", endpoint=endpoint, request_body=request_body,
+            )
+            if cached is not None:
+                return cached[0]
+
+        item = MessageItem(
+            tenant_id=tenant_id,
+            thread_id=thread.id,
+            sender_type="school",
+            sender_user_id=current_user.get("id"),
+            direction="OUTBOUND",
+            channel="whatsapp",
+            body=body.body.strip()[:4096],
+            status="QUEUED",
+        )
+        db.add(item)
+        db.flush()
+
+        log_audit(
+            db, user_id=current_user.get("id"), tenant_id=tenant_id,
+            action="whatsapp_reply_queued", resource_type="message_item", resource_id=str(item.id),
+            details={"thread_id": str(thread.id)},
+        )
+        db.commit()
+        db.refresh(item)
+
+        from app.core.jobs import enqueue_job
+
+        job_id = await enqueue_job(
+            "send_whatsapp_reply_job",
+            tenant_id=tenant_id, message_item_id=str(item.id),
+            _job_id=f"wa-reply:{item.id}",
+        )
+        if job_id is None:
+            # Redis unreachable, or already enqueued — the reply stays
+            # QUEUED either way; if Redis was the problem, the row is
+            # still there for a support agent/retry job to pick up rather
+            # than silently losing the reply.
+            logger.warning("Could not enqueue send_whatsapp_reply_job for message_item %s", item.id)
+
+        response = {"id": str(item.id), "thread_id": str(thread.id), "status": item.status}
+        if idem_key:
+            store_idempotent_response(
+                db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+                method="POST", endpoint=endpoint, request_body=request_body,
+                response_body=response, status_code=202,
+            )
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Error queuing WhatsApp reply: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 

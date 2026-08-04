@@ -10,19 +10,24 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useTenant } from "@/contexts/TenantContext";
-import { flushOfflineQueue, queueLength } from "@/lib/offline-queue";
+import { flushOfflineQueue, migrateLegacyQueue, queueLength } from "@/offline/syncEngine";
 
 export function useOfflineQueueSync(): void {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const flushing = useRef(false);
+  const migrated = useRef(false);
   const tenantId = tenant?.id ? String(tenant.id) : null;
 
   useEffect(() => {
     if (!tenantId) return;
 
     const flush = async () => {
-      if (flushing.current || queueLength() === 0 || !navigator.onLine) return;
+      if (!migrated.current) {
+        migrated.current = true;
+        await migrateLegacyQueue();
+      }
+      if (flushing.current || (await queueLength()) === 0 || !navigator.onLine) return;
       flushing.current = true;
       try {
         const result = await flushOfflineQueue(tenantId);
