@@ -1,7 +1,7 @@
 """Grade endpoints"""
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import grade as crud_grade
 from app.schemas.grade import Grade, GradeCreate, GradeUpdate, GradeList
 
@@ -20,6 +21,7 @@ router = APIRouter()
 
 @router.get("/", response_model=GradeList)
 def list_grades(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("grades:read")),
     page: int = Query(1, ge=1),
@@ -35,7 +37,7 @@ def list_grades(
     
     Permissions: grades:read
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return GradeList(
             items=[],
@@ -116,6 +118,7 @@ def list_grades(
 
 @router.get("/student/{student_id}/average/")
 def get_student_average(
+    request: Request,
     student_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("grades:read")),
@@ -130,7 +133,7 @@ def get_student_average(
     return crud_grade.get_student_average(
         db=db,
         student_id=student_id,
-        tenant_id=current_user.get("tenant_id"),
+        tenant_id=resolve_current_tenant_id(request, current_user, db),
         academic_year=academic_year,
         semester=semester,
     )
@@ -138,6 +141,7 @@ def get_student_average(
 
 @router.get("/{grade_id}/", response_model=Grade)
 def get_grade(
+    request: Request,
     grade_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("grades:read")),
@@ -147,7 +151,7 @@ def get_grade(
     
     Permissions: grades:read
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
     grade = crud_grade.get_grade(db, grade_id, tenant_id)
@@ -161,6 +165,7 @@ def get_grade(
 
 @router.post("/", response_model=Grade, status_code=status.HTTP_201_CREATED)
 def create_grade(
+    request: Request,
     grade: GradeCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("grades:write")),
@@ -170,7 +175,7 @@ def create_grade(
     
     Permissions: grades:write
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
     return crud_grade.create_grade(db, grade, tenant_id)
@@ -178,6 +183,7 @@ def create_grade(
 
 @router.put("/{grade_id}/", response_model=Grade)
 def update_grade(
+    request: Request,
     grade_id: UUID,
     grade_update: GradeUpdate,
     db: Session = Depends(get_db),
@@ -188,7 +194,7 @@ def update_grade(
     
     Permissions: grades:write
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
     updated_grade = crud_grade.update_grade(
@@ -204,6 +210,7 @@ def update_grade(
 
 @router.delete("/{grade_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_grade(
+    request: Request,
     grade_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("grades:write")),
@@ -213,7 +220,7 @@ def delete_grade(
     
     Permissions: grades:write
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
     success = crud_grade.delete_grade(db, grade_id, tenant_id)
@@ -249,6 +256,7 @@ class BulkGradesRequest(BaseModel):
 
 @router.post("/bulk", status_code=status.HTTP_201_CREATED)
 def create_bulk_grades(
+    request: Request,
     body: BulkGradesRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("grades:write")),
@@ -257,7 +265,7 @@ def create_bulk_grades(
     Create multiple grades in a single request.
     POST /grades/bulk
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
 
@@ -314,6 +322,7 @@ def create_bulk_grades(
 
 @router.get("/history/")
 def list_grade_history(
+    request: Request,
     grade_id: Optional[str] = None,
     student_id: Optional[str] = None,
     ordering: str = "-created_at",
@@ -321,7 +330,7 @@ def list_grade_history(
     current_user: dict = Depends(require_permission("grades:read")),
 ):
     """Return the audit trail of grade changes. GET /grades/history/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["tenant_id = :tenant_id"]
     params: dict = {"tenant_id": tenant_id}
 

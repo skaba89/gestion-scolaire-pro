@@ -33,12 +33,13 @@ import uuid as _uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.saas import BillingEvent, SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
 from app.services.subscription_maintenance import (
@@ -168,11 +169,12 @@ class RejectRequest(BaseModel):
 
 @router.get("/subscription/")
 async def get_subscription(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Retourne l'état d'abonnement du tenant courant."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         # SUPER_ADMIN n'a pas de tenant
         return {"plan": "enterprise", "status": "active", "is_super_admin": True}
@@ -220,6 +222,7 @@ async def list_billing_plans(
 
 @router.post("/subscribe/", status_code=201)
 async def request_subscription(
+    request: Request,
     body: SubscribeRequest,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -227,7 +230,7 @@ async def request_subscription(
     """Demande d'abonnement payé par un rail local (Mobile Money, virement…)."""
     _require_roles(current_user, "TENANT_ADMIN", "SUPER_ADMIN")
 
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Aucun établissement associé à ce compte.")
 
@@ -317,13 +320,14 @@ async def request_subscription(
 
 @router.post("/cancel/")
 async def cancel_subscription(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Annule l'abonnement actif à la fin de la période en cours."""
     _require_roles(current_user, "TENANT_ADMIN", "SUPER_ADMIN")
 
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Aucun établissement associé à ce compte.")
 

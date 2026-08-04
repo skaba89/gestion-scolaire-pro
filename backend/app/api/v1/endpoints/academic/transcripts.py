@@ -20,12 +20,13 @@ flagged in the docstring below for a future settings-driven threshold.
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 router = APIRouter()
 
@@ -89,6 +90,7 @@ def _summarize_subject_grades(grades: list) -> list:
 
 @router.get("/{student_id}/")
 def get_student_transcript(
+    request: Request,
     student_id: UUID,
     academic_year_id: UUID = Query(..., description="Année académique à couvrir"),
     db: Session = Depends(get_db),
@@ -97,7 +99,7 @@ def get_student_transcript(
     """Relevé de notes complet pour une année académique : détail par
     période (trimestre/semestre) et par matière/UE, avec ECTS acquis.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte établissement requis")
 

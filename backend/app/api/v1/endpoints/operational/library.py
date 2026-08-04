@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
 router = APIRouter()
@@ -19,8 +20,8 @@ router = APIRouter()
 # --- Category CRUD ---
 
 @router.get("/categories/")
-def list_categories(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def list_categories(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     return db.execute(text("SELECT * FROM library_categories WHERE tenant_id = :tid ORDER BY name"), {"tid": tenant_id}).mappings().all()
@@ -40,12 +41,13 @@ class CategoryUpdate(BaseModel):
 
 @router.post("/categories/", status_code=status.HTTP_201_CREATED)
 def create_category(
+    request: Request,
     category: CategoryCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new library category."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -72,13 +74,14 @@ def create_category(
 
 @router.put("/categories/{category_id}/")
 def update_category(
+    request: Request,
     category_id: UUID,
     category: CategoryUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a library category."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -119,12 +122,13 @@ def update_category(
 
 @router.delete("/categories/{category_id}/")
 def delete_category(
+    request: Request,
     category_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a library category."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -149,6 +153,7 @@ def delete_category(
 
 @router.get("/resources/")
 def list_resources(
+    request: Request,
     category: Optional[str] = None,
     resource_type: Optional[str] = None,
     search: Optional[str] = None,
@@ -157,7 +162,7 @@ def list_resources(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     query = """
@@ -228,12 +233,13 @@ class ResourceUpdate(BaseModel):
 
 @router.post("/resources/", status_code=status.HTTP_201_CREATED)
 def create_resource(
+    request: Request,
     resource: ResourceCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new library resource."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -279,13 +285,14 @@ def create_resource(
 
 @router.put("/resources/{resource_id}/")
 def update_resource(
+    request: Request,
     resource_id: UUID,
     resource: ResourceUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a library resource."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -343,12 +350,13 @@ def update_resource(
 
 @router.delete("/resources/{resource_id}/")
 def delete_resource(
+    request: Request,
     resource_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a library resource."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -385,12 +393,13 @@ class ReturnRequest(BaseModel):
 
 @router.post("/borrow/", status_code=status.HTTP_201_CREATED)
 def borrow_resource(
+    request: Request,
     borrow: BorrowRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Borrow a library resource."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -438,12 +447,13 @@ def borrow_resource(
 
 @router.post("/return/")
 def return_resource(
+    request: Request,
     ret: ReturnRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Return a borrowed library resource."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -481,13 +491,14 @@ def return_resource(
 
 @router.get("/borrowers/")
 def list_borrowers(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """List current borrowers (active borrow records)."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     rows = db.execute(text("""

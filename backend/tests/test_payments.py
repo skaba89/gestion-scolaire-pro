@@ -107,14 +107,19 @@ class TestPaymentSQLInjectionPrevention:
     def test_tenant_isolation_helper_raises_without_tenant(self):
         from app.api.v1.endpoints.finance.payments import _get_tenant_id
         from fastapi import HTTPException
+        request = Request({"type": "http", "method": "GET", "path": "/", "headers": [], "client": ("testclient", 50000)})
+        db = MagicMock()
         with pytest.raises(HTTPException) as exc_info:
-            _get_tenant_id({"tenant_id": None})
+            _get_tenant_id(request, {"tenant_id": None}, db)
         assert exc_info.value.status_code == 400
 
     def test_tenant_isolation_helper_returns_tenant_id(self):
         from app.api.v1.endpoints.finance.payments import _get_tenant_id
         tid = str(uuid.uuid4())
-        result = _get_tenant_id({"tenant_id": tid})
+        request = Request({"type": "http", "method": "GET", "path": "/", "headers": [], "client": ("testclient", 50000)})
+        db = MagicMock()
+        db.query.return_value.filter.return_value.first.return_value = MagicMock()
+        result = _get_tenant_id(request, {"tenant_id": tid}, db)
         assert result == tid
 
 

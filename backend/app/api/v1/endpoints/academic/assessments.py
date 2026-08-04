@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class AssessmentUpdate(BaseModel):
 
 @router.get("/")
 def get_assessments(
+    request: Request,
     classId: Optional[str] = None,
     subjectId: Optional[str] = None,
     termId: Optional[str] = None,
@@ -46,7 +48,7 @@ def get_assessments(
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """List assessments with optional filters by subject or term."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"items": []}
 
@@ -107,12 +109,13 @@ def get_assessments(
 
 @router.post("/")
 def create_assessment(
+    request: Request,
     assessment: AssessmentCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new assessment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
 
@@ -171,12 +174,13 @@ def create_assessment(
 
 @router.delete("/{id}/")
 def delete_assessment(
+    request: Request,
     id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete an assessment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
 
@@ -197,13 +201,14 @@ def delete_assessment(
 
 @router.put("/{id}/")
 def update_assessment(
+    request: Request,
     id: UUID,
     assessment: AssessmentUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update an assessment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
 

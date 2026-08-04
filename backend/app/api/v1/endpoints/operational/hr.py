@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -7,6 +7,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.hr import (
     Employee, EmployeeCreate, EmployeeUpdate,
     Contract, ContractCreate, ContractUpdate,
@@ -25,30 +26,33 @@ router = APIRouter()
 
 @router.get("/employees/", response_model=List[Employee])
 def read_employees(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Retrieve all employees for the tenant."""
-    return crud_hr.get_employees(db, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.get_employees(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.post("/employees/", response_model=Employee)
 def create_employee(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: EmployeeCreate,
     current_user: dict = Depends(get_current_user),
 ):
     """Create a new employee."""
-    return crud_hr.create_employee(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.create_employee(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.get("/employees/{employee_id}/", response_model=Employee)
 def read_employee(
     employee_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Get a specific employee."""
-    employee = crud_hr.get_employee(db, employee_id=employee_id, tenant_id=current_user.get("tenant_id"))
+    employee = crud_hr.get_employee(db, employee_id=employee_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     return employee
@@ -56,13 +60,14 @@ def read_employee(
 @router.put("/employees/{employee_id}/", response_model=Employee)
 def update_employee(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     employee_id: UUID,
     obj_in: EmployeeUpdate,
     current_user: dict = Depends(get_current_user),
 ):
     """Update an employee."""
-    employee = crud_hr.update_employee(db, employee_id=employee_id, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    employee = crud_hr.update_employee(db, employee_id=employee_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     return employee
@@ -70,11 +75,12 @@ def update_employee(
 @router.delete("/employees/{employee_id}/")
 def delete_employee(
     employee_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Delete an employee."""
-    success = crud_hr.delete_employee(db, employee_id=employee_id, tenant_id=current_user.get("tenant_id"))
+    success = crud_hr.delete_employee(db, employee_id=employee_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not success:
         raise HTTPException(status_code=404, detail="Employee not found")
     return {"status": "success"}
@@ -83,29 +89,32 @@ def delete_employee(
 
 @router.get("/contracts/", response_model=List[Contract])
 def read_contracts(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return crud_hr.get_contracts(db, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.get_contracts(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.post("/contracts/", response_model=Contract)
 def create_contract(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: ContractCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    return crud_hr.create_contract(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.create_contract(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.put("/contracts/{contract_id}/", response_model=Contract)
 def update_contract(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     contract_id: UUID,
     obj_in: ContractUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    contract = crud_hr.update_contract(db, contract_id=contract_id, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    contract = crud_hr.update_contract(db, contract_id=contract_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
     return contract
@@ -113,10 +122,11 @@ def update_contract(
 @router.delete("/contracts/{contract_id}/")
 def delete_contract(
     contract_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    success = crud_hr.delete_contract(db, contract_id=contract_id, tenant_id=current_user.get("tenant_id"))
+    success = crud_hr.delete_contract(db, contract_id=contract_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not success:
         raise HTTPException(status_code=404, detail="Contract not found")
     return {"status": "success"}
@@ -125,29 +135,32 @@ def delete_contract(
 
 @router.get("/leave-requests/", response_model=List[LeaveRequest])
 def read_leave_requests(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return crud_hr.get_leave_requests(db, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.get_leave_requests(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.post("/leave-requests/", response_model=LeaveRequest)
 def create_leave_request(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: LeaveRequestCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    return crud_hr.create_leave_request(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.create_leave_request(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.put("/leave-requests/{leave_id}/", response_model=LeaveRequest)
 def update_leave_status(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     leave_id: UUID,
     obj_in: LeaveRequestUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    leave = crud_hr.update_leave_status(db, leave_id=leave_id, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    leave = crud_hr.update_leave_status(db, leave_id=leave_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not leave:
         raise HTTPException(status_code=404, detail="Leave request not found")
     return leave
@@ -155,11 +168,12 @@ def update_leave_status(
 @router.delete("/leave-requests/{leave_id}/")
 def delete_leave_request(
     leave_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Delete a leave request."""
-    success = crud_hr.delete_leave_request(db, leave_id=leave_id, tenant_id=current_user.get("tenant_id"))
+    success = crud_hr.delete_leave_request(db, leave_id=leave_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not success:
         raise HTTPException(status_code=404, detail="Leave request not found")
     return {"status": "success"}
@@ -168,30 +182,33 @@ def delete_leave_request(
 
 @router.get("/payslips/", response_model=List[Payslip])
 def read_payslips(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return crud_hr.get_payslips(db, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.get_payslips(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.post("/payslips/", response_model=Payslip)
 def create_payslip(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: PayslipCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    return crud_hr.create_payslip(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.create_payslip(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 @router.put("/payslips/{payslip_id}/", response_model=Payslip)
 def update_payslip(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     payslip_id: UUID,
     obj_in: PayslipUpdate,
     current_user: dict = Depends(get_current_user),
 ):
     """Update a payslip."""
-    payslip = crud_hr.update_payslip(db, payslip_id=payslip_id, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+    payslip = crud_hr.update_payslip(db, payslip_id=payslip_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not payslip:
         raise HTTPException(status_code=404, detail="Payslip not found")
     return payslip
@@ -199,21 +216,23 @@ def update_payslip(
 @router.delete("/payslips/{payslip_id}/")
 def delete_payslip(
     payslip_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    success = crud_hr.delete_payslip(db, payslip_id=payslip_id, tenant_id=current_user.get("tenant_id"))
+    success = crud_hr.delete_payslip(db, payslip_id=payslip_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not success:
         raise HTTPException(status_code=404, detail="Payslip not found")
     return {"status": "success"}
 
 @router.get("/last-employee-number/")
 def read_last_employee_number(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Get the last employee number for the tenant."""
-    return crud_hr.get_last_employee_number(db, tenant_id=current_user.get("tenant_id"))
+    return crud_hr.get_last_employee_number(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 
 # --- Job Offers (Careers module) ---
@@ -241,10 +260,11 @@ class JobOfferIn(BaseModel):
 @router.post("/job-offers/", status_code=201)
 def create_job_offer(
     offer: JobOfferIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -278,10 +298,11 @@ def create_job_offer(
 def update_job_offer(
     offer_id: UUID,
     offer: JobOfferIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -316,10 +337,11 @@ def update_job_offer(
 @router.delete("/job-offers/{offer_id}/", status_code=204)
 def delete_job_offer(
     offer_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     result = db.execute(text("DELETE FROM job_offers WHERE id=:id AND tenant_id=:tid"),
@@ -335,10 +357,11 @@ def delete_job_offer(
 def update_job_application(
     application_id: UUID,
     body: dict,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     status_value = body.get("status")
@@ -375,10 +398,11 @@ class CareerEventIn(BaseModel):
 @router.post("/career-events/", status_code=201)
 def create_career_event(
     event: CareerEventIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -411,10 +435,11 @@ def create_career_event(
 def update_career_event(
     event_id: UUID,
     event: CareerEventIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -447,10 +472,11 @@ def update_career_event(
 @router.delete("/career-events/{event_id}/", status_code=204)
 def delete_career_event(
     event_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     result = db.execute(text("DELETE FROM career_events WHERE id=:id AND tenant_id=:tid"),
@@ -483,11 +509,12 @@ class AlumniMentorIn(BaseModel):
 @router.post("/alumni-mentors/", status_code=201)
 def create_alumni_mentor(
     mentor: AlumniMentorIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     import json as _json
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -522,11 +549,12 @@ def create_alumni_mentor(
 def update_alumni_mentor(
     mentor_id: UUID,
     mentor: AlumniMentorIn,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     import json as _json
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -562,10 +590,11 @@ def update_alumni_mentor(
 @router.delete("/alumni-mentors/{mentor_id}/", status_code=204)
 def delete_alumni_mentor(
     mentor_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     result = db.execute(text("DELETE FROM alumni_mentors WHERE id=:id AND tenant_id=:tid"),
@@ -589,10 +618,11 @@ _REQUEST_UPDATABLE_COLUMNS = {"status", "validation_notes"}
 def admin_update_document_request(
     request_id: UUID,
     body: dict,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("users:read")),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     updates = {k: v for k, v in body.items() if k in _REQUEST_UPDATABLE_COLUMNS}
@@ -624,10 +654,11 @@ class RequestHistoryIn(BaseModel):
 @router.post("/alumni-request-history/", status_code=201)
 def create_request_history_entry(
     entry: RequestHistoryIn,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("users:read")),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     # Ensure the request belongs to this tenant before logging against it.

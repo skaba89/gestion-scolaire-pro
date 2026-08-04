@@ -1,6 +1,6 @@
 """Alumni Portal endpoints — sovereign backend replacing Supabase direct access."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
@@ -9,6 +9,7 @@ import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,6 +30,7 @@ class DocumentRequestCreate(BaseModel):
 
 @router.get("/dashboard/")
 def alumni_dashboard(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -40,7 +42,7 @@ def alumni_dashboard(
         - 3 most recent requests
         """
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -154,6 +156,7 @@ def list_document_requests(
 
 @router.post("/document-requests/", status_code=status.HTTP_201_CREATED)
 def create_document_request(
+    request: Request,
     body: DocumentRequestCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -161,7 +164,7 @@ def create_document_request(
     try:
         """Submit a new document request."""
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not user_id or not tenant_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -245,6 +248,7 @@ def cancel_document_request(
 
 @router.get("/document-requests/{request_id}/history/")
 def get_request_history(
+    request: Request,
     request_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -257,7 +261,7 @@ def get_request_history(
         request-management page, not just the alumni self-service one).
         """
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -298,12 +302,13 @@ def get_request_history(
 
 @router.get("/careers/jobs/")
 def alumni_job_offers(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
         """List active job offers for the tenant."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
 
@@ -332,12 +337,13 @@ def alumni_job_offers(
 
 @router.get("/careers/mentors/")
 def alumni_mentors(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
         """List available alumni mentors for the tenant."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
 
@@ -364,12 +370,13 @@ def alumni_mentors(
 
 @router.get("/careers/events/")
 def alumni_career_events(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
         """List upcoming career events for the tenant."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -400,13 +407,14 @@ def alumni_career_events(
 
 @router.get("/careers/applications/")
 def list_job_applications(
+    request: Request,
     student_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /alumni/careers/applications/ — list job applications (scoped to student if provided)."""
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         where = ["ja.tenant_id = :tid"]
         params: dict = {"tid": tenant_id}
@@ -438,13 +446,14 @@ def list_job_applications(
 
 @router.post("/careers/applications/", status_code=201)
 def create_job_application(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """POST /alumni/careers/applications/ — apply to a job offer."""
     import uuid as _uuid
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
         new_id = str(_uuid.uuid4())
@@ -470,13 +479,14 @@ def create_job_application(
 
 @router.get("/mentorship-requests/")
 def list_mentorship_requests_student(
+    request: Request,
     student_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /alumni/mentorship-requests/ — student-facing list of mentorship requests."""
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         effective_id = student_id or user_id
         rows = db.execute(text("""
@@ -500,6 +510,7 @@ def list_mentorship_requests_student(
 
 @router.get("/messaging/staff-recipients/")
 def alumni_staff_recipients(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -508,7 +519,7 @@ def alumni_staff_recipients(
         Return staff/admin users available for the alumni to message.
         Replaces the Supabase multi-step query in AlumniMessages.tsx.
         """
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -544,11 +555,12 @@ def alumni_staff_recipients(
 
 @router.get("/admin/mentors/")
 def admin_list_mentors(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")), # Simplified permission
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         rows = db.execute(text("""
@@ -564,11 +576,12 @@ def admin_list_mentors(
 
 @router.get("/admin/mentorship-requests/")
 def admin_list_mentorship_requests(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         rows = db.execute(text("""
@@ -597,11 +610,12 @@ def admin_list_mentorship_requests(
 
 @router.get("/admin/document-requests/")
 def admin_list_document_requests(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         rows = db.execute(text("""
@@ -617,11 +631,12 @@ def admin_list_document_requests(
 
 @router.get("/admin/job-applications/")
 def admin_list_job_applications(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         rows = db.execute(text("""
@@ -657,12 +672,13 @@ class MentorshipRequestCreate(BaseModel):
 
 @router.post("/mentorship-requests/", status_code=201)
 def create_mentorship_request(
+    request: Request,
     payload: MentorshipRequestCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=400, detail="tenant_id required")
 
@@ -698,11 +714,12 @@ def create_mentorship_request(
 
 @router.get("/admin/event-registrations/")
 def admin_list_event_registrations(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         rows = db.execute(text("""

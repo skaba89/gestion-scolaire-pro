@@ -1,11 +1,12 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
 import logging
 
 from app.core.database import get_db
 from app.core.security import require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import academic as crud_academic
 from app.schemas.academic import Term, TermCreate, TermUpdate
 
@@ -15,11 +16,12 @@ logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=List[Term])
 def list_terms(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """List all terms for the tenant."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -50,12 +52,13 @@ def list_terms(
 
 @router.get("/{term_id}/", response_model=Term)
 def get_term(
+    request: Request,
     term_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """Get a specific term."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     term = crud_academic.get_term(db, term_id, tenant_id=tenant_id)
@@ -65,25 +68,27 @@ def get_term(
 
 @router.post("/", response_model=Term, status_code=status.HTTP_201_CREATED)
 def create_term(
+    request: Request,
     term_in: TermCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new term."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     return crud_academic.create_term(db, term_in, tenant_id=tenant_id)
 
 @router.put("/{term_id}/", response_model=Term)
 def update_term(
+    request: Request,
     term_id: UUID,
     term_in: TermUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a term."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     term = crud_academic.update_term(db, term_id, term_in, tenant_id=tenant_id)
@@ -93,12 +98,13 @@ def update_term(
 
 @router.delete("/{term_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_term(
+    request: Request,
     term_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a term."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     success = crud_academic.delete_term(db, term_id, tenant_id=tenant_id)

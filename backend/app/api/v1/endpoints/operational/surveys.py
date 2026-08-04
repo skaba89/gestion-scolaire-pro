@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Dict, Any, Optional
@@ -10,6 +10,7 @@ import json
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
 router = APIRouter()
@@ -42,12 +43,13 @@ class SubmitResponse(BaseModel):
 
 @router.get("/")
 def list_surveys(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     rows = db.execute(text("""
@@ -62,8 +64,8 @@ def list_surveys(
 
 
 @router.get("/{survey_id}/questions/")
-def list_survey_questions(survey_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def list_survey_questions(request: Request, survey_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     rows = db.execute(text("""
@@ -75,8 +77,8 @@ def list_survey_questions(survey_id: UUID, db: Session = Depends(get_db), curren
 
 
 @router.get("/response-counts/")
-def get_survey_response_counts(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def get_survey_response_counts(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {}
     rows = db.execute(text("""
@@ -89,8 +91,8 @@ def get_survey_response_counts(db: Session = Depends(get_db), current_user: dict
 
 
 @router.post("/")
-def create_survey(survey_data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def create_survey(request: Request, survey_data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -113,8 +115,8 @@ def create_survey(survey_data: dict, db: Session = Depends(get_db), current_user
 
 
 @router.patch("/{survey_id}/")
-def update_survey(survey_id: UUID, survey_data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def update_survey(request: Request, survey_id: UUID, survey_data: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     db.execute(text("""
@@ -134,8 +136,8 @@ def update_survey(survey_id: UUID, survey_data: dict, db: Session = Depends(get_
 
 
 @router.delete("/{survey_id}/")
-def delete_survey(survey_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def delete_survey(request: Request, survey_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     db.execute(text("DELETE FROM surveys WHERE id = :sid AND tenant_id = :tid"), {"sid": str(survey_id), "tid": tenant_id})
@@ -147,13 +149,14 @@ def delete_survey(survey_id: UUID, db: Session = Depends(get_db), current_user: 
 
 @router.post("/{survey_id}/questions/", status_code=status.HTTP_201_CREATED)
 def add_survey_question(
+    request: Request,
     survey_id: UUID,
     question: QuestionCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Add a question to a survey."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -190,6 +193,7 @@ def add_survey_question(
 
 @router.put("/{survey_id}/questions/{qid}/")
 def update_survey_question(
+    request: Request,
     survey_id: UUID,
     qid: UUID,
     question: QuestionUpdate,
@@ -197,7 +201,7 @@ def update_survey_question(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a survey question."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -244,13 +248,14 @@ def update_survey_question(
 
 @router.delete("/{survey_id}/questions/{qid}/")
 def delete_survey_question(
+    request: Request,
     survey_id: UUID,
     qid: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a survey question."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -276,13 +281,14 @@ def delete_survey_question(
 
 @router.post("/{survey_id}/submit/", status_code=status.HTTP_201_CREATED)
 def submit_survey_response(
+    request: Request,
     survey_id: UUID,
     submission: SubmitResponse,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Submit responses to a survey."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -324,12 +330,13 @@ def submit_survey_response(
 
 @router.get("/{survey_id}/results/")
 def get_survey_results(
+    request: Request,
     survey_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """Get aggregated results for a survey."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"questions": [], "total_responses": 0}
     try:

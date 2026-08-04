@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Any
@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
 router = APIRouter()
@@ -53,12 +54,13 @@ class AssignRequest(BaseModel):
 
 @router.get("/")
 def list_incidents(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     # SCALABILITY: bounded by page_size — this table has no purge policy and
@@ -89,12 +91,13 @@ def list_incidents(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_incident(
+    request: Request,
     incident: IncidentCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new incident."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -145,13 +148,14 @@ def create_incident(
 
 @router.put("/{incident_id}/")
 def update_incident(
+    request: Request,
     incident_id: UUID,
     incident: IncidentUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update an incident."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -199,13 +203,14 @@ def update_incident(
 
 @router.put("/{incident_id}/resolve/")
 def resolve_incident(
+    request: Request,
     incident_id: UUID,
     resolve: ResolveRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Resolve an incident."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -247,13 +252,14 @@ def resolve_incident(
 
 @router.put("/{incident_id}/assign/")
 def assign_incident(
+    request: Request,
     incident_id: UUID,
     assign: AssignRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Assign an incident to a resolver."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:

@@ -8,7 +8,7 @@ while fixing 404s.
 """
 import logging
 from typing import List, Optional, Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 
 # ─── 3. Enrollments at root (/enrollments/) ───────────────────────────────────
@@ -28,13 +29,14 @@ enrollments_alias_router = APIRouter()
 
 @enrollments_alias_router.get("/")
 def list_enrollments_alias(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:read")),
 ):
     """GET /enrollments/ — mirrors GET /infrastructure/enrollments/"""
     from app.crud import academic as crud
     from app.schemas.academic import Enrollment as EnrollmentSchema
-    rows = crud.get_enrollments(db, tenant_id=current_user.get("tenant_id"))
+    rows = crud.get_enrollments(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     return [EnrollmentSchema.model_validate(r).model_dump(mode="json") for r in rows]
 
 
@@ -49,6 +51,7 @@ class EnrollmentCreateAlias(BaseModel):
 
 @enrollments_alias_router.post("/", status_code=status.HTTP_201_CREATED)
 def create_enrollment_alias(
+    request: Request,
     obj_in: EnrollmentCreateAlias,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:write")),
@@ -59,18 +62,19 @@ def create_enrollment_alias(
     return crud.create_enrollment(
         db,
         obj_in=EnrollmentCreate(**obj_in.model_dump()),
-        tenant_id=current_user.get("tenant_id"),
+        tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
     )
 
 
 @enrollments_alias_router.get("/counts/")
 def enrollment_counts_alias(
+    request: Request,
     class_ids: List[UUID] = Query(...),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /enrollments/counts/ — mirrors GET /infrastructure/enrollments/counts/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not class_ids:
         return {}
     rows = db.execute(text("""
@@ -89,6 +93,7 @@ invoices_alias_router = APIRouter()
 
 @invoices_alias_router.get("/")
 def list_invoices_alias(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
     page: int = Query(1, ge=1),
@@ -98,7 +103,7 @@ def list_invoices_alias(
 ):
     """GET /invoices/ — mirrors GET /payments/invoices/"""
     import math
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     offset = (page - 1) * page_size
@@ -163,6 +168,7 @@ class InvoiceCreateAlias(BaseModel):
 
 @invoices_alias_router.post("/", status_code=status.HTTP_201_CREATED)
 def create_invoice_alias(
+    request: Request,
     body: InvoiceCreateAlias,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
@@ -170,7 +176,7 @@ def create_invoice_alias(
     """POST /invoices/ — mirrors POST /payments/invoices/"""
     import json, secrets
     from app.utils.audit import log_audit
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     year = datetime.now().year
@@ -204,6 +210,7 @@ def create_invoice_alias(
 
 @invoices_alias_router.put("/{invoice_id}/")
 def update_invoice_alias(
+    request: Request,
     invoice_id: str,
     body: InvoiceCreateAlias,
     db: Session = Depends(get_db),
@@ -212,7 +219,7 @@ def update_invoice_alias(
     """PUT /invoices/{id}/ — mirrors PUT /payments/invoices/{id}/"""
     import json
     from app.utils.audit import log_audit
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     result = db.execute(text("""
@@ -242,13 +249,14 @@ def update_invoice_alias(
 
 @invoices_alias_router.delete("/{invoice_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_invoice_alias(
+    request: Request,
     invoice_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """DELETE /invoices/{id}/ — mirrors DELETE /payments/invoices/{id}/"""
     from app.utils.audit import log_audit
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     result = db.execute(text("""
@@ -269,11 +277,12 @@ class_sessions_router = APIRouter()
 
 @class_sessions_router.get("/")
 def list_class_sessions(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /class-sessions/ — list class sessions."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -309,11 +318,12 @@ def list_class_sessions(
 
 @class_sessions_router.get("/active/")
 def list_active_class_sessions(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /class-sessions/active/ — list currently active sessions."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -355,6 +365,7 @@ school_events_router = APIRouter()
 
 @school_events_router.get("/")
 def list_school_events(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     start_after: Optional[datetime] = Query(None),
@@ -362,7 +373,7 @@ def list_school_events(
     """GET /school-events/ — mirrors GET /school-life/events/"""
     from app.crud import school_life as crud_sl
     try:
-        return crud_sl.get_events(db, tenant_id=current_user.get("tenant_id"), start_after=start_after)
+        return crud_sl.get_events(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)), start_after=start_after)
     except Exception:
         db.rollback()
         return []
@@ -382,6 +393,7 @@ class StudentParentLinkRequest(BaseModel):
 
 @student_parents_router.post("/", status_code=status.HTTP_201_CREATED)
 def create_student_parent_link(
+    request: Request,
     link: StudentParentLinkRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
@@ -390,7 +402,7 @@ def create_student_parent_link(
     from app.schemas.parents import ParentStudentCreate
     from app.crud import parents as crud_parents
     from app.utils.audit import log_audit
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -415,6 +427,7 @@ def create_student_parent_link(
 
 @student_parents_router.delete("/")
 def delete_student_parent_link(
+    request: Request,
     parent_id: Optional[UUID] = Query(None),
     student_id: Optional[UUID] = Query(None),
     link_id: Optional[UUID] = Query(None),
@@ -423,7 +436,7 @@ def delete_student_parent_link(
 ):
     """DELETE /student-parents/ — mirrors DELETE /parents/link/{id}/"""
     from app.utils.audit import log_audit
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -479,13 +492,14 @@ class StudentSubjectAssign(BaseModel):
 
 @student_subjects_router.post("/", status_code=status.HTTP_201_CREATED)
 def assign_subjects_to_student(
+    request: Request,
     body: StudentSubjectAssign,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """POST /student-subjects/ — assign subjects to a student."""
     from app.utils.audit import log_audit
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -529,6 +543,7 @@ class PushSubscriptionUpsert(BaseModel):
 
 @push_subscriptions_router.post("/upsert/", status_code=status.HTTP_200_OK)
 def upsert_push_subscription(
+    request: Request,
     subscription_in: PushSubscriptionUpsert,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -536,7 +551,7 @@ def upsert_push_subscription(
     """POST /push-subscriptions/upsert/ — mirrors POST /notifications/subscriptions/"""
     from app.models import PushSubscription
     user_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
 
@@ -571,6 +586,7 @@ def upsert_push_subscription(
 
 @push_subscriptions_router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_push_subscription(
+    request: Request,
     endpoint: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -594,6 +610,7 @@ class OneSignalLinkPayload(BaseModel):
 
 @push_subscriptions_router.post("/onesignal-link/", status_code=status.HTTP_200_OK)
 async def onesignal_link_user(
+    request: Request,
     payload: OneSignalLinkPayload,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -608,7 +625,7 @@ async def onesignal_link_user(
     from app.models import Tenant
     from sqlalchemy import text as sa_text
 
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"status": "skipped", "reason": "no tenant"}
 
@@ -678,6 +695,7 @@ class PresenceUpdate(BaseModel):
 
 @presence_router.put("/")
 def update_presence(
+    request: Request,
     body: PresenceUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -688,7 +706,7 @@ def update_presence(
     - New shape: { user_id, is_online, is_typing, last_seen_at, current_conversation_id }
     - Legacy shape: { user_id, status, metadata }
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
 
     # Only allow updating own presence (or admin)
@@ -796,6 +814,7 @@ class RoomCreateAlias(BaseModel):
 
 @rooms_alias_router.get("/", response_model=List[dict])
 def list_rooms_alias(
+    request: Request,
     tenant_id: Optional[str] = Query(None),
     ordering: Optional[str] = Query(None, description="Field to order by (e.g. name)"),
     db: Session = Depends(get_db),
@@ -803,7 +822,7 @@ def list_rooms_alias(
 ):
     """GET /rooms/ — mirrors GET /infrastructure/rooms/"""
     from app.crud import academic as crud
-    tid = tenant_id or current_user.get("tenant_id")
+    tid = tenant_id or str(resolve_current_tenant_id(request, current_user, db))
     if not tid:
         return []
     results = crud.get_rooms(db, tenant_id=tid)
@@ -821,6 +840,7 @@ def list_rooms_alias(
 
 @rooms_alias_router.post("/", status_code=status.HTTP_201_CREATED)
 def create_room_alias(
+    request: Request,
     obj_in: RoomCreateAlias,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("rooms:write")),
@@ -828,17 +848,18 @@ def create_room_alias(
     """POST /rooms/ — mirrors POST /infrastructure/rooms/"""
     from app.crud import academic as crud
     from app.schemas.academic import RoomCreate
-    return crud.create_room(db, obj_in=RoomCreate(**obj_in.model_dump()), tenant_id=current_user.get("tenant_id"))
+    return crud.create_room(db, obj_in=RoomCreate(**obj_in.model_dump()), tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 
 @rooms_alias_router.get("/count/")
 def count_rooms_alias(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /rooms/count/ — mirrors GET /infrastructure/rooms/count/"""
     from sqlalchemy import text
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return 0
     return db.execute(text("SELECT COUNT(*) FROM rooms WHERE tenant_id = :tid"), {"tid": tenant_id}).scalar() or 0
@@ -859,6 +880,7 @@ class ClassroomCreateAlias(BaseModel):
 
 @classrooms_alias_router.get("/", response_model=List[dict])
 def list_classrooms_alias(
+    request: Request,
     level_id: Optional[str] = Query(None),
     department_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -866,7 +888,7 @@ def list_classrooms_alias(
 ):
     """GET /classrooms/ — mirrors GET /infrastructure/classrooms/ with optional filters."""
     from app.crud import academic as crud
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     results = crud.get_classrooms(db, tenant_id=tenant_id)
@@ -890,6 +912,7 @@ def list_classrooms_alias(
 
 @classrooms_alias_router.post("/", status_code=status.HTTP_201_CREATED)
 def create_classroom_alias(
+    request: Request,
     obj_in: ClassroomCreateAlias,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("classrooms:write")),
@@ -898,7 +921,7 @@ def create_classroom_alias(
     from app.crud import academic as crud
     from app.schemas.academic import ClassroomCreate
     data = obj_in.model_dump()
-    return crud.create_classroom(db, obj_in=ClassroomCreate(**data), tenant_id=current_user.get("tenant_id"))
+    return crud.create_classroom(db, obj_in=ClassroomCreate(**data), tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 
 # ─── 15. Schedule Slots at root (/schedule-slots/) ─────────────────────────────
@@ -908,6 +931,7 @@ schedule_slots_alias_router = APIRouter()
 
 @schedule_slots_alias_router.get("/", response_model=List[dict])
 def list_schedule_slots_alias(
+    request: Request,
     class_id: Optional[str] = Query(None),
     tenant_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -915,7 +939,7 @@ def list_schedule_slots_alias(
 ):
     """GET /schedule-slots/ — mirrors GET /schedule/"""
     from sqlalchemy import text as sql_text
-    tid = tenant_id or current_user.get("tenant_id")
+    tid = tenant_id or str(resolve_current_tenant_id(request, current_user, db))
     if not tid:
         return []
 
@@ -979,10 +1003,11 @@ class AchievementDefCreate(BaseModel):
 
 @achievement_router.get("/")
 def list_achievement_definitions(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     rows = db.execute(text("""
         SELECT id, tenant_id, name, description, icon, category, points_value,
                trigger_type, trigger_threshold, is_active, created_at
@@ -994,11 +1019,12 @@ def list_achievement_definitions(
 
 @achievement_router.post("/", status_code=201)
 def create_achievement_definition(
+    request: Request,
     body: AchievementDefCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     row = db.execute(text("""
         INSERT INTO achievement_definitions
             (tenant_id, name, description, icon, category, points_value, trigger_type, trigger_threshold, is_active)
@@ -1016,12 +1042,13 @@ def create_achievement_definition(
 
 @achievement_router.patch("/{achievement_id}/")
 def update_achievement_definition(
+    request: Request,
     achievement_id: str,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     allowed = {"name", "description", "icon", "category", "points_value", "trigger_type", "trigger_threshold", "is_active"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if not updates:
@@ -1042,11 +1069,12 @@ def update_achievement_definition(
 
 @achievement_router.delete("/{achievement_id}/", status_code=204)
 def delete_achievement_definition(
+    request: Request,
     achievement_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM achievement_definitions WHERE id = :id AND tenant_id = :tid"),
                {"id": achievement_id, "tid": tenant_id})
     db.commit()
@@ -1061,11 +1089,12 @@ student_achievement_router = APIRouter()
 
 @student_achievement_router.get("/")
 def list_student_achievements(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     student_id: Optional[str] = Query(None),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     extra = ""
     params: dict = {"tid": tenant_id}
     if student_id:
@@ -1084,11 +1113,12 @@ def list_student_achievements(
 
 @student_achievement_router.post("/", status_code=201)
 def award_student_achievement(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
         row = db.execute(text("""
@@ -1118,12 +1148,13 @@ gamification_router = APIRouter()
 
 @gamification_router.post("/process-event/")
 def process_gamification_event(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Process a gamification event and award matching achievements."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     event_type = body.get("event_type", "")
     student_id = body.get("student_id")
 
@@ -1156,12 +1187,13 @@ def process_gamification_event(
 
 @gamification_router.get("/rules/")
 def list_gamification_rules(
+    request: Request,
     is_active: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /gamification/rules/ — list tenant's gamification rules."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["tenant_id = :tid"]
     params: dict = {"tid": tenant_id}
     if is_active in ("true", "1"):
@@ -1183,13 +1215,14 @@ def list_gamification_rules(
 
 @gamification_router.post("/rules/", status_code=201)
 def create_gamification_rule(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """POST /gamification/rules/ — create a new rule."""
     import uuid as _uuid, json as _json
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         new_id = str(_uuid.uuid4())
         conditions = body.get("conditions", {})
@@ -1222,6 +1255,7 @@ def create_gamification_rule(
 
 @gamification_router.patch("/rules/{rule_id}/")
 def update_gamification_rule(
+    request: Request,
     rule_id: str,
     body: dict,
     db: Session = Depends(get_db),
@@ -1229,7 +1263,7 @@ def update_gamification_rule(
 ):
     """PATCH /gamification/rules/{id}/ — update a rule."""
     import json as _json
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     allowed = {"name", "description", "event_type", "conditions",
                "reward_type", "reward_value", "reward_badge_id", "is_active", "priority"}
     sets, params = [], {"id": rule_id, "tid": tenant_id}
@@ -1259,12 +1293,13 @@ def update_gamification_rule(
 
 @gamification_router.delete("/rules/{rule_id}/", status_code=204)
 def delete_gamification_rule(
+    request: Request,
     rule_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """DELETE /gamification/rules/{id}/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM gamification_rules WHERE id = :id AND tenant_id = :tid"),
                {"id": rule_id, "tid": tenant_id})
     db.commit()
@@ -1272,12 +1307,13 @@ def delete_gamification_rule(
 
 @gamification_router.get("/event-logs/")
 def list_gamification_event_logs(
+    request: Request,
     limit: int = Query(100, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /gamification/event-logs/ — list recent gamification events."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         rows = db.execute(text("""
             SELECT id, tenant_id, event_type, event_id, student_id,
@@ -1299,13 +1335,14 @@ homework_submissions_router = APIRouter()
 
 @homework_submissions_router.get("/")
 def list_homework_submissions(
+    request: Request,
     homework_id: Optional[str] = None,
     student_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
     """GET /homework-submissions?homework_id=X"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["hs.tenant_id = :tenant_id"]
     params: dict = {"tenant_id": tenant_id}
 
@@ -1343,13 +1380,14 @@ def list_homework_submissions(
 
 @homework_submissions_router.put("/{submission_id}")
 def update_homework_submission(
+    request: Request,
     submission_id: str,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """PUT /homework-submissions/{id} — grade a submission."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     row = db.execute(text("""
         UPDATE homework_submissions
@@ -1382,6 +1420,7 @@ grade_history_router = APIRouter()
 
 @grade_history_router.get("/")
 def list_grade_history_alias(
+    request: Request,
     grade_id: Optional[str] = None,
     student_id: Optional[str] = None,
     ordering: str = "-created_at",
@@ -1389,7 +1428,7 @@ def list_grade_history_alias(
     current_user: dict = Depends(require_permission("grades:read")),
 ):
     """GET /grade-history?grade_id=X"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["gh.tenant_id = :tenant_id"]
     params: dict = {"tenant_id": tenant_id}
 
@@ -1437,13 +1476,14 @@ shared_notes_router = APIRouter()
 
 @shared_notes_router.get("/")
 def list_shared_notes(
+    request: Request,
     ordering: str = "-is_pinned,-created_at",
     limit: int = Query(50, le=200),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /shared-notes/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     rows = db.execute(text("""
         SELECT sn.id, sn.title, sn.content, sn.is_pinned, sn.visibility,
                sn.view_count, sn.tags, sn.created_at, sn.updated_at,
@@ -1471,12 +1511,13 @@ def list_shared_notes(
 
 @shared_notes_router.post("/", status_code=201)
 def create_shared_note(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """POST /shared-notes/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     tags = body.get("tags", [])
 
@@ -1500,12 +1541,13 @@ def create_shared_note(
 
 @shared_notes_router.delete("/{note_id}", status_code=204)
 def delete_shared_note(
+    request: Request,
     note_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """DELETE /shared-notes/{id}"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
                {"id": note_id, "tid": tenant_id})
     db.commit()
@@ -1516,6 +1558,7 @@ shared_note_likes_router = APIRouter()
 
 @shared_note_likes_router.get("/")
 def list_note_likes(
+    request: Request,
     note_id__in: Optional[str] = None,
     user_id: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -1545,6 +1588,7 @@ def list_note_likes(
 
 @shared_note_likes_router.post("/", status_code=201)
 def like_note(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -1567,6 +1611,7 @@ def like_note(
 
 @shared_note_likes_router.delete("/")
 def unlike_note(
+    request: Request,
     note_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -1584,6 +1629,7 @@ shared_note_comments_router = APIRouter()
 
 @shared_note_comments_router.get("/")
 def list_note_comments(
+    request: Request,
     note_id: Optional[str] = None,
     note_id__in: Optional[str] = None,
     ordering: str = "created_at",
@@ -1629,6 +1675,7 @@ def list_note_comments(
 
 @shared_note_comments_router.post("/", status_code=201)
 def create_note_comment(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -1656,6 +1703,7 @@ courses_alias_router = APIRouter()
 
 @courses_alias_router.get("/")
 def list_courses_alias(
+    request: Request,
     is_published: Optional[bool] = None,
     ordering: str = "-created_at",
     limit: int = Query(20, le=100),
@@ -1663,7 +1711,7 @@ def list_courses_alias(
     current_user: dict = Depends(get_current_user),
 ):
     """GET /courses/ — alias for /analytics/elearning/courses/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["tenant_id = :tid"]
     params: dict = {"tid": tenant_id, "limit": limit}
 
@@ -1698,6 +1746,7 @@ course_discussions_router = APIRouter()
 
 @course_discussions_router.get("/")
 def list_course_discussions(
+    request: Request,
     course_id: Optional[str] = None,
     ordering: str = "-created_at",
     limit: int = Query(10, le=100),
@@ -1705,7 +1754,7 @@ def list_course_discussions(
     current_user: dict = Depends(get_current_user),
 ):
     """GET /course-discussions/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["cd.tenant_id = :tid"]
     params: dict = {"tid": tenant_id, "limit": limit}
 
@@ -1738,12 +1787,13 @@ def list_course_discussions(
 
 @course_discussions_router.post("/", status_code=201)
 def create_course_discussion(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """POST /course-discussions/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
         row = db.execute(text("""
@@ -1771,13 +1821,14 @@ student_check_ins_router = APIRouter()
 
 @student_check_ins_router.get("/")
 def list_student_check_ins(
+    request: Request,
     student_id: Optional[str] = None,
     classroom_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /student-check-ins/ — list check-in records."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     where = ["ci.tenant_id = :tid"]
     params: dict = {"tid": tenant_id}
@@ -1818,13 +1869,14 @@ student_badges_router = APIRouter()
 
 @student_badges_router.get("/")
 def list_student_badges(
+    request: Request,
     student_id: Optional[str] = None,
     classroom_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /student-badges/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["b.tenant_id = :tid"]
     params: dict = {"tid": tenant_id}
 
@@ -1852,12 +1904,13 @@ def list_student_badges(
 
 @student_badges_router.post("/", status_code=201)
 def create_student_badge(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """POST /student-badges/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         # body may be a list or a single object
         items = body if isinstance(body, list) else [body]
@@ -1888,12 +1941,13 @@ def create_student_badge(
 
 @student_badges_router.delete("/{badge_id}/", status_code=204)
 def delete_student_badge(
+    request: Request,
     badge_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """DELETE /student-badges/{id}/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM student_badges WHERE id = :id AND tenant_id = :tid"),
                {"id": badge_id, "tid": tenant_id})
     db.commit()
@@ -1906,6 +1960,7 @@ trusted_devices_router = APIRouter()
 
 @trusted_devices_router.post("/", status_code=201)
 def register_trusted_device(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -1934,6 +1989,7 @@ def register_trusted_device(
 
 @trusted_devices_router.get("/")
 def list_trusted_devices(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -1958,13 +2014,14 @@ point_transactions_router = APIRouter()
 
 @point_transactions_router.get("/")
 def list_point_transactions(
+    request: Request,
     student_id: Optional[str] = None,
     limit: int = Query(100, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /point-transactions/ — list gamification point transactions."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["pt.tenant_id = :tid"]
     params: dict = {"tid": tenant_id, "limit": limit}
 
@@ -1990,12 +2047,13 @@ def list_point_transactions(
 
 @point_transactions_router.post("/", status_code=201)
 def create_point_transaction(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """POST /point-transactions/ — award or deduct points."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     import uuid as _uuid
     try:
         new_id = str(_uuid.uuid4())
@@ -2026,12 +2084,13 @@ quiz_questions_router = APIRouter()
 
 @quiz_questions_router.get("/")
 def list_quiz_questions(
+    request: Request,
     quiz_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """GET /quiz-questions/?quiz_id=X"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["qq.tenant_id = :tid"]
     params: dict = {"tid": tenant_id}
 
@@ -2056,12 +2115,13 @@ def list_quiz_questions(
 
 @quiz_questions_router.post("/", status_code=201)
 def create_quiz_question(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """POST /quiz-questions/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     import uuid as _uuid
     import json as _json
     try:
@@ -2095,12 +2155,13 @@ def create_quiz_question(
 
 @quiz_questions_router.delete("/{question_id}/", status_code=204)
 def delete_quiz_question(
+    request: Request,
     question_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """DELETE /quiz-questions/{id}/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM quiz_questions WHERE id = :id AND tenant_id = :tid"),
                {"id": question_id, "tid": tenant_id})
     db.commit()

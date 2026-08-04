@@ -1,11 +1,21 @@
 """Tests pour les endpoints échéanciers de paiement — auth guards, schémas, isolation tenant."""
 import uuid
+from unittest.mock import MagicMock
+
 import pytest
 from conftest import get_test_client
+from starlette.requests import Request
 
 client = get_test_client()
 
 BASE = "/api/v1/payment-schedules"
+
+
+def _fake_request() -> Request:
+    return Request({
+        "type": "http", "method": "GET", "path": "/",
+        "headers": [], "client": ("testclient", 50000),
+    })
 
 
 # ─── Auth guards ──────────────────────────────────────────────────────────────
@@ -63,21 +73,25 @@ class TestScheduleTenantIsolation:
     def test_get_tenant_id_raises_on_none(self):
         from app.api.v1.endpoints.finance.payment_schedules import _get_tenant_id
         from fastapi import HTTPException
+        db = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            _get_tenant_id({"tenant_id": None})
+            _get_tenant_id(_fake_request(), {"tenant_id": None}, db)
         assert exc.value.status_code == 400
 
     def test_get_tenant_id_raises_on_missing_key(self):
         from app.api.v1.endpoints.finance.payment_schedules import _get_tenant_id
         from fastapi import HTTPException
+        db = MagicMock()
         with pytest.raises(HTTPException) as exc:
-            _get_tenant_id({})
+            _get_tenant_id(_fake_request(), {}, db)
         assert exc.value.status_code == 400
 
     def test_get_tenant_id_returns_valid_uuid(self):
         from app.api.v1.endpoints.finance.payment_schedules import _get_tenant_id
         tid = str(uuid.uuid4())
-        assert _get_tenant_id({"tenant_id": tid}) == tid
+        db = MagicMock()
+        db.query.return_value.filter.return_value.first.return_value = MagicMock()
+        assert _get_tenant_id(_fake_request(), {"tenant_id": tid}, db) == tid
 
 
 # ─── Validation schémas Pydantic ──────────────────────────────────────────────

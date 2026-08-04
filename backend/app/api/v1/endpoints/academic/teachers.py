@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -9,6 +9,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
 router = APIRouter()
@@ -28,6 +29,7 @@ class TeacherAssignmentUpdate(BaseModel):
 
 @router.get("/")
 def list_teachers(
+    request: Request,
     search: Optional[str] = None,
     class_id: Optional[str] = None,
     subject_id: Optional[str] = None,
@@ -37,7 +39,7 @@ def list_teachers(
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """List teacher assignments with pagination and filters."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 0}
 
@@ -98,12 +100,13 @@ def list_teachers(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_teacher_assignment(
+    request: Request,
     assignment: TeacherAssignmentCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new teacher assignment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -130,13 +133,14 @@ def create_teacher_assignment(
 
 @router.put("/{assignment_id}/")
 def update_teacher_assignment(
+    request: Request,
     assignment_id: UUID,
     assignment: TeacherAssignmentUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a teacher assignment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -174,12 +178,13 @@ def update_teacher_assignment(
 
 @router.delete("/{assignment_id}/")
 def delete_teacher_assignment(
+    request: Request,
     assignment_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a teacher assignment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -205,13 +210,13 @@ def delete_teacher_assignment(
 
 @router.get("/dashboard/")
 def get_teacher_dashboard(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Retrieve all aggregated metrics for the Teacher Dashboard."""
     teacher_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
-
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not teacher_id or not tenant_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 

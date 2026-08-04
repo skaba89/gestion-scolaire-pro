@@ -4,7 +4,7 @@ Admin endpoints require authentication and appropriate roles.
 Public endpoints are accessible without authentication.
 """
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from uuid import UUID
@@ -14,6 +14,7 @@ import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 from app.schemas.public_pages import (
     PublicPageCreate,
@@ -52,9 +53,9 @@ def _require_staff_min(current_user: dict):
         )
 
 
-def _get_tenant_id(current_user: dict, db: Session) -> UUID:
+def _get_tenant_id(request: Request, current_user: dict, db: Session) -> UUID:
     """Resolve tenant_id from current user (token or DB fallback)."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         from app.models.user import User
         user_id = current_user.get("id")
@@ -83,6 +84,7 @@ admin_router = APIRouter()
 
 @admin_router.post("/", response_model=PublicPageResponse, status_code=status.HTTP_201_CREATED)
 async def create_public_page(
+    request: Request,
     page_in: PublicPageCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -92,7 +94,7 @@ async def create_public_page(
     Requires TENANT_ADMIN, DIRECTOR, or STAFF role.
     """
     _require_staff_min(current_user)
-    tenant_id = _get_tenant_id(current_user, db)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     try:
         # Check slug uniqueness within tenant
@@ -150,6 +152,7 @@ async def create_public_page(
 
 @admin_router.get("/", response_model=List[PublicPageListItem])
 async def list_public_pages(
+    request: Request,
     page_type: str | None = None,
     is_published: bool | None = None,
     db: Session = Depends(get_db),
@@ -161,7 +164,7 @@ async def list_public_pages(
     Requires TENANT_ADMIN, DIRECTOR, or STAFF role.
     """
     _require_staff_min(current_user)
-    tenant_id = _get_tenant_id(current_user, db)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     query = db.query(PublicPage).filter(PublicPage.tenant_id == tenant_id)
 
@@ -176,6 +179,7 @@ async def list_public_pages(
 
 @admin_router.get("/nav/", response_model=List[PublicPageNavResponse])
 async def list_nav_pages(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -184,7 +188,7 @@ async def list_nav_pages(
     Only includes published pages where show_in_nav=True.
     """
     _require_staff_min(current_user)
-    tenant_id = _get_tenant_id(current_user, db)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     pages = (
         db.query(PublicPage)
@@ -201,6 +205,7 @@ async def list_nav_pages(
 
 @admin_router.get("/{page_id}/", response_model=PublicPageResponse)
 async def get_public_page(
+    request: Request,
     page_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -210,7 +215,7 @@ async def get_public_page(
     Requires TENANT_ADMIN, DIRECTOR, or STAFF role.
     """
     _require_staff_min(current_user)
-    tenant_id = _get_tenant_id(current_user, db)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     page = db.query(PublicPage).filter(
         PublicPage.id == page_id,
@@ -223,6 +228,7 @@ async def get_public_page(
 
 @admin_router.put("/{page_id}/", response_model=PublicPageResponse)
 async def update_public_page(
+    request: Request,
     page_id: UUID,
     page_in: PublicPageUpdate,
     db: Session = Depends(get_db),
@@ -233,7 +239,7 @@ async def update_public_page(
     Requires TENANT_ADMIN or DIRECTOR role.
     """
     _require_admin_or_director(current_user)
-    tenant_id = _get_tenant_id(current_user, db)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     page = db.query(PublicPage).filter(
         PublicPage.id == page_id,
@@ -295,6 +301,7 @@ async def update_public_page(
 
 @admin_router.delete("/{page_id}/", status_code=status.HTTP_200_OK)
 async def delete_public_page(
+    request: Request,
     page_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -304,7 +311,7 @@ async def delete_public_page(
     Requires TENANT_ADMIN or DIRECTOR role.
     """
     _require_admin_or_director(current_user)
-    tenant_id = _get_tenant_id(current_user, db)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     page = db.query(PublicPage).filter(
         PublicPage.id == page_id,
@@ -333,6 +340,7 @@ async def delete_public_page(
 
 @admin_router.post("/reorder/", status_code=status.HTTP_200_OK)
 async def reorder_public_pages(
+    request: Request,
     reorder_in: PageReorderRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -342,7 +350,7 @@ async def reorder_public_pages(
     Requires TENANT_ADMIN or DIRECTOR role.
     """
     _require_admin_or_director(current_user)
-    tenant_id = _get_tenant_id(current_user, db)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     try:
         updated_count = 0

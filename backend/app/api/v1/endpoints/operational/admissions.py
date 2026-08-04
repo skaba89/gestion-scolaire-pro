@@ -16,6 +16,7 @@ import uuid
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.core.storage import storage_client
 from app.utils.audit import log_audit
 import logging
@@ -98,6 +99,7 @@ def _fetch(db: Session, admission_id: str, tenant_id: str) -> dict:
 
 @router.get("/")
 def list_admissions(
+    request: Request,
     status: Optional[str] = None,
     academic_year_id: Optional[str] = None,
     level_id: Optional[str] = None,
@@ -108,7 +110,7 @@ def list_admissions(
     current_user: dict = Depends(require_permission("admissions:read")),
 ):
     """List admission applications with optional filters."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"items": [], "total": 0}
     where = " WHERE a.tenant_id = :tenant_id"
@@ -146,12 +148,13 @@ def list_admissions(
 
 @router.get("/stats/")
 def get_stats(
+    request: Request,
     academic_year_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:read")),
 ):
     """Counts per status for dashboard cards."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {
             "DRAFT": 0, "SUBMITTED": 0, "UNDER_REVIEW": 0,
@@ -180,23 +183,25 @@ def get_stats(
 
 @router.get("/{admission_id}/")
 def get_admission(
+    request: Request,
     admission_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:read")),
 ):
-    return _fetch(db, admission_id, current_user.get("tenant_id"))
+    return _fetch(db, admission_id, resolve_current_tenant_id(request, current_user, db))
 
 
 # ─── POST / ───────────────────────────────────────────────────────────────────
 
 @router.post("/", status_code=201)
 def create_admission(
+    request: Request,
     payload: AdmissionCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Create a new admission application (starts as DRAFT)."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     row = db.execute(text("""
@@ -234,13 +239,14 @@ def create_admission(
 
 @router.patch("/{admission_id}/status/")
 def transition_status(
+    request: Request,
     admission_id: str,
     payload: StatusUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:write")),
 ):
     """Move an application through its lifecycle with state machine validation."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     app = _fetch(db, admission_id, tenant_id)
     current_status = app["status"]
     new_status = payload.status.upper()
@@ -274,6 +280,7 @@ def transition_status(
 
 @router.post("/{admission_id}/convert/")
 def convert_to_student(
+    request: Request,
     admission_id: str,
     payload: ConvertPayload,
     db: Session = Depends(get_db),
@@ -283,7 +290,7 @@ def convert_to_student(
     Convert an ACCEPTED application into a Student record.
     Copies personal + parent data and marks the application as CONVERTED_TO_STUDENT.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     app = _fetch(db, admission_id, tenant_id)
     if app["status"] != "ACCEPTED":
         raise HTTPException(status_code=400,
@@ -357,13 +364,14 @@ def convert_to_student(
 
 @router.patch("/{admission_id}/")
 def edit_admission(
+    request: Request,
     admission_id: str,
     payload: AdmissionEdit,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:write")),
 ):
     """Update editable fields on a DRAFT application."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
     if not updates:
         raise HTTPException(status_code=400, detail="No updatable fields provided")
@@ -385,12 +393,13 @@ def edit_admission(
 
 @router.delete("/{admission_id}/", status_code=204)
 def delete_admission(
+    request: Request,
     admission_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:write")),
 ):
     """Delete a DRAFT application only."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     result = db.execute(text("""
         DELETE FROM admission_applications
         WHERE id = :id AND tenant_id = :tenant_id AND status = 'DRAFT'

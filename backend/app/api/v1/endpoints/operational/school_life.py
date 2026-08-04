@@ -1,7 +1,7 @@
 import logging
 import base64
 import html as html_mod
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.school_life import (
     Assessment, AssessmentCreate, AssessmentUpdate,
     Grade, GradeCreate, GradeUpdate,
@@ -30,11 +31,12 @@ logger = logging.getLogger(__name__)
 
 @router.get("/assessments/", response_model=List[Assessment])
 def read_assessments(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.get_assessments(db, tenant_id=current_user.get("tenant_id"))
+        return crud_sl.get_assessments(db, tenant_id=resolve_current_tenant_id(request, current_user, db))
     except Exception as e:
         db.rollback()
         logger.error("Error reading assessments: %s", e, exc_info=True)
@@ -43,12 +45,13 @@ def read_assessments(
 @router.post("/assessments/", response_model=Assessment)
 def create_assessment(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: AssessmentCreate,
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.create_assessment(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+        return crud_sl.create_assessment(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
     except Exception as e:
         db.rollback()
         logger.error("Error creating assessment: %s", e, exc_info=True)
@@ -56,6 +59,7 @@ def create_assessment(
 
 @router.put("/assessments/{assessment_id}/", response_model=Assessment)
 def update_assessment(
+    request: Request,
     assessment_id: UUID,
     *,
     db: Session = Depends(get_db),
@@ -63,7 +67,7 @@ def update_assessment(
     current_user: dict = Depends(get_current_user),
 ):
     """Update a school life assessment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     result = crud_sl.update_assessment(db, assessment_id=assessment_id, obj_in=obj_in, tenant_id=tenant_id)
@@ -73,12 +77,13 @@ def update_assessment(
 
 @router.delete("/assessments/{assessment_id}/")
 def delete_assessment(
+    request: Request,
     assessment_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a school life assessment."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     assessment = crud_sl.get_assessment(db, assessment_id=assessment_id, tenant_id=tenant_id)
@@ -95,12 +100,13 @@ def delete_assessment(
 
 @router.get("/grades/", response_model=List[Grade])
 def read_grades(
+    request: Request,
     student_id: Optional[UUID] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.get_grades(db, tenant_id=current_user.get("tenant_id"), student_id=student_id)
+        return crud_sl.get_grades(db, tenant_id=resolve_current_tenant_id(request, current_user, db), student_id=student_id)
     except Exception as e:
         db.rollback()
         logger.error("Error reading grades: %s", e, exc_info=True)
@@ -109,12 +115,13 @@ def read_grades(
 @router.post("/grades/", response_model=Grade)
 def create_grade(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: GradeCreate,
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.create_grade(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+        return crud_sl.create_grade(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
     except Exception as e:
         db.rollback()
         logger.error("Error creating grade: %s", e, exc_info=True)
@@ -122,6 +129,7 @@ def create_grade(
 
 @router.put("/grades/{grade_id}/", response_model=Grade)
 def update_grade(
+    request: Request,
     grade_id: UUID,
     *,
     db: Session = Depends(get_db),
@@ -129,7 +137,7 @@ def update_grade(
     current_user: dict = Depends(get_current_user),
 ):
     """Update a school life grade."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     result = crud_sl.update_grade(db, grade_id=grade_id, obj_in=obj_in, tenant_id=tenant_id)
@@ -139,12 +147,13 @@ def update_grade(
 
 @router.delete("/grades/{grade_id}/")
 def delete_grade(
+    request: Request,
     grade_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a school life grade."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     from app.models import Grade as GradeModel
@@ -162,12 +171,13 @@ def delete_grade(
 
 @router.get("/attendance/", response_model=List[Attendance])
 def read_attendance(
+    request: Request,
     student_ids: List[UUID] = Query(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.get_attendance(db, tenant_id=current_user.get("tenant_id"), student_ids=student_ids)
+        return crud_sl.get_attendance(db, tenant_id=resolve_current_tenant_id(request, current_user, db), student_ids=student_ids)
     except Exception as e:
         db.rollback()
         logger.error("Error reading attendance: %s", e, exc_info=True)
@@ -176,12 +186,13 @@ def read_attendance(
 @router.post("/attendance/", response_model=Attendance)
 def create_attendance(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: AttendanceCreate,
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.create_attendance(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+        return crud_sl.create_attendance(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
     except Exception as e:
         db.rollback()
         logger.error("Error creating attendance: %s", e, exc_info=True)
@@ -189,6 +200,7 @@ def create_attendance(
 
 @router.put("/attendance/{attendance_id}/", response_model=Attendance)
 def update_attendance(
+    request: Request,
     attendance_id: UUID,
     *,
     db: Session = Depends(get_db),
@@ -196,7 +208,7 @@ def update_attendance(
     current_user: dict = Depends(get_current_user),
 ):
     """Update an attendance record."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -223,12 +235,13 @@ def update_attendance(
 
 @router.delete("/attendance/{attendance_id}/")
 def delete_attendance(
+    request: Request,
     attendance_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete an attendance record."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -256,12 +269,13 @@ def delete_attendance(
 
 @router.get("/events/", response_model=List[SchoolEvent])
 def read_events(
+    request: Request,
     start_after: Optional[datetime] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.get_events(db, tenant_id=current_user.get("tenant_id"), start_after=start_after)
+        return crud_sl.get_events(db, tenant_id=resolve_current_tenant_id(request, current_user, db), start_after=start_after)
     except Exception as e:
         db.rollback()
         logger.error("Error reading events: %s", e)
@@ -271,12 +285,13 @@ def read_events(
 @router.post("/events/", response_model=SchoolEvent)
 def create_event(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: SchoolEventCreate,
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.create_event(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+        return crud_sl.create_event(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
     except Exception as e:
         db.rollback()
         logger.error("Error creating event: %s", e)
@@ -285,6 +300,7 @@ def create_event(
 
 @router.put("/events/{event_id}/", response_model=SchoolEvent)
 def update_event(
+    request: Request,
     event_id: UUID,
     *,
     db: Session = Depends(get_db),
@@ -292,7 +308,7 @@ def update_event(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a school event."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -315,12 +331,13 @@ def update_event(
 
 @router.delete("/events/{event_id}/")
 def delete_event(
+    request: Request,
     event_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a school event."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -354,6 +371,7 @@ class AppointmentSlotCreate(BaseModel):
 
 @router.get("/appointment-slots/appointments/")
 def list_teacher_appointments(
+    request: Request,
     teacher_id: Optional[str] = None,
     status: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -366,7 +384,7 @@ def list_teacher_appointments(
     Route absente jusqu'ici — le frontend l'appelait déjà (AppointmentSlots.tsx)
     et recevait un 404 silencieux, laissant la liste des RDV du jour vide.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     conditions = ["a.tenant_id = :tid"]
@@ -404,6 +422,7 @@ def list_teacher_appointments(
 
 @router.get("/appointment-slots/")
 def list_appointment_slots(
+    request: Request,
     teacher_id: Optional[str] = None,
     date: Optional[str] = None,
     is_active: Optional[bool] = None,
@@ -413,7 +432,7 @@ def list_appointment_slots(
     current_user: dict = Depends(require_permission("school_life:read")),
 ):
     """List appointment slots with pagination and filters."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -461,12 +480,13 @@ def list_appointment_slots(
 @router.post("/appointment-slots/")
 def create_appointment_slot(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: AppointmentSlotCreate,
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """Create a new appointment slot."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -509,12 +529,13 @@ def create_appointment_slot(
 
 @router.delete("/appointment-slots/{slot_id}/")
 def delete_appointment_slot(
+    request: Request,
     slot_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """Delete an appointment slot."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -553,6 +574,7 @@ class CheckInSessionCreate(BaseModel):
 
 @router.get("/check-ins/sessions/")
 def list_check_in_sessions(
+    request: Request,
     teacher_id: Optional[str] = None,
     session_date: Optional[str] = None,
     page: int = 1,
@@ -561,7 +583,7 @@ def list_check_in_sessions(
     current_user: dict = Depends(require_permission("school_life:read")),
 ):
     """List check-in sessions with pagination and filters."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -606,12 +628,13 @@ def list_check_in_sessions(
 @router.post("/check-ins/sessions/")
 def create_check_in_session(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: CheckInSessionCreate,
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """Start a new check-in session."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -648,6 +671,7 @@ def create_check_in_session(
 
 @router.get("/check-ins/assignments/")
 def list_check_in_assignments(
+    request: Request,
     session_id: Optional[str] = None,
     student_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -657,7 +681,7 @@ def list_check_in_assignments(
     current_user: dict = Depends(require_permission("school_life:read")),
 ):
     """List check-in assignments with pagination and filters."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -726,12 +750,13 @@ def list_check_in_assignments(
 
 @router.get("/check-ins/", response_model=List[StudentCheckIn])
 def read_check_ins(
+    request: Request,
     student_ids: List[UUID] = Query(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.get_check_ins(db, tenant_id=current_user.get("tenant_id"), student_ids=student_ids)
+        return crud_sl.get_check_ins(db, tenant_id=resolve_current_tenant_id(request, current_user, db), student_ids=student_ids)
     except Exception as e:
         db.rollback()
         logger.error("Error reading check-ins: %s", e)
@@ -741,12 +766,13 @@ def read_check_ins(
 @router.post("/check-ins/", response_model=StudentCheckIn)
 def create_check_in(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     obj_in: StudentCheckInCreate,
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.create_check_in(db, obj_in=obj_in, tenant_id=current_user.get("tenant_id"))
+        return crud_sl.create_check_in(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
     except Exception as e:
         db.rollback()
         logger.error("Error creating check-in: %s", e)
@@ -757,13 +783,14 @@ def create_check_in(
 
 @router.get("/badges/")
 def list_badges(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         from sqlalchemy import text
@@ -786,9 +813,9 @@ def list_badges(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/students-without-badges/")
-def students_without_badges(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def students_without_badges(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         from sqlalchemy import text
@@ -809,6 +836,7 @@ def students_without_badges(db: Session = Depends(get_db), current_user: dict = 
 
 @router.get("/event-registrations/")
 def list_event_registrations(
+    request: Request,
     student_id: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
@@ -816,7 +844,7 @@ def list_event_registrations(
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         params: dict = {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}
@@ -844,12 +872,13 @@ class EventRegistrationCreate(BaseModel):
 
 @router.post("/event-registrations/", status_code=201)
 def create_event_registration(
+    request: Request,
     payload: EventRegistrationCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=400, detail="tenant_id required")
         new_id = str(uuid4())
@@ -875,9 +904,9 @@ def create_event_registration(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/gamification/stats/")
-def get_gamification_stats(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_gamification_stats(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return {"totalPoints": 0, "totalAchievements": 0, "totalStudents": 0}
         from sqlalchemy import text
@@ -1528,6 +1557,7 @@ function downloadHtml() {{
 
 @router.post("/generate-report-card/v2/")
 def generate_smart_report_card(
+    request: Request,
     body: SmartReportCardRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -1537,7 +1567,7 @@ def generate_smart_report_card(
     Fully DB-driven bulletin: provide only IDs, all data fetched server-side.
     Returns base64-encoded A4 HTML ready for print-to-PDF.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
@@ -1636,6 +1666,7 @@ def generate_smart_report_card(
 
 @router.post("/generate-report-cards/batch/")
 def generate_batch_report_cards(
+    request: Request,
     body: SmartBatchRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -1644,7 +1675,7 @@ def generate_batch_report_cards(
     POST /school-life/generate-report-cards/batch/
     Generate all bulletins for a classroom in a single printable HTML document.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 

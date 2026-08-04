@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
@@ -93,6 +94,7 @@ def _log_webhook_event(
 
 @router.get("/", response_model=List[dict])
 def list_parents(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     search: Optional[str] = Query(None, description="Search by first_name, last_name, or email"),
@@ -100,7 +102,7 @@ def list_parents(
     page_size: int = Query(200, ge=1, le=500),
 ):
     """List all parents for the tenant. GET /parents/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     query = db.query(User).join(
@@ -170,12 +172,13 @@ class ParentCreate(BaseModel):
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_parent(
+    request: Request,
     parent_in: ParentCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new parent. POST /parents/"""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     normalized_email = str(parent_in.email).strip().lower()
@@ -234,12 +237,13 @@ def create_parent(
 
 @router.delete("/pending/{parent_id}/")
 def delete_pending_parent(
+    request: Request,
     parent_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a pending parent identity; active portal accounts are preserved."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
 
@@ -284,20 +288,22 @@ def delete_pending_parent(
 
 @router.get("/children/", response_model=List[ParentStudent])
 def read_parent_children(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Retrieve all children associated with the current parent user."""
-    return crud_parents.get_parent_children(db, parent_id=current_user.get("id"), tenant_id=current_user.get("tenant_id"))
+    return crud_parents.get_parent_children(db, parent_id=current_user.get("id"), tenant_id=resolve_current_tenant_id(request, current_user, db))
 
 @router.get("/students/{student_id}/parents/", response_model=List[ParentStudent])
 def read_student_parents(
+    request: Request,
     student_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Retrieve all parents associated with a specific student."""
-    return crud_parents.get_student_parents(db, student_id=student_id, tenant_id=current_user.get("tenant_id"))
+    return crud_parents.get_student_parents(db, student_id=student_id, tenant_id=resolve_current_tenant_id(request, current_user, db))
 
 
 # --- Relationship Management ---
@@ -311,12 +317,13 @@ class LinkRequest(BaseModel):
 
 @router.post("/link/", status_code=status.HTTP_201_CREATED)
 def create_parent_student_link(
+    request: Request,
     link: LinkRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a parent-student link."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -341,12 +348,13 @@ def create_parent_student_link(
 
 @router.delete("/link/{link_id}/")
 def remove_parent_student_link(
+    request: Request,
     link_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Remove a parent-student link."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -370,13 +378,14 @@ def remove_parent_student_link(
 
 @router.get("/unlinked-students/")
 def get_unlinked_students(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """Get students without parent links."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     # NOTE: students n'a ni colonne is_archived ni classroom_id (supprimées par
@@ -401,12 +410,13 @@ def get_unlinked_students(
 
 @router.get("/dashboard/")
 def get_parent_dashboard(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Retrieve all aggregated metrics for the Parent Dashboard."""
     parent_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not parent_id or not tenant_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -538,11 +548,12 @@ def get_parent_dashboard(
 
 @router.get("/terms/")
 def list_parent_terms(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """List all terms for the tenant — parent portal alias."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -569,11 +580,12 @@ def list_parent_terms(
 
 @router.get("/risk-scores/")
 def get_risk_scores(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Retrieve risk scores for the parent's children."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not user_id or not tenant_id:
         return []
@@ -602,6 +614,7 @@ def get_risk_scores(
 
 @router.get("/payment-schedules/")
 def list_parent_payment_schedules(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     student_id: Optional[str] = Query(None),
@@ -611,7 +624,7 @@ def list_parent_payment_schedules(
     page_size: int = Query(50, ge=1, le=100),
 ):
     """List payment schedules — parent portal alias scoped to parent's children."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id:
         return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
@@ -721,7 +734,7 @@ def create_parent_payment(
     - CASH / BANK_TRANSFER  → recorded immediately as COMPLETED
     - CINETPAY / PAYTECH    → returns a redirect URL; marked PENDING until webhook confirms
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -1117,13 +1130,14 @@ class ReportCardGenerateRequest(BaseModel):
 
 @router.post("/report-cards/generate/")
 def generate_report_card(
+    request: Request,
     body: ReportCardGenerateRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Generate a report card for a student (parent portal stub).
     Returns aggregated grades and attendance data for the requested term."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -1221,13 +1235,14 @@ def generate_report_card(
 
 @router.post("/invoices/pdf/")
 def generate_invoice_pdf(
+    request: Request,
     invoice_id: str = Query(...),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Generate a PDF for an invoice (parent portal stub).
     Returns invoice data ready for client-side PDF generation."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -1286,13 +1301,14 @@ def generate_invoice_pdf(
 
 @router.get("/appointments/")
 def list_parent_appointments(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
 ):
     """List parent-teacher appointments."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
@@ -1352,12 +1368,13 @@ class AppointmentCreate(BaseModel):
 
 @router.post("/appointments/", status_code=status.HTTP_201_CREATED)
 def create_parent_appointment(
+    request: Request,
     body: AppointmentCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Create a parent-teacher appointment request."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -1414,6 +1431,7 @@ def create_parent_appointment(
 
 @router.get("/appointment-slots/")
 def list_parent_appointment_slots(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     teacher_id: Optional[str] = Query(None),
@@ -1421,7 +1439,7 @@ def list_parent_appointment_slots(
     date_to: Optional[str] = Query(None),
 ):
     """List available appointment slots for booking."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
 
@@ -1469,13 +1487,14 @@ class AppointmentSlotCreate(BaseModel):
 
 @router.post("/appointment-slots/", status_code=status.HTTP_201_CREATED)
 def create_parent_appointment_slot(
+    request: Request,
     body: AppointmentSlotCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Create an appointment slot (parent portal).
     Typically used by admin/teachers to make slots available for booking."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")

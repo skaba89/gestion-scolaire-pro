@@ -20,6 +20,7 @@ from slowapi.util import get_remote_address
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.services.payment_gateways import CinetPayGateway, get_gateway
 from app.utils.audit import log_audit
 
@@ -39,15 +40,10 @@ ALLOWED_ORDER_COLUMNS = {"p.created_at", "p.amount", "p.status", "p.payment_date
 ALLOWED_SORT_DIRECTIONS = {"asc", "desc"}
 
 
-def _get_tenant_id(current_user: dict):
-    """Return tenant_id or raise 400 if not set (SUPER_ADMIN must select a tenant)."""
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Aucun établissement sélectionné. Veuillez d'abord sélectionner un établissement.",
-        )
-    return tenant_id
+def _get_tenant_id(request: Request, current_user: dict, db: Session):
+    """Return the resolved tenant_id (falls back to the X-Tenant-ID header
+    for a SUPER_ADMIN), or raise 400/403/404 — see resolve_current_tenant_id."""
+    return str(resolve_current_tenant_id(request, current_user, db))
 
 
 def _next_payment_reference(db: Session, tenant_id: str, *, prefix: str = "REC") -> str:
@@ -112,6 +108,7 @@ class InvoiceReminderRequest(BaseModel):
 
 @router.get("/payments/")
 def list_payments(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
     page: int = Query(1, ge=1),
@@ -119,7 +116,7 @@ def list_payments(
     student_id: Optional[str] = None,
 ):
     """List payments with pagination — includes student info."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
@@ -165,6 +162,7 @@ def list_payments(
 
 @router.get("/export/")
 def export_payments_csv(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
     student_id: Optional[str] = None,
@@ -178,7 +176,7 @@ def export_payments_csv(
     borné à 5000 lignes pour éviter un export incontrôlé sur un tenant à
     très fort volume — au-delà, recommander un export par période.
     """
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     params: dict = {"tenant_id": tenant_id}
     extra = ""
     if student_id:
@@ -264,6 +262,7 @@ td:first-child {{ color: #6b7280; width: 40%; }}
 
 @router.get("/{payment_id}/receipt/")
 def get_payment_receipt(
+    request: Request,
     payment_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
@@ -272,7 +271,7 @@ def get_payment_receipt(
     à l'enregistrement du paiement — voir reference dans register_payment).
     Retourne du HTML encodé en base64, même format que les bulletins, pour
     que le frontend imprime en PDF via la même mécanique déjà en place."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     row = db.execute(text("""
         SELECT p.reference, p.amount, p.currency, p.payment_date, p.payment_method, p.status, p.notes,
@@ -315,7 +314,7 @@ def register_payment(
     Atomic: register a payment and update the linked invoice status.
     Replaces the Supabase RPC `register_payment`.
     """
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
 
     # 1. Fetch invoice to validate (student_id est requis pour le paiement)
@@ -386,7 +385,7 @@ def reverse_payment(
     Reverse (cancel) a payment and revert invoice status.
     Replaces the Supabase RPC `reverse_payment`.
     """
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     pay = db.execute(text("""
         SELECT id, amount, invoice_id, status FROM payments
@@ -449,6 +448,7 @@ def get_next_sequence(
 
 @router.get("/invoices/")
 def list_invoices(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
     page: int = Query(1, ge=1),
@@ -457,7 +457,7 @@ def list_invoices(
     inv_status: Optional[str] = Query(None, alias="status"),
 ):
     """List invoices with full student info — replaces Supabase join query."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
@@ -533,6 +533,7 @@ class InvoiceCreateBody(BaseModel):
 
 @router.post("/invoices/", status_code=status.HTTP_201_CREATED)
 def create_invoice_atomic(
+    request: Request,
     body: InvoiceCreateBody,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
@@ -542,7 +543,7 @@ def create_invoice_atomic(
     Replaces the Supabase RPC `create_invoice_v3`.
     """
     import json
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     year = datetime.now().year
     invoice_number = body.invoice_number or f"INV-{year}-{secrets.token_hex(4).upper()}"
 
@@ -584,6 +585,7 @@ def create_invoice_atomic(
 
 @router.put("/invoices/{invoice_id}/")
 def update_invoice_endpoint(
+    request: Request,
     invoice_id: str,
     body: InvoiceCreateBody,
     db: Session = Depends(get_db),
@@ -591,7 +593,7 @@ def update_invoice_endpoint(
 ):
     """Update an invoice."""
     import json
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     result = db.execute(text("""
         UPDATE invoices SET
             student_id = :student_id,
@@ -634,12 +636,13 @@ def update_invoice_endpoint(
 
 @router.delete("/invoices/{invoice_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_invoice_endpoint(
+    request: Request,
     invoice_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """Delete an invoice by ID."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     result = db.execute(text("""
         DELETE FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id})
@@ -719,7 +722,7 @@ async def send_payment_reminders(
     from app.core.jobs import enqueue_job
     from app.services.notifications import build_service_from_db
 
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
 
     # Fetch invoices with parent contact details (phone + email)
     base_query = """
@@ -852,11 +855,12 @@ async def send_payment_reminders(
 
 @router.get("/fees/")
 def list_fees(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
 ):
     """List all fee types for the tenant."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     try:
         rows = db.execute(text("""
             SELECT id, name, description, amount, created_at FROM fees
@@ -873,12 +877,13 @@ def list_fees(
 
 @router.post("/fees/", status_code=status.HTTP_201_CREATED)
 def create_fee(
+    request: Request,
     body: FeeCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """Create a new fee type."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     try:
         fee_id = db.execute(text("""
             INSERT INTO fees (id, tenant_id, name, description, amount, created_at)
@@ -907,13 +912,14 @@ def create_fee(
 
 @router.put("/fees/{fee_id}/")
 def update_fee(
+    request: Request,
     fee_id: str,
     body: FeeUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """Update an existing fee."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     # SECURITY: Whitelist allowed column names to prevent SQL injection
     ALLOWED_FEE_FIELDS = {"name", "description", "amount"}
     try:
@@ -952,12 +958,13 @@ def update_fee(
 
 @router.delete("/fees/{fee_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_fee(
+    request: Request,
     fee_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """Delete a fee."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     try:
         result = db.execute(text("DELETE FROM fees WHERE id = :fee_id AND tenant_id = :tenant_id"),
                             {"fee_id": fee_id, "tenant_id": tenant_id})
@@ -988,12 +995,13 @@ def delete_fee(
 
 @router.post("/send-invoice-email/", status_code=200)
 def send_invoice_email(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
 ):
     """POST /payments/send-invoice-email/ — log and acknowledge invoice email send."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     invoice_id = body.get("invoiceId") or body.get("invoice_id")
     recipient_email = body.get("recipientEmail") or body.get("recipient_email")
 
@@ -1051,7 +1059,7 @@ def create_payment_intent(
     The invoice is deliberately not marked as paid here.  A PENDING payment is
     persisted first so the CinetPay/PayTech webhook can reconcile it safely.
     """
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     if not invoice_id:
         raise HTTPException(status_code=400, detail="Une facture est requise")
 

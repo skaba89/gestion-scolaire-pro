@@ -1,14 +1,22 @@
 """Privacy/RGPD isolation and validation tests."""
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 import uuid
 
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
+from starlette.requests import Request
 
 from conftest import get_test_client
+
+
+def _fake_request() -> Request:
+    return Request({
+        "type": "http", "method": "GET", "path": "/",
+        "headers": [], "client": ("testclient", 50000),
+    })
 
 
 client = get_test_client()
@@ -209,10 +217,16 @@ class TestPersonalExportHistory:
         db = MagicMock()
         db.query.return_value = query
 
-        result = get_my_rgpd_export_history(
-            db=db,
-            current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
-        )
+        tenant_id = uuid.uuid4()
+        with patch(
+            "app.api.v1.endpoints.core.rgpd.resolve_current_tenant_id",
+            return_value=tenant_id,
+        ):
+            result = get_my_rgpd_export_history(
+                request=_fake_request(),
+                db=db,
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
+            )
 
         assert result == [
             {"id": str(row.id), "export_date": now.isoformat(), "details": {"format": "JSON"}}
@@ -248,16 +262,21 @@ class TestPrivacyActions:
         db = MagicMock()
         db.query.side_effect = [_query(first=user), _query(first=profile)]
 
-        result = direct_delete_user(
-            user_id=user_id,
-            body=DirectDeletionRequest(reason="Demande validée par le responsable"),
-            db=db,
-            current_user={
-                "id": str(uuid.uuid4()),
-                "tenant_id": str(tenant_id),
-                "roles": ["TENANT_ADMIN"],
-            },
-        )
+        with patch(
+            "app.api.v1.endpoints.core.rgpd.resolve_current_tenant_id",
+            return_value=tenant_id,
+        ):
+            result = direct_delete_user(
+                request=_fake_request(),
+                user_id=user_id,
+                body=DirectDeletionRequest(reason="Demande validée par le responsable"),
+                db=db,
+                current_user={
+                    "id": str(uuid.uuid4()),
+                    "tenant_id": str(tenant_id),
+                    "roles": ["TENANT_ADMIN"],
+                },
+            )
 
         assert result == {"message": "User anonymized successfully"}
         assert user.is_active is False
@@ -275,10 +294,15 @@ class TestPrivacyActions:
         db = MagicMock()
         db.query.side_effect = [_query(first=user), _query(first=profile)]
 
-        result = export_user_data(
-            db=db,
-            current_user={"id": str(user_id), "tenant_id": str(tenant_id)},
-        )
+        with patch(
+            "app.api.v1.endpoints.core.rgpd.resolve_current_tenant_id",
+            return_value=tenant_id,
+        ):
+            result = export_user_data(
+                request=_fake_request(),
+                db=db,
+                current_user={"id": str(user_id), "tenant_id": str(tenant_id)},
+            )
 
         assert result["user"]["email"] == "person@example.gn"
         assert result["profile"]["phone"] == "+224611111111"

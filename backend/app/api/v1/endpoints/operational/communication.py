@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Dict, Any, Optional
@@ -9,6 +9,7 @@ import datetime, json
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -35,13 +36,14 @@ class ConversationCreate(BaseModel):
 
 @router.get("/announcements/")
 def get_announcements(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         query = text("""
             SELECT id, tenant_id, author_id, title, content, target_roles, pinned, published_at, created_at, deleted_at
             FROM announcements
@@ -61,12 +63,13 @@ def get_announcements(
 
 @router.post("/announcements/")
 def create_announcement(
+    request: Request,
     announcement: AnnouncementCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         author_id = current_user.get("id")
         try:
             result = db.execute(text("""
@@ -105,12 +108,13 @@ def create_announcement(
 
 @router.delete("/announcements/{announcement_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_announcement(
+    request: Request,
     announcement_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         db.execute(text("""
             UPDATE announcements SET deleted_at = NOW() 
             WHERE id = :id AND tenant_id = :tenant_id
@@ -128,13 +132,14 @@ def delete_announcement(
 
 @router.get("/messaging/users/")
 def get_messaging_users(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         rows = db.execute(text("""
             SELECT u.id, u.first_name, u.last_name, u.email,
                    array_agg(DISTINCT ur.role) AS roles
@@ -159,13 +164,13 @@ def get_messaging_users(
 
 @router.get("/messaging/teacher-recipients/")
 def get_teacher_recipients(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
-        
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         parents = db.execute(text("""
             SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, 'Parent' as info
             FROM teacher_assignments ta
@@ -203,6 +208,7 @@ def get_teacher_recipients(
 
 @router.get("/conversations/")
 def list_conversations(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -211,8 +217,7 @@ def list_conversations(
     try:
         """List all conversations for the current user with last message preview."""
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
-
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         rows = db.execute(text("""
             SELECT 
                 c.id, c.type, c.title, c.tenant_id, c.created_at,
@@ -267,6 +272,7 @@ def list_conversations(
 
 @router.post("/conversations/", status_code=status.HTTP_201_CREATED)
 def create_or_find_conversation(
+    request: Request,
     body: ConversationCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -274,8 +280,7 @@ def create_or_find_conversation(
     try:
         """Find or create a direct 1-on-1 conversation. Returns conversation_id."""
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
-
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         # Check if 1-on-1 conversation already exists
         existing = db.execute(text("""
             SELECT c.id FROM conversations c
@@ -326,6 +331,7 @@ def create_or_find_conversation(
 
 @router.get("/conversations/{conversation_id}/messages/")
 def get_messages(
+    request: Request,
     conversation_id: str,
     before: Optional[str] = None,
     limit: int = Query(50, ge=1, le=100),
@@ -335,8 +341,7 @@ def get_messages(
     try:
         """Get messages for a conversation with pagination. Also marks messages as read."""
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
-
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         # Verify user is participant
         part = db.execute(text("""
             SELECT id FROM conversation_participants
@@ -397,6 +402,7 @@ def get_messages(
 
 @router.post("/conversations/{conversation_id}/messages/", status_code=status.HTTP_201_CREATED)
 def send_message(
+    request: Request,
     conversation_id: str,
     body: MessageCreate,
     db: Session = Depends(get_db),
@@ -405,8 +411,7 @@ def send_message(
     try:
         """Send a message in a conversation."""
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
-
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         # Verify participant
         part = db.execute(text("""
             SELECT id FROM conversation_participants
@@ -448,11 +453,12 @@ class ReactionCreate(BaseModel):
 
 @router.get("/messages/{message_id}/reactions/")
 def list_message_reactions(
+    request: Request,
     message_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     rows = db.execute(text("""
         SELECT emoji, user_id FROM message_reactions
         WHERE message_id = :mid AND tenant_id = :tid
@@ -462,12 +468,13 @@ def list_message_reactions(
 
 @router.post("/messages/{message_id}/reactions/", status_code=status.HTTP_201_CREATED)
 def add_message_reaction(
+    request: Request,
     message_id: str,
     body: ReactionCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
         db.execute(text("""
@@ -486,12 +493,13 @@ def add_message_reaction(
 
 @router.delete("/messages/{message_id}/reactions/")
 def remove_message_reaction(
+    request: Request,
     message_id: str,
     emoji: str = Query(...),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     db.execute(text("""
         DELETE FROM message_reactions
@@ -523,6 +531,7 @@ def get_unread_count(
 
 @router.get("/messaging/poll/")
 def poll_new_messages(
+    request: Request,
     since: str = Query(..., description="ISO timestamp: return messages after this"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -530,8 +539,7 @@ def poll_new_messages(
     try:
         """Long-poll endpoint: returns new messages since timestamp — replaces Supabase Realtime."""
         user_id = current_user.get("id")
-        tenant_id = current_user.get("tenant_id")
-
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         rows = db.execute(text("""
             SELECT m.id, m.content, m.created_at, m.sender_id, m.conversation_id,
                    u.first_name, u.last_name
@@ -560,13 +568,14 @@ def poll_new_messages(
 
 @router.get("/forums/")
 def list_forums(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
         return db.execute(text("""
@@ -584,9 +593,9 @@ def list_forums(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/forums/post-counts/")
-def get_forum_post_counts(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_forum_post_counts(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return {}
         rows = db.execute(text("""
@@ -603,9 +612,9 @@ def get_forum_post_counts(db: Session = Depends(get_db), current_user: dict = De
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/forums/")
-def create_forum(body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def create_forum(request: Request, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id:
             raise HTTPException(status_code=403, detail="No tenant context")
@@ -629,9 +638,9 @@ def create_forum(body: dict, db: Session = Depends(get_db), current_user: dict =
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.patch("/forums/{forum_id}/")
-def update_forum(forum_id: UUID, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def update_forum(request: Request, forum_id: UUID, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=403, detail="No tenant context")
         db.execute(text("""
@@ -654,9 +663,9 @@ def update_forum(forum_id: UUID, body: dict, db: Session = Depends(get_db), curr
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.delete("/forums/{forum_id}/")
-def delete_forum(forum_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def delete_forum(request: Request, forum_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=403, detail="No tenant context")
         db.execute(text("DELETE FROM student_forums WHERE id = :fid AND tenant_id = :tid"), {"fid": str(forum_id), "tid": tenant_id})
@@ -684,6 +693,7 @@ class NotificationEmailPayload(BaseModel):
 
 @router.post("/send-notification-email/")
 def send_notification_email(
+    request: Request,
     payload: NotificationEmailPayload,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -695,7 +705,7 @@ def send_notification_email(
     """
     from app.services.notifications import build_service_from_db
 
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     sender_id = current_user.get("id")
     data = payload.data or {}
 

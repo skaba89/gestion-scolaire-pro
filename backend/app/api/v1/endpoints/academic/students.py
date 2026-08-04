@@ -1,13 +1,14 @@
 import logging
 """Student endpoints"""
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 import math
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import student as crud_student
 from app.schemas.student import Student, StudentCreate, StudentUpdate, StudentList
 from app.models.student import StudentStatus
@@ -17,6 +18,7 @@ router = APIRouter()
 
 @router.get("/", response_model=StudentList)
 def list_students(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("students:read")),
     page: int = Query(1, ge=1),
@@ -28,18 +30,10 @@ def list_students(
 ):
     """
     List students with pagination and filters
-    
+
     Permissions: students:read
     """
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        return StudentList(
-            items=[],
-            total=0,
-            page=page,
-            page_size=page_size,
-            pages=1,
-        )
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     skip = (page - 1) * page_size
     students, total = crud_student.get_students(
@@ -234,15 +228,17 @@ def get_student_messaging_recipients(
 @router.get("/{student_id}/", response_model=Student)
 def get_student(
     student_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("students:read")),
 ):
     """
     Get student by ID
-    
+
     Permissions: students:read
     """
-    student = crud_student.get_student(db, student_id, current_user.get("tenant_id"))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    student = crud_student.get_student(db, student_id, tenant_id)
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -254,18 +250,17 @@ def get_student(
 @router.post("/", response_model=Student, status_code=status.HTTP_201_CREATED)
 def create_student(
     student: StudentCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("students:write")),
 ):
     """
     Create a new student
-    
+
     Permissions: students:write
     """
     # Check if registration number already exists
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="Tenant ID required")
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     existing = crud_student.get_student_by_registration(
         db, student.registration_number, tenant_id
     )
@@ -282,16 +277,18 @@ def create_student(
 def update_student(
     student_id: UUID,
     student_update: StudentUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("students:write")),
 ):
     """
     Update a student
-    
+
     Permissions: students:write
     """
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     updated_student = crud_student.update_student(
-        db, student_id, student_update, current_user.get("tenant_id")
+        db, student_id, student_update, tenant_id
     )
     if not updated_student:
         raise HTTPException(
@@ -304,15 +301,17 @@ def update_student(
 @router.delete("/{student_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_student(
     student_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("students:write")),
 ):
     """
     Delete a student
-    
+
     Permissions: students:write
     """
-    success = crud_student.delete_student(db, student_id, current_user.get("tenant_id"))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    success = crud_student.delete_student(db, student_id, tenant_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Any
@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -44,8 +45,8 @@ class OrderCreateBody(BaseModel):
 # --- Endpoints ---
 
 @router.get("/categories/")
-def list_categories(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def list_categories(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -56,8 +57,8 @@ def list_categories(db: Session = Depends(get_db), current_user: dict = Depends(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/categories/")
-def create_category(name: str, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
-    tenant_id = current_user.get("tenant_id")
+def create_category(request: Request, name: str, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -72,12 +73,13 @@ def create_category(name: str, db: Session = Depends(get_db), current_user: dict
 
 @router.get("/items/")
 def list_items(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -96,8 +98,8 @@ def list_items(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/items/")
-def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
-    tenant_id = current_user.get("tenant_id")
+def create_item(request: Request, item: InventoryItemCreate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -117,8 +119,8 @@ def create_item(item: InventoryItemCreate, db: Session = Depends(get_db), curren
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.patch("/items/{item_id}/")
-def update_item(item_id: str, item: InventoryItemUpdate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
-    tenant_id = current_user.get("tenant_id")
+def update_item(request: Request, item_id: str, item: InventoryItemUpdate, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -144,8 +146,8 @@ def update_item(item_id: str, item: InventoryItemUpdate, db: Session = Depends(g
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.delete("/items/{item_id}/")
-def delete_item(item_id: str, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
-    tenant_id = current_user.get("tenant_id")
+def delete_item(request: Request, item_id: str, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -160,12 +162,13 @@ def delete_item(item_id: str, db: Session = Depends(get_db), current_user: dict 
 
 @router.get("/transactions/")
 def list_transactions(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -185,8 +188,8 @@ def list_transactions(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/adjust/")
-def adjust_stock(body: AdjustmentBody, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
-    tenant_id = current_user.get("tenant_id")
+def adjust_stock(request: Request, body: AdjustmentBody, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -212,12 +215,13 @@ def adjust_stock(body: AdjustmentBody, db: Session = Depends(get_db), current_us
 
 @router.get("/orders/")
 def list_orders(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     try:
@@ -236,8 +240,8 @@ def list_orders(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/orders/")
-def create_order(body: OrderCreateBody, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
-    tenant_id = current_user.get("tenant_id")
+def create_order(request: Request, body: OrderCreateBody, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:

@@ -1,6 +1,6 @@
 import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import uuid
@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.schedule import ScheduleSlot
 from app.utils.audit import log_audit
 
@@ -17,12 +18,13 @@ router = APIRouter()
 
 @router.get("/", response_model=List[dict])
 def list_schedule(
+    request: Request,
     class_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("schedule:read")),
 ):
     """List schedule slots, optionally filtered by class."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     
@@ -65,12 +67,13 @@ def list_schedule(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_schedule_slot(
+    request: Request,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("schedule:write")),
 ):
     """Create a new schedule slot."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     
@@ -97,13 +100,14 @@ def create_schedule_slot(
 
 @router.put("/{slot_id}/")
 def update_schedule_slot(
+    request: Request,
     slot_id: str,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("schedule:write")),
 ):
     """Update a schedule slot."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
 
@@ -156,12 +160,13 @@ def update_schedule_slot(
 
 @router.delete("/{slot_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule_slot(
+    request: Request,
     slot_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("schedule:write")),
 ):
     """Delete a schedule slot."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
 

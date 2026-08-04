@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -9,6 +9,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
 router = APIRouter()
@@ -47,8 +48,8 @@ class AddMemberRequest(BaseModel):
 # --- Clubs CRUD ---
 
 @router.get("/")
-def list_clubs(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = current_user.get("tenant_id")
+def list_clubs(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     rows = db.execute(text("""
@@ -66,12 +67,13 @@ def list_clubs(db: Session = Depends(get_db), current_user: dict = Depends(get_c
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_club(
+    request: Request,
     club: ClubCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new club."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -98,13 +100,14 @@ def create_club(
 
 @router.put("/{club_id}/")
 def update_club(
+    request: Request,
     club_id: UUID,
     club: ClubUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a club."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -146,12 +149,13 @@ def update_club(
 
 @router.delete("/{club_id}/")
 def delete_club(
+    request: Request,
     club_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a club."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -178,12 +182,13 @@ def delete_club(
 
 @router.get("/memberships/")
 def list_memberships(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
     rows = db.execute(text("""
@@ -202,13 +207,14 @@ def list_memberships(
 
 @router.post("/{club_id}/members/", status_code=status.HTTP_201_CREATED)
 def add_club_member(
+    request: Request,
     club_id: UUID,
     member: AddMemberRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Add a member to a club."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
@@ -233,13 +239,14 @@ def add_club_member(
 
 @router.delete("/{club_id}/members/{user_id}/")
 def remove_club_member(
+    request: Request,
     club_id: UUID,
     user_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Remove a member from a club."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:

@@ -10,7 +10,7 @@ import random
 import string
 from datetime import datetime, date
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, require_plan
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.student import Student
 from app.models.user import User
@@ -242,6 +243,7 @@ async def preview_student_import(
 
 @router.post("/students/confirm/")
 async def confirm_student_import(
+    request: Request,
     file: UploadFile = File(...),
     skip_errors: bool = Form(False),
     default_academic_year: str = Form(""),
@@ -256,7 +258,7 @@ async def confirm_student_import(
     """
     from sqlalchemy import text
 
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID manquant")
 
@@ -514,6 +516,7 @@ async def preview_parent_import(
 
 @router.post("/parents/confirm/")
 async def confirm_parent_import(
+    request: Request,
     file: UploadFile = File(...),
     skip_errors: bool = Form(False),
     current_user: dict = Depends(require_permission("users:write")),
@@ -529,7 +532,7 @@ async def confirm_parent_import(
     only. An existing parent (matched by email, within this tenant, already
     holding the PARENT role) is reused rather than duplicated.
     """
-    tenant_id = str(current_user.get("tenant_id") or "")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db) or "")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID manquant")
 
@@ -812,6 +815,7 @@ async def preview_teacher_import(
 
 @router.post("/teachers/confirm/")
 async def confirm_teacher_import(
+    request: Request,
     file: UploadFile = File(...),
     skip_errors: bool = Form(False),
     current_user: dict = Depends(require_permission("users:write")),
@@ -828,7 +832,7 @@ async def confirm_teacher_import(
     wiring that automatically from free-text subject names is a separate,
     larger piece of work deliberately left out of this import.
     """
-    tenant_id = str(current_user.get("tenant_id") or "")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db) or "")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID manquant")
 

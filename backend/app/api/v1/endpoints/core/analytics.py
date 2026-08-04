@@ -4,13 +4,14 @@ from datetime import datetime, timedelta, timezone
 import logging
 import csv
 import io
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_, text
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ def _resolve_academic_year(db: Session, tenant_id: str, ay_id: Optional[str]) ->
 
 @router.get("/financial-kpis/")
 def get_financial_kpis(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     start_date: Optional[str] = Query(None, description="ISO date string, e.g. 2025-01-01"),
@@ -38,7 +40,7 @@ def get_financial_kpis(
     """
     Financial KPIs: total revenue, paid revenue, pending revenue, collection rate.
     """
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         # Build dynamic date filter fragments
         date_conditions = ""
@@ -108,12 +110,13 @@ def get_financial_kpis(
 
 @router.get("/revenue-trend/")
 def get_revenue_trend(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     months: int = Query(6, ge=1, le=24),
 ):
     """Revenue trend by month over the last N months."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=months * 30)).strftime("%Y-%m-%d")
 
@@ -149,12 +152,13 @@ def get_revenue_trend(
 
 @router.get("/academic-kpis/")
 def get_academic_kpis(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     academic_year_id: Optional[str] = None,
 ):
     """Academic KPIs: success rate, average grade, students at risk."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         ay_id = _resolve_academic_year(db, tenant_id, academic_year_id)
         ay_filter = ""
@@ -208,12 +212,13 @@ def get_academic_kpis(
 
 @router.get("/academic-stats/")
 def get_academic_stats(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     academic_year_id: Optional[str] = None,
 ):
     """Success rate by class and by subject."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         ay_id = _resolve_academic_year(db, tenant_id, academic_year_id)
         
@@ -287,12 +292,13 @@ def get_academic_stats(
 
 @router.get("/students-at-risk/")
 def get_students_at_risk(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     academic_year_id: Optional[str] = None,
 ):
     """Return students with average grade below passing threshold."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         ay_id = _resolve_academic_year(db, tenant_id, academic_year_id)
         
@@ -351,6 +357,7 @@ def get_students_at_risk(
 
 @router.get("/operational-kpis/")
 def get_operational_kpis(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     academic_year_id: Optional[str] = None,
@@ -358,7 +365,7 @@ def get_operational_kpis(
     end_date: Optional[str] = None,
 ):
     """Operational KPIs: attendance rates, dropout rate, teacher workload."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     params: dict = {"tenant_id": tenant_id}
     try:
         # Build optional filters
@@ -437,11 +444,12 @@ def get_operational_kpis(
 
 @router.get("/debt-aging/")
 def get_debt_aging(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
     """Debt aging: breakdown of overdue invoices by age bucket."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         sql = text("""
             SELECT
@@ -471,11 +479,12 @@ def get_debt_aging(
 
 @router.get("/revenue-by-category/")
 def get_revenue_by_category(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
     """Revenue breakdown by category/type."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         sql = text("""
             SELECT
@@ -496,12 +505,13 @@ def get_revenue_by_category(
 
 @router.get("/attendance-trend/")
 def get_attendance_trend(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     period: str = Query("month", description="week, month, or year")
 ):
     """Attendance trend over time."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         if period == "week":
             days = 7
@@ -540,11 +550,12 @@ def get_attendance_trend(
 
 @router.get("/grades-distribution/")
 def get_grades_distribution(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
     """Grades distribution across standard buckets."""
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         sql = text("""
             SELECT 
@@ -575,13 +586,14 @@ def get_grades_distribution(
 
 @router.get("/dashboard-kpis/")
 def get_dashboard_kpis(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
     """
     Global dashboard KPIs for admins: students, teachers, classrooms, revenue, attendance.
     """
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         # 1. Counts: Students, Teachers, Classrooms
         count_sql = text("""
@@ -658,13 +670,14 @@ def get_dashboard_kpis(
 
 @router.get("/ministry-kpis/")
 def get_ministry_kpis(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
     """
     Ministry Reporting KPIs: demographics, academic averages, financial health.
     """
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         # 1. Effectifs par genre
         gender_sql = text("""
@@ -736,6 +749,7 @@ def get_ministry_kpis(
 
 @router.get("/ministry-stats/levels/")
 def get_ministry_stats_by_level(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
@@ -743,7 +757,7 @@ def get_ministry_stats_by_level(
     GET /analytics/ministry-stats/levels/
     Effectifs et moyenne par niveau scolaire (pour le tableau de bord Ministère).
     """
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         rows = db.execute(text("""
             SELECT
@@ -776,6 +790,7 @@ def get_ministry_stats_by_level(
 
 @router.get("/ministry-export/csv/")
 def export_ministry_csv(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     academic_year: Optional[str] = Query(None),
@@ -789,7 +804,7 @@ def export_ministry_csv(
     - Section 4: Synthèse financière
     - Section 5: Liste nominative des élèves (pour inspection)
     """
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
     # Get tenant name for header
     tenant_row = db.execute(
@@ -971,13 +986,14 @@ def export_ministry_csv(
 @router.post("/cash-flow-forecast/")
 def get_cash_flow_forecast(
     body: dict,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
     """
     Cash-flow forecast: projections of revenue and expenses.
     """
-    tenant_id = str(current_user.get("tenant_id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     months_ahead = body.get("months_ahead", 3)
     months_ahead = max(1, min(24, int(months_ahead)))  # clamp to 1-24
     # Mock response for now
@@ -1016,11 +1032,12 @@ class CourseUpdate(BaseModel):
 
 @router.get("/elearning/courses/")
 def list_elearning_courses(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
     """List all e-learning courses for the tenant."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     rows = db.execute(text("""
         SELECT c.id, c.tenant_id, c.title, c.description, c.subject_id, c.level_id,
                c.teacher_id, c.status, c.is_published, c.thumbnail_url,
@@ -1042,11 +1059,12 @@ def list_elearning_courses(
 @router.post("/elearning/courses/", status_code=201)
 def create_elearning_course(
     body: CourseCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """Create a new e-learning course."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     row = db.execute(text("""
         INSERT INTO elearning_courses
@@ -1072,12 +1090,13 @@ def create_elearning_course(
 def update_elearning_course(
     course_id: str,
     body: CourseUpdate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """Update an e-learning course."""
     from fastapi import HTTPException
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -1101,11 +1120,12 @@ def update_elearning_course(
 @router.delete("/elearning/courses/{course_id}/", status_code=204)
 def delete_elearning_course(
     course_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """Delete an e-learning course."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM elearning_courses WHERE id = :id AND tenant_id = :tid"),
                {"id": course_id, "tid": tenant_id})
     db.commit()
@@ -1115,6 +1135,7 @@ def delete_elearning_course(
 @router.get("/elearning/courses/{course_id}/modules/")
 def list_course_modules(
     course_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
@@ -1130,11 +1151,12 @@ def list_course_modules(
 
 @router.get("/elearning/enrollments/")
 def list_course_enrollments(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
     """List all course enrollments for the tenant."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     rows = db.execute(text("""
         SELECT e.id, e.course_id, e.student_id, e.enrolled_at, e.progress_pct,
                e.completed_at, c.title as course_title
@@ -1152,12 +1174,13 @@ def list_course_enrollments(
 
 @router.get("/risk-scores/")
 def get_analytics_risk_scores(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     student_ids: Optional[str] = Query(None),
 ):
     """Risk scores for students — wrapper around student_risk_scores table."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     params: Dict[str, Any] = {"tid": tenant_id}
     where = ["sr.tenant_id = :tid"]
 

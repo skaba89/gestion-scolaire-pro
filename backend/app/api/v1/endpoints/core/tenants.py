@@ -1460,6 +1460,7 @@ async def get_men_guinea_rapport(
 
 @router.get("/{tenant_id}/", response_model=TenantResponse)
 async def get_tenant(
+    request: Request,
     tenant_id: UUID,  # Enforce UUID type to avoid matching static routes like "settings"
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -1472,12 +1473,13 @@ async def get_tenant(
     """
     roles = current_user.get("roles", [])
     is_super_admin = "SUPER_ADMIN" in roles
-    caller_tenant_id = str(current_user.get("tenant_id") or "")
-    if not is_super_admin and caller_tenant_id != str(tenant_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous ne pouvez consulter que votre propre établissement.",
-        )
+    if not is_super_admin:
+        caller_tenant_id = str(resolve_current_tenant_id(request, current_user, db) or "")
+        if caller_tenant_id != str(tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous ne pouvez consulter que votre propre établissement.",
+            )
 
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
@@ -1487,6 +1489,7 @@ async def get_tenant(
 
 @router.patch("/{tenant_id}/", response_model=TenantResponse)
 async def update_tenant(
+    request: Request,
     tenant_id: UUID,
     tenant_updates: Dict[str, Any],
     db: Session = Depends(get_db),
@@ -1505,7 +1508,7 @@ async def update_tenant(
 
     # TENANT_ADMIN may only update their own tenant
     if not is_super_admin:
-        caller_tenant_id = str(current_user.get("tenant_id") or "")
+        caller_tenant_id = str(resolve_current_tenant_id(request, current_user, db) or "")
         if caller_tenant_id != str(tenant_id):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

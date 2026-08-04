@@ -29,11 +29,12 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.get("/preferences/", response_model=NotificationPreferenceInDB)
 def read_notification_preferences(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     user_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
     if not prefs:
         prefs = NotificationPreference(user_id=user_id, tenant_id=tenant_id)
@@ -44,12 +45,13 @@ def read_notification_preferences(
 
 @router.put("/preferences/", response_model=NotificationPreferenceInDB)
 def update_notification_preferences(
+    request: Request,
     update_in: NotificationPreferenceUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     user_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
     if not prefs:
         prefs = NotificationPreference(user_id=user_id, tenant_id=tenant_id)
@@ -77,14 +79,14 @@ def read_subscriptions(
 
 @router.post("/subscriptions/", response_model=PushSubscriptionInDB)
 def create_subscription(
+    request: Request,
     subscription_in: PushSubscriptionCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Create or update a push subscription."""
     user_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
-    
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -159,12 +161,13 @@ def read_notifications(
 
 @router.post("/", response_model=NotificationResponse)
 def create_notification(
+    request: Request,
     notification_in: NotificationCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("notifications:write"))
 ):
     """Create a new notification (usually internal)."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID missing")
 
@@ -187,12 +190,13 @@ def create_notification(
 
 @router.post("/bulk/", status_code=status.HTTP_201_CREATED)
 def create_bulk_notifications(
+    request: Request,
     bulk_in: NotificationBulkCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("notifications:write"))
 ):
     """Create multiple notifications at once."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID missing")
         
@@ -433,6 +437,7 @@ class ParentAlertRequest(BaseModel):
 
 @router.post("/send-parent-alert/")
 def send_parent_alert(
+    request: Request,
     body: ParentAlertRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -441,8 +446,7 @@ def send_parent_alert(
     Send a notification to parents of a student.
     Replaces Supabase Edge Function 'send-parent-alert'.
     """
-    tenant_id = current_user.get("tenant_id")
-
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if body.type == "absence":
         title = f"Absence signalée — {body.student_name}"
         message = f"{body.student_name} a été absent(e) le {body.details.get('date', '?')}."

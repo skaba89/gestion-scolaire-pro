@@ -19,12 +19,13 @@ import logging
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models import KioskDevice, Student, StudentCheckIn, Tenant
 from app.schemas.kiosk import KioskDeviceCreate, KioskDeviceCreated, KioskDeviceInDB, KioskScanRequest
 from app.utils.audit import log_audit
@@ -50,12 +51,13 @@ def _hash_token(token: str) -> str:
 
 @router.post("/devices/", response_model=KioskDeviceCreated, status_code=status.HTTP_201_CREATED)
 def create_kiosk_device(
+    request: Request,
     device_in: KioskDeviceCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     _require_admin_or_director(current_user)
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID missing")
 
@@ -87,11 +89,12 @@ def create_kiosk_device(
 
 @router.get("/devices/", response_model=list[KioskDeviceInDB])
 def list_kiosk_devices(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     _require_admin_or_director(current_user)
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     return db.query(KioskDevice).filter(
         KioskDevice.tenant_id == tenant_id
     ).order_by(KioskDevice.created_at.desc()).all()
@@ -99,12 +102,13 @@ def list_kiosk_devices(
 
 @router.delete("/devices/{device_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def revoke_kiosk_device(
+    request: Request,
     device_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     _require_admin_or_director(current_user)
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     device = db.query(KioskDevice).filter(
         KioskDevice.id == device_id, KioskDevice.tenant_id == tenant_id
     ).first()

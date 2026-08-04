@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from app.core.database import get_db
 from app.core.security import require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.audit import AuditLog
 import logging
 
@@ -17,6 +18,7 @@ router = APIRouter()
 
 @router.get("/", response_model=List[AuditLog])
 def list_audit_logs(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("audit:read")),
     page: int = Query(1, ge=1),
@@ -27,7 +29,7 @@ def list_audit_logs(
     severity: Optional[str] = None,
 ):
     """List audit logs for the current tenant with filtering and pagination."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     offset = (page - 1) * page_size
 
     where_clauses = ["tenant_id = :tenant_id"]
@@ -73,12 +75,13 @@ class AuditLogCreate(BaseModel):
 @router.post("/", status_code=201)
 def create_audit_log(
     body: AuditLogCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("audit:write")),
 ):
     """Create a new audit log entry. POST /audit/"""
     import json
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     row = db.execute(text("""
         INSERT INTO audit_logs (tenant_id, user_id, action, severity, resource_type, resource_id, details, ip_address, user_agent, created_at)
@@ -110,6 +113,7 @@ class DataQualityResolve(BaseModel):
 
 @router.get("/data-quality/")
 def list_data_quality_anomalies(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("audit:read")),
     is_resolved: Optional[bool] = Query(None),
@@ -117,7 +121,7 @@ def list_data_quality_anomalies(
     category: Optional[str] = None,
 ):
     """List data quality anomalies for the current tenant."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["tenant_id = :tenant_id"]
     params: Dict[str, Any] = {"tenant_id": tenant_id}
 
@@ -150,11 +154,12 @@ def list_data_quality_anomalies(
 
 @router.post("/data-quality/run-checks/", status_code=200)
 def run_data_quality_checks(
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("audit:read")),
+    current_user: dict = Depends(require_permission("audit:write")),
 ):
     """Run automated data quality checks and persist any new anomalies found."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     now = datetime.now(timezone.utc)
     issues_found = []
 
@@ -236,11 +241,12 @@ def run_data_quality_checks(
 def resolve_data_quality_anomaly(
     anomaly_id: str,
     body: DataQualityResolve,
+    request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("audit:read")),
+    current_user: dict = Depends(require_permission("audit:write")),
 ):
     """Mark a data quality anomaly as resolved."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     now = datetime.now(timezone.utc)
 
@@ -272,12 +278,13 @@ def resolve_data_quality_anomaly(
 @router.post("/log", status_code=201)
 def create_audit_log_alias(
     body: AuditLogCreate,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("audit:write")),
 ):
     """Create a new audit log entry. POST /audit/log — alias for POST /audit/"""
     import json
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     row = db.execute(text("""
         INSERT INTO audit_logs (tenant_id, user_id, action, severity, resource_type, resource_id, details, ip_address, user_agent, created_at)

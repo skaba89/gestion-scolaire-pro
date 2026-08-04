@@ -320,7 +320,7 @@ ROLE_PERMISSIONS: dict = {
         "enrollments:read", "enrollments:write",
         "certificates:read", "certificates:write",
         "analytics:read",
-        "audit:read",
+        "audit:read", "audit:write",
         # Settings (but NOT RGPD deletion)
         "settings:read", "settings:write",
         # MFA

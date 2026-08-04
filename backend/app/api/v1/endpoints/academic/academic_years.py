@@ -1,11 +1,12 @@
 import logging
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import academic as crud_academic
 from app.schemas.academic import AcademicYear, AcademicYearCreate, AcademicYearUpdate
 
@@ -14,11 +15,12 @@ logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=List[AcademicYear])
 def list_academic_years(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """List all academic years for the tenant."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         logger.warning("No tenant_id found in current_user")
         return []
@@ -34,12 +36,13 @@ def list_academic_years(
 
 @router.get("/{ay_id}/", response_model=AcademicYear)
 def get_academic_year(
+    request: Request,
     ay_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:read")),
 ):
     """Get a specific academic year."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     ay = crud_academic.get_academic_year(db, ay_id, tenant_id=tenant_id)
@@ -49,25 +52,27 @@ def get_academic_year(
 
 @router.post("/", response_model=AcademicYear, status_code=status.HTTP_201_CREATED)
 def create_academic_year(
+    request: Request,
     ay_in: AcademicYearCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new academic year."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     return crud_academic.create_academic_year(db, ay_in, tenant_id=tenant_id)
 
 @router.put("/{ay_id}/", response_model=AcademicYear)
 def update_academic_year(
+    request: Request,
     ay_id: UUID,
     ay_in: AcademicYearUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update an academic year."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     ay = crud_academic.update_academic_year(db, ay_id, ay_in, tenant_id=tenant_id)
@@ -77,12 +82,13 @@ def update_academic_year(
 
 @router.delete("/{ay_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_academic_year(
+    request: Request,
     ay_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete an academic year."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     success = crud_academic.delete_academic_year(db, ay_id, tenant_id=tenant_id)

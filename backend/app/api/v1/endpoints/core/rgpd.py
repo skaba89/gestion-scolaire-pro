@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.schemas.rgpd import DeletionRequest, DeletionRequestCreate, DeletionRequestUpdate
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 from app.models.audit_log import AuditLog
 import uuid
@@ -93,6 +94,7 @@ def _anonymize_user(db: Session, user: User) -> None:
 @router.post("/requests/", response_model=DeletionRequest)
 def create_deletion_request(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     request_in: DeletionRequestCreate,
     current_user: dict = Depends(get_current_user)
@@ -114,7 +116,7 @@ def create_deletion_request(
         )
 
     # Use tenant_id from user if available, else default (mocked for now)
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -134,6 +136,7 @@ def create_deletion_request(
 
 @router.get("/requests/", response_model=List[DeletionRequest])
 def list_deletion_requests(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -143,10 +146,8 @@ def list_deletion_requests(
     """
     user_id = uuid.UUID(current_user["id"])
     roles = current_user.get("roles", [])
-    tenant_id = current_user.get("tenant_id")
-    
     query = db.query(AccountDeletionRequest).options(joinedload(AccountDeletionRequest.user))
-    
+
     if any(role in ["SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR"] for role in roles):
         tenant_id = _privacy_tenant_scope(current_user)
         if tenant_id:
@@ -325,6 +326,7 @@ def check_legal_retention(
 
 @router.get("/search/")
 def search_users_for_rgpd(
+    request: Request,
     email: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("rgpd:read"))
@@ -335,7 +337,7 @@ def search_users_for_rgpd(
     to prevent cross-tenant data access.
     """
     # SECURITY FIX: Enforce tenant isolation on user search
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -373,6 +375,7 @@ class DirectDeletionRequest(BaseModel):
 
 @router.post("/direct-delete/{user_id}/")
 def direct_delete_user(
+    request: Request,
     user_id: uuid.UUID,
     body: Optional[DirectDeletionRequest] = None,
     db: Session = Depends(get_db),
@@ -408,7 +411,7 @@ def direct_delete_user(
     log_audit(
         db,
         user_id=current_user.get("id"),
-        tenant_id=current_user.get("tenant_id"),
+        tenant_id=resolve_current_tenant_id(request, current_user, db),
         action="RGPD_DIRECT_DELETE",
         resource_type="USER",
         resource_id=str(user_id),
@@ -420,6 +423,7 @@ def direct_delete_user(
 
 @router.post("/export/")
 def export_user_data(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -427,8 +431,7 @@ def export_user_data(
     Generate an export of all personal data for the user.
     """
     user_id = uuid.UUID(current_user["id"])
-    tenant_id = current_user.get("tenant_id")
-    
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     # Gather data from various tables
     user_query = db.query(User).filter(User.id == user_id)
     if tenant_id:
@@ -520,12 +523,13 @@ def get_rgpd_export_history(
 
 @router.get("/export-history/me/")
 def get_my_rgpd_export_history(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Return only the authenticated user's own export history."""
     user_id = str(current_user["id"])
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     query = db.query(AuditLog).filter(
         AuditLog.action == "RGPD_EXPORT",
         AuditLog.user_id == user_id,
@@ -614,6 +618,7 @@ def list_consents(
 
 @consent_router.post("/record/", status_code=201)
 def record_consent(
+    request: Request,
     body: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -622,7 +627,7 @@ def record_consent(
     import json
     from sqlalchemy import text as _text
     user_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     consent_type = body.get("consent_type")
     consent_given = body.get("consent_given", False)
     consent_version = body.get("consent_version", "1.0")

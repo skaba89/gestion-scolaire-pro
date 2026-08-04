@@ -1,7 +1,7 @@
 """Homework endpoints"""
 import logging
 from typing import Optional, List, Any
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -10,6 +10,7 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,7 @@ class GradeSubmission(BaseModel):
 
 @router.get("/")
 def list_homework(
+    request: Request,
     class_id: Optional[str] = None,
     subject_id: Optional[str] = None,
     search: Optional[str] = None,
@@ -64,7 +66,7 @@ def list_homework(
     current_user: dict = Depends(require_permission("homework:read")),
 ):
     """List homework with optional filters."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
 
@@ -130,12 +132,13 @@ def list_homework(
 
 @router.get("/{homework_id}/")
 def get_homework(
+    request: Request,
     homework_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
     """Get a single homework with its submissions."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     row = db.execute(text("""
         SELECT h.*, h.classroom_id AS class_id, (h.status = 'PUBLISHED') AS is_published,
                s.name as subject_name, p.first_name as teacher_first, p.last_name as teacher_last
@@ -177,13 +180,14 @@ def get_homework(
 
 @router.get("/submissions/{student_id}/")
 def get_student_submissions(
+    request: Request,
     student_id: str,
     homework_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
     """Get homework submissions for a student."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["hs.tenant_id = :tenant_id", "hs.student_id = :student_id"]
     params: dict = {"tenant_id": tenant_id, "student_id": student_id}
 
@@ -214,12 +218,13 @@ def get_student_submissions(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_homework(
+    request: Request,
     body: HomeworkCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """Create new homework."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
 
     try:
@@ -257,13 +262,14 @@ def create_homework(
 
 @router.put("/{homework_id}/")
 def update_homework(
+    request: Request,
     homework_id: str,
     body: HomeworkUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """Update homework."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
 
     # SECURITY: Whitelist allowed column names in dynamic UPDATE to prevent SQL injection.
@@ -305,12 +311,13 @@ def update_homework(
 
 @router.delete("/{homework_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_homework(
+    request: Request,
     homework_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """Delete homework."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
 
     result = db.execute(text("""
@@ -331,14 +338,14 @@ def delete_homework(
 
 @router.post("/{homework_id}/submit/", status_code=status.HTTP_201_CREATED)
 def submit_homework(
+    request: Request,
     homework_id: str,
     body: SubmissionCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Submit homework (student)."""
-    tenant_id = current_user.get("tenant_id")
-
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         result = db.execute(text("""
             INSERT INTO homework_submissions (tenant_id, homework_id, student_id, content, submitted_at)
@@ -363,13 +370,14 @@ def submit_homework(
 
 @router.post("/submissions/{submission_id}/grade/")
 def grade_submission(
+    request: Request,
     submission_id: str,
     body: GradeSubmission,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
     """Grade a homework submission."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
 
     result = db.execute(text("""

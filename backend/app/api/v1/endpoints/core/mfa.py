@@ -13,6 +13,7 @@ from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -112,6 +113,7 @@ def _ensure_mfa_tables(db: Session):
 
 @router.post("/backup-codes/generate/")
 def generate_backup_codes(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -127,7 +129,7 @@ def generate_backup_codes(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
     user_id = current_user.get("id")
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 

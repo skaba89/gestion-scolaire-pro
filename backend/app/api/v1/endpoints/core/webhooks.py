@@ -22,7 +22,7 @@ import logging
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, HttpUrl, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.events import DomainEvent, EventType, subscribe_all
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -185,11 +186,12 @@ def list_available_events(
 
 @router.get("/", response_model=List[WebhookResponse])
 def list_webhooks(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("auth:manage")),
 ):
     """List all webhooks for the current tenant."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte tenant requis")
 
@@ -222,6 +224,7 @@ def list_webhooks(
 
 @router.post("/", status_code=201, response_model=WebhookResponse)
 def create_webhook(
+    request: Request,
     body: WebhookCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("auth:manage")),
@@ -231,7 +234,7 @@ def create_webhook(
     If ``secret`` is provided, all deliveries will include an
     ``X-SchoolFlow-Signature: sha256=<hmac>`` header for verification.
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte tenant requis")
 
@@ -283,13 +286,14 @@ def create_webhook(
 
 @router.patch("/{webhook_id}/", response_model=WebhookResponse)
 def update_webhook(
+    request: Request,
     webhook_id: UUID,
     body: WebhookUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("auth:manage")),
 ):
     """Update a webhook (partial update)."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte tenant requis")
 
@@ -343,12 +347,13 @@ def update_webhook(
 
 @router.delete("/{webhook_id}/")
 def delete_webhook(
+    request: Request,
     webhook_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("auth:manage")),
 ):
     """Delete a webhook permanently."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte tenant requis")
 
@@ -365,12 +370,13 @@ def delete_webhook(
 
 @router.post("/{webhook_id}/test/")
 async def test_webhook(
+    request: Request,
     webhook_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("auth:manage")),
 ):
     """Send a test ping to a webhook URL to verify it's reachable."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte tenant requis")
 

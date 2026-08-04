@@ -110,16 +110,15 @@ services:
         sync: false
 
       # --- Email (Resend recommandé, gratuit jusqu'à 3000/mois — resend.com) ---
-      # IMPORTANT: FROM_EMAIL must be on a domain VERIFIED in the Resend
-      # dashboard (Domains > your domain > DKIM/SPF/DMARC all "Verified").
-      # The placeholder "noreply@schoolflow.pro" below will silently fail
-      # deliverability (or Resend will reject the send outright) until you
-      # either verify schoolflow.pro or replace it with your own verified
-      # domain. See docs/RENDER_RESEND_DEPLOYMENT_CHECKLIST.md.
+      # IMPORTANT: FROM_EMAIL must stay on a domain VERIFIED in the Resend
+      # dashboard (Domains > your domain > DKIM/SPF/DMARC all "Verified") —
+      # if you ever change it, deliverability silently fails (or Resend
+      # rejects the send outright) until the new domain is verified too.
+      # See docs/RENDER_RESEND_DEPLOYMENT_CHECKLIST.md.
       - key: RESEND_API_KEY
         sync: false
       - key: FROM_EMAIL
-        value: noreply@schoolflow.pro
+        value: noreply@datasphere-innovation.net
       - key: FROM_NAME
         value: SchoolFlow Pro
       # --- SMTP fallback (used only if Resend is unset or its call fails —
@@ -206,7 +205,7 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: FROM_EMAIL
-        value: noreply@schoolflow.pro
+        value: noreply@datasphere-innovation.net
       - key: FROM_NAME
         value: SchoolFlow Pro
       - key: SMTP_HOST

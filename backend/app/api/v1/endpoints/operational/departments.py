@@ -1,6 +1,6 @@
 """Department Portal endpoints — full sovereign API for department heads/members."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, Any
@@ -9,6 +9,7 @@ import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -65,12 +66,13 @@ def _get_department_classroom_ids(db: Session, department_id: str, tenant_id: st
 
 @router.get("/my-department/")
 def get_my_department(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         """Return the department associated with the current user."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -91,6 +93,7 @@ def get_my_department(
 
 @router.get("/dashboard/")
 def department_dashboard(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -100,7 +103,7 @@ def department_dashboard(
         Returns: department info, stats (students, teachers, subjects, attendance),
                  recent grade activity.
         """
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -198,12 +201,13 @@ def department_dashboard(
 
 @router.get("/classrooms/")
 def department_classrooms(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         """List classrooms linked to the current user's department."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -238,6 +242,7 @@ def department_classrooms(
 
 @router.get("/students/")
 def department_students(
+    request: Request,
     classroom_id: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -245,7 +250,7 @@ def department_students(
 ):
     try:
         """List students enrolled in the department's classrooms."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -309,12 +314,13 @@ def department_students(
 
 @router.get("/teachers/")
 def department_teachers(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         """List teachers assigned to the department's classrooms with subjects & hours."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -380,6 +386,7 @@ def department_teachers(
 
 @router.get("/attendance/")
 def department_attendance(
+    request: Request,
     period: str = Query("week", pattern="^(week|month)$"),
     classroom_id: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -387,7 +394,7 @@ def department_attendance(
 ):
     try:
         """Attendance records for the department's classrooms."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -474,12 +481,13 @@ def department_attendance(
 
 @router.get("/exams/")
 def department_exams(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         """List all exams for the department + subjects, terms, classrooms for the form."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -548,13 +556,14 @@ def department_exams(
 
 @router.post("/exams/", status_code=status.HTTP_201_CREATED)
 def create_exam(
+    request: Request,
     body: ExamCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         """Create an exam for the current user's department."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -593,6 +602,7 @@ def create_exam(
 
 @router.put("/exams/{exam_id}/")
 def update_exam(
+    request: Request,
     exam_id: str,
     body: ExamCreate,
     db: Session = Depends(get_db),
@@ -600,7 +610,7 @@ def update_exam(
 ):
     try:
         """Update an exam."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -638,13 +648,14 @@ def update_exam(
 
 @router.delete("/exams/{exam_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_exam(
+    request: Request,
     exam_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         """Delete an exam."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -672,12 +683,13 @@ def delete_exam(
 
 @router.get("/schedule/")
 def department_schedule(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     try:
         """Return schedule for all department classrooms."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
@@ -725,6 +737,7 @@ def department_schedule(
 
 @router.get("/reports/grades/")
 def department_grades_report(
+    request: Request,
     term_id: Optional[str] = None,
     classroom_id: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -732,7 +745,7 @@ def department_grades_report(
 ):
     try:
         """Grade summary report for the department."""
-        tenant_id = current_user.get("tenant_id")
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
         if not tenant_id or not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")

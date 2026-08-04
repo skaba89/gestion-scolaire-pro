@@ -7,6 +7,14 @@ import uuid
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
+from starlette.requests import Request
+
+
+def _fake_request() -> Request:
+    return Request({
+        "type": "http", "method": "GET", "path": "/",
+        "headers": [], "client": ("testclient", 50000),
+    })
 
 
 def _query(*, first=None, all_rows=None, deleted=0):
@@ -102,18 +110,23 @@ class TestParentDirectory:
 
         db.flush.side_effect = assign_id
 
-        result = create_parent(
-            parent_in=ParentCreate(
-                first_name="  Aïssatou ",
-                last_name=" Bah ",
-                email="AISSATOU@example.gn",
-                phone="+224600000000",
-                occupation="Commerçante",
-                address="Ratoma, Conakry",
-            ),
-            db=db,
-            current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
-        )
+        with patch(
+            "app.api.v1.endpoints.operational.parents.resolve_current_tenant_id",
+            return_value=tenant_id,
+        ):
+            result = create_parent(
+                request=_fake_request(),
+                parent_in=ParentCreate(
+                    first_name="  Aïssatou ",
+                    last_name=" Bah ",
+                    email="AISSATOU@example.gn",
+                    phone="+224600000000",
+                    occupation="Commerçante",
+                    address="Ratoma, Conakry",
+                ),
+                db=db,
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
+            )
 
         parent = db.add.call_args_list[0].args[0]
         role = db.add.call_args_list[1].args[0]
@@ -129,17 +142,25 @@ class TestParentDirectory:
     def test_duplicate_parent_email_is_rejected(self):
         from app.api.v1.endpoints.operational.parents import ParentCreate, create_parent
 
+        tenant_id = uuid.uuid4()
         db = MagicMock()
         db.query.return_value = _query(first=SimpleNamespace(id=uuid.uuid4()))
-        with pytest.raises(HTTPException) as exc_info:
+        with (
+            patch(
+                "app.api.v1.endpoints.operational.parents.resolve_current_tenant_id",
+                return_value=tenant_id,
+            ),
+            pytest.raises(HTTPException) as exc_info,
+        ):
             create_parent(
+                request=_fake_request(),
                 parent_in=ParentCreate(
                     first_name="Aïssatou",
                     last_name="Bah",
                     email="aissatou@example.gn",
                 ),
                 db=db,
-                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
             )
         assert exc_info.value.status_code == 409
         db.add.assert_not_called()
@@ -170,18 +191,23 @@ class TestParentDirectory:
         db = MagicMock()
         db.query.side_effect = [_query(all_rows=[parent]), _query(all_rows=[link])]
 
-        result = list_parents(
-            db=db,
-            current_user={"tenant_id": str(tenant_id)},
-            search="Aïssa",
-            # Calling the route function directly bypasses FastAPI's request
-            # cycle, which is what normally resolves Query(1, ge=1) defaults
-            # into plain ints — passed explicitly here to match what a real
-            # request without page/page_size params would actually receive
-            # (added for national-audit Phase 3 pagination).
-            page=1,
-            page_size=200,
-        )
+        with patch(
+            "app.api.v1.endpoints.operational.parents.resolve_current_tenant_id",
+            return_value=tenant_id,
+        ):
+            result = list_parents(
+                request=_fake_request(),
+                db=db,
+                current_user={"tenant_id": str(tenant_id)},
+                search="Aïssa",
+                # Calling the route function directly bypasses FastAPI's request
+                # cycle, which is what normally resolves Query(1, ge=1) defaults
+                # into plain ints — passed explicitly here to match what a real
+                # request without page/page_size params would actually receive
+                # (added for national-audit Phase 3 pagination).
+                page=1,
+                page_size=200,
+            )
 
         assert result[0]["id"] == str(parent_id)
         assert result[0]["student_ids"] == [str(student_id)]
@@ -189,14 +215,22 @@ class TestParentDirectory:
     def test_active_parent_cannot_be_deleted_as_pending(self):
         from app.api.v1.endpoints.operational.parents import delete_pending_parent
 
+        tenant_id = uuid.uuid4()
         parent = SimpleNamespace(id=uuid.uuid4(), is_active=True)
         db = MagicMock()
         db.query.return_value = _query(first=parent)
-        with pytest.raises(HTTPException) as exc_info:
+        with (
+            patch(
+                "app.api.v1.endpoints.operational.parents.resolve_current_tenant_id",
+                return_value=tenant_id,
+            ),
+            pytest.raises(HTTPException) as exc_info,
+        ):
             delete_pending_parent(
+                request=_fake_request(),
                 parent_id=parent.id,
                 db=db,
-                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
             )
         assert exc_info.value.status_code == 409
         db.delete.assert_not_called()
@@ -315,13 +349,18 @@ class TestParentStudentLinkIntegrity:
         db = MagicMock()
         db.execute.return_value = deletion
 
-        result = delete_student_parent_link(
-            student_id=student_id,
-            parent_id=None,
-            link_id=None,
-            db=db,
-            current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
-        )
+        with patch(
+            "app.api.v1.endpoints.aliases.resolve_current_tenant_id",
+            return_value=tenant_id,
+        ):
+            result = delete_student_parent_link(
+                request=_fake_request(),
+                student_id=student_id,
+                parent_id=None,
+                link_id=None,
+                db=db,
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
+            )
 
         sql = str(db.execute.call_args_list[0].args[0])
         params = db.execute.call_args_list[0].args[1]

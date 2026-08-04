@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 router = APIRouter()
 
@@ -46,6 +47,7 @@ class AttendanceUpdate(BaseModel):
 
 @router.get("/")
 def get_attendance(
+    request: Request,
     student_id: Optional[str] = None,
     classroom_id: Optional[str] = None,
     subject_id: Optional[str] = None,
@@ -58,7 +60,7 @@ def get_attendance(
     current_user: dict = Depends(require_permission("attendance:read")),
 ):
     """List attendance records with optional filters."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"items": [], "total": 0, "limit": limit, "offset": offset}
 
@@ -129,6 +131,7 @@ def get_attendance(
 
 @router.get("/stats/")
 def get_attendance_stats(
+    request: Request,
     student_id: Optional[str] = None,
     classroom_id: Optional[str] = None,
     date_from: Optional[date] = None,
@@ -137,7 +140,7 @@ def get_attendance_stats(
     current_user: dict = Depends(require_permission("attendance:read")),
 ):
     """Attendance summary statistics (rate, counts by status)."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "attendance_rate": 0.0}
 
@@ -184,12 +187,13 @@ def get_attendance_stats(
 
 @router.post("/", status_code=201)
 def create_attendance(
+    request: Request,
     record: AttendanceCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("attendance:write")),
 ):
     """Record a single attendance entry."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     query = text("""
@@ -219,12 +223,13 @@ def create_attendance(
 
 @router.post("/bulk/", status_code=201)
 def create_attendance_bulk(
+    request: Request,
     payload: AttendanceBulkCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("attendance:write")),
 ):
     """Record attendance for an entire class in one call."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     inserted = []
@@ -274,13 +279,14 @@ def create_attendance_bulk(
 
 @router.patch("/{attendance_id}/")
 def update_attendance(
+    request: Request,
     attendance_id: UUID,
     payload: AttendanceUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("attendance:write")),
 ):
     """Update the status or reason of an existing attendance record."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     result = db.execute(text("""
@@ -306,12 +312,13 @@ def update_attendance(
 
 @router.delete("/{attendance_id}/", status_code=204)
 def delete_attendance(
+    request: Request,
     attendance_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("attendance:write")),
 ):
     """Delete an attendance record."""
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     result = db.execute(text("""

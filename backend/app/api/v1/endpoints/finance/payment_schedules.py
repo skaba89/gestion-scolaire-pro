@@ -1,7 +1,7 @@
 """Payment Schedules CRUD endpoints"""
 import logging
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -9,21 +9,17 @@ import math
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _get_tenant_id(current_user: dict):
-    """Return tenant_id or raise 400 if not set (SUPER_ADMIN must select a tenant)."""
-    tenant_id = current_user.get("tenant_id")
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Aucun établissement sélectionné. Veuillez d'abord sélectionner un établissement.",
-        )
-    return tenant_id
+def _get_tenant_id(request: Request, current_user: dict, db: Session):
+    """Return the resolved tenant_id (falls back to the X-Tenant-ID header
+    for a SUPER_ADMIN), or raise 400/403/404 — see resolve_current_tenant_id."""
+    return str(resolve_current_tenant_id(request, current_user, db))
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -78,6 +74,7 @@ def _row_to_dict(r) -> dict:
 
 @router.get("/")
 def list_payment_schedules(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
     page: int = Query(1, ge=1),
@@ -88,7 +85,7 @@ def list_payment_schedules(
     ordering: Optional[str] = Query("installment_number"),
 ):
     """List payment schedules with optional filters and pagination."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
@@ -150,12 +147,13 @@ def list_payment_schedules(
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_payment_schedules(
+    request: Request,
     body: List[PaymentScheduleCreate],
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """Create one or more payment schedules (bulk insert)."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
     created_ids = []
 
@@ -203,12 +201,13 @@ def create_payment_schedules(
 
 @router.get("/{schedule_id}")
 def get_payment_schedule(
+    request: Request,
     schedule_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:read")),
 ):
     """Get a single payment schedule by ID."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     row = db.execute(text("""
         SELECT ps.id, ps.tenant_id, ps.invoice_id, ps.installment_number,
                ps.amount, ps.due_date, ps.paid_date, ps.status, ps.notes,
@@ -225,13 +224,14 @@ def get_payment_schedule(
 
 @router.put("/{schedule_id}")
 def update_payment_schedule(
+    request: Request,
     schedule_id: str,
     body: PaymentScheduleUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """Update a payment schedule by ID."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
 
     # Check existence
@@ -293,6 +293,7 @@ def update_payment_schedule(
 
 @router.delete("/")
 def delete_payment_schedules_by_filter(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
     invoice_id: Optional[str] = Query(None),
@@ -301,7 +302,7 @@ def delete_payment_schedules_by_filter(
     Delete payment schedules by filter (e.g. invoice_id).
     Used by the frontend to clear all schedules for an invoice before recreating them.
     """
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
 
     if not invoice_id:
@@ -340,12 +341,13 @@ def delete_payment_schedules_by_filter(
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_payment_schedule(
+    request: Request,
     schedule_id: str,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
     """Delete a single payment schedule by ID."""
-    tenant_id = _get_tenant_id(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
 
     result = db.execute(text("""

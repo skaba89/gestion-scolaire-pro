@@ -12,12 +12,13 @@ Endpoint: GET /api/v1/search/?q=<query>&types=students,teachers&limit=20
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -136,6 +137,7 @@ def _build_search_query(
 
 @router.get("/")
 def global_search(
+    request: Request,
     q: str = Query(..., min_length=2, max_length=100, description="Search query (min 2 characters)"),
     types: Optional[str] = Query(None, description="Comma-separated resource types. Default: all"),
     limit: int = Query(5, ge=1, le=20, description="Max results per resource type"),
@@ -149,7 +151,7 @@ def global_search(
 
     Example: GET /search/?q=jean&types=students,teachers&limit=5
     """
-    tenant_id = current_user.get("tenant_id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte tenant requis")
 

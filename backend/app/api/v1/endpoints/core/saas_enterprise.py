@@ -10,12 +10,13 @@ import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.saas import SubscriptionPlan, TenantDomain
 from app.models.tenant import Tenant
 from app.services.saas_quota_service import SaaSQuotaService
@@ -36,8 +37,8 @@ def _require_tenant_admin(current_user: dict = Depends(get_current_user)) -> dic
     return current_user
 
 
-def _current_tenant(db: Session, current_user: dict) -> Tenant:
-    tenant_id = current_user.get("tenant_id")
+def _current_tenant(request: Request, db: Session, current_user: dict) -> Tenant:
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Aucun tenant associé au compte courant.")
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -90,16 +91,18 @@ async def list_plans(db: Session = Depends(get_db)):
 
 @router.get("/usage/me/")
 async def get_my_tenant_usage(
+    request: Request,
     recalculate: bool = Query(True),
     db: Session = Depends(get_db),
     current_user: dict = Depends(_require_tenant_admin),
 ):
-    tenant = _current_tenant(db, current_user)
+    tenant = _current_tenant(request, db, current_user)
     return SaaSQuotaService(db).get_usage_report(tenant, recalculate=recalculate)
 
 
 @router.get("/usage/tenants/{tenant_id}/")
 async def get_tenant_usage_as_platform(
+    request: Request,
     tenant_id: str,
     recalculate: bool = Query(True),
     db: Session = Depends(get_db),
@@ -113,10 +116,11 @@ async def get_tenant_usage_as_platform(
 
 @router.get("/branding/me/")
 async def get_my_branding(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    tenant = _current_tenant(db, current_user)
+    tenant = _current_tenant(request, db, current_user)
     settings = tenant.settings or {}
     branding = settings.get("branding", {})
     return {
@@ -133,11 +137,12 @@ async def get_my_branding(
 
 @router.patch("/branding/me/")
 async def update_my_branding(
+    request: Request,
     body: BrandingUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(_require_tenant_admin),
 ):
-    tenant = _current_tenant(db, current_user)
+    tenant = _current_tenant(request, db, current_user)
     settings = dict(tenant.settings or {})
     branding = dict(settings.get("branding", {}))
     for key, value in body.model_dump(exclude_unset=True).items():
@@ -150,10 +155,11 @@ async def update_my_branding(
 
 @router.get("/domains/me/")
 async def list_my_domains(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(_require_tenant_admin),
 ):
-    tenant = _current_tenant(db, current_user)
+    tenant = _current_tenant(request, db, current_user)
     domains = db.query(TenantDomain).filter(TenantDomain.tenant_id == tenant.id).order_by(TenantDomain.created_at.desc()).all()
     return [
         {
@@ -171,11 +177,12 @@ async def list_my_domains(
 
 @router.post("/domains/me/", status_code=201)
 async def create_my_domain(
+    request: Request,
     body: DomainCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(_require_tenant_admin),
 ):
-    tenant = _current_tenant(db, current_user)
+    tenant = _current_tenant(request, db, current_user)
     normalized = body.domain.strip().lower().replace("https://", "").replace("http://", "").strip("/")
     existing = db.query(TenantDomain).filter(TenantDomain.domain == normalized).first()
     if existing:
@@ -204,6 +211,7 @@ async def create_my_domain(
 
 @router.post("/domains/{domain_id}/mark-verified/", include_in_schema=False)
 async def mark_domain_verified_platform_only(
+    request: Request,
     domain_id: str,
     db: Session = Depends(get_db),
     _admin: dict = Depends(_require_platform_admin),

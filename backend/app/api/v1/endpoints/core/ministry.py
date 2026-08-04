@@ -24,13 +24,14 @@ platform owner to verify directly against the production connection role:
 import csv
 import io
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, false
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.tenant import Tenant
 
 router = APIRouter()
@@ -46,7 +47,7 @@ _SCOPE_ROLES = (
 )
 
 
-def _institutional_scope(db: Session, current_user: dict) -> tuple[str, str] | None:
+def _institutional_scope(request: Request, db: Session, current_user: dict) -> tuple[str, str] | None:
     """Returns (field, value) to narrow the overview to, or None for no
     narrowing (platform-level role, or the caller holds none of the scoped
     institutional roles). `value` may be "" if the caller's own tenant has
@@ -60,7 +61,7 @@ def _institutional_scope(db: Session, current_user: dict) -> tuple[str, str] | N
 
     for role, field in _SCOPE_ROLES:
         if role in roles:
-            own_tenant_id = current_user.get("tenant_id")
+            own_tenant_id = resolve_current_tenant_id(request, current_user, db)
             if not own_tenant_id:
                 return (field, "")
             own_tenant = db.query(Tenant).filter(Tenant.id == own_tenant_id).first()
@@ -119,6 +120,7 @@ def _compute_overview(db: Session, *, scope: tuple[str, str] | None = None) -> d
 
 @router.get("/overview/")
 def get_national_overview(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("ministry:read")),
 ):
@@ -128,12 +130,13 @@ def get_national_overview(
     students/staff. Narrowed to the caller's own scope for REGIONAL_DIRECTOR
     (region), PREFECTURE_ADMIN (prefecture) or COMMUNE_ADMIN (commune).
     """
-    scope = _institutional_scope(db, current_user)
+    scope = _institutional_scope(request, db, current_user)
     return _compute_overview(db, scope=scope)
 
 
 @router.get("/overview/export/")
 def export_national_overview_csv(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("ministry:read")),
 ):
@@ -141,7 +144,7 @@ def export_national_overview_csv(
     point. Same data, same never-per-tenant-detail boundary as /overview/,
     and same scope-narrowing.
     """
-    scope = _institutional_scope(db, current_user)
+    scope = _institutional_scope(request, db, current_user)
     data = _compute_overview(db, scope=scope)
 
     buffer = io.StringIO()
