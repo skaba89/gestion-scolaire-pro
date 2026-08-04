@@ -60,7 +60,6 @@ export const UserSecuritySettings = ({ tenantId }: UserSecuritySettingsProps) =>
                         <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
                                 <Label className="text-base font-bold">Délégation au Secrétariat</Label>
-                                <Badge variant="outline" className="text-[10px] uppercase font-black tracking-tighter">Bêta</Badge>
                             </div>
                             <p className="text-sm text-muted-foreground max-w-md">
                                 Autorise les utilisateurs avec le rôle <strong>Secrétariat</strong> à ajouter des utilisateurs et modifier leurs rôles (privilèges).

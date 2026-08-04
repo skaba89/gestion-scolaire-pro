@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { format, subMonths, eachMonthOfInterval, startOfMonth, endOfMonth, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
@@ -144,9 +143,8 @@ export default function Analytics() {
           <TabsTrigger value="attendance" className="px-6">Assiduité</TabsTrigger>
           <TabsTrigger value="grades" className="px-6">Notes</TabsTrigger>
           <TabsTrigger value="finances" className="px-6">Finances</TabsTrigger>
-          <TabsTrigger value="ai" className="px-6 flex items-center gap-2">
+          <TabsTrigger value="ai" className="px-6">
             AI Insights
-            <Badge variant="secondary" className="ml-1 h-5 px-1 bg-primary/10 text-primary border-none">Bêta</Badge>
           </TabsTrigger>
         </TabsList>
 
