@@ -41,7 +41,12 @@ def _delete_all_super_admins():
 
     db = SessionLocal()
     try:
-        db.execute(text("DELETE FROM user_roles WHERE role = 'SUPER_ADMIN'"))
+        # DELETE FROM users below removes every user, not just super admins
+        # — user_roles must be fully cleared first (any row left over from
+        # another role/table would violate the FK on Postgres; SQLite
+        # doesn't enforce FKs by default, which is why this only surfaced
+        # once these tests ran against real Postgres).
+        db.execute(text("DELETE FROM user_roles"))
         db.execute(text("DELETE FROM users"))
         db.commit()
     finally:

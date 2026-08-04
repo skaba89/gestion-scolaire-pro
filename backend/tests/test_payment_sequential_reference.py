@@ -119,13 +119,18 @@ class TestSequentialReference:
         default never forces itself when a reference is explicitly given."""
         tenant_id = _make_tenant()
         _, invoice_id = _make_invoice(tenant_id)
+        # payments.reference has a platform-wide unique constraint — a
+        # literal reused across runs against a persistent DB (this suite's
+        # Postgres run isn't reset between invocations) would collide with
+        # itself on a second run.
+        custom_ref = f"CUSTOM-REF-{uuid.uuid4().hex[:8]}"
         resp = client.post(
             REGISTER_URL,
-            json={"invoice_id": invoice_id, "amount": 10000.0, "method": "CASH", "reference": "CUSTOM-REF-1"},
+            json={"invoice_id": invoice_id, "amount": 10000.0, "method": "CASH", "reference": custom_ref},
             headers=_admin_headers(tenant_id),
         )
         assert resp.status_code == 201, resp.text
-        assert resp.json()["reference"] == "CUSTOM-REF-1"
+        assert resp.json()["reference"] == custom_ref
 
         with SessionLocal() as db:
             # Supplying an explicit reference must not consume a sequence number.
@@ -155,10 +160,11 @@ class TestSequentialReference:
         explicit legacy-style reference) is never rewritten."""
         tenant_id = _make_tenant()
         _, invoice_id = _make_invoice(tenant_id)
+        legacy_ref = f"PAY-{uuid.uuid4().hex[:8].upper()}"
         resp = client.post(
             REGISTER_URL,
-            json={"invoice_id": invoice_id, "amount": 10000.0, "method": "CASH", "reference": "PAY-ABC123"},
+            json={"invoice_id": invoice_id, "amount": 10000.0, "method": "CASH", "reference": legacy_ref},
             headers=_admin_headers(tenant_id),
         )
         assert resp.status_code == 201, resp.text
-        assert resp.json()["reference"] == "PAY-ABC123"
+        assert resp.json()["reference"] == legacy_ref

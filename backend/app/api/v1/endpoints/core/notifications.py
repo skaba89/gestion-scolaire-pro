@@ -11,7 +11,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
-from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_resolution import resolve_current_tenant_id, resolve_optional_tenant_settings_context
 from app.models import Notification, PushSubscription, User, NotificationPreference, Tenant
 from app.schemas.push_subscription import PushSubscriptionCreate, PushSubscriptionInDB
 from app.schemas.notification import NotificationResponse, NotificationCreate, NotificationBulkCreate, NotificationUpdate
@@ -34,7 +34,13 @@ def read_notification_preferences(
     current_user: dict = Depends(get_current_user)
 ):
     user_id = current_user.get("id")
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # NotificationPreference.tenant_id is nullable — preferences belong to
+    # the user, not the tenant. A SUPER_ADMIN browsing without a selected
+    # tenant must still be able to read/set their own, so this uses the
+    # optional resolver (returns None) rather than resolve_current_tenant_id
+    # (raises 400 with no tenant context).
+    tenant_id = resolve_optional_tenant_settings_context(request, current_user, db)
+    tenant_id = str(tenant_id) if tenant_id else None
     prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
     if not prefs:
         prefs = NotificationPreference(user_id=user_id, tenant_id=tenant_id)
@@ -51,7 +57,8 @@ def update_notification_preferences(
     current_user: dict = Depends(get_current_user)
 ):
     user_id = current_user.get("id")
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_optional_tenant_settings_context(request, current_user, db)
+    tenant_id = str(tenant_id) if tenant_id else None
     prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
     if not prefs:
         prefs = NotificationPreference(user_id=user_id, tenant_id=tenant_id)

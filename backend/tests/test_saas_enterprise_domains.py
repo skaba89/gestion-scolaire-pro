@@ -56,23 +56,27 @@ def test_domains_endpoint_is_actually_routed():
 def test_create_and_list_custom_domain():
     tenant_id = _make_tenant("Ecole SaaS Enterprise 2")
     admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+    # domain has a platform-wide unique constraint — a literal reused
+    # across runs against a persistent Postgres DB (this suite isn't reset
+    # between invocations) would collide with itself on a second run.
+    domain = f"portal.{uuid.uuid4().hex[:8]}.example-school.com"
 
     try:
         create_resp = _as(admin).post(
             "/api/v1/platform/domains/me/",
-            json={"domain": "portal.example-school.com", "domain_type": "custom", "is_primary": True},
+            json={"domain": domain, "domain_type": "custom", "is_primary": True},
             headers=HEADERS,
         )
         assert create_resp.status_code == 201, create_resp.text
         body = create_resp.json()
-        assert body["domain"] == "portal.example-school.com"
+        assert body["domain"] == domain
         assert body["verification_token"].startswith("schoolflow-verify-")
 
         list_resp = _as(admin).get("/api/v1/platform/domains/me/", headers=HEADERS)
         assert list_resp.status_code == 200, list_resp.text
         domains = list_resp.json()
         assert len(domains) == 1
-        assert domains[0]["domain"] == "portal.example-school.com"
+        assert domains[0]["domain"] == domain
         assert domains[0]["is_verified"] is False
     finally:
         app.dependency_overrides.pop(get_current_user, None)

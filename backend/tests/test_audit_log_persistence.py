@@ -74,7 +74,16 @@ def _clear_overrides():
 
 
 def _super_admin_headers() -> dict:
-    return _as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None})
+    user_id = str(uuid.uuid4())
+    # create_tenant() (tenants.py) creates a User row for the caller if one
+    # doesn't exist yet, using current_user's email/username — a mock
+    # current_user without an email hits users.email's NOT NULL constraint
+    # on Postgres (SQLite is more lenient, which is why this only surfaced
+    # once these tests actually ran against Postgres).
+    return _as({
+        "id": user_id, "roles": ["SUPER_ADMIN"], "tenant_id": None,
+        "email": f"super.{user_id[:8]}@schoolflow.local",
+    })
 
 
 def _tenant_admin_headers(tenant_id: str) -> dict:
@@ -165,7 +174,11 @@ class TestResetTenantAdminPasswordAuditPersisted:
                 "app.services.account_provisioning.deliver_password_setup_link",
                 new=AsyncMock(return_value=PasswordSetupDelivery(token="fake-token", expires_in=900)),
             ),
-            patch("app.api.v1.endpoints.core.tenants.blacklist_all_user_tokens", new=AsyncMock()),
+            # tenants.py imports this INSIDE the function body (deferred
+            # import, to avoid a circular import with auth.py) — it's
+            # never a module-level attribute of tenants.py to patch, only
+            # of auth.py where it's actually defined.
+            patch("app.api.v1.endpoints.core.auth.blacklist_all_user_tokens", new=AsyncMock()),
         ):
             resp = client.post(
                 f"/api/v1/tenants/{tenant_id}/admins/{admin_id}/reset-password/",

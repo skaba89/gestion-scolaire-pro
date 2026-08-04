@@ -231,8 +231,12 @@ class TestResetTenantAdminPassword:
 
         with (
             patch(DELIVER_PATH, new=AsyncMock(return_value=_fake_delivery())) as mock_deliver,
+            # tenants.py imports this INSIDE the function body (deferred,
+            # to avoid a circular import with auth.py) — it's never a
+            # module-level attribute of tenants.py to patch, only of
+            # auth.py where it's actually defined.
             patch(
-                "app.api.v1.endpoints.core.tenants.blacklist_all_user_tokens",
+                "app.api.v1.endpoints.core.auth.blacklist_all_user_tokens",
                 new=AsyncMock(),
             ),
         ):

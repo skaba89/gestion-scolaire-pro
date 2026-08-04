@@ -116,7 +116,7 @@ class TestInboundMessagePersistence:
         with SessionLocal() as db:
             db.add(Student(
                 id=student_id, tenant_id=tenant_id, first_name="Ibrahima", last_name="Bah",
-                registration_number=f"REG-{uuid.uuid4().hex[:6]}", status="active",
+                registration_number=f"REG-{uuid.uuid4().hex[:6]}", status="ACTIVE",
                 date_of_birth=datetime.date(2015, 1, 1), gender="MALE",
             ))
             db.add(ParentStudent(tenant_id=tenant_id, parent_id=parent_id, student_id=student_id))

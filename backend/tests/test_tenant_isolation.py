@@ -394,11 +394,14 @@ def test_list_public_tenants_exposes_x_total_count_in_both_cases():
 def test_create_tenant_initializes_currency_timezone_locale():
     """Every new tenant (not just the full wizard) must get Guinea-consistent
     defaults in settings, matching create-with-admin's own template."""
+    # create_tenant() creates a User row for the creator with this email —
+    # a literal reused across runs against a persistent Postgres DB (this
+    # suite isn't reset between invocations) would collide with itself.
     super_admin = {
         "id": str(uuid.uuid4()),
         "roles": ["SUPER_ADMIN"],
         "tenant_id": None,
-        "email": "super-admin-contract-test@example.com",
+        "email": f"super-admin-contract-test-{uuid.uuid4().hex[:8]}@example.com",
     }
     slug = f"contract-{uuid.uuid4().hex[:8]}"
     try:

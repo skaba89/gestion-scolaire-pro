@@ -64,8 +64,8 @@ def _make_overdue_invoice_with_parent(tenant_id: str) -> tuple[str, str]:
         db.commit()
         from sqlalchemy import text
         db.execute(text(
-            "INSERT INTO parent_students (id, tenant_id, student_id, parent_id, relationship) "
-            "VALUES (:id, :tid, :sid, :pid, 'parent')"
+            "INSERT INTO parent_students (id, tenant_id, student_id, parent_id, relation_type, created_at, updated_at) "
+            "VALUES (:id, :tid, :sid, :pid, 'parent', NOW(), NOW())"
         ), {"id": str(uuid.uuid4()), "tid": tenant_id, "sid": student_id, "pid": parent_id})
         db.add(Invoice(
             id=invoice_id, tenant_id=tenant_id, student_id=student_id,
