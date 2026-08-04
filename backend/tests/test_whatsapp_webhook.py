@@ -162,3 +162,64 @@ class TestSignatureVerification:
         resp = client.post(WEBHOOK_URL, json=payload)
         assert resp.status_code == 200
         assert resp.json()["processed"] is True
+
+
+class TestProductionSignatureEnforcement:
+    """ENVIRONMENT=production (or staging) must never accept an unverified
+    webhook payload — a resolved tenant with no whatsappAppSecret, or a
+    request that's missing/fails signature verification, is rejected."""
+
+    def _sign(self, body_bytes: bytes, secret: str) -> str:
+        return "sha256=" + hmac.new(secret.encode(), body_bytes, hashlib.sha256).hexdigest()
+
+    def test_prod_app_secret_absent_returns_403(self, monkeypatch):
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _make_tenant(whatsappAccessToken="x", whatsappPhoneId="7770001111")
+        payload = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "7770001111"}, "statuses": []}}]}]}
+        resp = client.post(WEBHOOK_URL, json=payload)
+        assert resp.status_code == 403
+
+    def test_prod_signature_absent_returns_403(self, monkeypatch):
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _make_tenant(whatsappAccessToken="x", whatsappPhoneId="7770001112", whatsappAppSecret="a-real-secret")
+        payload = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "7770001112"}, "statuses": []}}]}]}
+        resp = client.post(WEBHOOK_URL, json=payload)
+        assert resp.status_code == 403
+
+    def test_prod_invalid_signature_returns_403(self, monkeypatch):
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _make_tenant(whatsappAccessToken="x", whatsappPhoneId="7770001113", whatsappAppSecret="a-real-secret")
+        payload = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "7770001113"}, "statuses": []}}]}]}
+        resp = client.post(
+            WEBHOOK_URL, json=payload,
+            headers={"X-Hub-Signature-256": "sha256=not-even-close"},
+        )
+        assert resp.status_code == 403
+
+    def test_prod_valid_signature_returns_200(self, monkeypatch):
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        secret = "a-real-secret-2026"
+        _make_tenant(whatsappAccessToken="x", whatsappPhoneId="7770001114", whatsappAppSecret=secret)
+        payload = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "7770001114"}, "statuses": []}}]}]}
+        body_bytes = json.dumps(payload).encode()
+        signature = self._sign(body_bytes, secret)
+
+        resp = client.post(
+            WEBHOOK_URL, content=body_bytes,
+            headers={"Content-Type": "application/json", "X-Hub-Signature-256": signature},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["processed"] is True
+
+    def test_dev_without_app_secret_returns_200_with_warning(self, monkeypatch, caplog):
+        """Outside production, an unconfigured app secret is tolerated
+        (so local dev / a tenant mid-setup isn't blocked) but must log a
+        clear warning — never a silent pass."""
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        _make_tenant(whatsappAccessToken="x", whatsappPhoneId="7770001115")
+        payload = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "7770001115"}, "statuses": []}}]}]}
+        with caplog.at_level("WARNING"):
+            resp = client.post(WEBHOOK_URL, json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["processed"] is True
+        assert any("UNVERIFIED" in r.message for r in caplog.records)
