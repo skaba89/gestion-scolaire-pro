@@ -17,11 +17,16 @@ Business-event wrappers (send_payment_reminder_whatsapp, etc.) reuse the
 exact same message content as the email/SMS channels (Templates class in
 notifications.py) so the wording stays consistent across channels.
 
+Inbound parent messages are persisted via process_webhook_event() into
+message_threads/message_items (see app/models/message_thread.py) — one
+open thread per (tenant, parent), reused across messages until a staff
+member closes it. A sender we can't match to a User by phone number still
+gets a message recorded (sender_type="unknown", thread with parent_id
+NULL) rather than being dropped, so nothing a parent sends is silently
+lost even before onboarding/phone-linking is complete.
+
 NOT in scope here (deliberately, see docs/RENDER_RESEND_DEPLOYMENT_CHECKLIST.md
 sibling doc docs/WHATSAPP_NOTIFICATIONS.md for the full roadmap):
-  - persisting inbound parent messages (needs message_threads/message_items,
-    a separate milestone) — process_webhook_event() counts them but does not
-    store them yet, and says so in its log line.
   - the FastAPI webhook endpoint itself (this module only exposes the pure
     functions a thin endpoint will call).
   - the Arq jobs that call these functions asynchronously (see
@@ -354,16 +359,75 @@ def resolve_tenant_settings_by_phone_id(db: Session, phone_number_id: str) -> Op
     return None
 
 
+def _normalize_phone_digits(phone: Optional[str]) -> str:
+    return "".join(c for c in (phone or "") if c.isdigit())
+
+
+def _find_parent_by_phone(db: Session, tenant_id: str, phone: str):
+    """Exact digit-normalized match only (no fuzzy suffix matching) — a
+    wrong match here would misattribute a parent's message to a stranger,
+    which is worse than leaving it unmatched. `+224 623 45 67 89` and
+    "224623456789" compare equal; a genuinely different number never does.
+    """
+    from app.models import User
+
+    digits = _normalize_phone_digits(phone)
+    if not digits:
+        return None
+    candidates = (
+        db.query(User)
+        .filter(User.tenant_id == tenant_id, User.phone.isnot(None))
+        .all()
+    )
+    for u in candidates:
+        if _normalize_phone_digits(u.phone) == digits:
+            return u
+    return None
+
+
+def _find_or_create_thread(
+    db: Session, *, tenant_id: str, parent_id: Optional[str], student_id: Optional[str],
+    source_channel: str = "whatsapp",
+):
+    from app.models import MessageThread
+
+    query = db.query(MessageThread).filter(
+        MessageThread.tenant_id == tenant_id,
+        MessageThread.status == "OPEN",
+        MessageThread.source_channel == source_channel,
+    )
+    # An unmatched sender still gets a thread (so the message isn't lost),
+    # but must never be merged into another unmatched sender's thread —
+    # match on parent_id only when we actually have one.
+    query = query.filter(MessageThread.parent_id == parent_id) if parent_id else query.filter(MessageThread.parent_id.is_(None))
+    thread = query.order_by(MessageThread.created_at.desc()).first()
+    if thread:
+        return thread
+
+    thread = MessageThread(
+        tenant_id=tenant_id, parent_id=parent_id, student_id=student_id,
+        status="OPEN", source_channel=source_channel,
+    )
+    db.add(thread)
+    db.flush()
+    return thread
+
+
 def process_webhook_event(db: Session, payload: dict) -> dict:
     """POST /whatsapp/webhook/ body handler. Never raises — a malformed or
     unrecognized payload is logged and counted, not a 500. Applies status
     updates (sent/delivered/read/failed) idempotently via
-    apply_webhook_status(). Inbound parent messages are counted but not yet
-    persisted (see module docstring) — the messaging-center milestone adds
-    message_threads/message_items and this function will then create rows
-    there instead of only logging.
+    apply_webhook_status(). Inbound parent messages are persisted as
+    message_items (creating/reusing a message_threads row per parent) —
+    an inbound message from an unrecognized number, or for an unresolved
+    tenant, is still counted in `unmatched` and never crashes the webhook.
     """
-    summary = {"statuses_processed": 0, "unmatched": 0, "messages_seen": 0, "errors": 0}
+    from app.models import MessageItem, ParentStudent
+
+    summary = {
+        "statuses_processed": 0, "unmatched": 0, "messages_seen": 0,
+        "messages_persisted": 0, "errors": 0,
+    }
 
     entries = payload.get("entry") if isinstance(payload, dict) else None
     for entry in entries or []:
@@ -394,11 +458,87 @@ def process_webhook_event(db: Session, payload: dict) -> dict:
                     summary["errors"] += 1
                     logger.error("Error applying WhatsApp status webhook event: %s", exc)
 
-            for _message in value.get("messages") or []:
+            metadata = value.get("metadata") or {}
+            phone_number_id = metadata.get("phone_number_id")
+
+            for message in value.get("messages") or []:
                 summary["messages_seen"] += 1
-                logger.info(
-                    "WhatsApp inbound message received (not yet persisted — "
-                    "pending message_threads/message_items milestone)"
-                )
+                try:
+                    provider_message_id = message.get("id")
+
+                    # Webhook replay guard — Meta may redeliver the same
+                    # event; a message already persisted must never be
+                    # inserted twice.
+                    if provider_message_id:
+                        already = (
+                            db.query(MessageItem)
+                            .filter(MessageItem.provider_message_id == provider_message_id)
+                            .first()
+                        )
+                        if already:
+                            continue
+
+                    resolved = (
+                        resolve_tenant_settings_by_phone_id(db, phone_number_id)
+                        if phone_number_id else None
+                    )
+                    if not resolved:
+                        summary["unmatched"] += 1
+                        logger.warning("WhatsApp inbound message for an unresolved phone_number_id")
+                        continue
+                    tenant_id, _tenant_settings = resolved
+
+                    msg_type = message.get("type") or "unknown"
+                    if msg_type == "text":
+                        body = (message.get("text") or {}).get("body") or ""
+                    else:
+                        # Non-text (image/audio/location/...) — record that
+                        # something arrived without trying to store media;
+                        # a human still sees it in the thread and can call
+                        # the parent back if it matters.
+                        body = f"[message {msg_type} reçu — non affichable ici]"
+                    body = body[:10000]  # defensive cap, mirrors other free-text fields in this codebase
+
+                    from_phone = message.get("from")
+                    parent_user = _find_parent_by_phone(db, tenant_id, from_phone) if from_phone else None
+
+                    student_id = None
+                    if parent_user:
+                        link = (
+                            db.query(ParentStudent)
+                            .filter(
+                                ParentStudent.parent_id == parent_user.id,
+                                ParentStudent.tenant_id == tenant_id,
+                            )
+                            .first()
+                        )
+                        if link:
+                            student_id = link.student_id
+
+                    thread = _find_or_create_thread(
+                        db,
+                        tenant_id=tenant_id,
+                        parent_id=str(parent_user.id) if parent_user else None,
+                        student_id=str(student_id) if student_id else None,
+                    )
+
+                    item = MessageItem(
+                        tenant_id=tenant_id,
+                        thread_id=thread.id,
+                        sender_type="parent" if parent_user else "unknown",
+                        sender_user_id=str(parent_user.id) if parent_user else None,
+                        direction="INBOUND",
+                        channel="whatsapp",
+                        body=body,
+                        provider_message_id=provider_message_id,
+                        status="RECEIVED",
+                    )
+                    db.add(item)
+                    db.commit()
+                    summary["messages_persisted"] += 1
+                except Exception as exc:
+                    db.rollback()
+                    summary["errors"] += 1
+                    logger.error("Error persisting inbound WhatsApp message: %s", exc)
 
     return summary

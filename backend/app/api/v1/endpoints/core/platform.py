@@ -534,6 +534,10 @@ async def update_tenant_subscription(
             resource_id=tenant_id,
             details=changes,
         )
+        # log_audit() only flushes internally — the subscription change
+        # itself was already committed above, so this second commit is
+        # needed to actually persist the audit row.
+        db.commit()
     except Exception as audit_err:
         logger.warning("Audit log failed for subscription update: %s", audit_err)
 

@@ -216,9 +216,10 @@ async def create_tenant(
             )
             db.add(role)
 
-        db.commit()
-        db.refresh(new_tenant)
-
+        # log_audit() before the commit — it only flushes internally
+        # (see app/utils/audit.py), so calling it after db.commit() would
+        # write the audit row into a transaction nothing ever commits,
+        # silently losing it once this request's session closes.
         log_audit(
             db,
             user_id=user_id_str,
@@ -228,6 +229,9 @@ async def create_tenant(
             resource_id=str(new_tenant.id),
             details={"name": new_tenant.name, "slug": new_tenant.slug}
         )
+
+        db.commit()
+        db.refresh(new_tenant)
 
         return new_tenant
     except Exception as e:
@@ -353,10 +357,10 @@ async def update_tenant_settings(
     tenant.settings = updated_settings
     tenant.updated_at = datetime.now()
     flag_modified(tenant, 'settings')
-    db.commit()
-    db.refresh(tenant)
-    
-    # Log audit
+
+    # log_audit() before the commit — it only flushes internally, so
+    # calling it after db.commit() would write the audit row into a
+    # transaction nothing ever commits, silently losing it.
     log_audit(
         db,
         user_id=current_user.get("id"),
@@ -366,7 +370,10 @@ async def update_tenant_settings(
         resource_id=tenant_id,
         details=settings_update
     )
-    
+
+    db.commit()
+    db.refresh(tenant)
+
     return updated_settings
 
 
@@ -421,8 +428,10 @@ async def update_security_settings(
     tenant.settings = updated_settings
     tenant.updated_at = datetime.now()
     flag_modified(tenant, 'settings')
-    db.commit()
 
+    # log_audit() before the commit — it only flushes internally, so
+    # calling it after db.commit() would write the audit row into a
+    # transaction nothing ever commits, silently losing it.
     log_audit(
         db,
         user_id=current_user.get("id"),
@@ -432,6 +441,8 @@ async def update_security_settings(
         resource_id=tenant_id,
         details=security_update
     )
+
+    db.commit()
 
     return updated_security
 
@@ -1190,6 +1201,13 @@ async def toggle_tenant_status(
             severity="INFO",
         )
 
+    # log_audit() only flushes internally — the is_active toggle itself
+    # was already committed above (deliberately, so it lands even if
+    # Redis session revocation below raises), so this second commit is
+    # needed to actually persist the audit row rather than losing it
+    # when the session closes.
+    db.commit()
+
     return tenant
 
 
@@ -1325,8 +1343,10 @@ async def update_men_guinea_settings(
     tenant.settings = {**current_settings, "men_guinea": updated_men}
     tenant.updated_at = datetime.now()
     flag_modified(tenant, "settings")
-    db.commit()
 
+    # log_audit() before the commit — it only flushes internally, so
+    # calling it after db.commit() would write the audit row into a
+    # transaction nothing ever commits, silently losing it.
     log_audit(
         db,
         user_id=current_user.get("id"),
@@ -1336,6 +1356,8 @@ async def update_men_guinea_settings(
         resource_id=tenant_id,
         details=data,
     )
+
+    db.commit()
 
     filled = sum(1 for f in MEN_GUINEA_FIELDS if updated_men.get(f))
     return {
@@ -1555,9 +1577,10 @@ async def update_tenant(
         flag_modified(tenant, "settings")
 
     tenant.updated_at = datetime.now()
-    db.commit()
-    db.refresh(tenant)
 
+    # log_audit() before the commit — it only flushes internally, so
+    # calling it after db.commit() would write the audit row into a
+    # transaction nothing ever commits, silently losing it.
     log_audit(
         db,
         user_id=current_user.get("id"),
@@ -1567,6 +1590,9 @@ async def update_tenant(
         resource_id=tenant_id,
         details=tenant_updates
     )
+
+    db.commit()
+    db.refresh(tenant)
 
     return tenant
 

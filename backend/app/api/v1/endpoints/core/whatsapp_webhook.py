@@ -8,13 +8,15 @@ Authenticity is checked two different ways for the two methods, both
 inside this handler rather than via a shared dependency:
   - GET: the `hub.verify_token` query param must match some tenant's
     configured `whatsappVerifyToken`.
-  - POST: if the resolved tenant has a `whatsappAppSecret` configured,
-    Meta's `X-Hub-Signature-256` header is verified over the raw request
-    body (HMAC-SHA256). If no app secret is configured for that tenant,
-    the event is still processed (Meta Business apps that skip app-secret
-    configuration are common for small deployments) but this is a real
-    security gap worth closing before scaling past a handful of tenants —
-    see docs/WHATSAPP_NOTIFICATIONS.md.
+  - POST: signature verification (`X-Hub-Signature-256`, HMAC-SHA256 over
+    the raw request body) is MANDATORY when ENVIRONMENT is production/
+    staging — a resolved tenant with no `whatsappAppSecret` configured,
+    or a request missing/failing the signature check, is rejected with
+    403. Outside production (dev/CI, no ENVIRONMENT set, or DEBUG=true
+    without a prod-like ENVIRONMENT), an unconfigured app secret is still
+    accepted so local development and tenants mid-setup aren't blocked —
+    but this is logged loudly so it's never silently relied upon. See
+    docs/WHATSAPP_NOTIFICATIONS.md.
 """
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from sqlalchemy import text as sql_text
@@ -31,6 +34,14 @@ from app.services import whatsapp_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _is_production() -> bool:
+    """Same convention as app/core/config.py's SECRET_KEY validator:
+    staging is treated as production-strict for this check too — a
+    half-configured webhook in staging is exactly the kind of gap that's
+    supposed to be caught before it reaches production."""
+    return os.getenv("ENVIRONMENT", "").lower() in ("production", "prod", "staging")
 
 
 def _fetch_all_tenant_settings(db) -> list[dict]:
@@ -91,11 +102,34 @@ async def whatsapp_webhook_receive(request: Request):
         if resolved:
             tenant_id, tenant_settings = resolved
             app_secret = tenant_settings.get("whatsappAppSecret")
-            if app_secret:
-                signature = request.headers.get("x-hub-signature-256", "")
+            signature = request.headers.get("x-hub-signature-256", "")
+
+            if _is_production():
+                if not app_secret:
+                    logger.warning(
+                        "WhatsApp webhook: REJECTED — tenant %s has no whatsappAppSecret configured "
+                        "in a production environment", tenant_id,
+                    )
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="App secret not configured")
+                if not signature:
+                    logger.warning(
+                        "WhatsApp webhook: REJECTED — missing X-Hub-Signature-256 header for tenant %s "
+                        "in a production environment", tenant_id,
+                    )
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing signature")
+                if not _valid_signature(raw_body, app_secret, signature):
+                    logger.warning("WhatsApp webhook: REJECTED — invalid signature for tenant %s", tenant_id)
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature")
+            elif app_secret:
                 if not _valid_signature(raw_body, app_secret, signature):
                     logger.warning("WhatsApp webhook: invalid signature for tenant %s", tenant_id)
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid signature")
+            else:
+                logger.warning(
+                    "WhatsApp webhook: tenant %s has no whatsappAppSecret configured — accepting "
+                    "UNVERIFIED payload because ENVIRONMENT is not production/staging. This would be "
+                    "rejected in production.", tenant_id,
+                )
         else:
             logger.warning("WhatsApp webhook: no tenant matches phone_number_id in payload")
 

@@ -125,9 +125,11 @@ async def create_public_page(
             nav_label=page_in.nav_label,
         )
         db.add(page)
-        db.commit()
-        db.refresh(page)
+        db.flush()
 
+        # log_audit() before the commit — it only flushes internally, so
+        # calling it after db.commit() would write the audit row into a
+        # transaction nothing ever commits, silently losing it.
         log_audit(
             db,
             user_id=current_user.get("id"),
@@ -137,6 +139,9 @@ async def create_public_page(
             resource_id=page.id,
             details={"title": page.title, "slug": page.slug, "page_type": page.page_type},
         )
+
+        db.commit()
+        db.refresh(page)
 
         return page
     except HTTPException:
@@ -274,9 +279,10 @@ async def update_public_page(
                 setattr(page, field, value)
 
         page.updated_at = datetime.now()
-        db.commit()
-        db.refresh(page)
 
+        # log_audit() before the commit — it only flushes internally, so
+        # calling it after db.commit() would write the audit row into a
+        # transaction nothing ever commits, silently losing it.
         log_audit(
             db,
             user_id=current_user.get("id"),
@@ -286,6 +292,9 @@ async def update_public_page(
             resource_id=page.id,
             details={"title": page.title, "updated_fields": list(update_data.keys())},
         )
+
+        db.commit()
+        db.refresh(page)
 
         return page
     except HTTPException:
@@ -368,8 +377,9 @@ async def reorder_public_pages(
                     f"Reorder: page {item.page_id} not found in tenant {tenant_id}"
                 )
 
-        db.commit()
-
+        # log_audit() before the commit — it only flushes internally, so
+        # calling it after db.commit() would write the audit row into a
+        # transaction nothing ever commits, silently losing it.
         log_audit(
             db,
             user_id=current_user.get("id"),
@@ -379,6 +389,8 @@ async def reorder_public_pages(
             resource_id=None,
             details={"updated_count": updated_count},
         )
+
+        db.commit()
 
         return {
             "detail": f"{updated_count} page(s) réordonnée(s) avec succès",
