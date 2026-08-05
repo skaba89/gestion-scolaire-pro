@@ -17,6 +17,7 @@ from typing import Any, Optional
 from sqlalchemy import text
 
 from arq.connections import RedisSettings
+from arq.cron import cron
 
 from app.core.database import SessionLocal
 from app.core.jobs import get_redis_settings
@@ -324,6 +325,27 @@ async def sync_whatsapp_statuses(ctx: dict, *, tenant_id: Optional[str] = None, 
     return {"stale_count": stale_count, "stale_after_hours": stale_after_hours}
 
 
+async def purge_expired_idempotency_keys(ctx: dict) -> dict:
+    """Delete idempotency_keys rows past their expires_at (fine points
+    brief, Phase 3). Idempotency records exist only to make a *retry*
+    within the TTL window (see DEFAULT_TTL_HOURS in app/core/idempotency.py)
+    return the same response instead of redoing the work — once expired,
+    keeping the row serves no purpose and just grows the table forever.
+    Safe to run repeatedly and concurrently: DELETE ... WHERE expires_at <
+    now() is naturally idempotent, no locking needed beyond what Postgres
+    already does for a plain DELETE.
+    """
+    with SessionLocal() as db:
+        result = db.execute(
+            text("DELETE FROM idempotency_keys WHERE expires_at < :now"),
+            {"now": datetime.now(timezone.utc)},
+        )
+        deleted = result.rowcount
+        db.commit()
+    logger.info("purge_expired_idempotency_keys: deleted %d expired row(s)", deleted)
+    return {"deleted": deleted}
+
+
 class WorkerSettings:
     """Entry point for the Arq worker process: `arq app.workers.tasks.WorkerSettings`
     (see the `worker` service in docker-compose.yml)."""
@@ -335,7 +357,12 @@ class WorkerSettings:
         send_whatsapp_reply_job,
         retry_failed_notifications,
         sync_whatsapp_statuses,
+        purge_expired_idempotency_keys,
     ]
+    # Runs once a day regardless of manual enqueue_job() calls — expired
+    # idempotency keys would otherwise only ever be cleaned up if someone
+    # remembers to trigger the job by hand.
+    cron_jobs = [cron(purge_expired_idempotency_keys, hour=3, minute=0)]
     redis_settings: RedisSettings = get_redis_settings()
     max_jobs = 10
     job_timeout = 300  # 5 minutes — generous enough for slow SMTP providers

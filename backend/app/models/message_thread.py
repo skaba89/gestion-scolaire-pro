@@ -25,6 +25,17 @@ class MessageThread(Base, UUIDMixin):
     student_id = Column(GUID(), ForeignKey("students.id", ondelete="SET NULL"), nullable=True, index=True)
     subject = Column(String(255), nullable=True)
 
+    # Identity for a sender we could NOT match to a User (parent_id stays
+    # NULL for these). external_sender_hash = sha256(normalized_phone +
+    # tenant_id + pepper) — never the phone number itself — so two
+    # different unknown numbers get two distinct threads instead of being
+    # merged into one "parent_id IS NULL" bucket, while the same unknown
+    # number reliably reuses its own thread across messages. Always NULL
+    # for threads with a known parent_id. See
+    # whatsapp_service.hash_external_sender()/mask_phone_for_display().
+    external_sender_hash = Column(String(64), nullable=True, index=True)
+    external_sender_masked = Column(String(32), nullable=True)
+
     # OPEN | CLOSED
     status = Column(String(20), nullable=False, default="OPEN", index=True)
 

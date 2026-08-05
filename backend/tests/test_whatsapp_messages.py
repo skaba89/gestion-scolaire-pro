@@ -217,6 +217,138 @@ class TestInboundMessagePersistence:
         assert body["errors"] == 0
         assert body["messages_persisted"] == 0
 
+class TestUnknownSenderThreadIsolation:
+    """Fine-points brief, Phase 1: two different unrecognized numbers must
+    never be merged into the same thread, and external_sender_hash/
+    external_sender_masked must never expose the raw phone number."""
+
+    def test_unknown_number_a_creates_thread(self):
+        pnid = _phone_number_id()
+        _make_tenant(whatsappPhoneId=pnid)
+        mid = f"wamid.{uuid.uuid4().hex}"
+
+        resp = client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone="224700000001",
+            text="Bonjour A", message_id=mid,
+        ))
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["messages_persisted"] == 1
+
+        with SessionLocal() as db:
+            item = db.query(MessageItem).filter(MessageItem.provider_message_id == mid).first()
+            thread = db.query(MessageThread).filter(MessageThread.id == item.thread_id).first()
+            assert thread.parent_id is None
+            assert thread.external_sender_hash is not None
+
+    def test_unknown_number_b_creates_different_thread(self):
+        pnid = _phone_number_id()
+        _make_tenant(whatsappPhoneId=pnid)
+        mid_a = f"wamid.{uuid.uuid4().hex}"
+        mid_b = f"wamid.{uuid.uuid4().hex}"
+
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone="224700000002",
+            text="Bonjour A", message_id=mid_a,
+        ))
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone="224700000003",
+            text="Bonjour B", message_id=mid_b,
+        ))
+
+        with SessionLocal() as db:
+            item_a = db.query(MessageItem).filter(MessageItem.provider_message_id == mid_a).first()
+            item_b = db.query(MessageItem).filter(MessageItem.provider_message_id == mid_b).first()
+            assert item_a.thread_id != item_b.thread_id
+
+            thread_a = db.query(MessageThread).filter(MessageThread.id == item_a.thread_id).first()
+            thread_b = db.query(MessageThread).filter(MessageThread.id == item_b.thread_id).first()
+            assert thread_a.external_sender_hash != thread_b.external_sender_hash
+
+    def test_same_unknown_number_reuses_thread(self):
+        pnid = _phone_number_id()
+        _make_tenant(whatsappPhoneId=pnid)
+        mid1 = f"wamid.{uuid.uuid4().hex}"
+        mid2 = f"wamid.{uuid.uuid4().hex}"
+
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone="224700000004",
+            text="Premier message", message_id=mid1,
+        ))
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone="224700000004",
+            text="Deuxième message", message_id=mid2,
+        ))
+
+        with SessionLocal() as db:
+            item1 = db.query(MessageItem).filter(MessageItem.provider_message_id == mid1).first()
+            item2 = db.query(MessageItem).filter(MessageItem.provider_message_id == mid2).first()
+            assert item1.thread_id == item2.thread_id
+
+    def test_external_sender_hash_not_equal_plain_phone(self):
+        pnid = _phone_number_id()
+        _make_tenant(whatsappPhoneId=pnid)
+        mid = f"wamid.{uuid.uuid4().hex}"
+        phone = "224700000005"
+
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone=phone,
+            text="Bonjour", message_id=mid,
+        ))
+
+        with SessionLocal() as db:
+            item = db.query(MessageItem).filter(MessageItem.provider_message_id == mid).first()
+            thread = db.query(MessageThread).filter(MessageThread.id == item.thread_id).first()
+            assert thread.external_sender_hash != phone
+            assert phone not in thread.external_sender_hash
+            assert len(thread.external_sender_hash) == 64  # sha256 hex digest
+
+    def test_external_sender_masked_does_not_expose_full_phone(self):
+        pnid = _phone_number_id()
+        _make_tenant(whatsappPhoneId=pnid)
+        mid = f"wamid.{uuid.uuid4().hex}"
+        phone = "224700000006"
+
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone=phone,
+            text="Bonjour", message_id=mid,
+        ))
+
+        with SessionLocal() as db:
+            item = db.query(MessageItem).filter(MessageItem.provider_message_id == mid).first()
+            thread = db.query(MessageThread).filter(MessageThread.id == item.thread_id).first()
+            assert thread.external_sender_masked != phone
+            assert thread.external_sender_masked is not None
+
+    def test_known_parent_behavior_unchanged(self):
+        """A known parent must keep matching purely on parent_id — no
+        external_sender_hash involved, exactly like before Phase 1."""
+        pnid = _phone_number_id()
+        tenant_id = _make_tenant(whatsappPhoneId=pnid)
+        _make_parent(tenant_id, "+224700000007")
+        mid1 = f"wamid.{uuid.uuid4().hex}"
+        mid2 = f"wamid.{uuid.uuid4().hex}"
+
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone="224700000007",
+            text="Premier message", message_id=mid1,
+        ))
+        client.post(WEBHOOK_URL, json=_inbound_payload(
+            phone_number_id=pnid, from_phone="224700000007",
+            text="Deuxième message", message_id=mid2,
+        ))
+
+        with SessionLocal() as db:
+            item1 = db.query(MessageItem).filter(MessageItem.provider_message_id == mid1).first()
+            item2 = db.query(MessageItem).filter(MessageItem.provider_message_id == mid2).first()
+            assert item1.thread_id == item2.thread_id
+
+            thread = db.query(MessageThread).filter(MessageThread.id == item1.thread_id).first()
+            assert thread.parent_id is not None
+            assert thread.external_sender_hash is None
+            assert thread.external_sender_masked is None
+
+
+class TestNonTextMessageType:
     def test_non_text_message_type_is_persisted_with_placeholder_body(self):
         pnid = _phone_number_id()
         tenant_id = _make_tenant(whatsappPhoneId=pnid)

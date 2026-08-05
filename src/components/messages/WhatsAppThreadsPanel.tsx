@@ -17,7 +17,7 @@ import {
 } from "@/queries/communication";
 
 function threadLabel(thread: WhatsAppThread): string {
-  return thread.parent_name || "Numéro inconnu";
+  return thread.parent_name || thread.external_sender_masked || "Numéro inconnu";
 }
 
 function threadInitials(thread: WhatsAppThread): string {

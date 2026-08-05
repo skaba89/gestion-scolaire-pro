@@ -155,6 +155,10 @@ export interface WhatsAppThread {
     id: string;
     status: string;
     parent_name: string | null;
+    // Masked WhatsApp number for a sender we couldn't match to a parent
+    // account (never the full number) — lets the inbox tell two different
+    // unknown senders apart instead of showing "Numéro inconnu" for both.
+    external_sender_masked?: string | null;
     student_name: string | null;
     last_message: string | null;
     last_message_direction: "INBOUND" | "OUTBOUND" | null;

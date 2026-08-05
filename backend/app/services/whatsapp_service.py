@@ -34,6 +34,7 @@ sibling doc docs/WHATSAPP_NOTIFICATIONS.md for the full roadmap):
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -42,6 +43,7 @@ from typing import Optional
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.notification_event import NotificationEvent
 from app.services.notifications import Templates, WhatsAppSender
 
@@ -67,6 +69,31 @@ def mask_phone(phone: Optional[str]) -> Optional[str]:
     if len(digits) <= 4:
         return "*" * len(digits)
     return f"{digits[:4]}{'*' * (len(digits) - 6)}{digits[-2:]}" if len(digits) > 6 else f"{digits[:2]}***"
+
+
+def hash_external_sender(phone: Optional[str], tenant_id: str) -> Optional[str]:
+    """Stable, non-reversible identity for a WhatsApp sender we can't match
+    to a User — sha256(normalized_phone + tenant_id + pepper). Never store
+    or log the phone number itself for an unknown sender: this hash is what
+    _find_or_create_thread() matches on so the same stranger's repeat
+    messages land in one thread, while two different strangers never
+    collide (the pepper + tenant scoping also means the hash can't be
+    brute-forced back to a phone number, and the same phone at two
+    different tenants doesn't produce the same hash)."""
+    digits = _normalize_phone_digits(phone)
+    if not digits:
+        return None
+    pepper = settings.SECRET_KEY or ""
+    raw = f"{digits}:{tenant_id}:{pepper}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def mask_phone_for_display(phone: Optional[str]) -> Optional[str]:
+    """Short masked form for admin UI display only (e.g. "6234***89") —
+    reuses mask_phone()'s logic; kept as a separate name here because the
+    caller's intent (thread identity display, not a NotificationEvent log
+    field) is different even though the transform is identical."""
+    return mask_phone(phone)
 
 
 def mask_email(email: Optional[str]) -> Optional[str]:
@@ -387,8 +414,20 @@ def _find_parent_by_phone(db: Session, tenant_id: str, phone: str):
 
 def _find_or_create_thread(
     db: Session, *, tenant_id: str, parent_id: Optional[str], student_id: Optional[str],
-    source_channel: str = "whatsapp",
+    source_channel: str = "whatsapp", external_sender_hash: Optional[str] = None,
+    external_sender_masked: Optional[str] = None,
 ):
+    """Known parent (`parent_id` set): matched/created exactly as before —
+    one open thread per (tenant, parent, channel).
+
+    Unknown sender (`parent_id` is None): matched/created on
+    `external_sender_hash` instead of the previous bare "parent_id IS
+    NULL" filter, which used to merge every unrecognized number into a
+    single shared thread. `external_sender_hash is None` here only happens
+    when the inbound payload had no `from` phone at all — that case still
+    falls back to the old un-scoped behavior rather than crashing, since
+    there's nothing to key on.
+    """
     from app.models import MessageThread
 
     query = db.query(MessageThread).filter(
@@ -396,10 +435,18 @@ def _find_or_create_thread(
         MessageThread.status == "OPEN",
         MessageThread.source_channel == source_channel,
     )
-    # An unmatched sender still gets a thread (so the message isn't lost),
-    # but must never be merged into another unmatched sender's thread —
-    # match on parent_id only when we actually have one.
-    query = query.filter(MessageThread.parent_id == parent_id) if parent_id else query.filter(MessageThread.parent_id.is_(None))
+    if parent_id:
+        query = query.filter(MessageThread.parent_id == parent_id)
+    elif external_sender_hash:
+        query = query.filter(
+            MessageThread.parent_id.is_(None),
+            MessageThread.external_sender_hash == external_sender_hash,
+        )
+    else:
+        query = query.filter(
+            MessageThread.parent_id.is_(None),
+            MessageThread.external_sender_hash.is_(None),
+        )
     thread = query.order_by(MessageThread.created_at.desc()).first()
     if thread:
         return thread
@@ -407,6 +454,8 @@ def _find_or_create_thread(
     thread = MessageThread(
         tenant_id=tenant_id, parent_id=parent_id, student_id=student_id,
         status="OPEN", source_channel=source_channel,
+        external_sender_hash=external_sender_hash if not parent_id else None,
+        external_sender_masked=external_sender_masked if not parent_id else None,
     )
     db.add(thread)
     db.flush()
@@ -584,11 +633,19 @@ def process_webhook_event(db: Session, payload: dict) -> dict:
                         if link:
                             student_id = link.student_id
 
+                    sender_hash = None
+                    sender_masked = None
+                    if not parent_user and from_phone:
+                        sender_hash = hash_external_sender(from_phone, tenant_id)
+                        sender_masked = mask_phone_for_display(from_phone)
+
                     thread = _find_or_create_thread(
                         db,
                         tenant_id=tenant_id,
                         parent_id=str(parent_user.id) if parent_user else None,
                         student_id=str(student_id) if student_id else None,
+                        external_sender_hash=sender_hash,
+                        external_sender_masked=sender_masked,
                     )
 
                     item = MessageItem(

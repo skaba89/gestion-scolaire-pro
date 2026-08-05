@@ -7,7 +7,7 @@
  */
 import Dexie, { type Table } from "dexie";
 
-export type OfflineActionStatus = "PENDING" | "SYNCING" | "REJECTED";
+export type OfflineActionStatus = "PENDING" | "SYNCING" | "SYNCED" | "REJECTED";
 
 export interface OfflineAction {
   id: string;
@@ -24,6 +24,12 @@ export interface OfflineAction {
   /** A new action with the same dedupeKey replaces the previous one. */
   dedupeKey?: string;
   status: OfflineActionStatus;
+  /** True when the terminal REJECTED status came from a 409 (the backend's
+   * idempotency layer replaying the same key with a different body) — a
+   * real conflict the user must be told about explicitly, not a generic
+   * "the server said no" (see app/core/idempotency.py::get_idempotent_response_or_lock).
+   */
+  conflict?: boolean;
   error?: string;
   retryCount: number;
   createdAt: string;

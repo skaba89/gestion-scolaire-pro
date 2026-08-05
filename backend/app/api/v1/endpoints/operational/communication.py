@@ -537,6 +537,11 @@ def list_whatsapp_threads(
                 "id": str(thread.id),
                 "status": thread.status,
                 "parent_name": f"{parent.first_name} {parent.last_name}".strip() if parent else None,
+                # Unknown sender (no parent match): masked number only —
+                # never the raw phone — so the inbox can still tell two
+                # different strangers apart instead of showing "Numéro
+                # inconnu" for every one of them.
+                "external_sender_masked": thread.external_sender_masked if not parent else None,
                 "student_name": f"{student.first_name} {student.last_name}".strip() if student else None,
                 "last_message": last_item.body[:200] if last_item else None,
                 "last_message_direction": last_item.direction if last_item else None,

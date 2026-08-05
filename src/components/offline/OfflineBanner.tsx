@@ -74,6 +74,11 @@ export function OfflineBanner() {
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>
               <strong>{lastSyncResult.synced} élément(s) synchronisé(s)</strong>
+              {lastSyncResult.conflicts > 0 && (
+                <span className="ml-2 text-red-100 font-semibold">
+                  · {lastSyncResult.conflicts} conflit(s) — vérifiez avant de ressaisir
+                </span>
+              )}
               {lastSyncResult.failed > 0 && (
                 <span className="ml-2 text-yellow-200">
                   · {lastSyncResult.failed} échec(s)

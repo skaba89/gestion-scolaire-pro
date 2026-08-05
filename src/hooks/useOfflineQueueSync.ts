@@ -38,9 +38,18 @@ export function useOfflineQueueSync(): void {
           );
         }
         if (result.rejected.length > 0) {
-          toast.warning(
-            `${result.rejected.length} brouillon(s) hors ligne refusé(s) par le serveur et abandonné(s).`,
-          );
+          const conflicts = result.rejected.filter((a) => a.conflict).length;
+          const other = result.rejected.length - conflicts;
+          if (conflicts > 0) {
+            toast.error(
+              `${conflicts} brouillon(s) en conflit : déjà synchronisé(s) avec un contenu différent. Vérifiez avant de ressaisir.`,
+            );
+          }
+          if (other > 0) {
+            toast.warning(
+              `${other} brouillon(s) hors ligne refusé(s) par le serveur et abandonné(s).`,
+            );
+          }
         }
       } finally {
         flushing.current = false;

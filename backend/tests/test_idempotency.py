@@ -6,9 +6,11 @@ test_communication_whatsapp_tracking.py-adjacent suites for endpoint-level
 wiring checks on the /attendance/ and /communication/ routes.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 
 from conftest import get_test_client
 
@@ -17,6 +19,7 @@ get_test_client()  # triggers Base.metadata.create_all(), incl. idempotency_keys
 from app.core.database import SessionLocal  # noqa: E402
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_password_hash
+from app.models.idempotency_key import IdempotencyKey
 from app.models.tenant import Tenant
 from app.models.user import User
 
@@ -156,3 +159,92 @@ class TestIdempotency:
                 endpoint="/attendance/", request_body=body,
             )
             assert cached[0] == {"id": "first"}
+
+
+class TestConcurrentInsertProtection:
+    """Fine points brief, Phase 3: the app-level SELECT-then-INSERT in
+    store_idempotent_response() is only half the story — a true race (two
+    requests both passing the SELECT before either commits) is closed at
+    the DB level by the unique index on (tenant_id, user_id, key)
+    (ux_idempotency_keys_tenant_user_key, see
+    alembic/versions/20260804_0002_idempotency_keys.py). This test bypasses
+    the app-level check entirely and inserts two rows directly, to prove
+    the constraint itself — not just the Python guard — makes a duplicate
+    impossible."""
+
+    def test_double_insert_concurrent_same_key_impossible(self):
+        tenant_id, user_id = _make_tenant_and_user()
+        key = f"race-key-{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc)
+
+        with SessionLocal() as db:
+            db.add(IdempotencyKey(
+                key=key, tenant_id=tenant_id, user_id=user_id, method="POST",
+                endpoint="/attendance/", request_hash="a" * 64,
+                response_json="{}", status_code=201,
+                expires_at=now + timedelta(hours=1),
+            ))
+            db.commit()
+
+        with SessionLocal() as db:
+            db.add(IdempotencyKey(
+                key=key, tenant_id=tenant_id, user_id=user_id, method="POST",
+                endpoint="/attendance/", request_hash="b" * 64,
+                response_json="{}", status_code=201,
+                expires_at=now + timedelta(hours=1),
+            ))
+            with pytest.raises(IntegrityError):
+                db.commit()
+            db.rollback()
+
+        with SessionLocal() as db:
+            count = (
+                db.query(IdempotencyKey)
+                .filter(IdempotencyKey.tenant_id == tenant_id, IdempotencyKey.key == key)
+                .count()
+            )
+            assert count == 1
+
+
+class TestPurgeExpiredIdempotencyKeys:
+    """Fine points brief, Phase 3: the purge job
+    (app.workers.tasks.purge_expired_idempotency_keys) must delete only
+    rows past their expires_at, leaving still-valid keys untouched — a
+    retry that legitimately arrives just before expiry must still be
+    served the stored response, not silently redo the work."""
+
+    def test_expired_keys_purge(self):
+        import asyncio
+
+        from app.workers.tasks import purge_expired_idempotency_keys
+
+        tenant_id, user_id = _make_tenant_and_user()
+        expired_key = f"expired-{uuid.uuid4().hex}"
+        live_key = f"live-{uuid.uuid4().hex}"
+        now = datetime.now(timezone.utc)
+
+        with SessionLocal() as db:
+            db.add(IdempotencyKey(
+                key=expired_key, tenant_id=tenant_id, user_id=user_id, method="POST",
+                endpoint="/attendance/", request_hash="a" * 64,
+                response_json="{}", status_code=201,
+                expires_at=now - timedelta(hours=1),  # already expired
+            ))
+            db.add(IdempotencyKey(
+                key=live_key, tenant_id=tenant_id, user_id=user_id, method="POST",
+                endpoint="/attendance/", request_hash="b" * 64,
+                response_json="{}", status_code=201,
+                expires_at=now + timedelta(hours=1),  # still valid
+            ))
+            db.commit()
+
+        result = asyncio.run(purge_expired_idempotency_keys({}))
+        assert result["deleted"] >= 1
+
+        with SessionLocal() as db:
+            remaining_keys = {
+                row.key for row in
+                db.query(IdempotencyKey).filter(IdempotencyKey.tenant_id == tenant_id).all()
+            }
+            assert expired_key not in remaining_keys
+            assert live_key in remaining_keys

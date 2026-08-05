@@ -19,12 +19,21 @@ import { apiClient } from "@/api/client";
 const MAX_RETRIES = 3;
 const SYNC_DELAY_MS = 2000; // wait 2s after coming online for network to stabilize
 
+/** Axios error without a `response` = the request never reached the
+ * server (offline, DNS, timeout) — must never be treated the same as a
+ * genuine server refusal: no retry penalty, no error message shown, just
+ * try again next sync. Mirrors src/offline/outbox.ts::isNetworkError. */
+function isNetworkError(error: unknown): boolean {
+  const err = error as { response?: unknown; request?: unknown } | null;
+  return !!err && typeof err === "object" && "request" in (err as object) && !err.response;
+}
+
 interface SyncState {
   isOnline: boolean;
   isSyncing: boolean;
   pendingCount: number;
   lastSyncAt: Date | null;
-  lastSyncResult: { synced: number; failed: number } | null;
+  lastSyncResult: { synced: number; failed: number; conflicts: number } | null;
 }
 
 export function useOfflineSync() {
@@ -51,8 +60,13 @@ export function useOfflineSync() {
   }, []);
 
   // ── Sync one attendance record ───────────────────────────────────────────
+  // Returns "synced" | "conflict" | "rejected" | "network" — the caller
+  // decides how each outcome counts towards synced/failed/conflicts.
 
-  const syncAttendance = async (item: PendingAttendance): Promise<boolean> => {
+  type SyncOutcome = "synced" | "conflict" | "rejected" | "network";
+
+  const syncAttendance = async (item: PendingAttendance): Promise<SyncOutcome> => {
+    await offlineDb.pendingAttendance.update(item.id!, { syncStatus: "SYNCING" });
     try {
       await apiClient.post(
         "/attendance/",
@@ -70,30 +84,48 @@ export function useOfflineSync() {
         { headers: { "X-Idempotency-Key": item.localId } },
       );
 
-      // Mark as synced
       await offlineDb.pendingAttendance.update(item.id!, {
         synced: 1,
+        syncStatus: "SYNCED",
         syncedAt: Date.now(),
         syncError: undefined,
+        conflict: false,
       });
-      return true;
+      return "synced";
     } catch (error: any) {
+      if (isNetworkError(error)) {
+        // Still offline — no penalty, no message, stays PENDING, retried
+        // on the next sync.
+        await offlineDb.pendingAttendance.update(item.id!, { syncStatus: "PENDING" });
+        return "network";
+      }
+
+      // A 409 here means app/core/idempotency.py's get_idempotent_response_or_lock()
+      // saw this same X-Idempotency-Key already used with a DIFFERENT
+      // body — a real conflict (e.g. someone else already marked this
+      // student's attendance for this date), NEVER a success. Previously
+      // this branch silently marked the draft as synced=1 and hid it.
+      const isConflict = error?.response?.status === 409;
       const retries = (item.retries || 0) + 1;
-      const isConflict = error?.response?.status === 409; // Already exists — consider synced
+      const exhausted = retries >= MAX_RETRIES;
 
       await offlineDb.pendingAttendance.update(item.id!, {
-        synced: isConflict ? 1 : 0,
-        syncedAt: isConflict ? Date.now() : undefined,
+        synced: 0,
+        syncStatus: isConflict || exhausted ? "REJECTED" : "PENDING",
+        conflict: isConflict,
         retries,
-        syncError: isConflict ? undefined : String(error?.response?.data?.detail || error?.message || "Unknown error"),
+        syncError: isConflict
+          ? "Conflit : cette présence a déjà été enregistrée avec un contenu différent. Non synchronisée — vérifiez avant de ressaisir."
+          : String(error?.response?.data?.detail || error?.message || "Erreur inconnue"),
       });
-      return isConflict;
+      return isConflict ? "conflict" : "rejected";
     }
   };
 
   // ── Sync one grade record ─────────────────────────────────────────────────
 
-  const syncGrade = async (item: PendingGrade): Promise<boolean> => {
+  const syncGrade = async (item: PendingGrade): Promise<SyncOutcome> => {
+    await offlineDb.pendingGrades.update(item.id!, { syncStatus: "SYNCING" });
     try {
       await apiClient.post(
         "/grades/",
@@ -111,29 +143,42 @@ export function useOfflineSync() {
 
       await offlineDb.pendingGrades.update(item.id!, {
         synced: 1,
+        syncStatus: "SYNCED",
         syncedAt: Date.now(),
         syncError: undefined,
+        conflict: false,
       });
-      return true;
+      return "synced";
     } catch (error: any) {
-      const retries = (item.retries || 0) + 1;
+      if (isNetworkError(error)) {
+        await offlineDb.pendingGrades.update(item.id!, { syncStatus: "PENDING" });
+        return "network";
+      }
+
+      // Same reasoning as syncAttendance() above — a 409 is a real
+      // conflict, never a silent success.
       const isConflict = error?.response?.status === 409;
+      const retries = (item.retries || 0) + 1;
+      const exhausted = retries >= MAX_RETRIES;
 
       await offlineDb.pendingGrades.update(item.id!, {
-        synced: isConflict ? 1 : 0,
-        syncedAt: isConflict ? Date.now() : undefined,
+        synced: 0,
+        syncStatus: isConflict || exhausted ? "REJECTED" : "PENDING",
+        conflict: isConflict,
         retries,
-        syncError: isConflict ? undefined : String(error?.response?.data?.detail || error?.message || "Unknown error"),
+        syncError: isConflict
+          ? "Conflit : cette note a déjà été enregistrée avec un contenu différent. Non synchronisée — vérifiez avant de ressaisir."
+          : String(error?.response?.data?.detail || error?.message || "Erreur inconnue"),
       });
-      return isConflict;
+      return isConflict ? "conflict" : "rejected";
     }
   };
 
   // ── Main sync function ────────────────────────────────────────────────────
 
-  const syncNow = useCallback(async (): Promise<{ synced: number; failed: number }> => {
+  const syncNow = useCallback(async (): Promise<{ synced: number; failed: number; conflicts: number }> => {
     if (isSyncingRef.current || !navigator.onLine) {
-      return { synced: 0, failed: 0 };
+      return { synced: 0, failed: 0, conflicts: 0 };
     }
 
     isSyncingRef.current = true;
@@ -141,41 +186,45 @@ export function useOfflineSync() {
 
     let synced = 0;
     let failed = 0;
+    let conflicts = 0;
+
+    const isRetryable = (item: { synced: 0 | 1; syncStatus?: string }) =>
+      item.synced === 0 && (item.syncStatus ?? "PENDING") === "PENDING";
 
     try {
       // ── Sync attendance ───────────────────────────────────────────────────
+      // Filters on syncStatus (not just retries < MAX) so a REJECTED item
+      // (server refusal, incl. a 409 conflict) is never retried again —
+      // it's a terminal state, not "still pending".
       const pendingAttendance = await offlineDb.pendingAttendance
         .where("synced")
         .equals(0)
-        .and((item) => item.retries < MAX_RETRIES)
+        .and(isRetryable)
         .toArray();
 
       for (const item of pendingAttendance) {
-        const ok = await syncAttendance(item);
-        if (ok) {
-          synced++;
-        } else {
-          failed++;
-        }
+        const outcome = await syncAttendance(item);
+        if (outcome === "synced") synced++;
+        else if (outcome === "conflict") conflicts++;
+        else if (outcome === "rejected") failed++;
+        // "network" outcome counts as neither — retried next sync, no penalty.
       }
 
       // ── Sync grades ───────────────────────────────────────────────────────
       const pendingGrades = await offlineDb.pendingGrades
         .where("synced")
         .equals(0)
-        .and((item) => item.retries < MAX_RETRIES)
+        .and(isRetryable)
         .toArray();
 
       for (const item of pendingGrades) {
-        const ok = await syncGrade(item);
-        if (ok) {
-          synced++;
-        } else {
-          failed++;
-        }
+        const outcome = await syncGrade(item);
+        if (outcome === "synced") synced++;
+        else if (outcome === "conflict") conflicts++;
+        else if (outcome === "rejected") failed++;
       }
 
-      // ── Clean up old synced records (keep last 7 days) ────────────────────
+      // ── Clean up old resolved records (keep last 7 days) ──────────────────
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
       await offlineDb.pendingAttendance
         .where("synced").equals(1)
@@ -184,6 +233,14 @@ export function useOfflineSync() {
       await offlineDb.pendingGrades
         .where("synced").equals(1)
         .and((item) => (item.syncedAt || 0) < cutoff)
+        .delete();
+      await offlineDb.pendingAttendance
+        .where("syncStatus").equals("REJECTED")
+        .and((item) => (item.createdAt || 0) < cutoff)
+        .delete();
+      await offlineDb.pendingGrades
+        .where("syncStatus").equals("REJECTED")
+        .and((item) => (item.createdAt || 0) < cutoff)
         .delete();
 
     } catch (err) {
@@ -196,11 +253,11 @@ export function useOfflineSync() {
         isSyncing: false,
         pendingCount: counts.total,
         lastSyncAt: new Date(),
-        lastSyncResult: { synced, failed },
+        lastSyncResult: { synced, failed, conflicts },
       }));
     }
 
-    return { synced, failed };
+    return { synced, failed, conflicts };
   }, []);
 
   // ── Online/offline detection ──────────────────────────────────────────────

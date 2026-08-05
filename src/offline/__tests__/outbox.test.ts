@@ -9,6 +9,7 @@ import {
   enqueueAction,
   flushOfflineQueue,
   getQueuedActions,
+  getRejectedActions,
   isNetworkError,
   queueLength,
 } from "@/offline/outbox";
@@ -150,6 +151,59 @@ describe("flushOfflineQueue", () => {
     expect(result.sent).toBe(0);
     expect(client.post).not.toHaveBeenCalled();
     expect(await queueLength()).toBe(0); // purgée : contexte inconnu
+  });
+});
+
+describe("statuts visibles (PENDING/SYNCING/SYNCED/REJECTED)", () => {
+  it("un envoi réussi passe par SYNCED, reste visible, et n'est plus compté par queueLength", async () => {
+    await enqueueAction(makeAttendance("s1"));
+    const client = { post: vi.fn().mockResolvedValue({}), patch: vi.fn(), put: vi.fn() };
+
+    await flushOfflineQueue(TENANT, client);
+
+    const all = await getQueuedActions();
+    expect(all).toHaveLength(1);
+    expect(all[0].status).toBe("SYNCED");
+    expect(all[0].syncedAt).toBeTruthy();
+    expect(await queueLength()).toBe(0);
+  });
+
+  it("un conflit 409 est marqué REJECTED avec conflict:true et reste visible (jamais supprimé silencieusement)", async () => {
+    await enqueueAction(makeAttendance("s1"));
+    const client = { post: vi.fn().mockRejectedValue(serverError(409)), patch: vi.fn(), put: vi.fn() };
+
+    const result = await flushOfflineQueue(TENANT, client);
+
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0].conflict).toBe(true);
+
+    const rejectedRows = await getRejectedActions();
+    expect(rejectedRows).toHaveLength(1);
+    expect(rejectedRows[0].conflict).toBe(true);
+    expect(rejectedRows[0].error).toMatch(/conflit/i);
+    expect(await queueLength()).toBe(0); // plus "en attente" — résolu, mais visible
+  });
+
+  it("un refus non-409 est marqué REJECTED avec conflict:false, distingué d'un conflit", async () => {
+    await enqueueAction(makeAttendance("s1"));
+    const client = { post: vi.fn().mockRejectedValue(serverError(403)), patch: vi.fn(), put: vi.fn() };
+
+    await flushOfflineQueue(TENANT, client);
+
+    const rejectedRows = await getRejectedActions();
+    expect(rejectedRows).toHaveLength(1);
+    expect(rejectedRows[0].conflict).toBe(false);
+  });
+
+  it("une erreur réseau repasse l'action en PENDING (retentée au prochain flush)", async () => {
+    await enqueueAction(makeAttendance("s1"));
+    const client = { post: vi.fn().mockRejectedValue(networkError()), patch: vi.fn(), put: vi.fn() };
+
+    await flushOfflineQueue(TENANT, client);
+
+    const all = await getQueuedActions();
+    expect(all[0].status).toBe("PENDING");
+    expect(await queueLength()).toBe(1);
   });
 });
 
