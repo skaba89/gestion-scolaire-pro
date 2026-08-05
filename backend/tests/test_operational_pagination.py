@@ -34,12 +34,22 @@ from sqlalchemy import text  # noqa: E402
 # NO Alembic migration at all and exist ONLY because of that startup call,
 # so tests inserting into them need to trigger it explicitly against a real
 # Postgres test database (these raw-SQL modules use Postgres-only syntax
-# like ARRAY(), so this file cannot run against the SQLite default).
-try:
+# like ARRAY(), JSONB, TIMESTAMPTZ and gen_random_uuid(), so this file
+# cannot run against the SQLite default).
+#
+# The previous `try/except: pass` here silently swallowed the DDL failure
+# on SQLite and let tests run anyway, producing a confusing
+# "no such table"/"unrecognized token" failure instead of a clean skip —
+# make the documented intent (Postgres-only) an actual pytest skip, matching
+# the pattern already used in test_invoice_alias.py for the same reason.
+pytestmark = pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="operational_tables.py DDL is Postgres-only (JSONB/TIMESTAMPTZ/gen_random_uuid/ARRAY).",
+)
+
+if engine.dialect.name == "postgresql":
     from app.core.operational_tables import ensure_operational_tables
     ensure_operational_tables(engine)
-except Exception:
-    pass
 
 
 def _make_tenant(name: str) -> str:
