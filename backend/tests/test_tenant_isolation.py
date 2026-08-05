@@ -92,6 +92,59 @@ def test_create_tenant_requires_tenants_write_permission():
         assert db.query(Tenant).filter(Tenant.slug == payload["slug"]).first() is None
 
 
+def test_create_tenant_does_not_enroll_super_admin_as_tenant_admin():
+    """Regression test: POST /tenants/ used to unconditionally set the
+    calling user's tenant_id and grant them TENANT_ADMIN of the tenant they
+    just created (see create_tenant() docstring: "Updates current user's
+    tenant_id and assigns TENANT_ADMIN role"). That's correct for the
+    self-service flow (a brand-new user creating their own school), but when
+    the caller is SUPER_ADMIN — a platform-level account that must keep
+    tenant_id=NULL (see CLAUDE.md) — it corrupted the account: tenant_id got
+    overwritten and it accumulated one spurious TENANT_ADMIN role per tenant
+    ever created via this endpoint. This actually happened to the real
+    bootstrap admin@schoolflow.local account during E2E testing and had to
+    be repaired manually in the dev database.
+    """
+    from app.models.user import User
+
+    super_admin_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.add(User(
+            id=super_admin_id,
+            tenant_id=None,
+            email=f"super-{uuid.uuid4().hex[:8]}@example.com",
+            username=f"super-{uuid.uuid4().hex[:8]}",
+            first_name="Super",
+            last_name="Admin",
+            password_hash="x",
+            is_active=True,
+            is_verified=True,
+        ))
+        db.commit()
+
+    super_admin = {"id": super_admin_id, "roles": ["SUPER_ADMIN"], "tenant_id": None}
+    slug = f"no-enroll-{uuid.uuid4().hex[:8]}"
+    try:
+        resp = _as(super_admin).post(
+            "/api/v1/tenants/",
+            json={"name": "Ecole Sans Enrolement Admin", "slug": slug, "type": "SCHOOL"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 201, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    with SessionLocal() as db:
+        from app.models.user import User
+        from app.models.user_role import UserRole
+
+        user_row = db.query(User).filter(User.id == super_admin_id).first()
+        assert user_row.tenant_id is None, "SUPER_ADMIN's tenant_id must stay NULL after creating a tenant"
+
+        roles = db.query(UserRole).filter(UserRole.user_id == super_admin_id).all()
+        assert roles == [], "SUPER_ADMIN must not be granted TENANT_ADMIN of a tenant it created on behalf of others"
+
+
 def test_director_can_write_levels_and_subjects():
     """Regression test: DIRECTOR's frontend UI shows levels:manage/subjects:manage
     (src/lib/permissions.ts) but the backend previously granted no matching

@@ -659,14 +659,54 @@ async def get_tenant_health(
     else:
         last_failed_payment_webhook_note = "Aucun échec de webhook enregistré pour cet établissement."
 
+    # ── WhatsApp health (Phase 5 monitoring — notification_events) ──────────
+    from app.models.notification_event import NotificationEvent
+    whatsapp_failed_count = (
+        db.query(NotificationEvent)
+        .filter(
+            NotificationEvent.tenant_id == tenant_id,
+            NotificationEvent.channel == "whatsapp",
+            NotificationEvent.status == "FAILED",
+            NotificationEvent.created_at >= _now_utc() - timedelta(days=7),
+        )
+        .count()
+    )
+    # SENT/QUEUED past 6h with no webhook update since is a signal the
+    # webhook subscription may be misconfigured for this tenant, not that
+    # the messages themselves failed (see sync_whatsapp_statuses job).
+    whatsapp_stuck_count = (
+        db.query(NotificationEvent)
+        .filter(
+            NotificationEvent.tenant_id == tenant_id,
+            NotificationEvent.channel == "whatsapp",
+            NotificationEvent.status.in_(["SENT", "QUEUED"]),
+            NotificationEvent.created_at < _now_utc() - timedelta(hours=6),
+        )
+        .count()
+    )
+    last_successful_whatsapp = (
+        db.query(NotificationEvent)
+        .filter(
+            NotificationEvent.tenant_id == tenant_id,
+            NotificationEvent.channel == "whatsapp",
+            NotificationEvent.status.in_(["SENT", "DELIVERED", "READ"]),
+        )
+        .order_by(NotificationEvent.created_at.desc())
+        .first()
+    )
+    last_successful_whatsapp_test_at = (
+        last_successful_whatsapp.sent_at.isoformat()
+        if last_successful_whatsapp and last_successful_whatsapp.sent_at else None
+    )
+
     # ── Global health verdict ────────────────────────────────────────────────
     has_blocking_quota = bool(usage_report and usage_report.get("has_blocking_limit"))
     has_quota_warning = bool(usage_report and usage_report.get("has_warning"))
     if not tenant.is_active:
         overall_status = "inactive"
-    elif has_blocking_quota or len(failed_jobs_payload) >= 5:
+    elif has_blocking_quota or len(failed_jobs_payload) >= 5 or whatsapp_failed_count >= 5:
         overall_status = "critical"
-    elif has_quota_warning or failed_jobs_payload:
+    elif has_quota_warning or failed_jobs_payload or whatsapp_stuck_count:
         overall_status = "degraded"
     else:
         overall_status = "healthy"
@@ -682,10 +722,25 @@ async def get_tenant_health(
         "last_import": last_import_payload,
         "last_failed_payment_webhook": last_failed_payment_webhook,
         "last_failed_payment_webhook_note": last_failed_payment_webhook_note,
+        "whatsapp_failed_count_7d": whatsapp_failed_count,
+        "whatsapp_stuck_count": whatsapp_stuck_count,
+        "last_successful_whatsapp_test_at": last_successful_whatsapp_test_at,
         "last_activity_at": last_activity_at,
         "overall_status": overall_status,
         "generated_at": _now_utc().isoformat(),
     }
+
+
+@router.get("/tenants/{tenant_id}/integrations-health/")
+async def get_tenant_integrations_health(
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(_require_super_admin),
+):
+    """Alias of GET /tenants/{tenant_id}/health/ under the name used by the
+    support monitoring brief — same payload, kept as a single implementation
+    so the two names never drift apart."""
+    return await get_tenant_health(tenant_id, db, _admin)
 
 
 # ─── Email deliverability (Render + Resend audit) ─────────────────────────────
@@ -757,3 +812,130 @@ async def send_test_email(
             detail="L'envoi a échoué (Resend et SMTP indisponibles ou mal configurés).",
         )
     return {"sent": True, "to": body.to_email}
+
+
+# ─── Platform-wide operational monitoring (Phase 5 support brief) ─────────────
+# Cross-tenant views for support/on-call — the per-tenant health above stays
+# scoped to one school; these three answer "is anything platform-wide on
+# fire right now" without having to loop over every tenant by hand.
+
+@router.get("/jobs/health/")
+async def get_jobs_health(
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(_require_super_admin),
+    stale_running_minutes: int = Query(30, ge=1, le=1440),
+):
+    """Arq job queue health across every tenant: jobs stuck RUNNING past
+    `stale_running_minutes` (usually means a worker crashed mid-job and
+    never reached _job_finished()), and the most recent FAILED jobs.
+    """
+    from app.models.job import Job
+
+    cutoff = _now_utc() - timedelta(minutes=stale_running_minutes)
+    stale_running = (
+        db.query(Job)
+        .filter(Job.status == "RUNNING", Job.started_at.isnot(None), Job.started_at < cutoff)
+        .order_by(Job.started_at.asc())
+        .limit(50)
+        .all()
+    )
+    recent_failed = (
+        db.query(Job)
+        .filter(Job.status == "FAILED")
+        .order_by(Job.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    def _job_payload(j: Job) -> dict:
+        return {
+            "id": str(j.id),
+            "tenant_id": str(j.tenant_id) if j.tenant_id else None,
+            "job_type": j.job_type,
+            "status": j.status,
+            "error": (j.error or "")[:300] or None,
+            "retry_count": j.retry_count,
+            "created_at": j.created_at.isoformat() if j.created_at else None,
+            "started_at": j.started_at.isoformat() if j.started_at else None,
+            "finished_at": j.finished_at.isoformat() if j.finished_at else None,
+        }
+
+    return {
+        "stale_running_minutes_threshold": stale_running_minutes,
+        "stale_running_jobs": [_job_payload(j) for j in stale_running],
+        "stale_running_count": len(stale_running),
+        "recent_failed_jobs": [_job_payload(j) for j in recent_failed],
+        "recent_failed_count": len(recent_failed),
+        "overall_status": "critical" if len(stale_running) or len(recent_failed) >= 5 else (
+            "degraded" if recent_failed else "healthy"
+        ),
+        "generated_at": _now_utc().isoformat(),
+    }
+
+
+@router.get("/webhooks/recent-failures/")
+async def get_recent_webhook_failures(
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(_require_super_admin),
+    hours: int = Query(24, ge=1, le=168),
+):
+    """Every webhook-adjacent failure signal across tenants in the last
+    `hours`: rejected payment gateway webhooks (payment_webhook_events) and
+    WhatsApp sends that failed outright (notification_events) — the two
+    integration points where a silent failure directly costs the tenant
+    money or a missed parent notification.
+    """
+    from app.models.notification_event import NotificationEvent
+    from app.models.payment_webhook_event import PaymentWebhookEvent
+
+    cutoff = _now_utc() - timedelta(hours=hours)
+
+    rejected_payment_webhooks = (
+        db.query(PaymentWebhookEvent)
+        .filter(PaymentWebhookEvent.outcome == "rejected", PaymentWebhookEvent.created_at >= cutoff)
+        .order_by(PaymentWebhookEvent.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    failed_whatsapp_sends = (
+        db.query(NotificationEvent)
+        .filter(
+            NotificationEvent.channel == "whatsapp",
+            NotificationEvent.status == "FAILED",
+            NotificationEvent.created_at >= cutoff,
+        )
+        .order_by(NotificationEvent.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    payment_payload = [
+        {
+            "id": str(w.id),
+            "tenant_id": str(w.tenant_id) if w.tenant_id else None,
+            "gateway": w.gateway,
+            "reason": w.reason,
+            "created_at": w.created_at.isoformat() if w.created_at else None,
+        }
+        for w in rejected_payment_webhooks
+    ]
+    whatsapp_payload = [
+        {
+            "id": str(n.id),
+            "tenant_id": str(n.tenant_id),
+            "event_type": n.event_type,
+            "error_reason": (n.error_reason or "")[:300] or None,
+            "retry_count": n.retry_count,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in failed_whatsapp_sends
+    ]
+
+    return {
+        "window_hours": hours,
+        "rejected_payment_webhooks": payment_payload,
+        "rejected_payment_webhooks_count": len(payment_payload),
+        "failed_whatsapp_sends": whatsapp_payload,
+        "failed_whatsapp_sends_count": len(whatsapp_payload),
+        "generated_at": _now_utc().isoformat(),
+    }

@@ -163,9 +163,33 @@ async def create_tenant(
             db.add(subject)
 
         # 5. Update/Create current user in DB
+        # SUPER_ADMIN is a platform-level account (tenant_id=NULL by design —
+        # see CLAUDE.md) that can create tenants on behalf of others. It must
+        # never be enrolled as TENANT_ADMIN of the tenant it just created, or
+        # have its tenant_id reassigned — doing so previously corrupted the
+        # real bootstrap SUPER_ADMIN account after repeated tenant creation
+        # (tenant_id got overwritten and it accumulated one TENANT_ADMIN role
+        # per tenant ever created). This block only applies to the
+        # self-service flow (a user with no tenant creates their own school
+        # via CreateTenant.tsx / the onboarding wizard).
+        is_super_admin_creator = "SUPER_ADMIN" in current_user.get("roles", [])
         user_id_str = current_user.get("id")
         logger.info(f"Processing tenant creator. current_user info: {current_user}")
-        
+
+        if is_super_admin_creator:
+            log_audit(
+                db,
+                user_id=user_id_str,
+                tenant_id=new_tenant.id,
+                action="CREATE_TENANT",
+                resource_type="TENANT",
+                resource_id=str(new_tenant.id),
+                details={"name": tenant_in.name, "slug": tenant_in.slug, "created_by": "SUPER_ADMIN"},
+            )
+            db.commit()
+            db.refresh(new_tenant)
+            return new_tenant
+
         user_id = None
         if user_id_str:
             try:
@@ -182,7 +206,7 @@ async def create_tenant(
             user_db = db.query(User).filter(User.id == user_id).first()
         else:
             user_db = db.query(User).filter(User.username == user_id_str).first()
-    
+
         if not user_db:
             # First login user might not be in DB yet
             user_db = User(
@@ -197,17 +221,17 @@ async def create_tenant(
             db.add(user_db)
         else:
             user_db.tenant_id = new_tenant.id
-        
+
         db.flush() # Ensure user_db has an ID before checking or assigning roles
-            
+
         # Always ensure TENANT_ADMIN role for the creator
         # Check if role already exists for this tenant using the database UUID
         role_exists = db.query(UserRole).filter(
-            UserRole.user_id == user_db.id, 
+            UserRole.user_id == user_db.id,
             UserRole.tenant_id == new_tenant.id,
             UserRole.role == "TENANT_ADMIN"
         ).first()
-        
+
         if not role_exists:
             role = UserRole(
                 user_id=user_db.id,

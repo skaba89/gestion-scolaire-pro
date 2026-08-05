@@ -7,6 +7,7 @@ Each router below maps a frontend-called URL to existing backend logic
 while fixing 404s.
 """
 import logging
+import uuid
 from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel
@@ -181,20 +182,28 @@ def create_invoice_alias(
         raise HTTPException(status_code=400, detail="Tenant ID required")
     year = datetime.now().year
     invoice_number = body.invoice_number or f"INV-{year}-{secrets.token_hex(4).upper()}"
+    new_id = str(uuid.uuid4())
+    # due_date, subtotal and id are NOT NULL on invoices with no server-side
+    # default — this raw INSERT previously omitted all three (subtotal and
+    # id entirely; due_date only conditionally), so every single call to
+    # this endpoint failed with a 500 IntegrityError. subtotal has no
+    # separate taxes/discounts field in this alias schema, so it mirrors
+    # total_amount, same as the equivalent ORM-backed invoice creation path.
+    due_date = body.due_date or datetime.now().strftime("%Y-%m-%d")
 
     invoice_id = db.execute(text("""
-        INSERT INTO invoices (tenant_id, student_id, invoice_number, total_amount, paid_amount,
+        INSERT INTO invoices (id, tenant_id, student_id, invoice_number, subtotal, total_amount, paid_amount,
                               items, due_date, notes, has_payment_plan, installments_count,
                               status, issue_date, created_at, updated_at)
-        VALUES (:tenant_id, :student_id, :invoice_number, :total_amount, 0,
+        VALUES (:id, :tenant_id, :student_id, :invoice_number, :subtotal, :total_amount, 0,
                 :items, :due_date, :notes, :has_payment_plan, :installments_count,
                 'PENDING', NOW(), NOW(), NOW())
         RETURNING id
     """), {
-        "tenant_id": tenant_id, "student_id": body.student_id,
-        "invoice_number": invoice_number, "total_amount": body.total_amount,
+        "id": new_id, "tenant_id": tenant_id, "student_id": body.student_id,
+        "invoice_number": invoice_number, "subtotal": body.total_amount, "total_amount": body.total_amount,
         "items": json.dumps(body.items) if body.items else None,
-        "due_date": body.due_date if body.due_date else None,
+        "due_date": due_date,
         "notes": body.notes,
         "has_payment_plan": body.has_payment_plan,
         "installments_count": body.installments_count

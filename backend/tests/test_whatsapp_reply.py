@@ -160,3 +160,44 @@ class TestReplyWhatsApp:
             headers=headers,
         )
         assert resp.status_code == 404
+
+
+class TestReplyWhatsAppIdempotency:
+    """An offline-queued reply replayed after a dropped response (see
+    src/offline/outbox.ts) must never create a second MessageItem."""
+
+    def test_same_key_same_body_replays_the_first_response(self):
+        tenant_id = _make_tenant()
+        parent_id = _make_parent(tenant_id, "+224677889904")
+        thread_id = _make_thread(tenant_id, parent_id)
+        headers = _as(_make_staff(tenant_id), tenant_id, ["TEACHER"])
+        headers = {**headers, "X-Idempotency-Key": f"key-{uuid.uuid4().hex}"}
+        payload = {"body": "Rejoué après coupure réseau."}
+
+        with patch("app.core.jobs.enqueue_job", new=AsyncMock(return_value="job-1")) as mock_enqueue:
+            resp1 = client.post(REPLY_URL.format(thread_id=thread_id), json=payload, headers=headers)
+            resp2 = client.post(REPLY_URL.format(thread_id=thread_id), json=payload, headers=headers)
+
+        assert resp1.status_code == 202, resp1.text
+        assert resp2.status_code == 202, resp2.text
+        assert resp1.json()["id"] == resp2.json()["id"]
+        mock_enqueue.assert_awaited_once()  # the job is only ever enqueued once
+
+        with SessionLocal() as db:
+            count = db.query(MessageItem).filter(MessageItem.thread_id == thread_id).count()
+            assert count == 1
+
+    def test_same_key_different_body_returns_409(self):
+        tenant_id = _make_tenant()
+        parent_id = _make_parent(tenant_id, "+224677889905")
+        thread_id = _make_thread(tenant_id, parent_id)
+        headers = _as(_make_staff(tenant_id), tenant_id, ["TEACHER"])
+        key = f"key-{uuid.uuid4().hex}"
+        headers = {**headers, "X-Idempotency-Key": key}
+
+        with patch("app.core.jobs.enqueue_job", new=AsyncMock(return_value="job-1")):
+            resp1 = client.post(REPLY_URL.format(thread_id=thread_id), json={"body": "Premier brouillon"}, headers=headers)
+        assert resp1.status_code == 202, resp1.text
+
+        resp2 = client.post(REPLY_URL.format(thread_id=thread_id), json={"body": "Brouillon modifié"}, headers=headers)
+        assert resp2.status_code == 409

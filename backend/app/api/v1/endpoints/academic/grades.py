@@ -11,6 +11,7 @@ import math
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
+from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import grade as crud_grade
@@ -178,7 +179,26 @@ def create_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
-    return crud_grade.create_grade(db, grade, tenant_id)
+
+    idem_key = request.headers.get("x-idempotency-key")
+    request_body = grade.model_dump(mode="json")
+    if idem_key:
+        cached = get_idempotent_response_or_lock(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+            method="POST", endpoint="/grades/", request_body=request_body,
+        )
+        if cached is not None:
+            return cached[0]
+
+    created = crud_grade.create_grade(db, grade, tenant_id)
+    if idem_key:
+        response_body = Grade.model_validate(created).model_dump(mode="json")
+        store_idempotent_response(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"), key=idem_key,
+            method="POST", endpoint="/grades/", request_body=request_body,
+            response_body=response_body, status_code=201,
+        )
+    return created
 
 
 @router.put("/{grade_id}/", response_model=Grade)

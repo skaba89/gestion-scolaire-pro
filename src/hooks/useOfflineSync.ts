@@ -54,16 +54,21 @@ export function useOfflineSync() {
 
   const syncAttendance = async (item: PendingAttendance): Promise<boolean> => {
     try {
-      await apiClient.post("/attendance/", {
-        student_id: item.studentId,
-        classroom_id: item.classroomId,
-        subject_id: item.subjectId,
-        date: item.date,
-        status: item.status,
-        reason: item.reason,
-        // Idempotency key so server can deduplicate
-        idempotency_key: item.localId,
-      });
+      await apiClient.post(
+        "/attendance/",
+        {
+          student_id: item.studentId,
+          classroom_id: item.classroomId,
+          subject_id: item.subjectId,
+          date: item.date,
+          status: item.status,
+          reason: item.reason,
+        },
+        // The backend reads the idempotency key from this header, never
+        // from the request body (see app/core/idempotency.py) — a body
+        // field is silently ignored by Pydantic and never deduplicates.
+        { headers: { "X-Idempotency-Key": item.localId } },
+      );
 
       // Mark as synced
       await offlineDb.pendingAttendance.update(item.id!, {
@@ -90,16 +95,19 @@ export function useOfflineSync() {
 
   const syncGrade = async (item: PendingGrade): Promise<boolean> => {
     try {
-      await apiClient.post("/grades/", {
-        student_id: item.studentId,
-        subject_id: item.subjectId,
-        assessment_id: item.assessmentId,
-        score: item.score,
-        max_score: item.maxScore,
-        coefficient: item.coefficient,
-        comments: item.comments,
-        idempotency_key: item.localId,
-      });
+      await apiClient.post(
+        "/grades/",
+        {
+          student_id: item.studentId,
+          subject_id: item.subjectId,
+          assessment_id: item.assessmentId,
+          score: item.score,
+          max_score: item.maxScore,
+          coefficient: item.coefficient,
+          comments: item.comments,
+        },
+        { headers: { "X-Idempotency-Key": item.localId } },
+      );
 
       await offlineDb.pendingGrades.update(item.id!, {
         synced: 1,

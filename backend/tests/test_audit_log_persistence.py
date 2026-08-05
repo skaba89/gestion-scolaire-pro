@@ -186,3 +186,28 @@ class TestResetTenantAdminPasswordAuditPersisted:
             )
         assert resp.status_code == 200, resp.text
         _assert_audit_row_persisted(tenant_id=tenant_id, action="RESET_PASSWORD")
+
+
+class TestReplyWhatsAppAuditPersisted:
+    def test_reply_whatsapp_audit_persisted(self):
+        from unittest.mock import AsyncMock, patch
+
+        from app.models.message_thread import MessageThread
+
+        tenant_id = _make_tenant("École Audit WhatsApp")
+        admin_id = _make_tenant_admin(tenant_id)
+        with SessionLocal() as db:
+            thread = MessageThread(tenant_id=tenant_id, parent_id=None, status="OPEN", source_channel="whatsapp")
+            db.add(thread)
+            db.commit()
+            db.refresh(thread)
+            thread_id = str(thread.id)
+
+        with patch("app.core.jobs.enqueue_job", new=AsyncMock(return_value="job-1")):
+            resp = client.post(
+                f"/api/v1/communication/conversations/{thread_id}/reply-whatsapp/",
+                json={"body": "Merci pour votre message, nous revenons vers vous."},
+                headers=_as({"id": admin_id, "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}),
+            )
+        assert resp.status_code == 202, resp.text
+        _assert_audit_row_persisted(tenant_id=tenant_id, action="whatsapp_reply_queued")

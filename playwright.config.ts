@@ -6,8 +6,12 @@ import { defineConfig, devices } from '@playwright/test';
  * Docs: https://playwright.dev/docs/intro
  */
 export default defineConfig({
-  globalSetup: require.resolve('./tests/e2e/global-setup'),
-  globalTeardown: require.resolve('./tests/e2e/global-teardown'),
+  // Playwright resolves these paths itself relative to this config file —
+  // require.resolve() doesn't exist in this project's ESM context
+  // ("type": "module" in package.json) and made every E2E run fail before
+  // a single test could execute.
+  globalSetup: './tests/e2e/global-setup',
+  globalTeardown: './tests/e2e/global-teardown',
   testDir: './tests/e2e',
   /* Exécuter les tests un par un */
   fullyParallel: true,

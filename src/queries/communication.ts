@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
+import { enqueueAction, isNetworkError } from "@/offline/syncEngine";
 
 export interface Announcement {
     id: string;
@@ -100,10 +103,29 @@ export const useMessages = (conversationId: string | null) => {
 
 export const useSendMessage = () => {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const { tenant } = useTenant();
     return useMutation({
         mutationFn: async ({ conversationId, content }: { conversationId: string; content: string }) => {
-            const response = await apiClient.post(`/communication/conversations/${conversationId}/messages/`, { content });
-            return response.data;
+            const url = `/communication/conversations/${conversationId}/messages/`;
+            try {
+                const response = await apiClient.post(url, { content });
+                return { ...response.data, queued: false };
+            } catch (error) {
+                if (!isNetworkError(error) || !tenant?.id) throw error;
+                // Offline fallback — queued locally (IndexedDB outbox) and
+                // replayed with an idempotency key once the network is back
+                // (see src/offline/outbox.ts and useOfflineQueueSync).
+                await enqueueAction({
+                    kind: "internal_message",
+                    method: "POST",
+                    url,
+                    body: { content },
+                    tenantId: String(tenant.id),
+                    userId: user?.id ? String(user.id) : null,
+                });
+                return { queued: true };
+            }
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["messages", variables.conversationId] });
@@ -177,17 +199,39 @@ export const useWhatsAppThreadMessages = (threadId: string | null) => {
 
 export const useReplyWhatsApp = () => {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
+    const { tenant } = useTenant();
     return useMutation({
         mutationFn: async ({ threadId, body }: { threadId: string; body: string }) => {
-            const response = await apiClient.post(
-                `/communication/conversations/${threadId}/reply-whatsapp/`,
-                { body },
-            );
-            return response.data;
+            const url = `/communication/conversations/${threadId}/reply-whatsapp/`;
+            try {
+                const response = await apiClient.post(url, { body });
+                return { ...response.data, queued: false };
+            } catch (error) {
+                if (!isNetworkError(error) || !tenant?.id) throw error;
+                // Offline fallback — the reply is saved locally and replayed
+                // once the network is back (see src/offline/outbox.ts);
+                // dedupeKey means editing-and-resending the same thread's
+                // draft before it syncs replaces the earlier draft rather
+                // than queuing both.
+                await enqueueAction({
+                    kind: "whatsapp_reply",
+                    method: "POST",
+                    url,
+                    body: { body },
+                    dedupeKey: `whatsapp-reply:${threadId}`,
+                    tenantId: String(tenant.id),
+                    userId: user?.id ? String(user.id) : null,
+                });
+                return { thread_id: threadId, status: "QUEUED_OFFLINE", queued: true };
+            }
         },
-        onSuccess: (_, variables) => {
+        onSuccess: (data, variables) => {
             queryClient.invalidateQueries({ queryKey: ["whatsapp-thread-messages", variables.threadId] });
             queryClient.invalidateQueries({ queryKey: ["whatsapp-threads"] });
+            if (data.queued) {
+                toast.info("Hors ligne — la réponse sera envoyée automatiquement au retour du réseau.");
+            }
         },
         onError: (error: any) => {
             toast.error("Erreur lors de l'envoi : " + (error.response?.data?.detail || error.message));
