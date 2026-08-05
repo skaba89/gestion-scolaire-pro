@@ -344,7 +344,7 @@ async def send_whatsapp_test_message(
     event = send_text_message(
         db, tenant_id=str(tenant_id), tenant_settings=tenant.settings or {},
         to_phone=body.to_phone,
-        body=f"Message de test SchoolFlow Pro — configuration WhatsApp validée pour {tenant.name}.",
+        body=f"Message de test Academy Guinéenne — configuration WhatsApp validée pour {tenant.name}.",
         event_type="config_test", user_id=current_user.get("id"),
     )
 

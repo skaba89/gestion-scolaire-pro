@@ -1,5 +1,5 @@
 /**
- * Security utilities for SchoolFlow Pro
+ * Security utilities for Academy Guinéenne
  * Focus on OWASP Top 10 mitigations for frontend
  */
 

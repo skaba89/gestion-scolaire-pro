@@ -880,7 +880,7 @@ def _send_welcome_email_background(
         dashboard_url = f"{settings.FRONTEND_URL}/{slug}/admin/onboarding"
         html = f"""
         <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
-          <h2 style="color:#1a56db">🎉 Bienvenue sur SchoolFlow Pro !</h2>
+          <h2 style="color:#1a56db">🎉 Bienvenue sur Academy Guinéenne !</h2>
           <p>Bonjour <strong>{first_name}</strong>,</p>
           <p>Votre établissement <strong>{school_name}</strong> a bien été créé.</p>
           <p>Vous bénéficiez de <strong>30 jours d'essai gratuit Pro</strong> pour découvrir toutes les fonctionnalités.</p>
@@ -892,9 +892,9 @@ def _send_welcome_email_background(
           </div>
           <p style="color:#6b7280;font-size:13px">Votre URL de connexion : <strong>{settings.FRONTEND_URL}/{slug}/admin</strong></p>
           <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
-          <p style="color:#9ca3af;font-size:12px">SchoolFlow Pro — L'ERP scolaire pour l'Afrique francophone</p>
+          <p style="color:#9ca3af;font-size:12px">Academy Guinéenne — L'ERP scolaire pour l'Afrique francophone</p>
         </div>"""
-        sent = sender.send(to=to_email, subject=f"🎉 Bienvenue sur SchoolFlow Pro — {school_name}", html=html)
+        sent = sender.send(to=to_email, subject=f"🎉 Bienvenue sur Academy Guinéenne — {school_name}", html=html)
         if sent is not True:
             # Never claim success when the provider didn't confirm it — this
             # is the fire-and-forget fallback path (Redis unreachable), so

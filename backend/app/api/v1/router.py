@@ -33,6 +33,7 @@ from app.api.v1.endpoints.aliases import (
     trusted_devices_router,
     point_transactions_router,
     quiz_questions_router,
+    subject_preferred_rooms_router,
 )
 from app.api.v1.endpoints.core.rgpd import consent_router
 
@@ -215,3 +216,6 @@ api_router.include_router(point_transactions_router, prefix="/point-transactions
 
 # 32. Quiz questions (e-learning)
 api_router.include_router(quiz_questions_router, prefix="/quiz-questions", tags=["E-Learning"])
+
+# 33. Subject preferred rooms (scheduling hints)
+api_router.include_router(subject_preferred_rooms_router, prefix="/subject-preferred-rooms", tags=["Subjects"])

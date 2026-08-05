@@ -74,7 +74,7 @@ const Finances = () => {
         const num = await generateInvoiceNumber();
         setNextInvoiceNumber(num);
       } catch (err) {
-        console.error('[SchoolFlow] Error generating invoice number:', err);
+        console.error('[Academy Guinéenne] Error generating invoice number:', err);
         setNextInvoiceNumber('');
       }
     }
@@ -87,7 +87,7 @@ const Finances = () => {
       const ref = await generatePaymentReference();
       setNextPaymentRef(ref);
     } catch (err) {
-      console.error('[SchoolFlow] Error generating payment reference:', err);
+      console.error('[Academy Guinéenne] Error generating payment reference:', err);
       setNextPaymentRef('');
     }
     setPaymentDialogOpen(true);

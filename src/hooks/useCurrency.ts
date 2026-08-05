@@ -67,7 +67,7 @@ export const useCurrency = () => {
 
   // Prefer the canonical tenant.currency column. Older data may still store the
   // currency in settings.currency or settings.operational.currency.
-  // Default to GNF because SchoolFlow targets Guinea first.
+  // Default to GNF because Academy Guinéenne targets Guinea first.
   const currencyCode =
     normalizeCurrencyCode(tenant?.currency) ||
     normalizeCurrencyCode(settings?.currency) ||

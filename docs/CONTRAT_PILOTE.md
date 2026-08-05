@@ -1,4 +1,4 @@
-# Modèle de contrat pilote — SchoolFlow Pro
+# Modèle de contrat pilote — Academy Guinéenne
 
 Ce document est un **modèle de référence** pour cadrer un déploiement
 pilote avec un établissement volontaire. Il doit être adapté et validé par
@@ -8,7 +8,7 @@ l'emploi.
 ## 1. Objet
 
 Le présent accord encadre l'utilisation à titre pilote, gratuite ou à tarif
-préférentiel, de la plateforme SchoolFlow Pro par [NOM DE L'ÉTABLISSEMENT]
+préférentiel, de la plateforme Academy Guinéenne par [NOM DE L'ÉTABLISSEMENT]
 ("l'Établissement"), pour une durée de [X semaines/mois], dans le but de
 valider l'adéquation de la plateforme à ses besoins avant un engagement
 commercial standard.
@@ -34,7 +34,7 @@ L'Établissement aura accès à l'ensemble des modules de son offre cible
   l'intégration Mobile Money n'est pas encore activée pour le pilote).
 - Portail parent.
 
-## 4. Engagements de SchoolFlow Pro
+## 4. Engagements de Academy Guinéenne
 
 - Fournir un accès fonctionnel à la plateforme conforme au SLA applicable
   à l'offre pilote (voir `docs/SLA.md`).
@@ -89,6 +89,6 @@ préalable à tout contentieux.]
 
 **Signatures**
 
-Pour SchoolFlow Pro : ________________________ Date : __________
+Pour Academy Guinéenne : ________________________ Date : __________
 
 Pour [NOM DE L'ÉTABLISSEMENT] : ________________________ Date : __________

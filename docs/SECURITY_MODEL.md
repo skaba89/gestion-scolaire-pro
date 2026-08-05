@@ -1,4 +1,4 @@
-# Modèle de sécurité — SchoolFlow Pro
+# Modèle de sécurité — Academy Guinéenne
 
 État réel du modèle de sécurité tel que vérifié dans le code et par tests,
 au fil des audits successifs de ce projet. Chaque section renvoie au code

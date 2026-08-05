@@ -1,6 +1,6 @@
 # PHASE 4: Integration Tests Checklist
 **Pre-Deployment Validation Framework**
-**SchoolFlow Pro - Multi-Tenant School Management Platform**
+**Academy Guinéenne - Multi-Tenant School Management Platform**
 
 **Date:** January 28, 2026  
 **Target Completion:** January 28, 2026 (4-6 hours)  
@@ -435,7 +435,7 @@ Test Load: 100 concurrent users (from PHASE 3B)
 **Document Status:** PHASE 4 Ready for Execution  
 **Created:** January 27, 2026  
 **Last Updated:** January 27, 2026  
-**Owner:** SchoolFlow Pro QA Team  
+**Owner:** Academy Guinéenne QA Team  
 **Classification:** INTERNAL - PRE-DEPLOYMENT
 
 ---

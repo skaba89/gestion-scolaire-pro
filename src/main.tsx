@@ -94,7 +94,7 @@ initSanitize();
 
 if (enableBootstrapDebug) {
   (window as Window & { React?: unknown }).React = StrictMode;
-  debugLog("[SchoolFlow] bootstrap start", window.location.origin);
+  debugLog("[Academy Guinéenne] bootstrap start", window.location.origin);
 }
 
 if (forceServiceWorkerReset && "serviceWorker" in navigator) {
@@ -103,7 +103,7 @@ if (forceServiceWorkerReset && "serviceWorker" in navigator) {
   navigator.serviceWorker
     .register("/sw.js", { scope: "/" })
     .then(() => {
-      debugLog("[SchoolFlow] killer SW registered, will clean up caches");
+      debugLog("[Academy Guinéenne] killer SW registered, will clean up caches");
     })
     .catch(() => {
       // If registration fails, fall through to manual cleanup
@@ -113,7 +113,7 @@ if (forceServiceWorkerReset && "serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then((registrations) => {
     for (const registration of registrations) {
       registration.unregister();
-      debugLog("[SchoolFlow] unregistered service worker", registration.scope);
+      debugLog("[Academy Guinéenne] unregistered service worker", registration.scope);
     }
   });
 
@@ -122,7 +122,7 @@ if (forceServiceWorkerReset && "serviceWorker" in navigator) {
   }
 }
 
-// ── Register SchoolFlow offline SW (non-development environments) ─────────────
+// ── Register Academy Guinéenne offline SW (non-development environments) ─────────────
 // sw-schoolflow.js : Cache-First for static assets, Network-First for navigation,
 // NEVER intercepts API calls — safe for Render cold starts and African low-bandwidth.
 if (!import.meta.env.DEV && "serviceWorker" in navigator) {
@@ -132,7 +132,7 @@ if (!import.meta.env.DEV && "serviceWorker" in navigator) {
     navigator.serviceWorker
       .register("/sw-schoolflow.js", { scope: "/" })
       .then((reg) => {
-        debugLog("[SchoolFlow] offline SW registered:", reg.scope);
+        debugLog("[Academy Guinéenne] offline SW registered:", reg.scope);
         // Activate immediately if a new version is waiting
         if (reg.waiting) {
           reg.waiting.postMessage({ type: "SKIP_WAITING" });
@@ -149,7 +149,7 @@ if (!import.meta.env.DEV && "serviceWorker" in navigator) {
         });
       })
       .catch((err) => {
-        debugLog("[SchoolFlow] offline SW registration failed:", err);
+        debugLog("[Academy Guinéenne] offline SW registration failed:", err);
       });
   }, swDelay);
 }
@@ -199,7 +199,7 @@ window.addEventListener("unhandledrejection", (event) => {
 
   if (isChunkError && !sessionStorage.getItem("__chunk_reload_v2__")) {
     sessionStorage.setItem("__chunk_reload_v2__", "1");
-    console.warn("[SchoolFlow] Chunk load failed — reloading for new deployment...");
+    console.warn("[Academy Guinéenne] Chunk load failed — reloading for new deployment...");
     // Clear caches then reload
     if (window.caches) {
       window.caches

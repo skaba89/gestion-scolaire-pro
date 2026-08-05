@@ -31,7 +31,7 @@ const KioskScanPage = lazy(() => import("@/pages/public/KioskScanPage"));
 export const PublicRoutes = () => {
     return (
         <>
-            {/* SchoolFlow Pro marketing homepage */}
+            {/* Academy Guinéenne marketing homepage */}
             <Route path="/" element={<SchoolFlowHomePage />} />
 
             {/* Connection hub — search school & open branded login */}

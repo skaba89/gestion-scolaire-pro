@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SchoolFlow Pro - Rapport d'Audit Complet
+Academy Guinéenne - Rapport d'Audit Complet
 """
 import os
 from reportlab.lib.pagesizes import A4
@@ -46,10 +46,10 @@ PDF_PATH = os.path.join(OUTPUT_DIR, 'SchoolFlow_Pro_Audit_Rapport.pdf')
 doc = SimpleDocTemplate(
     PDF_PATH,
     pagesize=A4,
-    title='SchoolFlow Pro - Rapport d Audit Complet',
+    title='Academy Guinéenne - Rapport d Audit Complet',
     author='Z.ai',
     creator='Z.ai',
-    subject='Audit complet du projet SchoolFlow Pro - Stabilisation post-migration JWT',
+    subject='Audit complet du projet Academy Guinéenne - Stabilisation post-migration JWT',
     leftMargin=2*cm,
     rightMargin=2*cm,
     topMargin=2*cm,
@@ -161,7 +161,7 @@ story = []
 
 # ═══════════════════════ COVER PAGE ═══════════════════════
 story.append(Spacer(1, 100))
-story.append(Paragraph('<b>SchoolFlow Pro</b>', cover_title_style))
+story.append(Paragraph('<b>Academy Guinéenne</b>', cover_title_style))
 story.append(Spacer(1, 20))
 story.append(Paragraph('Rapport d\'Audit Complet', cover_subtitle_style))
 story.append(Spacer(1, 36))
@@ -344,7 +344,7 @@ story.append(heading('C. Correctifs appliques (detail)'))
 story.append(spacer(8))
 
 story.append(body(
-    'Cette section decrit en detail l\'ensemble des correctifs qui ont ete appliques au projet SchoolFlow Pro dans le cadre de cette mission. '
+    'Cette section decrit en detail l\'ensemble des correctifs qui ont ete appliques au projet Academy Guinéenne dans le cadre de cette mission. '
     'Chaque correctif a ete implemente de maniere pragmatique, en preservant l\'existant fonctionnel et en corrigeant specifiquement les problemes identifies.'
 ))
 

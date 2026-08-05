@@ -48,7 +48,7 @@ def _send_webhook_rejection_alert(gateway: str, transaction_id: Optional[str], r
             from_email=settings.FROM_EMAIL,
             from_name=settings.FROM_NAME,
         )
-        subject = f"[SchoolFlow] Webhook paiement rejeté — {gateway}"
+        subject = f"[Academy Guinéenne] Webhook paiement rejeté — {gateway}"
         html = (
             f"<p>Un webhook <strong>{gateway}</strong> a été rejeté (signature ou "
             f"vérification invalide).</p>"

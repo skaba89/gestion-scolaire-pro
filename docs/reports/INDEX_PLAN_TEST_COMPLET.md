@@ -1,5 +1,5 @@
 # 📚 INDEX: Plan de Test Complet + Versions Mobiles
-## SchoolFlow Pro - 2 Universités Distinctes
+## Academy Guinéenne - 2 Universités Distinctes
 
 **Date Création**: 26 Janvier 2026  
 **Version**: 1.0 Complet  

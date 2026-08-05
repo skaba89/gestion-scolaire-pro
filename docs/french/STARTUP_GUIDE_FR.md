@@ -1,4 +1,4 @@
-# 🚀 SchoolFlow Pro - DÉMARRAGE RAPIDE & REDÉMARRAGE
+# 🚀 Academy Guinéenne - DÉMARRAGE RAPIDE & REDÉMARRAGE
 
 **Date:** January 27, 2026  
 **Status:** ✅ **PROJET ENTIÈREMENT FONCTIONNEL**

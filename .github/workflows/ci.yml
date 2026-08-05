@@ -1,5 +1,5 @@
 # =============================================================================
-# SchoolFlow Pro — Continuous Integration Pipeline
+# Academy Guinéenne — Continuous Integration Pipeline
 # =============================================================================
 # Runs on push to main and pull_request to main.
 # Five independent jobs: frontend (lint+typecheck+build), browser smoke (Playwright),

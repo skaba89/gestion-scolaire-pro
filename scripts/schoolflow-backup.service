@@ -1,5 +1,5 @@
 [Unit]
-Description=SchoolFlow Pro Database Backup
+Description=Academy Guinéenne Database Backup
 After=postgresql.service docker.service
 
 [Service]

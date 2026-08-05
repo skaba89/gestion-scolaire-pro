@@ -1,6 +1,6 @@
-# SchoolFlow Pro - Backend API
+# Academy Guinéenne - Backend API
 
-Backend FastAPI pour SchoolFlow Pro - Architecture souveraine
+Backend FastAPI pour Academy Guinéenne - Architecture souveraine
 
 ## Stack Technique
 

@@ -1,6 +1,6 @@
-# Documentation - SchoolFlow Pro
+# Documentation - Academy Guinéenne
 
-Bienvenue dans la documentation de SchoolFlow Pro. Ce répertoire contient toute la documentation importante pour comprendre, développer et maintenir la plateforme.
+Bienvenue dans la documentation de Academy Guinéenne. Ce répertoire contient toute la documentation importante pour comprendre, développer et maintenir la plateforme.
 
 ## 📚 Structure
 
@@ -105,4 +105,4 @@ Utilisez le fichier `INDEX_PARAMETRES_DYNAMIQUES.md` (français) ou `INDEX_DYNAM
 
 ---
 
-**SchoolFlow Pro - Documentation Complète et Organisée**
+**Academy Guinéenne - Documentation Complète et Organisée**

@@ -2173,4 +2173,58 @@ def delete_quiz_question(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM quiz_questions WHERE id = :id AND tenant_id = :tid"),
                {"id": question_id, "tid": tenant_id})
+
+
+# ─── 33. Subject preferred rooms (/subject-preferred-rooms/) ──────────────────
+
+subject_preferred_rooms_router = APIRouter()
+
+
+@subject_preferred_rooms_router.get("/", response_model=List[Dict[str, Any]])
+def list_subject_preferred_rooms(
+    request: Request,
+    subject_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("subjects:read")),
+):
+    """GET /subject-preferred-rooms/ — list preferred rooms for a subject."""
+    from app.crud import academic as crud
+    from app.schemas.academic import SubjectPreferredRoom as SubjectPreferredRoomSchema
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    rows = crud.get_subject_preferred_rooms(db, tenant_id=tenant_id, subject_id=subject_id)
+    return [SubjectPreferredRoomSchema.model_validate(r).model_dump(mode="json") for r in rows]
+
+
+@subject_preferred_rooms_router.post("/", status_code=status.HTTP_201_CREATED, response_model=Dict[str, Any])
+def create_subject_preferred_room(
+    request: Request,
+    obj_in: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("subjects:write")),
+):
+    """POST /subject-preferred-rooms/ — link a room as preferred for a subject."""
+    from app.crud import academic as crud
+    from app.schemas.academic import SubjectPreferredRoomCreate, SubjectPreferredRoom as SubjectPreferredRoomSchema
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    payload = SubjectPreferredRoomCreate(
+        subject_id=obj_in["subject_id"],
+        room_id=obj_in["room_id"],
+    )
+    result = crud.create_subject_preferred_room(db, obj_in=payload, tenant_id=tenant_id)
+    return SubjectPreferredRoomSchema.model_validate(result).model_dump(mode="json")
+
+
+@subject_preferred_rooms_router.delete("/{link_id}/", status_code=204)
+def delete_subject_preferred_room(
+    request: Request,
+    link_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("subjects:write")),
+):
+    """DELETE /subject-preferred-rooms/{id}/ — remove a preferred room link."""
+    from app.crud import academic as crud
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    found = crud.delete_subject_preferred_room(db, link_id=link_id, tenant_id=tenant_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Preferred room link not found")
     db.commit()

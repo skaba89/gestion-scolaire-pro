@@ -1,4 +1,4 @@
-# SchoolFlow Analytics Platform
+# Academy Guinéenne Analytics Platform
 
 Ce dossier sépare clairement la partie **opérationnelle OLTP** de la partie **analytique OLAP / IA**.
 
@@ -11,7 +11,7 @@ Ce dossier sépare clairement la partie **opérationnelle OLTP** de la partie **
 ## Architecture cible
 
 ```text
-SchoolFlow OLTP PostgreSQL
+Academy Guinéenne OLTP PostgreSQL
         ↓
 CDC / Export / Airflow
         ↓

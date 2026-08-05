@@ -112,7 +112,7 @@ doc = SimpleDocTemplate(
     leftMargin=2*cm, rightMargin=2*cm, topMargin=2.2*cm, bottomMargin=2*cm,
     title='guide-deploiement-render',
     author='Z.ai', creator='Z.ai',
-    subject='Guide de deploiement SchoolFlow Pro sur Render'
+    subject='Guide de deploiement Academy Guinéenne sur Render'
 )
 
 story = []
@@ -121,7 +121,7 @@ story = []
 # COVER PAGE
 # ═══════════════════════════════════════════════════════════════════════
 story.append(Spacer(1, 100))
-story.append(Paragraph('<b>SchoolFlow Pro</b>', cover_title))
+story.append(Paragraph('<b>Academy Guinéenne</b>', cover_title))
 story.append(Spacer(1, 16))
 story.append(Paragraph('Guide de Deploiement sur Render', cover_subtitle))
 story.append(Spacer(1, 40))
@@ -143,7 +143,7 @@ story.append(PageBreak())
 story.append(Paragraph('<b>1. Architecture de Deploiement</b>', h1_style))
 story.append(Spacer(1, 6))
 story.append(Paragraph(
-    'SchoolFlow Pro est une application <font name="Times New Roman">SaaS</font> multi-tenant composee de trois parties : '
+    'Academy Guinéenne est une application <font name="Times New Roman">SaaS</font> multi-tenant composee de trois parties : '
     'un frontend <font name="Times New Roman">React</font>, un backend <font name="Times New Roman">FastAPI (Python)</font>, '
     'et une base de donnees <font name="Times New Roman">PostgreSQL</font>. Actuellement, seul le frontend est deploye sur '
     '<font name="Times New Roman">Render</font>. Le login echoue avec une erreur <font name="Times New Roman">405</font> car '
@@ -398,7 +398,7 @@ story.append(Paragraph(
 ))
 story.append(Spacer(1, 4))
 story.append(Paragraph(
-    '<font name="SarasaMonoSC">{"message": "SchoolFlow Pro API", "version": "1.0.0", "docs": "/docs"}</font>',
+    '<font name="SarasaMonoSC">{"message": "Academy Guinéenne API", "version": "1.0.0", "docs": "/docs"}</font>',
     code_style
 ))
 story.append(Spacer(1, 8))
@@ -613,7 +613,7 @@ story.append(Paragraph('<b>7. Resume des Etapes</b>', h1_style))
 story.append(Spacer(1, 8))
 story.append(Paragraph(
     'Voici le recapitulatif complet des actions a effectuer sur <font name="Times New Roman">Render</font> pour deployer '
-    'l\'ensemble de l\'application <font name="Times New Roman">SchoolFlow Pro</font> :',
+    'l\'ensemble de l\'application <font name="Times New Roman">Academy Guinéenne</font> :',
     body_style
 ))
 story.append(Spacer(1, 8))

@@ -1,4 +1,4 @@
-# SchoolFlow Superset Analytics
+# Academy Guinéenne Superset Analytics
 
 Superset doit être connecté uniquement à la base analytique `schoolflow_analytics`.
 

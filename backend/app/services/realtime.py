@@ -38,7 +38,7 @@ class ConnectionManager:
             "type": "connected",
             "tenant_id": tenant_id,
             "user_id": user_id,
-            "message": "Connected to SchoolFlow Realtime"
+            "message": "Connected to Academy Guinéenne Realtime"
         })
     
     def disconnect(self, websocket: WebSocket, tenant_id: str):

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Reliable PostgreSQL backups for SchoolFlow Pro.
+# Reliable PostgreSQL backups for Academy Guinéenne.
 # Produces an atomic custom-format archive plus a SHA-256 sidecar.
 
 set -Eeuo pipefail

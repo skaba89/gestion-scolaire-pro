@@ -8,7 +8,7 @@
 
 ## 📋 Exécutif
 
-SchoolFlow Pro a été étendu avec un **système de paramètres dynamiques** permettant aux administrateurs de personnaliser l'application sans code. Ce document résume les changements techniques et les impacts métier.
+Academy Guinéenne a été étendu avec un **système de paramètres dynamiques** permettant aux administrateurs de personnaliser l'application sans code. Ce document résume les changements techniques et les impacts métier.
 
 ### Impact Métier
 
@@ -535,5 +535,5 @@ Voir [DEMARRAGE_PARAMETRES_DYNAMIQUES.md](DEMARRAGE_PARAMETRES_DYNAMIQUES.md#faq
 
 **Version**: 1.0
 **Date**: 16 Janvier 2026
-**Auteur**: Équipe SchoolFlow Pro
+**Auteur**: Équipe Academy Guinéenne
 **État**: Production-Ready ✅

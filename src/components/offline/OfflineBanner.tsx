@@ -1,5 +1,5 @@
 /**
- * OfflineBanner — Bandeau de statut connexion pour SchoolFlow Pro Guinée
+ * OfflineBanner — Bandeau de statut connexion pour Academy Guinéenne Guinée
  *
  * Affiche :
  *   - Bandeau rouge "Hors-ligne" quand pas de connexion

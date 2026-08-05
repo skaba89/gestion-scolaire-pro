@@ -799,10 +799,10 @@ async def send_test_email(
     )
     sent = sender.send(
         to=body.to_email,
-        subject="SchoolFlow Pro — Email de test (platform admin)",
+        subject="Academy Guinéenne — Email de test (platform admin)",
         html=(
             "<p>Ceci est un email de test envoyé depuis le tableau de bord "
-            "SUPER_ADMIN de SchoolFlow Pro pour vérifier la configuration "
+            "SUPER_ADMIN de Academy Guinéenne pour vérifier la configuration "
             "Resend/SMTP de ce déploiement.</p>"
         ),
     )

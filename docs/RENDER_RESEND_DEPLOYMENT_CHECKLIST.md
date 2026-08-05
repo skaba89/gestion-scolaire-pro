@@ -2,7 +2,7 @@
 
 Ce document couvre uniquement la fiabilité des emails transactionnels
 (inscription école, reset mot de passe, invitations) sur le déploiement
-Render de SchoolFlow Pro. Pour le reste du déploiement, voir `render.yaml`
+Render de Academy Guinéenne. Pour le reste du déploiement, voir `render.yaml`
 et `docs/COMMERCIAL_READINESS.md`.
 
 ## 1. Variables Render — `schoolflow-api` (backend)

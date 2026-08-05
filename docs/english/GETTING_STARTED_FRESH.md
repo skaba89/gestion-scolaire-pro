@@ -355,5 +355,5 @@ Everything is set up and ready to use:
 ---
 
 Generated: 26 Janvier 2026  
-Project: SchoolFlow Pro  
+Project: Academy Guinéenne  
 Status: ✅ Ready for Development

@@ -1,5 +1,5 @@
 # DÉPANNAGE: Problème de Connexion & Création de Compte Admin
-**SchoolFlow Pro - Authentification Problématique**
+**Academy Guinéenne - Authentification Problématique**
 
 **Date:** January 27, 2026  
 **Problème:** Impossible de se connecter ou créer un compte admin  

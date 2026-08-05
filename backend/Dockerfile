@@ -1,4 +1,4 @@
-# SchoolFlow Pro — Backend Production Dockerfile
+# Academy Guinéenne — Backend Production Dockerfile
 # Multi-stage build: deps → runtime (slim image, non-root)
 FROM python:3.11-slim AS builder
 

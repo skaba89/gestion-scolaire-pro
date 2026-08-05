@@ -1,4 +1,4 @@
-# SchoolFlow Pro — Worklog
+# Academy Guinéenne — Worklog
 
 ---
 Task ID: 1

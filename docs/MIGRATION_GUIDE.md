@@ -1,4 +1,4 @@
-# Guide des migrations Alembic — SchoolFlow Pro
+# Guide des migrations Alembic — Academy Guinéenne
 
 Conventions établies au fil des migrations de ce projet. À suivre pour
 toute nouvelle migration afin de rester cohérent avec l'existant et éviter

@@ -1525,7 +1525,7 @@ def _build_bulletin_v2(
   <div class="footer">
     Bulletin généré le {now_str} &nbsp;·&nbsp; {esc(school_name)}
     &nbsp;·&nbsp; <strong>Confidentiel</strong> — Réservé aux parents et tuteurs légaux
-    &nbsp;·&nbsp; SchoolFlow Pro
+    &nbsp;·&nbsp; Academy Guinéenne
   </div>
 
 </div>

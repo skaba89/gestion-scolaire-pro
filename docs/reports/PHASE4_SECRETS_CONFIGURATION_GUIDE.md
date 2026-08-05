@@ -139,7 +139,7 @@ curl --request POST \
 ### Step 5: Get Sentry DSN
 
 ```bash
-# 1. Sentry Dashboard → Projects → SchoolFlow Pro
+# 1. Sentry Dashboard → Projects → Academy Guinéenne
 # 2. Settings → Client Keys → Copy DSN
 # 3. Format: https://[key]@[server]/[projectid]
 

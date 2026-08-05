@@ -1,4 +1,4 @@
-# WhatsApp Cloud API — SchoolFlow Pro
+# WhatsApp Cloud API — Academy Guinéenne
 
 ## État du chantier
 

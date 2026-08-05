@@ -1,5 +1,5 @@
 /**
- * XSS-safe HTML sanitization helpers for SchoolFlow Pro.
+ * XSS-safe HTML sanitization helpers for Academy Guinéenne.
  *
  * Uses DOMPurify when available (install `dompurify`).
  * Falls back to a basic tag-stripping approach if not installed.

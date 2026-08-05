@@ -1,4 +1,4 @@
-# SchoolFlow Pro — Docker Self-Hosting Guide
+# Academy Guinéenne — Docker Self-Hosting Guide
 
 ## Prerequisites
 

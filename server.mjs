@@ -1,5 +1,5 @@
 // =============================================================================
-// SchoolFlow Pro — Production SPA Server for Render
+// Academy Guinéenne — Production SPA Server for Render
 // =============================================================================
 // Serves the Vite build output with reliable SPA fallback AND API proxy.
 // Usage: node server.mjs
@@ -341,7 +341,7 @@ const server = createServer(serveStatic);
 
 server.listen(PORT, "0.0.0.0", async () => {
   await generateRuntimeConfig();
-  console.log(`SchoolFlow Pro frontend serving on http://0.0.0.0:${PORT}`);
+  console.log(`Academy Guinéenne frontend serving on http://0.0.0.0:${PORT}`);
   console.log(`Backend proxy: ${BACKEND_URL || "(not configured)"}`);
   console.log(`SPA fallback enabled — all routes serve ${FALLBACK}`);
 });

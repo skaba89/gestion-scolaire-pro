@@ -104,7 +104,7 @@ export default function Pricing() {
       <nav className="border-b border-gray-100 dark:border-gray-800 px-6 py-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 font-bold text-indigo-700 dark:text-indigo-400 text-lg">
           <GraduationCap className="w-6 h-6" />
-          SchoolFlow Pro
+          Academy Guinéenne
         </Link>
         <Link to="/auth">
           <Button size="sm">Se connecter</Button>
@@ -190,7 +190,7 @@ export default function Pricing() {
       <section className="bg-gray-50 dark:bg-gray-900/50 border-y border-gray-100 dark:border-gray-800 py-14 px-6">
         <div className="max-w-4xl mx-auto">
           <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-10 uppercase tracking-widest font-medium">
-            Pourquoi SchoolFlow Pro
+            Pourquoi Academy Guinéenne
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
             {[
@@ -241,7 +241,7 @@ export default function Pricing() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 dark:border-gray-800 py-8 px-6 text-center text-xs text-gray-400">
-        © {new Date().getFullYear()} SchoolFlow Pro ·{" "}
+        © {new Date().getFullYear()} Academy Guinéenne ·{" "}
         <Link to="/privacy" className="hover:underline">Confidentialité</Link>
         {" · "}
         <Link to="/terms" className="hover:underline">CGU</Link>

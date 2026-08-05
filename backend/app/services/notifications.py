@@ -1,5 +1,5 @@
 """
-Unified Notification Service — SchoolFlow Pro
+Unified Notification Service — Academy Guinéenne
 
 Free-tier stack:
   - WhatsApp Cloud API (Meta)  → 1 000 conversations/mois gratuites
@@ -509,7 +509,7 @@ class EmailSender:
         smtp_user: str = "",
         smtp_pass: str = "",
         from_email: str = "noreply@schoolflow.pro",
-        from_name: str = "SchoolFlow Pro",
+        from_name: str = "Academy Guinéenne",
     ):
         self.resend_key = resend_api_key
         self.smtp_host = smtp_host
@@ -701,7 +701,7 @@ class Templates:
     def password_reset(
         user_name: str,
         reset_url: str,
-        school_name: str = "SchoolFlow Pro",
+        school_name: str = "Academy Guinéenne",
         expires_minutes: int = 15,
     ) -> dict:
         """Password reset email — sent when a user requests a new password."""
@@ -755,7 +755,7 @@ class Templates:
     def account_invitation(
         user_name: str,
         setup_url: str,
-        school_name: str = "SchoolFlow Pro",
+        school_name: str = "Academy Guinéenne",
         expires_minutes: int = 15,
     ) -> dict:
         """Invitation email for a newly provisioned portal account."""
@@ -849,7 +849,7 @@ class NotificationService:
       fromName                   — Sender display name
     """
 
-    def __init__(self, tenant_settings: dict, school_name: str = "SchoolFlow Pro"):
+    def __init__(self, tenant_settings: dict, school_name: str = "Academy Guinéenne"):
         self.school_name = school_name
         self._settings = tenant_settings
 
@@ -1047,7 +1047,7 @@ def build_service_from_db(db, tenant_id: str) -> Optional["NotificationService"]
         settings_dict: dict = raw if isinstance(raw, dict) else (
             json.loads(raw) if raw else {}
         )
-        return NotificationService(settings_dict, school_name=row["name"] or "SchoolFlow Pro")
+        return NotificationService(settings_dict, school_name=row["name"] or "Academy Guinéenne")
     except Exception as e:
         logger.error("build_service_from_db failed: %s", e)
         return None

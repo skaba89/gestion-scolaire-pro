@@ -1,5 +1,5 @@
 # 📋 TODO LIST & PROPOSITIONS D'AMÉLIORATIONS
-## SchoolFlow Pro - 15 Janvier 2026
+## Academy Guinéenne - 15 Janvier 2026
 
 ---
 

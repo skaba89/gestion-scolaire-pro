@@ -1,6 +1,6 @@
-# Runbook — Production readiness SchoolFlow Pro
+# Runbook — Production readiness Academy Guinéenne
 
-Ce document sert de checklist avant toute mise en production réelle de SchoolFlow Pro.
+Ce document sert de checklist avant toute mise en production réelle de Academy Guinéenne.
 
 ## Statut actuel
 

@@ -52,7 +52,7 @@ _BASE_DATABASE_URL = get_secret("DATABASE_URL", "postgresql://postgres:postgres@
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "SchoolFlow Pro"
+    PROJECT_NAME: str = "Academy Guinéenne"
     API_V1_STR: str = "/api/v1"
 
     # Logging
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
 
     # Application
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
-    APP_NAME: str = "SchoolFlow Pro API"
+    APP_NAME: str = "Academy Guinéenne API"
     APP_VERSION: str = "1.0.0"
 
     # Security

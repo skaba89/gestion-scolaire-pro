@@ -1,5 +1,5 @@
 """
-AI Service for SchoolFlow Pro.
+AI Service for Academy Guinéenne.
 
 Supports several providers with automatic fallback, tried in order:
   1. Groq        — fast inference (primary if GROQ_API_KEY is set)
@@ -74,7 +74,7 @@ class _OpenAICompatibleClient:
             base_url=base_url,
             default_headers={
                 "HTTP-Referer": "https://schoolflow.pro",
-                "X-Title": "SchoolFlow Pro",
+                "X-Title": "Academy Guinéenne",
             },
         )
         self._model = model
@@ -303,7 +303,7 @@ class GroqService:
         history: Optional[list[dict[str, str]]] = None,
         *,
         stream: bool = False,
-        platform_name: str = "SchoolFlow Pro",
+        platform_name: str = "Academy Guinéenne",
     ):
         """
         General-purpose chat for school management support.
@@ -336,7 +336,7 @@ class GroqService:
         data: Any,
         *,
         stream: bool = False,
-        platform_name: str = "SchoolFlow Pro",
+        platform_name: str = "Academy Guinéenne",
     ):
         """
         Audit analysis endpoint.

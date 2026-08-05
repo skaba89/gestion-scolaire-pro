@@ -1,4 +1,4 @@
-# Plan de déploiement pilote — SchoolFlow Pro
+# Plan de déploiement pilote — Academy Guinéenne
 
 Plan pragmatique pour un premier déploiement réel avec des établissements
 guinéens, basé sur ce qui est aujourd'hui vérifié fonctionnel (voir

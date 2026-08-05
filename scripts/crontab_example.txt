@@ -1,4 +1,4 @@
-# SchoolFlow Pro - Backup Crontab Configuration
+# Academy Guinéenne - Backup Crontab Configuration
 # Place this file in /etc/cron.d/schoolflow or add to your user crontab
 
 # Run backup every day at 02:00 AM

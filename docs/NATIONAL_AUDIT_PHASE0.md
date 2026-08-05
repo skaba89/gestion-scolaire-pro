@@ -1,7 +1,7 @@
 # Audit national — Phase 0
 
 **Date** : 2026-07-24
-**Portée** : évaluer SchoolFlow Pro / gestion-scolaire-pro pour une transformation vers une plateforme nationale (1000+ établissements, Guinée/Afrique francophone).
+**Portée** : évaluer Academy Guinéenne / gestion-scolaire-pro pour une transformation vers une plateforme nationale (1000+ établissements, Guinée/Afrique francophone).
 **Méthode** : inspection directe du code (backend + frontend + CI/CD + infra), pas d'estimation — chaque constat ci-dessous est sourcé par un chemin de fichier.
 
 ---

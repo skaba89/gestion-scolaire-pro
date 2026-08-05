@@ -4,7 +4,7 @@
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║                                                                           ║
 ║   📋 PLAN DE TEST COMPLET + VERSIONS MOBILES                            ║
-║   SchoolFlow Pro - 2 Universités Distinctes                             ║
+║   Academy Guinéenne - 2 Universités Distinctes                             ║
 ║                                                                           ║
 ║   ✅ LIVRÉ COMPLET ET PRÊT À UTILISER                                   ║
 ║                                                                           ║

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create a platform-level SUPER_ADMIN user for SchoolFlow Pro.
+Create a platform-level SUPER_ADMIN user for Academy Guinéenne.
 
 The SUPER_ADMIN does NOT belong to any tenant. They operate at the platform
 level and can create/manage establishments (tenants) and their admin users.

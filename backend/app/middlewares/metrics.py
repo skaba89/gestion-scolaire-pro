@@ -1,4 +1,4 @@
-"""Prometheus metrics middleware for SchoolFlow Pro."""
+"""Prometheus metrics middleware for Academy Guinéenne."""
 import re
 import time
 import logging

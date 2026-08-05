@@ -1,5 +1,5 @@
 """
-SchoolFlow Pro — Global Search API
+Academy Guinéenne — Global Search API
 ====================================
 Full-text search across all tenant resources: students, teachers,
 payments, homework, events, and more.

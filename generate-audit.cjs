@@ -457,7 +457,7 @@ const coverChildren = [
     alignment: AlignmentType.CENTER,
     spacing: { after: 40 },
     children: [
-      new TextRun({ text: "Equipe de Securite SchoolFlow Pro", font: FONT_BODY, size: 20, color: COLOR_GRAY }),
+      new TextRun({ text: "Equipe de Securite Academy Guinéenne", font: FONT_BODY, size: 20, color: COLOR_GRAY }),
     ],
   }),
   new Paragraph({
@@ -485,19 +485,19 @@ const tocChildren = [
 const mainContent = [
   // ═══ 1. RESUME EXECUTIF ═══
   heading1("1. Resume Executif"),
-  bodyText("Le present rapport constitue l'audit de securite complet de la plateforme SchoolFlow Pro, une solution de gestion scolaire multi-tenant destinee aux etablissements d'enseignement primaire, secondaire et superieur. Cet audit couvre les phases 1 a 3 du projet et a ete realise dans le but d'evaluer de maniere exhaustive la posture de securite de l'application, d'identifier les vulnerabilites potentielles et de proposer un plan de correction priorise."),
+  bodyText("Le present rapport constitue l'audit de securite complet de la plateforme Academy Guinéenne, une solution de gestion scolaire multi-tenant destinee aux etablissements d'enseignement primaire, secondaire et superieur. Cet audit couvre les phases 1 a 3 du projet et a ete realise dans le but d'evaluer de maniere exhaustive la posture de securite de l'application, d'identifier les vulnerabilites potentielles et de proposer un plan de correction priorise."),
   bodyText("L'audit a ete conduit selon une approche methodique combinant l'analyse statique du code source, la revue des dependances, l'examen de l'infrastructure de deploiement et la modelisation des menaces. L'ensemble du perimetre technique a ete couvert, incluant le backend FastAPI en Python, le frontend React SPA, la base de donnees PostgreSQL avec politiques RLS, le cache Redis, le stockage objet MinIO ainsi que l'infrastructure Docker et les pipelines CI/CD."),
-  boldText("Perimetre de l'audit : ", "L'ensemble du code source du projet SchoolFlow Pro, incluant 40+ modeles de donnees, 60+ endpoints API, les configurations Docker, les workflows CI/CD GitHub Actions, les configurations nginx, et les scripts operationnels."),
+  boldText("Perimetre de l'audit : ", "L'ensemble du code source du projet Academy Guinéenne, incluant 40+ modeles de donnees, 60+ endpoints API, les configurations Docker, les workflows CI/CD GitHub Actions, les configurations nginx, et les scripts operationnels."),
   boldText("Methodologie : ", "Analyse statique manuelle et automatisee, revue de dependances (pip-audit, npm audit), modelisation des menaces STRIDE, tests de penetration manuels sur les endpoints critiques, et audit des politiques de securite PostgreSQL."),
   bodyText("L'audit a permis d'identifier un total de 25 vulnerabilites reparties sur quatre niveaux de gravite : 3 vulnerabilites critiques, 10 vulnerabilites haute, 9 vulnerabilites moyennes et 3 vulnerabilites faibles. Parallelement, 12 mesures de securite deja en place ont ete validees comme fonctionnelles et robustes."),
   boldText("Risques principaux identifies : ", "Les trois vulnerabilites critiques (VULN-01 a VULN-03) concerent des failles d'isolation des donnees (IDOR sur l'inventaire), une faille dans la gestion des tokens de rafraichissement et une attaque par chronometrage sur le bootstrap secret. Ces trois vulnerabilites ont toutes ete corrigees dans le cadre de cet audit."),
   boldText("Actions immediates requises : ", "La correction des vulnerabilites critiques et hautes a ete priorisee et est en grande partie terminee. Les points restants concernent principalement la migration des tokens de rafraichissement vers des cookies HttpOnly (VULN-16), l'ajout d'un CAPTCHA sur l'inscription (VULN-14) et le renforcement des scans CI/CD (VULN-13)."),
-  bodyText("Malgre les vulnerabilites identifiees, la plateforme SchoolFlow Pro dispose d'une base de securite solide avec un systeme RBAC complet de 11 roles, des politiques RLS avec FORCE ROW LEVEL SECURITY, des headers de securite comprehensifs et un systeme d'audit logging structure. L'application de l'integralite des recommandations de ce rapport placera la plateforme a un niveau de maturite securite comparable aux standards industriels du secteur educatif."),
+  bodyText("Malgre les vulnerabilites identifiees, la plateforme Academy Guinéenne dispose d'une base de securite solide avec un systeme RBAC complet de 11 roles, des politiques RLS avec FORCE ROW LEVEL SECURITY, des headers de securite comprehensifs et un systeme d'audit logging structure. L'application de l'integralite des recommandations de ce rapport placera la plateforme a un niveau de maturite securite comparable aux standards industriels du secteur educatif."),
   new Paragraph({ children: [new PageBreak()] }),
 
   // ═══ 2. METHODOLOGIE D'AUDIT ═══
   heading1("2. Methodologie d'Audit"),
-  bodyText("L'audit de securite de SchoolFlow Pro a ete realise en suivant une methodologie structuree en quatre phases distinctes, chacune ciblant un aspect specifique de la securite de l'application. Cette approche multi-couches permet d'assurer une couverture exhaustive et de ne pas omettre de zones critiques."),
+  bodyText("L'audit de securite de Academy Guinéenne a ete realise en suivant une methodologie structuree en quatre phases distinctes, chacune ciblant un aspect specifique de la securite de l'application. Cette approche multi-couches permet d'assurer une couverture exhaustive et de ne pas omettre de zones critiques."),
 
   heading2("2.1 Phase 1 — Analyse Statique du Code"),
   bodyText("La premiere phase de l'audit a consiste en une analyse statique approfondie de l'ensemble du code source du projet. Cette analyse a porte sur le backend Python/FastAPI (environ 15 000 lignes de code reparties dans les modules API, CRUD, modeles et services), le frontend React/TypeScript (environ 35 000 lignes de code incluant les composants, hooks, stores et queries) et les scripts operationnels."),
@@ -529,7 +529,7 @@ const mainContent = [
   heading1("3. Cartographie du Projet"),
 
   heading2("3.1 Vue d'Ensemble de l'Architecture"),
-  bodyText("SchoolFlow Pro est une application de gestion scolaire multi-tenant construite selon une architecture en microservices legers. L'architecture se decompose en quatre couches principales : le frontend, le backend API, la couche de donnees et la couche de stockage. Chaque couche a ete concue pour etre independante et deployable separement, tout en maintenant une communication coherente via des API RESTful et des patterns d'evenements temps reel."),
+  bodyText("Academy Guinéenne est une application de gestion scolaire multi-tenant construite selon une architecture en microservices legers. L'architecture se decompose en quatre couches principales : le frontend, le backend API, la couche de donnees et la couche de stockage. Chaque couche a ete concue pour etre independante et deployable separement, tout en maintenant une communication coherente via des API RESTful et des patterns d'evenements temps reel."),
   bodyText("Le frontend est une Single Page Application (SPA) construite avec React 18 et TypeScript, utilisant Vite comme outil de build. L'interface utilisateur est composee de shadcn/ui (composants Radix) avec Tailwind CSS 4 pour le style. L'etat global est gere via Zustand, tandis que les requetes serveur sont handled par TanStack Query (React Query). L'application supporte egalement les Progressive Web App (PWA) avec Capacitor pour le deploiement mobile natif."),
 
   heading2("3.2 Composants et Technologies"),
@@ -546,7 +546,7 @@ const mainContent = [
   bulletItem("Observabilite : Sentry, logs JSON structures, Prometheus /metrics"),
 
   heading2("3.4 Architecture de Deploiement"),
-  bodyText("Le deploiement de SchoolFlow Pro s'appuie sur une architecture conteneurisee avec Docker. Le backend est deploye sur Render avec un Dockerfile optimise (Dockerfile.render) incluant un build multi-etages. Le frontend est deploi sur Netlify avec un CDN global pour la distribution des assets statiques. Un reverse proxy nginx assure le routage, la compression gzip et la gestion des headers de securite."),
+  bodyText("Le deploiement de Academy Guinéenne s'appuie sur une architecture conteneurisee avec Docker. Le backend est deploye sur Render avec un Dockerfile optimise (Dockerfile.render) incluant un build multi-etages. Le frontend est deploi sur Netlify avec un CDN global pour la distribution des assets statiques. Un reverse proxy nginx assure le routage, la compression gzip et la gestion des headers de securite."),
   bodyText("Le fichier docker-compose.yml orchestre l'ensemble des services en environnement de developpement (backend, PostgreSQL, Redis, MinIO). Les configurations nginx incluent des regles de securite pour les headers HTTP, la gestion CORS et la redirection HTTPS. Le pipeline CI/CD utilise GitHub Actions avec des etapes de lint, tests unitaires, scans de securite et deploiement automatique."),
   new Paragraph({ children: [new PageBreak()] }),
 
@@ -569,7 +569,7 @@ const mainContent = [
 
   heading2("5.1 Authentification et Sessions"),
   heading3("5.1.1 Systeme JWT Bipartite"),
-  bodyText("Le systeme d'authentification de SchoolFlow Pro repose sur une architecture JWT bipartite composee d'un access token de courte duree (15 minutes) et d'un refresh token de longue duree (7 jours). Les tokens sont signes avec l'algorithme HS256 et contiennent les claims standard (sub, tenant_id, roles, token_version). La rotation des refresh tokens est implementee a chaque renouvellement, limitant la fenetre d'exploitation en cas de vol."),
+  bodyText("Le systeme d'authentification de Academy Guinéenne repose sur une architecture JWT bipartite composee d'un access token de courte duree (15 minutes) et d'un refresh token de longue duree (7 jours). Les tokens sont signes avec l'algorithme HS256 et contiennent les claims standard (sub, tenant_id, roles, token_version). La rotation des refresh tokens est implementee a chaque renouvellement, limitant la fenetre d'exploitation en cas de vol."),
   bodyText("Points positifs identifies : la validation de la force du mot de passe est en place (min 8 caracteres, complexite requise), l'historique des 5 derniers mots de passe empeche la reutilisation, le verrouillage de compte est actif apres 5 tentatives echouees avec un cooldown de 15 minutes, et le mecanisme de token_version permet l'invalidation globale des sessions (logout-all)."),
 
   heading3("5.1.2 Vulnerabilites Identifiees"),
@@ -581,7 +581,7 @@ const mainContent = [
 
   heading2("5.2 Multi-Tenant et Isolation des Donnees"),
   heading3("5.2.1 Politiques RLS"),
-  bodyText("L'isolation multi-tenant de SchoolFlow Pro repose sur les politiques Row Level Security (RLS) de PostgreSQL. Chaque table contenant des donnees tenant-specifiques dispose d'une politique RLS avec la clause FORCE ROW LEVEL SECURITY, garantissant que meme le proprietaire de la table (le role de service) est soumis aux politiques. Le tenant_id est injecte dans le contexte de session PostgreSQL via la fonction set_tenant_context() a chaque requete."),
+  bodyText("L'isolation multi-tenant de Academy Guinéenne repose sur les politiques Row Level Security (RLS) de PostgreSQL. Chaque table contenant des donnees tenant-specifiques dispose d'une politique RLS avec la clause FORCE ROW LEVEL SECURITY, garantissant que meme le proprietaire de la table (le role de service) est soumis aux politiques. Le tenant_id est injecte dans le contexte de session PostgreSQL via la fonction set_tenant_context() a chaque requete."),
   bodyText("L'audit a revele que les politiques RLS sont globalement bien implementees sur les tables principales. Cependant, VULN-08 a identifie que certaines politiques etaient trop permissives avec les valeurs NULL, permettant potentiellement de contourner le filtre tenant_id. VULN-09 souligne que certaines tables operationnelles plus recentes pouvaient manquer de politiques RLS, un point en cours de correction."),
 
   heading3("5.2.2 Isolation des Donnees — Points Critiques"),
@@ -593,7 +593,7 @@ const mainContent = [
 
   heading2("5.3 Protection Applicative"),
   heading3("5.3.1 Headers de Securite"),
-  bodyText("SchoolFlow Pro implemente un ensemble comprehensif de headers de securite HTTP via le middleware FastAPI. Les headers suivants sont actifs : Strict-Transport-Security (HSTS) avec max-age=31536000 (1 an) et includeSubDomains, Content-Security-Policy (CSP), X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy (strict-origin-when-cross-origin), et Permissions-Policy pour limiter l'acces aux APIs navigateur."),
+  bodyText("Academy Guinéenne implemente un ensemble comprehensif de headers de securite HTTP via le middleware FastAPI. Les headers suivants sont actifs : Strict-Transport-Security (HSTS) avec max-age=31536000 (1 an) et includeSubDomains, Content-Security-Policy (CSP), X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy (strict-origin-when-cross-origin), et Permissions-Policy pour limiter l'acces aux APIs navigateur."),
   bodyText("Cependant, la politique CSP actuelle autorise les sources http: dans la directive img-src (VULN-19), ce qui contredit l'objectif de HSTS et pourrait permettre le chargement d'images depuis des sources non securisees. La correction consiste a restreindre img-src exclusivement aux sources HTTPS et aux data: URIs. La configuration CORS est implementee par tenant avec des origines autorisees explicitement listees."),
 
   heading3("5.3.2 Protection XSS et CSRF"),
@@ -601,7 +601,7 @@ const mainContent = [
   bodyText("La protection CSRF est assuree par l'utilisation de tokens JWT dans le header Authorization (Bearer token). Les requetes sans token sont rejetees par le middleware d'authentification. Le rate limiting est implemente via Redis avec des limites par IP et par endpoint. Cependant, en production derriere un proxy inverse, le rate limiting utilise l'IP du proxy plutot que l'IP reelle du client (VULN-15), car l'en-tete X-Forwarded-For n'est pas utilise."),
 
   heading2("5.4 Fichiers et Stockage"),
-  bodyText("Le systeme de stockage de fichiers de SchoolFlow Pro s'appuie sur MinIO (compatible S3). L'upload de fichiers est gere par un endpoint dedie qui effectue une verification du type MIME, de la taille du fichier et de l'extension. Les fichiers sont stockes avec un nom genere aleatoirement pour eviter les collisions et les conflits de noms."),
+  bodyText("Le systeme de stockage de fichiers de Academy Guinéenne s'appuie sur MinIO (compatible S3). L'upload de fichiers est gere par un endpoint dedie qui effectue une verification du type MIME, de la taille du fichier et de l'extension. Les fichiers sont stockes avec un nom genere aleatoirement pour eviter les collisions et les conflits de noms."),
   bodyText("VULN-06 a identifie que les fichiers SVG etaient servis inline (Content-Type: image/svg+xml) par le navigateur, permettant l'execution de JavaScript embarque dans le SVG. La correction a modifie le Content-Disposition en attachment pour tous les fichiers SVG, forcant le telechargement plutot que le rendu inline. VULN-17 souligne que la fonction validateFile() implementee n'est pas utilisee de maniere coherente dans tous les composants d'upload du frontend, laissant des points d'entree sans validation coté client."),
 
   heading2("5.5 Base de Donnees et Migrations"),
@@ -613,7 +613,7 @@ const mainContent = [
   bodyText("Les secrets de configuration sont geres via des variables d'environnement avec support Docker Secrets. Cependant, l'audit a decouvert que certains scripts operationnels contenaient des secrets hardcodes (VULN-11), notamment le JWT secret et le mot de passe administrateur par defaut. Ces secrets ont ete remplaces par des references a des variables d'environnement. Le pipeline CI/CD (VULN-13) utilisait continue-on-error pour les scans de securite, permettant le deploiement meme en cas de vulnerabilite detectee, ce qui est en cours de correction."),
 
   heading2("5.7 Observabilite et Audit"),
-  bodyText("L'observabilite de SchoolFlow Pro repose sur plusieurs couches. Les logs d'application sont structures en JSON avec des niveaux de severite (INFO, WARNING, ERROR) et incluent des metadonnees de contexte (request_id, tenant_id, user_id). Sentry est integre pour la capture et le reporting des erreurs en production, avec des traces de pile completes et des alertes configurees."),
+  bodyText("L'observabilite de Academy Guinéenne repose sur plusieurs couches. Les logs d'application sont structures en JSON avec des niveaux de severite (INFO, WARNING, ERROR) et incluent des metadonnees de contexte (request_id, tenant_id, user_id). Sentry est integre pour la capture et le reporting des erreurs en production, avec des traces de pile completes et des alertes configurees."),
   bodyText("L'endpoint /metrics expose des metriques au format Prometheus couvrant le nombre de requetes, les temps de reponse, les taux d'erreur et les metriques specifiques au business. Cet endpoint etait initialement non authentifie (VULN-05), exposant des informations potentiellement sensibles sur l'activite de l'application. La correction a ajoute une authentification par token API. La table audit_log enregistre les actions sensibles (connexion, modification de roles, suppression de donnees) avec horodatage et identifiants utilisateur."),
   new Paragraph({ children: [new PageBreak()] }),
 
@@ -660,7 +660,7 @@ const mainContent = [
 
   // ═══ 7. STRATEGIE DE SECURITE CIBLE ═══
   heading1("7. Strategie de Securite Cible"),
-  bodyText("La strategie de securite cible pour SchoolFlow Pro vise a atteindre un niveau de maturite securite equivalent au niveau 3 du modele de maturite OWASP SAMM (Software Assurance Maturity Model). Cette strategie s'articule autour de huit axes principaux couvrant l'ensemble du cycle de vie de la securite."),
+  bodyText("La strategie de securite cible pour Academy Guinéenne vise a atteindre un niveau de maturite securite equivalent au niveau 3 du modele de maturite OWASP SAMM (Software Assurance Maturity Model). Cette strategie s'articule autour de huit axes principaux couvrant l'ensemble du cycle de vie de la securite."),
 
   heading2("7.1 Gestion des Sessions et Tokens"),
   bodyText("L'objectif est de migrer vers une architecture de tokens completement securisee avec des refresh tokens stockes exclusivement dans des cookies HttpOnly avec les attributs Secure et SameSite=Strict. Les access tokens continueront d'etre utilises dans le header Authorization pour les requetes API. La rotation des refresh tokens sera obligatoire a chaque utilisation et une politique de reutilisation detectee entrainera la revocation de toute la chaine de tokens."),
@@ -689,7 +689,7 @@ const mainContent = [
 
   // ═══ 8. CHECKLIST PRE-PRODUCTION ═══
   heading1("8. Checklist de Securite Pre-Production"),
-  bodyText("La checklist suivante doit etre entierement validee avant toute mise en production de la plateforme SchoolFlow Pro. Chaque controle est associe a une categorie, une description, un statut de validation et un commentaire."),
+  bodyText("La checklist suivante doit etre entierement validee avant toute mise en production de la plateforme Academy Guinéenne. Chaque controle est associe a une categorie, une description, un statut de validation et un commentaire."),
   emptyLine(),
   checklistTable(),
   new Paragraph({ children: [new PageBreak()] }),
@@ -744,7 +744,7 @@ const mainContent = [
     alignment: AlignmentType.CENTER,
     spacing: { after: 100 },
     children: [
-      new TextRun({ text: "SchoolFlow Pro — Audit de Securite Complet — 14 avril 2026", font: FONT_BODY, size: 20, color: COLOR_GRAY, italics: true }),
+      new TextRun({ text: "Academy Guinéenne — Audit de Securite Complet — 14 avril 2026", font: FONT_BODY, size: 20, color: COLOR_GRAY, italics: true }),
     ],
   }),
   new Paragraph({
@@ -836,7 +836,7 @@ async function main() {
               new Paragraph({
                 alignment: AlignmentType.RIGHT,
                 children: [
-                  new TextRun({ text: "SchoolFlow Pro — Audit de Securite Complet", font: FONT_BODY, size: 16, color: COLOR_GRAY, italics: true }),
+                  new TextRun({ text: "Academy Guinéenne — Audit de Securite Complet", font: FONT_BODY, size: 16, color: COLOR_GRAY, italics: true }),
                 ],
               }),
             ],

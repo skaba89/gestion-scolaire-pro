@@ -214,7 +214,7 @@ ${data.effectifs_par_niveau.length > 0 ? `
   <div class="sig-box">Le Directeur Régional de l'Éducation<br><br><br><br>Signature et cachet</div>
 </div>
 
-<div class="meta">Rapport généré le ${data.date_rapport} à ${data.heure_rapport} par SchoolFlow Pro — ${data.nom_etablissement}</div>
+<div class="meta">Rapport généré le ${data.date_rapport} à ${data.heure_rapport} par Academy Guinéenne — ${data.nom_etablissement}</div>
 </body>
 </html>`;
 

@@ -1,11 +1,13 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from uuid import UUID
 from datetime import datetime
 
 from app.models import (
-    AcademicYear, Term, Campus, Level, Subject, 
+    AcademicYear, Term, Campus, Level, Subject,
     Department, Room, Program, Classroom, Enrollment,
+    SubjectPreferredRoom,
     subject_levels, subject_departments, classroom_departments, class_subjects
 )
 from app.schemas.academic import (
@@ -18,7 +20,8 @@ from app.schemas.academic import (
     RoomCreate, RoomUpdate,
     ProgramCreate, ProgramUpdate,
     ClassroomCreate, ClassroomUpdate,
-    EnrollmentCreate, EnrollmentUpdate
+    EnrollmentCreate, EnrollmentUpdate,
+    SubjectPreferredRoomCreate
 )
 
 # --- Academic Year ---
@@ -336,8 +339,22 @@ def create_classroom(db: Session, obj_in: ClassroomCreate, tenant_id: UUID) -> C
     return db_obj
 
 # --- Enrollment ---
-def get_enrollments(db: Session, tenant_id: UUID) -> List[Enrollment]:
-    return db.query(Enrollment).filter(Enrollment.tenant_id == tenant_id).all()
+def get_enrollments(
+    db: Session,
+    tenant_id: UUID,
+    class_id: Optional[UUID] = None,
+    status: Optional[str] = None,
+) -> List[Enrollment]:
+    query = db.query(Enrollment).options(joinedload(Enrollment.student)).filter(
+        Enrollment.tenant_id == tenant_id
+    )
+    if class_id is not None:
+        query = query.filter(Enrollment.class_id == class_id)
+    if status is not None:
+        # Enrollment.status is stored uppercase (e.g. "ACTIVE") but callers
+        # (useAttendance.ts) send lowercase — compare case-insensitively.
+        query = query.filter(func.upper(Enrollment.status) == status.upper())
+    return query.all()
 
 def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) -> Enrollment:
     db_obj = Enrollment(**obj_in.model_dump(), tenant_id=tenant_id)
@@ -345,3 +362,41 @@ def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) ->
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+# --- Subject Preferred Rooms ---
+def get_subject_preferred_rooms(
+    db: Session, tenant_id: UUID, subject_id: Optional[UUID] = None
+) -> List[SubjectPreferredRoom]:
+    query = db.query(SubjectPreferredRoom).options(
+        joinedload(SubjectPreferredRoom.room)
+    ).filter(SubjectPreferredRoom.tenant_id == tenant_id)
+    if subject_id is not None:
+        query = query.filter(SubjectPreferredRoom.subject_id == subject_id)
+    return query.all()
+
+def create_subject_preferred_room(
+    db: Session, obj_in: SubjectPreferredRoomCreate, tenant_id: UUID
+) -> SubjectPreferredRoom:
+    existing = db.query(SubjectPreferredRoom).filter(
+        SubjectPreferredRoom.tenant_id == tenant_id,
+        SubjectPreferredRoom.subject_id == obj_in.subject_id,
+        SubjectPreferredRoom.room_id == obj_in.room_id,
+    ).first()
+    if existing:
+        return existing
+    db_obj = SubjectPreferredRoom(**obj_in.model_dump(), tenant_id=tenant_id)
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def delete_subject_preferred_room(db: Session, link_id: UUID, tenant_id: UUID) -> bool:
+    db_obj = db.query(SubjectPreferredRoom).filter(
+        SubjectPreferredRoom.id == link_id,
+        SubjectPreferredRoom.tenant_id == tenant_id,
+    ).first()
+    if not db_obj:
+        return False
+    db.delete(db_obj)
+    db.commit()
+    return True

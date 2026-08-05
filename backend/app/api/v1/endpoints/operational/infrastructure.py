@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -81,10 +81,17 @@ def create_classroom(
 @router.get("/enrollments/", response_model=List[Enrollment])
 def read_enrollments(
     request: Request,
+    class_id: Optional[UUID] = Query(None),
+    status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return crud.get_enrollments(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    return crud.get_enrollments(
+        db,
+        tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
+        class_id=class_id,
+        status=status,
+    )
 
 @router.post("/enrollments/", response_model=Enrollment)
 def create_enrollment(

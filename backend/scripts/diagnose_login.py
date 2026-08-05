@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SchoolFlow Pro — Login Diagnostic Script (Python)
+Academy Guinéenne — Login Diagnostic Script (Python)
 
 Performs comprehensive checks from database connectivity through JWT validation
 to identify the root cause of login failures.
@@ -101,7 +101,7 @@ def _remediate(msg: str) -> None:
 def _header() -> None:
     print()
     print(f"{Color.CYAN}╔══════════════════════════════════════════════════════════════╗{Color.NC}")
-    print(f"{Color.CYAN}║{Color.BOLD}  SchoolFlow Pro — Login Diagnostic Script (Python){Color.NC}         {Color.CYAN}║{Color.NC}")
+    print(f"{Color.CYAN}║{Color.BOLD}  Academy Guinéenne — Login Diagnostic Script (Python){Color.NC}         {Color.CYAN}║{Color.NC}")
     print(f"{Color.CYAN}╚══════════════════════════════════════════════════════════════╝{Color.NC}")
     print(f"  {Color.DIM}{time.strftime('%Y-%m-%d %H:%M:%S')}{Color.NC}")
 
@@ -664,7 +664,7 @@ def check_users_me() -> None:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="SchoolFlow Pro — Login Diagnostic Script")
+    parser = argparse.ArgumentParser(description="Academy Guinéenne — Login Diagnostic Script")
     parser.add_argument(
         "--env",
         type=Path,

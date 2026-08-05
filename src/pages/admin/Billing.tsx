@@ -187,7 +187,7 @@ export default function Billing() {
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
               Votre demande ({pendingRequest.plan_slug ?? "plan"} — {pendingRequest.billing_cycle === "yearly" ? "annuel" : "mensuel"},
               via {PAYMENT_METHODS.find((m) => m.id === pendingRequest.payment_provider)?.label ?? pendingRequest.payment_provider})
-              sera activée dès que le paiement aura été vérifié par l'équipe SchoolFlow Pro.
+              sera activée dès que le paiement aura été vérifié par l'équipe Academy Guinéenne.
             </p>
           </div>
         </div>
@@ -397,7 +397,7 @@ export default function Billing() {
         <p>
           Les abonnements se règlent par <strong>Orange Money, MTN MoMo ou virement bancaire</strong>.
           Chaque paiement est vérifié manuellement avant activation — conservez votre référence de transaction.
-          SchoolFlow Pro ne stocke jamais vos coordonnées bancaires.
+          Academy Guinéenne ne stocke jamais vos coordonnées bancaires.
         </p>
       </div>
     </div>

@@ -227,7 +227,7 @@ export default function Register() {
           <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-3xl flex items-center justify-center mx-auto mb-6 border border-white/20">
             <GraduationCap className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-3">SchoolFlow Pro</h1>
+          <h1 className="text-3xl font-bold text-white mb-3">Academy Guinéenne</h1>
           <p className="text-indigo-200 text-sm leading-relaxed mb-8">
             Créez votre espace scolaire en moins de 2 minutes et commencez votre essai Pro gratuit de 30 jours.
           </p>

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SchoolFlow Pro - Rapport d'Audit Complet de Bout en Bout
+Academy Guinéenne - Rapport d'Audit Complet de Bout en Bout
 """
 
 from reportlab.lib.pagesizes import A4
@@ -174,9 +174,9 @@ doc = TocDocTemplate(
     output_path, pagesize=A4,
     leftMargin=2.5*cm, rightMargin=2.5*cm,
     topMargin=2.5*cm, bottomMargin=2.5*cm,
-    title='SchoolFlow Pro - Audit Complet de Bout en Bout',
+    title='Academy Guinéenne - Audit Complet de Bout en Bout',
     author='Z.ai', creator='Z.ai',
-    subject='Audit complet du systeme de gestion scolaire SchoolFlow Pro - Backend, Frontend, Cohérence'
+    subject='Audit complet du systeme de gestion scolaire Academy Guinéenne - Backend, Frontend, Cohérence'
 )
 
 story = []
@@ -186,7 +186,7 @@ page_w = A4[0] - 2.5*cm - 2.5*cm
 # COVER PAGE
 # ════════════════════════════════════════════
 story.append(Spacer(1, 100))
-story.append(Paragraph('<b>SchoolFlow Pro</b>', cover_title_style))
+story.append(Paragraph('<b>Academy Guinéenne</b>', cover_title_style))
 story.append(Spacer(1, 20))
 story.append(Paragraph('<b>Rapport d\'Audit Complet</b>', cover_subtitle_style))
 story.append(Paragraph('De Bout en Bout - Backend, Frontend, Cohérence', cover_subtitle_style))
@@ -246,7 +246,7 @@ story.append(PageBreak())
 story.append(add_heading('<b>1. Résumé Exécutif</b>', h1_style, 0))
 
 story.append(Paragraph(
-    'SchoolFlow Pro est un système de gestion scolaire complet déployé sur Render, '
+    'Academy Guinéenne est un système de gestion scolaire complet déployé sur Render, '
     'combinant un backend FastAPI/SQLAlchemy et un frontend React/Vite/TypeScript. Cette audit de bout en bout '
     'couvre l\'architecture backend, les composants frontend, et la cohérence entre les deux couches. '
     'L\'analyse a révélé un projet ambitieux avec une couverture fonctionnelle remarquable, '
@@ -297,7 +297,7 @@ story.append(Spacer(1, 18))
 story.append(add_heading('<b>2. Audit Backend</b>', h1_style, 0))
 
 story.append(Paragraph(
-    'Le backend SchoolFlow Pro est construit avec FastAPI et SQLAlchemy, suivant une architecture en couches '
+    'Le backend Academy Guinéenne est construit avec FastAPI et SQLAlchemy, suivant une architecture en couches '
     'standard (endpoints, CRUD, models, schemas). Il intègre un système multi-tenant avec Row-Level Security (RLS), '
     'un RBAC à 10 rôles, du logging structuré, et des métriques Prometheus. '
     'L\'audit a révélé des problèmes de sécurité critiques et une '
@@ -769,7 +769,7 @@ story.append(Paragraph('<b>Tableau 16.</b> Estimation globale de l\'effort de co
 story.append(Spacer(1, 18))
 
 story.append(Paragraph(
-    'Cet audit révèle un projet SchoolFlow Pro avec une couverture fonctionnelle impressionnante '
+    'Cet audit révèle un projet Academy Guinéenne avec une couverture fonctionnelle impressionnante '
     'et une architecture globalement saine, mais nécessitant des corrections urgentes en matière de '
     'sécurité et de cohérence frontend-backend. Les 8 actions P0 (estimées à 13 heures) '
     'devraient être traitées en priorité absolue pour sécuriser le déploiement de production '

@@ -1,4 +1,4 @@
-"""Standardized exception hierarchy for SchoolFlow Pro."""
+"""Standardized exception hierarchy for Academy Guinéenne."""
 from typing import Any, Optional
 import logging
 

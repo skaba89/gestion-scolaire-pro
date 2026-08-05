@@ -1,6 +1,6 @@
-# Copilot Instructions - SchoolFlow Pro
+# Copilot Instructions - Academy Guinéenne
 
-SchoolFlow Pro is a **multi-tenant school management platform** built with React/Vite frontend and FastAPI backend with native JWT authentication. Key architectural decisions require understanding tenant isolation, role-based access, and JWT patterns.
+Academy Guinéenne is a **multi-tenant school management platform** built with React/Vite frontend and FastAPI backend with native JWT authentication. Key architectural decisions require understanding tenant isolation, role-based access, and JWT patterns.
 
 ## Architecture Overview
 

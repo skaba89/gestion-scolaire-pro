@@ -60,7 +60,7 @@ export const useGrades = (filters?: GradeFilters & { classId?: string; subjectId
     queryKey: ["classroom-students-grades", filters?.classId],
     queryFn: async () => {
       if (!filters?.classId) return [];
-      const { data } = await apiClient.get(`/infrastructure/enrollments`, {
+      const { data } = await apiClient.get(`/infrastructure/enrollments/`, {
         params: { class_id: filters.classId }
       });
       // The old frontend expected a specific format:

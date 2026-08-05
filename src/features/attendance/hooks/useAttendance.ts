@@ -54,7 +54,7 @@ export const useAttendance = (filters?: AttendanceFilters & { classId?: string; 
     queryKey: ["classroom-students-attendance", filters?.classId],
     queryFn: async () => {
       if (!filters?.classId) return [];
-      const { data } = await apiClient.get('/infrastructure/enrollments', {
+      const { data } = await apiClient.get('/infrastructure/enrollments/', {
         params: { class_id: filters.classId, status: 'active' }
       });
       return data.map((enrollment: any) => ({

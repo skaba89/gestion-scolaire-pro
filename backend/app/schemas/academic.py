@@ -211,6 +211,23 @@ class Room(RoomBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+# --- Subject Preferred Room ---
+class SubjectPreferredRoomBase(BaseModel):
+    subject_id: UUID
+    room_id: UUID
+
+class SubjectPreferredRoomCreate(SubjectPreferredRoomBase):
+    pass
+
+class SubjectPreferredRoom(SubjectPreferredRoomBase):
+    id: UUID
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+    room: Optional[Room] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 # --- Classroom (Classes) ---
 class ClassroomBase(BaseModel):
     name: str
@@ -243,6 +260,14 @@ class Classroom(ClassroomBase):
     model_config = ConfigDict(from_attributes=True)
 
 # --- Enrollment ---
+class EnrollmentStudentBrief(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    registration_number: str
+
+    model_config = ConfigDict(from_attributes=True)
+
 class EnrollmentBase(BaseModel):
     student_id: UUID
     class_id: UUID
@@ -264,5 +289,6 @@ class Enrollment(EnrollmentBase):
     tenant_id: UUID
     created_at: datetime
     updated_at: datetime
+    student: Optional[EnrollmentStudentBrief] = None
 
     model_config = ConfigDict(from_attributes=True)

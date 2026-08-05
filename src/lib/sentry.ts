@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/react';
 
 /**
- * Sentry Configuration for SchoolFlow Pro
+ * Sentry Configuration for Academy Guinéenne
  * 
  * Environment Variables Required:
  * - VITE_SENTRY_DSN: Sentry Data Source Name

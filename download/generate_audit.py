@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SchoolFlow Pro - Audit Complet Avril 2026"""
+"""Academy Guinéenne - Audit Complet Avril 2026"""
 import os
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
@@ -141,14 +141,14 @@ doc = SimpleDocTemplate(
     leftMargin=2*cm, rightMargin=2*cm, topMargin=2.2*cm, bottomMargin=2*cm,
     title='SchoolFlow_Pro_Audit_Avril2026',
     author='Z.ai', creator='Z.ai',
-    subject='Audit complet SchoolFlow Pro - Corrections erreurs console et analyse'
+    subject='Audit complet Academy Guinéenne - Corrections erreurs console et analyse'
 )
 story = []
 usable_width = A4[0] - 4*cm
 
 # ═══════════════════ COVER PAGE ═══════════════════════════
 story.append(Spacer(1, 100))
-story.append(Paragraph('<b>SchoolFlow Pro</b>', cover_title_style))
+story.append(Paragraph('<b>Academy Guinéenne</b>', cover_title_style))
 story.append(Spacer(1, 20))
 story.append(Paragraph('<b>Rapport d\'Audit Complet</b>', cover_subtitle_style))
 story.append(Spacer(1, 10))
@@ -187,7 +187,7 @@ story.append(PageBreak())
 story.append(h('1. Synthese Executive'))
 story.append(p(
     'Cet audit a ete declenche par la detection de multiples erreurs dans la console du navigateur '
-    'lors de l\'utilisation de SchoolFlow Pro en production sur Render. Neuf erreurs distinctes ont ete '
+    'lors de l\'utilisation de Academy Guinéenne en production sur Render. Neuf erreurs distinctes ont ete '
     'identifiees, allant de simples 404 (endpoints manquants) a des erreurs 422 (validation de requete) '
     'et 405 (methode non autorisee). L\'investigation a revele que la cause principale etait un ensemble '
     'de 10 fichiers backend modifies localement mais jamais pousses sur le depot Git distant, laissant '
@@ -300,7 +300,7 @@ story.append(Spacer(1, 12))
 # ═══════════════════ 4. ARCHITECTURE ENDPOINTS ═══════════
 story.append(h('4. Architecture des Endpoints Backend'))
 story.append(p(
-    'Le backend FastAPI de SchoolFlow Pro est organise en trois couches d\'endpoints : core (authentification, '
+    'Le backend FastAPI de Academy Guinéenne est organise en trois couches d\'endpoints : core (authentification, '
     'utilisateurs, tenants, audit, AI), academic (eleves, notes, emplois du temps, presences) et operational '
     '(infrastructure, RH, vie scolaire, admissions). Un systeme d\'alias routers dans aliases.py fournit des '
     'URLs complementaires que le frontend attend, deleguant vers la logique existante. Au total, le routeur '
