@@ -42,7 +42,7 @@ export const SubjectPreferredRoomsManager = ({ subjectId, tenantId }: SubjectPre
     const { data: subjectRooms = [], isLoading: loadingSubjectRooms } = useQuery({
         queryKey: ["subject-rooms", subjectId],
         queryFn: async () => {
-            const response = await apiClient.get("/subject-preferred-rooms", {
+            const response = await apiClient.get("/subject-preferred-rooms/", {
                 params: { subject_id: subjectId },
             });
             return response.data;
@@ -60,7 +60,7 @@ export const SubjectPreferredRoomsManager = ({ subjectId, tenantId }: SubjectPre
         if (!selectedRoomId) return;
         setAdding(true);
         try {
-            await apiClient.post("/subject-preferred-rooms", {
+            await apiClient.post("/subject-preferred-rooms/", {
                 tenant_id: tenantId,
                 subject_id: subjectId,
                 room_id: selectedRoomId,
@@ -82,7 +82,7 @@ export const SubjectPreferredRoomsManager = ({ subjectId, tenantId }: SubjectPre
 
     const handleRemoveRoom = async (linkId: string) => {
         try {
-            await apiClient.delete(`/subject-preferred-rooms/${linkId}`);
+            await apiClient.delete(`/subject-preferred-rooms/${linkId}/`);
 
             toast({ title: "Succès", description: "Salle préférentielle retirée" });
             queryClient.invalidateQueries({ queryKey: ["subject-rooms", subjectId] });

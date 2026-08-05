@@ -89,7 +89,7 @@ export const useAuditLog = () => {
     try {
       // Sovereign architecture handles critical audit logs on the server side.
       // Optional: Call a sovereign API endpoint for audit if needed in the future
-      // await apiClient.post('/audit/logs', { ... })
+      // await apiClient.post('/audit/log', { ... }) // singular, matches backend route (see useLoginTracking.ts)
     } catch (error) {
       console.error("Failed to log audit event:", error);
     }

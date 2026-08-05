@@ -20,6 +20,7 @@ from app.models.room import Room
 from app.models.program import Program
 from app.models.classroom import Classroom
 from app.models.enrollment import Enrollment
+from app.models.subject_preferred_room import SubjectPreferredRoom
 from app.models.employee import Employee
 from app.models.contract import Contract
 from app.models.leave_request import LeaveRequest
