@@ -43,7 +43,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     if (isSuperAdmin()) {
       const fetchAllTenants = async () => {
         try {
-          const response = await apiClient.get('/tenants');
+          const response = await apiClient.get('/tenants/');
           setAllTenants(response.data);
         } catch (error) {
           if (import.meta.env.DEV) console.error("Error fetching all tenants:", error);
@@ -80,7 +80,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       const fetchLastTenant = async () => {
         setIsLoading(true);
         try {
-          const response = await apiClient.get(`/tenants/${lastTenantId}`);
+          const response = await apiClient.get(`/tenants/${lastTenantId}/`);
           if (response.data) {
             setCurrentTenant(response.data);
             setIsManualSelection(true);
@@ -145,7 +145,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     const fetchUserTenant = async () => {
       setIsLoading(true);
       try {
-        const response = await apiClient.get(`/tenants/${profile.tenant_id}`);
+        const response = await apiClient.get(`/tenants/${profile.tenant_id}/`);
         if (response.data) {
           const tenant = response.data;
           setCurrentTenant(tenant);
@@ -435,7 +435,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
   const switchTenant = useCallback(async (tenantId: string) => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get(`/tenants/${tenantId}`);
+      const response = await apiClient.get(`/tenants/${tenantId}/`);
       if (response.data) {
         const tenant = response.data;
         setCurrentTenant(tenant);
