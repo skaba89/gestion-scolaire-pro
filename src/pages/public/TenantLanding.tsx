@@ -24,6 +24,17 @@ function detectCustomDomain(): string | undefined {
   if (knownDomains.some((d) => hostname === d || hostname.endsWith(`.${d}`))) {
     return undefined;
   }
+  // Platform hosting suffixes (Render/Netlify auto-generated subdomains, e.g.
+  // gestion-scolaire-pro-9on3.onrender.com): a real tenant custom domain never
+  // resolves as a subdomain of the hosting provider's own domain, so any
+  // hostname ending in one of these is always the platform itself, not a
+  // tenant. Without this check, deployments on a *.onrender.com/*.netlify.app
+  // URL (no custom "schoolflow" name) were misidentified as a tenant custom
+  // domain, disabling slug-based lookup and 404ing on every /:tenantSlug page.
+  const platformHostingSuffixes = ['onrender.com', 'netlify.app', 'vercel.app'];
+  if (platformHostingSuffixes.some((d) => hostname === d || hostname.endsWith(`.${d}`))) {
+    return undefined;
+  }
   if (hostname.includes('schoolflow')) return undefined;
   return hostname;
 }
