@@ -46,6 +46,26 @@ def get_test_client():
     return client
 
 
+def redis_is_available() -> bool:
+    """Best-effort synchronous probe for a reachable Redis, used to skip
+    tests whose behavior (rate limiting, token blacklist, account lockout)
+    is implemented with an explicit fail-open fallback when Redis is down
+    (see auth.py "Redis unavailable ... (fail-open)" warnings) — those
+    tests can't observe the blocking behavior they assert without a real
+    Redis, and fail with misleading 200/401-vs-429 assertion errors rather
+    than a clean skip when run in a sandbox/CI job with no Redis service."""
+    try:
+        import redis as redis_sync
+        client = redis_sync.from_url(
+            os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        return bool(client.ping())
+    except Exception:
+        return False
+
+
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///./test_schoolflow.db"
 
 # ─── Base de données test ───────────────────────────────────────────────────────

@@ -16,9 +16,21 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-pytest-only-32chars")
 
 import jwt as jwt_lib
 import pytest
-from conftest import get_test_client
+from conftest import get_test_client, redis_is_available
 
 client = get_test_client()
+
+# Blacklist/active-session enforcement is Redis-backed and fails OPEN (never
+# blocks) when Redis is unreachable — see auth.py's "Redis unavailable ...
+# (fail-open)" warning, and test_blacklist_check_fails_open_when_redis_
+# unavailable below, which specifically covers that intentional degraded
+# mode. The tests marked here assert the *blocking* behavior itself (401
+# after blacklist, 429 on a 6th session), which can't be observed without a
+# real Redis; skip cleanly instead of a misleading "assert 200 == 401".
+_needs_redis = pytest.mark.skipif(
+    not redis_is_available(),
+    reason="token blacklist/active-session limits are Redis-backed and fail open without it",
+)
 
 BOOTSTRAP_URL = "/api/v1/auth/bootstrap/"
 LOGIN_URL = "/api/v1/auth/login/"
@@ -102,6 +114,7 @@ class TestGlobalTokenRevocation:
         assert payload.get("jti")
         assert len(payload["jti"]) > 0
 
+    @_needs_redis
     def test_logout_blacklists_jti_and_api_call_returns_401(self):
         """2 + 3. Le logout blackliste le jti ; un appel API ultérieur avec
         ce même token (sur une route SANS rapport avec /auth/refresh/)
@@ -121,6 +134,7 @@ class TestGlobalTokenRevocation:
         after = client.get(ME_URL, headers=headers)
         assert after.status_code == 401, after.text
 
+    @_needs_redis
     def test_refresh_with_blacklisted_token_returns_401(self):
         """4. /auth/refresh/ rejette également un token blacklisté (déjà
         correct avant ce correctif, reste couvert en non-régression)."""
@@ -176,6 +190,7 @@ class TestActiveSessionsAtLogin:
         # indéfiniment. On le confirme via le test dédié ci-dessous
         # (5 logins OK, 6e refusé) plutôt que de dupliquer la boucle ici.
 
+    @_needs_redis
     def test_sixth_concurrent_login_returns_429(self):
         """2. Un 6e login concurrent (sans logout entre-temps) est refusé
         avec 429 — la limite de 5 sessions s'applique désormais dès le
@@ -189,6 +204,7 @@ class TestActiveSessionsAtLogin:
         sixth = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
         assert sixth.status_code == 429, sixth.text
 
+    @_needs_redis
     def test_logout_removes_active_session(self):
         """3. Le logout libère un slot de session : après avoir rempli les
         5 sessions puis déconnecté l'une d'elles, un nouveau login doit
@@ -244,6 +260,7 @@ class TestActiveSessionsAtLogin:
 # get_current_user() (all authenticated routes) and into /auth/refresh/
 # (before minting a replacement token).
 class TestLogoutAllInvalidatesOldTokens:
+    @_needs_redis
     def test_old_token_rejected_after_logout_all(self):
         """A token obtained BEFORE logout-all must stop working on an
         ordinary authenticated route afterwards — this is the actual bug:
@@ -265,6 +282,7 @@ class TestLogoutAllInvalidatesOldTokens:
         after = client.get(ME_URL, headers=headers)
         assert after.status_code == 401, after.text
 
+    @_needs_redis
     def test_old_token_cannot_refresh_after_logout_all(self):
         """A stale token must not be able to mint itself a fresh, valid
         token via /auth/refresh/ — previously refresh only re-stamped the
@@ -294,6 +312,7 @@ class TestLogoutAllInvalidatesOldTokens:
         me_resp = client.get(ME_URL, headers={"Authorization": f"Bearer {new_token}"})
         assert me_resp.status_code == 200, me_resp.text
 
+    @_needs_redis
     def test_calling_token_is_immediately_blacklisted_by_real_jti(self):
         """logout-all must blacklist the JTI actually embedded in the calling
         token's payload, not a hash of the raw token string. Before this fix,

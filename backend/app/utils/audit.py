@@ -20,14 +20,23 @@ def log_audit(
 ):
     """
     Helper function to record an audit log entry.
+
+    user_id/resource_id are String(255) columns with no type converter
+    (unlike tenant_id, which goes through TenantMixin's GUID type). Call
+    sites across the codebase sometimes pass a raw uuid.UUID object (e.g.
+    a FastAPI path param typed `UUID`, or a model's `.id`) instead of a
+    string. That silently works on PostgreSQL (psycopg adapts UUID objects
+    for text columns) but raises `sqlite3.ProgrammingError: Error binding
+    parameter` on SQLite, and is fragile either way — normalize once here
+    rather than requiring every caller to remember `str(...)`.
     """
     try:
         audit_entry = AuditLog(
-            user_id=user_id,
+            user_id=str(user_id) if user_id is not None else None,
             tenant_id=tenant_id,
             action=action,
             resource_type=resource_type,
-            resource_id=resource_id,
+            resource_id=str(resource_id) if resource_id is not None else None,
             details=details,
             ip_address=ip_address,
             severity=severity,
