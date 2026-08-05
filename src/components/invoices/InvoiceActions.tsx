@@ -59,7 +59,7 @@ export function InvoiceActions({ invoice, compact = false }: InvoiceActionsProps
       let schedules: any[] = [];
       if (invoice.has_payment_plan) {
         try {
-          const { data } = await apiClient.get("/payment-schedules", {
+          const { data } = await apiClient.get("/payment-schedules/", {
             params: { invoice_id: invoice.id, ordering: "installment_number" },
           });
           if (data) {

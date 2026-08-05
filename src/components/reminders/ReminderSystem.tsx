@@ -133,7 +133,7 @@ export const ReminderSystem = () => {
       if (!user?.id || !tenant?.id) return [];
 
       // Get student record
-      const studentResponse = await apiClient.get("/students", {
+      const studentResponse = await apiClient.get("/students/", {
         params: { user_id: user.id, tenant_id: tenant.id },
       });
       const student = studentResponse.data?.[0] || null;
@@ -141,7 +141,7 @@ export const ReminderSystem = () => {
       if (!student) return [];
 
       // Get student's enrollment
-      const enrollmentResponse = await apiClient.get("/enrollments", {
+      const enrollmentResponse = await apiClient.get("/enrollments/", {
         params: { student_id: student.id, status: "active" },
       });
       const enrollment = enrollmentResponse.data?.[0] || null;
@@ -149,7 +149,7 @@ export const ReminderSystem = () => {
       if (!enrollment) return [];
 
       // Get upcoming homework
-      const homeworkResponse = await apiClient.get("/homework", {
+      const homeworkResponse = await apiClient.get("/homework/", {
         params: {
           class_id: enrollment.class_id,
           tenant_id: tenant.id,
@@ -202,7 +202,7 @@ export const ReminderSystem = () => {
 
       const today = new Date().toISOString().split("T")[0];
 
-      const eventsResponse = await apiClient.get("/school-events", {
+      const eventsResponse = await apiClient.get("/school-events/", {
         params: {
           tenant_id: tenant.id,
           start_date__gte: today,

@@ -59,7 +59,7 @@ export function PaymentScheduleManager({ invoice, onUpdate }: PaymentScheduleMan
   const { data: schedules, isLoading } = useQuery({
     queryKey: ["payment-schedules", invoice.id],
     queryFn: async () => {
-      const response = await apiClient.get("/payment-schedules", {
+      const response = await apiClient.get("/payment-schedules/", {
         params: { invoice_id: invoice.id, ordering: "installment_number" },
       });
       return response.data;
@@ -94,15 +94,15 @@ export function PaymentScheduleManager({ invoice, onUpdate }: PaymentScheduleMan
       }
 
       // Delete existing schedules first
-      await apiClient.delete("/payment-schedules", {
+      await apiClient.delete("/payment-schedules/", {
         params: { invoice_id: invoice.id },
       });
 
       // Insert new schedules
-      await apiClient.post("/payment-schedules", schedulesToInsert);
+      await apiClient.post("/payment-schedules/", schedulesToInsert);
 
       // Update invoice to mark it has a payment plan
-      await apiClient.put(`/invoices/${invoice.id}`, { 
+      await apiClient.put(`/invoices/${invoice.id}/`, { 
         has_payment_plan: true, 
         installments_count: installmentsCount 
       });
@@ -119,11 +119,11 @@ export function PaymentScheduleManager({ invoice, onUpdate }: PaymentScheduleMan
 
   const deleteSchedule = useMutation({
     mutationFn: async () => {
-      await apiClient.delete("/payment-schedules", {
+      await apiClient.delete("/payment-schedules/", {
         params: { invoice_id: invoice.id },
       });
 
-      await apiClient.put(`/invoices/${invoice.id}`, { has_payment_plan: false, installments_count: 1 });
+      await apiClient.put(`/invoices/${invoice.id}/`, { has_payment_plan: false, installments_count: 1 });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-schedules"] });

@@ -88,7 +88,7 @@ export const useTeacherData = (teacherId?: string) => {
             if (!currentTenant?.id || !targetId) return null;
             // Note: If targetId != current_user, might need to pass it as query param, 
             // but usually this is used for the logged-in teacher.
-            const { data } = await apiClient.get('/teachers/dashboard', {
+            const { data } = await apiClient.get('/teachers/dashboard/', {
                 params: { teacher_id: targetId }
             });
             return data;

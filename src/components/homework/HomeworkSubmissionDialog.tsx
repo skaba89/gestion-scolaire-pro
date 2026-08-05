@@ -53,7 +53,7 @@ const HomeworkSubmissionDialog = ({
           submitted_at: new Date().toISOString(),
         });
       } else {
-        await apiClient.post("/homework-submissions", {
+        await apiClient.post("/homework-submissions/", {
           homework_id: homework.id,
           student_id: studentId,
           tenant_id: tenantId,

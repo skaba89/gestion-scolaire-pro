@@ -78,7 +78,7 @@ export default function AdminRGPDPanel() {
     const { data: exportHistory = [] } = useQuery({
         queryKey: ['rgpd', 'export-history'],
         queryFn: async () => {
-            const response = await apiClient.get('/rgpd/export-history');
+            const response = await apiClient.get('/rgpd/export-history/');
             return response.data || [];
         },
         enabled: isAdmin,
@@ -88,7 +88,7 @@ export default function AdminRGPDPanel() {
     const { data: retentionRisks = [] } = useQuery({
         queryKey: ['rgpd', 'retention-risks'],
         queryFn: async () => {
-            const response = await apiClient.get('/rgpd/retention-risks');
+            const response = await apiClient.get('/rgpd/retention-risks/');
             return response.data || [];
         },
         enabled: isAdmin,
@@ -124,7 +124,7 @@ export default function AdminRGPDPanel() {
         if (!searchEmail) return;
         setIsLoading(true);
         try {
-            const response = await apiClient.get('/rgpd/search', { params: { email: searchEmail } });
+            const response = await apiClient.get('/rgpd/search/', { params: { email: searchEmail } });
             if (response.data) {
                 setSelectedUserId(response.data.id);
             } else {
@@ -157,7 +157,7 @@ export default function AdminRGPDPanel() {
 
         setIsAnonymizing(true);
         try {
-            const response = await apiClient.post(`/rgpd/direct-delete/${selectedUserId}`, {
+            const response = await apiClient.post(`/rgpd/direct-delete/${selectedUserId}/`, {
                 reason: anonymizeReason,
             });
 

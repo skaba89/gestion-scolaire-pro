@@ -30,7 +30,7 @@ export const SubjectPreferredRoomsManager = ({ subjectId, tenantId }: SubjectPre
     const { data: allRooms = [], isLoading: loadingRooms } = useQuery({
         queryKey: ["rooms", tenantId],
         queryFn: async () => {
-            const response = await apiClient.get("/rooms", {
+            const response = await apiClient.get("/rooms/", {
                 params: { tenant_id: tenantId, ordering: "name" },
             });
             return response.data;

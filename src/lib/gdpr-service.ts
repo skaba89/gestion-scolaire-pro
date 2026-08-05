@@ -76,7 +76,7 @@ export const gdprService = {
         try {
             return await SentryMonitoring.withPerformance('process_account_deletion_request', 'api', async () => {
                 const status = action === 'APPROVE' ? 'PROCESSED' : 'REJECTED';
-                const response = await apiClient.patch(`/rgpd/requests/${requestId}`, {
+                const response = await apiClient.patch(`/rgpd/requests/${requestId}/`, {
                     status: status,
                     rejection_reason: reason
                 });
@@ -94,7 +94,7 @@ export const gdprService = {
     async checkLegalRetention(userId: string): Promise<any> {
         try {
             return await SentryMonitoring.withPerformance('check_legal_data_retention', 'api', async () => {
-                const response = await apiClient.get(`/rgpd/check-retention/${userId}`);
+                const response = await apiClient.get(`/rgpd/check-retention/${userId}/`);
                 return response.data;
             });
         } catch (error: any) {
@@ -151,7 +151,7 @@ export const gdprService = {
         // Direct deletion is now handled via request approval process for better auditing
         // But if we need a direct admin action:
         try {
-            const response = await apiClient.post(`/rgpd/direct-delete/${userId}`);
+            const response = await apiClient.post(`/rgpd/direct-delete/${userId}/`);
             return response.data;
         } catch (error: any) {
             SentryMonitoring.trackDatabaseError("delete_account", "profiles", error.message);

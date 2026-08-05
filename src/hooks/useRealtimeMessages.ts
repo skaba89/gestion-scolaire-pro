@@ -25,7 +25,7 @@ export const useRealtimeMessages = () => {
     if (!user?.id || !currentTenant?.id) return;
 
     try {
-      const { data } = await apiClient.get("/communication/messaging/poll", {
+      const { data } = await apiClient.get("/communication/messaging/poll/", {
         params: { since: lastSeenRef.current }
       });
 

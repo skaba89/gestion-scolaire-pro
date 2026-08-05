@@ -115,7 +115,7 @@ export const InvoiceReminders = () => {
 
         // Update invoice status to OVERDUE if past due date
         if (daysOverdue > 0 && invoice.status !== "OVERDUE") {
-          await apiClient.put(`/invoices/${invoice.id}`, { status: "OVERDUE" });
+          await apiClient.put(`/invoices/${invoice.id}/`, { status: "OVERDUE" });
         }
       }
 

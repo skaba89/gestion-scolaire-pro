@@ -34,7 +34,7 @@ const GradeHistorySheet = ({ gradeId, isOpen, onOpenChange, studentName }: Grade
         queryKey: ["grade-history", gradeId],
         queryFn: async () => {
             if (!gradeId) return [];
-            const response = await apiClient.get("/grade-history", {
+            const response = await apiClient.get("/grade-history/", {
                 params: { grade_id: gradeId, ordering: "-created_at" },
             });
             return response.data;

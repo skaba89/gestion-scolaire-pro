@@ -64,7 +64,7 @@ export default function ClassSessionAttendance() {
   const { data: assignments } = useQuery({
     queryKey: ['teacher-assignments', user?.id, tenant?.id],
     queryFn: async () => {
-      const { data } = await apiClient.get("/teachers/dashboard", {
+      const { data } = await apiClient.get("/teachers/dashboard/", {
         params: { teacher_id: user?.id },
       });
       return data?.assignments || [];

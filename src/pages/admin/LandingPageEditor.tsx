@@ -854,7 +854,7 @@ export default function LandingPageEditor() {
   const { data: tenantData, isLoading } = useQuery({
     queryKey: ["tenant-settings-landing"],
     queryFn: async () => {
-      const response = await apiClient.get("/tenants/me");
+      const response = await apiClient.get("/tenants/settings/");
       return response.data;
     },
     enabled: !!tenant,

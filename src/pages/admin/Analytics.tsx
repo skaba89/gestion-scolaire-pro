@@ -97,7 +97,7 @@ export default function Analytics() {
     queryKey: ["analytics-subjects", tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
-      const response = await apiClient.get('/analytics/academic-stats');
+      const response = await apiClient.get('/analytics/academic-stats/');
       // Returns { bySubject: [...], byClass: [...] }
       // We want name and moyenne
       const bySubject = Array.isArray(response.data?.bySubject) ? response.data.bySubject : [];

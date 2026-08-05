@@ -62,7 +62,7 @@ const HomeworkGradingDialog = ({
   const { data: students } = useQuery({
     queryKey: ["classroom-students-grading", homework.class_id],
     queryFn: async () => {
-      const response = await apiClient.get("/enrollments", {
+      const response = await apiClient.get("/enrollments/", {
         params: { class_id: homework.class_id, status: "active" },
       });
       return (response.data || []).map((e: any) => e.student).filter(Boolean);
@@ -74,7 +74,7 @@ const HomeworkGradingDialog = ({
   const { data: submissions, isLoading } = useQuery({
     queryKey: ["homework-submissions-grading", homework.id],
     queryFn: async () => {
-      const response = await apiClient.get("/homework-submissions", {
+      const response = await apiClient.get("/homework-submissions/", {
         params: { homework_id: homework.id },
       });
       return response.data;

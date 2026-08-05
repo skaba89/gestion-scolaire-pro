@@ -77,7 +77,7 @@ export const ScheduleGenerator = ({
     queryKey: ["all-rooms-for-gen", tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
-      const response = await apiClient.get("/rooms", { params: { tenant_id: tenant.id } });
+      const response = await apiClient.get("/rooms/", { params: { tenant_id: tenant.id } });
       return response.data || [];
     },
     enabled: !!tenant?.id && open,
@@ -124,11 +124,11 @@ export const ScheduleGenerator = ({
         .map((sl: any) => sl.subject_id);
 
       if (subjectIds.length === 0) {
-        const response = await apiClient.get("/subjects", { params: { tenant_id: tenant.id, limit: 10 } });
+        const response = await apiClient.get("/subjects/", { params: { tenant_id: tenant.id, limit: 10 } });
         return response.data || [];
       }
 
-      const response = await apiClient.get("/subjects", {
+      const response = await apiClient.get("/subjects/", {
         params: { id__in: subjectIds.join(","), tenant_id: tenant.id },
       });
       return response.data || [];
@@ -227,7 +227,7 @@ export const ScheduleGenerator = ({
 
       if (finalSlots.length === 0) throw new Error("Impossible de générer des créneaux");
 
-      await apiClient.post("/schedule", finalSlots);
+      await apiClient.post("/schedule/", finalSlots);
 
       return { count: finalSlots.length };
     },

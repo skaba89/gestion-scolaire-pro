@@ -5,7 +5,7 @@
  *
  * @example
  *   const mutation = useMutation({
- *     mutationFn: (data) => apiClient.patch(`/students/${data.id}`, data),
+ *     mutationFn: (data) => apiClient.patch(`/students/${data.id}/`, data),
  *     ...createOptimisticConfig<Student>(queryClient, queryKeys.students.list()),
  *   });
  */

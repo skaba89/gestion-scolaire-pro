@@ -120,7 +120,7 @@ export const NotificationBell = () => {
 
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      await apiClient.patch(`/notifications/${notificationId}`, { is_read: true });
+      await apiClient.patch(`/notifications/${notificationId}/`, { is_read: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -130,7 +130,7 @@ export const NotificationBell = () => {
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
-      await apiClient.post('/notifications/mark-all-read');
+      await apiClient.post('/notifications/mark-all-read/');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -140,7 +140,7 @@ export const NotificationBell = () => {
 
   const deleteNotificationMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      await apiClient.delete(`/notifications/${notificationId}`);
+      await apiClient.delete(`/notifications/${notificationId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -151,7 +151,7 @@ export const NotificationBell = () => {
   const deleteAllReadMutation = useMutation({
     mutationFn: async () => {
       if (!user?.id) return;
-      await apiClient.delete('/notifications/clear-read');
+      await apiClient.delete('/notifications/clear-read/');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });

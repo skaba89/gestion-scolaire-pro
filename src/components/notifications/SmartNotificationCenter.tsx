@@ -93,7 +93,7 @@ export function SmartNotificationCenter() {
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["smart-notifications", user?.id, tenant?.id],
     queryFn: async () => {
-      const response = await apiClient.get("/notifications");
+      const response = await apiClient.get("/notifications/");
       return response.data;
     },
     enabled: !!user?.id && !!tenant?.id,
@@ -103,7 +103,7 @@ export function SmartNotificationCenter() {
 
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      await apiClient.patch(`/notifications/${notificationId}`, { is_read: true });
+      await apiClient.patch(`/notifications/${notificationId}/`, { is_read: true });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["smart-notifications"] });
@@ -112,7 +112,7 @@ export function SmartNotificationCenter() {
 
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post("/notifications/mark-all-read");
+      await apiClient.post("/notifications/mark-all-read/");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["smart-notifications"] });
@@ -122,7 +122,7 @@ export function SmartNotificationCenter() {
 
   const deleteNotificationMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      await apiClient.delete(`/notifications/${notificationId}`);
+      await apiClient.delete(`/notifications/${notificationId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["smart-notifications"] });

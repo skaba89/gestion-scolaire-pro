@@ -14,7 +14,7 @@ export default function DepartmentMessages() {
   const { data: recipients } = useQuery({
     queryKey: ["department-messaging-recipients"],
     queryFn: async () => {
-      const { data } = await apiClient.get("/communication/messaging/teacher-recipients");
+      const { data } = await apiClient.get("/communication/messaging/teacher-recipients/");
       return data || [];
     },
     enabled: !!user?.id,

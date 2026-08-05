@@ -28,7 +28,7 @@ export const AnalyticsAITab = () => {
         queryKey: ["ai-risk-scores", tenant?.id],
         queryFn: async () => {
             if (!tenant?.id) return { students: [], summary: {} };
-            const { data } = await apiClient.get('/analytics/students-at-risk');
+            const { data } = await apiClient.get('/analytics/students-at-risk/');
             return data;
         },
         enabled: !!tenant?.id,
