@@ -1,7 +1,7 @@
 # PHASE 3b Load Testing - Complete File Index
 
 **Generated:** January 27, 2026  
-**Project:** SchoolFlow Pro - Badge System Load Testing  
+**Project:** Academy Guinéenne - Badge System Load Testing  
 **Status:** 90% Complete (Data prep done, HTTP testing blocked)
 
 ---

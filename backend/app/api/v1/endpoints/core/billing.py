@@ -1,5 +1,5 @@
 """
-Billing local — SchoolFlow Pro
+Billing local — Academy Guinéenne
 ==============================
 Monétisation SANS Stripe (décision produit du 15/07/2026) : les abonnements
 SaaS se règlent par les rails de paiement locaux — Mobile Money (Orange
@@ -84,7 +84,7 @@ def _payment_instructions(method: str) -> dict:
     detail = instructions.get(method, "")
     return {
         "method": method,
-        "detail": detail or "Contactez l'équipe SchoolFlow Pro pour finaliser le paiement.",
+        "detail": detail or "Contactez l'équipe Academy Guinéenne pour finaliser le paiement.",
         "note": (
             "Effectuez le paiement puis conservez la référence de transaction : "
             "elle sera vérifiée avant l'activation de votre abonnement."
@@ -313,7 +313,7 @@ async def request_subscription(
         "payment_instructions": _payment_instructions(body.payment_method),
         "message": (
             "Demande enregistrée. Votre abonnement sera activé après vérification "
-            "du paiement par l'équipe SchoolFlow Pro."
+            "du paiement par l'équipe Academy Guinéenne."
         ),
     }
 

@@ -8,7 +8,7 @@
 
 ## 📖 Vue d'Ensemble
 
-Ce document vous aide à naviguer dans la codebase de SchoolFlow Pro. Vous allez apprendre:
+Ce document vous aide à naviguer dans la codebase de Academy Guinéenne. Vous allez apprendre:
 
 - ✅ Structure générale du projet
 - ✅ Où trouver chaque type de fichier

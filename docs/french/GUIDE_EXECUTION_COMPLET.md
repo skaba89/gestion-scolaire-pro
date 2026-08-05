@@ -2,7 +2,7 @@
 
 **Date**: 26 Janvier 2026  
 **Durée Estimée**: 3-4 jours  
-**Objectif**: Tester complètement SchoolFlow Pro avec 2 universités distinctes + versions mobiles
+**Objectif**: Tester complètement Academy Guinéenne avec 2 universités distinctes + versions mobiles
 
 ---
 
@@ -117,7 +117,7 @@ Connexion:
 **1. Ouvrir frontend**: http://localhost:8080/
 
 **2. Écran Login visible:**
-- [ ] Logo SchoolFlow Pro
+- [ ] Logo Academy Guinéenne
 - [ ] Champ Email
 - [ ] Champ Mot de passe
 - [ ] Bouton "Se connecter"
@@ -940,7 +940,7 @@ k6 run scripts/load-test.js
 
 ```markdown
 # 📋 RAPPORT DE TEST FINAL
-## 2 Universités Distinctes - SchoolFlow Pro
+## 2 Universités Distinctes - Academy Guinéenne
 Date: [Date]
 Durée Test: [3-4 jours]
 
@@ -1015,7 +1015,7 @@ Durée Test: [3-4 jours]
 
 **VERDICT: ✅ PRODUCTION READY**
 
-L'application SchoolFlow Pro est prête pour:
+L'application Academy Guinéenne est prête pour:
 - Déploiement production
 - 2+ universités simultanément
 - 100+ utilisateurs

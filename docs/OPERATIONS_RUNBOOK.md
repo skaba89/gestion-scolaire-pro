@@ -1,4 +1,4 @@
-# Runbook opérationnel — SchoolFlow Pro
+# Runbook opérationnel — Academy Guinéenne
 
 Audit national Phase 6. Toutes les commandes ci-dessous sont réelles, tirées du code de ce dépôt — pas de placeholder générique.
 

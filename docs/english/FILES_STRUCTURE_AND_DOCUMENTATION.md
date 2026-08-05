@@ -312,4 +312,4 @@ function NewComponent() {
 **Status**: ✅ Production Ready  
 **Date**: Janvier 20, 2025  
 **Version**: 1.0  
-**Maintainer**: SchoolFlow Pro Team
+**Maintainer**: Academy Guinéenne Team

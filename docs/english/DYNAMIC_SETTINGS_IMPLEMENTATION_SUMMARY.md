@@ -653,7 +653,7 @@ Le **système de paramètres dynamiques** est maintenant:
 
 ---
 
-**Auteur**: SchoolFlow Pro Team  
+**Auteur**: Academy Guinéenne Team  
 **Date**: Janvier 20, 2025  
 **Version**: 1.0  
 **Status**: ✅ Production Ready

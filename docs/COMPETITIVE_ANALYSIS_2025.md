@@ -1,4 +1,4 @@
-# SchoolFlow Pro — Competitive Analysis Report (2025)
+# Academy Guinéenne — Competitive Analysis Report (2025)
 
 > **Date**: July 2025  
 > **Version**: 1.0  
@@ -9,7 +9,7 @@
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
-2. [SchoolFlow Pro — Current Feature Audit](#2-schoolflow-pro--current-feature-audit)
+2. [Academy Guinéenne — Current Feature Audit](#2-schoolflow-pro--current-feature-audit)
 3. [Competitor Profiles](#3-competitor-profiles)
 4. [Feature Comparison Matrix](#4-feature-comparison-matrix)
 5. [TOP 20 Missing Features](#5-top-20-missing-features)
@@ -21,7 +21,7 @@
 
 ## 1. Executive Summary
 
-SchoolFlow Pro (gestion-scolaire-pro) is a modern, multi-tenant school management platform built with React + Vite (frontend) and FastAPI + PostgreSQL (backend). It targets **French-speaking African educational institutions** (K-12 and higher education) with a unique value proposition:
+Academy Guinéenne (gestion-scolaire-pro) is a modern, multi-tenant school management platform built with React + Vite (frontend) and FastAPI + PostgreSQL (backend). It targets **French-speaking African educational institutions** (K-12 and higher education) with a unique value proposition:
 
 - **Full French-first design** (UI, i18n, documentation in French)
 - **Multi-tenant SaaS architecture** (SuperAdmin manages multiple schools)
@@ -29,7 +29,7 @@ SchoolFlow Pro (gestion-scolaire-pro) is a modern, multi-tenant school managemen
 - **Mobile-first PWA** with Capacitor for native iOS/Android builds
 - **GDPR/RGPD compliance** built-in
 
-However, the codebase analysis reveals that while SchoolFlow Pro has an **impressive breadth of UI pages (~75 admin routes, 50+ components)**, many features are **front-end shells with limited backend wiring** or lack depth compared to mature competitors.
+However, the codebase analysis reveals that while Academy Guinéenne has an **impressive breadth of UI pages (~75 admin routes, 50+ components)**, many features are **front-end shells with limited backend wiring** or lack depth compared to mature competitors.
 
 ### Key Competitive Gaps
 
@@ -45,7 +45,7 @@ However, the codebase analysis reveals that while SchoolFlow Pro has an **impres
 
 ---
 
-## 2. SchoolFlow Pro — Current Feature Audit
+## 2. Academy Guinéenne — Current Feature Audit
 
 ### 2.1 Fully Implemented Features (Backend + Frontend)
 
@@ -409,7 +409,7 @@ However, the codebase analysis reveals that while SchoolFlow Pro has an **impres
 
 ### 4.1 Core SIS Features
 
-| Feature | SchoolFlow Pro | PowerSchool | Schoology | Gradelink | Pronote | Fedena | OpenEduCat |
+| Feature | Academy Guinéenne | PowerSchool | Schoology | Gradelink | Pronote | Fedena | OpenEduCat |
 |---------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | Multi-tenant SaaS | ✅ | 🔶 | ❌ | ❌ | ❌ | ✅ | ❌ |
 | Student Enrollment | ✅ | ✅ | 🔶 | ✅ | ✅ | ✅ | ✅ |
@@ -437,7 +437,7 @@ However, the codebase analysis reveals that while SchoolFlow Pro has an **impres
 
 ### 4.2 LMS / E-Learning Features
 
-| Feature | SchoolFlow Pro | PowerSchool | Schoology | Moodle | Fedena |
+| Feature | Academy Guinéenne | PowerSchool | Schoology | Moodle | Fedena |
 |---------|:---:|:---:|:---:|:---:|:---:|
 | Course Content Delivery | 🔶 | ✅ | ✅ | ✅ | ✅ |
 | **Assignment Management** | **❌** | ✅ | ✅ | ✅ | ✅ |
@@ -453,7 +453,7 @@ However, the codebase analysis reveals that while SchoolFlow Pro has an **impres
 
 ### 4.3 Finance & Operations
 
-| Feature | SchoolFlow Pro | PowerSchool | Gradelink | Fedena | OpenEduCat |
+| Feature | Academy Guinéenne | PowerSchool | Gradelink | Fedena | OpenEduCat |
 |---------|:---:|:---:|:---:|:---:|:---:|
 | Invoice Management | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Fee Structure | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -472,7 +472,7 @@ However, the codebase analysis reveals that while SchoolFlow Pro has an **impres
 
 ### 4.4 Advanced / Differentiating Features
 
-| Feature | SchoolFlow Pro | PowerSchool | Schoology | Fedena | Pronote |
+| Feature | Academy Guinéenne | PowerSchool | Schoology | Fedena | Pronote |
 |---------|:---:|:---:|:---:|:---:|:---:|
 | AI / ML Analytics | 🔶 | ✅ | ❌ | ❌ | ❌ |
 | **Biometric Attendance** | **❌** | ✅ | ❌ | 🔶 | ✅ |
@@ -497,7 +497,7 @@ However, the codebase analysis reveals that while SchoolFlow Pro has an **impres
 
 ## 5. TOP 20 Missing Features
 
-Based on the competitive analysis and codebase audit, here are the **TOP 20 features** that SchoolFlow Pro lacks or has only as stubs, ranked by strategic importance for the Francophone Africa market:
+Based on the competitive analysis and codebase audit, here are the **TOP 20 features** that Academy Guinéenne lacks or has only as stubs, ranked by strategic importance for the Francophone Africa market:
 
 ### 🔴 Critical (Must-Have for Market Entry)
 
@@ -663,7 +663,7 @@ Based on the competitive analysis and codebase audit, here are the **TOP 20 feat
 | Mobile money adoption | 60-80% of adults in key markets |
 | Key markets | Senegal, Ivory Coast, Cameroon, DRC, Morocco, Madagascar, Mali, Burkina Faso |
 
-### Competitive Advantages of SchoolFlow Pro
+### Competitive Advantages of Academy Guinéenne
 
 | Advantage | Details |
 |-----------|---------|
@@ -758,7 +758,7 @@ Based on the competitive analysis and codebase audit, here are the **TOP 20 feat
 ## 8. Appendix: Methodology & Sources
 
 ### Methodology
-1. **Codebase Analysis**: Thorough audit of SchoolFlow Pro codebase — 75+ admin routes, 300+ components, 35 backend models, 35+ API endpoint files
+1. **Codebase Analysis**: Thorough audit of Academy Guinéenne codebase — 75+ admin routes, 300+ components, 35 backend models, 35+ API endpoint files
 2. **Competitor Research**: Analysis of 15+ school management systems based on public documentation, pricing pages, feature lists, and market reports (knowledge through early 2025)
 3. **Market Intelligence**: Francophone Africa edtech market analysis based on industry reports and regional knowledge
 
@@ -779,5 +779,5 @@ Based on the competitive analysis and codebase audit, here are the **TOP 20 feat
 ---
 
 *Report generated: July 2025*  
-*SchoolFlow Pro version: 0.0.1*  
+*Academy Guinéenne version: 0.0.1*  
 *Author: Competitive Intelligence Analysis*

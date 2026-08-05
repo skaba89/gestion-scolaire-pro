@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.schoolflow.pro',
-  appName: 'SchoolFlow Pro',
+  appName: 'Academy Guinéenne',
   webDir: 'dist',
   server: {
     url: 'http://localhost:3000',

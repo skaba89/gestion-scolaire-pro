@@ -1,5 +1,5 @@
 """
-Fixtures pytest pour les tests SchoolFlow Pro.
+Fixtures pytest pour les tests Academy Guinéenne.
 Utilise une base SQLite en mémoire pour isolation totale.
 """
 import pytest

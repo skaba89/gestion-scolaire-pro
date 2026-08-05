@@ -1,4 +1,4 @@
-# Runbook — Métriques Prometheus SchoolFlow Pro
+# Runbook — Métriques Prometheus Academy Guinéenne
 
 Ce document décrit les métriques exposées par l'API sur `GET /metrics`
 (format Prometheus, désactivé automatiquement si `prometheus_client`

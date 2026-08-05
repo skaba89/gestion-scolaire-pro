@@ -26,7 +26,7 @@ const Privacy = () => {
                     </CardHeader>
                     <CardContent className="space-y-4 text-slate-600 leading-relaxed">
                         <p>
-                            SchoolFlow Pro collecte les données nécessaires à la gestion administrative et pédagogique des établissements scolaires :
+                            Academy Guinéenne collecte les données nécessaires à la gestion administrative et pédagogique des établissements scolaires :
                         </p>
                         <ul className="list-disc pl-6 space-y-2">
                             <li><strong>Identité :</strong> Nom, prénom, date de naissance des élèves et parents.</li>

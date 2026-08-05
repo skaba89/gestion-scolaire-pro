@@ -8,7 +8,7 @@ CONFIG_FILE="/usr/share/nginx/html/config.js"
 cat > "$CONFIG_FILE" <<EOF
 window.__SCHOOLFLOW_CONFIG__ = {
   API_URL: "${SCHOOLFLOW_API_URL:-}",
-  APP_NAME: "${SCHOOLFLOW_APP_NAME:-SchoolFlow Pro}",
+  APP_NAME: "${SCHOOLFLOW_APP_NAME:-Academy Guinéenne}",
   SENTRY_DSN: "${SCHOOLFLOW_SENTRY_DSN:-}",
   ONESIGNAL_APP_ID: "${SCHOOLFLOW_ONESIGNAL_APP_ID:-}",
 };

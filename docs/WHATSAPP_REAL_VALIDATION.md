@@ -96,7 +96,7 @@ curl -X POST https://schoolflow-api.onrender.com/api/v1/notifications/whatsapp/t
 - [ ] Depuis le téléphone WhatsApp test (jouant le rôle du parent), envoyer un
       message texte libre au numéro Business de l'établissement
 - [ ] Le message apparaît dans `/admin/messages` → onglet WhatsApp, sous 1 minute
-- [ ] Si le numéro correspond à un parent existant dans SchoolFlow → nom du parent
+- [ ] Si le numéro correspond à un parent existant dans Academy Guinéenne → nom du parent
       affiché ; sinon → conversation "Numéro inconnu" mais message quand même visible
       (jamais silencieusement perdu)
 - [ ] Envoyer un second message depuis le même numéro → il apparaît dans la
@@ -107,7 +107,7 @@ curl -X POST https://schoolflow-api.onrender.com/api/v1/notifications/whatsapp/t
 - [ ] Envoyer une image ou un vocal depuis le téléphone test
 - [ ] Le message apparaît dans la conversation avec un texte de substitution
       (ex. `[message image reçu — non affichable ici]`) — comportement volontaire,
-      SchoolFlow ne stocke jamais les médias WhatsApp bruts
+      Academy Guinéenne ne stocke jamais les médias WhatsApp bruts
 
 ## 9. Réponse école → parent réelle
 

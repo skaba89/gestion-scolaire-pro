@@ -1,4 +1,4 @@
-"""Tenant quota enforcement middleware for SchoolFlow Pro."""
+"""Tenant quota enforcement middleware for Academy Guinéenne."""
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request

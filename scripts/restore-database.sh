@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Verify a SchoolFlow PostgreSQL backup or restore it after explicit confirmation.
+# Verify a Academy Guinéenne PostgreSQL backup or restore it after explicit confirmation.
 
 set -Eeuo pipefail
 umask 077

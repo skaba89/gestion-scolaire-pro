@@ -1,4 +1,4 @@
-// SchoolFlow Pro — Authenticated API baseline
+// Academy Guinéenne — Authenticated API baseline
 // Exercises the hot read paths of a school day: students, invoices,
 // analytics overview and notifications.
 //

@@ -1,4 +1,4 @@
-# SchoolFlow Pro — Project Conventions
+# Academy Guinéenne — Project Conventions
 
 ## Stack
 - **Frontend**: React 18 + Vite 5 + TypeScript 5.8 + Tailwind CSS 3.4 + Radix UI (shadcn/ui)

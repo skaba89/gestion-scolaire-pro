@@ -1,7 +1,7 @@
-# Accord de niveau de service (SLA) — SchoolFlow Pro
+# Accord de niveau de service (SLA) — Academy Guinéenne
 
 Ce document définit les engagements de service pour les établissements
-abonnés à SchoolFlow Pro. Il s'applique aux offres Standard, Premium et
+abonnés à Academy Guinéenne. Il s'applique aux offres Standard, Premium et
 Enterprise (voir grille tarifaire) ; l'offre Starter bénéficie d'un support
 best-effort sans engagement de délai contractuel.
 
@@ -59,7 +59,7 @@ incidents P1 uniquement.
 - Erreur de saisie ou de configuration par le personnel de l'établissement.
 - Utilisation de navigateurs non supportés (versions obsolètes).
 - Interruption due à une intégration tierce (passerelle de paiement,
-  service SMS) hors du contrôle direct de SchoolFlow Pro — un
+  service SMS) hors du contrôle direct de Academy Guinéenne — un
   contournement (paiement manuel vérifié) reste disponible dans tous les
   cas.
 

@@ -1,4 +1,4 @@
-"""Structured JSON logging configuration for SchoolFlow Pro."""
+"""Structured JSON logging configuration for Academy Guinéenne."""
 import logging
 import sys
 

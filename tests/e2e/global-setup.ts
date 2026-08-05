@@ -1,5 +1,5 @@
 /**
- * SchoolFlow Pro — E2E Global Setup
+ * Academy Guinéenne — E2E Global Setup
  * Waits for all services to be ready before running tests.
  */
 
@@ -25,7 +25,7 @@ async function waitForUrl(url: string, maxAttempts = 40, label = url): Promise<v
 }
 
 export default async () => {
-  console.log('\n🧪 SchoolFlow Pro — E2E environment setup\n');
+  console.log('\n🧪 Academy Guinéenne — E2E environment setup\n');
 
   // ── 1. Check required Docker containers ──────────────────────────────────
   const REQUIRED = ['schoolflow-pro-postgres-1', 'schoolflow-pro-api-1'];

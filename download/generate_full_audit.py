@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SchoolFlow Pro - Audit Complet et Detaille
+Academy Guinéenne - Audit Complet et Detaille
 Rapport PDF - Avril 2026
 """
 
@@ -240,10 +240,10 @@ def build_report():
         pagesize=A4,
         leftMargin=2*cm, rightMargin=2*cm,
         topMargin=2*cm, bottomMargin=2*cm,
-        title='SchoolFlow Pro - Audit Complet et Avance',
+        title='Academy Guinéenne - Audit Complet et Avance',
         author='Z.ai',
         creator='Z.ai',
-        subject='Audit fonctionnel complet de SchoolFlow Pro - Analyse par role, module et fonctionnalite'
+        subject='Audit fonctionnel complet de Academy Guinéenne - Analyse par role, module et fonctionnalite'
     )
 
     story = []
@@ -261,7 +261,7 @@ def build_report():
     ]))
 
     story.append(Spacer(1, 100))
-    story.append(Paragraph('<b>SchoolFlow Pro</b>', cover_title_style))
+    story.append(Paragraph('<b>Academy Guinéenne</b>', cover_title_style))
     story.append(Spacer(1, 16))
     story.append(Paragraph('Audit Complet et Avance', ParagraphStyle(
         name='CoverTitle2', fontName='SimHei', fontSize=28, leading=36,
@@ -299,7 +299,7 @@ def build_report():
     # ========================================================
     story.append(add_heading('<b>1. Resume Executif</b>', h1_style, 0))
     story.append(Paragraph(
-        "SchoolFlow Pro est une plateforme de gestion scolaire multi-tenant de nouvelle generation, concue pour "
+        "Academy Guinéenne est une plateforme de gestion scolaire multi-tenant de nouvelle generation, concue pour "
         "les ecoles, universites et centres de formation en Afrique francophone. Le systeme est deploye sur Render "
         "avec un backend FastAPI (Python) et un frontend React/Vite (TypeScript). Cette audit realise le 9 avril 2026 "
         "constitue une analyse exhaustive et sans precedent du projet, couvrant chaque fonctionnalite, chaque module, "
@@ -800,7 +800,7 @@ def build_report():
         "Blackbaud), ERP universitaires (Ellucian Banner, Oracle Student Cloud, Unit4, OpenEduCat), solutions "
         "open source (OpenSIS, Gibbon, RosarioSIS, Fedena) et solutions Africa francophone (Skolae, Pronote, "
         "ENT, Kosy School, Educore). L'analyse a permis d'identifier 20 fonctionnalites cles manquantes chez "
-        "SchoolFlow Pro par rapport aux meilleurs concurrents.", body_style))
+        "Academy Guinéenne par rapport aux meilleurs concurrents.", body_style))
     story.append(Spacer(1, 12))
 
     story.append(add_heading('<b>5.1 Positionnement Concurrentiel</b>', h2_style, 1))
@@ -813,7 +813,7 @@ def build_report():
         ['OpenSIS', 'Open Source', 'SIS de base', 'Gratuit', 'Base solide mais UI datee'],
         ['Fedena', 'Open Source', 'Multi-module', 'Gratuit/Payant', 'Populaire pays en developpement'],
         ['Skolae', 'Afrique francophone', 'Gestion scolaire', 'Variable', 'Concurent direct regional'],
-        ['SchoolFlow Pro', 'Afrique francophone', 'SaaS multi-tenant', 'Non defini', 'Approche SaaS moderne, mobile-first'],
+        ['Academy Guinéenne', 'Afrique francophone', 'SaaS multi-tenant', 'Non defini', 'Approche SaaS moderne, mobile-first'],
     ]
     story.append(make_table(
         ['Solution', 'Marche', 'Type', 'Prix', 'Note'],
@@ -856,7 +856,7 @@ def build_report():
     story.append(Paragraph('<b>Tableau 19.</b> Top 20 fonctionnalites manquantes vs concurrents', caption_style))
     story.append(Spacer(1, 12))
 
-    story.append(add_heading('<b>5.3 Avantages Competitifs de SchoolFlow Pro</b>', h2_style, 1))
+    story.append(add_heading('<b>5.3 Avantages Competitifs de Academy Guinéenne</b>', h2_style, 1))
     advantages = [
         "Concu en francais en premier - contrairement a PowerSchool ou Schoology qui sont anglais-centriques",
         "Architecture multi-tenant SaaS moderne - chaque etablissement est isole avec ses propres donnees",
@@ -974,7 +974,7 @@ def build_report():
 
     story.append(add_heading('<b>6.4 Phase 4 - Differentiateurs et Evolution (6-8 semaines)</b>', h2_style, 1))
     story.append(Paragraph(
-        "Cette phase vise a developper les fonctionnalites qui differencieront SchoolFlow Pro de la concurrence "
+        "Cette phase vise a developper les fonctionnalites qui differencieront Academy Guinéenne de la concurrence "
         "et renforceront sa position sur le marche africain. Il s'agit d'investissements strategiques a moyen terme "
         "qui augmenteront la valeur percue du produit et la fidelisation des etablissements.", body_style))
     story.append(Spacer(1, 6))
@@ -1005,7 +1005,7 @@ def build_report():
     # ========================================================
     story.append(add_heading('<b>7. Synthese et Recommandations Strategiques</b>', h1_style, 0))
     story.append(Paragraph(
-        "SchoolFlow Pro est un projet ambitieux avec une architecture moderne et une couverture fonctionnelle "
+        "Academy Guinéenne est un projet ambitieux avec une architecture moderne et une couverture fonctionnelle "
         "impressionnante pour un produit en version pre-production. Le systeme couvre deja la quasi-totalite des "
         "besoins de gestion scolaire de base, avec des fonctionnalites avancees comme l'IA, la gamification et "
         "le multi-tenant SaaS qui sont rares dans les solutions du marche africain.", body_style))
@@ -1021,7 +1021,7 @@ def build_report():
     story.append(Spacer(1, 8))
 
     story.append(Paragraph(
-        "L'analyse concurrentielle montre que SchoolFlow Pro a un positionnement unique grace a son approche "
+        "L'analyse concurrentielle montre que Academy Guinéenne a un positionnement unique grace a son approche "
         "SaaS multi-tenant, mobile-first, avec IA integree et gamification. Mais pour penetrer serieusement le "
         "marche africain, les integrations Mobile Money (Orange Money, Wave, MTN MoMo) et les notifications SMS "
         "sont absolument indispensables. L'absence de ces fonctionnalites dans un produit destine a l'Afrique "

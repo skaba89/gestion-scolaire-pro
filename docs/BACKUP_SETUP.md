@@ -1,6 +1,6 @@
 # Sauvegarde et restauration PostgreSQL
 
-Ce runbook décrit la sauvegarde vérifiable de SchoolFlow Pro et l’exercice de
+Ce runbook décrit la sauvegarde vérifiable de Academy Guinéenne et l’exercice de
 restauration obligatoire avant une mise en production. Une sauvegarde qui n’a
 jamais été restaurée ne doit pas être considérée comme exploitable.
 

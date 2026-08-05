@@ -339,7 +339,7 @@ Everything is:
 **Version**: 1.0  
 **Date**: January 20, 2025  
 **Status**: ✅ Production Ready  
-**Team**: SchoolFlow Pro  
+**Team**: Academy Guinéenne  
 
 ---
 

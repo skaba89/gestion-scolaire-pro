@@ -1,5 +1,5 @@
 /**
- * Structured logger service for SchoolFlow Pro.
+ * Structured logger service for Academy Guinéenne.
  *
  * - Development: pretty-printed console output with timestamps
  * - Production: errors are forwarded to Sentry when available

@@ -1,5 +1,5 @@
 # =============================================================================
-# SchoolFlow Pro — Render Blueprint (render.yaml)
+# Academy Guinéenne — Render Blueprint (render.yaml)
 # =============================================================================
 # Deploy to Render with:  render blueprint apply
 # Documentation: https://render.com/docs/blueprint-spec
@@ -120,7 +120,7 @@ services:
       - key: FROM_EMAIL
         value: noreply@datasphere-innovation.net
       - key: FROM_NAME
-        value: SchoolFlow Pro
+        value: Academy Guinéenne
       # --- SMTP fallback (used only if Resend is unset or its call fails —
       # see backend/app/services/notifications.py EmailSender.send()).
       # Optional: leave unset to run with Resend as the sole provider.
@@ -207,7 +207,7 @@ services:
       - key: FROM_EMAIL
         value: noreply@datasphere-innovation.net
       - key: FROM_NAME
-        value: SchoolFlow Pro
+        value: Academy Guinéenne
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

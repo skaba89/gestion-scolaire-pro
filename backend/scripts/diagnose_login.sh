@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# SchoolFlow Pro — Login Diagnostic Script
+# Academy Guinéenne — Login Diagnostic Script
 # =============================================================================
 # Checks all common login failure causes from network to JWT token validation.
 #
@@ -42,7 +42,7 @@ fi
 print_header() {
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${CYAN}║${BOLD}  SchoolFlow Pro — Login Diagnostic Script${NC}               ${CYAN}║${NC}"
+    echo -e "${CYAN}║${BOLD}  Academy Guinéenne — Login Diagnostic Script${NC}               ${CYAN}║${NC}"
     echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
     echo -e "${DIM}  $(date '+%Y-%m-%d %H:%M:%S')${NC}"
 }

@@ -367,5 +367,5 @@ For questions about:
 
 **Generated**: 26 Janvier 2025  
 **Version**: 1.0  
-**Project**: SchoolFlow Pro  
+**Project**: Academy Guinéenne  
 **Status**: Ready for Development & Production Deployment

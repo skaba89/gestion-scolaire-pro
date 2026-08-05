@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SchoolFlow Pro - Comprehensive Security Audit Report Generator"""
+"""Academy Guinéenne - Comprehensive Security Audit Report Generator"""
 import os, sys, hashlib
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch, cm, mm
@@ -133,7 +133,7 @@ def finding(id, sev, title, file, desc, impact='', reco=''):
 # ━━ Build Document ━━
 OUTPUT = '/home/z/my-project/gestion-scolaire-pro/download/SchoolFlow_Pro_Security_Audit_Avril2026.pdf'
 doc = SimpleDocTemplate(OUTPUT, pagesize=A4, leftMargin=LEFT_M, rightMargin=RIGHT_M,
-    topMargin=TOP_M, bottomMargin=BOTTOM_M, title='SchoolFlow Pro - Audit de Securite',
+    topMargin=TOP_M, bottomMargin=BOTTOM_M, title='Academy Guinéenne - Audit de Securite',
     author='Z.ai Security Audit', subject='Comprehensive Security Audit Report')
 
 story = []
@@ -205,7 +205,7 @@ story.append(PageBreak())
 # ━━ 1. RESUME EXECUTIF ━━
 story.append(Paragraph('<b>1. Resume Executif</b>', h1_style))
 story.append(Paragraph(
-    'Cet audit complet de la plateforme SchoolFlow Pro a ete realise sur la version du commit '
+    'Cet audit complet de la plateforme Academy Guinéenne a ete realise sur la version du commit '
     '69a73ea de la branche main. La plateforme est une application SaaS multi-tenant de gestion '
     'scolaire, deployee sur Render, comprenant un backend FastAPI (Python), un frontend React/TypeScript/Vite, '
     'et une base de donnees PostgreSQL avec Row Level Security (RLS). L\'audit couvre 5 domaines distincts : '
@@ -262,7 +262,7 @@ story.append(PageBreak())
 # ━━ 2. CARTOGRAPHIE ━━
 story.append(Paragraph('<b>2. Cartographie du Projet</b>', h1_style))
 story.append(Paragraph(
-    'Le projet SchoolFlow Pro est un repository monorepo contenant l\'ensemble du code source '
+    'Le projet Academy Guinéenne est un repository monorepo contenant l\'ensemble du code source '
     'de l\'application. La structure est organisee en trois zones principales : le backend Python/FastAPI, '
     'le frontend React/TypeScript, et les fichiers d\'infrastructure (Docker, Render, CI/CD). '
     'Le backend compte environ 93 000 lignes de code Python reparties sur plus de 100 fichiers, '

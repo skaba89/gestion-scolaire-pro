@@ -1,4 +1,4 @@
-﻿# SchoolFlow Pro — Plateforme de Gestion Scolaire
+﻿# Academy Guinéenne — Plateforme de Gestion Scolaire
 
 > Plateforme de gestion scolaire moderne, multi-tenant, conçue pour les établissements privés, publics et institutionnels. Architecture sécurisée, exploitation locale ou cloud.
 
@@ -400,4 +400,4 @@ Le pipeline CI (`GitHub Actions`) s'exécute sur chaque push et PR :
 
 ## Licence
 
-Projet propriétaire — SchoolFlow Pro © 2024-2026
+Projet propriétaire — Academy Guinéenne © 2024-2026

@@ -13,7 +13,7 @@ const Terms = () => {
                     </div>
                     <h1 className="text-4xl font-bold text-slate-900 font-display">Conditions Générales d'Utilisation</h1>
                     <p className="text-slate-500 max-w-2xl mx-auto">
-                        En utilisant SchoolFlow Pro, vous acceptez les présentes conditions.
+                        En utilisant Academy Guinéenne, vous acceptez les présentes conditions.
                     </p>
                 </div>
 
@@ -26,7 +26,7 @@ const Terms = () => {
                     </CardHeader>
                     <CardContent className="space-y-4 text-slate-600">
                         <p>
-                            SchoolFlow Pro est une plateforme de gestion scolaire (ERP/SaaS) permettant l'administration des établissements, le suivi pédagogique des élèves et la gestion financière.
+                            Academy Guinéenne est une plateforme de gestion scolaire (ERP/SaaS) permettant l'administration des établissements, le suivi pédagogique des élèves et la gestion financière.
                         </p>
                     </CardContent>
                 </Card>
@@ -56,7 +56,7 @@ const Terms = () => {
                     </CardHeader>
                     <CardContent className="space-y-4 text-slate-600">
                         <p>
-                            L'éditeur de SchoolFlow Pro ne saurait être tenu responsable des erreurs de saisie ou de l'utilisation frauduleuse de la plateforme par des tiers. L'établissement scolaire est responsable de l'exactitude des données de ses élèves.
+                            L'éditeur de Academy Guinéenne ne saurait être tenu responsable des erreurs de saisie ou de l'utilisation frauduleuse de la plateforme par des tiers. L'établissement scolaire est responsable de l'exactitude des données de ses élèves.
                         </p>
                     </CardContent>
                 </Card>

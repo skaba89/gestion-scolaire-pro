@@ -130,7 +130,7 @@ def checklist(items):
 
 # ================= COVER =================
 story.append(Spacer(1, 6 * cm))
-story.append(Paragraph("SchoolFlow Pro", styles["CoverTitle"]))
+story.append(Paragraph("Academy Guinéenne", styles["CoverTitle"]))
 story.append(Spacer(1, 0.4 * cm))
 story.append(Paragraph("Guide de formation complet", styles["CoverSubtitle"]))
 story.append(Spacer(1, 0.6 * cm))
@@ -491,14 +491,14 @@ def add_page_number(c: pdfcanvas.Canvas, doc):
     c.saveState()
     c.setFont("Helvetica", 8)
     c.setFillColor(DARKGRAY)
-    c.drawString(2 * cm, 1.2 * cm, "SchoolFlow Pro — Guide de formation complet")
+    c.drawString(2 * cm, 1.2 * cm, "Academy Guinéenne — Guide de formation complet")
     c.drawRightString(A4[0] - 2 * cm, 1.2 * cm, f"Page {doc.page}")
     c.restoreState()
 
 doc = SimpleDocTemplate(
     OUT, pagesize=A4,
     leftMargin=2 * cm, rightMargin=2 * cm, topMargin=2 * cm, bottomMargin=2 * cm,
-    title="SchoolFlow Pro — Guide de formation complet",
+    title="Academy Guinéenne — Guide de formation complet",
 )
 doc.build(story, onFirstPage=lambda c, d: None, onLaterPages=add_page_number)
 print("Written:", OUT)

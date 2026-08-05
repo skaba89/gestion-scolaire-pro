@@ -151,7 +151,7 @@ children.push(
   new Paragraph({ text: "", spacing: { before: 2000 } }),
   new Paragraph({
     alignment: AlignmentType.CENTER,
-    children: [new TextRun({ text: "SchoolFlow Pro", bold: true, size: 56, color: BLUE })],
+    children: [new TextRun({ text: "Academy Guinéenne", bold: true, size: 56, color: BLUE })],
     spacing: { after: 200 },
   }),
   new Paragraph({

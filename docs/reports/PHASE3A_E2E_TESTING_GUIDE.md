@@ -2,7 +2,7 @@
 
 ## Overview
 
-Comprehensive end-to-end test suite for SchoolFlow Pro Badge System using Playwright. Tests cover:
+Comprehensive end-to-end test suite for Academy Guinéenne Badge System using Playwright. Tests cover:
 - ✅ Authentication & Access Control
 - ✅ Badge Display & UI Interactions
 - ✅ Security & RLS Enforcement

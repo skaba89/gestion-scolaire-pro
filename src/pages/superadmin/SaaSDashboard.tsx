@@ -1,5 +1,5 @@
 /**
- * Super-admin SaaS Dashboard — SchoolFlow Pro
+ * Super-admin SaaS Dashboard — Academy Guinéenne
  * Affiche les métriques de la plateforme : MRR, tenants, conversions, etc.
  * Accessible uniquement aux SUPER_ADMIN.
  */
@@ -287,7 +287,7 @@ export default function SaaSDashboard() {
             </Badge>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Métriques de la plateforme SchoolFlow Pro
+            Métriques de la plateforme Academy Guinéenne
             {metrics?.generated_at && (
               <span className="ml-2 text-xs">
                 — Mis à jour à {new Date(metrics.generated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}

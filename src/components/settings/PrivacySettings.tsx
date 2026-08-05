@@ -167,7 +167,7 @@ function generateDPA(schoolName: string, schoolEmail: string, country: string): 
   return `ACCORD DE TRAITEMENT DES DONNÉES (ATD / DPA)
 
 Entre les soussignés :
-  - SchoolFlow Pro SaaS, éditeur de la plateforme (ci-après « le Sous-traitant »)
+  - Academy Guinéenne SaaS, éditeur de la plateforme (ci-après « le Sous-traitant »)
   - ${schoolName} (ci-après « le Responsable du traitement »), ${schoolEmail}
 
 Pays d'opération : ${country || "Afrique de l'Ouest"}
@@ -179,7 +179,7 @@ ARTICLE 1 — OBJET ET DURÉE
 
 1.1 Le présent accord encadre les conditions dans lesquelles le Sous-traitant
 traite les données personnelles pour le compte du Responsable du traitement
-dans le cadre de la fourniture de la plateforme de gestion scolaire SchoolFlow Pro.
+dans le cadre de la fourniture de la plateforme de gestion scolaire Academy Guinéenne.
 
 1.2 Le présent accord prend effet à la date de signature et demeure en vigueur
 pendant toute la durée du contrat de service.
@@ -253,7 +253,7 @@ coopérer pleinement.
 Fait en deux exemplaires originaux.
 
 Pour le Responsable du traitement :          Pour le Sous-traitant :
-${schoolName}                                SchoolFlow Pro SaaS
+${schoolName}                                Academy Guinéenne SaaS
 
 Signature : ________________________         Signature : ________________________
 

@@ -529,7 +529,7 @@ Before going live, verify:
 **Version**: 1.0  
 **Date**: January 20, 2025  
 **Status**: ✅ Production Ready  
-**Maintainer**: SchoolFlow Pro Team
+**Maintainer**: Academy Guinéenne Team
 
 ---
 

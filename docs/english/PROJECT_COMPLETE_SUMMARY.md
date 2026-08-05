@@ -570,7 +570,7 @@ After this release:
 **Completed**: January 20, 2025  
 **Duration**: 1 day  
 **Status**: ✅ Production Ready  
-**Maintainer**: SchoolFlow Pro Team
+**Maintainer**: Academy Guinéenne Team
 
 ---
 

@@ -1,6 +1,6 @@
 # Modèle analytique — Cadrage (Phase 5 / issue #22, PR 1)
 
-Ce document cadre le futur entrepôt analytique de SchoolFlow Pro **avant**
+Ce document cadre le futur entrepôt analytique de Academy Guinéenne **avant**
 d'écrire la moindre vue ou migration. Il répond à la question "sur quoi
 va-t-on construire les dashboards BI et l'IA prédictive" pour que les PR
 suivantes (vues Postgres, endpoints API, IA éducative) partagent le même

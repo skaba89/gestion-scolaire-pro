@@ -245,7 +245,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = get_secret("SMTP_USER", "")
     SMTP_PASS: str = get_secret("SMTP_PASS", "")
     FROM_EMAIL: str = get_secret("FROM_EMAIL", "noreply@schoolflow.pro")
-    FROM_NAME: str = get_secret("FROM_NAME", "SchoolFlow Pro")
+    FROM_NAME: str = get_secret("FROM_NAME", "Academy Guinéenne")
     # URL base utilisée dans les emails (lien de reset, etc.)
     FRONTEND_URL: str = get_secret("FRONTEND_URL", "http://localhost:3000")
 

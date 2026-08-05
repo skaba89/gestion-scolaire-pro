@@ -1,6 +1,6 @@
-# SchoolFlow Pro - Édition Institutionnelle
+# Academy Guinéenne - Édition Institutionnelle
 
-SchoolFlow Pro est une plateforme de gestion scolaire moderne conçue pour les établissements privés, publics et institutionnels, avec une architecture orientée sécurité, multi-tenant et exploitation locale ou cloud.
+Academy Guinéenne est une plateforme de gestion scolaire moderne conçue pour les établissements privés, publics et institutionnels, avec une architecture orientée sécurité, multi-tenant et exploitation locale ou cloud.
 
 ## Objectifs du projet
 

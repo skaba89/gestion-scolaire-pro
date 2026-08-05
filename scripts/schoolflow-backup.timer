@@ -1,5 +1,5 @@
 [Unit]
-Description=SchoolFlow Pro Daily Backup Timer
+Description=Academy Guinéenne Daily Backup Timer
 
 [Timer]
 OnCalendar=*-*-* 02:00:00

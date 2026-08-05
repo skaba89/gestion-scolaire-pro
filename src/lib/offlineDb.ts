@@ -1,5 +1,5 @@
 /**
- * SchoolFlow Pro — Offline Database (Dexie / IndexedDB)
+ * Academy Guinéenne — Offline Database (Dexie / IndexedDB)
  *
  * Tables:
  *   pendingAttendance  — absences saisies hors-ligne, à synchroniser

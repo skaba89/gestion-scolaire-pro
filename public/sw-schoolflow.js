@@ -1,5 +1,5 @@
 // =============================================================================
-// SchoolFlow Pro — Service Worker Offline (Guinea Edition)
+// Academy Guinéenne — Service Worker Offline (Guinea Edition)
 // =============================================================================
 // Strategy:
 //   - Static assets (JS/CSS/fonts/images): Cache-First (serve from cache, update in background)

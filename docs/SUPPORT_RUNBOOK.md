@@ -1,4 +1,4 @@
-# Runbook Support — SchoolFlow Pro
+# Runbook Support — Academy Guinéenne
 
 Procédures opérationnelles pour l'équipe support. Chaque procédure
 référence l'endpoint ou l'outil réel — pas de procédure inventée.

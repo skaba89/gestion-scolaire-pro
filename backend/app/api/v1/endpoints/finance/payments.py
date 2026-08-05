@@ -775,7 +775,7 @@ async def send_payment_reminders(
                 event_type="payment_reminder",
                 to_phone=inv.parent_phone,
                 template_key="payment_reminder",
-                body_vars=[parent_name, invoice_number, amount_str, due_str, (svc.school_name if svc else "SchoolFlow Pro")],
+                body_vars=[parent_name, invoice_number, amount_str, due_str, (svc.school_name if svc else "Academy Guinéenne")],
                 fallback_text=(
                     f"Rappel de paiement : la facture {invoice_number} de {amount_str} "
                     f"est en attente (échéance : {due_str})."

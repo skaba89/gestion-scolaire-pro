@@ -1,4 +1,4 @@
-# Résumé Complet du Projet - SchoolFlow Pro
+# Résumé Complet du Projet - Academy Guinéenne
 
 **État**: ✅ Phase 4 Complète + Système de Paramètres Dynamiques
 **Date**: 16 Janvier 2026
@@ -8,12 +8,12 @@
 
 ## 📌 Résumé Exécutif
 
-SchoolFlow Pro est une **plateforme de gestion scolaire multi-tenant** complètement développée, testée et prête pour la production. Le projet a été livré en 4 phases majeures, plus une implémentation bonus du système de paramètres dynamiques.
+Academy Guinéenne est une **plateforme de gestion scolaire multi-tenant** complètement développée, testée et prête pour la production. Le projet a été livré en 4 phases majeures, plus une implémentation bonus du système de paramètres dynamiques.
 
-### Ce que SchoolFlow Pro Fait
+### Ce que Academy Guinéenne Fait
 
 ```
-SchoolFlow Pro
+Academy Guinéenne
 │
 ├─ Gestion Administrative
 │  ├─ Gestion des écoles (multi-tenant)
@@ -721,12 +721,12 @@ Voir [DEMARRAGE_PARAMETRES_DYNAMIQUES.md](DEMARRAGE_PARAMETRES_DYNAMIQUES.md)
 
 ## 📄 Licence & Attribution
 
-**Projet**: SchoolFlow Pro
+**Projet**: Academy Guinéenne
 **Version**: 1.0
 **Date**: 16 Janvier 2026
 **État**: ✅ Production-Ready
 
-Tous les documents et code sont propriété du projet SchoolFlow Pro.
+Tous les documents et code sont propriété du projet Academy Guinéenne.
 
 ---
 

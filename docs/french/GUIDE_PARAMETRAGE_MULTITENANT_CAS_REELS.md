@@ -1,6 +1,6 @@
 # 📘 Guide de Paramétrage Multi-Établissements : Cas Réels
 
-Ce guide vous accompagne dans la configuration de **SchoolFlow Pro** pour différents types d'établissements. Que vous gériez une université, un lycée ou une école primaire, ce document fournit les structures et données types pour une mise en service rapide.
+Ce guide vous accompagne dans la configuration de **Academy Guinéenne** pour différents types d'établissements. Que vous gériez une université, un lycée ou une école primaire, ce document fournit les structures et données types pour une mise en service rapide.
 
 ---
 
@@ -16,7 +16,7 @@ Ce guide vous accompagne dans la configuration de **SchoolFlow Pro** pour diffé
 ---
 
 ## 1. Introduction
-SchoolFlow Pro est conçu pour être **flexible**. Chaque "Tenant" (établissement) possède sa propre isolation. Un administrateur d'université ne verra jamais les données d'une école primaire, même s'ils partagent la même plateforme technique.
+Academy Guinéenne est conçu pour être **flexible**. Chaque "Tenant" (établissement) possède sa propre isolation. Un administrateur d'université ne verra jamais les données d'une école primaire, même s'ils partagent la même plateforme technique.
 
 ---
 

@@ -131,9 +131,9 @@ output_path = '/home/z/my-project/download/SchoolFlow_Pro_Audit_Complet_v2.pdf'
 doc = SimpleDocTemplate(
     output_path, pagesize=A4,
     leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm,
-    title='SchoolFlow Pro - Audit Complet v2',
+    title='Academy Guinéenne - Audit Complet v2',
     author='Z.ai', creator='Z.ai',
-    subject='Audit complet de bout en bout du projet SchoolFlow Pro'
+    subject='Audit complet de bout en bout du projet Academy Guinéenne'
 )
 story = []
 pw = A4[0] - 4*cm  # page width
@@ -142,7 +142,7 @@ pw = A4[0] - 4*cm  # page width
 # COVER PAGE
 # ══════════════════════════════════════════════════════════════
 story.append(Spacer(1, 100))
-story.append(Paragraph('<b>SchoolFlow Pro</b>', cover_title_style))
+story.append(Paragraph('<b>Academy Guinéenne</b>', cover_title_style))
 story.append(Spacer(1, 20))
 story.append(Paragraph('<b>Audit Complet de Bout en Bout</b>', cover_subtitle_style))
 story.append(Spacer(1, 12))
@@ -181,7 +181,7 @@ summary_table.setStyle(TableStyle([
 ]))
 story.append(summary_table)
 story.append(Spacer(1, 60))
-story.append(Paragraph('Projets SchoolFlow Pro', cover_info_style))
+story.append(Paragraph('Projets Academy Guinéenne', cover_info_style))
 story.append(Paragraph('Backend: FastAPI + SQLAlchemy + PostgreSQL', cover_info_style))
 story.append(Paragraph('Frontend: React + Vite + TypeScript', cover_info_style))
 story.append(PageBreak())
@@ -193,7 +193,7 @@ story.append(Paragraph('<b>Tableau de Synthese</b>', h1_style))
 story.append(Spacer(1, 6))
 
 story.append(Paragraph(
-    "Cet audit couvre l'ensemble du projet SchoolFlow Pro : backend (Python/FastAPI), "
+    "Cet audit couvre l'ensemble du projet Academy Guinéenne : backend (Python/FastAPI), "
     "frontend (React/TypeScript), et les aspects transversaux (CORS, environnement, deploiement, "
     "migrations, contrat API, performance, securite). Chaque fichier cle a ete analyse. "
     "Les resultats sont classes par severite : CRITIQUE (a corriger immediatement), HAUTE (a corriger "

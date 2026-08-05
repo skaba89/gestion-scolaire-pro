@@ -1,4 +1,4 @@
-# Guide de formation complet — SchoolFlow Pro
+# Guide de formation complet — Academy Guinéenne
 
 **Public** : administrateur d'établissement (Directeur / Admin) qui configure sa plateforme, et formateur interne / support client qui accompagne les clients.
 

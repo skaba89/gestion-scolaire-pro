@@ -370,4 +370,4 @@ R: Lisez [LISTE_VALIDATION_PARAMETRES_DYNAMIQUES.md](LISTE_VALIDATION_PARAMETRES
 **Dernière mise à jour**: 16 Janvier 2026
 **Prochaine révision**: Quand nouvelle major feature
 
-*Navigation complète du système de paramètres dynamiques - SchoolFlow Pro*
+*Navigation complète du système de paramètres dynamiques - Academy Guinéenne*

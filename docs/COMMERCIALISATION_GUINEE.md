@@ -2,7 +2,7 @@
 
 ## Positionnement
 
-**SchoolFlow Pro** (nom commercial suggéré : *EduGuinée Pro*) est une plateforme
+**Academy Guinéenne** (nom commercial suggéré : *EduGuinée Pro*) est une plateforme
 SaaS multi-tenant de gestion scolaire pour les établissements guinéens :
 
 > « Plateforme de gestion scolaire moderne pour les établissements guinéens —

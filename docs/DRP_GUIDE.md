@@ -1,4 +1,4 @@
-# Plan de Reprise d'Activité (DRP) — SchoolFlow Pro
+# Plan de Reprise d'Activité (DRP) — Academy Guinéenne
 
 Ce document définit les objectifs de reprise et les procédures opérationnelles
 en cas de sinistre technique majeur. Il s'appuie exclusivement sur les scripts

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Validation Schemas for SchoolFlow Pro
+ * Validation Schemas for Academy Guinéenne
  * 
  * These schemas ensure data integrity and provide clear error messages
  * for both backend (RPC) and frontend (forms) validation.

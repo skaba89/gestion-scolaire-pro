@@ -1,5 +1,5 @@
 // =============================================================================
-// SchoolFlow Pro — Service Worker Killer
+// Academy Guinéenne — Service Worker Killer
 // =============================================================================
 // This file replaces any previous Service Worker (e.g. Workbox/PWA) and
 // removes all cached data. After cleanup, it self-unregisters.

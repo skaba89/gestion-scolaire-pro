@@ -1,4 +1,4 @@
-# Dynamic Settings System Guide - SchoolFlow Pro
+# Dynamic Settings System Guide - Academy Guinéenne
 
 ## Overview
 
@@ -617,4 +617,4 @@ For more information:
 
 **Last Updated**: January 20, 2025  
 **System Version**: 1.0  
-**Maintainer**: SchoolFlow Pro Team
+**Maintainer**: Academy Guinéenne Team

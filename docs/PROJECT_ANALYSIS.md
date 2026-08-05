@@ -1,4 +1,4 @@
-# Analyse Stratégique - SchoolFlow Pro
+# Analyse Stratégique - Academy Guinéenne
 
 Ce document présente une analyse détaillée de l'état actuel du projet, identifiant ses forces, ses faiblesses techniques, et proposant une feuille de route pour améliorer la robustesse et la scalabilité du système.
 

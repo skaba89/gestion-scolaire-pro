@@ -1,6 +1,6 @@
 # Guide de Configuration CI/CD & Déploiement
 
-Ce document détaille les étapes nécessaires pour configurer et maintenir la pipeline d'intégration et de livraison continue (CI/CD) de **SchoolFlow Pro**.
+Ce document détaille les étapes nécessaires pour configurer et maintenir la pipeline d'intégration et de livraison continue (CI/CD) de **Academy Guinéenne**.
 
 ## Pipeline GitHub Actions
 

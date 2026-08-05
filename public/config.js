@@ -1,5 +1,5 @@
 /**
- * SchoolFlow Pro — Runtime Configuration
+ * Academy Guinéenne — Runtime Configuration
  * ========================================
  * This file is loaded at runtime (NOT bundled by Vite).
  * Edit this file in the `dist/` folder AFTER building to configure

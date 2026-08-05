@@ -110,7 +110,7 @@ const Grades = () => {
       setIsCreateOpen(false);
     },
     onError: (error: any) => {
-      console.error('[SchoolFlow] Error creating assessment:', error);
+      console.error('[Academy Guinéenne] Error creating assessment:', error);
       toast.error(error?.response?.data?.detail || t("grades.assessmentCreateError"));
     }
   });

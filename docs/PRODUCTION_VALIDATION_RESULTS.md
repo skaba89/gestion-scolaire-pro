@@ -1,4 +1,4 @@
-# Résultats de validation production — SchoolFlow Pro
+# Résultats de validation production — Academy Guinéenne
 
 Ce document consigne la dernière exécution connue des checklists
 `docs/RENDER_PRODUCTION_VALIDATION.md` et `docs/WHATSAPP_REAL_VALIDATION.md`.

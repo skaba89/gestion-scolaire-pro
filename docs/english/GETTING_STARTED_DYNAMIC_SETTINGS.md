@@ -411,7 +411,7 @@ A: 1) Ajouter à TenantSettingsSchema, 2) Ajouter default, 3) Use in component.
 **Status**: ✅ Production Ready  
 **Version**: 1.0  
 **Last Updated**: Janvier 20, 2025  
-**Maintainer**: SchoolFlow Pro Team
+**Maintainer**: Academy Guinéenne Team
 
 ---
 

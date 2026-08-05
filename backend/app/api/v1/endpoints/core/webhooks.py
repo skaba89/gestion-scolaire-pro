@@ -1,5 +1,5 @@
 """
-SchoolFlow Pro — Webhook Management API
+Academy Guinéenne — Webhook Management API
 ========================================
 Tenants can register webhook URLs to receive event notifications.
 
@@ -393,7 +393,7 @@ async def test_webhook(
         "version": "1.0",
         "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         "tenant_id": tenant_id,
-        "data": {"message": "Test de connectivité SchoolFlow Pro"},
+        "data": {"message": "Test de connectivité Academy Guinéenne"},
     }
 
     success = await _deliver_webhook(row["url"], test_payload, row.get("secret"))

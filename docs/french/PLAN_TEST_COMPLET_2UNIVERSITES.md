@@ -1,4 +1,4 @@
-# 📋 Plan de Test Complet - SchoolFlow Pro
+# 📋 Plan de Test Complet - Academy Guinéenne
 ## 2 Universités Distinctes + Version Mobile Multiplateforme
 
 **Date de Création**: 26 Janvier 2026  
@@ -856,7 +856,7 @@ npx cap open ios
 
 #### 4.4.1 Test Authentification Mobile
 - [ ] Lancer app sur Android
-- [ ] Écran splash "SchoolFlow Pro" s'affiche 2 sec
+- [ ] Écran splash "Academy Guinéenne" s'affiche 2 sec
 - [ ] Voir écran Login
 - [ ] Email input visible
 - [ ] Password input visible (avec masquage)

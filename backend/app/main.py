@@ -520,8 +520,8 @@ app.add_middleware(MetricsMiddleware)
 @app.get("/", include_in_schema=False)
 def root():
     return {
-        "message": "SchoolFlow Pro API is operational",
-        "service": "SchoolFlow Pro API",
+        "message": "Academy Guinéenne API is operational",
+        "service": "Academy Guinéenne API",
         "version": settings.APP_VERSION,
         "status": "operational",
         "docs": "/docs" if settings.DEBUG else None,

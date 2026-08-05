@@ -17,7 +17,7 @@ This is useful during incident debugging but too aggressive for a production-fac
 `src/contexts/AuthContext.tsx` already uses OIDC / Keycloak, but it still exposes a `SupabaseUserShape` compatibility model and several debug `console.log` calls. This creates confusion in the codebase and increases maintenance cost.
 
 ### 3. Auth redirect and UX hardening still need review
-The OIDC config uses `redirect_uri: window.location.origin`, which may be acceptable for a single-root app, but SchoolFlow uses tenant-aware paths and role-based routed dashboards. This should be validated carefully for tenant-specific login/logout journeys.
+The OIDC config uses `redirect_uri: window.location.origin`, which may be acceptable for a single-root app, but Academy Guinéenne uses tenant-aware paths and role-based routed dashboards. This should be validated carefully for tenant-specific login/logout journeys.
 
 ## Recommended actions
 1. Replace hard debug behavior in `src/main.tsx` with environment-gated diagnostics.

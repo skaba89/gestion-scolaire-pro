@@ -9,7 +9,7 @@
 
 ## 🎯 Objectif PHASE 3C
 
-Valider que l'application SchoolFlow Pro fonctionne correctement en tant que **Progressive Web App** (PWA) et est prête pour le déploiement sur mobile.
+Valider que l'application Academy Guinéenne fonctionne correctement en tant que **Progressive Web App** (PWA) et est prête pour le déploiement sur mobile.
 
 ---
 
@@ -21,7 +21,7 @@ Valider que l'application SchoolFlow Pro fonctionne correctement en tant que **P
 
 | Propriété | Statut | Valeur |
 |-----------|--------|--------|
-| **name** | ✅ | SchoolFlow Pro |
+| **name** | ✅ | Academy Guinéenne |
 | **short_name** | ✅ | SchoolFlow |
 | **start_url** | ✅ | / |
 | **display** | ✅ | standalone |

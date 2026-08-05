@@ -328,7 +328,7 @@ Vous avez reçu **11 fichiers complets** (35,000+ lignes) contenant:
 ✅ **Versions mobiles** (Android + iOS)  
 ✅ **100% prêt** à utiliser  
 
-**C'est tout ce qu'il faut pour tester SchoolFlow Pro complètement!** 🚀
+**C'est tout ce qu'il faut pour tester Academy Guinéenne complètement!** 🚀
 
 ---
 

@@ -1,4 +1,4 @@
-// SchoolFlow Pro — Smoke load test (no authentication required)
+// Academy Guinéenne — Smoke load test (no authentication required)
 // Validates that the stack stays healthy under light concurrent traffic.
 //
 // Usage:

@@ -1,11 +1,11 @@
-# État de préparation commerciale — SchoolFlow Pro
+# État de préparation commerciale — Academy Guinéenne
 
 Document de référence pour l'équipe commerciale. Reflète l'état réel du
 produit à date, pas une promesse marketing.
 
 ## 1. Produit
 
-SchoolFlow Pro est une plateforme SaaS de gestion scolaire et
+Academy Guinéenne est une plateforme SaaS de gestion scolaire et
 universitaire pensée pour les réalités africaines : multi-établissements,
 mobile-first, faible connexion, paiements locaux (Mobile Money, Orange
 Money, Wave), supervision institutionnelle et reporting national.

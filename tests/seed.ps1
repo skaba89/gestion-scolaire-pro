@@ -1,10 +1,10 @@
-# SchoolFlow Pro — E2E test environment setup (Windows/PowerShell)
+# Academy Guinéenne — E2E test environment setup (Windows/PowerShell)
 # Usage: .\tests\seed.ps1
 
 $ErrorActionPreference = "Stop"
 $projectDir = Split-Path -Parent $PSScriptRoot
 
-Write-Host "`n🌱 SchoolFlow Pro — E2E Seed" -ForegroundColor Cyan
+Write-Host "`n🌱 Academy Guinéenne — E2E Seed" -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 
 # 1) Run SQL seed

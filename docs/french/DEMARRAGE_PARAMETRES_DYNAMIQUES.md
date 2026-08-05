@@ -349,7 +349,7 @@ R: 1) Ajouter à TenantSettingsSchema, 2) Ajouter default, 3) Use in component.
 **Status**: ✅ Production Ready  
 **Version**: 1.0  
 **Dernière mise à jour**: 20 janvier 2025  
-**Responsable**: Équipe SchoolFlow Pro
+**Responsable**: Équipe Academy Guinéenne
 
 ---
 

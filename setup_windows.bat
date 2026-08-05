@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 echo.
 echo ============================================================
-echo   SchoolFlow Pro  —  Setup complet avec Neon PostgreSQL
+echo   Academy Guinéenne  —  Setup complet avec Neon PostgreSQL
 echo ============================================================
 echo.
 
@@ -56,7 +56,7 @@ if exist ".env" (
     echo [SKIP] .env existe deja. Supprimez-le et relancez pour le recreer.
 ) else (
     (
-        echo # SchoolFlow Pro - Configuration avec Neon
+        echo # Academy Guinéenne - Configuration avec Neon
         echo DEBUG=True
         echo LOG_LEVEL=DEBUG
         echo.

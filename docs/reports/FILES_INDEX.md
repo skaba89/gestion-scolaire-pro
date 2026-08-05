@@ -1,7 +1,7 @@
 # 📑 Project Files Index - Complete Reference
 
 **Date**: 26 Janvier 2026  
-**Project**: SchoolFlow Pro  
+**Project**: Academy Guinéenne  
 **Status**: ✅ Production Ready
 
 ---
@@ -281,7 +281,7 @@ schoolflow-pro/
 ---
 
 **Generated**: 26 Janvier 2026  
-**Project**: SchoolFlow Pro  
+**Project**: Academy Guinéenne  
 **Status**: ✅ Complete & Ready
 
 Happy reading! Bonne lecture!

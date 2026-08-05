@@ -1,5 +1,5 @@
 # 📱 Guide de Configuration Mobile Capacitor
-## Build iOS & Android pour SchoolFlow Pro
+## Build iOS & Android pour Academy Guinéenne
 
 **Date**: 26 Janvier 2026  
 **Version Capacitor**: 8.0.0  
@@ -9,7 +9,7 @@
 
 ## 🎯 Objectif
 
-Créer versions mobiles natives (iOS + Android) de SchoolFlow Pro avec:
+Créer versions mobiles natives (iOS + Android) de Academy Guinéenne avec:
 - ✅ Interface responsive
 - ✅ Notifications push
 - ✅ Mode offline
@@ -70,7 +70,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'app.lovable.30c804519432458db1b9b7ab99faf7c5',
-  appName: 'SchoolFlow Pro',
+  appName: 'Academy Guinéenne',
   webDir: 'dist',
   server: {
     url: 'http://localhost:8080', // IMPORTANT: Dev local
@@ -248,7 +248,7 @@ adb shell pm list packages | grep schoolflow
 **Sur l'appareil:**
 
 ```
-✅ Splash screen: "SchoolFlow Pro" 2 sec
+✅ Splash screen: "Academy Guinéenne" 2 sec
 ✅ Login page chargée
 ✅ Input email visible
 ✅ Input password visible (masked)
@@ -380,7 +380,7 @@ xcodebuild -exportArchive \
 **Sur simulator/appareil:**
 
 ```
-✅ Splash screen: "SchoolFlow Pro" 2 sec
+✅ Splash screen: "Academy Guinéenne" 2 sec
 ✅ Login page chargée
 ✅ Input email visible + keyboard
 ✅ Input password visible (masked)
@@ -528,13 +528,13 @@ cd ../..
 ```xml
 <!-- ios/App/App/Info.plist -->
 <key>NSCameraUsageDescription</key>
-<string>SchoolFlow Pro utilise votre caméra pour scanner des codes QR</string>
+<string>Academy Guinéenne utilise votre caméra pour scanner des codes QR</string>
 
 <key>NSCalendarsUsageDescription</key>
-<string>SchoolFlow Pro accède à votre calendrier pour synchroniser l'emploi du temps</string>
+<string>Academy Guinéenne accède à votre calendrier pour synchroniser l'emploi du temps</string>
 
 <key>NSLocalNetworkUsageDescription</key>
-<string>SchoolFlow Pro se connecte au serveur local</string>
+<string>Academy Guinéenne se connecte au serveur local</string>
 ```
 
 ### 6.2 Push Notifications
@@ -542,7 +542,7 @@ cd ../..
 **Android: google-services.json**
 ```
 1. Google Firebase Console
-2. Project: SchoolFlow Pro
+2. Project: Academy Guinéenne
 3. Download google-services.json
 4. Placer: android/app/google-services.json
 ```
