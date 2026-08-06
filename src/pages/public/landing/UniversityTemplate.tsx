@@ -70,9 +70,9 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
   // generic directory (see TenantLanding.tsx).
   const navPagesQuery = usePublicNav(slug);
   const customNavLinks = (navPagesQuery.data || []).map((item) => ({
-    label: item.label,
-    href: item.page_slug ? `/${slug}/pages/${item.page_slug}` : item.url || '#',
-    external: Boolean(item.is_external || (item.url && !item.page_slug)),
+    label: item.nav_label || item.title,
+    href: `/${slug}/pages/${item.slug}`,
+    external: false,
   }));
 
   const navLinks = [

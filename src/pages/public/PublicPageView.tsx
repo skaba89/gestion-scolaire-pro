@@ -160,7 +160,9 @@ function PublicNavbar({
   tenantName: string;
   logoUrl?: string | null;
   primaryColor: string;
-  navItems: { label: string; page_slug?: string | null; url?: string | null; is_external?: boolean }[];
+  // Matches the real API shape (PublicPageNavResponse) — see
+  // usePublicPages.ts PublicNavItem for why this isn't label/page_slug/url.
+  navItems: { title: string; slug: string; nav_label?: string | null }[];
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -205,36 +207,15 @@ function PublicNavbar({
 
           {/* Desktop nav links */}
           <div className="hidden lg:flex items-center gap-1">
-            {navItems.map((item, i) => {
-              const href = item.page_slug
-                ? `/${tenantSlug}/pages/${item.page_slug}`
-                : item.url || '#';
-
-              if (item.is_external || (item.url && !item.page_slug)) {
-                return (
-                  <a
-                    key={i}
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors flex items-center gap-1"
-                  >
-                    {item.label}
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                );
-              }
-
-              return (
-                <Link
-                  key={i}
-                  to={href}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
+            {navItems.map((item) => (
+              <Link
+                key={item.slug}
+                to={`/${tenantSlug}/pages/${item.slug}`}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              >
+                {item.nav_label || item.title}
+              </Link>
+            ))}
           </div>
 
           {/* CTA buttons */}
@@ -268,38 +249,16 @@ function PublicNavbar({
         {mobileOpen && (
           <div className="lg:hidden py-4 border-t border-gray-100 animate-in slide-in-from-top-2 duration-200">
             <div className="space-y-1">
-              {navItems.map((item, i) => {
-                const href = item.page_slug
-                  ? `/${tenantSlug}/pages/${item.page_slug}`
-                  : item.url || '#';
-
-                if (item.is_external || (item.url && !item.page_slug)) {
-                  return (
-                    <a
-                      key={i}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between px-4 py-3 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                      onClick={() => setMobileOpen(false)}
-                    >
-                      {item.label}
-                      <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
-                    </a>
-                  );
-                }
-
-                return (
-                  <Link
-                    key={i}
-                    to={href}
-                    className="block px-4 py-3 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })}
+              {navItems.map((item) => (
+                <Link
+                  key={item.slug}
+                  to={`/${tenantSlug}/pages/${item.slug}`}
+                  className="block px-4 py-3 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {item.nav_label || item.title}
+                </Link>
+              ))}
             </div>
           </div>
         )}

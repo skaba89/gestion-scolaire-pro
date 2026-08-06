@@ -4,14 +4,21 @@ import { apiClient } from '@/api/client';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
+// Mirrors the actual backend response (PublicPageNavResponse in
+// app/schemas/public_pages.py) exactly. This previously declared
+// label/page_slug/url/is_external — none of which the API has ever
+// returned (it sends title/slug/nav_label/page_type instead) — so every
+// consumer computing `item.page_slug` / `item.label` always got
+// `undefined` and fell back to a "#" href: the nav rendered on
+// PublicPageView (every custom page's own header) has always been a
+// dead end for every link.
 export interface PublicNavItem {
   id: string;
-  label: string;
-  page_slug?: string | null;
-  url?: string | null;
+  title: string;
+  slug: string;
+  nav_label?: string | null;
+  page_type: string;
   sort_order?: number;
-  is_external?: boolean;
-  children?: PublicNavItem[];
 }
 
 export interface PublicPageSection {
