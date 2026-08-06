@@ -150,42 +150,14 @@ export const DepartmentTable = ({
                                             {dept.description || "—"}
                                         </TableCell>
                                         <TableCell>
-                                            {(() => {
-                                                const deptPrograms = programs.filter(p => p.department_id === dept.id);
-                                                if (deptPrograms.length === 0) return <span className="text-muted-foreground text-sm">Aucune</span>;
-
-                                                return (
-                                                    <Popover>
-                                                        <PopoverTrigger asChild>
-                                                            <Button variant="outline" size="sm" className="h-7 text-xs">
-                                                                <BookOpen className="w-3 h-3 mr-1" />
-                                                                {deptPrograms.length} Filière{deptPrograms.length > 1 ? 's' : ''}
-                                                            </Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-80 p-0" align="start">
-                                                            <div className="p-3 border-b bg-muted/40">
-                                                                <h4 className="font-semibold text-sm">Filières & Programmes</h4>
-                                                                <p className="text-xs text-muted-foreground">{dept.name}</p>
-                                                            </div>
-                                                            <ScrollArea className="h-[200px]">
-                                                                <div className="p-2 space-y-1">
-                                                                    {deptPrograms.map((program) => (
-                                                                        <div key={program.id} className="flex items-center justify-between p-2 hover:bg-muted rounded-md text-sm">
-                                                                            <div className="grid gap-0.5">
-                                                                                <span className="font-medium">{program.code}</span>
-                                                                                <span className="text-xs text-muted-foreground line-clamp-1">{program.name}</span>
-                                                                            </div>
-                                                                            <Badge variant={program.degree === 'LICENCE' ? 'secondary' : 'default'} className="text-[10px]">
-                                                                                {program.degree}
-                                                                            </Badge>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </ScrollArea>
-                                                        </PopoverContent>
-                                                    </Popover>
-                                                );
-                                            })()}
+                                            {/* The Program model has no department linkage in the schema
+                                                (no department_id column) — this column always evaluated
+                                                to an empty filter and rendered "Aucune" for every
+                                                department, on every tenant. Left as an honest static
+                                                "Aucune" rather than reintroducing a filter against a field
+                                                the API never returns; linking programs to departments would
+                                                need a real schema change (new FK column + migration). */}
+                                            <span className="text-muted-foreground text-sm">Aucune</span>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">

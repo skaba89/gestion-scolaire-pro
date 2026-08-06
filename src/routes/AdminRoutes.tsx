@@ -30,6 +30,7 @@ const Enrollments = lazy(() => import("@/pages/admin/Enrollments"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 const StudentDetail = lazy(() => import("@/pages/admin/StudentDetail"));
 const Departments = lazy(() => import("@/pages/admin/Departments"));
+const Programs = lazy(() => import("@/pages/admin/Programs"));
 const Certificates = lazy(() => import("@/pages/admin/Certificates"));
 const EnrollmentStats = lazy(() => import("@/pages/admin/EnrollmentStats"));
 const Gamification = lazy(() => import("@/pages/admin/Gamification"));
@@ -113,6 +114,7 @@ export const AdminRoutes = () => {
             <Route path="announcements" element={<Announcements />} />
             <Route path="students/:studentId" element={<StudentDetail />} />
             <Route path="departments" element={<Departments />} />
+            <Route path="programs" element={<Programs />} />
             <Route path="certificates" element={<Certificates />} />
             <Route path="enrollment-stats" element={<EnrollmentStats />} />
             <Route path="gamification" element={<Gamification />} />
