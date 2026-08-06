@@ -1,6 +1,7 @@
 """Pydantic schemas for public pages."""
+import re
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from uuid import UUID
 from datetime import datetime
 
@@ -15,7 +16,19 @@ VALID_PAGE_TYPES = {
 # ─── Request schemas ──────────────────────────────────────────────────
 
 class PublicPageCreate(BaseModel):
-    """Schema for creating a new public page."""
+    """Schema for creating a new public page.
+
+    Phase 3 security note (custom_html sections): `content` is stored
+    as-is — the backend does NOT sanitize section HTML on write. Only a
+    tenant's own admin/director can write it (see require_permission on
+    the public-pages router), so this is not visitor-facing input, but the
+    HTML it contains IS rendered to every anonymous visitor of the
+    published page. The sanitization boundary is therefore entirely
+    client-side, at render time: PublicPageView.tsx's CustomHTMLSection
+    (and TextSection) pipe `section.content` through sanitizeHtml()
+    (src/lib/sanitize.ts, DOMPurify) before dangerouslySetInnerHTML —
+    never render this content directly from the API response.
+    """
     title: str
     slug: str
     page_type: str = "CUSTOM"
@@ -233,15 +246,54 @@ class PublicPageNavResponse(BaseModel):
 
 
 # ─── Form submissions ("contact_form" widget) ─────────────────────────
+#
+# Hardened per the Phase 1 security pass: this is the one endpoint in the
+# whole public-pages surface that accepts free-text from an anonymous,
+# unauthenticated visitor with no rate-limit-by-account to fall back on
+# (there is no account). Every constraint below exists to stop a specific
+# abuse pattern, not as generic paranoia — see the comment on each field.
+
+_URL_PATTERN = re.compile(r"(https?://|www\.)", re.IGNORECASE)
+
+
+def _repetition_ratio(text_value: str) -> float:
+    """Fraction of the message made up of its single most common
+    non-whitespace character — "aaaaaaaaaaaaaaaa" scores ~1.0, ordinary
+    prose scores well under 0.3. Cheap, dependency-free heuristic against
+    the most common bot-spam shape (keyboard-mashing / filler spam) —
+    intentionally not a full spam classifier."""
+    chars = [c for c in text_value.lower() if not c.isspace()]
+    if len(chars) < 12:
+        return 0.0
+    counts: Dict[str, int] = {}
+    for c in chars:
+        counts[c] = counts.get(c, 0) + 1
+    return max(counts.values()) / len(chars)
+
 
 class PublicFormSubmissionCreate(BaseModel):
     """Payload a visitor submits from a page's contact_form section."""
     page_id: Optional[UUID] = None
-    name: str
-    email: str
-    phone: Optional[str] = None
-    subject: Optional[str] = None
-    message: str
+    name: str = Field(min_length=2, max_length=150)
+    email: EmailStr
+    phone: Optional[str] = Field(default=None, max_length=30)
+    subject: Optional[str] = Field(default=None, max_length=300)
+    message: str = Field(min_length=10, max_length=5000)
+
+    # Honeypot: a field real visitors never see or fill (hidden via CSS on
+    # the form, see ContactFormSection) but that unsophisticated bots
+    # filling every input in the DOM do. Anything but empty here means
+    # "not a human" — checked by the endpoint, not a validator, so it can
+    # short-circuit to a silent success without ever touching the DB or
+    # revealing that detection happened.
+    website: Optional[str] = Field(default=None, max_length=200)
+
+    # Future-ready, not enforced yet: if/when a captcha provider (e.g.
+    # hCaptcha/Turnstile) is wired in, the endpoint can start requiring
+    # and verifying this token without another schema migration. Accepting
+    # but ignoring it today is intentionally forward-compatible with a
+    # frontend that already sends one.
+    captcha_token: Optional[str] = Field(default=None, max_length=2000)
 
     @field_validator("name", "message")
     @classmethod
@@ -249,6 +301,28 @@ class PublicFormSubmissionCreate(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("This field cannot be empty")
+        return v
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return v.strip().lower()
+
+    @field_validator("phone", "subject", "website", "captcha_token")
+    @classmethod
+    def strip_optional(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
+
+    @field_validator("message")
+    @classmethod
+    def reject_spam_shape(cls, v: str) -> str:
+        if len(_URL_PATTERN.findall(v)) > 2:
+            raise ValueError("Too many links in message")
+        if _repetition_ratio(v) > 0.6:
+            raise ValueError("Message looks automated (repetitive content)")
         return v
 
 

@@ -193,6 +193,14 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # RGPD Phase 5: how long a public contact-form message is kept before
+    # the nightly purge job deletes it. 365 days by default — long enough
+    # for a school to follow up on an admissions inquiry, short enough to
+    # not accumulate visitor data indefinitely. Configurable per deployment,
+    # not per tenant (a platform-wide retention policy, same as other
+    # RGPD/backup settings in this app).
+    PUBLIC_FORM_RETENTION_DAYS: int = parse_int_env("PUBLIC_FORM_RETENTION_DAYS", 365)
+
     @field_validator("SECRET_KEY", mode="after")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

@@ -10,9 +10,10 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mail, MailOpen, Loader2, Inbox } from "lucide-react";
+import { Mail, MailOpen, Loader2, Inbox, Trash2, Download } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface Submission {
   id: string;
@@ -55,6 +56,41 @@ export default function PublicFormSubmissions() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/public-pages/submissions/${id}/`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["public-form-submissions"] });
+      toast.success("Message supprimé.");
+    },
+    onError: () => {
+      toast.error("Impossible de supprimer ce message.");
+    },
+  });
+
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await apiClient.get("/public-pages/submissions/export/", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "messages.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Impossible d'exporter les messages.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const unreadCount = submissions.filter((s) => !s.is_read).length;
 
   return (
@@ -69,20 +105,26 @@ export default function PublicFormSubmissions() {
         </p>
       </div>
 
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          variant={filter === "all" ? "default" : "outline"}
-          onClick={() => setFilter("all")}
-        >
-          Tous
-        </Button>
-        <Button
-          size="sm"
-          variant={filter === "unread" ? "default" : "outline"}
-          onClick={() => setFilter("unread")}
-        >
-          Non lus {unreadCount > 0 && `(${unreadCount})`}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={filter === "all" ? "default" : "outline"}
+            onClick={() => setFilter("all")}
+          >
+            Tous
+          </Button>
+          <Button
+            size="sm"
+            variant={filter === "unread" ? "default" : "outline"}
+            onClick={() => setFilter("unread")}
+          >
+            Non lus {unreadCount > 0 && `(${unreadCount})`}
+          </Button>
+        </div>
+        <Button size="sm" variant="outline" onClick={handleExport} disabled={exporting}>
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Exporter (CSV)
         </Button>
       </div>
 
@@ -129,6 +171,19 @@ export default function PublicFormSubmissions() {
                         Marquer comme lu
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => {
+                        if (window.confirm("Supprimer ce message définitivement ?")) {
+                          deleteMutation.mutate(s.id);
+                        }
+                      }}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
