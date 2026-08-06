@@ -5,6 +5,7 @@ import { usePublicTenant, useTenantByDomain } from '@/hooks/usePublicTenant';
 import { usePublicPages } from '@/hooks/usePublicPages';
 import { getLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from '@/utils/url';
+import { getTenantTemplateGroup } from '@/lib/tenantTemplateGroup';
 import { UniversityTemplate } from './landing/UniversityTemplate';
 import { HighSchoolTemplate } from './landing/HighSchoolTemplate';
 import { DefaultLandingTemplate } from './landing/DefaultLandingTemplate';
@@ -39,25 +40,7 @@ function detectCustomDomain(): string | undefined {
   return hostname;
 }
 
-const UNIVERSITY_TYPES = new Set([
-  'UNIVERSITY', 'HIGHER_EDUCATION', 'INSTITUTE', 'BTS', 'IUT',
-]);
-
-const HIGH_SCHOOL_TYPES = new Set([
-  'HIGH_SCHOOL', 'LYCEE', 'LYCÉE', 'SECONDARY', 'COLLÈGE', 'COLLEGE', 'SECONDARY_SCHOOL'
-]);
-
-const PRIMARY_TYPES = new Set([
-  'PRIMARY', 'ELEMENTARY',
-]);
-
-function selectTemplate(type: string): 'university' | 'highschool' | 'primary' | 'default' {
-  const normalized = String(type ?? '').toUpperCase();
-  if (UNIVERSITY_TYPES.has(normalized)) return 'university';
-  if (HIGH_SCHOOL_TYPES.has(normalized)) return 'highschool';
-  if (PRIMARY_TYPES.has(normalized)) return 'primary';
-  return 'default';
-}
+const selectTemplate = getTenantTemplateGroup;
 
 // Loading skeleton
 function LandingSkeleton() {
