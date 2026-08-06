@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { apiClient } from '@/api/client';
 import {
   Menu,
   X,
@@ -1007,18 +1008,43 @@ function FAQSection({
 function ContactFormSection({
   section,
   primaryColor,
+  tenantSlug,
+  pageId,
 }: {
   section: PublicPageSection;
   primaryColor: string;
+  tenantSlug: string;
+  pageId?: string;
 }) {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const s = section.settings || {};
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real implementation, this would POST to an API
-    setSubmitted(true);
+    // Previously just set `submitted = true` with a "// In a real
+    // implementation, this would POST to an API" comment — every visitor
+    // who filled this in believed their message was sent; nothing was
+    // ever received. Now actually posts to a real, persisted submission.
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiClient.post(`/tenants/public/${tenantSlug}/submit-form/`, {
+        page_id: pageId,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        subject: formData.subject || undefined,
+        message: formData.message,
+      });
+      setSubmitted(true);
+    } catch {
+      setError("Une erreur est survenue. Merci de réessayer ou de nous contacter directement.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -1117,13 +1143,17 @@ function ContactFormSection({
                   onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 />
               </div>
+              {error && (
+                <p className="mt-4 text-sm text-red-600">{error}</p>
+              )}
               <Button
                 type="submit"
-                className="w-full mt-6 h-12 text-base font-semibold rounded-xl hover:shadow-lg transition-all"
+                disabled={submitting}
+                className="w-full mt-6 h-12 text-base font-semibold rounded-xl hover:shadow-lg transition-all disabled:opacity-60"
                 style={{ backgroundColor: primaryColor, color: 'white' }}
               >
                 <Send className="w-5 h-5" />
-                Envoyer le message
+                {submitting ? 'Envoi...' : 'Envoyer le message'}
               </Button>
             </form>
           )}
@@ -1338,11 +1368,13 @@ function RenderSection({
   primaryColor,
   secondaryColor,
   tenantSlug,
+  pageId,
 }: {
   section: PublicPageSection;
   primaryColor: string;
   secondaryColor: string;
   tenantSlug: string;
+  pageId?: string;
 }) {
   switch (section.type) {
     case 'hero':
@@ -1360,7 +1392,7 @@ function RenderSection({
     case 'faq':
       return <FAQSection section={section} primaryColor={primaryColor} />;
     case 'contact_form':
-      return <ContactFormSection section={section} primaryColor={primaryColor} />;
+      return <ContactFormSection section={section} primaryColor={primaryColor} tenantSlug={tenantSlug} pageId={pageId} />;
     case 'testimonials':
       return <TestimonialsSection section={section} primaryColor={primaryColor} />;
     case 'timeline':
@@ -1460,6 +1492,7 @@ const PublicPageView = () => {
                 primaryColor={primaryColor}
                 secondaryColor={secondaryColor}
                 tenantSlug={tenantSlug!}
+                pageId={page.id}
               />
             ))
           ) : (

@@ -52,7 +52,8 @@ import {
   ScanLine,
   Search,
   Globe,
-  Upload
+  Upload,
+  Inbox
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -290,6 +291,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/audit-logs"), label: t("nav.auditLogs"), icon: Activity, permission: "tenant:manage" },
         { href: getTenantUrl("/admin/data-quality"), label: "Qualité des Données", icon: Activity, permission: "settings:manage" },
         { href: getTenantUrl("/admin/public-pages"), label: "Pages publiques", icon: Globe, permission: "settings:manage" },
+        { href: getTenantUrl("/admin/public-pages/messages"), label: "Messages reçus", icon: Inbox, permission: "settings:manage" },
         { href: getTenantUrl("/admin/settings"), label: t("nav.settings"), icon: Settings, permission: "settings:read" },
       ],
     },
