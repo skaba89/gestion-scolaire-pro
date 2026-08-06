@@ -495,6 +495,20 @@ export default function PublicPagesManager() {
     }
   };
 
+  const [togglingPublishId, setTogglingPublishId] = useState<string | null>(null);
+
+  const handleTogglePublish = async (page: PublicPage) => {
+    setTogglingPublishId(page.id);
+    try {
+      await apiClient.put(`/public-pages/${page.id}/`, { is_published: !page.is_published });
+      invalidatePages();
+    } catch {
+      toast.error("Impossible de modifier le statut de la page");
+    } finally {
+      setTogglingPublishId(null);
+    }
+  };
+
   // ─── Render ────────────────────────────────────────────────────────────
 
   return (
@@ -666,13 +680,23 @@ export default function PublicPagesManager() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {page.is_published ? (
-                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800">
-                        {t("publicPages.statusPublished")}
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">{t("publicPages.statusDraft")}</Badge>
-                    )}
+                    <div
+                      className="flex items-center gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Switch
+                        checked={page.is_published}
+                        disabled={togglingPublishId === page.id}
+                        onCheckedChange={() => handleTogglePublish(page)}
+                      />
+                      {page.is_published ? (
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800">
+                          {t("publicPages.statusPublished")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">{t("publicPages.statusDraft")}</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-center gap-1">
