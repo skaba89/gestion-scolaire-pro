@@ -56,12 +56,14 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
   const programs = tenant.programs || [];
   const departments = (tenant as any).departments || [];
 
+  // "Recherche" pointed at a #recherche anchor that doesn't exist anywhere
+  // in this template (only #programmes and #contact do), and "International"/
+  // "Vie étudiante" were bare "#" placeholders that never had content behind
+  // them — every one of those clicks was a dead end for a real visitor.
+  // Only list nav items that resolve to an actual section on the page.
   const navLinks = [
     { label: 'Formations', href: `#programmes` },
-    { label: 'Recherche', href: `#recherche` },
     { label: 'Campus', href: `#contact` },
-    { label: 'International', href: `#` },
-    { label: 'Vie étudiante', href: `#` },
   ];
 
   const currentYear = new Date().getFullYear();
