@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 import {
   Plus,
@@ -178,6 +179,7 @@ function formatJson(str: string): string {
 export default function PublicPagesManager() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { tenant } = useTenant();
 
   const PAGE_TYPES = useMemo<Record<string, string>>(() => ({
     HOME: t("publicPages.typeHome"),
@@ -405,7 +407,12 @@ export default function PublicPagesManager() {
   };
 
   const handlePreview = (page: PublicPage) => {
-    window.open(`/p/${page.slug}`, "_blank");
+    // Was `/p/${page.slug}` — that route has never existed anywhere in the
+    // router (grep confirms zero matches), so every single "Aperçu" click
+    // 404'd. The real public page route is /:tenantSlug/pages/:pageSlug
+    // (see PublicPageView.tsx / routes/PublicRoutes.tsx).
+    if (!tenant?.slug) return;
+    window.open(`/${tenant.slug}/pages/${page.slug}`, "_blank");
   };
 
   const handleMoveUp = async (page: PublicPage) => {
