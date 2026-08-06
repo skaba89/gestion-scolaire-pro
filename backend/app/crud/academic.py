@@ -299,12 +299,32 @@ def delete_department(db: Session, dept_id: UUID, tenant_id: UUID) -> bool:
 def get_programs(db: Session, tenant_id: UUID) -> List[Program]:
     return db.query(Program).filter(Program.tenant_id == tenant_id).all()
 
+def get_program(db: Session, program_id: UUID, tenant_id: UUID) -> Optional[Program]:
+    return db.query(Program).filter(Program.id == program_id, Program.tenant_id == tenant_id).first()
+
 def create_program(db: Session, obj_in: ProgramCreate, tenant_id: UUID) -> Program:
     db_obj = Program(**obj_in.model_dump(), tenant_id=tenant_id)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+def update_program(db: Session, program_id: UUID, obj_in: ProgramUpdate, tenant_id: UUID) -> Optional[Program]:
+    db_obj = get_program(db, program_id, tenant_id)
+    if not db_obj: return None
+    for field, value in obj_in.model_dump(exclude_unset=True).items():
+        setattr(db_obj, field, value)
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def delete_program(db: Session, program_id: UUID, tenant_id: UUID) -> bool:
+    db_obj = get_program(db, program_id, tenant_id)
+    if not db_obj: return False
+    db.delete(db_obj)
+    db.commit()
+    return True
 
 # --- Room ---
 def get_rooms(db: Session, tenant_id: UUID) -> List[Room]:

@@ -210,6 +210,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/subjects"), label: subjectsLabel, icon: FileText, permission: "subjects:manage" },
         { href: getTenantUrl("/admin/campuses"), label: t("nav.campuses"), icon: Home, permission: "settings:manage" },
         { href: getTenantUrl("/admin/departments"), label: t("nav.departments"), icon: Building2, permission: "departments:read" },
+        { href: getTenantUrl("/admin/programs"), label: "Filières / Programmes", icon: GraduationCap, permission: "classrooms:manage" },
       ],
     },
     {

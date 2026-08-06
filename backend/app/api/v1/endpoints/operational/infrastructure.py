@@ -18,7 +18,7 @@ from app.schemas.academic import (
     Room, RoomCreate,
     Classroom, ClassroomCreate, ClassroomUpdate,
     Enrollment, EnrollmentCreate,
-    Program, ProgramCreate
+    Program, ProgramCreate, ProgramUpdate
 )
 
 router = APIRouter()
@@ -58,6 +58,33 @@ def create_program(
     current_user: dict = Depends(get_current_user),
 ):
     return crud.create_program(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+
+@router.patch("/programs/{program_id}/", response_model=Program)
+def update_program(
+    program_id: UUID,
+    obj_in: ProgramUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Was missing entirely — a tenant had no way (UI nor API) to rename or
+    remove the generic 'Licence 1/Master 1/...' placeholder programs some
+    tenants are seeded with, to replace them with their real named filières."""
+    updated = crud.update_program(db, program_id=program_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Programme introuvable")
+    return updated
+
+@router.delete("/programs/{program_id}/", status_code=status.HTTP_204_NO_CONTENT)
+def delete_program(
+    program_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    deleted = crud.delete_program(db, program_id=program_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Programme introuvable")
 
 # --- Classrooms (Classes) ---
 @router.get("/classrooms/", response_model=List[Classroom])
