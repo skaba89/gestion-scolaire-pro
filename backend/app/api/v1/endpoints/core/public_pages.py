@@ -3,14 +3,16 @@
 Admin endpoints require authentication and appropriate roles.
 Public endpoints are accessible without authentication.
 """
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from uuid import UUID
 from datetime import datetime
 import traceback
 import logging
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -24,9 +26,14 @@ from app.schemas.public_pages import (
     PublicPagePublicResponse,
     PublicPageNavResponse,
     PageReorderRequest,
+    PublicFormSubmissionCreate,
+    PublicFormSubmissionResponse,
 )
 from app.models.public_page import PublicPage
+from app.models.public_form_submission import PublicFormSubmission
 from app.models.tenant import Tenant
+
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +187,48 @@ async def list_public_pages(
 
     pages = query.order_by(PublicPage.sort_order, PublicPage.created_at).all()
     return pages
+
+
+@admin_router.get("/submissions/", response_model=List[PublicFormSubmissionResponse])
+async def list_form_submissions(
+    request: Request,
+    is_read: Optional[bool] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Messages received through any page's "contact_form" widget."""
+    _require_staff_min(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
+
+    query = db.query(PublicFormSubmission).filter(PublicFormSubmission.tenant_id == tenant_id)
+    if is_read is not None:
+        query = query.filter(PublicFormSubmission.is_read == is_read)
+
+    return query.order_by(PublicFormSubmission.created_at.desc()).limit(limit).all()
+
+
+@admin_router.patch("/submissions/{submission_id}/mark-read/", response_model=PublicFormSubmissionResponse)
+async def mark_submission_read(
+    request: Request,
+    submission_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _require_staff_min(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
+
+    submission = db.query(PublicFormSubmission).filter(
+        PublicFormSubmission.id == submission_id,
+        PublicFormSubmission.tenant_id == tenant_id,
+    ).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Message introuvable")
+
+    submission.is_read = True
+    db.commit()
+    db.refresh(submission)
+    return submission
 
 
 @admin_router.get("/nav/", response_model=List[PublicPageNavResponse])
@@ -493,3 +542,47 @@ async def get_published_page_public(
         raise HTTPException(status_code=404, detail="Page non trouvée")
 
     return page
+
+
+@public_router.post("/{tenant_slug}/submit-form/", status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
+async def submit_public_form(
+    request: Request,
+    tenant_slug: str,
+    body: PublicFormSubmissionCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Receive a "contact_form" widget submission (public, no auth required).
+
+    ContactFormSection (the actual form a visitor fills in) previously only
+    ever called setSubmitted(true) client-side — nothing was ever sent
+    here, so this endpoint is what makes it a real form.
+    """
+    tenant = db.query(Tenant).filter(
+        Tenant.slug == tenant_slug,
+        Tenant.is_active == True,
+    ).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Établissement non trouvé")
+
+    if body.page_id:
+        page_exists = db.query(PublicPage.id).filter(
+            PublicPage.id == body.page_id,
+            PublicPage.tenant_id == tenant.id,
+        ).first()
+        if not page_exists:
+            raise HTTPException(status_code=404, detail="Page non trouvée")
+
+    submission = PublicFormSubmission(
+        tenant_id=tenant.id,
+        page_id=body.page_id,
+        name=body.name,
+        email=body.email,
+        phone=body.phone,
+        subject=body.subject,
+        message=body.message,
+    )
+    db.add(submission)
+    db.commit()
+    return {"success": True}

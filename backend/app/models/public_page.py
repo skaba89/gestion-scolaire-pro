@@ -13,9 +13,20 @@ class PublicPage(Base, UUIDMixin, TimestampMixin, TenantMixin):
     page_type = Column(String(50), nullable=False, default="CUSTOM")
     # page_type enum: ADMISSION, PROGRAMS, RESEARCH, CAMPUS, CONTACT, ABOUT, CUSTOM, HOME
 
-    # Content stored as JSON — supports rich text, sections, images, etc.
-    # Structure: { "sections": [{ "type": "...", "title": "...", "body": "...", "items": [...], "settings": {...} }] }
-    content = Column(JSON, default=dict)
+    # Content stored as JSON — a LIST of sections (widgets), not an object:
+    # [{ "type": "hero"|"text"|"features"|"stats"|"gallery"|"cta"|"faq"|
+    #    "contact_form"|"testimonials"|"timeline"|"custom_html",
+    #    "title": "...", "subtitle": "...", "content": "...",
+    #    "items": [...], "settings": {...} }, ...]
+    # (see PublicPageSection in src/hooks/usePublicPages.ts and the section
+    # renderers in src/pages/public/PublicPageView.tsx — the actual code
+    # that reads this field always does page.content.map(...), i.e. treats
+    # it as an array. The schema previously typed it as Dict[str, Any],
+    # which Pydantic rejects any list payload against — saving real
+    # section content has never actually worked; default=dict below is a
+    # leftover from that and now only matters for brand-new rows before
+    # the app ever writes to them.)
+    content = Column(JSON, default=list)
 
     template = Column(String(50), default="default")
     primary_color = Column(String(7))    # hex color, e.g. "#1e3a5f"

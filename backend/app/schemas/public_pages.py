@@ -19,7 +19,13 @@ class PublicPageCreate(BaseModel):
     title: str
     slug: str
     page_type: str = "CUSTOM"
-    content: Optional[Dict[str, Any]] = None
+    # A page's real content is a list of sections ({type, title, ...}, see
+    # PublicPageSection on the frontend) — this was typed as a bare
+    # Dict[str, Any] (an object), which Pydantic rejects any list payload
+    # against with a 422. The admin editor's raw JSON textarea defaulted to
+    # "{}" and was never actually exercised with real section data, so
+    # nothing caught this: saving a real page's content has never worked.
+    content: Optional[List[Dict[str, Any]]] = None
     template: Optional[str] = "default"
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
@@ -29,6 +35,16 @@ class PublicPageCreate(BaseModel):
     meta_description: Optional[str] = None
     show_in_nav: bool = True
     nav_label: Optional[str] = None
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def coerce_legacy_content(cls, v):
+        """Tolerate a stale cached frontend build still sending `{}` during
+        rollout, rather than 422ing — same rationale as the response-side
+        coercion (see PublicPageResponse)."""
+        if v is not None and not isinstance(v, list):
+            return []
+        return v
 
     @field_validator("page_type")
     @classmethod
@@ -63,7 +79,7 @@ class PublicPageUpdate(BaseModel):
     title: Optional[str] = None
     slug: Optional[str] = None
     page_type: Optional[str] = None
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[List[Dict[str, Any]]] = None
     template: Optional[str] = None
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
@@ -73,6 +89,14 @@ class PublicPageUpdate(BaseModel):
     meta_description: Optional[str] = None
     show_in_nav: Optional[bool] = None
     nav_label: Optional[str] = None
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def coerce_legacy_content(cls, v):
+        """See PublicPageCreate.coerce_legacy_content."""
+        if v is not None and not isinstance(v, list):
+            return []
+        return v
 
     @field_validator("page_type")
     @classmethod
@@ -125,7 +149,7 @@ class PublicPageResponse(BaseModel):
     title: str
     slug: str
     page_type: str
-    content: Optional[Dict[str, Any]] = {}
+    content: Optional[List[Dict[str, Any]]] = []
     template: Optional[str] = "default"
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
@@ -139,6 +163,17 @@ class PublicPageResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def coerce_legacy_content(cls, v):
+        """Pages saved before this fix (content was typed as a bare
+        Dict[str, Any]) have `{}` stored in the JSON column — validating
+        that against List[...] would 500 on every pre-existing page.
+        Treat any non-list value as "no sections yet" instead of crashing."""
+        if not isinstance(v, list):
+            return []
+        return v
 
 
 class PublicPageListItem(BaseModel):
@@ -164,7 +199,7 @@ class PublicPagePublicResponse(BaseModel):
     title: str
     slug: str
     page_type: str
-    content: Optional[Dict[str, Any]] = {}
+    content: Optional[List[Dict[str, Any]]] = []
     template: Optional[str] = "default"
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
@@ -176,6 +211,14 @@ class PublicPagePublicResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("content", mode="before")
+    @classmethod
+    def coerce_legacy_content(cls, v):
+        """See PublicPageResponse.coerce_legacy_content."""
+        if not isinstance(v, list):
+            return []
+        return v
+
 
 class PublicPageNavResponse(BaseModel):
     """Navigation item for public nav menus."""
@@ -185,5 +228,40 @@ class PublicPageNavResponse(BaseModel):
     nav_label: Optional[str] = None
     page_type: str
     sort_order: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ─── Form submissions ("contact_form" widget) ─────────────────────────
+
+class PublicFormSubmissionCreate(BaseModel):
+    """Payload a visitor submits from a page's contact_form section."""
+    page_id: Optional[UUID] = None
+    name: str
+    email: str
+    phone: Optional[str] = None
+    subject: Optional[str] = None
+    message: str
+
+    @field_validator("name", "message")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("This field cannot be empty")
+        return v
+
+
+class PublicFormSubmissionResponse(BaseModel):
+    """Admin-facing view of a received submission."""
+    id: UUID
+    page_id: Optional[UUID] = None
+    name: str
+    email: str
+    phone: Optional[str] = None
+    subject: Optional[str] = None
+    message: str
+    is_read: bool
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

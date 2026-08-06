@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
+import { SectionsBuilder } from "@/components/public-pages/SectionsBuilder";
+import type { PublicPageSection } from "@/hooks/usePublicPages";
 import { toast } from "sonner";
 import {
   Plus,
@@ -87,7 +89,7 @@ interface PublicPage {
   slug: string;
   page_type: string;
   template: string;
-  content: Record<string, unknown>;
+  content: PublicPageSection[];
   is_published: boolean;
   show_in_nav: boolean;
   nav_label: string | null;
@@ -106,7 +108,6 @@ interface PageFormData {
   slug: string;
   page_type: string;
   template: string;
-  content: string;
   is_published: boolean;
   show_in_nav: boolean;
   nav_label: string;
@@ -135,7 +136,6 @@ const EMPTY_FORM: PageFormData = {
   slug: "",
   page_type: "CUSTOM",
   template: "default",
-  content: "{}",
   is_published: false,
   show_in_nav: false,
   nav_label: "",
@@ -155,23 +155,6 @@ function slugify(text: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
-}
-
-function isValidJson(str: string): boolean {
-  try {
-    JSON.parse(str);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function formatJson(str: string): string {
-  try {
-    return JSON.stringify(JSON.parse(str), null, 2);
-  } catch {
-    return str;
-  }
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -215,7 +198,7 @@ export default function PublicPagesManager() {
 
   // Form state
   const [form, setForm] = useState<PageFormData>(EMPTY_FORM);
-  const [contentError, setContentError] = useState<string | null>(null);
+  const [sections, setSections] = useState<PublicPageSection[]>([]);
 
   // ─── Fetch pages ───────────────────────────────────────────────────────
 
@@ -269,14 +252,6 @@ export default function PublicPagesManager() {
           updated.nav_label = value as string;
         }
       }
-      // Validate content JSON
-      if (key === "content") {
-        if (value && !isValidJson(value as string)) {
-          setContentError(t("publicPages.jsonError"));
-        } else {
-          setContentError(null);
-        }
-      }
       return updated;
     });
   };
@@ -284,7 +259,7 @@ export default function PublicPagesManager() {
   const openCreateDialog = () => {
     setEditingPage(null);
     setForm(EMPTY_FORM);
-    setContentError(null);
+    setSections([]);
     setIsFormOpen(true);
   };
 
@@ -295,7 +270,6 @@ export default function PublicPagesManager() {
       slug: page.slug,
       page_type: page.page_type,
       template: page.template,
-      content: JSON.stringify(page.content, null, 2),
       is_published: page.is_published,
       show_in_nav: page.show_in_nav,
       nav_label: page.nav_label || "",
@@ -305,14 +279,14 @@ export default function PublicPagesManager() {
       secondary_color: page.secondary_color || "#1e293b",
       sort_order: page.sort_order,
     });
-    setContentError(null);
+    setSections(Array.isArray(page.content) ? page.content : []);
     setIsFormOpen(true);
   };
 
   const closeForm = () => {
     setIsFormOpen(false);
     setEditingPage(null);
-    setContentError(null);
+    setSections([]);
   };
 
   // ─── CRUD operations ───────────────────────────────────────────────────
@@ -320,10 +294,6 @@ export default function PublicPagesManager() {
   const handleSave = async () => {
     if (!form.title.trim()) {
       toast.error(t("publicPages.titleRequired"));
-      return;
-    }
-    if (contentError) {
-      toast.error(t("publicPages.invalidJson"));
       return;
     }
 
@@ -334,7 +304,7 @@ export default function PublicPagesManager() {
         slug: form.slug || slugify(form.title),
         page_type: form.page_type,
         template: form.template,
-        content: JSON.parse(form.content || "{}"),
+        content: sections,
         is_published: form.is_published,
         show_in_nav: form.show_in_nav,
         nav_label: form.nav_label || null,
@@ -738,8 +708,9 @@ export default function PublicPagesManager() {
           </SheetHeader>
 
           <Tabs defaultValue="general" className="px-6">
-            <TabsList className="w-full grid grid-cols-3 mt-4">
+            <TabsList className="w-full grid grid-cols-4 mt-4">
               <TabsTrigger value="general">{t("publicPages.tabGeneral")}</TabsTrigger>
+              <TabsTrigger value="content">Contenu</TabsTrigger>
               <TabsTrigger value="design">{t("publicPages.tabDesign")}</TabsTrigger>
               <TabsTrigger value="seo">{t("publicPages.tabSeo")}</TabsTrigger>
             </TabsList>
@@ -871,6 +842,11 @@ export default function PublicPagesManager() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* ── Tab: Content (widgets) ───────────────────────────────── */}
+            <TabsContent value="content" className="space-y-4 mt-4 pb-24">
+              <SectionsBuilder sections={sections} onChange={setSections} />
             </TabsContent>
 
             {/* ── Tab: Design ──────────────────────────────────────────── */}
@@ -1024,50 +1000,6 @@ export default function PublicPagesManager() {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="page-content">{t("publicPages.contentJson")}</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs gap-1"
-                    onClick={() => {
-                      const formatted = formatJson(form.content);
-                      updateField("content", formatted);
-                    }}
-                  >
-                    {t("publicPages.format")}
-                  </Button>
-                </div>
-                <Textarea
-                  id="page-content"
-                  placeholder='{"hero": {"title": "Bienvenue"}, "sections": []}'
-                  value={form.content}
-                  onChange={(e) => updateField("content", e.target.value)}
-                  rows={12}
-                  className={`font-mono text-xs ${contentError ? "border-destructive" : ""}`}
-                />
-                {contentError && (
-                  <p className="text-xs text-destructive">{contentError}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {t("publicPages.contentJsonHelp")}
-                </p>
-              </div>
-
-              {/* Content structure preview */}
-              {form.content && isValidJson(form.content) && (
-                <div className="rounded-lg border p-4 space-y-2">
-                  <Label className="text-sm font-medium">
-                    {t("publicPages.contentStructure")}
-                  </Label>
-                  <div className="bg-muted/50 rounded-lg p-3 font-mono text-xs overflow-auto max-h-48">
-                    <ContentStructurePreview
-                      content={JSON.parse(form.content)}
-                    />
-                  </div>
-                </div>
-              )}
             </TabsContent>
           </Tabs>
 
@@ -1131,78 +1063,4 @@ export default function PublicPagesManager() {
       </AlertDialog>
     </div>
   );
-}
-
-// ─── Sub-component: Content Structure Preview ───────────────────────────────
-
-function ContentStructurePreview({
-  content,
-}: {
-  content: Record<string, unknown>;
-}) {
-  const renderValue = (value: unknown, depth = 0): React.ReactNode => {
-    if (value === null || value === undefined) {
-      return (
-        <span className="text-muted-foreground italic">null</span>
-      );
-    }
-    if (typeof value === "string") {
-      return (
-        <span className="text-green-600 dark:text-green-400">
-          &quot;{value.length > 50 ? value.substring(0, 50) + "..." : value}
-          &quot;
-        </span>
-      );
-    }
-    if (typeof value === "number" || typeof value === "boolean") {
-      return (
-        <span className="text-blue-600 dark:text-blue-400">
-          {String(value)}
-        </span>
-      );
-    }
-    if (Array.isArray(value)) {
-      if (value.length === 0) return <span className="text-muted-foreground">[]</span>;
-      return (
-        <div>
-          <span className="text-yellow-600 dark:text-yellow-400">[</span>
-          {value.map((item, idx) => (
-            <div key={idx} className="pl-4 border-l border-muted">
-              {renderValue(item, depth + 1)}
-              {idx < value.length - 1 && (
-                <span className="text-muted-foreground">,</span>
-              )}
-            </div>
-          ))}
-          <span className="text-yellow-600 dark:text-yellow-400">]</span>
-        </div>
-      );
-    }
-    if (typeof value === "object") {
-      const entries = Object.entries(value as Record<string, unknown>);
-      if (entries.length === 0)
-        return <span className="text-muted-foreground">{"{}"}</span>;
-      return (
-        <div>
-          <span className="text-yellow-600 dark:text-yellow-400">{"{"}</span>
-          {entries.map(([key, val], idx) => (
-            <div key={key} className="pl-4 border-l border-muted">
-              <span className="text-purple-600 dark:text-purple-400">
-                {key}
-              </span>
-              <span className="text-muted-foreground">: </span>
-              {renderValue(val, depth + 1)}
-              {idx < entries.length - 1 && (
-                <span className="text-muted-foreground">,</span>
-              )}
-            </div>
-          ))}
-          <span className="text-yellow-600 dark:text-yellow-400">{"}"}</span>
-        </div>
-      );
-    }
-    return <span>{String(value)}</span>;
-  };
-
-  return <div className="space-y-0.5">{renderValue(content)}</div>;
 }
