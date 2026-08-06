@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from "@/utils/url";
+import { usePublicNav } from "@/hooks/usePublicPages";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -61,9 +62,23 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
   // "Vie étudiante" were bare "#" placeholders that never had content behind
   // them — every one of those clicks was a dead end for a real visitor.
   // Only list nav items that resolve to an actual section on the page.
+  //
+  // A tenant can now add its own pages (Recherche, Vie étudiante, etc.) via
+  // "Pages publiques" in the admin — checking "Afficher dans le menu" makes
+  // them appear here automatically, instead of the old behavior where
+  // having any custom page at all replaced this whole template with a
+  // generic directory (see TenantLanding.tsx).
+  const navPagesQuery = usePublicNav(slug);
+  const customNavLinks = (navPagesQuery.data || []).map((item) => ({
+    label: item.label,
+    href: item.page_slug ? `/${slug}/pages/${item.page_slug}` : item.url || '#',
+    external: Boolean(item.is_external || (item.url && !item.page_slug)),
+  }));
+
   const navLinks = [
-    { label: 'Formations', href: `#programmes` },
-    { label: 'Campus', href: `#contact` },
+    { label: 'Formations', href: `#programmes`, external: false },
+    { label: 'Campus', href: `#contact`, external: false },
+    ...customNavLinks,
   ];
 
   const currentYear = new Date().getFullYear();
@@ -164,6 +179,8 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                   <a
                     key={link.label}
                     href={link.href}
+                    target={link.external ? '_blank' : undefined}
+                    rel={link.external ? 'noopener noreferrer' : undefined}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                   >
                     {link.label}
@@ -207,6 +224,8 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                   <a
                     key={link.label}
                     href={link.href}
+                    target={link.external ? '_blank' : undefined}
+                    rel={link.external ? 'noopener noreferrer' : undefined}
                     className="block px-4 py-3 rounded-lg text-sm text-gray-700 hover:bg-gray-100"
                     onClick={() => setMobileOpen(false)}
                   >

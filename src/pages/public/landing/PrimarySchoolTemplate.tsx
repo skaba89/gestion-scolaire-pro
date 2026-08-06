@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from "@/utils/url";
+import { usePublicNav } from "@/hooks/usePublicPages";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -62,6 +63,24 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
       : DEFAULT_CLASS_LEVELS;
 
   const currentYear = new Date().getFullYear();
+
+  // Custom pages created via "Pages publiques" (admin) with "Afficher dans
+  // le menu" checked appear here automatically — see UniversityTemplate.tsx
+  // for the full rationale.
+  const navPagesQuery = usePublicNav(slug);
+  const customNavLinks = (navPagesQuery.data || []).map((item) => ({
+    label: item.label,
+    href: item.page_slug ? `/${slug}/pages/${item.page_slug}` : item.url || '#',
+    external: Boolean(item.is_external || (item.url && !item.page_slug)),
+  }));
+
+  const navLinks = [
+    { label: '🏠 Accueil', href: `/ecole/${slug}`, external: false },
+    { label: '📚 Nos classes', href: `#classes`, external: false },
+    { label: '📢 Infos parents', href: `#annonces`, external: false },
+    { label: '📞 Contact', href: `#contact`, external: false },
+    ...customNavLinks,
+  ];
 
   return (
     <>
@@ -107,15 +126,12 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
 
               {/* Desktop nav */}
               <div className="hidden lg:flex items-center gap-1">
-                {[
-                  { label: '🏠 Accueil', href: `/ecole/${slug}` },
-                  { label: '📚 Nos classes', href: `#classes` },
-                  { label: '📢 Infos parents', href: `#annonces` },
-                  { label: '📞 Contact', href: `#contact` },
-                ].map((link) => (
+                {navLinks.map((link) => (
                   <a
                     key={link.label}
                     href={link.href}
+                    target={link.external ? '_blank' : undefined}
+                    rel={link.external ? 'noopener noreferrer' : undefined}
                     className="px-4 py-2 rounded-full text-sm font-semibold text-white/90 hover:text-white hover:bg-white/20 transition-colors"
                   >
                     {link.label}
@@ -145,15 +161,12 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
             {/* Mobile menu */}
             {mobileOpen && (
               <div className="lg:hidden py-4 border-t border-white/20 space-y-1">
-                {[
-                  { label: '🏠 Accueil', href: `/ecole/${slug}` },
-                  { label: '📚 Nos classes', href: `#classes` },
-                  { label: '📢 Infos parents', href: `#annonces` },
-                  { label: '📞 Contact', href: `#contact` },
-                ].map((link) => (
+                {navLinks.map((link) => (
                   <a
                     key={link.label}
                     href={link.href}
+                    target={link.external ? '_blank' : undefined}
+                    rel={link.external ? 'noopener noreferrer' : undefined}
                     className="block px-4 py-3 rounded-xl text-sm font-semibold text-white hover:bg-white/20"
                     onClick={() => setMobileOpen(false)}
                   >
