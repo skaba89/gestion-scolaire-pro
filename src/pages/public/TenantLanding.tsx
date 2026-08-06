@@ -230,27 +230,20 @@ const TenantLanding = () => {
     return <TenantRedirect website={tenant.website} name={tenant.name} />;
   }
 
-  // If tenant has public pages, show the pages directory
-  if (hasPublicPages) {
-    const homePage = publicPages.find((p) => p.is_home);
-    const otherPages = publicPages.filter((p) => !p.is_home);
-
-    // If there's a home page, redirect to it
-    if (homePage) {
-      window.location.href = `/${tenantSlug}/pages/${homePage.slug}`;
-      return <LandingSkeleton />;
-    }
-
-    // Otherwise show a pages directory
-    return (
-      <TenantPagesDirectory
-        tenant={tenant}
-        settings={settings}
-        primaryColor={primaryColor}
-        pages={publicPages}
-        tenantSlug={tenantSlug!}
-      />
-    );
+  // A page explicitly marked "is_home" is a deliberate full takeover of the
+  // homepage — honor it. But having *some* custom pages (the normal case:
+  // a tenant using "Pages publiques" to add a Recherche/Vie étudiante page)
+  // used to ALSO force this same takeover into a generic, un-branded
+  // directory list — discarding the tenant's real template (hero, mission,
+  // programs, contact) entirely just because a page existed. That made
+  // creating a single custom page a strictly worse trade than not using the
+  // feature at all, so nobody could safely use it. Only redirect on an
+  // explicit is_home; otherwise fall through to the real template below,
+  // which merges custom pages into its own nav instead of replacing itself.
+  const homePage = publicPages.find((p) => p.is_home);
+  if (homePage) {
+    window.location.href = `/${tenantSlug}/pages/${homePage.slug}`;
+    return <LandingSkeleton />;
   }
 
   // Fallback to legacy template-based landing

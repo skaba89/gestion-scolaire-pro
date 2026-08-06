@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from "@/utils/url";
+import { usePublicNav } from "@/hooks/usePublicPages";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -46,11 +47,22 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
   const unpinnedAnnouncements = settings.announcements.filter((a) => !a.is_pinned);
   const allAnnouncements = [...pinnedAnnouncements, ...unpinnedAnnouncements];
 
+  // Custom pages created via "Pages publiques" (admin) with "Afficher dans
+  // le menu" checked appear here automatically — see UniversityTemplate.tsx
+  // for the full rationale.
+  const navPagesQuery = usePublicNav(slug);
+  const customNavLinks = (navPagesQuery.data || []).map((item) => ({
+    label: item.label,
+    href: item.page_slug ? `/${slug}/pages/${item.page_slug}` : item.url || '#',
+    external: Boolean(item.is_external || (item.url && !item.page_slug)),
+  }));
+
   const navLinks = [
-    { label: 'Accueil', href: `/ecole/${slug}` },
-    { label: 'Programmes', href: `/ecole/${slug}#programmes` },
-    { label: 'Annonces', href: `/ecole/${slug}#annonces` },
-    { label: 'Contact', href: `/ecole/${slug}#contact` },
+    { label: 'Accueil', href: `/ecole/${slug}`, external: false },
+    { label: 'Programmes', href: `/ecole/${slug}#programmes`, external: false },
+    { label: 'Annonces', href: `/ecole/${slug}#annonces`, external: false },
+    { label: 'Contact', href: `/ecole/${slug}#contact`, external: false },
+    ...customNavLinks,
   ];
 
   const loginUrl = `/${slug}/login`;
@@ -114,6 +126,8 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
                   <a
                     key={link.label}
                     href={link.href}
+                    target={link.external ? '_blank' : undefined}
+                    rel={link.external ? 'noopener noreferrer' : undefined}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                   >
                     {link.label}
@@ -163,6 +177,8 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
                   <a
                     key={link.label}
                     href={link.href}
+                    target={link.external ? '_blank' : undefined}
+                    rel={link.external ? 'noopener noreferrer' : undefined}
                     className="block px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
                     onClick={() => setMobileOpen(false)}
                   >
@@ -797,12 +813,23 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
                 <ul className="space-y-2">
                   {navLinks.map((link) => (
                     <li key={link.label}>
-                      <Link
-                        to={link.href}
-                        className="text-white/70 hover:text-white text-sm transition-colors"
-                      >
-                        {link.label}
-                      </Link>
+                      {link.external ? (
+                        <a
+                          href={link.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-white/70 hover:text-white text-sm transition-colors"
+                        >
+                          {link.label}
+                        </a>
+                      ) : (
+                        <Link
+                          to={link.href}
+                          className="text-white/70 hover:text-white text-sm transition-colors"
+                        >
+                          {link.label}
+                        </Link>
+                      )}
                     </li>
                   ))}
                   <li>
