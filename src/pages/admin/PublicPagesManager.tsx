@@ -5,6 +5,8 @@ import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { SectionsBuilder } from "@/components/public-pages/SectionsBuilder";
 import type { PublicPageSection } from "@/hooks/usePublicPages";
+import { getTenantTemplateGroup } from "@/lib/tenantTemplateGroup";
+import { getPageTemplatesFor, type PageTemplate } from "@/lib/publicPageTemplates";
 import { toast } from "sonner";
 import {
   Plus,
@@ -22,6 +24,8 @@ import {
   FilePlus,
   Palette,
   LayoutGrid,
+  LayoutTemplate,
+  Check,
 } from "lucide-react";
 
 // shadcn/ui components
@@ -30,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -192,6 +197,11 @@ export default function PublicPagesManager() {
   const [editingPage, setEditingPage] = useState<PublicPage | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Template picker state
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  const [selectedTemplateSlugs, setSelectedTemplateSlugs] = useState<Set<string>>(new Set());
+  const [isCreatingFromTemplates, setIsCreatingFromTemplates] = useState(false);
+
   // Delete state
   const [deleteTarget, setDeleteTarget] = useState<PublicPage | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -261,6 +271,70 @@ export default function PublicPagesManager() {
     setForm(EMPTY_FORM);
     setSections([]);
     setIsFormOpen(true);
+  };
+
+  // ─── Starter templates by establishment type ────────────────────────────
+  // Same tenant.type → group classification the actual landing page uses
+  // (getTenantTemplateGroup), so what's offered here matches what the
+  // homepage will actually render.
+
+  const templateGroup = getTenantTemplateGroup(tenant?.type);
+  const existingSlugs = new Set(pages.map((p) => p.slug));
+  const availableTemplates = getPageTemplatesFor(templateGroup).filter(
+    (tpl) => !existingSlugs.has(tpl.slug)
+  );
+
+  const openTemplatePicker = () => {
+    setSelectedTemplateSlugs(new Set(availableTemplates.map((t) => t.slug)));
+    setIsTemplatePickerOpen(true);
+  };
+
+  const toggleTemplateSlug = (slug: string) => {
+    setSelectedTemplateSlugs((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  };
+
+  const handleCreateFromTemplates = async () => {
+    const toCreate = availableTemplates.filter((t) => selectedTemplateSlugs.has(t.slug));
+    if (toCreate.length === 0) {
+      setIsTemplatePickerOpen(false);
+      return;
+    }
+    setIsCreatingFromTemplates(true);
+    try {
+      // Sequential rather than Promise.all: sort_order needs to reflect
+      // the bundle's own ordering, and slug collisions (if the admin
+      // creates the same bundle twice) should fail one page at a time
+      // with a clear error, not abort the whole batch.
+      for (let i = 0; i < toCreate.length; i++) {
+        const tpl = toCreate[i];
+        await apiClient.post("/public-pages/", {
+          title: tpl.title,
+          slug: tpl.slug,
+          page_type: tpl.page_type,
+          content: tpl.content,
+          is_published: false,
+          show_in_nav: true,
+          nav_label: tpl.nav_label,
+          sort_order: pages.length + i,
+        });
+      }
+      toast.success(
+        toCreate.length === 1
+          ? "1 page créée (brouillon)"
+          : `${toCreate.length} pages créées (brouillons)`
+      );
+      setIsTemplatePickerOpen(false);
+      invalidatePages();
+    } catch {
+      toast.error("Une erreur est survenue pendant la création des pages");
+    } finally {
+      setIsCreatingFromTemplates(false);
+    }
   };
 
   const openEditDialog = (page: PublicPage) => {
@@ -436,10 +510,18 @@ export default function PublicPagesManager() {
             {t("publicPages.pageSubtitle")}
           </p>
         </div>
-        <Button onClick={openCreateDialog} className="gap-2">
-          <Plus className="h-4 w-4" />
-          {t("publicPages.newPage")}
-        </Button>
+        <div className="flex gap-2">
+          {availableTemplates.length > 0 && (
+            <Button variant="outline" onClick={openTemplatePicker} className="gap-2">
+              <LayoutTemplate className="h-4 w-4" />
+              Créer depuis un modèle
+            </Button>
+          )}
+          <Button onClick={openCreateDialog} className="gap-2">
+            <Plus className="h-4 w-4" />
+            {t("publicPages.newPage")}
+          </Button>
+        </div>
       </div>
 
       {/* ── Stats & Filters ─────────────────────────────────────────────── */}
@@ -514,10 +596,18 @@ export default function PublicPagesManager() {
               : t("publicPages.noPagesEmpty")}
           </p>
           {!searchQuery && filterType === "all" && filterStatus === "all" && (
-            <Button onClick={openCreateDialog} className="mt-4 gap-2">
-              <Plus className="h-4 w-4" />
-              {t("publicPages.createPage")}
-            </Button>
+            <div className="flex gap-2 mt-4">
+              {availableTemplates.length > 0 && (
+                <Button variant="outline" onClick={openTemplatePicker} className="gap-2">
+                  <LayoutTemplate className="h-4 w-4" />
+                  Créer depuis un modèle
+                </Button>
+              )}
+              <Button onClick={openCreateDialog} className="gap-2">
+                <Plus className="h-4 w-4" />
+                {t("publicPages.createPage")}
+              </Button>
+            </div>
           )}
         </div>
       ) : (
@@ -1061,6 +1151,50 @@ export default function PublicPagesManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── Template picker ─────────────────────────────────────────────── */}
+      <Dialog open={isTemplatePickerOpen} onOpenChange={setIsTemplatePickerOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Créer des pages depuis un modèle</DialogTitle>
+            <DialogDescription>
+              Pages de départ adaptées à votre type d'établissement. Elles sont créées en
+              brouillon (non publiées) — modifiez-les avant de les publier.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+            {availableTemplates.map((tpl) => (
+              <label
+                key={tpl.slug}
+                className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50"
+              >
+                <Checkbox
+                  checked={selectedTemplateSlugs.has(tpl.slug)}
+                  onCheckedChange={() => toggleTemplateSlug(tpl.slug)}
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="text-sm font-medium">{tpl.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTemplatePickerOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleCreateFromTemplates} disabled={isCreatingFromTemplates}>
+              {isCreatingFromTemplates ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              Créer {selectedTemplateSlugs.size > 0 ? `(${selectedTemplateSlugs.size})` : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
