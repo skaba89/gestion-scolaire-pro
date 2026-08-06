@@ -145,7 +145,7 @@ class TestPublicFormSubmission:
     def test_submit_404_for_unknown_tenant(self):
         resp = client.post(
             "/api/v1/tenants/public/does-not-exist/submit-form/",
-            json={"name": "X", "email": "x@example.com", "message": "hi"},
+            json={"name": "Xavier", "email": "x@example.com", "message": "Bonjour, ceci est un test."},
         )
         assert resp.status_code == 404
 

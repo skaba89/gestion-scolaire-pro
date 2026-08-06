@@ -27,4 +27,11 @@ class PublicFormSubmission(Base, UUIDMixin, TimestampMixin, TenantMixin):
     message = Column(Text, nullable=False)
     is_read = Column(Boolean, nullable=False, default=False)
 
+    # RGPD (Phase 5): a non-reversible, tenant-scoped hash of the
+    # submitter's IP (see _hash_ip in public_pages.py — same sha256(value +
+    # scope + pepper) pattern as hash_external_sender() for WhatsApp).
+    # Kept only for abuse investigation (e.g. "who is spamming us"); never
+    # the raw IP, and optional — existing rows keep this NULL.
+    source_ip_hash = Column(String(32), nullable=True)
+
     page = relationship("PublicPage")

@@ -1016,7 +1016,7 @@ function ContactFormSection({
   tenantSlug: string;
   pageId?: string;
 }) {
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', subject: '', message: '', website: '' });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1038,6 +1038,12 @@ function ContactFormSection({
         phone: formData.phone || undefined,
         subject: formData.subject || undefined,
         message: formData.message,
+        // Honeypot: real visitors never see this field (visually hidden,
+        // not type="hidden" — some bots skip that but still fill anything
+        // present in the DOM) so it should always arrive empty from a
+        // human. The backend silently accepts (204) and drops anything
+        // where it isn't.
+        website: formData.website || undefined,
       });
       setSubmitted(true);
     } catch {
@@ -1084,6 +1090,27 @@ function ContactFormSection({
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-6 md:p-10 border border-gray-100 shadow-sm">
+              {/* Honeypot: visually hidden (not type="hidden" — some bots
+                  skip that but still autofill anything present in the DOM),
+                  kept out of the tab order and screen-reader tree so it
+                  never trips up a real visitor. Any value here marks the
+                  submission as automated; see backend `website` field. */}
+              <div
+                className="absolute w-px h-px overflow-hidden opacity-0 -z-10"
+                style={{ left: '-9999px' }}
+                aria-hidden="true"
+              >
+                <label htmlFor="website">Ne pas remplir ce champ</label>
+                <input
+                  id="website"
+                  name="website"
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={formData.website}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -1155,6 +1182,10 @@ function ContactFormSection({
                 <Send className="w-5 h-5" />
                 {submitting ? 'Envoi...' : 'Envoyer le message'}
               </Button>
+              <p className="mt-3 text-xs text-gray-400 text-center">
+                En envoyant ce formulaire, vous acceptez que les informations saisies soient utilisées
+                pour traiter votre demande. Elles ne sont ni vendues ni partagées avec des tiers.
+              </p>
             </form>
           )}
         </div>

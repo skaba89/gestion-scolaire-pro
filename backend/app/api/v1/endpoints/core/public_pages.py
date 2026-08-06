@@ -4,16 +4,18 @@ Admin endpoints require authentication and appropriate roles.
 Public endpoints are accessible without authentication.
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from uuid import UUID
 from datetime import datetime
+import hashlib
 import traceback
 import logging
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -33,7 +35,27 @@ from app.models.public_page import PublicPage
 from app.models.public_form_submission import PublicFormSubmission
 from app.models.tenant import Tenant
 
-limiter = Limiter(key_func=get_remote_address)
+
+def _hash_ip(ip: str, tenant_slug: str) -> str:
+    """Same sha256(value + scope + pepper) pattern already used for
+    hash_external_sender() in whatsapp_service.py — non-reversible, and
+    scoped so the same IP hashes differently per tenant (can't be used to
+    correlate a visitor across unrelated schools' abuse logs)."""
+    pepper = settings.SECRET_KEY or ""
+    return hashlib.sha256(f"{ip}:{tenant_slug}:{pepper}".encode("utf-8")).hexdigest()[:16]
+
+
+def _submit_form_rate_key(request: Request) -> str:
+    """IP + tenant composite key: a global per-IP limit alone would let one
+    bot exhaust its quota hammering tenant A and then move on to tenant B
+    unaffected, and would also let a burst against many different tenants
+    from behind one NAT/proxy (a real risk for a shared campus network)
+    starve every tenant's quota at once. Scoping by tenant_slug keeps the
+    limit meaningful per school."""
+    tenant_slug = request.path_params.get("tenant_slug", "-")
+    return f"{get_remote_address(request)}:{tenant_slug}"
+
+limiter = Limiter(key_func=_submit_form_rate_key)
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +251,73 @@ async def mark_submission_read(
     db.commit()
     db.refresh(submission)
     return submission
+
+
+@admin_router.delete("/submissions/{submission_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_submission(
+    request: Request,
+    submission_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """RGPD (Phase 5): let a tenant admin erase a single message on
+    request (e.g. the sender asked to be forgotten). Admin/director only —
+    stricter than list/mark-read (staff can triage, but deletion is
+    irreversible so it's gated higher, same rationale as delete_public_page
+    below)."""
+    _require_admin_or_director(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
+
+    submission = db.query(PublicFormSubmission).filter(
+        PublicFormSubmission.id == submission_id,
+        PublicFormSubmission.tenant_id == tenant_id,
+    ).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Message introuvable")
+
+    db.delete(submission)
+    db.commit()
+    return None
+
+
+@admin_router.get("/submissions/export/")
+async def export_submissions_csv(
+    request: Request,
+    is_read: Optional[bool] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """RGPD (Phase 5): CSV export of this tenant's received messages —
+    lets an admin keep their own copy before a purge, or hand over their
+    own data on request. Tenant-scoped like every other endpoint here;
+    never includes source_ip_hash (internal abuse-investigation use only,
+    not something an export recipient needs)."""
+    import csv
+    import io
+
+    _require_staff_min(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
+
+    query = db.query(PublicFormSubmission).filter(PublicFormSubmission.tenant_id == tenant_id)
+    if is_read is not None:
+        query = query.filter(PublicFormSubmission.is_read == is_read)
+    rows = query.order_by(PublicFormSubmission.created_at.desc()).all()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["date", "nom", "email", "telephone", "sujet", "message", "lu"])
+    for row in rows:
+        writer.writerow([
+            row.created_at.isoformat() if row.created_at else "",
+            row.name, row.email, row.phone or "", row.subject or "",
+            row.message, "oui" if row.is_read else "non",
+        ])
+
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=messages.csv"},
+    )
 
 
 @admin_router.get("/nav/", response_model=List[PublicPageNavResponse])
@@ -558,7 +647,26 @@ async def submit_public_form(
     ContactFormSection (the actual form a visitor fills in) previously only
     ever called setSubmitted(true) client-side — nothing was ever sent
     here, so this endpoint is what makes it a real form.
+
+    Hardened (Phase 1 security pass): honeypot check, per-IP+tenant rate
+    limit (see _submit_form_rate_key), strict field lengths, real email
+    validation + normalization, and a spam-shape heuristic on the message
+    (see PublicFormSubmissionCreate) — all rejections a bot triggers are
+    logged with a hashed IP only, never the submitted content.
     """
+    ip_hash = _hash_ip(get_remote_address(request), tenant_slug)
+
+    # Honeypot: a real visitor's browser never populates this field (it's
+    # hidden via CSS, not `type="hidden"` — some bots skip those but still
+    # fill anything visually present in the DOM). Bail out BEFORE touching
+    # the DB or even checking the tenant exists: a bot gets a
+    # success-shaped, contentless response and no information about why,
+    # so it can't distinguish "blocked" from "this tenant doesn't exist"
+    # from "it worked".
+    if body.website:
+        logger.info("submit_public_form: honeypot triggered ip_hash=%s tenant=%s", ip_hash, tenant_slug)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     tenant = db.query(Tenant).filter(
         Tenant.slug == tenant_slug,
         Tenant.is_active == True,
@@ -582,7 +690,24 @@ async def submit_public_form(
         phone=body.phone,
         subject=body.subject,
         message=body.message,
+        source_ip_hash=ip_hash,
     )
     db.add(submission)
     db.commit()
+    db.refresh(submission)
+
+    # Notify tenant admins outside the request path (Phase 2) — never let a
+    # notification failure turn a successfully-stored message into a
+    # failed submission for the visitor.
+    try:
+        from app.core.jobs import enqueue_job
+
+        await enqueue_job(
+            "send_public_form_submission_alert",
+            tenant_id=str(tenant.id),
+            submission_id=str(submission.id),
+        )
+    except Exception as exc:  # pragma: no cover - enqueue_job already fails open
+        logger.warning("submit_public_form: could not enqueue notification job: %s", exc)
+
     return {"success": True}

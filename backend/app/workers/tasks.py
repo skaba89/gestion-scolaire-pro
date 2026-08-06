@@ -22,6 +22,7 @@ from arq.cron import cron
 from app.core.database import SessionLocal
 from app.core.jobs import get_redis_settings
 from app.models.job import Job
+from app.models.notification import Notification
 
 logger = logging.getLogger(__name__)
 
@@ -239,6 +240,118 @@ async def send_whatsapp_reply_job(ctx: dict, *, tenant_id: str, message_item_id:
         return {"job_id": job_id, "error": str(exc)}
 
 
+async def send_public_form_submission_alert(ctx: dict, *, tenant_id: str, submission_id: str) -> dict:
+    """Phase 2: notify tenant admins that a visitor submitted the public
+    contact form — previously a submission was only ever visible by an
+    admin manually opening "Messages reçus"; nothing told them one had
+    arrived. Two independent channels, neither one gating the other:
+
+    1. In-app Notification rows (existing badge/dashboard mechanism — see
+       send_parent_alert in notifications.py for the same pattern) for every
+       TENANT_ADMIN/DIRECTOR of the tenant. Always attempted; needs no
+       external service.
+    2. An email via EmailSender IF Resend/SMTP is configured for this
+       tenant's environment. Best-effort: a missing/misconfigured email
+       provider must never make this job "fail" — the submission itself
+       was already committed by the endpoint before this job even runs
+       (see submit_public_form's enqueue_job call), so there is nothing
+       left here that could break the visitor's experience.
+    """
+    from app.models.public_form_submission import PublicFormSubmission
+    from app.models.tenant import Tenant
+    from app.models.user import User
+    from app.models.user_role import UserRole
+
+    job_id = _job_started(
+        "send_public_form_submission_alert", tenant_id, {"submission_id": submission_id}
+    )
+    notified_in_app = 0
+    email_sent = False
+    try:
+        with SessionLocal() as db:
+            submission = db.query(PublicFormSubmission).filter(
+                PublicFormSubmission.id == submission_id,
+                PublicFormSubmission.tenant_id == tenant_id,
+            ).first()
+            if not submission:
+                # Nothing to notify about — e.g. the submission was already
+                # deleted (RGPD manual delete, Phase 5) between enqueue and
+                # this job running. Not an error.
+                _job_finished(job_id, success=True, result={"skipped": "submission_not_found"})
+                return {"job_id": job_id, "skipped": "submission_not_found"}
+
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            tenant_name = tenant.name if tenant else "votre établissement"
+
+            admin_user_ids = [
+                row[0] for row in db.query(UserRole.user_id).filter(
+                    UserRole.tenant_id == tenant_id,
+                    UserRole.role.in_(["TENANT_ADMIN", "DIRECTOR"]),
+                ).distinct().all()
+            ]
+            admins = db.query(User).filter(
+                User.id.in_(admin_user_ids), User.is_active == True,
+            ).all() if admin_user_ids else []
+
+            title = f"Nouveau message — {submission.subject or 'Formulaire de contact'}"
+            preview = submission.message[:200]
+            message = f"{submission.name} ({submission.email}) : {preview}"
+            for admin in admins:
+                db.add(Notification(
+                    user_id=admin.id, tenant_id=tenant_id, title=title, message=message,
+                    type="message", link="/admin/public-pages/messages",
+                ))
+                notified_in_app += 1
+            db.commit()
+
+            admin_emails = [a.email for a in admins if a.email]
+
+        if admin_emails:
+            try:
+                from app.core.config import settings
+                from app.services.notifications import EmailSender
+
+                sender = EmailSender(
+                    resend_api_key=settings.RESEND_API_KEY,
+                    smtp_host=settings.SMTP_HOST,
+                    smtp_port=settings.SMTP_PORT,
+                    smtp_user=settings.SMTP_USER,
+                    smtp_pass=settings.SMTP_PASS,
+                    from_email=settings.FROM_EMAIL,
+                    from_name=settings.FROM_NAME,
+                )
+                html = f"""
+                <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
+                  <h2 style="color:#1a56db">📩 Nouveau message reçu — {tenant_name}</h2>
+                  <p><strong>De :</strong> {submission.name} ({submission.email})</p>
+                  {f'<p><strong>Sujet :</strong> {submission.subject}</p>' if submission.subject else ''}
+                  <p style="white-space:pre-wrap;background:#f9fafb;padding:16px;border-radius:8px">{submission.message}</p>
+                  <p style="color:#6b7280;font-size:13px">Répondez depuis votre tableau de bord, rubrique "Messages reçus".</p>
+                </div>"""
+                for admin_email in admin_emails:
+                    sent = sender.send(
+                        to=admin_email,
+                        subject=f"📩 Nouveau message — {tenant_name}",
+                        html=html,
+                    )
+                    email_sent = email_sent or sent is True
+            except Exception as exc:
+                # Never let an email-provider failure mark the whole job
+                # FAILED — the in-app notification above already succeeded,
+                # and that alone satisfies "the admin gets notified".
+                logger.warning("send_public_form_submission_alert: email step failed: %s", exc)
+
+        _job_finished(
+            job_id, success=True,
+            result={"notified_in_app": notified_in_app, "email_sent": email_sent},
+        )
+        return {"job_id": job_id, "notified_in_app": notified_in_app, "email_sent": email_sent}
+    except Exception as exc:
+        logger.warning("send_public_form_submission_alert failed: %s", exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "error": str(exc)}
+
+
 async def retry_failed_notifications(ctx: dict, *, tenant_id: Optional[str] = None, max_retry_count: int = 3) -> dict:
     """Re-attempt WhatsApp sends that previously FAILED, up to
     `max_retry_count` attempts. Deliberately re-resolves the recipient's
@@ -346,23 +459,51 @@ async def purge_expired_idempotency_keys(ctx: dict) -> dict:
     return {"deleted": deleted}
 
 
+async def purge_old_public_form_submissions(ctx: dict, *, retention_days: Optional[int] = None) -> dict:
+    """RGPD (Phase 5): delete public contact-form messages older than the
+    retention window (see settings.PUBLIC_FORM_RETENTION_DAYS). Tenant
+    isolation isn't a concern here — it deletes by age across all tenants,
+    the same way purge_expired_idempotency_keys does — but each row's
+    tenant_id is untouched by any other tenant's data (a plain DELETE ...
+    WHERE created_at < cutoff never crosses tenant boundaries because
+    nothing here reads or writes another tenant's rows).
+    """
+    from app.core.config import settings
+    from app.models.public_form_submission import PublicFormSubmission
+
+    days = retention_days if retention_days is not None else settings.PUBLIC_FORM_RETENTION_DAYS
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    with SessionLocal() as db:
+        deleted = db.query(PublicFormSubmission).filter(
+            PublicFormSubmission.created_at < cutoff
+        ).delete(synchronize_session=False)
+        db.commit()
+    logger.info("purge_old_public_form_submissions: deleted %d row(s) older than %d days", deleted, days)
+    return {"deleted": deleted, "retention_days": days}
+
+
 class WorkerSettings:
     """Entry point for the Arq worker process: `arq app.workers.tasks.WorkerSettings`
     (see the `worker` service in docker-compose.yml)."""
 
     functions = [
         send_welcome_email,
+        send_public_form_submission_alert,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,
         send_whatsapp_reply_job,
         retry_failed_notifications,
         sync_whatsapp_statuses,
         purge_expired_idempotency_keys,
+        purge_old_public_form_submissions,
     ]
     # Runs once a day regardless of manual enqueue_job() calls — expired
-    # idempotency keys would otherwise only ever be cleaned up if someone
-    # remembers to trigger the job by hand.
-    cron_jobs = [cron(purge_expired_idempotency_keys, hour=3, minute=0)]
+    # idempotency keys / old public-form messages would otherwise only ever
+    # be cleaned up if someone remembers to trigger the job by hand.
+    cron_jobs = [
+        cron(purge_expired_idempotency_keys, hour=3, minute=0),
+        cron(purge_old_public_form_submissions, hour=3, minute=30),
+    ]
     redis_settings: RedisSettings = get_redis_settings()
     max_jobs = 10
     job_timeout = 300  # 5 minutes — generous enough for slow SMTP providers
