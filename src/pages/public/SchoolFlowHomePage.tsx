@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { resolveUploadUrl } from "@/utils/url";
+import { usePublicTenants } from "@/hooks/usePublicTenant";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -87,36 +88,6 @@ const STATS = [
   { value: "4", label: "Langues supportées" },
   { value: "99.9%", label: "Disponibilité" },
   { value: "RGPD", label: "Conforme" },
-];
-
-const SAMPLE_SCHOOLS: PublicTenant[] = [
-  {
-    id: "1",
-    name: "Université La Source",
-    slug: "lasource",
-    type: "university",
-    city: "Lyon",
-    description: "Une université d'excellence au cœur de Lyon, spécialisée en sciences et technologies.",
-    logo_url: undefined,
-  },
-  {
-    id: "2",
-    name: "Lycée Montesquieu",
-    slug: "lycee-montesquieu",
-    type: "high_school",
-    city: "Bordeaux",
-    description: "Lycée général et technologique proposant des filières innovantes et un accompagnement personnalisé.",
-    logo_url: undefined,
-  },
-  {
-    id: "3",
-    name: "Centre AFPA Rennes",
-    slug: "afpa-rennes",
-    type: "training_center",
-    city: "Rennes",
-    description: "Centre de formation professionnelle avec des certifications reconnues dans tous les secteurs.",
-    logo_url: undefined,
-  },
 ];
 
 const PRICING = [
@@ -391,9 +362,20 @@ export default function SchoolFlowHomePage() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // We attempt to import usePublicTenants if available; fall back to sample data
-  // Since the hook doesn't exist yet, we use static data for the establishments section
-  const publicTenants: PublicTenant[] = SAMPLE_SCHOOLS;
+  // Real tenants, same data source as /annuaire — this section previously
+  // rendered 3 hardcoded fictional schools (Lyon/Bordeaux/Rennes, fake
+  // slugs like "lasource") that looked real but led every "Se connecter"/
+  // "Détails" click to a nonexistent tenant ("Établissement introuvable" /
+  // login failure) — exactly what a user clicking them would hit.
+  const { data: tenantCards, isLoading: tenantsLoading } = usePublicTenants();
+  const publicTenants: PublicTenant[] = (tenantCards ?? []).slice(0, 6).map((t) => ({
+    id: t.id,
+    name: t.name,
+    slug: t.slug,
+    type: t.type,
+    description: t.description ?? undefined,
+    logo_url: t.logo_url ?? undefined,
+  }));
 
   const navLinks = [
     { label: "Fonctionnalités", href: "#fonctionnalites" },
@@ -683,11 +665,23 @@ export default function SchoolFlowHomePage() {
             </button>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {publicTenants.map((school) => (
-              <SchoolCard key={school.id} school={school} />
-            ))}
-          </div>
+          {tenantsLoading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-48 rounded-2xl bg-gray-100 animate-pulse" />
+              ))}
+            </div>
+          ) : publicTenants.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              Aucun établissement public pour le moment.
+            </p>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {publicTenants.map((school) => (
+                <SchoolCard key={school.id} school={school} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

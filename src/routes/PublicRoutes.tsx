@@ -57,9 +57,14 @@ export const PublicRoutes = () => {
             <Route path="/inscription/:tenantSlug/statut" element={<ApplicationStatus />} />
             <Route path="/inscription/:tenantSlug/reinscription" element={<ReEnrollment />} />
 
-            {/* Demo Routes */}
-            <Route path="/demo" element={<Navigate to="/ecole/lasource" replace />} />
-            <Route path="/demo/admissions" element={<Navigate to="/admissions/lasource" replace />} />
+            {/* Demo Routes — "lasource" was a placeholder slug from the
+                homepage's old hardcoded SAMPLE_SCHOOLS demo data, which
+                never matched any real tenant. Not linked from any UI (only
+                reachable by typing the URL), but redirecting to a
+                nonexistent tenant is still broken; send to the real
+                directory instead. */}
+            <Route path="/demo" element={<Navigate to="/annuaire" replace />} />
+            <Route path="/demo/admissions" element={<Navigate to="/annuaire" replace />} />
 
             <Route path="/programmes/:tenantSlug" element={<Programs />} />
             <Route path="/calendrier/:tenantSlug" element={<PublicCalendar />} />
