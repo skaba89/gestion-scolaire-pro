@@ -1317,6 +1317,7 @@
     "colStatus": "状态",
     "colOrder": "排序",
     "colNavigation": "导航",
+    "dragToReorder": "拖动以重新排序",
     "statusPublished": "已发布",
     "statusDraft": "草稿",
     "yes": "是",

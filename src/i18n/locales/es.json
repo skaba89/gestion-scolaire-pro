@@ -1260,6 +1260,7 @@
     "colStatus": "Estado",
     "colOrder": "Orden",
     "colNavigation": "Navegación",
+    "dragToReorder": "Arrastrar para reordenar",
     "statusPublished": "Publicada",
     "statusDraft": "Borrador",
     "yes": "Sí",

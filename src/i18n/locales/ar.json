@@ -1260,6 +1260,7 @@
     "colStatus": "الحالة",
     "colOrder": "الترتيب",
     "colNavigation": "التنقل",
+    "dragToReorder": "اسحب لإعادة الترتيب",
     "statusPublished": "منشورة",
     "statusDraft": "مسودة",
     "yes": "نعم",

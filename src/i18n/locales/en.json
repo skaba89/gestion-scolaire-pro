@@ -1490,6 +1490,7 @@
         "colStatus": "Status",
         "colOrder": "Order",
         "colNavigation": "Navigation",
+        "dragToReorder": "Drag to reorder",
         "statusPublished": "Published",
         "statusDraft": "Draft",
         "yes": "Yes",
