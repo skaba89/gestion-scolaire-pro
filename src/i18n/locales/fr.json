@@ -1499,6 +1499,7 @@
         "colStatus": "Statut",
         "colOrder": "Ordre",
         "colNavigation": "Navigation",
+        "dragToReorder": "Glisser pour réordonner",
         "statusPublished": "Publiée",
         "statusDraft": "Brouillon",
         "yes": "Oui",

@@ -9,6 +9,23 @@ import { getTenantTemplateGroup } from "@/lib/tenantTemplateGroup";
 import { getPageTemplatesFor, type PageTemplate } from "@/lib/publicPageTemplates";
 import { toast } from "sonner";
 import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Plus,
   Search,
   FileText,
@@ -19,6 +36,7 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  GripVertical,
   Loader2,
   Globe,
   FilePlus,
@@ -465,8 +483,15 @@ export default function PublicPagesManager() {
     if (idx <= 0) return;
     const prevPage = sorted[idx - 1];
     try {
+      // BUG FIX: the backend's PageReorderRequest schema expects a `pages`
+      // key (see PageReorderRequest in app/schemas/public_pages.py) — this
+      // sent `items` instead, which Pydantic rejects with a 422 "pages:
+      // Field required" on every single call. The ▲▼ buttons have never
+      // actually reordered anything; the request silently failed and only
+      // a generic toast ever showed. Found while wiring up drag-and-drop
+      // (same endpoint, same bug would have hit that too).
       await apiClient.post("/public-pages/reorder/", {
-        items: [
+        pages: [
           { page_id: page.id, sort_order: prevPage.sort_order },
           { page_id: prevPage.id, sort_order: page.sort_order },
         ],
@@ -483,12 +508,35 @@ export default function PublicPagesManager() {
     if (idx < 0 || idx >= sorted.length - 1) return;
     const nextPage = sorted[idx + 1];
     try {
+      // See handleMoveUp — same `items` → `pages` payload bug fixed here.
       await apiClient.post("/public-pages/reorder/", {
-        items: [
+        pages: [
           { page_id: page.id, sort_order: nextPage.sort_order },
           { page_id: nextPage.id, sort_order: page.sort_order },
         ],
       });
+      invalidatePages();
+    } catch {
+      toast.error(t("publicPages.reorderError"));
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
+    const oldIndex = sorted.findIndex((p) => p.id === active.id);
+    const newIndex = sorted.findIndex((p) => p.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(sorted, oldIndex, newIndex);
+    // Re-assign sort_order = position for every page whose position
+    // actually changed — a drag can move an item across many rows at
+    // once, not just swap two neighbours like the ▲▼ buttons do.
+    const items = reordered.map((p, i) => ({ page_id: p.id, sort_order: i }));
+    try {
+      await apiClient.post("/public-pages/reorder/", { pages: items });
       invalidatePages();
     } catch {
       toast.error(t("publicPages.reorderError"));
@@ -508,6 +556,14 @@ export default function PublicPagesManager() {
       setTogglingPublishId(null);
     }
   };
+
+  // Drag-and-drop reordering (in addition to the ▲▼ buttons, which stay as
+  // the accessible/keyboard-only fallback — dragging alone would exclude
+  // anyone not using a mouse/touch pointer).
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -626,181 +682,55 @@ export default function PublicPagesManager() {
         </div>
       ) : (
         <div className="rounded-lg border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[250px]">{t("publicPages.colTitle")}</TableHead>
-                <TableHead className="w-[180px]">Slug</TableHead>
-                <TableHead>{t("publicPages.colType")}</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead>{t("publicPages.colStatus")}</TableHead>
-                <TableHead className="text-center">{t("publicPages.colOrder")}</TableHead>
-                <TableHead className="text-center">{t("publicPages.colNavigation")}</TableHead>
-                <TableHead className="w-[60px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPages.map((page, idx) => (
-                <TableRow
-                  key={page.id}
-                  className="cursor-pointer"
-                  onClick={() => openEditDialog(page)}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div>
-                        <div className="font-medium">{page.title}</div>
-                        {page.meta_title && (
-                          <div className="text-xs text-muted-foreground truncate max-w-[220px]">
-                            SEO: {page.meta_title}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-                      {page.slug}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={PAGE_TYPE_COLORS[page.page_type] || ""}
-                    >
-                      {PAGE_TYPES[page.page_type] || page.page_type}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-sm">
-                        {TEMPLATES[page.template] || page.template}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div
-                      className="flex items-center gap-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Switch
-                        checked={page.is_published}
-                        disabled={togglingPublishId === page.id}
-                        onCheckedChange={() => handleTogglePublish(page)}
-                      />
-                      {page.is_published ? (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800">
-                          {t("publicPages.statusPublished")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">{t("publicPages.statusDraft")}</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={idx === 0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveUp(page);
-                        }}
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </Button>
-                      <span className="text-sm text-muted-foreground w-6 text-center">
-                        {page.sort_order}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={idx === filteredPages.length - 1}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMoveDown(page);
-                        }}
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {page.show_in_nav ? (
-                      <Badge
-                        variant="outline"
-                        className="bg-primary/10 text-primary border-primary/20"
-                      >
-                        <Globe className="h-3 w-3 mr-1" />
-                        {t("publicPages.yes")}
-                      </Badge>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditDialog(page);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4 mr-2" />
-                          {t("publicPages.edit")}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePreview(page);
-                          }}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          {t("publicPages.preview")}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDuplicate(page);
-                          }}
-                        >
-                          <Copy className="h-4 w-4 mr-2" />
-                          {t("publicPages.duplicate")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteTarget(page);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          {t("publicPages.delete")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[36px]"></TableHead>
+                  <TableHead className="w-[250px]">{t("publicPages.colTitle")}</TableHead>
+                  <TableHead className="w-[180px]">Slug</TableHead>
+                  <TableHead>{t("publicPages.colType")}</TableHead>
+                  <TableHead>Template</TableHead>
+                  <TableHead>{t("publicPages.colStatus")}</TableHead>
+                  <TableHead className="text-center">{t("publicPages.colOrder")}</TableHead>
+                  <TableHead className="text-center">{t("publicPages.colNavigation")}</TableHead>
+                  <TableHead className="w-[60px]"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <SortableContext
+                items={filteredPages.map((p) => p.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <TableBody>
+                  {filteredPages.map((page, idx) => (
+                    <SortablePageRow
+                      key={page.id}
+                      page={page}
+                      idx={idx}
+                      isFirst={idx === 0}
+                      isLast={idx === filteredPages.length - 1}
+                      t={t}
+                      PAGE_TYPE_COLORS={PAGE_TYPE_COLORS}
+                      PAGE_TYPES={PAGE_TYPES}
+                      TEMPLATES={TEMPLATES}
+                      togglingPublishId={togglingPublishId}
+                      onTogglePublish={handleTogglePublish}
+                      onMoveUp={handleMoveUp}
+                      onMoveDown={handleMoveDown}
+                      onEdit={openEditDialog}
+                      onPreview={handlePreview}
+                      onDuplicate={handleDuplicate}
+                      onDelete={setDeleteTarget}
+                    />
+                  ))}
+                </TableBody>
+              </SortableContext>
+            </Table>
+          </DndContext>
         </div>
       )}
 
@@ -1220,5 +1150,216 @@ export default function PublicPagesManager() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ─── Sortable table row ────────────────────────────────────────────────────
+// Split out from the render body above because useSortable() must run in
+// its own component instance per row (one drag transform/listener set per
+// draggable), not once for the whole table.
+
+interface SortablePageRowProps {
+  page: PublicPage;
+  idx: number;
+  isFirst: boolean;
+  isLast: boolean;
+  t: (key: string, opts?: Record<string, unknown>) => string;
+  PAGE_TYPE_COLORS: Record<string, string>;
+  PAGE_TYPES: Record<string, string>;
+  TEMPLATES: Record<string, string>;
+  togglingPublishId: string | null;
+  onTogglePublish: (page: PublicPage) => void;
+  onMoveUp: (page: PublicPage) => void;
+  onMoveDown: (page: PublicPage) => void;
+  onEdit: (page: PublicPage) => void;
+  onPreview: (page: PublicPage) => void;
+  onDuplicate: (page: PublicPage) => void;
+  onDelete: (page: PublicPage) => void;
+}
+
+function SortablePageRow({
+  page,
+  idx,
+  isFirst,
+  isLast,
+  t,
+  PAGE_TYPE_COLORS,
+  PAGE_TYPES,
+  TEMPLATES,
+  togglingPublishId,
+  onTogglePublish,
+  onMoveUp,
+  onMoveDown,
+  onEdit,
+  onPreview,
+  onDuplicate,
+  onDelete,
+}: SortablePageRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: page.id,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : 1,
+  };
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className="cursor-pointer"
+      onClick={() => onEdit(page)}
+    >
+      <TableCell className="w-[36px]">
+        <button
+          type="button"
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+          aria-label={t("publicPages.dragToReorder")}
+          onClick={(e) => e.stopPropagation()}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <div>
+            <div className="font-medium">{page.title}</div>
+            {page.meta_title && (
+              <div className="text-xs text-muted-foreground truncate max-w-[220px]">
+                SEO: {page.meta_title}
+              </div>
+            )}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <code className="text-xs bg-muted px-2 py-1 rounded font-mono">{page.slug}</code>
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className={PAGE_TYPE_COLORS[page.page_type] || ""}>
+          {PAGE_TYPES[page.page_type] || page.page_type}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1.5">
+          <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-sm">{TEMPLATES[page.template] || page.template}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Switch
+            checked={page.is_published}
+            disabled={togglingPublishId === page.id}
+            onCheckedChange={() => onTogglePublish(page)}
+          />
+          {page.is_published ? (
+            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-200 dark:border-green-800">
+              {t("publicPages.statusPublished")}
+            </Badge>
+          ) : (
+            <Badge variant="secondary">{t("publicPages.statusDraft")}</Badge>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={isFirst}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveUp(page);
+            }}
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground w-6 text-center">{page.sort_order}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={isLast}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveDown(page);
+            }}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </div>
+      </TableCell>
+      <TableCell className="text-center">
+        {page.show_in_nav ? (
+          <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+            <Globe className="h-3 w-3 mr-1" />
+            {t("publicPages.yes")}
+          </Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Actions</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(page);
+              }}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              {t("publicPages.edit")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onPreview(page);
+              }}
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              {t("publicPages.preview")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate(page);
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              {t("publicPages.duplicate")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(page);
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {t("publicPages.delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
   );
 }
