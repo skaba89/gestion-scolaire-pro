@@ -56,7 +56,12 @@ export default function (data) {
   const invoices = http.get(`${API}/invoices/`, { headers });
   check(invoices, { 'invoices list is 200': (r) => r.status === 200 });
 
-  const overview = http.get(`${API}/analytics/overview/`, { headers });
+  // /analytics/overview/ does not exist — analytics.py exposes granular
+  // endpoints instead (academic-kpis, financial-kpis, ...). Found while
+  // actually running a real k6 campaign (load-tests/full-journey.js had
+  // the identical bug — every "analytics" check here has been silently
+  // 404ing since this script was written).
+  const overview = http.get(`${API}/analytics/academic-kpis/`, { headers });
   check(overview, { 'analytics overview is 200': (r) => r.status === 200 });
 
   const notifications = http.get(`${API}/notifications/`, { headers });
