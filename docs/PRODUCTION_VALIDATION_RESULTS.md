@@ -20,21 +20,26 @@ comme un échec — c'est une limite d'accès, pas un signal produit.
 
 ## Dernière exécution
 
-- **Date de validation** : 2026-08-05
+- **Date de validation** : 2026-08-07
 - **Commit validé** : voir `git log -1 --format=%H` au moment de ce commit
   (ce fichier est commité dans le même commit que le code qu'il documente)
-- **Exécuté par** : agent IA (session autonome), stack Docker locale
-  (`docker compose --env-file .env.docker up -d`)
+- **Exécuté par** : agent IA (session autonome). Nouveauté par rapport à la
+  précédente exécution (2026-08-05) : cette session dispose d'un accès
+  navigateur direct aux URLs publiques Render (frontend + API), ce qui
+  permet de vérifier réellement certains items auparavant classés "non
+  vérifiable" — mais toujours **aucun accès** au dashboard Render, à une
+  boîte mail réelle, ni à un compte Meta Business/numéro WhatsApp réel.
 
 ## Résultats
 
 | Item | Statut | Détail |
 |---|---|---|
-| Render API Live | ⚪ Non vérifiable depuis cet environnement | Nécessite le dashboard Render |
-| Worker Live | ⚪ Non vérifiable depuis cet environnement | Nécessite le dashboard Render |
-| Frontend Live | ⚪ Non vérifiable depuis cet environnement | Nécessite le dashboard Render/Netlify |
-| `/health/live` | ✅ Vérifié (Docker local) | `curl -i http://localhost:8000/health/live` → 200, voir Phase 6 de ce rapport |
-| `/health/ready` | ✅ Vérifié (Docker local) | `curl -i http://localhost:8000/health/ready` → 200, Postgres+Redis+RLS actifs |
+| Render API Live | ✅ Vérifié (URL publique) | `GET https://schoolflow-api-r8u7.onrender.com/health/live` → `{"status":"alive","version":"1.0.0"}` (après cold-start ~20s, tier gratuit) |
+| Worker Live | 🟡 Vérifié indirectement | Pas d'endpoint de santé public pour le worker Arq. Preuve indirecte : `/health/ready` rapporte `cache: connected` (Redis joignable) et une soumission réelle du formulaire de contact public (voir plus bas) a renvoyé 201 — le job `send_public_form_submission_alert` a donc été mis en file avec succès. Sa *consommation effective* par le worker n'a pas été confirmée (pas de dashboard Render pour lire ses logs). |
+| Frontend Live | ✅ Vérifié (URL publique) | `https://gestion-scolaire-pro-9on3.onrender.com` charge la landing page complète (tarifs, annuaire, témoignages) après cold-start |
+| `/health/live` | ✅ Vérifié (Render prod) | 200, `{"status":"alive","version":"1.0.0"}` |
+| `/health/ready` | ✅ Vérifié (Render prod) | 200, `{"status":"healthy","components":{"database":"connected","cache":"connected","rls":"active","storage":"disabled"}}` — `storage: disabled` est attendu (MinIO non provisionné sur ce déploiement, pas une panne) |
+| Formulaire de contact public (PR #89) | ✅ Vérifié en conditions réelles | Page `/uls/pages/contact` : honeypot masqué visuellement confirmé, note de consentement RGPD affichée, soumission réelle → `POST .../submit-form/` → **201**, UI "Message envoyé !" |
 | Email Resend test reçu | ⚪ Non vérifiable depuis cet environnement | Nécessite une boîte mail réelle et une clé Resend valide |
 | Email onboarding reçu | ⚪ Non vérifiable depuis cet environnement | Idem — dépend de `POST /tenants/create-with-admin/` avec Resend configuré |
 | Domaine Resend DKIM/SPF/DMARC | ⚪ Non vérifiable depuis cet environnement | Nécessite le dashboard Resend |

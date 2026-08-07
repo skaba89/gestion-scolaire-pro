@@ -19,6 +19,15 @@ beforeAll(async () => {
 });
 
 describe("sanitizeHtml — custom_html XSS hardening", () => {
+  it("reduces <script>alert(1)</script><p>ok</p> to just the safe <p>ok</p>", () => {
+    // Literal case from the Phase 2 production-readiness spec: the script
+    // element (and everything inside it, including its text content) must
+    // be gone entirely — not just its tags stripped leaving "alert(1)"
+    // behind as visible text.
+    const out = sanitizeHtml("<script>alert(1)</script><p>ok</p>");
+    expect(out).toBe("<p>ok</p>");
+  });
+
   it("strips <script> tags entirely", () => {
     const out = sanitizeHtml('<p>Bonjour</p><script>alert("xss")</script>');
     expect(out).not.toContain("<script");
