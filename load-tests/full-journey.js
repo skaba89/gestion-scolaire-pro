@@ -92,6 +92,12 @@ const TIER_STAGES = {
 };
 
 export const options = {
+  // k6's default setupTimeout is 60s — too short once setup() has to space
+  // out logins to respect the 5/minute-per-IP auth rate limit (13s ×
+  // number of tenants, see setup() below). 10 tenants ⇒ ~130s; sized with
+  // headroom for the 100/1000 tiers, whose TENANTS_FILE will have more
+  // entries still.
+  setupTimeout: '15m',
   stages: TIER_STAGES[TIER] || TIER_STAGES['10'],
   thresholds: {
     // Aggregate — kept loose on purpose; the per-flow Trends above are
@@ -115,11 +121,15 @@ function pickTenant() {
 
 export function setup() {
   // One login per tenant in setup(), not per-VU-iteration — auth is
-  // rate-limited (5/minute per IP+tenant, see public_pages.py's own
-  // limiter and auth.py's), and re-authenticating on every iteration
-  // would exhaust that quota before the load profile even ramps up.
+  // rate-limited 5/minute **per IP** (see @limiter.limit("5/minute") on
+  // POST /auth/login/ in auth.py), and every VU in a k6 run shares the
+  // same source IP. Re-authenticating on every iteration would exhaust
+  // that quota before the load profile even ramps up; even here in
+  // setup(), logging in more than 5 tenants inside one minute trips it —
+  // hence the 13s spacing (5 per 60s ⇒ ~12s minimum, +1s margin).
   const tokensBySlug = {};
-  for (const t of tenants) {
+  tenants.forEach((t, i) => {
+    if (i > 0) sleep(13);
     const res = http.post(`${API}/auth/login/`, {
       username: t.email,
       password: t.password,
@@ -128,7 +138,7 @@ export function setup() {
       throw new Error(`login failed for tenant ${t.slug}: ${res.status} ${res.body}`);
     }
     tokensBySlug[t.slug] = res.json('access_token');
-  }
+  });
   return { tokensBySlug };
 }
 
@@ -138,12 +148,18 @@ export default function (data) {
   const headers = { Authorization: `Bearer ${token}`, 'X-Tenant-ID': tenant.slug };
 
   group('dashboard', function () {
+    // /analytics/overview/ (used by load-tests/api-baseline.js) does not
+    // exist — analytics.py exposes granular endpoints instead
+    // (academic-kpis, financial-kpis, operational-kpis, ...). Using
+    // academic-kpis here as the representative "admin opens the
+    // dashboard" call; api-baseline.js has the same stale-endpoint bug,
+    // worth fixing separately.
     const start = Date.now();
-    const overview = http.get(`${API}/analytics/overview/`, { headers });
+    const kpis = http.get(`${API}/analytics/academic-kpis/`, { headers });
     const students = http.get(`${API}/students/?page=1&page_size=25`, { headers });
     const notifications = http.get(`${API}/notifications/`, { headers });
     dashboardTrend.add(Date.now() - start);
-    check(overview, { 'dashboard: analytics 200': (r) => r.status === 200 });
+    check(kpis, { 'dashboard: analytics 200': (r) => r.status === 200 });
     check(students, { 'dashboard: students 200': (r) => r.status === 200 });
     check(notifications, { 'dashboard: notifications 200': (r) => r.status === 200 });
   });
@@ -191,9 +207,11 @@ export default function (data) {
     // without creating real student rows on every iteration, which would
     // make the target DB grow unboundedly over a long campaign.
     const start = Date.now();
+    // Router mounted at /import (singular — see api_router.include_router
+    // in app/api/v1/router.py), not /imports.
     const csv = 'first_name,last_name,date_of_birth,gender\nCharge,Test,2015-01-01,MALE\n';
     const resp = http.post(
-      `${API}/imports/students/preview/`,
+      `${API}/import/students/preview/`,
       { file: http.file(csv, 'loadtest.csv', 'text/csv') },
       { headers },
     );
@@ -202,22 +220,17 @@ export default function (data) {
   });
 
   group('paiements', function () {
+    // Read path (list invoices), not payment-intent creation: /payments/intent/
+    // requires an existing invoice_id (query params, not JSON body — see
+    // create_payment_intent in payments.py) and a configured Mobile Money
+    // provider, neither of which this synthetic tenant has. Listing
+    // invoices still exercises the same finance-module DB/auth cost real
+    // admin/parent portals pay on every dashboard load, without depending
+    // on pre-seeded invoice data that would need its own provisioning step.
     const start = Date.now();
-    // Payment *intent* creation (not a real charge) — exercises the
-    // finance write path's validation/DB-write cost without moving real
-    // money or depending on a configured Mobile Money provider.
-    const resp = http.post(
-      `${API}/payments/intent/`,
-      JSON.stringify({ amount: 10000, description: `Test de charge VU${__VU}` }),
-      { headers: { ...headers, 'Content-Type': 'application/json' } },
-    );
+    const resp = http.get(`${API}/invoices/`, { headers });
     paymentsTrend.add(Date.now() - start);
-    check(resp, {
-      // 200/201 if the endpoint accepts it, 400/422 if this tenant has no
-      // payment provider configured — both are "the request was handled",
-      // only a 5xx or timeout is the failure this flow is watching for.
-      'payment intent handled (not 5xx)': (r) => r.status < 500,
-    });
+    check(resp, { 'invoices list 200': (r) => r.status === 200 });
   });
 
   group('whatsapp_simule', function () {
@@ -258,12 +271,15 @@ export default function (data) {
     // rather than one write every few seconds like the rest of this script.
     const start = Date.now();
     for (let i = 0; i < 5; i++) {
+      // Matches StudentCheckInCreate exactly (student_id required — see
+      // app/schemas/school_life.py): student_id, optional checked_at,
+      // direction ("IN"/"OUT"), optional source.
       const resp = http.post(
         `${API}/school-life/check-ins/`,
         JSON.stringify({
-          check_in_type: 'ARRIVAL',
-          method: 'MANUAL',
-          notes: `Rafale de synchro hors-ligne — élément ${i + 1}/5`,
+          student_id: tenant.student_id,
+          direction: i % 2 === 0 ? 'IN' : 'OUT',
+          source: 'LOADTEST_OFFLINE_SYNC',
         }),
         { headers: { ...headers, 'Content-Type': 'application/json' } },
       );

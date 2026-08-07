@@ -1,0 +1,12 @@
+[
+  { "slug": "loadtest-01", "email": "admin@loadtest-01.test", "password": "LoadTest2026!", "student_id": "41781fe9-818a-442c-9f54-febc793192b4" },
+  { "slug": "loadtest-02", "email": "admin@loadtest-02.test", "password": "LoadTest2026!", "student_id": "9cbc3866-1c9a-45fa-bb43-ae47c71c01c8" },
+  { "slug": "loadtest-03", "email": "admin@loadtest-03.test", "password": "LoadTest2026!", "student_id": "b11798e6-ebe0-4e1c-8970-e245d08c0b3c" },
+  { "slug": "loadtest-04", "email": "admin@loadtest-04.test", "password": "LoadTest2026!", "student_id": "f6fad333-e8ce-4c64-987c-5e62949950ab" },
+  { "slug": "loadtest-05", "email": "admin@loadtest-05.test", "password": "LoadTest2026!", "student_id": "973deb23-1c7f-471f-ad76-9391216401dd" },
+  { "slug": "loadtest-06", "email": "admin@loadtest-06.test", "password": "LoadTest2026!", "student_id": "57087b00-e4ea-44ae-ac01-2434ba3f9ea3" },
+  { "slug": "loadtest-07", "email": "admin@loadtest-07.test", "password": "LoadTest2026!", "student_id": "16522c28-84d6-4ee1-b639-0fd1ada5b8fe" },
+  { "slug": "loadtest-08", "email": "admin@loadtest-08.test", "password": "LoadTest2026!", "student_id": "cfdb5334-7c4d-4746-b64a-3d8805d21887" },
+  { "slug": "loadtest-09", "email": "admin@loadtest-09.test", "password": "LoadTest2026!", "student_id": "0e2587da-c4de-4fe5-9f42-46fd39870372" },
+  { "slug": "loadtest-10", "email": "admin@loadtest-10.test", "password": "LoadTest2026!", "student_id": "297ac773-8da5-45ec-98bd-73e81531c71f" }
+]
