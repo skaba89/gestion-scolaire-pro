@@ -306,6 +306,24 @@ async def send_public_form_submission_alert(ctx: dict, *, tenant_id: str, submis
 
             admin_emails = [a.email for a in admins if a.email]
 
+            # Read every field the email step needs onto plain local
+            # variables WHILE the session is still open. `submission` (and
+            # `tenant`) become detached the instant this `with` block ends
+            # — accessing an un-loaded attribute on a detached instance
+            # raises DetachedInstanceError. That used to happen silently
+            # here: the email step below is wrapped in a broad try/except
+            # that logs and swallows it, so the job still reported
+            # success/email_sent=False and nothing ever indicated that a
+            # correctly-configured Resend/SMTP provider's email was in fact
+            # never being sent at all. Found by the escaping tests in
+            # test_public_form_email_escaping.py, which — unlike earlier
+            # tests — actually force the send path to run instead of
+            # short-circuiting on "no provider configured".
+            submission_name = submission.name
+            submission_email = submission.email
+            submission_subject = submission.subject
+            submission_message = submission.message
+
         if admin_emails:
             try:
                 from app.core.config import settings
@@ -320,12 +338,28 @@ async def send_public_form_submission_alert(ctx: dict, *, tenant_id: str, submis
                     from_email=settings.FROM_EMAIL,
                     from_name=settings.FROM_NAME,
                 )
+                # SECURITY (Phase 1, hardening pass): these four fields are
+                # raw, unsanitized visitor input — PublicFormSubmissionCreate
+                # validates length/shape but never strips HTML (unlike
+                # custom_html sections, which go through DOMPurify on
+                # render). Interpolating them straight into this admin
+                # notification email used to let a submitted <script>/<img
+                # onerror=...> ride along into the admin's inbox verbatim.
+                # html.escape() neutralizes markup while leaving normal text
+                # (accents, punctuation) untouched.
+                import html as html_module
+
+                safe_name = html_module.escape(submission_name)
+                safe_email = html_module.escape(submission_email)
+                safe_subject = html_module.escape(submission_subject) if submission_subject else None
+                safe_message = html_module.escape(submission_message)
+                safe_tenant_name = html_module.escape(tenant_name)
                 html = f"""
                 <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
-                  <h2 style="color:#1a56db">📩 Nouveau message reçu — {tenant_name}</h2>
-                  <p><strong>De :</strong> {submission.name} ({submission.email})</p>
-                  {f'<p><strong>Sujet :</strong> {submission.subject}</p>' if submission.subject else ''}
-                  <p style="white-space:pre-wrap;background:#f9fafb;padding:16px;border-radius:8px">{submission.message}</p>
+                  <h2 style="color:#1a56db">📩 Nouveau message reçu — {safe_tenant_name}</h2>
+                  <p><strong>De :</strong> {safe_name} ({safe_email})</p>
+                  {f'<p><strong>Sujet :</strong> {safe_subject}</p>' if safe_subject else ''}
+                  <p style="white-space:pre-wrap;background:#f9fafb;padding:16px;border-radius:8px">{safe_message}</p>
                   <p style="color:#6b7280;font-size:13px">Répondez depuis votre tableau de bord, rubrique "Messages reçus".</p>
                 </div>"""
                 for admin_email in admin_emails:
