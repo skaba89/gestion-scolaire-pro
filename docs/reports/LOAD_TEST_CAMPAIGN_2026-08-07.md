@@ -242,6 +242,54 @@ La prochaine étape utile est de répéter ce palier avec plus de workers/un
 pool plus large (une fois la limite de connexions du plan Postgres Render
 confirmée) pour voir si le point de rupture recule proportionnellement.
 
+### Piste explorée — élargir le pool DB (`DATABASE_POOL_SIZE=8`/`MAX_OVERFLOW=12`), même palier TIER=100
+
+Hypothèse testée : le point de rupture à 250 VUs vient-il du pool de
+connexions DB (5+10/worker, soit 15×4=60 connexions max) plutôt que du CPU
+? `max_connections` Postgres local vérifié à 100 — de la marge pour monter
+le pool à 8+12/worker (20×4=80, toujours sous la limite). Re-mesure au même
+palier, même conteneur Postgres/mêmes 50 tenants (pas de reseed) :
+
+| Métrique | TIER=100, pool 5+10 (PR #94) | TIER=100, pool 8+12 |
+|---|---|---|
+| `http_req_failed` | 23,28% | 21,56% |
+| `checks_succeeded` | 86,02% | 90,92% |
+| `http_req_duration` p95 | 59,99s (plafond) | 59,99s (plafond, inchangé) |
+| `flow_offline_sync_burst_ms` avg | 29,4s | **41,2s (pire)** |
+| CPU conteneur `api` (snapshot mi-charge) | 245,8% | **45,9%** |
+| Connexions Postgres actives (snapshot) | non mesuré | 67 (sous le plafond de 80 — pas de famine de pool) |
+| RAM conteneur `postgres` (snapshot) | 55 Mo (10,7%) | 247 Mo (48,3%) |
+
+**Résultat mitigé, honnêtement rapporté** : `http_req_failed` et
+`checks_succeeded` s'améliorent légèrement, mais `http_req_duration` p95
+reste bloqué au plafond des 60s et le pire flux (rafale hors-ligne)
+*empire* en moyenne. Le signal le plus net est ailleurs : le CPU de `api`
+chute de 246% à 46% à charge comparable, alors que les connexions actives
+(67) restent bien en dessous du nouveau plafond de 80 — ce qui écarte la
+famine de pool comme facteur limitant restant, et suggère que la
+saturation s'est déplacée ailleurs (probablement Postgres lui-même : sa RAM
+passe de 55 à 247 Mo sur une limite conteneur de 512 Mo, avec la config par
+défaut de l'image `postgres:16-alpine` — `shared_buffers=128MB`,
+`work_mem=4MB`, très en dessous de ce qui serait raisonnable pour 250
+connexions concurrentes actives).
+
+**Conclusion de cette piste** : élargir seulement le pool applicatif
+*sans* dimensionner Postgres en conséquence (mémoire, `shared_buffers`,
+`work_mem`) ne suffit pas à repousser le point de rupture observé à 250
+VUs — ça déplace juste où la latence s'accumule. Pousser encore plus loin
+localement (augmenter `shared_buffers` sur un Postgres à 512 Mo de RAM
+totale, avec un CPU déjà partagé à 4 cœurs) aurait un rendement décroissant
+et ne répondrait toujours pas à la vraie question : quel est le point de
+rupture d'une instance Render correctement dimensionnée pour la charge
+cible. Cette piste locale est considérée comme épuisée pour l'instant —
+la suite logique reste celle déjà documentée ci-dessous : un environnement
+de staging à l'échelle de la cible de production, pas plus d'itération sur
+ce poste de développement partagé.
+
+Le conteneur `api` a été remis à son état géré par `docker compose`
+(WORKERS/DEBUG/pool par défaut) à l'issue de cet essai — aucune valeur
+élargie n'a été laissée active.
+
 ### Ce qui manque encore pour un vrai test à 10 000 utilisateurs simultanés
 
 Voir `docs/runbooks/load-testing.md#exigences-pour-un-test-a-10-000-utilisateurs`
