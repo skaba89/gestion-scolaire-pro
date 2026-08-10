@@ -136,10 +136,19 @@ class Settings(BaseSettings):
     DATABASE_URL: str = _BASE_DATABASE_URL
     DATABASE_URL_ASYNC: str = get_secret("DATABASE_URL_ASYNC", _BASE_DATABASE_URL)
     DATABASE_URL_SYNC: str = get_secret("DATABASE_URL_SYNC", _BASE_DATABASE_URL)
-    # Pool DB : 10 connexions stables + 20 overflow = 30 max par worker Uvicorn.
-    # Render Starter (1 dyno) → 1 worker → 30 connexions max.
-    # Render Standard (2+ dynos) → configurer DATABASE_POOL_SIZE=5, MAX_OVERFLOW=10
-    # pour rester sous la limite PostgreSQL de 97 connexions (Render managed PG).
+    # Pool DB : la formule qui compte est
+    #   (DATABASE_POOL_SIZE + DATABASE_MAX_OVERFLOW) × WORKERS × dynos
+    #   ≤ limite de connexions du plan PostgreSQL managé.
+    # Défaut actuel (5+10=15 par worker) dimensionné pour rester sous ~97
+    # connexions (Render managed PG standard) avec WORKERS=2 (défaut de
+    # start.sh) sur 2-3 dynos. Le commentaire précédent ici annonçait
+    # "10+20=30" — obsolète, ne correspondait plus aux valeurs par défaut
+    # réelles ci-dessous.
+    # ⚠️ Avant d'augmenter ces valeurs en production (ex. pour absorber plus
+    # de charge concurrente — voir docs/reports/LOAD_TEST_CAMPAIGN_2026-08-07.md
+    # pour le contexte), vérifier la limite réelle de connexions du plan
+    # Postgres Render actuel dans le dashboard : dépasser cette limite ferait
+    # échouer les connexions plutôt que de simplement les faire attendre.
     DATABASE_POOL_SIZE: int = parse_int_env("DATABASE_POOL_SIZE", 5)
     DATABASE_MAX_OVERFLOW: int = parse_int_env("DATABASE_MAX_OVERFLOW", 10)
 
@@ -200,6 +209,19 @@ class Settings(BaseSettings):
     # not per tenant (a platform-wide retention policy, same as other
     # RGPD/backup settings in this app).
     PUBLIC_FORM_RETENTION_DAYS: int = parse_int_env("PUBLIC_FORM_RETENTION_DAYS", 365)
+
+    # Load-test rate-limit bypass (Phase "national/international scale" —
+    # see docs/runbooks/load-testing.md). POST /auth/login/ is rate-limited
+    # 5/minute per IP as an anti-brute-force control; that same control
+    # makes bulk/simulated-tenant login impossible for a real load campaign
+    # (10 tenants already needs 13s of spacing between logins — 100+ makes
+    # setup() itself take longer than the campaign). A request presenting
+    # header X-Load-Test-Token equal to this secret is exempted from that
+    # ONE rate limit, nothing else. Empty by default — completely inert
+    # unless a deployment operator deliberately sets it for a scheduled,
+    # authorized campaign, and should be unset again immediately after.
+    # NEVER set this in a long-lived production environment variable.
+    LOAD_TEST_BYPASS_SECRET: str = get_secret("LOAD_TEST_BYPASS_SECRET", "")
 
     @field_validator("SECRET_KEY", mode="after")
     @classmethod
