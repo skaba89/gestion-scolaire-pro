@@ -146,3 +146,76 @@ pool sous cette rafale concentrée en est le suspect le plus probable.
    préalable à toute campagne TIER=100/1000 réaliste.
 3. Répéter cette campagne contre un environnement de staging dimensionné
    comme la production réelle (pas un poste de développement partagé).
+
+---
+
+## Suite — 2026-08-10 : corrections des deux blocages + re-mesure
+
+Les deux actions recommandées ci-dessus (#1 et #2) ont été traitées.
+
+### #2 — Bypass du rate-limit de connexion pour un runner de charge
+
+`app/api/v1/endpoints/core/auth.py::_login_rate_limit_key` — une requête
+portant l'en-tête `X-Load-Test-Token` égal à `LOAD_TEST_BYPASS_SECRET`
+(vide par défaut, comparaison `secrets.compare_digest`) est exemptée du
+rate-limit de connexion (5/minute/IP) pour cette seule requête. Inerte tant
+que l'opérateur ne configure pas explicitement le secret — ne jamais le
+faire en production de façon permanente. `load-tests/full-journey.js`
+utilise `LOAD_TEST_TOKEN` en variable d'environnement k6 ; sans elle, le
+script retombe sur l'espacement 13s d'origine (comportement inchangé).
+
+Effet mesuré : `setup()` pour 10 tenants passe de ~130s à **~1s**.
+100 tenants (jamais testé avant faute de ce mécanisme) devient praticable
+au lieu de prendre ~22 minutes.
+
+### #1 — Diagnostic de la contention (sans accès `pg_stat_activity` en direct)
+
+Analyse du code (pas d'observation en direct pendant un run — toujours une
+limite de cet environnement) : `get_db()` (`app/core/database.py`) payait
+**3 aller-retours réseau vers Postgres avant même la première requête
+métier** — un `SELECT 1` de liveness redondant avec `pool_pre_ping=True`
+(qui fait déjà cette vérification, en silence, à l'emprunt d'une connexion
+du pool), et deux appels `set_config` séparés (reset puis affectation) là
+où un seul suffit (`set_config` accepte `NULL` directement — vérifié en
+direct contre le Postgres réel de la stack). Sur un pool à 5 connexions
+stables + 10 en débordement par worker (`DATABASE_POOL_SIZE`/
+`DATABASE_MAX_OVERFLOW`, la valeur par défaut), chaque round-trip est du
+temps de connexion retenue en moins disponible pour les autres requêtes en
+attente — exactement le sympôme observé (médiane correcte, queue énorme).
+
+**Corrigé** : les deux `set_config` fusionnés en un seul appel ; le
+`SELECT 1` supprimé sur PostgreSQL (conservé sur SQLite, qui n'a pas
+`pool_pre_ping`). RLS re-vérifiée directement contre Postgres réel après
+correction (isolation tenant intacte, testé avec deux tenants distincts).
+
+### Re-mesure — même palier (TIER=10, 25 VUs), mode production, avant/après
+
+| Métrique | Avant (07/08) | Après (10/08) | Delta |
+|---|---|---|---|
+| `flow_offline_sync_burst_ms` p95 | 9,40s | **5,91s** | -37% |
+| `flow_offline_sync_burst_ms` max | **64,3s** | **9,79s** | -85% |
+| `http_req_duration` p99 | 2,54s | 2,26s | -11% |
+| `http_req_failed` | 0,33% | 0,14% | -58% |
+| Itérations complétées | 311 | 309 | ≈ stable |
+
+Amélioration réelle et mesurée, concentrée exactement là où elle était
+attendue : le pire cas (max) de la rafale hors-ligne, celui qui faisait le
+plus mal à un vrai utilisateur, passe de plus d'une minute à moins de 10
+secondes. Les seuils par parcours restent dépassés (ils étaient fixés comme
+objectifs, pas comme minimums) — la contention est réduite, pas éliminée :
+`DATABASE_POOL_SIZE`/`MAX_OVERFLOW` restent à leur valeur par défaut (5+10
+par worker) dans cette campagne, volontairement, faute de connaître la
+limite réelle de connexions du plan PostgreSQL Render en production (voir
+le commentaire ajouté dans `app/core/config.py` — l'augmenter sans cette
+information pourrait faire échouer des connexions plutôt que les faire
+simplement attendre).
+
+### Ce qui manque encore pour un vrai test à 10 000 utilisateurs simultanés
+
+Voir `docs/runbooks/load-testing.md#exigences-pour-un-test-a-10-000-utilisateurs`
+pour le détail complet. En résumé : ce poste de développement partagé
+(Postgres/Redis à 512 Mo/128 Mo, CPU partagé avec d'autres charges) ne
+peut physiquement pas simuler 10 000 utilisateurs de façon représentative
+— au-delà de quelques centaines de VUs locaux, on mesurerait la limite du
+poste, pas celle de l'application. Un test à cette échelle demande un
+environnement de staging dimensionné comme la cible de production réelle.

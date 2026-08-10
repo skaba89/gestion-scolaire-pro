@@ -74,20 +74,22 @@ def get_db():
 
     if not settings.is_sqlite:
         try:
-            # ALWAYS reset RLS context first to prevent connection pool leaks
-            # FIX: Use NULL instead of empty string — ''::uuid cast throws
-            # "invalid input syntax for type uuid" in strict RLS policies.
-            # NULL::uuid is valid in PostgreSQL (returns NULL).
-            db.execute(
-                text("SELECT set_config('app.current_tenant_id', NULL::text, false)")
-            )
-            # Then set the correct tenant_id if available
+            # PERFORMANCE: this used to be two round-trips — reset to NULL,
+            # then a second query to set the real tenant_id if any. Combined
+            # into one: set_config's third arg accepts NULL directly (same
+            # NULL::uuid-safe reasoning as before — set_config('...', NULL,
+            # false) is valid and clears the setting), so binding tid=None
+            # when there's no tenant does the reset AND the set in a single
+            # round-trip. On a pool this small (see DATABASE_POOL_SIZE),
+            # every round-trip removed is one less unit of time each request
+            # holds a scarce connection — found while diagnosing tail
+            # latency under concurrent load (see docs/reports/
+            # LOAD_TEST_CAMPAIGN_2026-08-07.md).
             tenant_id = tenant_context.get()
-            if tenant_id:
-                db.execute(
-                    text("SELECT set_config('app.current_tenant_id', :tid, false)"),
-                    {"tid": str(tenant_id)},
-                )
+            db.execute(
+                text("SELECT set_config('app.current_tenant_id', :tid, false)"),
+                {"tid": str(tenant_id) if tenant_id else None},
+            )
         except Exception as exc:
             # RLS set_config may fail if the function doesn't exist yet
             # (e.g. fresh database before Alembic runs RLS migration).
@@ -98,8 +100,17 @@ def get_db():
             )
 
     try:
-        # Verify database connection is alive before yielding
-        db.execute(text("SELECT 1"))
+        # PERFORMANCE: this "SELECT 1" liveness probe is redundant on
+        # PostgreSQL — pool_pre_ping=True (see engine creation above) already
+        # validates every connection at checkout time, transparently and at
+        # the pool level, before SQLAlchemy ever hands it back here. Paying
+        # for a second, app-level round-trip on every single request just to
+        # re-confirm what pre_ping already confirmed — one of three
+        # round-trips get_db() spent before any real query. Under
+        # connection-pool contention that's real held-connection time. Kept
+        # for SQLite, which has no pool_pre_ping equivalent configured.
+        if settings.is_sqlite:
+            db.execute(text("SELECT 1"))
         yield db
     except Exception as exc:
         # Only log actual database/sqlalchemy errors, not HTTP exceptions raised

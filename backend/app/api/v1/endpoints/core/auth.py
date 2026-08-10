@@ -18,7 +18,36 @@ from app.models.user_role import UserRole
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+
+
+def _login_rate_limit_key(request: Request) -> str:
+    """Rate-limit key for this module's `limiter` — shared by every
+    @limiter.limit(...) route below (login, refresh, logout, change-
+    password, register, register-school, bootstrap, forgot/reset-password),
+    normally just the client IP. A request carrying header
+    X-Load-Test-Token equal to settings.LOAD_TEST_BYPASS_SECRET is instead
+    keyed on a fresh uuid4 per call, so it can never accumulate against
+    anyone's real quota — this is how an authorized load campaign logs in
+    10, 100 or 1000 simulated tenant admins without needing 13s of spacing
+    per login (see docs/runbooks/load-testing.md).
+
+    Inert by default: LOAD_TEST_BYPASS_SECRET is empty unless a deployment
+    operator deliberately sets it, and the comparison is constant-time
+    (secrets.compare_digest) specifically so an unset/mismatched header
+    can't be used to probe for the real value.
+    """
+    from app.core.config import settings
+    if settings.LOAD_TEST_BYPASS_SECRET:
+        import secrets
+        import uuid
+        presented = request.headers.get("X-Load-Test-Token", "")
+        if presented and secrets.compare_digest(presented, settings.LOAD_TEST_BYPASS_SECRET):
+            logger.info("Login rate limit bypassed via X-Load-Test-Token (authorized load test)")
+            return f"load-test-exempt-{uuid.uuid4()}"
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_login_rate_limit_key)
 
 
 # ─── Token Blacklist Helpers ─────────────────────────────────────────────

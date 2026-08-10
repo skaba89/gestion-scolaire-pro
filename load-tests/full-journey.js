@@ -119,21 +119,34 @@ function pickTenant() {
   return tenants[Math.floor(Math.random() * tenants.length)];
 }
 
+const LOAD_TEST_TOKEN = __ENV.LOAD_TEST_TOKEN || '';
+
 export function setup() {
   // One login per tenant in setup(), not per-VU-iteration — auth is
   // rate-limited 5/minute **per IP** (see @limiter.limit("5/minute") on
   // POST /auth/login/ in auth.py), and every VU in a k6 run shares the
   // same source IP. Re-authenticating on every iteration would exhaust
-  // that quota before the load profile even ramps up; even here in
-  // setup(), logging in more than 5 tenants inside one minute trips it —
-  // hence the 13s spacing (5 per 60s ⇒ ~12s minimum, +1s margin).
+  // that quota before the load profile even ramps up.
+  //
+  // With LOAD_TEST_TOKEN set (must match the target's
+  // LOAD_TEST_BYPASS_SECRET — see _login_rate_limit_key in auth.py), every
+  // login carries X-Load-Test-Token and is exempt from that limiter
+  // entirely: setup() logs in all tenants back-to-back, no spacing needed.
+  // TIER=100/1000 are only practical with this set — without it, spacing
+  // 5/minute across 100+ tenants makes setup() alone take longer than the
+  // whole campaign (100 tenants × 13s ≈ 22min; 1000 × 13s ≈ 3.6h).
+  //
+  // Without LOAD_TEST_TOKEN, falls back to the original 13s spacing
+  // (5 per 60s ⇒ ~12s minimum, +1s margin) — safe default, just slow past
+  // a handful of tenants.
+  const headers = LOAD_TEST_TOKEN ? { 'X-Load-Test-Token': LOAD_TEST_TOKEN } : {};
   const tokensBySlug = {};
   tenants.forEach((t, i) => {
-    if (i > 0) sleep(13);
+    if (!LOAD_TEST_TOKEN && i > 0) sleep(13);
     const res = http.post(`${API}/auth/login/`, {
       username: t.email,
       password: t.password,
-    });
+    }, { headers });
     if (res.status !== 200) {
       throw new Error(`login failed for tenant ${t.slug}: ${res.status} ${res.body}`);
     }
