@@ -210,6 +210,38 @@ le commentaire ajouté dans `app/core/config.py` — l'augmenter sans cette
 information pourrait faire échouer des connexions plutôt que les faire
 simplement attendre).
 
+### Suite immédiate — TIER=100 (250 VUs), même jour
+
+Avec le bypass en place, `setup()` pour 50 tenants a pris quelques
+secondes au lieu de ~11 minutes. La montée en charge elle-même
+(1min→50 VUs, 3min→250 VUs) a en revanche **révélé un vrai point de
+rupture** sur ce poste, entre 25 et 250 VUs :
+
+| Métrique | TIER=10 (25 VUs) | TIER=100 (250 VUs) |
+|---|---|---|
+| `http_req_failed` | 0,14% | **23,28%** |
+| `checks_succeeded` | 99,97% | **86,02%** |
+| `http_req_duration` p95 | 1,25s | **59,99s** (plafond du timeout HTTP k6) |
+| `flow_offline_sync_burst_ms` p95 | 5,91s | **183,5s** |
+| CPU conteneur `api` (snapshot mi-charge) | 235,5% | 245,8% (déjà proche du plafond à 4 workers) |
+
+À 250 VUs, la médiane reste correcte (1,89s pour `http_req_duration`) mais
+la queue explose jusqu'au timeout HTTP de 60s sur la quasi-totalité des
+parcours — signe d'une saturation franche (CPU et/ou pool de connexions
+DB) plutôt que d'une dégradation progressive. Le CPU de `api` était déjà
+proche de son plafond (4 workers) au palier précédent (235%) ; ce nouveau
+palier le pousse au-delà de ce que ce poste partagé peut absorber
+proprement.
+
+**Ce n'est pas nécessairement représentatif d'une vraie instance Render
+correctement dimensionnée** — mais ça confirme concrètement que 250
+utilisateurs concurrents dépassent déjà la capacité de la configuration
+par défaut (`WORKERS=4`, `DATABASE_POOL_SIZE=5`) sur ce matériel, et donne
+un ordre de grandeur réel du point de bascule à surveiller en production.
+La prochaine étape utile est de répéter ce palier avec plus de workers/un
+pool plus large (une fois la limite de connexions du plan Postgres Render
+confirmée) pour voir si le point de rupture recule proportionnellement.
+
 ### Ce qui manque encore pour un vrai test à 10 000 utilisateurs simultanés
 
 Voir `docs/runbooks/load-testing.md#exigences-pour-un-test-a-10-000-utilisateurs`
