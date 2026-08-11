@@ -54,6 +54,18 @@ jobs:
       - name: Type-check (TypeScript)
         run: npm run type-check
 
+      - name: Check i18n key completeness
+        # AUDIT 2026-08: scripts/check-i18n-keys.mjs already existed (blocks
+        # on high-visibility namespaces missing from fr.json, warns on
+        # es/ar/zh gaps against fr) but was never wired into CI, and its
+        # locale list was missing 'zh' entirely. Both fixed. Still
+        # non-blocking on the es/ar/zh warning path — ~500-600 keys per
+        # locale are already missing today (real gap, see the audit report)
+        # and a hard fail here would just break every PR until a full
+        # translation pass lands; the readable French fallback (fallbackLng
+        # in src/i18n/config.ts) keeps the app usable in the meantime.
+        run: npm run check:i18n
+
       - name: Run stable frontend test baseline with coverage
         # Auto-discover every Vitest suite so new unit tests enter the gate by default.
         # Playwright end-to-end suites remain isolated by vitest.config.ts.
@@ -186,6 +198,28 @@ jobs:
           if rg -l 'shell\s*=\s*True' backend/app/ --type py 2>/dev/null; then
             echo "WARNING: subprocess with shell=True found"
           fi
+
+      - name: Check dynamic SQL text() interpolation
+        # AUDIT 2026-08: the codebase has 50+ text(f"...") call sites
+        # (homework.py, analytics.py, payments.py, etc). Every one sampled
+        # in the audit correctly binds user values as params and only
+        # interpolates developer-controlled fragments (column/table names
+        # from a hardcoded allowlist) — no confirmed injection found. But
+        # the pattern is risky by construction and growing, so this is a
+        # non-blocking visibility check: it lists every text(f"...") call
+        # site on every PR so a reviewer can spot-check new ones, rather
+        # than relying on someone remembering to re-audit manually. Not a
+        # hard gate — telling safe allowlisted interpolation apart from
+        # unsafe raw interpolation by regex alone would false-positive on
+        # most of the existing, correct call sites — but a growing count
+        # here across PRs is a signal this tech debt (see
+        # backend/app/core/operational_tables.py TODO) is getting bigger,
+        # not smaller.
+        run: |
+          echo "Dynamic SQL text(f\"...\") call sites (informational, not a gate):"
+          rg -n 'text\(f["\x27]' backend/app/ --type py 2>/dev/null || true
+          COUNT=$(rg -c 'text\(f["\x27]' backend/app/ --type py 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+          echo "Total: ${COUNT} call sites. Review any new ones for: are interpolated fragments from a hardcoded allowlist (safe), or built from request input (unsafe)?"
 
       - name: Install coverage tools
         run: pip install pytest-cov

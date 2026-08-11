@@ -1,6 +1,8 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
@@ -27,6 +29,16 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# SECURITY (audit 2026-08): /export/, /direct-delete/ and /search/ read or
+# destroy bulk personal data and previously had no rate limit at all, unlike
+# every comparable sensitive route elsewhere in the app (e.g. payments
+# export in finance/payments.py). A compromised or malicious privileged
+# account could otherwise script unbounded exports or deletions. Limits
+# mirror the auth.py/payments.py pattern — keyed by client IP, not identity,
+# so this is a coarse throttle, not a substitute for the permission checks
+# already enforced by require_permission()/get_current_user() below.
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _privacy_tenant_scope(current_user: dict, *, allow_platform_admin: bool = True):
@@ -325,6 +337,7 @@ def check_legal_retention(
     }
 
 @router.get("/search/")
+@limiter.limit("15/minute")
 def search_users_for_rgpd(
     request: Request,
     email: str,
@@ -374,6 +387,7 @@ class DirectDeletionRequest(BaseModel):
 
 
 @router.post("/direct-delete/{user_id}/")
+@limiter.limit("5/minute")
 def direct_delete_user(
     request: Request,
     user_id: uuid.UUID,
@@ -422,6 +436,7 @@ def direct_delete_user(
     return {"message": "User anonymized successfully"}
 
 @router.post("/export/")
+@limiter.limit("5/minute")
 def export_user_data(
     request: Request,
     db: Session = Depends(get_db),

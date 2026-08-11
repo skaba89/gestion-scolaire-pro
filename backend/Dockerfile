@@ -15,8 +15,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# libmagic1: runtime shared lib for python-magic (upload MIME/magic-byte
+# validation in storage.py). Without it, python-magic's import fails and
+# that check silently degrades to trusting the client Content-Type header —
+# see requirements.txt for the matching python-magic dependency.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client curl && \
+    postgresql-client curl libmagic1 && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local
