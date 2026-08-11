@@ -104,6 +104,40 @@ Avant prod :
 - accès MinIO/S3 sécurisé ;
 - logs et monitoring activés.
 
+### 6.1 Secret historique connu — `.env.sqlite` (audit 2026-08)
+
+Un scan complet de l'historique git (`git log --all -p -- '*.env*'`) a
+trouvé une vraie valeur `SECRET_KEY` committée dans `.env.sqlite`, un
+template de dev local (commits `2f05472`/`093990a`, supprimé en `8885ff9`
+"lot H"). Valeur :
+
+```
+SECRET_KEY=134d4e0a82d65f8f63549c15c84035eb79675fc3130c55e1a083a36b4a1d5805
+```
+
+**Analyse de risque** :
+- Cette valeur n'est plus dans le code actuel (`git ls-files` la confirme
+  absente) ni référencée nulle part ailleurs dans le dépôt.
+- `SECRET_KEY` est validé au démarrage (`app/core/config.py`) : en
+  production/staging, l'application **refuse de démarrer** sans une valeur
+  explicitement fournie par l'opérateur (≥32 caractères) — cette valeur de
+  dev SQLite n'a donc jamais pu servir en production par construction, sauf
+  si un opérateur l'a copiée-collée manuellement dans un déploiement réel
+  (aucune trace de ça trouvée).
+- Elle reste techniquement récupérable par quiconque a accès au dépôt, via
+  `git show 093990a:.env.sqlite` — l'historique n'a **pas** été réécrit.
+
+**Décision (2026-08-11)** : ne pas purger l'historique (BFG/git-filter-repo)
+maintenant — le risque réel est jugé faible au regard de la garde au
+démarrage ci-dessus, et une réécriture d'historique force-push casse tous
+les clones/PRs en cours, un coût disproportionné pour ce niveau de risque.
+Si cette valeur a un jour été utilisée hors d'un poste de dev local (à
+vérifier auprès de toute personne ayant contribué avant `8885ff9`), la
+traiter comme compromise et la faire tourner immédiatement — indépendamment
+de l'historique git, une rotation de `SECRET_KEY` invalide tous les tokens
+JWT en circulation, donc à planifier hors heures de pointe si jamais
+nécessaire.
+
 ## 7. Déploiement production recommandé
 
 Services minimum :
