@@ -49,8 +49,20 @@ async def upload_file(request: Request, file: UploadFile = File(...), current_us
         try:
             import magic
             mime_type = magic.from_buffer(content, mime=True)
-        except Exception:
-            # python-magic or libmagic not available — fall back to content type header
+        except Exception as exc:
+            # SECURITY (audit 2026-08): python-magic/libmagic missing means
+            # this check silently degrades to trusting the client-supplied
+            # Content-Type header, which is trivially spoofable. That
+            # degradation went unnoticed in production before because it
+            # was a plain silent fallback — now logged as a warning so an
+            # operator sees it (e.g. via Sentry/log alerting) instead of
+            # only discovering it in a code audit. requirements.txt/
+            # Dockerfile now declare python-magic/libmagic1, so this path
+            # should not fire in a correctly built image.
+            logger.warning(
+                "python-magic/libmagic unavailable, falling back to "
+                "Content-Type header for upload MIME validation: %s", exc
+            )
             mime_type = file.content_type or "application/octet-stream"
 
         ALLOWED_MIME_TYPES = {

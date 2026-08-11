@@ -94,13 +94,26 @@ def verify_token_raw(token: str) -> dict:
 
 
 async def _get_token_version_from_redis(user_id: str) -> int:
-    """Async helper to check current token version from Redis."""
+    """Async helper to check current token version from Redis.
+
+    SECURITY (audit 2026-08): fails open (returns 0, i.e. "no logout-all in
+    effect") if Redis is unavailable — same documented trade-off as the
+    blacklist check in is_token_blacklisted()/auth.py, which already logs a
+    warning on this path. This one previously failed silently, so a Redis
+    outage disabled logout-all enforcement platform-wide with no signal
+    anywhere. Logging now so it shows up in log-based alerting instead of
+    only being discoverable by reading this comment.
+    """
     try:
         from app.core.cache import redis_client
         client = await redis_client.client
         current = await client.get(f"sfp:user_token_version:{user_id}")
         return int(current) if current else 0
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Redis unavailable during token-version check (fail-open, "
+            "logout-all enforcement disabled for this request): %s", exc
+        )
         return 0
 
 

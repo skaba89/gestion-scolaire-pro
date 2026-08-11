@@ -244,17 +244,30 @@ async def get_saas_metrics(
     )
 
     soon = now + timedelta(days=7)
+    expiring_subs = [
+        sub for sub in active_subs
+        if sub.current_period_end and now < sub.current_period_end <= soon
+    ]
+    # PERFORMANCE (audit 2026-08): previously one Tenant query per expiring
+    # subscription inside the loop. Bounded by the 7-day window so N stayed
+    # small in practice, but the plan lookup two lines above already avoided
+    # this via a preloaded dict — apply the same treatment here with a
+    # single IN(...) instead of N round trips.
+    expiring_tenant_ids = {sub.tenant_id for sub in expiring_subs if sub.tenant_id}
+    tenants_by_id = {
+        t.id: t
+        for t in db.query(Tenant).filter(Tenant.id.in_(expiring_tenant_ids)).all()
+    } if expiring_tenant_ids else {}
     expiring_soon = []
-    for sub in active_subs:
-        if sub.current_period_end and now < sub.current_period_end <= soon:
-            sub_tenant = db.query(Tenant).filter(Tenant.id == sub.tenant_id).first()
-            sub_plan = plans_by_id.get(str(sub.plan_id)) if sub.plan_id else None
-            expiring_soon.append({
-                "tenant_name": sub_tenant.name if sub_tenant else None,
-                "tenant_slug": sub_tenant.slug if sub_tenant else None,
-                "plan": sub_plan.slug if sub_plan else None,
-                "period_end": sub.current_period_end.isoformat(),
-            })
+    for sub in expiring_subs:
+        sub_tenant = tenants_by_id.get(sub.tenant_id)
+        sub_plan = plans_by_id.get(str(sub.plan_id)) if sub.plan_id else None
+        expiring_soon.append({
+            "tenant_name": sub_tenant.name if sub_tenant else None,
+            "tenant_slug": sub_tenant.slug if sub_tenant else None,
+            "plan": sub_plan.slug if sub_plan else None,
+            "period_end": sub.current_period_end.isoformat(),
+        })
     expiring_soon.sort(key=lambda x: x["period_end"])
 
     local_billing = {

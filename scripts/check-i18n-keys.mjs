@@ -6,7 +6,12 @@ import process from 'node:process';
 const ROOT = process.cwd();
 const SRC_DIR = path.join(ROOT, 'src');
 const LOCALES_DIR = path.join(SRC_DIR, 'i18n', 'locales');
-const LOCALES = ['fr', 'en', 'es', 'ar'];
+// AUDIT 2026-08: 'zh' was missing from this list, so zh.json was never
+// checked at all — the script silently skipped ~600 missing keys in the
+// Chinese locale (same order of magnitude as ar/es) with no warning ever
+// printed for it. Also, this script was never actually invoked by CI (see
+// .github/workflows/ci.yml) — it existed and worked, but nothing ran it.
+const LOCALES = ['fr', 'en', 'es', 'ar', 'zh'];
 
 // The project still contains many historical pages. During the Phase 5 hardening,
 // the default check is progressive: it blocks only on high-visibility namespaces
