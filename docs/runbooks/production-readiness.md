@@ -109,11 +109,11 @@ Avant prod :
 Un scan complet de l'historique git (`git log --all -p -- '*.env*'`) a
 trouvé une vraie valeur `SECRET_KEY` committée dans `.env.sqlite`, un
 template de dev local (commits `2f05472`/`093990a`, supprimé en `8885ff9`
-"lot H"). Valeur :
-
-```
-SECRET_KEY=134d4e0a82d65f8f63549c15c84035eb79675fc3130c55e1a083a36b4a1d5805
-```
+"lot H"). Valeur volontairement **non reproduite ici** (`git show
+093990a:.env.sqlite` pour la consulter si besoin — la publier en clair
+dans ce fichier la re-rendrait immédiatement visible depuis HEAD, sans même
+avoir besoin de creuser l'historique, en plus de redéclencher le scan
+Gitleaks de la CI qui l'a détectée).
 
 **Analyse de risque** :
 - Cette valeur n'est plus dans le code actuel (`git ls-files` la confirme
