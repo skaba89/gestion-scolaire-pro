@@ -77,3 +77,65 @@ describe('apiClient network-failure retry', () => {
     expect(resp.data).toEqual({ ok: true });
   });
 });
+
+/**
+ * Fine points follow-up (2026-08-08) — Render's free tier sleeps the
+ * backend after inactivity; the first request after a nap can 503 for
+ * 20-50s while the container restarts. The generic 502/503/504 retry above
+ * only budgets ~1.5s total (2 retries at 500ms/1000ms), nowhere near
+ * enough — a real user's first login attempt after a nap would fail with
+ * a raw error instead of quietly waiting for the wake-up. /auth/login/
+ * gets a much longer, dedicated retry budget since a failed login never
+ * has a server-side side effect to duplicate, unlike a generic mutation.
+ */
+describe('apiClient cold-start retry (POST /auth/login/)', () => {
+  function serverUnavailable(config: any, status = 503): AxiosError {
+    const err = new AxiosError('Service Unavailable');
+    err.config = config;
+    err.response = { status, data: {}, statusText: '', headers: {}, config } as any;
+    return err;
+  }
+
+  it('retries past the generic 2-attempt budget and emits schoolflow:cold-start-retry', async () => {
+    let callCount = 0;
+    const events: Array<{ attempt: number; maxAttempts: number }> = [];
+    const listener = (e: Event) => events.push((e as CustomEvent).detail);
+    window.addEventListener('schoolflow:cold-start-retry', listener);
+
+    const adapter = vi.fn(async (config: any) => {
+      callCount += 1;
+      // Fails 3 times — past the generic MAX_AUTO_RETRIES=2 — to prove the
+      // cold-start path (not the generic one) is what's carrying this.
+      if (callCount <= 3) throw serverUnavailable(config);
+      return { data: { access_token: 'tok' }, status: 200, statusText: 'OK', headers: {}, config };
+    });
+
+    try {
+      const resp = await apiClient.post('/auth/login/', {}, { adapter });
+      expect(callCount).toBe(4);
+      expect(resp.data).toEqual({ access_token: 'tok' });
+      expect(events.length).toBe(3);
+      expect(events.map((e) => e.attempt)).toEqual([1, 2, 3]);
+      expect(events[0].maxAttempts).toBe(6);
+    } finally {
+      window.removeEventListener('schoolflow:cold-start-retry', listener);
+    }
+  }, 15_000);
+
+  it('does NOT extend the same long budget to an unrelated POST (regression guard)', async () => {
+    let callCount = 0;
+    const adapter = vi.fn(async (config: any) => {
+      callCount += 1;
+      throw serverUnavailable(config);
+    });
+
+    // /payments/register/ is a real mutation — must still be bounded by the
+    // generic 2-retry budget, not silently upgraded to 6 long retries just
+    // because it also happens to see a 503.
+    await expect(
+      apiClient.post('/payments/register/', { amount: 1000 }, { adapter })
+    ).rejects.toThrow();
+
+    expect(callCount).toBe(3); // 1 initial + 2 generic retries, not 7
+  }, 10_000);
+});

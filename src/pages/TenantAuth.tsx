@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -94,6 +94,18 @@ const TenantAuthPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [logoError, setLogoError] = useState(false);
+  // See src/api/client.ts's cold-start retry — Render's free tier sleeps
+  // the backend after inactivity, and the first request can take 20-50s.
+  const [coldStartAttempt, setColdStartAttempt] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handleColdStartRetry = (e: Event) => {
+      const detail = (e as CustomEvent<{ attempt: number; maxAttempts: number }>).detail;
+      setColdStartAttempt(detail?.attempt ?? null);
+    };
+    window.addEventListener("schoolflow:cold-start-retry", handleColdStartRetry);
+    return () => window.removeEventListener("schoolflow:cold-start-retry", handleColdStartRetry);
+  }, []);
 
   const { data: tenantData, isLoading: tenantLoading } = usePublicTenant(tenantSlug);
 
@@ -137,6 +149,7 @@ const TenantAuthPage = () => {
     }
 
     setSubmitting(true);
+    setColdStartAttempt(null);
     try {
       // Tenant login pages must send the current tenant context. Without this,
       // a stale X-Tenant-ID from a previous session can make the backend search
@@ -161,6 +174,8 @@ const TenantAuthPage = () => {
           description = "Votre établissement est actuellement désactivé. Contactez un administrateur.";
         } else if (msg.includes("429")) {
           description = "Trop de tentatives de connexion. Veuillez attendre quelques minutes avant de réessayer.";
+        } else if (msg.includes("502") || msg.includes("503") || msg.includes("504") || msg.includes("timeout")) {
+          description = "Le serveur met plus de temps que prévu à répondre (il était probablement en veille). Réessayez dans quelques instants.";
         }
         toast({ title: "Erreur de connexion", description, variant: "destructive" });
         return;
@@ -198,6 +213,7 @@ const TenantAuthPage = () => {
       }
     } finally {
       setSubmitting(false);
+      setColdStartAttempt(null);
     }
   };
 
@@ -403,7 +419,7 @@ const TenantAuthPage = () => {
               {submitting || isLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Connexion...
+                  {coldStartAttempt ? "Réveil du serveur…" : "Connexion..."}
                 </>
               ) : (
                 <>
@@ -412,6 +428,11 @@ const TenantAuthPage = () => {
                 </>
               )}
             </Button>
+            {coldStartAttempt && (
+              <p className="text-center text-xs text-muted-foreground -mt-2">
+                Le serveur était en veille, il se réveille — cela peut prendre jusqu'à 30 secondes.
+              </p>
+            )}
           </form>
 
           <p className="text-center text-sm text-muted-foreground">

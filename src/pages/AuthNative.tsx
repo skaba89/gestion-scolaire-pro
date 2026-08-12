@@ -55,7 +55,23 @@ const AuthNative = () => {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Set by apiClient's cold-start retry (src/api/client.ts) while a 503/
+  // timeout on /auth/login/ is being silently retried in the background —
+  // Render's free tier sleeps the backend after inactivity, and the first
+  // request can take 20-50s to get a real response. Without this, the
+  // button just sits there for tens of seconds with no explanation before
+  // either succeeding or finally showing an error.
+  const [coldStartAttempt, setColdStartAttempt] = useState<number | null>(null);
   const requestedPath = getSafeReturnPath((location.state as { from?: unknown } | null)?.from);
+
+  useEffect(() => {
+    const handleColdStartRetry = (e: Event) => {
+      const detail = (e as CustomEvent<{ attempt: number; maxAttempts: number }>).detail;
+      setColdStartAttempt(detail?.attempt ?? null);
+    };
+    window.addEventListener("schoolflow:cold-start-retry", handleColdStartRetry);
+    return () => window.removeEventListener("schoolflow:cold-start-retry", handleColdStartRetry);
+  }, []);
 
   useEffect(() => {
     if (isLoading || !user) return;
@@ -83,6 +99,7 @@ const AuthNative = () => {
     }
 
     setSubmitting(true);
+    setColdStartAttempt(null);
     try {
       const { error, profileData } = await signIn(email, password);
       if (error) {
@@ -92,6 +109,10 @@ const AuthNative = () => {
           description = "Email ou mot de passe incorrect. Veuillez vérifier vos identifiants.";
         } else if (msg.includes("network") || msg.includes("Network") || msg.includes("ECONNREFUSED")) {
           description = "Impossible de joindre le serveur. Vérifiez que l'API est lancée.";
+        } else if (msg.includes("502") || msg.includes("503") || msg.includes("504") || msg.includes("timeout")) {
+          // apiClient already retried for ~31s (see schoolflow:cold-start-retry) —
+          // if it still failed, the server took longer than that to wake up.
+          description = "Le serveur met plus de temps que prévu à répondre (il était probablement en veille). Réessayez dans quelques instants.";
         }
         toast({
           title: "Erreur de connexion",
@@ -141,6 +162,7 @@ const AuthNative = () => {
       }
     } finally {
       setSubmitting(false);
+      setColdStartAttempt(null);
     }
   };
 
@@ -311,7 +333,7 @@ const AuthNative = () => {
               {submitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Connexion en cours...
+                  {coldStartAttempt ? "Réveil du serveur…" : "Connexion en cours..."}
                 </>
               ) : (
                 <>
@@ -320,6 +342,11 @@ const AuthNative = () => {
                 </>
               )}
             </Button>
+            {coldStartAttempt && (
+              <p className="text-center text-xs text-slate-500 -mt-2">
+                Le serveur était en veille, il se réveille — cela peut prendre jusqu'à 30 secondes.
+              </p>
+            )}
           </form>
 
           {/* Divider */}

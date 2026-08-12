@@ -9,6 +9,30 @@ const API_TIMEOUT_MS = 15_000;
 const RETRYABLE_STATUS_CODES = [502, 503, 504];
 const MAX_AUTO_RETRIES = 2;
 
+/**
+ * Render (plan gratuit) met le backend en veille après une période
+ * d'inactivité — la toute première requête après une veille peut mettre
+ * 20 à 50 secondes à obtenir une réponse (le temps que le conteneur
+ * redémarre), largement au-delà du timeout de 15s ci-dessus et des 2
+ * retries à ~1.5s prévus pour de simples erreurs 5xx transitoires.
+ *
+ * Pour /auth/login/ spécifiquement (jamais d'effet de bord en cas
+ * d'échec — un login raté ne crée ni ne modifie rien côté serveur, donc
+ * le rejouer est toujours sûr, contrairement à une mutation générique),
+ * on tolère un budget de retry beaucoup plus long pour couvrir ce
+ * réveil, avec un événement `schoolflow:cold-start-retry` émis à chaque
+ * tentative pour que l'UI affiche "le serveur se réveille…" au lieu de
+ * laisser l'utilisateur face à un bouton figé puis une erreur sèche.
+ */
+const COLD_START_RETRYABLE_PATHS = ['/auth/login/'];
+const COLD_START_MAX_RETRIES = 6;
+const COLD_START_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 8000]; // ~31s cumulés
+
+function isColdStartRetryablePath(url?: string): boolean {
+  if (!url) return false;
+  return COLD_START_RETRYABLE_PATHS.some((p) => url.includes(p));
+}
+
 // Mutex for token refresh — prevents concurrent refresh calls
 let refreshPromise: Promise<string> | null = null;
 
@@ -186,6 +210,28 @@ apiClient.interceptors.response.use(
       error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' || error.message === 'Network Error'
     );
     const requestMethod = originalRequest?.method?.toUpperCase();
+
+    // Cold-start retry: only for the specific safe-to-replay paths above,
+    // regardless of HTTP method — a 503/timeout on /auth/login/ never had
+    // a side effect to duplicate. Takes priority over the generic 2-retry
+    // path below so login gets the full ~31s budget instead of giving up
+    // after ~1.5s.
+    if (
+      originalRequest &&
+      isColdStartRetryablePath(originalRequest.url) &&
+      (httpStatus ? RETRYABLE_STATUS_CODES.includes(httpStatus) : isNetworkError)
+    ) {
+      const attempt = originalRequest._retryCount ?? 0;
+      if (attempt < COLD_START_MAX_RETRIES) {
+        originalRequest._retryCount = attempt + 1;
+        window.dispatchEvent(new CustomEvent('schoolflow:cold-start-retry', {
+          detail: { attempt: attempt + 1, maxAttempts: COLD_START_MAX_RETRIES },
+        }));
+        await new Promise((r) => setTimeout(r, COLD_START_DELAYS_MS[attempt]));
+        return apiClient(originalRequest);
+      }
+    }
+
     const shouldRetry =
       (httpStatus && RETRYABLE_STATUS_CODES.includes(httpStatus)) ||
       (isNetworkError && requestMethod === 'GET');
