@@ -58,12 +58,15 @@ jobs:
         # AUDIT 2026-08: scripts/check-i18n-keys.mjs already existed (blocks
         # on high-visibility namespaces missing from fr.json, warns on
         # es/ar/zh gaps against fr) but was never wired into CI, and its
-        # locale list was missing 'zh' entirely. Both fixed. Still
-        # non-blocking on the es/ar/zh warning path — ~500-600 keys per
-        # locale are already missing today (real gap, see the audit report)
-        # and a hard fail here would just break every PR until a full
-        # translation pass lands; the readable French fallback (fallbackLng
-        # in src/i18n/config.ts) keeps the app usable in the meantime.
+        # locale list was missing 'zh' entirely. Both fixed. The ~500-600
+        # missing keys per locale (en/es/ar/zh) found by the audit have
+        # since been backfilled (translated from the fr.json source,
+        # verified against this script and a real npm run build) — all four
+        # locales report 0 missing keys against fr.json as of this commit.
+        # ar/zh translations in particular should still get a native-speaker
+        # review pass before being considered fully polished; kept
+        # non-blocking on the warning path so any *future* drift is caught
+        # without ever hard-failing CI on translation content quality.
         run: npm run check:i18n
 
       - name: Run stable frontend test baseline with coverage
