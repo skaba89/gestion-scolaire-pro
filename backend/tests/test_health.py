@@ -176,3 +176,103 @@ def test_root_has_message():
     response = client.get("/")
     data = response.json()
     assert "message" in data
+
+
+# ─── /health/deep (Phase 3, issue #19, PR1) ─────────────────────────────────
+
+def test_deep_health_open_in_debug_mode():
+    """DEBUG=true (the test suite's setting) must not require a secret —
+    matches the same convention as /metrics/."""
+    response = client.get("/health/deep")
+    assert response.status_code == 200
+    data = response.json()
+    assert set(["version", "environment", "components", "disk", "db_pool", "alembic"]) <= set(data.keys())
+
+
+def test_deep_health_disabled_without_secret_in_production():
+    """DEBUG=false and no HEALTH_DEEP_SECRET configured must deny access
+    (fail closed), not silently allow open diagnostic access."""
+    from app.main import settings
+    import os as _os
+
+    with patch.object(settings, "DEBUG", False):
+        _os.environ.pop("HEALTH_DEEP_SECRET", None)
+        response = client.get("/health/deep")
+
+    assert response.status_code == 403
+
+
+def test_deep_health_rejects_wrong_secret_in_production():
+    from app.main import settings
+    import os as _os
+
+    with patch.object(settings, "DEBUG", False):
+        _os.environ["HEALTH_DEEP_SECRET"] = "correct-secret-for-test"
+        try:
+            response = client.get("/health/deep?secret=wrong-secret")
+        finally:
+            _os.environ.pop("HEALTH_DEEP_SECRET", None)
+
+    assert response.status_code == 401
+
+
+def test_deep_health_accepts_correct_secret_in_production():
+    from app.main import settings
+    import os as _os
+
+    with patch.object(settings, "DEBUG", False):
+        _os.environ["HEALTH_DEEP_SECRET"] = "correct-secret-for-test"
+        try:
+            response = client.get("/health/deep?secret=correct-secret-for-test")
+        finally:
+            _os.environ.pop("HEALTH_DEEP_SECRET", None)
+
+    assert response.status_code == 200
+    assert "disk" in response.json()
+
+
+def test_deep_health_accepts_bearer_token_secret():
+    from app.main import settings
+    import os as _os
+
+    with patch.object(settings, "DEBUG", False):
+        _os.environ["HEALTH_DEEP_SECRET"] = "correct-secret-for-test"
+        try:
+            response = client.get(
+                "/health/deep",
+                headers={"Authorization": "Bearer correct-secret-for-test"},
+            )
+        finally:
+            _os.environ.pop("HEALTH_DEEP_SECRET", None)
+
+    assert response.status_code == 200
+
+
+def test_deep_health_disk_section_has_expected_shape():
+    response = client.get("/health/deep")
+    disk = response.json()["disk"]
+    assert disk["status"] in ("ok", "low", "critical", "unknown")
+
+
+def test_deep_health_db_pool_section_has_expected_shape():
+    response = client.get("/health/deep")
+    pool = response.json()["db_pool"]
+    assert pool["status"] in ("ok", "unknown")
+
+
+def test_deep_health_skips_alembic_check_on_sqlite():
+    """The test suite runs on SQLite — alembic_version drift detection is
+    PostgreSQL-only (see docstring on _check_alembic_revision), so this
+    must report "skipped" rather than crash or misreport "outdated"."""
+    response = client.get("/health/deep")
+    assert response.json()["alembic"]["status"] == "skipped"
+
+
+def test_deep_health_not_in_openapi_schema():
+    """Deliberately excluded from the public OpenAPI schema
+    (include_in_schema=False) — it's an operator tool, not a documented
+    public API surface."""
+    from app.main import app as fastapi_app
+
+    schema = fastapi_app.openapi()
+    assert "/health/deep" not in schema.get("paths", {})
