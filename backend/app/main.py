@@ -687,6 +687,96 @@ async def health_check():
     return await readiness_check()
 
 
+def _check_disk_space() -> dict:
+    """Disk space on the volume that matters most for this deployment: the
+    local upload fallback directory (see app/core/storage.py) when MinIO is
+    disabled, otherwise the app's own working directory as a proxy for the
+    container filesystem. Non-fatal: any error reports "unknown" rather than
+    failing the whole /health/deep/ response over a diagnostic side-check.
+    """
+    import shutil
+
+    try:
+        from app.core.storage import _UPLOAD_DIR
+        path = _UPLOAD_DIR if os.path.isdir(_UPLOAD_DIR) else os.getcwd()
+        total, used, free = shutil.disk_usage(path)
+        percent_used = round(used / total * 100, 1) if total else 0.0
+        if percent_used >= 90:
+            status = "critical"
+        elif percent_used >= 80:
+            status = "low"
+        else:
+            status = "ok"
+        return {
+            "status": status,
+            "path": path,
+            "percent_used": percent_used,
+            "free_gb": round(free / (1024 ** 3), 2),
+            "total_gb": round(total / (1024 ** 3), 2),
+        }
+    except Exception as exc:
+        logger.warning("Deep health check: disk space check failed: %s", exc)
+        return {"status": "unknown", "detail": str(exc)}
+
+
+def _check_db_pool() -> dict:
+    """SQLAlchemy connection pool occupancy — helps distinguish "DB is down"
+    from "DB is fine but our own pool is exhausted" (see
+    docs/reports/LOAD_TEST_CAMPAIGN_2026-08-07.md for why this distinction
+    matters: the pool has been a real, measured bottleneck under load).
+    """
+    try:
+        from app.core.database import engine
+        pool = engine.pool
+        return {
+            "status": "ok",
+            "checked_in": pool.checkedin(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+            "size": pool.size(),
+        }
+    except Exception as exc:
+        logger.warning("Deep health check: DB pool check failed: %s", exc)
+        return {"status": "unknown", "detail": str(exc)}
+
+
+def _check_alembic_revision() -> dict:
+    """Compares the DB's current Alembic revision against the head revision
+    declared in this codebase's migration scripts — surfaces "DB schema is
+    behind the code that's running" (a real incident class: a bad deploy
+    that skips migrations, or a rollback that forgets to also roll back the
+    schema) rather than only checking that Alembic ran without erroring.
+    """
+    try:
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+        from sqlalchemy import text as _text
+        from app.core.database import engine
+
+        backend_dir = os.path.dirname(os.path.dirname(__file__))
+        alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+        script = ScriptDirectory.from_config(alembic_cfg)
+        head_revision = script.get_current_head()
+
+        with engine.connect() as conn:
+            result = conn.execute(_text(
+                "SELECT version_num FROM alembic_version LIMIT 1"
+            )).first()
+            db_revision = result[0] if result else None
+
+        if db_revision is None:
+            return {"status": "unknown", "detail": "No alembic_version row found"}
+        return {
+            "status": "up_to_date" if db_revision == head_revision else "outdated",
+            "db_revision": db_revision,
+            "head_revision": head_revision,
+        }
+    except Exception as exc:
+        logger.warning("Deep health check: alembic revision check failed: %s", exc)
+        return {"status": "unknown", "detail": str(exc)}
+
+
 def _cors_headers_for(request: Request) -> dict:
     """Lightweight CORS header generator for error responses in main.py.
 
@@ -740,6 +830,67 @@ async def prometheus_metrics(request: Request):
         )
 
     return await metrics_endpoint(request)
+
+@app.get("/health/deep", tags=["Health"], summary="Protected deep diagnostic probe", include_in_schema=False)
+async def deep_health_check(request: Request):
+    """Extended diagnostics beyond /health/ready — disk space, DB connection
+    pool occupancy, Alembic schema drift. Not meant for uptime monitors or
+    load balancers (those should keep using /health/ready); meant for an
+    operator debugging "something's off" without SSHing into the box.
+
+    PHASE 3 (issue #19, PR1): protected the same way as /metrics/ — a
+    shared secret via query param or Authorization header, open in DEBUG
+    mode. This is diagnostic detail (pool occupancy, disk paths, schema
+    revision hashes) that shouldn't be exposed to unauthenticated callers
+    the way the coarse healthy/unhealthy status on /health/ready is.
+    """
+    if not settings.DEBUG:
+        health_deep_secret = os.getenv("HEALTH_DEEP_SECRET", "")
+        if not health_deep_secret:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Deep health endpoint disabled. Set HEALTH_DEEP_SECRET env var."},
+                headers=_cors_headers_for(request) if hasattr(request.app.state, '_cors_allowed_origins') else {},
+            )
+
+        import hmac as _hmac
+        query_secret = request.query_params.get("secret", "")
+        auth_header = request.headers.get("Authorization", "")
+        bearer_secret = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else ""
+
+        if not (_hmac.compare_digest(query_secret, health_deep_secret) or
+                _hmac.compare_digest(bearer_secret, health_deep_secret)):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or missing health-deep secret"},
+                headers=_cors_headers_for(request) if hasattr(request.app.state, '_cors_allowed_origins') else {},
+            )
+
+    db_status, rls_status = await asyncio.to_thread(_check_database_and_rls)
+    redis_status = await _check_cache_readiness()
+    storage_status = await _check_storage_readiness()
+    disk = await asyncio.to_thread(_check_disk_space)
+    db_pool = await asyncio.to_thread(_check_db_pool)
+    alembic_status = await asyncio.to_thread(_check_alembic_revision) if not settings.is_sqlite else {"status": "skipped", "detail": "SQLite (dev) — alembic_version check is PostgreSQL-only"}
+
+    return JSONResponse(
+        status_code=200,
+        headers={"Cache-Control": "no-store"},
+        content={
+            "version": settings.APP_VERSION,
+            "environment": settings.SENTRY_ENVIRONMENT,
+            "components": {
+                "database": db_status,
+                "rls": rls_status,
+                "cache": redis_status,
+                "storage": storage_status,
+            },
+            "disk": disk,
+            "db_pool": db_pool,
+            "alembic": alembic_status,
+        },
+    )
+
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
