@@ -64,3 +64,46 @@ l'ordre d'exécution. → Recommandation : choisir UN des deux mécanismes
   (permissions + tenant) au moment de la sync.
 - Les SMS/push ne contiennent pas de données sensibles (templates courts).
 - Chaque entrée de file offline est liée à utilisateur + tenant + appareil.
+
+## 5. Complément — 15/08/2026
+
+Recoupement du §1 ci-dessus avec une nouvelle lecture directe du code
+(`index.html`, `public/sw.js`, `src/main.tsx`) au moment de reprendre ce
+chantier. Une nuance à corriger, plus deux détails qui renforcent le
+diagnostic déjà posé — rien de ce qui suit ne contredit le reste de
+l'audit.
+
+**Correction — installabilité réelle en prod par défaut** : `index.html`
+ne contient aucun `<link rel="manifest">`, et aucun fichier
+manifest/webmanifest n'existe dans `public/`. Le tableau du §1
+("🟢 largement fait... Manifest + icônes") décrit la capacité telle que
+VitePWA la fournirait — correct **si `VITE_ENABLE_PWA=true`** au build
+(VitePWA injecte le manifest à la construction, donc invisible dans le
+template `index.html` source). Mais ce flag vaut `false` par défaut
+(`.env.example:158`, `# VITE_ENABLE_PWA=false`) : dans un build de
+production standard, non explicitement configuré autrement, **il n'y a
+pas de manifest lié et l'app n'est donc pas installable** — la page
+`/install` existe et est prête, mais son `beforeinstallprompt` ne se
+déclenchera pas tant que ce gap n'est pas comblé (soit en activant
+VitePWA, soit en ajoutant un manifest statique indépendant).
+
+**Détail — cause racine de l'incident, documentée dans le code lui-même** :
+le commentaire en tête de `public/sw.js` précise que l'ancienne
+implémentation Workbox avait `event.respondWith(fetch(event.request))`,
+interceptant toutes les requêtes et causant les erreurs "Failed to
+fetch", en particulier pendant les cold starts Render. `sw.js` (le SW
+« killer ») n'enregistre volontairement aucun handler `fetch` — le
+navigateur traite alors toutes les requêtes normalement.
+
+**Détail — le reset forcé n'est pas qu'un flag optionnel** :
+`forceServiceWorkerReset` (`src/main.tsx:56-58`) vaut vrai par défaut
+sur tout domaine `*.onrender.com` (le domaine de production actuel), pas
+seulement via `VITE_FORCE_SW_RESET=true`. C'est donc une protection
+permanente active sur la prod réelle aujourd'hui, pas un filet de
+sécurité rarement déclenché — cohérent avec le risque de double-SW déjà
+signalé au §1, et à réévaluer avec le reste de l'action "Nettoyage" du §3.
+
+Vérifié au passage : `src/offline/__tests__/outbox.test.ts` (la file
+d'attente offline mentionnée au §2/§3) passe 16/16 — la brique
+applicative existe et fonctionne, elle est simplement indépendante du
+service worker (confirmé, cohérent avec le constat déjà posé).
