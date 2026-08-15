@@ -109,11 +109,10 @@ Avant prod :
 Un scan complet de l'historique git (`git log --all -p -- '*.env*'`) a
 trouvé une vraie valeur `SECRET_KEY` committée dans `.env.sqlite`, un
 template de dev local (commits `2f05472`/`093990a`, supprimé en `8885ff9`
-"lot H"). Valeur :
-
-```
-SECRET_KEY=134d4e0a82d65f8f63549c15c84035eb79675fc3130c55e1a083a36b4a1d5805
-```
+"lot H"). Valeur volontairement **non reproduite ici** (`git show
+093990a:.env.sqlite` pour la consulter si besoin) — ce dépôt est **public**,
+donc l'écrire en clair dans un fichier suivi rend la valeur immédiatement
+visible sur `main`, sans même avoir besoin de creuser l'historique.
 
 **Analyse de risque** :
 - Cette valeur n'est plus dans le code actuel (`git ls-files` la confirme
@@ -137,6 +136,16 @@ traiter comme compromise et la faire tourner immédiatement — indépendamment
 de l'historique git, une rotation de `SECRET_KEY` invalide tous les tokens
 JWT en circulation, donc à planifier hors heures de pointe si jamais
 nécessaire.
+
+**Correction (2026-08-11, plus tard le même jour)** : la première version
+de cette section citait la valeur en clair pour la documenter — une
+erreur, détectée par le scan Gitleaks de la CI. Ce dépôt étant public, la
+valeur a été brièvement lisible directement sur `main` (le temps entre le
+merge de la PR #96 et ce correctif), en plus d'être déjà récupérable dans
+l'historique comme décrit ci-dessus. La conclusion de risque ne change
+pas (clé de dev jamais utilisable en prod par construction), mais
+l'exposition réelle a été légèrement plus large que prévu au moment de la
+décision initiale.
 
 ## 7. Déploiement production recommandé
 
