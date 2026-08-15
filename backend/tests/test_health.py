@@ -260,12 +260,24 @@ def test_deep_health_db_pool_section_has_expected_shape():
     assert pool["status"] in ("ok", "unknown")
 
 
-def test_deep_health_skips_alembic_check_on_sqlite():
-    """The test suite runs on SQLite — alembic_version drift detection is
-    PostgreSQL-only (see docstring on _check_alembic_revision), so this
-    must report "skipped" rather than crash or misreport "outdated"."""
+def test_deep_health_alembic_section_matches_the_running_dialect():
+    """CI runs this same test file against both SQLite (the "Backend" job)
+    and real PostgreSQL with migrations actually applied (the "Backend
+    Tests (PostgreSQL)" job) — this must behave correctly in both, not
+    assume one dialect. On SQLite, alembic_version drift detection is
+    skipped outright (PostgreSQL-only, see _check_alembic_revision's
+    docstring). On PostgreSQL, the check actually runs and — since CI
+    applies `alembic upgrade head` before pytest — should report the DB
+    schema as up to date with the code that's running."""
+    from app.main import settings
+
     response = client.get("/health/deep")
-    assert response.json()["alembic"]["status"] == "skipped"
+    alembic = response.json()["alembic"]
+
+    if settings.is_sqlite:
+        assert alembic["status"] == "skipped"
+    else:
+        assert alembic["status"] == "up_to_date", alembic
 
 
 def test_deep_health_not_in_openapi_schema():
