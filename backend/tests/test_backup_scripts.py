@@ -1,4 +1,17 @@
-"""Regression tests for the production backup and restore scripts."""
+"""Regression tests for the production backup and restore scripts.
+
+Linux-only by design (see docs/PRODUCTION_RUNBOOK.md): backup-database.sh
+and restore-database.sh are bash scripts meant to run on the production
+host (Docker/Render), never on a developer's Windows machine directly.
+Executing a `#!/usr/bin/env bash` script via subprocess on native Windows
+fails with WinError 193 ("not a valid Win32 application") regardless of
+what the script actually does — that's a platform mismatch, not a real
+test failure, so this whole module is skipped there rather than reported
+red (Phase 3, national audit: "CI must be green, and local test runs on a
+Windows machine must not fail on Linux-only scripts"). Runs normally on
+Linux/macOS CI (see .github/workflows/ci.yml) and inside any POSIX
+container, including WSL.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +23,11 @@ import time
 
 import pytest
 
+pytestmark = pytest.mark.skipif(
+    os.name != "posix",
+    reason="backup/restore scripts are bash (#!/usr/bin/env bash) and only "
+           "runnable on a POSIX host — see module docstring.",
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKUP_SCRIPT = REPO_ROOT / "scripts" / "backup-database.sh"

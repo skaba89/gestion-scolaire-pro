@@ -22,19 +22,25 @@ tenant, sans jamais exposer de secret. Interface admin livrée
 (`src/components/settings/notifications/WhatsAppSettingsSection.tsx`).
 Testé.
 
-**Étape 4 (livrée, partielle)** : branchement métier.
+**Étape 4 (livrée)** : branchement métier.
 - Rappels de paiement (`POST /payments/send-reminders/`) : pipeline complet
   tracé — job Arq dédié par facture, idempotent, avec fallback si Redis est
   indisponible. Testé.
 - Absence/notes/bulletin (`POST /communication/send-notification-email/`) :
-  tracking ajouté (`notification_events` créé après chaque tentative
-  WhatsApp) sur le chemin **synchrone existant**, sans le faire passer par
-  la queue Arq — cet endpoint répond immédiatement au frontend avec le
-  résultat réel de l'envoi, contrat préservé. Limite persistante :
-  `provider_message_id` n'est pas capturé sur ce chemin (contrairement aux
-  paiements), donc les mises à jour de statut par webhook (delivered/read)
-  ne s'appliquent pas à ces événements. **À migrer vers Arq** (voir Limites
-  ci-dessous) pour aligner sur le pipeline paiements.
+  migré vers le même pipeline Arq que les rappels de paiement (Phase 6,
+  audit national). Trois jobs dédiés dans `app/workers/tasks.py` —
+  `send_absence_alert_whatsapp_job`, `send_grade_alert_whatsapp_job`,
+  `send_bulletin_ready_whatsapp_job` — chacun crée son
+  `notification_events`, capture `provider_message_id` et est enfilé avec
+  un `_job_id` stable (`wa:{type}:{student_id}:{date|assessment|term}`)
+  pour ne jamais doubler un envoi. L'envoi WhatsApp lui-même ne bloque plus
+  la requête HTTP ; push/SMS/email restent synchrones sur ce même endpoint
+  (comportement inchangé). Si l'enfilage échoue (Redis indisponible),
+  repli automatique sur l'envoi synchrone précédent — jamais de
+  notification silencieusement perdue. `invoice_reminder` sur ce même
+  endpoint (envoi unitaire, différent du lot `/payments/send-reminders/`)
+  reste volontairement synchrone : ses appelants attendent un résultat
+  réel immédiat. Testé (`tests/test_whatsapp_absence_grade_bulletin_jobs.py`).
 
 **Étape 5 (livrée)** : persistance des conversations entrantes
 (`message_threads`/`message_items`) — un parent qui répond sur WhatsApp
@@ -199,11 +205,12 @@ non identifié) ; `message_items` est un message dans un sens ou l'autre.
   (`"[message image reçu — non affichable ici]"`), jamais le fichier
   lui-même. Un membre du staff doit rappeler le parent si le contenu du
   média compte.
-- **Absence/notes/bulletin encore synchrones** — contrairement aux rappels
-  de paiement, ce chemin n'est pas encore passé par la queue Arq ; il
-  fonctionne (testé) mais ne capture pas `provider_message_id`, donc pas de
-  mise à jour de statut par webhook pour ces événements-là. À migrer vers
-  Arq dans une prochaine étape pour aligner sur le pipeline paiements.
+- **Repli synchrone si Redis est indisponible** — dans ce cas précis
+  seulement, `provider_message_id` n'est pas capturé (comme pour les
+  paiements dans la même situation), donc pas de suivi delivered/read par
+  webhook pour cet envoi particulier ; l'événement reste visible dans
+  `notification_events` avec son statut final (SENT/FAILED) obtenu en
+  synchrone.
 - **Le handshake GET essaie le `whatsappVerifyToken` de tous les tenants**
   jusqu'à trouver une correspondance — acceptable au volume actuel, à
   revoir si le nombre d'établissements devient important.
