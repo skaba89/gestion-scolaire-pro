@@ -130,16 +130,34 @@ du destinataire). **Aucun template n'est encore créé/approuvé côté Meta** �
 c'est le principal blocage business avant un envoi proactif réel en
 production (voir docs/WHATSAPP_REAL_VALIDATION.md).
 
-| Clé interne | Nom Meta | Variables (ordre) | Exemple FR | Cas d'usage | Statut |
-|---|---|---|---|---|---|
-| `payment_reminder` | `payment_reminder_school` | parent_name, invoice_number, amount, due_date, school_name | "Bonjour Mariama, la facture INV-001 de 500000 GNF pour Ibrahima est en attente (échéance 15/08)." | Rappel de facture impayée | À créer/approuver dans Meta |
-| `absence_alert` | `absence_alert_school` | parent_name, student_name, subject, date, school_name | "Ibrahima était absent au cours de Maths le 01/08." | Absence non justifiée | À créer/approuver dans Meta |
-| `grade_alert` | `grade_alert_school` | parent_name, student_name, grade, max_grade, subject, school_name | "Ibrahima a obtenu 15/20 en Maths (Devoir 1)." | Nouvelle note publiée | À créer/approuver dans Meta |
-| `homework_due` | `homework_due_school` | (à définir) | — | Rappel de devoir | À créer/approuver dans Meta |
-| `bulletin_ready` | `bulletin_ready_school` | parent_name, student_name, term, school_name | "Le bulletin d'Ibrahima pour le Trimestre 1 est disponible." | Bulletin publié | À créer/approuver dans Meta |
-| `account_invitation` | `account_invitation_school` | user_name, setup_url, school_name | "Votre compte École X a été créé. Choisissez votre mot de passe : [lien]" | Invitation compte | À créer/approuver dans Meta |
-| — | `school_message_parent` | (à définir) | — | Message direction → parent (centre de messages) | Non implémenté — la réponse école→parent actuelle (`reply-whatsapp/`) envoie du texte libre en fenêtre 24h, pas un template |
-| — | `teacher_message_parent` | (à définir) | — | Message prof → parent (centre de messages) | Non implémenté |
+Catégorie Meta : les 5 templates ci-dessous sont tous transactionnels (un
+événement précis côté établissement déclenche l'envoi, jamais de contenu
+promotionnel) — classés `UTILITY` dans Meta Business Manager, jamais
+`MARKETING` (une classification `MARKETING` incorrecte est le motif de
+rejet le plus fréquent pour ce type de message côté Meta). Langue :
+`fr` (français) pour les 5 — `WhatsAppSender`/`send_whatsapp_template`
+supportent un paramètre `language` par envoi (défaut `"fr"`, voir
+`app/services/whatsapp_service.py`) si une localisation par tenant est
+ajoutée plus tard, mais aucun autre template localisé n'existe
+aujourd'hui.
+
+| Clé interne | Nom Meta | Langue | Catégorie | Variables (ordre) | Exemple FR | Cas d'usage | Statut |
+|---|---|---|---|---|---|---|---|
+| `payment_reminder` | `payment_reminder_school` | fr | UTILITY | parent_name, invoice_number, amount, due_date, school_name | "Bonjour Mariama, la facture INV-001 de 500000 GNF pour Ibrahima est en attente (échéance 15/08)." | Rappel de facture impayée | À créer/approuver dans Meta |
+| `absence_alert` | `absence_alert_school` | fr | UTILITY | parent_name, student_name, subject, date, school_name | "Ibrahima était absent au cours de Maths le 01/08." | Absence non justifiée | À créer/approuver dans Meta |
+| `grade_alert` | `grade_alert_school` | fr | UTILITY | parent_name, student_name, grade, max_grade, subject, school_name | "Ibrahima a obtenu 15/20 en Maths (Devoir 1)." | Nouvelle note publiée | À créer/approuver dans Meta |
+| `homework_due` | `homework_due_school` | fr | UTILITY | (à définir) | — | Rappel de devoir | À créer/approuver dans Meta — pas encore de wrapper métier dans whatsapp_service.py |
+| `bulletin_ready` | `bulletin_ready_school` | fr | UTILITY | parent_name, student_name, term, school_name | "Le bulletin d'Ibrahima pour le Trimestre 1 est disponible." | Bulletin publié | À créer/approuver dans Meta |
+| `account_invitation` | `account_invitation_school` | fr | UTILITY | user_name, setup_url, school_name | "Votre compte École X a été créé. Choisissez votre mot de passe : [lien]" | Invitation compte | À créer/approuver dans Meta |
+| — | `school_message_parent` | fr | — | (à définir) | — | Message direction → parent (centre de messages) | Non implémenté — la réponse école→parent actuelle (`reply-whatsapp/`) envoie du texte libre en fenêtre 24h, pas un template |
+| — | `teacher_message_parent` | fr | — | (à définir) | — | Message prof → parent (centre de messages) | Non implémenté |
+
+**Aucun rejet à ce jour** — aucun des 5 templates ci-dessus n'a encore été
+soumis à Meta Business Manager, donc aucun motif de rejet n'existe encore
+à documenter. Cette ligne sera mise à jour avec le motif exact dès qu'une
+soumission réelle aura lieu (voir "Comment mettre à jour" dans
+`docs/PRODUCTION_VALIDATION_RESULTS.md` pour la même discipline
+appliquée aux autres items non vérifiables depuis cet environnement).
 
 Tant qu'un template n'est pas approuvé, `WhatsAppSender.send_smart()` retombe
 automatiquement sur un message texte libre — mais **cela ne fonctionne que
