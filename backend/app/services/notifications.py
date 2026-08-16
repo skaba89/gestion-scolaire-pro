@@ -1035,19 +1035,29 @@ def build_service_from_db(db, tenant_id: str) -> Optional["NotificationService"]
         svc = build_service_from_db(db, tenant_id)
         if svc:
             svc.send_payment_reminder(...)
+
+    Fix (2026-08-16, P1 follow-up from the round-2 audit): this used to
+    run a raw SQL `text()` SELECT with tenant_id bound as a dashed UUID
+    string. On PostgreSQL that's fine (native UUID type), but on SQLite —
+    this app's local dev/test DB — ids are stored dash-less via the GUID
+    TypeDecorator (see app/models/base.py), so a raw-SQL WHERE clause
+    silently matches zero rows there: `row` was always None, so this
+    function always returned None on SQLite regardless of whether the
+    tenant existed, with no error raised anywhere. Same bug class already
+    fixed once in app/workers/tasks.py::_fetch_tenant_settings — same
+    fix here: go through the ORM (Tenant.id == tenant_id) so the
+    TypeDecorator's bind-processing actually runs.
     """
-    from sqlalchemy import text as sql_text
+    from app.models.tenant import Tenant
     try:
-        row = db.execute(sql_text(
-            "SELECT settings, name FROM tenants WHERE id = :tid"
-        ), {"tid": tenant_id}).mappings().first()
-        if not row:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
             return None
-        raw = row["settings"]
+        raw = tenant.settings
         settings_dict: dict = raw if isinstance(raw, dict) else (
             json.loads(raw) if raw else {}
         )
-        return NotificationService(settings_dict, school_name=row["name"] or "Academy Guinéenne")
+        return NotificationService(settings_dict, school_name=tenant.name or "Academy Guinéenne")
     except Exception as e:
         logger.error("build_service_from_db failed: %s", e)
         return None
