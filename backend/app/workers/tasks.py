@@ -220,6 +220,114 @@ async def send_bulk_whatsapp_notifications(ctx: dict, *, tenant_id: str, notific
         return {"job_id": job_id, "sent": sent, "failed": failed, "error": str(exc)}
 
 
+def _fetch_tenant_school_name(db, tenant_id: str) -> str:
+    """Companion to _fetch_tenant_settings — the absence/grade/bulletin
+    wrappers in whatsapp_service.py need the tenant's display name (used in
+    the message template itself, e.g. "École X"), not just its settings."""
+    from app.models.tenant import Tenant
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    return tenant.name if tenant else "Academy Guinéenne"
+
+
+async def send_absence_alert_whatsapp_job(
+    ctx: dict, *, tenant_id: str, to_phone: str, parent_name: str, student_name: str,
+    date: str, subject: str, student_id: Optional[str] = None, parent_id: Optional[str] = None,
+) -> dict:
+    """Phase 6 (national audit): off the request path, mirrors
+    send_whatsapp_notification's shape but calls the dedicated
+    send_absence_alert_whatsapp() wrapper so callers pass named business
+    fields (date, subject) instead of raw template body_vars — same
+    NotificationEvent/provider_message_id/webhook-tracking guarantees."""
+    job_id = _job_started("send_absence_alert_whatsapp_job", tenant_id, {"student_id": student_id})
+    try:
+        from app.services.whatsapp_service import send_absence_alert_whatsapp
+
+        with SessionLocal() as db:
+            tenant_settings = _fetch_tenant_settings(db, tenant_id)
+            school_name = _fetch_tenant_school_name(db, tenant_id)
+            event = send_absence_alert_whatsapp(
+                db, tenant_id=tenant_id, tenant_settings=tenant_settings, school_name=school_name,
+                to_phone=to_phone, parent_name=parent_name, student_name=student_name,
+                date=date, subject=subject, student_id=student_id, parent_id=parent_id,
+            )
+            success = event.status == "SENT"
+            event_id = str(event.id)
+            status = event.status
+            error_reason = event.error_reason
+        _job_finished(job_id, success=success, result={"notification_event_id": event_id, "status": status},
+                       error=None if success else error_reason)
+        return {"job_id": job_id, "sent": success, "notification_event_id": event_id}
+    except Exception as exc:
+        logger.warning("send_absence_alert_whatsapp_job failed: %s", exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "sent": False, "error": str(exc)}
+
+
+async def send_grade_alert_whatsapp_job(
+    ctx: dict, *, tenant_id: str, to_phone: str, parent_name: str, student_name: str,
+    subject: str, grade: str, max_grade: str, assessment_name: str,
+    student_id: Optional[str] = None, parent_id: Optional[str] = None,
+) -> dict:
+    """Phase 6 (national audit): grade-alert twin of
+    send_absence_alert_whatsapp_job — see its docstring."""
+    job_id = _job_started("send_grade_alert_whatsapp_job", tenant_id, {"student_id": student_id})
+    try:
+        from app.services.whatsapp_service import send_grade_alert_whatsapp
+
+        with SessionLocal() as db:
+            tenant_settings = _fetch_tenant_settings(db, tenant_id)
+            school_name = _fetch_tenant_school_name(db, tenant_id)
+            event = send_grade_alert_whatsapp(
+                db, tenant_id=tenant_id, tenant_settings=tenant_settings, school_name=school_name,
+                to_phone=to_phone, parent_name=parent_name, student_name=student_name,
+                subject=subject, grade=grade, max_grade=max_grade, assessment_name=assessment_name,
+                student_id=student_id, parent_id=parent_id,
+            )
+            success = event.status == "SENT"
+            event_id = str(event.id)
+            status = event.status
+            error_reason = event.error_reason
+        _job_finished(job_id, success=success, result={"notification_event_id": event_id, "status": status},
+                       error=None if success else error_reason)
+        return {"job_id": job_id, "sent": success, "notification_event_id": event_id}
+    except Exception as exc:
+        logger.warning("send_grade_alert_whatsapp_job failed: %s", exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "sent": False, "error": str(exc)}
+
+
+async def send_bulletin_ready_whatsapp_job(
+    ctx: dict, *, tenant_id: str, to_phone: str, parent_name: str, student_name: str,
+    term: str, portal_url: str = "", student_id: Optional[str] = None, parent_id: Optional[str] = None,
+) -> dict:
+    """Phase 6 (national audit): bulletin-ready twin of
+    send_absence_alert_whatsapp_job — see its docstring."""
+    job_id = _job_started("send_bulletin_ready_whatsapp_job", tenant_id, {"student_id": student_id})
+    try:
+        from app.services.whatsapp_service import send_bulletin_ready_whatsapp
+
+        with SessionLocal() as db:
+            tenant_settings = _fetch_tenant_settings(db, tenant_id)
+            school_name = _fetch_tenant_school_name(db, tenant_id)
+            event = send_bulletin_ready_whatsapp(
+                db, tenant_id=tenant_id, tenant_settings=tenant_settings, school_name=school_name,
+                to_phone=to_phone, parent_name=parent_name, student_name=student_name,
+                term=term, portal_url=portal_url, student_id=student_id, parent_id=parent_id,
+            )
+            success = event.status == "SENT"
+            event_id = str(event.id)
+            status = event.status
+            error_reason = event.error_reason
+        _job_finished(job_id, success=success, result={"notification_event_id": event_id, "status": status},
+                       error=None if success else error_reason)
+        return {"job_id": job_id, "sent": success, "notification_event_id": event_id}
+    except Exception as exc:
+        logger.warning("send_bulletin_ready_whatsapp_job failed: %s", exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "sent": False, "error": str(exc)}
+
+
 async def send_whatsapp_reply_job(ctx: dict, *, tenant_id: str, message_item_id: str) -> dict:
     """Actually sends a school→parent WhatsApp reply queued by
     POST /communication/conversations/{thread_id}/reply-whatsapp/ (Phase 4).
@@ -525,6 +633,9 @@ class WorkerSettings:
         send_public_form_submission_alert,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,
+        send_absence_alert_whatsapp_job,
+        send_grade_alert_whatsapp_job,
+        send_bulletin_ready_whatsapp_job,
         send_whatsapp_reply_job,
         retry_failed_notifications,
         sync_whatsapp_statuses,

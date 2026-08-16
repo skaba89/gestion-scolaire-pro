@@ -945,7 +945,7 @@ class NotificationEmailPayload(BaseModel):
 
 
 @router.post("/send-notification-email/")
-def send_notification_email(
+async def send_notification_email(
     request: Request,
     payload: NotificationEmailPayload,
     db: Session = Depends(get_db),
@@ -955,7 +955,23 @@ def send_notification_email(
     POST /communication/send-notification-email/
     Sends via WhatsApp (free), OneSignal push, SMS, and/or email depending on tenant config.
     Channels are tried in order: WhatsApp → Push → SMS → Email.
+
+    Phase 6 (national audit): for absence_alert/grade_alert/bulletin_ready,
+    the WhatsApp leg is queued on the same Arq pipeline payment reminders
+    already use (send_absence_alert_whatsapp_job / send_grade_alert_
+    whatsapp_job / send_bulletin_ready_whatsapp_job) instead of blocking
+    this request on a live Graph API call — "whatsapp" in the response
+    means *queued*, not *delivered*, for these three types (delivered/read
+    status shows up later in notification_events via the webhook, same as
+    payment reminders). invoice_reminder keeps its original fully-
+    synchronous WhatsApp send here unchanged — this single-recipient path
+    is separate from the already-async bulk /payments/send-reminders/
+    endpoint and callers of it still expect an immediate real result.
+    If the Arq enqueue itself fails (Redis unreachable), this falls back to
+    the previous synchronous WhatsApp send so a parent notification is
+    never silently dropped just because the queue is down.
     """
+    from app.core.jobs import enqueue_job
     from app.services.notifications import build_service_from_db
 
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -963,6 +979,12 @@ def send_notification_email(
     data = payload.data or {}
 
     channels_used: list[str] = []
+    ASYNC_WHATSAPP_TYPES = {"absence_alert", "grade_alert", "bulletin_ready"}
+    ASYNC_JOB_BY_TYPE = {
+        "absence_alert": "send_absence_alert_whatsapp_job",
+        "grade_alert": "send_grade_alert_whatsapp_job",
+        "bulletin_ready": "send_bulletin_ready_whatsapp_job",
+    }
 
     # ── Try real delivery ─────────────────────────────────────────────────────
     if tenant_id:
@@ -970,6 +992,19 @@ def send_notification_email(
         if svc:
             student_name = data.get("studentName", "")
             parent_name = payload.recipientName or data.get("parentName", "")
+            student_id = data.get("studentId")
+            parent_id_field = data.get("parentId")
+
+            # Route absence/grade/bulletin's WhatsApp leg through Arq instead
+            # of the synchronous _dispatch() call below — temporarily hide
+            # svc.whatsapp so send_X() below only handles push/SMS/email.
+            # Restored immediately after, before the enqueue attempt.
+            original_whatsapp = svc.whatsapp
+            use_async_whatsapp = bool(
+                payload.type in ASYNC_WHATSAPP_TYPES and payload.recipientPhone and original_whatsapp
+            )
+            if use_async_whatsapp:
+                svc.whatsapp = None
 
             if payload.type == "invoice_reminder":
                 result = svc.send_payment_reminder(
@@ -1026,8 +1061,12 @@ def send_notification_email(
                 from app.services.notifications import NotifResult
                 result = NotifResult(email=result_email)
 
-            if result.whatsapp:
-                channels_used.append("whatsapp")
+            # svc.whatsapp was hidden (not disabled) only for the duration of
+            # the send_X() call above — restore it now so the fallback path
+            # below (and any other future caller of svc) sees the real state.
+            if use_async_whatsapp:
+                svc.whatsapp = original_whatsapp
+
             if result.push:
                 channels_used.append("push")
             if getattr(result, "sms", False):
@@ -1035,20 +1074,74 @@ def send_notification_email(
             if result.email:
                 channels_used.append("email")
 
+            whatsapp_queued = False
+            if use_async_whatsapp:
+                job_id = await enqueue_job(
+                    ASYNC_JOB_BY_TYPE[payload.type],
+                    tenant_id=tenant_id,
+                    to_phone=payload.recipientPhone,
+                    parent_name=parent_name,
+                    student_name=student_name,
+                    student_id=student_id,
+                    parent_id=parent_id_field,
+                    **(
+                        {"date": data.get("date", ""), "subject": data.get("subject", "")}
+                        if payload.type == "absence_alert" else
+                        {
+                            "subject": data.get("subject", ""), "grade": str(data.get("grade", "")),
+                            "max_grade": str(data.get("maxGrade", "20")),
+                            "assessment_name": data.get("assessmentName", ""),
+                        } if payload.type == "grade_alert" else
+                        {"term": data.get("term", ""), "portal_url": data.get("portalUrl", "")}
+                    ),
+                    _job_id=f"wa:{payload.type}:{student_id or payload.recipientPhone}:{data.get('date') or data.get('assessmentName') or data.get('term') or ''}",
+                )
+                whatsapp_queued = job_id is not None
+                if whatsapp_queued:
+                    channels_used.append("whatsapp")
+            elif result.whatsapp:
+                channels_used.append("whatsapp")
+
             # ── Track the WhatsApp attempt in notification_events ──────────
-            # This endpoint sends synchronously (the frontend awaits the
-            # actual result to show immediate feedback), unlike the payment
-            # reminders' Arq pipeline — that response-timing contract stays
-            # unchanged here. What's added is visibility: absence/grade/
-            # bulletin WhatsApp sends now show up in the same admin/support
-            # notification history as payment reminders. provider_message_id
-            # is left unset here (WhatsAppSender.send_smart(), used by
-            # NotificationService, doesn't return it) — a real limitation
-            # versus the tracked pipeline, so webhook status updates
-            # (delivered/read) never reach events logged from this endpoint.
-            if svc.whatsapp and payload.recipientPhone and payload.type in (
-                "invoice_reminder", "absence_alert", "grade_alert", "bulletin_ready",
-            ):
+            # For invoice_reminder (still fully synchronous here) and for
+            # the async types' Redis-unreachable fallback (job never
+            # enqueued — send synchronously instead so the parent isn't
+            # silently skipped just because the queue is down). The async
+            # jobs above already create their own tracked NotificationEvent
+            # via whatsapp_service.send_whatsapp_template — recording one
+            # here too would double it.
+            need_sync_tracking = (
+                payload.type == "invoice_reminder"
+                or (use_async_whatsapp and not whatsapp_queued)
+            )
+            if need_sync_tracking and payload.recipientPhone:
+                fallback_result = result
+                if use_async_whatsapp and not whatsapp_queued:
+                    # Controlled fallback: Arq enqueue failed (Redis down) —
+                    # send synchronously right now rather than drop the
+                    # notification entirely.
+                    fallback_msg = {
+                        "absence_alert": lambda: svc.send_absence_alert(
+                            to_phone=payload.recipientPhone, to_email=None, onesignal_user_id=None,
+                            parent_name=parent_name, student_name=student_name,
+                            date=data.get("date", ""), subject=data.get("subject", ""),
+                        ),
+                        "grade_alert": lambda: svc.send_grade_alert(
+                            to_phone=payload.recipientPhone, to_email=None, onesignal_user_id=None,
+                            parent_name=parent_name, student_name=student_name,
+                            subject=data.get("subject", ""), grade=str(data.get("grade", "")),
+                            max_grade=str(data.get("maxGrade", "20")), assessment_name=data.get("assessmentName", ""),
+                        ),
+                        "bulletin_ready": lambda: svc.send_bulletin_ready(
+                            to_phone=payload.recipientPhone, to_email=None, onesignal_user_id=None,
+                            parent_name=parent_name, student_name=student_name,
+                            term=data.get("term", ""), portal_url=data.get("portalUrl", ""),
+                        ),
+                    }[payload.type]
+                    fallback_result = fallback_msg()
+                    if fallback_result.whatsapp and "whatsapp" not in channels_used:
+                        channels_used.append("whatsapp")
+
                 from app.services.whatsapp_service import create_pending_event, mark_event_failed, mark_event_sent
 
                 event_type_map = {
@@ -1060,14 +1153,14 @@ def send_notification_email(
                 notif_event = create_pending_event(
                     db, tenant_id=tenant_id, event_type=event_type_map[payload.type], channel="whatsapp",
                     recipient_phone=payload.recipientPhone, payload=data,
-                    student_id=data.get("studentId"), parent_id=data.get("parentId"),
+                    student_id=student_id, parent_id=parent_id_field,
                 )
-                if result.whatsapp:
+                if fallback_result.whatsapp:
                     mark_event_sent(db, notif_event, None)
                 else:
                     mark_event_failed(
                         db, notif_event,
-                        "; ".join(getattr(result, "errors", None) or []) or "Envoi WhatsApp échoué",
+                        "; ".join(getattr(fallback_result, "errors", None) or []) or "Envoi WhatsApp échoué",
                     )
 
     # ── Log to notifications table (audit trail) ──────────────────────────────
