@@ -50,14 +50,16 @@ class TestLoginRateLimitBypass:
         assert responses[5] == 429, responses
 
     def test_bypass_exempts_requests_with_the_correct_token(self, monkeypatch):
-        """With LOAD_TEST_BYPASS_SECRET configured and the matching header
-        presented, the same 6 requests that would 429 above must all pass
-        the rate-limit gate (still 401 for a wrong password — the bypass
-        only lifts the *rate limit*, not authentication)."""
+        """With LOAD_TEST_BYPASS_SECRET *and* a future LOAD_TEST_BYPASS_
+        EXPIRES_AT configured, and the matching header presented, the same
+        6 requests that would 429 above must all pass the rate-limit gate
+        (still 401 for a wrong password — the bypass only lifts the *rate
+        limit*, not authentication)."""
         from app.api.v1.endpoints.core.auth import limiter as auth_limiter
         from app.core.config import settings
 
         monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_SECRET", "test-load-secret-abc123")
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_EXPIRES_AT", _future_iso())
         auth_limiter.reset()
 
         responses = []
@@ -78,6 +80,7 @@ class TestLoginRateLimitBypass:
         from app.core.config import settings
 
         monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_SECRET", "test-load-secret-abc123")
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_EXPIRES_AT", _future_iso())
         auth_limiter.reset()
 
         responses = []
@@ -90,3 +93,71 @@ class TestLoginRateLimitBypass:
             responses.append(resp.status_code)
 
         assert responses[5] == 429, responses
+
+
+class TestLoadTestBypassExpiry:
+    """Audit finding (round 2, Low): the secret alone had no automated
+    expiry — see LOAD_TEST_BYPASS_EXPIRES_AT in app/core/config.py and
+    _load_test_bypass_is_active() in auth.py."""
+
+    def test_secret_configured_without_expiry_is_inert(self, monkeypatch):
+        from app.api.v1.endpoints.core.auth import limiter as auth_limiter
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_SECRET", "test-load-secret-abc123")
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_EXPIRES_AT", "")
+        auth_limiter.reset()
+
+        responses = []
+        for _ in range(6):
+            resp = client.post(
+                LOGIN_URL,
+                data={"username": "bypass-no-expiry-probe@example.com", "password": "wrong"},
+                headers={"X-Load-Test-Token": "test-load-secret-abc123"},
+            )
+            responses.append(resp.status_code)
+
+        assert responses[5] == 429, responses
+
+    def test_expired_timestamp_is_inert(self, monkeypatch):
+        from app.api.v1.endpoints.core.auth import limiter as auth_limiter
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_SECRET", "test-load-secret-abc123")
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_EXPIRES_AT", "2020-01-01T00:00:00Z")
+        auth_limiter.reset()
+
+        responses = []
+        for _ in range(6):
+            resp = client.post(
+                LOGIN_URL,
+                data={"username": "bypass-expired-probe@example.com", "password": "wrong"},
+                headers={"X-Load-Test-Token": "test-load-secret-abc123"},
+            )
+            responses.append(resp.status_code)
+
+        assert responses[5] == 429, responses
+
+    def test_unparseable_timestamp_is_inert(self, monkeypatch):
+        from app.api.v1.endpoints.core.auth import limiter as auth_limiter
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_SECRET", "test-load-secret-abc123")
+        monkeypatch.setattr(settings, "LOAD_TEST_BYPASS_EXPIRES_AT", "not-a-real-date")
+        auth_limiter.reset()
+
+        responses = []
+        for _ in range(6):
+            resp = client.post(
+                LOGIN_URL,
+                data={"username": "bypass-badformat-probe@example.com", "password": "wrong"},
+                headers={"X-Load-Test-Token": "test-load-secret-abc123"},
+            )
+            responses.append(resp.status_code)
+
+        assert responses[5] == 429, responses
+
+
+def _future_iso() -> str:
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()

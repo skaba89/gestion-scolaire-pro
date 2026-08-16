@@ -110,16 +110,16 @@ export function SectionsBuilder({ sections, onChange }: SectionsBuilderProps) {
                     <p className="text-sm font-medium truncate mt-1">{sectionPreviewLabel(section)}</p>
                   </div>
                   <div className="flex items-center gap-0.5 flex-shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={i === 0} onClick={() => move(i, -1)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Déplacer le widget vers le haut">
                       <ChevronUp className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={i === sections.length - 1} onClick={() => move(i, 1)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" disabled={i === sections.length - 1} onClick={() => move(i, 1)} aria-label="Déplacer le widget vers le bas">
                       <ChevronDown className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEdit(i)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEdit(i)} aria-label="Modifier ce widget">
                       <Pencil className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(i)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(i)} aria-label="Supprimer ce widget">
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </div>
@@ -270,13 +270,13 @@ function SectionForm({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
                   <div className="flex items-center gap-0.5">
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={i === 0} onClick={() => moveItem(i, -1)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={i === 0} onClick={() => moveItem(i, -1)} aria-label="Déplacer cet élément vers le haut">
                       <ChevronUp className="w-3.5 h-3.5" />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={i === items.length - 1} onClick={() => moveItem(i, 1)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" disabled={i === items.length - 1} onClick={() => moveItem(i, 1)} aria-label="Déplacer cet élément vers le bas">
                       <ChevronDown className="w-3.5 h-3.5" />
                     </Button>
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(i)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(i)} aria-label="Supprimer cet élément">
                       <Trash2 className="w-3.5 h-3.5 text-destructive" />
                     </Button>
                   </div>

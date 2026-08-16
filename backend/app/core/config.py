@@ -223,6 +223,19 @@ class Settings(BaseSettings):
     # NEVER set this in a long-lived production environment variable.
     LOAD_TEST_BYPASS_SECRET: str = get_secret("LOAD_TEST_BYPASS_SECRET", "")
 
+    # Audit finding (round 2, Low): LOAD_TEST_BYPASS_SECRET itself had no
+    # automated expiry — if an operator forgot to unset it after a
+    # campaign (the one thing its own docstring says to never forget),
+    # the bypass silently stayed live indefinitely with no code-level
+    # guard, relying purely on operator discipline. LOAD_TEST_BYPASS_
+    # EXPIRES_AT (ISO 8601, e.g. "2026-08-20T00:00:00Z") makes that
+    # discipline enforced rather than assumed: the bypass in
+    # auth.py::_login_rate_limit_key only activates when this is set AND
+    # in the future. A secret configured without an expiry, or past one,
+    # is treated as expired — inert, same as if LOAD_TEST_BYPASS_SECRET
+    # itself were empty.
+    LOAD_TEST_BYPASS_EXPIRES_AT: str = get_secret("LOAD_TEST_BYPASS_EXPIRES_AT", "")
+
     @field_validator("SECRET_KEY", mode="after")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

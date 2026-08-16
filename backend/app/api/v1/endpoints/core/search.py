@@ -13,6 +13,8 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -22,6 +24,14 @@ from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+# Audit finding (round 2, High): this endpoint ran every full-text search
+# straight to Postgres across up to a dozen tables with no rate limit at
+# all — a single authenticated user (or a leaked/replayed token) could
+# hammer it as fast as the network allows. 30/minute is generous for a
+# human typing in a search box (debounced client-side) while still
+# bounding the worst case, same mechanism already used across this file's
+# sibling endpoints (payments.py, auth.py — Limiter(key_func=get_remote_address)).
+limiter = Limiter(key_func=get_remote_address)
 
 # ─── Searchable resource types ────────────────────────────────────────────────
 
@@ -136,6 +146,7 @@ def _build_search_query(
 
 
 @router.get("/")
+@limiter.limit("30/minute")
 def global_search(
     request: Request,
     q: str = Query(..., min_length=2, max_length=100, description="Search query (min 2 characters)"),

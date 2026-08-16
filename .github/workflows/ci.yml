@@ -467,7 +467,21 @@ jobs:
         run: pip install pip-audit
 
       - name: Run pip-audit on backend
-        run: pip-audit -r backend/requirements.txt --desc
+        run: |
+          # Audit finding (round 2, Medium): this used to be a bare
+          # `pip-audit -r ... --desc` with no severity floor at all — any
+          # single advisory, any severity, failed the whole CI job, unlike
+          # the npm audit step above (--audit-level=high). pip-audit's own
+          # JSON output (even with -s osv) doesn't include a severity field
+          # to filter on locally, so severity is resolved per-finding via
+          # OSV's public API (which does return it) — see
+          # backend/scripts/pip_audit_severity_gate.py. Fail-safe by design:
+          # a vulnerability whose severity can't be determined (API
+          # unreachable, no CVSS data published) is treated as blocking,
+          # same as HIGH/CRITICAL — silence is never treated as "safe" here.
+          pip-audit -r backend/requirements.txt --desc -f json --progress-spinner off > pip-audit-results.json 2>pip-audit-stderr.log || true
+          cat pip-audit-stderr.log
+          python3 backend/scripts/pip_audit_severity_gate.py pip-audit-results.json
 
       - name: Check for .env files in git
         run: |
