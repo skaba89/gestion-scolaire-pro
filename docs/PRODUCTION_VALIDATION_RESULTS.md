@@ -20,26 +20,26 @@ comme un échec — c'est une limite d'accès, pas un signal produit.
 
 ## Dernière exécution
 
-- **Date de validation** : 2026-08-07
-- **Commit validé** : voir `git log -1 --format=%H` au moment de ce commit
-  (ce fichier est commité dans le même commit que le code qu'il documente)
-- **Exécuté par** : agent IA (session autonome). Nouveauté par rapport à la
-  précédente exécution (2026-08-05) : cette session dispose d'un accès
-  navigateur direct aux URLs publiques Render (frontend + API), ce qui
-  permet de vérifier réellement certains items auparavant classés "non
-  vérifiable" — mais toujours **aucun accès** au dashboard Render, à une
-  boîte mail réelle, ni à un compte Meta Business/numéro WhatsApp réel.
+- **Date de validation** : 2026-08-16 (rafraîchissement des items
+  vérifiables — voir aussi l'exécution complète du 2026-08-07 pour le
+  test du formulaire de contact, non re-rejoué cette fois pour éviter de
+  polluer les données réelles du tenant pilote)
+- **Commit validé** : `b98c9dbd5a9b87a80d7dd44a2ba2b094facd9fd6`
+- **Exécuté par** : agent IA (session autonome), accès navigateur direct
+  aux URLs publiques Render (frontend + API) — toujours **aucun accès**
+  au dashboard Render, à une boîte mail réelle, ni à un compte Meta
+  Business/numéro WhatsApp réel.
 
 ## Résultats
 
 | Item | Statut | Détail |
 |---|---|---|
-| Render API Live | ✅ Vérifié (URL publique) | `GET https://schoolflow-api-r8u7.onrender.com/health/live` → `{"status":"alive","version":"1.0.0"}` (après cold-start ~20s, tier gratuit) |
-| Worker Live | 🟡 Vérifié indirectement | Pas d'endpoint de santé public pour le worker Arq. Preuve indirecte : `/health/ready` rapporte `cache: connected` (Redis joignable) et une soumission réelle du formulaire de contact public (voir plus bas) a renvoyé 201 — le job `send_public_form_submission_alert` a donc été mis en file avec succès. Sa *consommation effective* par le worker n'a pas été confirmée (pas de dashboard Render pour lire ses logs). |
-| Frontend Live | ✅ Vérifié (URL publique) | `https://gestion-scolaire-pro-9on3.onrender.com` charge la landing page complète (tarifs, annuaire, témoignages) après cold-start |
-| `/health/live` | ✅ Vérifié (Render prod) | 200, `{"status":"alive","version":"1.0.0"}` |
-| `/health/ready` | ✅ Vérifié (Render prod) | 200, `{"status":"healthy","components":{"database":"connected","cache":"connected","rls":"active","storage":"disabled"}}` — `storage: disabled` est attendu (MinIO non provisionné sur ce déploiement, pas une panne) |
-| Formulaire de contact public (PR #89) | ✅ Vérifié en conditions réelles | Page `/uls/pages/contact` : honeypot masqué visuellement confirmé, note de consentement RGPD affichée, soumission réelle → `POST .../submit-form/` → **201**, UI "Message envoyé !" |
+| Render API Live | ✅ Vérifié (URL publique, 2026-08-16) | `GET https://schoolflow-api-r8u7.onrender.com/health/live` → `{"status":"alive","version":"1.0.0"}` (cold-start ~1min30 ce jour-là, tier gratuit — plus lent que le ~20s mesuré le 07/08, toujours dans la plage attendue d'un service en veille) |
+| Worker Live | 🟡 Vérifié indirectement | Pas d'endpoint de santé public pour le worker Arq. Preuve indirecte : `/health/ready` rapporte `cache: connected` (Redis joignable). Sa *consommation effective* de la file n'a pas été re-testée le 16/08 (voir la soumission réelle du 07/08 ci-dessous pour la dernière preuve directe). |
+| Frontend Live | ✅ Vérifié (URL publique, 2026-08-16) | `https://gestion-scolaire-pro-9on3.onrender.com` charge la landing page complète après cold-start — tarifs (Starter/Standard/Premium/Enterprise), annuaire (Université La Source visible), témoignages, RGPD |
+| `/health/live` | ✅ Vérifié (Render prod, 2026-08-16) | 200, `{"status":"alive","version":"1.0.0"}` |
+| `/health/ready` | ✅ Vérifié (Render prod, 2026-08-16) | 200, `{"status":"healthy","components":{"database":"connected","cache":"connected","rls":"active","storage":"disabled"}}` — identique au 07/08, `storage: disabled` toujours attendu (MinIO non provisionné) |
+| Formulaire de contact public (PR #89) | ✅ Vérifié en conditions réelles le 2026-08-07 (non re-rejoué le 16/08) | Page `/uls/pages/contact` : honeypot masqué visuellement confirmé, note de consentement RGPD affichée, soumission réelle → `POST .../submit-form/` → **201**, UI "Message envoyé !" |
 | Email Resend test reçu | ⚪ Non vérifiable depuis cet environnement | Nécessite une boîte mail réelle et une clé Resend valide |
 | Email onboarding reçu | ⚪ Non vérifiable depuis cet environnement | Idem — dépend de `POST /tenants/create-with-admin/` avec Resend configuré |
 | Domaine Resend DKIM/SPF/DMARC | ⚪ Non vérifiable depuis cet environnement | Nécessite le dashboard Resend |
@@ -60,9 +60,14 @@ comme un échec — c'est une limite d'accès, pas un signal produit.
   WhatsApp simulé visible dans l'inbox, déconnexion/reconnexion
   SUPER_ADMIN.
 
-## Problèmes rencontrés (session du 2026-08-05)
+## Problèmes rencontrés (session du 2026-08-16)
 
-- Aucun blocage nouveau détecté sur les items vérifiables depuis cet
+- Le cold-start de l'API a pris nettement plus longtemps que d'habitude
+  (~1min30 contre ~20s le 07/08) avant de répondre — dans la plage
+  attendue d'un service Render tier gratuit resté en veille plus
+  longtemps, pas un signal d'incident (une fois réveillé, `/health/ready`
+  reste sain).
+- Aucun autre blocage nouveau détecté sur les items vérifiables depuis cet
   environnement.
 - Rappel des limites déjà documentées ailleurs : aucun template Meta n'est
   encore créé/approuvé (voir `docs/WHATSAPP_NOTIFICATIONS.md`), donc un
