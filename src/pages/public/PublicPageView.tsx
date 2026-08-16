@@ -595,7 +595,7 @@ function HeroSection({
   );
 }
 
-function TextSection({
+export function TextSection({
   section,
   primaryColor,
 }: {
@@ -1380,7 +1380,7 @@ function TimelineSection({
   );
 }
 
-function CustomHTMLSection({ section }: { section: PublicPageSection }) {
+export function CustomHTMLSection({ section }: { section: PublicPageSection }) {
   return (
     <section className="py-16 md:py-24 bg-white">
       <div className="container mx-auto px-4 sm:px-6">
