@@ -173,6 +173,44 @@ class TestNotificationJob:
             assert job is not None
             assert job.status == "SUCCESS"
 
+    def test_job_does_not_crash_when_email_send_raises(self, monkeypatch):
+        """Distinct from test_job_does_not_crash_when_email_not_configured:
+        here the provider IS configured and EmailSender.send() is actually
+        called, but raises (e.g. Resend API error, network timeout). The
+        broad try/except around the email step in
+        send_public_form_submission_alert must swallow it — the in-app
+        notification already succeeded before this step runs, and that
+        alone satisfies "the admin gets notified"."""
+        tenant_id, slug = _make_tenant("emailraises")
+        _make_admin(tenant_id)
+
+        def _raising_send(self, to, subject, html, text=None):
+            raise RuntimeError("Resend API error: 503")
+
+        monkeypatch.setattr("app.services.notifications.EmailSender.send", _raising_send)
+
+        with SessionLocal() as db:
+            submission = PublicFormSubmission(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                name="Z", email="z@example.com", message="Un message de test suffisamment long.",
+            )
+            db.add(submission)
+            db.commit()
+            submission_id = str(submission.id)
+
+        import asyncio
+        result = asyncio.run(send_public_form_submission_alert(
+            {}, tenant_id=tenant_id, submission_id=submission_id
+        ))
+        assert "error" not in result
+        assert result["notified_in_app"] == 1
+        assert result["email_sent"] is False
+
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job is not None
+            assert job.status == "SUCCESS"
+
     def test_message_still_visible_in_admin_list_after_job_runs(self):
         tenant_id, slug = _make_tenant("stillvisible")
         with SessionLocal() as db:
