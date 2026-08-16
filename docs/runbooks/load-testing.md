@@ -100,17 +100,27 @@ variable d'environnement serveur `LOAD_TEST_BYPASS_SECRET` en est exemptée
 ```bash
 # Côté serveur (docker-compose, .env.docker, ou variable Render) :
 LOAD_TEST_BYPASS_SECRET=un-secret-genere-pour-cette-campagne-uniquement
+# Obligatoire depuis l'audit round 2 (finding Low) : une expiration ISO 8601,
+# dans le futur — sans elle (ou une fois dépassée), le bypass est traité
+# comme inerte automatiquement, plutôt que de dépendre uniquement de la
+# discipline de l'opérateur pour la retirer à temps.
+LOAD_TEST_BYPASS_EXPIRES_AT=2026-08-20T00:00:00Z
 
 # Côté k6 :
 k6 run --env LOAD_TEST_TOKEN=un-secret-genere-pour-cette-campagne-uniquement ...
 ```
 
 **Règles d'usage** :
-- Vide par défaut — totalement inerte tant qu'un opérateur ne le configure
-  pas explicitement.
+- Vide par défaut — totalement inerte tant qu'un opérateur ne configure
+  pas explicitement **les deux** variables (le secret seul ne suffit plus
+  à activer le bypass).
 - Générer un secret dédié à chaque campagne, jamais le même deux fois.
+- Choisir `LOAD_TEST_BYPASS_EXPIRES_AT` juste au-delà de la fenêtre de
+  campagne prévue (quelques heures, jamais plusieurs jours) — c'est le
+  filet de sécurité automatique si le retrait manuel est oublié.
 - **Ne jamais laisser configuré au-delà de la fenêtre de campagne** —
-  retirer la variable d'environnement dès la fin du test.
+  retirer les deux variables d'environnement dès la fin du test, même si
+  l'expiration doit de toute façon rendre le bypass inerte peu après.
 - Ne jamais configurer sur l'environnement de production réel connecté à
   de vrais utilisateurs, même temporairement — réservé aux environnements
   de staging/charge dédiés.

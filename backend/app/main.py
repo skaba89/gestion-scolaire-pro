@@ -724,16 +724,38 @@ def _check_db_pool() -> dict:
     from "DB is fine but our own pool is exhausted" (see
     docs/reports/LOAD_TEST_CAMPAIGN_2026-08-07.md for why this distinction
     matters: the pool has been a real, measured bottleneck under load).
+
+    Audit finding (round 2, Medium): this used to hardcode "status": "ok"
+    unconditionally — it read the pool's own counters but never actually
+    compared them against capacity, so a fully exhausted pool (every
+    request now queuing for a connection, the exact failure mode the load
+    test campaign measured) still reported "ok" here. `capacity` is
+    `pool_size + max_overflow` — SQLAlchemy's QueuePool.overflow() can go
+    negative when the pool is under capacity, so it's clamped at 0 before
+    being added in.
     """
     try:
         from app.core.database import engine
         pool = engine.pool
+        checked_out = pool.checkedout()
+        capacity = pool.size() + max(pool.overflow(), 0)
+        # capacity can legitimately be 0 for a pool that hasn't opened any
+        # connection yet (e.g. right after startup) — treat that as "ok",
+        # not a division-by-zero/exhausted false positive.
+        ratio = (checked_out / capacity) if capacity > 0 else 0.0
+        if capacity > 0 and checked_out >= capacity:
+            status = "exhausted"
+        elif ratio >= 0.8:
+            status = "degraded"
+        else:
+            status = "ok"
         return {
-            "status": "ok",
+            "status": status,
             "checked_in": pool.checkedin(),
-            "checked_out": pool.checkedout(),
+            "checked_out": checked_out,
             "overflow": pool.overflow(),
             "size": pool.size(),
+            "capacity": capacity,
         }
     except Exception as exc:
         logger.warning("Deep health check: DB pool check failed: %s", exc)

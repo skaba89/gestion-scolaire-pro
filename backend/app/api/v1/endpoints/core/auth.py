@@ -35,9 +35,17 @@ def _login_rate_limit_key(request: Request) -> str:
     operator deliberately sets it, and the comparison is constant-time
     (secrets.compare_digest) specifically so an unset/mismatched header
     can't be used to probe for the real value.
+
+    Audit finding (round 2, Low): the secret alone had no automated
+    expiry — forgetting to unset it after a campaign left the bypass live
+    indefinitely. LOAD_TEST_BYPASS_EXPIRES_AT (ISO 8601) is now also
+    required and must be in the future; missing, unparseable, or past it,
+    the bypass is treated as expired (same as the secret being empty) and
+    logged loudly so a forgotten campaign secret is visible in production
+    logs rather than silently active forever.
     """
     from app.core.config import settings
-    if settings.LOAD_TEST_BYPASS_SECRET:
+    if settings.LOAD_TEST_BYPASS_SECRET and _load_test_bypass_is_active():
         import secrets
         import uuid
         presented = request.headers.get("X-Load-Test-Token", "")
@@ -45,6 +53,39 @@ def _login_rate_limit_key(request: Request) -> str:
             logger.info("Login rate limit bypassed via X-Load-Test-Token (authorized load test)")
             return f"load-test-exempt-{uuid.uuid4()}"
     return get_remote_address(request)
+
+
+def _load_test_bypass_is_active() -> bool:
+    """True only when LOAD_TEST_BYPASS_EXPIRES_AT is a valid ISO 8601
+    timestamp strictly in the future. Logs a warning (not silence) on
+    every rejection reason so a stale campaign secret left configured in
+    production is visible rather than just quietly doing nothing."""
+    from app.core.config import settings
+
+    expires_raw = settings.LOAD_TEST_BYPASS_EXPIRES_AT
+    if not expires_raw:
+        logger.warning(
+            "LOAD_TEST_BYPASS_SECRET is configured but LOAD_TEST_BYPASS_EXPIRES_AT is not — "
+            "bypass treated as expired/inert. Set both, or neither."
+        )
+        return False
+    try:
+        expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+    except ValueError:
+        logger.warning(
+            "LOAD_TEST_BYPASS_EXPIRES_AT=%r is not a valid ISO 8601 timestamp — "
+            "bypass treated as expired/inert.", expires_raw,
+        )
+        return False
+    if datetime.now(timezone.utc) >= expires_at:
+        logger.warning(
+            "LOAD_TEST_BYPASS_SECRET expired at %s (still configured!) — bypass inert. "
+            "Unset LOAD_TEST_BYPASS_SECRET/LOAD_TEST_BYPASS_EXPIRES_AT now.", expires_raw,
+        )
+        return False
+    return True
 
 
 limiter = Limiter(key_func=_login_rate_limit_key)

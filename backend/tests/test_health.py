@@ -257,7 +257,63 @@ def test_deep_health_disk_section_has_expected_shape():
 def test_deep_health_db_pool_section_has_expected_shape():
     response = client.get("/health/deep")
     pool = response.json()["db_pool"]
-    assert pool["status"] in ("ok", "unknown")
+    assert pool["status"] in ("ok", "degraded", "exhausted", "unknown")
+    assert pool["capacity"] == pool["size"] + max(pool["overflow"], 0)
+
+
+class TestDbPoolStatusReflectsOccupancy:
+    """Audit finding (round 2, Medium): _check_db_pool() used to hardcode
+    "status": "ok" regardless of actual occupancy — these exercise the
+    function directly with a fake pool so the exhausted/degraded/ok
+    thresholds are verified without needing to actually saturate the real
+    connection pool in a test."""
+
+    def _fake_engine(self, *, size, checked_out, overflow, checked_in=0):
+        from unittest.mock import MagicMock
+        pool = MagicMock()
+        pool.size.return_value = size
+        pool.checkedout.return_value = checked_out
+        pool.overflow.return_value = overflow
+        pool.checkedin.return_value = checked_in
+        engine = MagicMock()
+        engine.pool = pool
+        return engine
+
+    def test_reports_ok_when_pool_has_headroom(self, monkeypatch):
+        from app.main import _check_db_pool
+        engine = self._fake_engine(size=5, checked_out=1, overflow=0)
+        monkeypatch.setattr("app.core.database.engine", engine)
+
+        result = _check_db_pool()
+        assert result["status"] == "ok"
+
+    def test_reports_degraded_at_high_occupancy(self, monkeypatch):
+        from app.main import _check_db_pool
+        # 8/10 capacity = 80% — at the degraded threshold.
+        engine = self._fake_engine(size=5, checked_out=8, overflow=5)
+        monkeypatch.setattr("app.core.database.engine", engine)
+
+        result = _check_db_pool()
+        assert result["status"] == "degraded"
+
+    def test_reports_exhausted_when_at_capacity(self, monkeypatch):
+        from app.main import _check_db_pool
+        engine = self._fake_engine(size=5, checked_out=10, overflow=5)
+        monkeypatch.setattr("app.core.database.engine", engine)
+
+        result = _check_db_pool()
+        assert result["status"] == "exhausted"
+
+    def test_zero_capacity_is_ok_not_a_false_exhausted(self, monkeypatch):
+        """A pool that hasn't opened any connection yet (size=0,
+        overflow=0) must not be misreported as exhausted just because
+        checked_out / capacity is a division by zero."""
+        from app.main import _check_db_pool
+        engine = self._fake_engine(size=0, checked_out=0, overflow=0)
+        monkeypatch.setattr("app.core.database.engine", engine)
+
+        result = _check_db_pool()
+        assert result["status"] == "ok"
 
 
 def test_deep_health_alembic_section_matches_the_running_dialect():
