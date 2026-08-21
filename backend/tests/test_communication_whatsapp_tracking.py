@@ -1,14 +1,19 @@
 """POST /communication/send-notification-email/ — WhatsApp tracking wiring.
 
-This endpoint sends absence/grade/bulletin/payment notifications
-synchronously (the frontend awaits the real result for immediate
-feedback) via the pre-existing NotificationService — that response-timing
-contract is untouched. What's new: a WhatsApp attempt now also creates a
-notification_event row, so it shows up in the same admin/support history
-as the tracked payment-reminder pipeline (see whatsapp_service.py).
+bulletin_ready/payment_reminder still send synchronously here (the
+frontend awaits the real result for immediate feedback). absence_alert/
+grade_alert were migrated onto the Arq pipeline in Phase 6 (see
+communication.py's docstring and test_whatsapp_absence_grade_bulletin_
+jobs.py) — the two tests exercising those types below force the enqueue
+to fail (`app.core.jobs.enqueue_job` → None) so they deterministically
+exercise the endpoint's synchronous fallback path instead of depending on
+whether a real Redis happens to be reachable in the test environment
+(it is on the CI "Backend Tests (PostgreSQL)" job, which runs a real
+Redis service — and isn't on a bare local/SQLite run, which is what let
+this pass locally but fail there until this fix).
 """
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from conftest import get_test_client
@@ -66,12 +71,13 @@ class TestWhatsAppEventTracking:
         monkeypatch.setattr("app.services.notifications.build_service_from_db", lambda db, tid: svc)
 
         headers = _as(tenant_id)
-        resp = client.post(URL, json={
-            "type": "absence_alert",
-            "recipientPhone": "+224623456789",
-            "recipientName": "Mariama",
-            "data": {"studentName": "Ibrahima", "date": "2026-08-01", "subject": "Maths"},
-        }, headers=headers)
+        with patch("app.core.jobs.enqueue_job", new=AsyncMock(return_value=None)):
+            resp = client.post(URL, json={
+                "type": "absence_alert",
+                "recipientPhone": "+224623456789",
+                "recipientName": "Mariama",
+                "data": {"studentName": "Ibrahima", "date": "2026-08-01", "subject": "Maths"},
+            }, headers=headers)
         assert resp.status_code == 200, resp.text
         assert "whatsapp" in resp.json()["channels"]
 
@@ -94,12 +100,13 @@ class TestWhatsAppEventTracking:
         monkeypatch.setattr("app.services.notifications.build_service_from_db", lambda db, tid: svc)
 
         headers = _as(tenant_id)
-        resp = client.post(URL, json={
-            "type": "grade_alert",
-            "recipientPhone": "+224600000000",
-            "recipientEmail": "parent@example.com",
-            "data": {"studentName": "Fatoumata", "subject": "SVT", "grade": 14, "maxGrade": 20, "assessmentName": "Devoir 2"},
-        }, headers=headers)
+        with patch("app.core.jobs.enqueue_job", new=AsyncMock(return_value=None)):
+            resp = client.post(URL, json={
+                "type": "grade_alert",
+                "recipientPhone": "+224600000000",
+                "recipientEmail": "parent@example.com",
+                "data": {"studentName": "Fatoumata", "subject": "SVT", "grade": 14, "maxGrade": 20, "assessmentName": "Devoir 2"},
+            }, headers=headers)
         assert resp.status_code == 200, resp.text
         assert "whatsapp" not in resp.json()["channels"]
         assert "email" in resp.json()["channels"]
