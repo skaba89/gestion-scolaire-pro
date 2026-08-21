@@ -62,7 +62,15 @@ Le flux :
    ```json
    { "plan": "pro", "status": "active", "expires_at": "2027-07-31T00:00:00" }
    ```
-3. L'action est auditée (audit log) ; Stripe reste disponible en option
+3. L'action est auditée (audit log)
+
+> Correction (audit stratégique 2026-08-16) : cette ligne mentionnait
+> auparavant Stripe comme option disponible — obsolète depuis la
+> décision produit du 15/07 (voir `docs/mobile/PWA_AUDIT.md`, §5) de
+> passer l'abonnement SaaS lui-même sur Mobile Money/virement plutôt que
+> Stripe, en cohérence avec `backend/app/services/payment_gateways.py`
+> qui n'implémente que CinetPay et PayTech — aucune classe Stripe dans
+> le code.
 
 ## Modules « stable commercial » (MVP vendable)
 

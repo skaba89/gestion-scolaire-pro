@@ -1,4 +1,37 @@
-"""Tenant quota enforcement middleware for Academy Guinéenne."""
+"""Tenant quota enforcement middleware for Academy Guinéenne.
+
+AUTORITÉ (audit stratégique 2026-08-16, incohérence interne #4) : ce
+middleware et app/services/saas_quota_service.py::SaaSQuotaService
+existent tous les deux et ne se parlent pas — trouvé lors de l'audit,
+délibérément non fusionnés (le risque de resserrer silencieusement un
+seuil déjà dépassé par un tenant existant, notamment le tenant pilote
+payant, l'emportait sur le bénéfice de l'unification immédiate). Le
+partage des responsabilités actuel, à respecter jusqu'à décision
+explicite du produit :
+
+- CE MIDDLEWARE fait autorité pour le blocage dur et immédiat (HTTP 429)
+  sur 3 ressources seulement (élèves, enseignants, personnel), avec des
+  seuils par défaut génériques (DEFAULT_QUOTAS ci-dessous) ou un
+  override libre par tenant (tenant.settings.quotas) — jamais liés au
+  plan d'abonnement réellement facturé. Fail open par design : une
+  erreur de vérification laisse passer la requête plutôt que de bloquer
+  un client sur un bug de quota.
+- SaaSQuotaService fait autorité pour le reporting d'usage et la
+  facturation — 6 ressources, seuils réellement dérivés du plan payé
+  (SubscriptionPlan/TenantSubscription), mais n'applique aucun blocage
+  dur par défaut (hard_enforce=False, choix Phase 4 assumé).
+
+Un tenant peut donc dépasser son quota de plan facturé (visible dans
+SaaSQuotaService) sans jamais être bloqué par ce middleware, tant que son
+volume reste sous DEFAULT_QUOTAS ou son override JSON — c'est un état
+connu, pas un oubli. Les relier (faire de ce middleware un simple
+exécuteur du seuil réel du plan) est une décision produit à part
+entière : elle rendrait l'enforcement plus strict pour tout tenant déjà
+au-delà de son quota de plan, avec un risque réel de bloquer un client
+payant en production sans préavis. Ne pas faire cette fusion sans
+validation explicite et sans avoir d'abord confirmé l'usage réel du
+tenant pilote face à son plan.
+"""
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request

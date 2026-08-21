@@ -7,6 +7,17 @@ Design principles:
 - Backend is the source of truth, not the frontend.
 - First rollout is soft quotas: warn and audit before blocking.
 - Enforcement is centralized here so business modules can call one function.
+
+AUTORITÉ (audit stratégique 2026-08-16, incohérence interne #4) : ce
+service coexiste avec app/middlewares/quota.py::QuotaMiddleware sans lui
+être relié — voir le docstring de ce dernier pour le partage des
+responsabilités actuel et pourquoi la fusion n'a pas été faite en même
+temps que cet audit (risque de resserrer silencieusement l'enforcement
+pour un tenant déjà au-delà de son quota de plan, notamment le tenant
+pilote payant). En bref : ce service fait autorité pour le reporting/
+la facturation (6 ressources, seuils réels du plan), le middleware fait
+autorité pour le blocage dur immédiat (3 ressources, seuils génériques
+déconnectés du plan).
 """
 from __future__ import annotations
 
@@ -35,30 +46,51 @@ class QuotaDecision:
     message: str
 
 
+# Fallback only — used by get_limits() when no matching SubscriptionPlan
+# row exists in the database (e.g. a local/SQLite dev DB never migrated,
+# or a plan slug that predates a catalog change). When a real plan row
+# exists (the normal case in production, seeded by
+# alembic/versions/20260815_0001_seed_default_subscription_plans.py),
+# these numbers are never consulted.
+#
+# Audit stratégique 2026-08-16, incohérence interne #3 : ces chiffres
+# avaient dérivé de ceux réellement seedés par la migration (ex. Starter
+# ici disait 300 élèves, la migration en dit 150) — deux catalogues qui
+# ne s'accordaient plus. Réalignés sur la migration, qui reste la seule
+# source de vérité pour la tarification réelle ; "free" ajouté (absent
+# ici alors qu'il existe dans la migration).
 DEFAULT_PLAN_LIMITS: dict[str, dict[str, Any]] = {
+    "free": {
+        "max_students": 30,
+        "max_users": 5,
+        "max_storage_gb": 1,
+        "max_ai_requests": 20,
+        "max_exports_per_day": 3,
+        "max_campuses": 1,
+    },
     "starter": {
-        "max_students": 300,
-        "max_users": 10,
+        "max_students": 150,
+        "max_users": 15,
         "max_storage_gb": 5,
         "max_ai_requests": 100,
-        "max_exports_per_day": 20,
+        "max_exports_per_day": 10,
         "max_campuses": 1,
     },
     "pro": {
-        "max_students": 2000,
-        "max_users": 80,
-        "max_storage_gb": 50,
-        "max_ai_requests": 2000,
-        "max_exports_per_day": 200,
-        "max_campuses": 5,
+        "max_students": 800,
+        "max_users": 60,
+        "max_storage_gb": 25,
+        "max_ai_requests": 1000,
+        "max_exports_per_day": 50,
+        "max_campuses": 3,
     },
     "enterprise": {
-        "max_students": 10000,
-        "max_users": 500,
-        "max_storage_gb": 500,
-        "max_ai_requests": 20000,
-        "max_exports_per_day": 2000,
-        "max_campuses": 50,
+        "max_students": None,
+        "max_users": None,
+        "max_storage_gb": 200,
+        "max_ai_requests": 10000,
+        "max_exports_per_day": None,
+        "max_campuses": None,
     },
     "institution": {
         "max_students": None,

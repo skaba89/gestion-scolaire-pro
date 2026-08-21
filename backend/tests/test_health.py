@@ -1,5 +1,5 @@
 """Tests du health check endpoint."""
-from unittest.mock import AsyncMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
@@ -259,6 +259,78 @@ def test_deep_health_db_pool_section_has_expected_shape():
     pool = response.json()["db_pool"]
     assert pool["status"] in ("ok", "degraded", "exhausted", "unknown")
     assert pool["capacity"] == pool["size"] + max(pool["overflow"], 0)
+
+
+def test_deep_health_rls_bypass_role_section_present():
+    response = client.get("/health/deep")
+    rls_bypass = response.json()["components"]["rls_bypass_role"]
+    assert rls_bypass["status"] in ("skipped", "enforced", "bypassed", "unknown")
+
+
+class TestRlsBypassRoleCheck:
+    """Audit stratégique 2026-08-16 — RLS peut être parfaitement configuré
+    sur chaque table (voir _check_database_and_rls) et pourtant totalement
+    contourné si le rôle de connexion est superuser ou a BYPASSRLS. Ce
+    findings était documenté en commentaire dans core/ministry.py comme
+    "à vérifier manuellement en production" ; ces tests exercent la
+    fonction directement pour verrouiller son comportement sans dépendre
+    d'un vrai rôle Postgres superuser en environnement de test."""
+
+    def _fake_session_local(self, row: dict):
+        fake_db = MagicMock()
+        fake_db.execute.return_value.mappings.return_value.first.return_value = row
+        fake_context = MagicMock()
+        fake_context.__enter__ = MagicMock(return_value=fake_db)
+        fake_context.__exit__ = MagicMock(return_value=False)
+        return MagicMock(return_value=fake_context)
+
+    def test_skipped_on_sqlite(self):
+        from app.main import _check_rls_bypass_role, settings
+
+        with patch.object(type(settings), "is_sqlite", new_callable=PropertyMock, return_value=True):
+            result = _check_rls_bypass_role()
+        assert result["status"] == "skipped"
+
+    def test_reports_bypassed_for_a_superuser_role(self):
+        from app.main import _check_rls_bypass_role, settings
+
+        session_local = self._fake_session_local(
+            {"rolname": "postgres", "rolsuper": True, "rolbypassrls": False}
+        )
+        with (
+            patch.object(type(settings), "is_sqlite", new_callable=PropertyMock, return_value=False),
+            patch("app.core.database.SessionLocal", session_local),
+        ):
+            result = _check_rls_bypass_role()
+        assert result["status"] == "bypassed"
+
+    def test_reports_bypassed_for_a_non_superuser_with_bypassrls_grant(self):
+        """rolbypassrls alone (without rolsuper) is just as much a bypass —
+        both flags must be checked, not just the more famous superuser one."""
+        from app.main import _check_rls_bypass_role, settings
+
+        session_local = self._fake_session_local(
+            {"rolname": "app_user", "rolsuper": False, "rolbypassrls": True}
+        )
+        with (
+            patch.object(type(settings), "is_sqlite", new_callable=PropertyMock, return_value=False),
+            patch("app.core.database.SessionLocal", session_local),
+        ):
+            result = _check_rls_bypass_role()
+        assert result["status"] == "bypassed"
+
+    def test_reports_enforced_for_a_regular_role(self):
+        from app.main import _check_rls_bypass_role, settings
+
+        session_local = self._fake_session_local(
+            {"rolname": "app_user", "rolsuper": False, "rolbypassrls": False}
+        )
+        with (
+            patch.object(type(settings), "is_sqlite", new_callable=PropertyMock, return_value=False),
+            patch("app.core.database.SessionLocal", session_local),
+        ):
+            result = _check_rls_bypass_role()
+        assert result["status"] == "enforced"
 
 
 class TestDbPoolStatusReflectsOccupancy:

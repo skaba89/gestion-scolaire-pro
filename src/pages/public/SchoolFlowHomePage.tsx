@@ -90,54 +90,72 @@ const STATS = [
   { value: "RGPD", label: "Conforme" },
 ];
 
+// Audit stratégique 2026-08-16, incohérence interne #3 : ces 4 paliers
+// (Starter/Standard/Premium/Enterprise, prix en €) ne correspondaient à
+// aucune autre source du produit — ni la migration qui seede
+// réellement subscription_plans en base
+// (backend/alembic/versions/20260815_0001_seed_default_subscription_plans.py),
+// ni le service de quotas SaaS. Alignés ici sur la migration, qui reste
+// la seule source de vérité pour la tarification réelle : 5 paliers
+// (Free/Starter/Pro/Enterprise/Institution), mêmes quotas élèves, mêmes
+// prix (en USD, tels que seedés — aucun taux de conversion inventé ici).
 const PRICING = [
   {
+    tier: "Free",
+    price: "0$",
+    period: "",
+    description: "Découverte et démonstration, sans engagement",
+    features: ["Jusqu'à 30 élèves", "5 comptes utilisateurs", "1 établissement", "Fonctionnalités essentielles"],
+    cta: "Essayer gratuitement",
+    highlight: false,
+  },
+  {
     tier: "Starter",
-    price: "30,99€",
-    period: "/ mois",
+    price: "0$",
+    period: "",
     description: "Pour les petites écoles guinéennes",
-    features: ["Jusqu'à 50 élèves", "Gestion des inscriptions", "Support email", "1 administrateur"],
+    features: ["Jusqu'à 150 élèves", "15 comptes utilisateurs", "Gestion des inscriptions", "Support email"],
     cta: "Commencer avec Starter",
     highlight: false,
   },
   {
-    tier: "Standard",
-    price: "500€",
+    tier: "Pro",
+    price: "29$",
     period: "/ mois",
     description: "Pour les établissements en croissance",
     features: [
-      "Jusqu'à 300 élèves",
-      "Tous les modules",
+      "Jusqu'à 800 élèves",
+      "Analyses IA incluses",
       "Bulletins en ligne",
-      "Support prioritaire",
+      "Jusqu'à 3 campus",
     ],
-    cta: "Choisir Standard",
-    highlight: false,
-  },
-  {
-    tier: "Premium",
-    price: "900,99€",
-    period: "/ mois",
-    description: "Pour les grandes écoles et universités",
-    features: [
-      "Jusqu'à 1000 élèves",
-      "Analytics avancés",
-      "Support dédié",
-      "API complète",
-    ],
-    cta: "Choisir Premium",
+    cta: "Choisir Pro",
     highlight: true,
   },
   {
     tier: "Enterprise",
-    price: "2 500€",
+    price: "99$",
     period: "/ mois",
+    description: "Pour les grandes écoles et universités",
+    features: [
+      "Élèves illimités",
+      "Multi-campus illimité",
+      "Support prioritaire",
+      "API complète",
+    ],
+    cta: "Choisir Enterprise",
+    highlight: false,
+  },
+  {
+    tier: "Institution",
+    price: "Sur devis",
+    period: "",
     description: "Pour les réseaux et ministères éducatifs",
     features: [
-      "Multi-établissements",
-      "SLA garanti",
-      "Déploiement sur site",
+      "Contrat annuel, SLA",
+      "Déploiement dédié",
       "Formation incluse",
+      "Support dédié",
     ],
     cta: "Nous contacter",
     highlight: false,
@@ -702,7 +720,7 @@ export default function SchoolFlowHomePage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
             {PRICING.map((plan) => (
               <div
                 key={plan.tier}
@@ -748,7 +766,7 @@ export default function SchoolFlowHomePage() {
                   ))}
                 </ul>
                 <button
-                  onClick={() => navigate(plan.tier === "Enterprise" ? "/contact" : "/admin/create-tenant")}
+                  onClick={() => navigate(plan.tier === "Institution" ? "/contact" : "/admin/create-tenant")}
                   className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
                     plan.highlight
                       ? "bg-white text-[#1e3a5f] hover:bg-blue-50"
