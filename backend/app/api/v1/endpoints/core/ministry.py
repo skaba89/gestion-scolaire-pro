@@ -16,10 +16,16 @@ SECURITY notwithstanding. This must be verified against the actual
 production database role (Neon or whichever managed Postgres is used) —
 if that role is also a superuser/owner with elevated privileges, tenant
 isolation is not actually enforced by RLS in production either, only by
-each endpoint's own WHERE tenant_id = ... filtering. Out of scope to fix
-here (no production DB access from this session) — flagged for the
-platform owner to verify directly against the production connection role:
-    SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = '<prod db user>';
+each endpoint's own WHERE tenant_id = ... filtering.
+
+Turned into an automated check (audit stratégique, 2026-08-16) rather
+than a one-off manual query someone has to remember to run — see
+app/main.py::_check_rls_bypass_role(), surfaced as
+components.rls_bypass_role on GET /health/deep/. Its status is
+"bypassed" if either rolsuper or rolbypassrls is set on the connecting
+role — a platform owner can now confirm this directly in production by
+hitting that endpoint instead of needing raw DB access:
+    SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;
 """
 import csv
 import io

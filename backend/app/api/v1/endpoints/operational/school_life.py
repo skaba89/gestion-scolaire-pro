@@ -1033,31 +1033,15 @@ def _fetch_absences(db, student_id: str, start_date, end_date, tenant_id: str) -
 
 
 def _compute_average(grades: list) -> float:
-    """Weighted average /20 across subjects (group by subject, then weight by coeff)."""
-    by_subject: Dict[str, Dict] = {}
-    for g in grades:
-        name = g["subject_name"]
-        score = g.get("score")
-        max_s = float(g.get("max_score") or 20)
-        coeff = float(g.get("coefficient") or 1)
-        if name not in by_subject:
-            by_subject[name] = {"scores": [], "coefficient": coeff}
-        if score is not None:
-            by_subject[name]["scores"].append((float(score), max_s))
-
-    total_weighted = 0.0
-    total_coeff = 0.0
-    for subj, data in by_subject.items():
-        scores = data["scores"]
-        coeff = data["coefficient"]
-        if scores:
-            subj_avg = sum(s / m * 20 for s, m in scores) / len(scores)
-            total_weighted += subj_avg * coeff
-            total_coeff += coeff
-
-    if total_coeff == 0:
-        return -1.0
-    return total_weighted / total_coeff
+    """Weighted average /20 across subjects (group by subject, then weight
+    by coeff). Delegates to the shared, single-source-of-truth algorithm
+    in app/services/grading.py (audit finding: this used to be duplicated
+    verbatim in three places, one of which — crud/grade.py — had drifted
+    into an unweighted flat average) — behavior here is unchanged, -1.0
+    still means "no computable average", same sentinel as before."""
+    from app.services.grading import compute_weighted_average
+    result = compute_weighted_average(grades)
+    return result if result is not None else -1.0
 
 
 def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, student_id: str) -> Tuple[int, int]:

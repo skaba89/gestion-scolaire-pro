@@ -590,6 +590,46 @@ def _check_database_and_rls() -> tuple[str, str]:
         return "connected", "unknown"
 
 
+def _check_rls_bypass_role() -> dict:
+    """Does the role this app actually connects with bypass RLS entirely?
+
+    Audit stratégique (2026-08-16), incohérence interne — flagged for a
+    while as a comment in core/ministry.py rather than an automated check:
+    _check_database_and_rls() above confirms every tenant-scoped table has
+    RLS enabled, forced, and a policy referencing app.current_tenant_id —
+    but a PostgreSQL superuser (`rolsuper`) or any role explicitly granted
+    BYPASSRLS ignores every one of those guarantees unconditionally, FORCE
+    ROW LEVEL SECURITY notwithstanding. Policies being correctly configured
+    proves nothing about actual isolation if the connecting role itself
+    walks straight through them. This turns "someone should run this SQL
+    by hand against production one day" into something checked on every
+    call to this diagnostic endpoint instead.
+    """
+    from app.core.database import SessionLocal
+    from sqlalchemy import text as sa_text
+
+    if settings.is_sqlite:
+        return {"status": "skipped", "detail": "SQLite (dev) — no Postgres roles to check"}
+
+    try:
+        with SessionLocal() as _db:
+            row = _db.execute(sa_text(
+                "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+            )).mappings().first()
+        if not row:
+            return {"status": "unknown", "detail": "current_user not found in pg_roles"}
+        bypasses = bool(row["rolsuper"]) or bool(row["rolbypassrls"])
+        return {
+            "status": "bypassed" if bypasses else "enforced",
+            "role": row["rolname"],
+            "rolsuper": bool(row["rolsuper"]),
+            "rolbypassrls": bool(row["rolbypassrls"]),
+        }
+    except Exception as exc:
+        logger.warning("Deep health check: RLS bypass-role check failed: %s", exc)
+        return {"status": "unknown", "detail": str(exc)}
+
+
 async def _check_cache_readiness() -> str:
     """Bound Redis readiness latency so a failed cache cannot hang the probe."""
     try:
@@ -889,6 +929,7 @@ async def deep_health_check(request: Request):
             )
 
     db_status, rls_status = await asyncio.to_thread(_check_database_and_rls)
+    rls_bypass = await asyncio.to_thread(_check_rls_bypass_role)
     redis_status = await _check_cache_readiness()
     storage_status = await _check_storage_readiness()
     disk = await asyncio.to_thread(_check_disk_space)
@@ -904,6 +945,7 @@ async def deep_health_check(request: Request):
             "components": {
                 "database": db_status,
                 "rls": rls_status,
+                "rls_bypass_role": rls_bypass,
                 "cache": redis_status,
                 "storage": storage_status,
             },

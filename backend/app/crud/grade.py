@@ -1,9 +1,10 @@
 """CRUD operations for Grade model"""
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import bindparam, text
 from uuid import UUID
 
+from app.models.base import GUID
 from app.models.grade import Grade
 from app.schemas.grade import GradeCreate, GradeUpdate
 
@@ -71,34 +72,57 @@ def get_student_average(
     academic_year: Optional[str] = None,
     semester: Optional[int] = None,
 ) -> dict:
-    """Calculate student's average grades"""
-    query = db.query(
-        func.avg(Grade.score).label('average'),
-        func.count(Grade.id).label('count')
-    ).filter(
-        Grade.student_id == student_id,
-        Grade.tenant_id == tenant_id
-    )
-    
+    """Calculate student's average grades — weighted by subject
+    coefficient, using the same algorithm as bulletins and transcripts
+    (see app/services/grading.py).
+
+    Fix (audit stratégique 2026-08-16, incohérence interne #1) : cette
+    fonction calculait auparavant une moyenne plate (`func.avg(Grade.score)`),
+    qui pouvait diverger du chiffre affiché sur un bulletin pour le même
+    élève et la même période — deux vérités différentes selon l'écran.
+    Requête réécrite pour joindre matières/évaluations/périodes de la
+    même façon que school_life.py:_fetch_grades_for_term, puis déléguer
+    le calcul à la fonction partagée.
+    """
+    conditions = ["g.student_id = :sid", "g.tenant_id = :tid"]
+    params: dict = {"sid": str(student_id), "tid": str(tenant_id)}
+
     if academic_year:
-        # Filter grades by assessment's academic_year_id
-        from app.models.assessment import Assessment
-        ay_subq = db.query(Assessment.id).filter(Assessment.academic_year_id == academic_year).subquery()
-        query = query.filter(Grade.assessment_id.in_(ay_subq))
-    
+        conditions.append("a.academic_year_id = :ay")
+        params["ay"] = str(academic_year)
+
     if semester:
-        # Filter grades by assessment's term and sequence number
-        from app.models.assessment import Assessment
-        from app.models.term import Term
-        term_subq = db.query(Term.id).filter(Term.sequence_number == semester).subquery()
-        assessment_subq = db.query(Assessment.id).filter(Assessment.term_id.in_(term_subq)).subquery()
-        query = query.filter(Grade.assessment_id.in_(assessment_subq))
-    
-    result = query.first()
-    
+        conditions.append("t.sequence_number = :sem")
+        params["sem"] = semester
+
+    where_clause = " AND ".join(conditions)
+    # Bound explicitly through the GUID TypeDecorator (see app/models/base.py):
+    # a plain string bind compares a dashed UUID against SQLite's dash-less
+    # CHAR(32) storage and silently matches zero rows there — the same bug
+    # class already found and fixed in _fetch_tenant_settings/
+    # build_service_from_db this session. Harmless on PostgreSQL, where the
+    # decorator is a no-op passthrough.
+    guid_params = [p for p in ("sid", "tid", "ay") if p in params]
+    stmt = text(f"""
+        SELECT
+            COALESCE(subj.name, 'Matière inconnue') AS subject_name,
+            COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
+            g.score,
+            g.max_score
+        FROM grades g
+        LEFT JOIN assessments a ON g.assessment_id = a.id
+        LEFT JOIN terms t ON a.term_id = t.id
+        LEFT JOIN subjects subj ON a.subject_id = subj.id
+        WHERE {where_clause}
+    """).bindparams(*(bindparam(p, type_=GUID()) for p in guid_params))
+    rows = db.execute(stmt, params).mappings().all()
+
+    from app.services.grading import compute_weighted_average
+    average = compute_weighted_average([dict(r) for r in rows])
+
     return {
-        'average': float(result.average) if result.average else 0.0,
-        'count': result.count or 0
+        'average': round(average, 2) if average is not None else 0.0,
+        'count': len(rows)
     }
 
 
