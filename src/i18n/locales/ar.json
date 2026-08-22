@@ -1932,6 +1932,8 @@
     "pageTitle": "التقويم المدرسي",
     "pageSubtitle": "الفعاليات والامتحانات والإجازات",
     "newEvent": "حدث جديد",
+    "exportIcs": "تصدير (.ics)",
+    "exportIcsError": "تعذر تصدير التقويم. حاول مرة أخرى.",
     "dialogTitle": "إنشاء حدث",
     "labelTitle": "العنوان *",
     "titlePlaceholder": "اسم الحدث",

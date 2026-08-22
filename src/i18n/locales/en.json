@@ -2007,6 +2007,8 @@
     "pageTitle": "School Calendar",
     "pageSubtitle": "Events, exams and holidays",
     "newEvent": "New event",
+    "exportIcs": "Export (.ics)",
+    "exportIcsError": "Couldn't export the calendar. Please try again.",
     "dialogTitle": "Create an event",
     "labelTitle": "Title *",
     "titlePlaceholder": "Event name",

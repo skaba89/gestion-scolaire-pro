@@ -2007,6 +2007,8 @@
         "pageTitle": "Calendrier Scolaire",
         "pageSubtitle": "Événements, examens et vacances",
         "newEvent": "Nouvel événement",
+        "exportIcs": "Exporter (.ics)",
+        "exportIcsError": "Impossible d'exporter le calendrier. Réessayez.",
         "dialogTitle": "Créer un événement",
         "labelTitle": "Titre *",
         "titlePlaceholder": "Nom de l'événement",

@@ -1967,6 +1967,8 @@
     "pageTitle": "学校日历",
     "pageSubtitle": "活动、考试和假期",
     "newEvent": "新建活动",
+    "exportIcs": "导出 (.ics)",
+    "exportIcsError": "无法导出日历，请重试。",
     "dialogTitle": "创建活动",
     "labelTitle": "标题 *",
     "titlePlaceholder": "活动名称",

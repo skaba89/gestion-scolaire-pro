@@ -1,13 +1,13 @@
 import logging
 import base64
 import html as html_mod
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import bindparam, text
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID, uuid4
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 from pydantic import BaseModel
 
 from app.models.base import GUID
@@ -357,6 +357,109 @@ def delete_event(
         logger.error("Error deleting school event: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
+
+
+def _ics_escape(value: str) -> str:
+    """Escape a text value per RFC 5545 §3.3.11: backslash, comma,
+    semicolon and embedded newlines must be escaped, in that order
+    (escaping the backslash first, so it doesn't double-escape the
+    backslashes just introduced for the other characters)."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace(",", "\\,")
+        .replace(";", "\\;")
+        .replace("\n", "\\n")
+    )
+
+
+def _ics_datetime(dt: datetime) -> str:
+    """Floating local time (no Z suffix, no VTIMEZONE) — school events are
+    naive datetimes in this schema (SchoolEvent.start_date/end_date have
+    no timezone column), so the honest RFC 5545 representation is a
+    floating time, not a fabricated UTC/timezone claim."""
+    return dt.strftime("%Y%m%dT%H%M%S")
+
+
+def _ics_date(dt: datetime) -> str:
+    """All-day event date, per RFC 5545 §3.8.5.4 (DTSTART;VALUE=DATE)."""
+    return dt.strftime("%Y%m%d")
+
+
+@router.get("/events/export.ics")
+def export_events_ics(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    GET /school-life/events/export.ics
+
+    Feuille de route stratégique, Horizon 1 : export du calendrier
+    scolaire au format iCalendar standard (RFC 5545) — un parent ou un
+    enseignant peut s'abonner à cette URL depuis Google Calendar, Outlook
+    ou Apple Calendar, ou l'importer une fois, sans intégration
+    propriétaire par fournisseur. Mêmes événements et même permission que
+    GET /events/ (lecture simple, tous les utilisateurs authentifiés du
+    tenant) — cet endpoint ne fait qu'un mise en forme différente des
+    mêmes données, aucune nouvelle donnée exposée.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+
+    events = crud_sl.get_events(db, tenant_id=tenant_id)
+
+    tenant_stmt = text("SELECT name FROM tenants WHERE id = :tid").bindparams(bindparam("tid", type_=GUID()))
+    tenant_row = db.execute(tenant_stmt, {"tid": tenant_id}).mappings().first()
+    calendar_name = tenant_row["name"] if tenant_row else "Academy Guinéenne"
+
+    # DTSTAMP is genuinely a UTC instant (per RFC 5545 §3.8.7.2, "the date
+    # and time that the information was created"), unlike DTSTART/DTEND
+    # above which are deliberately floating local time — so it gets the
+    # "Z" suffix _ics_datetime() intentionally omits for those.
+    now_stamp = _ics_datetime(datetime.now(timezone.utc)) + "Z"
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Academy Guineenne//School Calendar//FR",
+        "CALSCALE:GREGORIAN",
+        f"X-WR-CALNAME:{_ics_escape(calendar_name)}",
+    ]
+
+    for event in events:
+        lines.append("BEGIN:VEVENT")
+        lines.append(f"UID:{event.id}@academy-guineenne")
+        lines.append(f"DTSTAMP:{now_stamp}")
+        lines.append(f"SUMMARY:{_ics_escape(event.title)}")
+
+        if event.is_all_day:
+            lines.append(f"DTSTART;VALUE=DATE:{_ics_date(event.start_date)}")
+            end = event.end_date or event.start_date
+            lines.append(f"DTEND;VALUE=DATE:{_ics_date(end)}")
+        else:
+            lines.append(f"DTSTART:{_ics_datetime(event.start_date)}")
+            if event.end_date:
+                lines.append(f"DTEND:{_ics_datetime(event.end_date)}")
+
+        if event.location:
+            lines.append(f"LOCATION:{_ics_escape(event.location)}")
+        if event.description:
+            lines.append(f"DESCRIPTION:{_ics_escape(event.description)}")
+        if event.event_type:
+            lines.append(f"CATEGORIES:{_ics_escape(event.event_type)}")
+
+        lines.append("END:VEVENT")
+
+    lines.append("END:VCALENDAR")
+
+    # RFC 5545 §3.1 requires CRLF line endings.
+    ics_content = "\r\n".join(lines) + "\r\n"
+
+    return Response(
+        content=ics_content,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="calendrier-scolaire.ics"'},
+    )
 
 # --- Appointment Slots ---
 
