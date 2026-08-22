@@ -4,12 +4,13 @@ import html as html_mod
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID, uuid4
 from datetime import datetime, date, time
 from pydantic import BaseModel
 
+from app.models.base import GUID
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -996,8 +997,16 @@ def _fetch_student_data(db, student_id: str, tenant_id: str) -> dict:
 
 
 def _fetch_grades_for_term(db, student_id: str, term_id: str, tenant_id: str) -> list:
-    """Return list of {subject_name, coefficient, score, max_score, comments}."""
-    rows = db.execute(text("""
+    """Return list of {subject_name, coefficient, score, max_score, comments}.
+
+    Fix (2026-08-22, found alongside the batch-endpoint N+1/rank fixes):
+    student_id/tenant_id/term_id were bound as plain strings — silently
+    matches zero rows on SQLite (dashed UUID vs the GUID TypeDecorator's
+    dash-less storage there, see app/models/base.py). Never affected
+    real PostgreSQL production; always silently returned an empty
+    grade list in local/SQLite dev and test.
+    """
+    stmt = text("""
         SELECT
             COALESCE(subj.name, 'Matière inconnue') AS subject_name,
             COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
@@ -1011,13 +1020,18 @@ def _fetch_grades_for_term(db, student_id: str, term_id: str, tenant_id: str) ->
           AND g.tenant_id     = :tid
           AND a.term_id       = :term_id
         ORDER BY subj.name
-    """), {"sid": student_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
+    """).bindparams(bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()))
+    rows = db.execute(stmt, {"sid": student_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
     return [dict(r) for r in rows]
 
 
 def _fetch_absences(db, student_id: str, start_date, end_date, tenant_id: str) -> dict:
-    """Return {excused, absent, late} counts for the term."""
-    row = db.execute(text("""
+    """Return {excused, absent, late} counts for the term.
+
+    Fix (2026-08-22): same SQLite GUID-bind issue as _fetch_grades_for_term
+    above — see its docstring.
+    """
+    stmt = text("""
         SELECT
             COUNT(*) FILTER (WHERE status = 'EXCUSED') AS excused,
             COUNT(*) FILTER (WHERE status = 'ABSENT')  AS absent,
@@ -1026,7 +1040,8 @@ def _fetch_absences(db, student_id: str, start_date, end_date, tenant_id: str) -
         WHERE student_id = :sid
           AND tenant_id  = :tid
           AND date BETWEEN :sd AND :ed
-    """), {"sid": student_id, "tid": tenant_id, "sd": start_date, "ed": end_date}).mappings().first()
+    """).bindparams(bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID()))
+    row = db.execute(stmt, {"sid": student_id, "tid": tenant_id, "sd": start_date, "ed": end_date}).mappings().first()
     if not row:
         return {"excused": 0, "absent": 0, "late": 0}
     return {"excused": int(row["excused"] or 0), "absent": int(row["absent"] or 0), "late": int(row["late"] or 0)}
@@ -1045,13 +1060,27 @@ def _compute_average(grades: list) -> float:
 
 
 def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, student_id: str) -> Tuple[int, int]:
-    """Return (rank, total) for the student in this class/term. rank=0 if not computable."""
+    """Return (rank, total) for the student in this class/term. rank=0 if not computable.
+
+    Fix (found writing tests for the batch endpoint, 2026-08-22), two
+    independent SQLite-only bugs, both silently swallowed by the
+    except-and-return-(0,0) below — production, on real PostgreSQL, was
+    never affected by either:
+    1. `g.score::float` is PostgreSQL-only cast syntax, a SQLite syntax
+       error. Replaced with the portable `CAST(g.score AS FLOAT)`.
+    2. classroom_id/tenant_id/term_id were bound as plain strings — a
+       dashed UUID string compared against SQLite's dash-less GUID
+       storage (see app/models/base.py's TypeDecorator) silently matches
+       zero rows there. Now bound through that same TypeDecorator via
+       bindparam(type_=GUID()), same fix already applied elsewhere in
+       this codebase (crud/grade.py, workers/tasks.py, notifications.py).
+    """
     try:
-        rows = db.execute(text("""
+        stmt = text("""
             SELECT
                 e.student_id,
                 CASE WHEN SUM(COALESCE(subj.coefficient, g.coefficient, 1)) > 0
-                     THEN SUM((g.score::float / NULLIF(g.max_score,0)) * 20
+                     THEN SUM((CAST(g.score AS FLOAT) / NULLIF(g.max_score,0)) * 20
                               * COALESCE(subj.coefficient, g.coefficient, 1))
                           / SUM(COALESCE(subj.coefficient, g.coefficient, 1))
                      ELSE -1
@@ -1067,16 +1096,145 @@ def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, stu
               AND e.status     = 'ACTIVE'
             GROUP BY e.student_id
             ORDER BY avg DESC NULLS LAST
-        """), {"cid": classroom_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
+        """).bindparams(
+            bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()),
+        )
+        rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
 
         total = len(rows)
+        # Normalize through UUID parsing, not a plain string compare: a raw
+        # text() query's output column isn't decoded by the GUID
+        # TypeDecorator (that only applies to ORM-mapped columns), so on
+        # SQLite r["student_id"] comes back dash-less while the caller's
+        # student_id is a normal dashed string — UUID(...) parses either
+        # form to the same value, on both dialects.
+        target = UUID(str(student_id))
         for idx, r in enumerate(rows, 1):
-            if str(r["student_id"]) == str(student_id):
+            if UUID(str(r["student_id"])) == target:
                 return idx, total
         return 0, total
     except Exception as exc:
         logger.warning("Class rank computation failed: %s", exc)
         return 0, 0
+
+
+def _compute_class_ranks_batch(db, classroom_id: str, term_id: str, tenant_id: str) -> dict:
+    """Same ranking query as _compute_class_rank, but run ONCE for the
+    whole class instead of once per student.
+
+    Audit finding (dette technique, 2026-08-16) : generate_batch_report_cards()
+    called _compute_class_rank() inside its per-student loop — each call
+    re-executes this exact same class-wide query, then throws away every
+    row except the one matching that student. For a 500-élève
+    établissement generating end-of-term bulletins, that's ~500 redundant
+    executions of an identical query. Returns
+    {student_id: (rank, total)} so the batch endpoint computes the
+    ranking once and looks each student up in memory.
+    """
+    try:
+        stmt = text("""
+            SELECT
+                e.student_id,
+                CASE WHEN SUM(COALESCE(subj.coefficient, g.coefficient, 1)) > 0
+                     THEN SUM((CAST(g.score AS FLOAT) / NULLIF(g.max_score,0)) * 20
+                              * COALESCE(subj.coefficient, g.coefficient, 1))
+                          / SUM(COALESCE(subj.coefficient, g.coefficient, 1))
+                     ELSE -1
+                END AS avg
+            FROM enrollments e
+            LEFT JOIN grades g
+                ON g.student_id = e.student_id AND g.tenant_id = :tid
+            LEFT JOIN assessments a
+                ON g.assessment_id = a.id AND a.term_id = :term_id
+            LEFT JOIN subjects subj ON a.subject_id = subj.id
+            WHERE e.class_id   = :cid
+              AND e.tenant_id  = :tid
+              AND e.status     = 'ACTIVE'
+            GROUP BY e.student_id
+            ORDER BY avg DESC NULLS LAST
+        """).bindparams(
+            bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()),
+        )
+        rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
+
+        total = len(rows)
+        return {str(r["student_id"]): (idx, total) for idx, r in enumerate(rows, 1)}
+    except Exception as exc:
+        logger.warning("Batch class rank computation failed: %s", exc)
+        return {}
+
+
+def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id: str) -> dict:
+    """Same shape/filtering as _fetch_grades_for_term (one INNER JOIN to
+    assessments, so a grade without one is excluded exactly like the
+    single-student path), batched across every actively enrolled student
+    in one classroom in a single query. Returns
+    {student_id: [ {subject_name, coefficient, score, max_score, comments}, ... ]}.
+    """
+    try:
+        stmt = text("""
+            SELECT
+                e.student_id AS student_id,
+                COALESCE(subj.name, 'Matière inconnue') AS subject_name,
+                COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
+                g.score,
+                g.max_score,
+                g.comments
+            FROM enrollments e
+            JOIN grades g ON g.student_id = e.student_id AND g.tenant_id = e.tenant_id
+            JOIN assessments a ON g.assessment_id = a.id
+            LEFT JOIN subjects subj ON a.subject_id = subj.id
+            WHERE e.class_id   = :cid
+              AND e.tenant_id  = :tid
+              AND e.status     = 'ACTIVE'
+              AND a.term_id    = :term_id
+            ORDER BY e.student_id, subj.name
+        """).bindparams(
+            bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()),
+        )
+        rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
+
+        by_student: dict = {}
+        for r in rows:
+            by_student.setdefault(str(r["student_id"]), []).append(dict(r))
+        return by_student
+    except Exception as exc:
+        logger.warning("Batch grades fetch failed: %s", exc)
+        return {}
+
+
+def _fetch_absences_batch(db, classroom_id: str, start_date, end_date, tenant_id: str) -> dict:
+    """Same shape/filtering as _fetch_absences, batched across every
+    actively enrolled student in one classroom in a single query. Returns
+    {student_id: {excused, absent, late}}; a student with no row (no
+    absences at all) is NOT present here — callers must fall back to the
+    zero dict, matching _fetch_absences' own default."""
+    try:
+        stmt = text("""
+            SELECT
+                att.student_id,
+                COUNT(*) FILTER (WHERE att.status = 'EXCUSED') AS excused,
+                COUNT(*) FILTER (WHERE att.status = 'ABSENT')  AS absent,
+                COUNT(*) FILTER (WHERE att.status = 'LATE')    AS late
+            FROM attendance att
+            JOIN enrollments e ON e.student_id = att.student_id AND e.tenant_id = att.tenant_id
+            WHERE e.class_id   = :cid
+              AND e.tenant_id  = :tid
+              AND e.status     = 'ACTIVE'
+              AND att.date BETWEEN :sd AND :ed
+            GROUP BY att.student_id
+        """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
+        rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id, "sd": start_date, "ed": end_date}).mappings().all()
+
+        return {
+            str(r["student_id"]): {
+                "excused": int(r["excused"] or 0), "absent": int(r["absent"] or 0), "late": int(r["late"] or 0),
+            }
+            for r in rows
+        }
+    except Exception as exc:
+        logger.warning("Batch absences fetch failed: %s", exc)
+        return {}
 
 
 # ── HTML template v2 — Format officiel Guinée ──────────────────────────────────
@@ -1665,62 +1823,74 @@ def generate_batch_report_cards(
 
     try:
         # All active students in the class
-        student_rows = db.execute(text("""
-            SELECT e.student_id
+        student_stmt = text("""
+            SELECT e.student_id, s.first_name, s.last_name, s.registration_number,
+                   s.date_of_birth, s.gender
             FROM enrollments e
+            JOIN students s ON s.id = e.student_id
             WHERE e.class_id  = :cid
               AND e.tenant_id = :tid
               AND e.status    = 'ACTIVE'
-            ORDER BY (
-                SELECT last_name FROM students WHERE id = e.student_id LIMIT 1
-            )
-        """), {"cid": body.classroom_id, "tid": tenant_id}).mappings().all()
+            ORDER BY s.last_name
+        """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
+        student_rows = db.execute(student_stmt, {"cid": body.classroom_id, "tid": tenant_id}).mappings().all()
 
         if not student_rows:
             raise HTTPException(status_code=404, detail="Aucun élève inscrit dans cette classe")
 
         # Tenant + class/term data (shared across all bulletins)
-        t_row = db.execute(text(
+        t_stmt = text(
             "SELECT name, address, phone, email, settings FROM tenants WHERE id = :tid"
-        ), {"tid": tenant_id}).mappings().first()
+        ).bindparams(bindparam("tid", type_=GUID()))
+        t_row = db.execute(t_stmt, {"tid": tenant_id}).mappings().first()
 
-        cls_row = db.execute(text("""
+        cls_stmt = text("""
             SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
             FROM classes c
             LEFT JOIN levels l ON c.level_id = l.id
             LEFT JOIN academic_years ay ON c.academic_year_id = ay.id
             WHERE c.id = :cid AND c.tenant_id = :tid
-        """), {"cid": body.classroom_id, "tid": tenant_id}).mappings().first()
+        """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
+        cls_row = db.execute(cls_stmt, {"cid": body.classroom_id, "tid": tenant_id}).mappings().first()
 
-        term_row = db.execute(text("""
+        term_stmt = text("""
             SELECT name, start_date, end_date FROM terms
             WHERE id = :tid_term AND tenant_id = :tid
-        """), {"tid_term": body.term_id, "tid": tenant_id}).mappings().first()
+        """).bindparams(bindparam("tid_term", type_=GUID()), bindparam("tid", type_=GUID()))
+        term_row = db.execute(term_stmt, {"tid_term": body.term_id, "tid": tenant_id}).mappings().first()
 
         settings: dict = {}
         if t_row and t_row.get("settings"):
             raw = t_row["settings"]
             settings = raw if isinstance(raw, dict) else {}
 
+        # Batched once for the whole class instead of once per student
+        # (dette technique — audit stratégique 2026-08-16): each of these
+        # used to be a separate per-student query/loop iteration
+        # (_fetch_grades_for_term, _fetch_absences, _compute_class_rank),
+        # for a 500-élève établissement that's ~1500 redundant round
+        # trips at end-of-term. Single-student callers elsewhere
+        # (generate-report-card/v2/) are untouched — they still use the
+        # original functions, no behavior change there.
+        grades_by_student = _fetch_grades_for_term_batch(db, body.classroom_id, body.term_id, tenant_id)
+        ranks_by_student = _compute_class_ranks_batch(db, body.classroom_id, body.term_id, tenant_id)
+        absences_by_student: dict = {}
+        if term_row and term_row["start_date"] and term_row["end_date"]:
+            absences_by_student = _fetch_absences_batch(
+                db, body.classroom_id, term_row["start_date"], term_row["end_date"], tenant_id,
+            )
+
         html_parts: list[str] = []
 
-        for row in student_rows:
-            sid = str(row["student_id"])
-            s = db.execute(text("""
-                SELECT first_name, last_name, registration_number, date_of_birth, gender
-                FROM students WHERE id = :sid AND tenant_id = :tid
-            """), {"sid": sid, "tid": tenant_id}).mappings().first()
-            if not s:
-                continue
+        for s in student_rows:
+            sid = str(s["student_id"])
 
-            grades = _fetch_grades_for_term(db, sid, body.term_id, tenant_id)
+            grades = grades_by_student.get(sid, [])
             general_avg = _compute_average(grades)
 
-            absences = {"excused": 0, "absent": 0, "late": 0}
-            if term_row and term_row["start_date"] and term_row["end_date"]:
-                absences = _fetch_absences(db, sid, term_row["start_date"], term_row["end_date"], tenant_id)
+            absences = absences_by_student.get(sid, {"excused": 0, "absent": 0, "late": 0})
 
-            rank, total = _compute_class_rank(db, body.classroom_id, body.term_id, tenant_id, sid)
+            rank, total = ranks_by_student.get(sid, (0, 0))
 
             dob = s.get("date_of_birth")
             dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")

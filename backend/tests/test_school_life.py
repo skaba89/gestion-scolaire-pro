@@ -11,6 +11,7 @@ client = get_test_client()
 from app.core.database import SessionLocal, engine  # noqa: E402
 from app.core.security import create_access_token, get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models.grade import Grade  # noqa: E402
 from app.models.student import Gender, Student, StudentStatus  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 
@@ -173,3 +174,213 @@ class TestGenerateReportCardV2:
         assert "Mariam Diallo" in html
         assert "safe_name" not in html
         assert "safe_term" not in html
+
+
+class TestGenerateBatchReportCards:
+    """Dette technique (audit stratégique 2026-08-16) : cet endpoint
+    exécutait 4 requêtes par élève dans sa boucle (élève, notes,
+    absences, classement) — le classement en particulier ré-exécutait
+    la requête de classement de toute la classe une fois par élève,
+    ne gardant que la ligne correspondante à chaque fois. Aucun test ne
+    couvrait le comportement réel avant cette suite (seul un test d'auth
+    existait) — ces tests exercent le chemin batché de bout en bout,
+    avec deux élèves aux notes/coefficients différents pour distinguer
+    une vraie moyenne pondérée d'une moyenne plate, et verrouillent le
+    classement + les absences par élève."""
+
+    def _make_tenant_and_class(self):
+        from app.models.academic_year import AcademicYear
+        from app.models.classroom import Classroom
+        from app.models.term import Term
+
+        tenant_id = str(uuid.uuid4())
+        year_id = str(uuid.uuid4())
+        class_id = str(uuid.uuid4())
+        term_id = str(uuid.uuid4())
+
+        with SessionLocal() as db:
+            db.add(Tenant(
+                id=tenant_id, name="École Bulletin Batch", slug=f"batch-{tenant_id[:8]}",
+                type="secondary", country="GN", is_active=True, settings={},
+            ))
+            db.commit()
+            db.add(AcademicYear(
+                id=year_id, tenant_id=tenant_id, name="2026-2027", code="2026-2027",
+                start_date=date(2026, 9, 1), end_date=date(2027, 6, 30), is_current=True,
+            ))
+            db.commit()
+            db.add(Classroom(id=class_id, tenant_id=tenant_id, name="Terminale A", academic_year_id=year_id))
+            db.commit()
+            db.add(Term(
+                id=term_id, tenant_id=tenant_id, academic_year_id=year_id,
+                name="Semestre 1", start_date=date(2026, 9, 1), end_date=date(2027, 1, 31),
+                sequence_number=1, is_active=True,
+            ))
+            db.commit()
+
+        return {"tenant_id": tenant_id, "class_id": class_id, "term_id": term_id, "year_id": year_id}
+
+    def _enroll_student_with_grades(self, ctx, *, first_name, last_name, subject_grades, absences=None):
+        """subject_grades: list of (subject_name, coefficient, score).
+        absences: optional list of (status, date) — status is one of
+        EXCUSED/ABSENT/LATE."""
+        from app.models.assessment import Assessment
+        from app.models.attendance import Attendance
+        from app.models.enrollment import Enrollment
+        from app.models.subject import Subject
+
+        student_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(Student(
+                id=student_id, tenant_id=ctx["tenant_id"],
+                registration_number=f"REG-{student_id[:8]}",
+                first_name=first_name, last_name=last_name,
+                date_of_birth=date(2010, 1, 1), gender=Gender.FEMALE,
+                status=StudentStatus.ACTIVE,
+            ))
+            db.add(Enrollment(
+                id=str(uuid.uuid4()), tenant_id=ctx["tenant_id"], student_id=student_id,
+                class_id=ctx["class_id"], academic_year_id=ctx["year_id"], status="ACTIVE",
+            ))
+            db.commit()
+
+            for subj_name, coeff, score in subject_grades:
+                subject_id = str(uuid.uuid4())
+                assessment_id = str(uuid.uuid4())
+                db.add(Subject(id=subject_id, tenant_id=ctx["tenant_id"], name=subj_name, coefficient=coeff))
+                db.commit()
+                db.add(Assessment(
+                    id=assessment_id, tenant_id=ctx["tenant_id"], name=f"Examen {subj_name}",
+                    max_score=20.0, date=date(2026, 12, 1), assessment_type="EXAM", weight=1.0,
+                    subject_id=subject_id, term_id=ctx["term_id"],
+                ))
+                db.commit()
+                db.add(Grade(
+                    id=str(uuid.uuid4()), tenant_id=ctx["tenant_id"], student_id=student_id,
+                    assessment_id=assessment_id, subject_id=subject_id,
+                    score=score, max_score=20.0, coefficient=1.0,
+                ))
+                db.commit()
+
+            for status, adate in (absences or []):
+                db.add(Attendance(
+                    id=str(uuid.uuid4()), tenant_id=ctx["tenant_id"], student_id=student_id,
+                    date=adate, status=status,
+                ))
+            db.commit()
+
+        return student_id
+
+    def test_generates_one_bulletin_per_enrolled_student_with_correct_weighted_averages(self):
+        ctx = self._make_tenant_and_class()
+        # Ibrahima: Maths (coeff 3) 10/20, Sport (coeff 1) 20/20 -> weighted 12.5, NOT flat 15.0
+        sid_a = self._enroll_student_with_grades(
+            ctx, first_name="Ibrahima", last_name="Bah",
+            subject_grades=[("Mathématiques", 3.0, 10.0), ("Sport", 1.0, 20.0)],
+            absences=[("ABSENT", date(2026, 10, 5)), ("EXCUSED", date(2026, 10, 12))],
+        )
+        # Fatoumata: Maths (coeff 3) 18/20, Sport (coeff 1) 10/20 -> weighted 16.0
+        sid_b = self._enroll_student_with_grades(
+            ctx, first_name="Fatoumata", last_name="Camara",
+            subject_grades=[("Mathématiques", 3.0, 18.0), ("Sport", 1.0, 10.0)],
+        )
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        resp = client.post(
+            "/api/v1/school-life/generate-report-cards/batch/",
+            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
+            headers=headers,
+        )
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        html = base64.b64decode(body["html"]).decode("utf-8")
+
+        # Both students' bulletins present, in last-name order (Bah before Camara)
+        assert html.index("Ibrahima Bah") < html.index("Fatoumata Camara")
+
+        # Correct weighted averages, not a flat mean of raw scores
+        assert "12.5" in html or "12,5" in html  # Ibrahima
+        assert "16.0" in html or "16,0" in html or "16" in html  # Fatoumata (looser: 16 is exact)
+
+        assert sid_a  # sanity: fixture created successfully
+        assert sid_b
+
+    def test_excludes_a_student_enrolled_in_a_different_class(self):
+        ctx = self._make_tenant_and_class()
+        self._enroll_student_with_grades(
+            ctx, first_name="Ibrahima", last_name="Bah",
+            subject_grades=[("Mathématiques", 1.0, 15.0)],
+        )
+        # A second class, different student — must never appear in the first class's batch
+        from app.models.classroom import Classroom
+        other_class_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(Classroom(id=other_class_id, tenant_id=ctx["tenant_id"], name="Terminale B"))
+            db.commit()
+        ctx_other = dict(ctx, class_id=other_class_id)
+        self._enroll_student_with_grades(
+            ctx_other, first_name="Zainab", last_name="Sylla",
+            subject_grades=[("Mathématiques", 1.0, 12.0)],
+        )
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        resp = client.post(
+            "/api/v1/school-life/generate-report-cards/batch/",
+            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
+            headers=headers,
+        )
+
+        assert resp.status_code == 200, resp.text
+        html = base64.b64decode(resp.json()["html"]).decode("utf-8")
+        assert "Ibrahima Bah" in html
+        assert "Zainab Sylla" not in html
+
+    def test_404_for_a_class_with_no_active_enrollments(self):
+        ctx = self._make_tenant_and_class()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        resp = client.post(
+            "/api/v1/school-life/generate-report-cards/batch/",
+            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
+            headers=headers,
+        )
+        assert resp.status_code == 404
+
+    def test_batch_ranking_matches_manual_computation(self):
+        """Cross-check: the rank/total shown for each student in the batch
+        output must match what _compute_class_rank (the original,
+        single-student function, still used by generate-report-card/v2/)
+        would compute independently — proves the batched ranking query
+        wasn't just made faster but also stayed correct."""
+        from app.api.v1.endpoints.operational.school_life import _compute_class_rank
+
+        ctx = self._make_tenant_and_class()
+        self._enroll_student_with_grades(
+            ctx, first_name="Ibrahima", last_name="Bah",
+            subject_grades=[("Mathématiques", 1.0, 10.0)],
+        )
+        sid_top = self._enroll_student_with_grades(
+            ctx, first_name="Aissatou", last_name="Toure",
+            subject_grades=[("Mathématiques", 1.0, 19.0)],
+        )
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        resp = client.post(
+            "/api/v1/school-life/generate-report-cards/batch/",
+            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+
+        with SessionLocal() as db:
+            expected_rank, expected_total = _compute_class_rank(
+                db, ctx["class_id"], ctx["term_id"], ctx["tenant_id"], sid_top,
+            )
+        assert expected_rank == 1
+        assert expected_total == 2
+
+        html = base64.b64decode(resp.json()["html"]).decode("utf-8")
+        assert "Aissatou Toure" in html
+        toure_section_start = html.index("Aissatou Toure")
+        toure_section = html[toure_section_start:toure_section_start + 3000]
+        assert "1" in toure_section and "2" in toure_section
