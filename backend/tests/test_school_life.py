@@ -1,7 +1,7 @@
 """Tests for school_life operational endpoints — auth guards + shape checks."""
 import base64
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from conftest import get_test_client
@@ -12,6 +12,7 @@ from app.core.database import SessionLocal, engine  # noqa: E402
 from app.core.security import create_access_token, get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.grade import Grade  # noqa: E402
+from app.models.school_event import SchoolEvent  # noqa: E402
 from app.models.student import Gender, Student, StudentStatus  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 
@@ -384,3 +385,127 @@ class TestGenerateBatchReportCards:
         toure_section_start = html.index("Aissatou Toure")
         toure_section = html[toure_section_start:toure_section_start + 3000]
         assert "1" in toure_section and "2" in toure_section
+
+
+class TestExportEventsIcs:
+    """Horizon 1 de la feuille de route stratégique (2026-08-16) : export
+    du calendrier scolaire au format iCalendar (RFC 5545) — un parent ou
+    un enseignant peut s'y abonner depuis Google Calendar/Outlook/Apple
+    Calendar sans intégration propriétaire par fournisseur."""
+
+    def _make_tenant(self, name="École Calendrier"):
+        tenant_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(Tenant(
+                id=tenant_id, name=name, slug=f"cal-{tenant_id[:8]}",
+                type="secondary", country="GN", is_active=True, settings={},
+            ))
+            db.commit()
+        return tenant_id
+
+    def test_requires_auth(self):
+        resp = client.get("/api/v1/school-life/events/export.ics")
+        assert resp.status_code in (401, 403)
+
+    def test_returns_valid_calendar_content_type(self):
+        tenant_id = self._make_tenant()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        resp = client.get("/api/v1/school-life/events/export.ics", headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.headers["content-type"].startswith("text/calendar")
+        assert "calendrier-scolaire.ics" in resp.headers["content-disposition"]
+
+    def test_empty_calendar_is_still_valid_ics(self):
+        tenant_id = self._make_tenant()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        resp = client.get("/api/v1/school-life/events/export.ics", headers=headers)
+        assert resp.status_code == 200
+        assert resp.text.startswith("BEGIN:VCALENDAR\r\n")
+        assert resp.text.rstrip().endswith("END:VCALENDAR")
+        assert "VEVENT" not in resp.text
+
+    def test_timed_event_uses_datetime_fields(self):
+        tenant_id = self._make_tenant()
+        with SessionLocal() as db:
+            db.add(SchoolEvent(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                title="Réunion parents-profs", description="Salle polyvalente",
+                start_date=datetime(2026, 10, 15, 14, 0, 0),
+                end_date=datetime(2026, 10, 15, 16, 30, 0),
+                location="Salle A", is_all_day=False, event_type="MEETING",
+            ))
+            db.commit()
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        resp = client.get("/api/v1/school-life/events/export.ics", headers=headers)
+        assert resp.status_code == 200
+        body = resp.text
+
+        assert "BEGIN:VEVENT" in body
+        assert "SUMMARY:Réunion parents-profs" in body
+        assert "DTSTART:20261015T140000" in body
+        assert "DTEND:20261015T163000" in body
+        assert "LOCATION:Salle A" in body
+        assert "CATEGORIES:MEETING" in body
+        assert "VALUE=DATE" not in body
+
+    def test_all_day_event_uses_date_only_fields(self):
+        tenant_id = self._make_tenant()
+        with SessionLocal() as db:
+            db.add(SchoolEvent(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                title="Vacances de la Toussaint",
+                start_date=datetime(2026, 10, 24, 0, 0, 0),
+                end_date=datetime(2026, 11, 2, 0, 0, 0),
+                is_all_day=True, event_type="HOLIDAY",
+            ))
+            db.commit()
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        resp = client.get("/api/v1/school-life/events/export.ics", headers=headers)
+        assert resp.status_code == 200
+        body = resp.text
+
+        assert "DTSTART;VALUE=DATE:20261024" in body
+        assert "DTEND;VALUE=DATE:20261102" in body
+
+    def test_special_characters_are_escaped_per_rfc5545(self):
+        """A comma, semicolon or embedded newline in the title/description
+        must not corrupt the surrounding ICS structure for the calendar
+        client parsing it."""
+        tenant_id = self._make_tenant()
+        with SessionLocal() as db:
+            db.add(SchoolEvent(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                title="Sortie: Musée, Bibliothèque; Parc",
+                description="Ligne 1\nLigne 2",
+                start_date=datetime(2026, 11, 5, 9, 0, 0),
+                is_all_day=False, event_type="TRIP",
+            ))
+            db.commit()
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        resp = client.get("/api/v1/school-life/events/export.ics", headers=headers)
+        assert resp.status_code == 200
+        body = resp.text
+
+        # Only backslash/comma/semicolon/newline are escaped per RFC 5545
+        # §3.3.11 — a colon is NOT one of them (unlike ':' inside a URI).
+        assert "SUMMARY:Sortie: Musée\\, Bibliothèque\\; Parc" in body
+        assert "DESCRIPTION:Ligne 1\\nLigne 2" in body
+
+    def test_never_leaks_another_tenants_events(self):
+        tenant_a = self._make_tenant("École A")
+        tenant_b = self._make_tenant("École B")
+        with SessionLocal() as db:
+            db.add(SchoolEvent(
+                id=str(uuid.uuid4()), tenant_id=tenant_b,
+                title="Événement École B — confidentiel",
+                start_date=datetime(2026, 12, 1, 9, 0, 0), is_all_day=False,
+            ))
+            db.commit()
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_a})
+        resp = client.get("/api/v1/school-life/events/export.ics", headers=headers)
+        assert resp.status_code == 200
+        assert "École B" not in resp.text

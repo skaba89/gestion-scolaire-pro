@@ -124,6 +124,31 @@ const SchoolCalendar = () => {
     },
   });
 
+  const handleExportIcs = async () => {
+    // Horizon 1 (feuille de route stratégique) : export au format
+    // iCalendar standard, importable/synchronisable dans Google
+    // Calendar/Outlook/Apple Calendar. L'endpoint exige une
+    // authentification (comme /school-life/events/), donc un simple lien
+    // <a href> ne fonctionnerait pas — on récupère le fichier via
+    // apiClient (qui attache le token) puis on déclenche le
+    // téléchargement côté client à partir du blob obtenu.
+    try {
+      const response = await apiClient.get("/school-life/events/export.ics", {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(response.data as Blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "calendrier-scolaire.ics";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast.error(t("schoolCalendar.exportIcsError"));
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       title: "",
@@ -178,7 +203,12 @@ const SchoolCalendar = () => {
           <h1 className="text-2xl font-display font-bold text-foreground">{t("schoolCalendar.pageTitle")}</h1>
           <p className="text-muted-foreground">{t("schoolCalendar.pageSubtitle")}</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleExportIcs}>
+            <CalendarDays className="w-4 h-4 mr-2" />
+            {t("schoolCalendar.exportIcs")}
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => openNewEventDialog()}>
               <Plus className="w-4 h-4 mr-2" />
@@ -292,6 +322,7 @@ const SchoolCalendar = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Legend */}

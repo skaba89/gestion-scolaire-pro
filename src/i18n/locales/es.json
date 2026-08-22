@@ -1932,6 +1932,8 @@
     "pageTitle": "Calendario Escolar",
     "pageSubtitle": "Eventos, exámenes y vacaciones",
     "newEvent": "Nuevo evento",
+    "exportIcs": "Exportar (.ics)",
+    "exportIcsError": "No se pudo exportar el calendario. Vuelva a intentarlo.",
     "dialogTitle": "Crear un evento",
     "labelTitle": "Título *",
     "titlePlaceholder": "Nombre del evento",
