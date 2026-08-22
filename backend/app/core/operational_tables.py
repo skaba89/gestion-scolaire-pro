@@ -1,7 +1,7 @@
 """
 Operational table DDL for tables that have no SQLAlchemy ORM model.
 
-These tables are referenced by SQL-based endpoints (library, inventory, clubs,
+These tables are referenced by SQL-based endpoints (library, inventory,
 surveys, messaging, alumni, forums, etc.) but are not covered by
 ``Base.metadata.create_all()`` because no ORM model exists for them.
 
@@ -11,6 +11,9 @@ to run on every startup.
 TODO: Long-term, these should be converted to proper SQLAlchemy models
 and managed via Alembic migrations. This module exists as a transitional
 step to keep main.py clean while preserving existing behavior.
+
+MIGRÉ (voir app/models/club.py + alembic/versions/20260822_0001_*) :
+clubs, club_memberships — pilote de cette migration, retirées d'ici.
 """
 import logging
 from sqlalchemy import text
@@ -118,42 +121,8 @@ _DDL = [
     )""",
     """CREATE INDEX IF NOT EXISTS ix_order_items_order_id ON order_items(order_id)""",
 
-    # ── Clubs ────────────────────────────────────────────────────────────
-    """CREATE TABLE IF NOT EXISTS clubs (
-        id UUID PRIMARY KEY,
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        advisor_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
-        max_members INTEGER,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_clubs_tenant_id ON clubs(tenant_id)""",
-    # meeting_day/meeting_time/location : présents dans le schéma Pydantic et
-    # les requêtes SQL de clubs.py depuis toujours, mais jamais ajoutés à la
-    # table -> INSERT en échec systématique (UndefinedColumn) à la création.
-    """ALTER TABLE clubs ADD COLUMN IF NOT EXISTS meeting_day VARCHAR(50)""",
-    """ALTER TABLE clubs ADD COLUMN IF NOT EXISTS meeting_time VARCHAR(50)""",
-    """ALTER TABLE clubs ADD COLUMN IF NOT EXISTS location VARCHAR(255)""",
-
-    """CREATE TABLE IF NOT EXISTS club_memberships (
-        id UUID PRIMARY KEY,
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        club_id UUID NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
-        student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-        role VARCHAR(50),
-        joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_club_memberships_tenant_id
-        ON club_memberships(tenant_id)""",
-    """CREATE INDEX IF NOT EXISTS ix_club_memberships_student_id
-        ON club_memberships(student_id)""",
-    """CREATE INDEX IF NOT EXISTS ix_club_memberships_club_id
-        ON club_memberships(club_id)""",
+    # ── Clubs : MIGRÉ vers Alembic + ORM (app/models/club.py,
+    # alembic/versions/20260822_0001_adopt_clubs_tables.py) ────────────────
 
     # ── Surveys ──────────────────────────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS surveys (
@@ -1007,8 +976,6 @@ _DDL = [
     """ALTER TABLE inventory_transactions ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE orders ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE order_items ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
-    """ALTER TABLE clubs ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
-    """ALTER TABLE club_memberships ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE surveys ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE survey_questions ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE survey_responses ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
@@ -1032,15 +999,12 @@ _DDL = [
     """ALTER TABLE school_settings ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
 
     # ── FK cassées vers "profiles" (table jamais peuplée, 0 ligne) ────────────
-    # clubs.advisor_id, surveys.created_by, student_forums.created_by
-    # référençaient profiles(id) au lieu de users(id) -> ForeignKeyViolation
-    # systématique dès qu'on essayait d'y mettre un vrai utilisateur.
-    """DO $$ BEGIN
-        ALTER TABLE clubs DROP CONSTRAINT IF EXISTS clubs_advisor_id_fkey;
-        ALTER TABLE clubs ADD CONSTRAINT clubs_advisor_id_fkey
-            FOREIGN KEY (advisor_id) REFERENCES users(id) ON DELETE SET NULL;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END $$""",
+    # surveys.created_by, student_forums.created_by référençaient
+    # profiles(id) au lieu de users(id) -> ForeignKeyViolation systématique
+    # dès qu'on essayait d'y mettre un vrai utilisateur.
+    # (clubs.advisor_id avait le même correctif ici ; ce bloc a migré dans
+    # alembic/versions/20260822_0001_adopt_clubs_tables.py avec le reste
+    # du schéma clubs — voir app/models/club.py.)
     """DO $$ BEGIN
         ALTER TABLE surveys DROP CONSTRAINT IF EXISTS surveys_created_by_fkey;
         ALTER TABLE surveys ADD CONSTRAINT surveys_created_by_fkey
