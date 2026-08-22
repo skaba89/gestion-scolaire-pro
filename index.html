@@ -10,6 +10,10 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/pwa-192x192.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/pwa-192x192.png" />
   <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+  <!-- Manifeste PWA statique et indépendant de VitePWA (désactivé par défaut,
+       voir docs/mobile/PWA_AUDIT.md §1/§5) — sans lui, /install attend un
+       `beforeinstallprompt` qui ne se déclenche jamais faute de manifeste lié. -->
+  <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="description"
     content="Plateforme SaaS multi-tenant de gestion scolaire complète. Gérez admissions, élèves, notes, finances et communications." />
   <meta name="author" content="Academy Guinée" />

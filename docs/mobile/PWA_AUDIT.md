@@ -107,3 +107,27 @@ Vérifié au passage : `src/offline/__tests__/outbox.test.ts` (la file
 d'attente offline mentionnée au §2/§3) passe 16/16 — la brique
 applicative existe et fonctionne, elle est simplement indépendante du
 service worker (confirmé, cohérent avec le constat déjà posé).
+
+## 6. Complément — 22/08/2026 : manifeste ajouté, installabilité réelle
+
+Le gap du §5 (aucun `<link rel="manifest">`, app non installable en
+build standard) est comblé : `public/manifest.webmanifest` ajouté
+(statique, indépendant de VitePWA — pas de réactivation de Workbox,
+donc aucun changement au risque de double-SW déjà documenté au §1),
+et lié dans `index.html`. `/install` peut désormais recevoir un vrai
+`beforeinstallprompt`.
+
+**Dette assumée dans ce correctif, à ne pas oublier** : les deux
+fichiers d'icônes référencés (`public/pwa-192x192.png`,
+`public/pwa-512x512.png`) sont en réalité encodés en JPEG malgré leur
+extension `.png`, et `pwa-192x192.png` fait 1024×1024 px réels (pas
+192×192 comme son nom l'indique — `pwa-512x512.png` est correct en
+dimensions). Le manifeste déclare les tailles réelles (1024×1024 et
+512×512) pour rester honnête et fonctionnel plutôt que de mentir sur
+`sizes`, mais ça reste un contournement : `pwa-192x192.png` pèse donc
+inutilement plus lourd que nécessaire à chaque premier chargement —
+notable vu la contrainte bande passante du §7. Régénérer les deux
+fichiers en PNG véritable aux dimensions annoncées par leur nom est
+un correctif propre et sans risque, mais nécessite un outil de
+traitement d'image (indisponible dans cet environnement au moment de
+ce correctif) — signalé séparément.
