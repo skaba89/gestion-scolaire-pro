@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTenant } from "@/contexts/TenantContext";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScrollProgress } from "@/components/ui/scroll-progress";
@@ -107,7 +108,8 @@ export const AdminLayout = () => {
   const { getTenantUrl } = useTenantUrl();
   const { tenant, isLoading: isTenantLoading } = useTenant(); // Add useTenant hook
 
-  // Realtime sync disabled (migrated from Supabase)
+  useRealtimeMessages();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { t } = useTranslation();
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ScrollProgress } from "@/components/ui/scroll-progress";
 import {
   Building2,
@@ -29,6 +30,8 @@ export const DepartmentLayout = () => {
   const location = useLocation();
   const { getTenantUrl } = useTenantUrl();
   const { StudentsLabel } = useStudentLabel();
+
+  useRealtimeMessages();
 
   const navItems = [
     { href: getTenantUrl("/department"), label: t("nav.dashboard"), icon: Home },

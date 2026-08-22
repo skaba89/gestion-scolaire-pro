@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ResponsiveSidebar } from "@/components/layouts/ResponsiveSidebar";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PageTransition } from "@/components/layouts/PageTransition";
@@ -17,6 +18,8 @@ export function AlumniLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const { getTenantUrl } = useTenantUrl();
+
+  useRealtimeMessages();
 
   const navItems = [
     {
