@@ -246,10 +246,25 @@ class TestGenerateBatchReportCards:
             db.commit()
 
             for subj_name, coeff, score in subject_grades:
-                subject_id = str(uuid.uuid4())
+                # PostgreSQL enforces a real (tenant_id, name) unique
+                # constraint on subjects (uq_subjects_tenant_name) that a
+                # first version of this fixture didn't respect — it
+                # created a fresh "Mathématiques" row per student, which
+                # SQLite's test DB silently tolerated but real Postgres
+                # CI correctly rejected. Reuse the tenant's existing
+                # subject by name instead of always inserting a new one,
+                # matching how a real school actually has one shared
+                # "Mathématiques" subject, not one per student.
+                existing = db.query(Subject).filter(
+                    Subject.tenant_id == ctx["tenant_id"], Subject.name == subj_name,
+                ).first()
+                if existing:
+                    subject_id = str(existing.id)
+                else:
+                    subject_id = str(uuid.uuid4())
+                    db.add(Subject(id=subject_id, tenant_id=ctx["tenant_id"], name=subj_name, coefficient=coeff))
+                    db.commit()
                 assessment_id = str(uuid.uuid4())
-                db.add(Subject(id=subject_id, tenant_id=ctx["tenant_id"], name=subj_name, coefficient=coeff))
-                db.commit()
                 db.add(Assessment(
                     id=assessment_id, tenant_id=ctx["tenant_id"], name=f"Examen {subj_name}",
                     max_score=20.0, date=date(2026, 12, 1), assessment_type="EXAM", weight=1.0,
