@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ScrollProgress } from "@/components/ui/scroll-progress";
 import {
   BarChart3,
@@ -23,6 +24,8 @@ export const TeacherLayout = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const { getTenantUrl } = useTenantUrl();
+
+  useRealtimeMessages();
 
   const navItems = [
     { href: getTenantUrl("/teacher"), label: "Tableau de bord", icon: Home },

@@ -4,7 +4,6 @@ import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useCurrency } from "@/hooks/useCurrency";
-import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ReminderSystem } from "@/components/reminders/ReminderSystem";
 import {
   Users,
@@ -47,8 +46,6 @@ const ParentDashboard = () => {
   const { tenant } = useTenant();
   const { formatCurrency } = useCurrency();
   const { getTenantUrl } = useTenantUrl();
-
-  useRealtimeMessages();
 
   const {
     children,

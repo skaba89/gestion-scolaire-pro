@@ -4,7 +4,7 @@
  * Replaces the Supabase channel subscription.
  */
 import { useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,8 +18,16 @@ export const useRealtimeMessages = () => {
   const { currentTenant } = useTenant();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const lastSeenRef = useRef<string>(new Date().toISOString());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Tracked via ref (not a `poll` dependency) so plain navigation between
+  // pages of the same portal doesn't tear down and restart the poll interval.
+  const pathnameRef = useRef(location.pathname);
+
+  useEffect(() => {
+    pathnameRef.current = location.pathname;
+  }, [location.pathname]);
 
   const poll = useCallback(async () => {
     if (!user?.id || !currentTenant?.id) return;
@@ -50,9 +58,13 @@ export const useRealtimeMessages = () => {
             action: {
               label: "Voir",
               onClick: () => {
-                // Navigate to messages page
-                if (currentTenant?.slug) {
-                  navigate(`/${currentTenant.slug}/messages`);
+                // Navigate to this portal's messages page. The portal segment
+                // (parent/teacher/student/admin/alumni/department) is the
+                // second path segment after the tenant slug — read from a
+                // ref so it stays fresh without churning the `poll` identity.
+                const portal = pathnameRef.current.split("/")[2];
+                if (currentTenant?.slug && portal) {
+                  navigate(`/${currentTenant.slug}/${portal}/messages`);
                 }
               },
             },
