@@ -124,53 +124,8 @@ _DDL = [
     # ── Clubs : MIGRÉ vers Alembic + ORM (app/models/club.py,
     # alembic/versions/20260822_0001_adopt_clubs_tables.py) ────────────────
 
-    # ── Surveys ──────────────────────────────────────────────────────────
-    """CREATE TABLE IF NOT EXISTS surveys (
-        id UUID PRIMARY KEY,
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        title VARCHAR(500) NOT NULL,
-        description TEXT,
-        target_audience VARCHAR(100) DEFAULT 'ALL',
-        is_anonymous BOOLEAN DEFAULT false,
-        is_active BOOLEAN DEFAULT true,
-        starts_at TIMESTAMPTZ,
-        ends_at TIMESTAMPTZ,
-        created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_surveys_tenant_id ON surveys(tenant_id)""",
-    """CREATE INDEX IF NOT EXISTS ix_surveys_created_by ON surveys(created_by)""",
-
-    """CREATE TABLE IF NOT EXISTS survey_questions (
-        id UUID PRIMARY KEY,
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
-        question_text TEXT NOT NULL,
-        question_type VARCHAR(50) NOT NULL,
-        options JSONB,
-        order_index INTEGER NOT NULL DEFAULT 0,
-        is_required BOOLEAN DEFAULT true,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_survey_questions_tenant_id
-        ON survey_questions(tenant_id)""",
-    """CREATE INDEX IF NOT EXISTS ix_survey_questions_survey_id
-        ON survey_questions(survey_id)""",
-
-    """CREATE TABLE IF NOT EXISTS survey_responses (
-        id UUID PRIMARY KEY,
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        survey_id UUID NOT NULL REFERENCES surveys(id) ON DELETE CASCADE,
-        respondent_id UUID,
-        response_data JSONB NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_survey_responses_tenant_id
-        ON survey_responses(tenant_id)""",
-    """CREATE INDEX IF NOT EXISTS ix_survey_responses_survey_id
-        ON survey_responses(survey_id)""",
+    # ── Surveys : MIGRÉ vers Alembic + ORM (app/models/survey.py,
+    # alembic/versions/20260823_0001_adopt_surveys_tables.py) ──────────────
 
     # ── Announcements ────────────────────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS announcements (
@@ -976,9 +931,6 @@ _DDL = [
     """ALTER TABLE inventory_transactions ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE orders ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE order_items ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
-    """ALTER TABLE surveys ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
-    """ALTER TABLE survey_questions ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
-    """ALTER TABLE survey_responses ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE announcements ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE conversations ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE conversation_participants ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
@@ -999,18 +951,14 @@ _DDL = [
     """ALTER TABLE school_settings ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
 
     # ── FK cassées vers "profiles" (table jamais peuplée, 0 ligne) ────────────
-    # surveys.created_by, student_forums.created_by référençaient
-    # profiles(id) au lieu de users(id) -> ForeignKeyViolation systématique
-    # dès qu'on essayait d'y mettre un vrai utilisateur.
-    # (clubs.advisor_id avait le même correctif ici ; ce bloc a migré dans
-    # alembic/versions/20260822_0001_adopt_clubs_tables.py avec le reste
-    # du schéma clubs — voir app/models/club.py.)
-    """DO $$ BEGIN
-        ALTER TABLE surveys DROP CONSTRAINT IF EXISTS surveys_created_by_fkey;
-        ALTER TABLE surveys ADD CONSTRAINT surveys_created_by_fkey
-            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END $$""",
+    # student_forums.created_by référençait profiles(id) au lieu de
+    # users(id) -> ForeignKeyViolation systématique dès qu'on essayait d'y
+    # mettre un vrai utilisateur.
+    # (clubs.advisor_id et surveys.created_by avaient le même correctif
+    # ici ; ces blocs ont migré dans alembic/versions/
+    # 20260822_0001_adopt_clubs_tables.py et
+    # 20260823_0001_adopt_surveys_tables.py avec le reste de leurs
+    # schémas respectifs.)
     """DO $$ BEGIN
         ALTER TABLE student_forums DROP CONSTRAINT IF EXISTS student_forums_created_by_fkey;
         ALTER TABLE student_forums ADD CONSTRAINT student_forums_created_by_fkey
