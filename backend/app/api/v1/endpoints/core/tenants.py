@@ -1,5 +1,7 @@
 from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
@@ -11,6 +13,22 @@ import json
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Public, unauthenticated, read-only browsing routes (directory listing,
+# landing page, custom pages) — meant to be hit by many anonymous
+# prospective-customer visitors, not the 100/minute app-wide default
+# (bug found in production 2026-08-22: the annuaire silently fell back to
+# hardcoded demo institutions after the real /tenants/public/ list started
+# 429ing under completely ordinary browsing traffic — reproduced live).
+# Deliberately generous; these routes carry no PII beyond what's already
+# published, so there's no meaningful abuse surface to defend by throttling
+# harder here. Root cause of *why* ordinary traffic exhausts the app-wide
+# 100/minute this fast (proxy IP trust collapsing every visitor onto one
+# shared bucket, see _get_client_ip in app/main.py) is a separate,
+# infrastructure-level investigation — this raises the ceiling on the
+# routes that must never be the ones that break for a stranger evaluating
+# the platform, regardless of that root cause.
+public_browsing_limiter = Limiter(key_func=get_remote_address)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
@@ -472,7 +490,9 @@ async def update_security_settings(
 
 
 @router.get("/public/", response_model=List[TenantPublicCard])
+@public_browsing_limiter.limit("300/minute")
 async def list_public_tenants(
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -639,7 +659,9 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
 
 
 @router.get("/public/{slug}/", response_model=TenantPublicResponse)
+@public_browsing_limiter.limit("300/minute")
 async def get_public_tenant_by_slug(
+    request: Request,
     slug: str,
     db: Session = Depends(get_db),
 ):
@@ -651,7 +673,9 @@ async def get_public_tenant_by_slug(
 
 
 @router.get("/by-domain/{domain}/", response_model=TenantPublicResponse)
+@public_browsing_limiter.limit("300/minute")
 async def get_tenant_by_domain(
+    request: Request,
     domain: str,
     db: Session = Depends(get_db),
 ):
