@@ -203,6 +203,30 @@ function SkeletonCard() {
   );
 }
 
+function ErrorState({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  return (
+    <div className="col-span-full flex flex-col items-center justify-center py-24 text-center">
+      <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mb-6">
+        <School className="w-9 h-9 text-red-300" />
+      </div>
+      <h3 className="text-lg font-semibold text-gray-700 mb-2">
+        Impossible de charger l&apos;annuaire pour le moment
+      </h3>
+      <p className="text-gray-400 text-sm max-w-sm mb-5">
+        Un problème temporaire nous empêche d&apos;afficher les établissements. Réessayez dans
+        quelques instants.
+      </p>
+      <button
+        onClick={onRetry}
+        disabled={retrying}
+        className="px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all disabled:opacity-60"
+      >
+        {retrying ? "Nouvel essai..." : "Réessayer"}
+      </button>
+    </div>
+  );
+}
+
 function EmptyState({ query, tab }: { query: string; tab: FilterTab }) {
   return (
     <div className="col-span-full flex flex-col items-center justify-center py-24 text-center">
@@ -310,14 +334,24 @@ export default function PublicDirectory() {
   const [sort, setSort] = useState<SortOption>("az");
 
   // Load tenants from the sovereign API
-  const { data: apiTenants, isLoading } = usePublicTenants();
+  const { data: apiTenants, isLoading, isError, refetch, isFetching } = usePublicTenants();
 
+  // Fallback demo data only covers "the API returned zero real tenants"
+  // (an empty marketing directory looks broken to a prospective customer
+  // browsing before any school has signed up) — never a real API failure.
+  // Silently swapping in fake institutions on isError used to mask a real
+  // production incident: /tenants/public/ 429ing under ordinary traffic
+  // (rate limit, since fixed) surfaced as if the directory legitimately
+  // only contained demo schools with dead-end slugs like "lasource" —
+  // see src/routes/PublicRoutes.tsx's /demo redirect comment for the
+  // matching, previously-fixed half of this exact confusion.
   const displayTenants = useMemo(() => {
     if (apiTenants && apiTenants.length > 0) {
       return apiTenants;
     }
+    if (isError) return [];
     return FALLBACK_TENANTS;
-  }, [apiTenants]);
+  }, [apiTenants, isError]);
 
   // Filter and sort
   const filtered = useMemo(() => {
@@ -447,7 +481,7 @@ export default function PublicDirectory() {
       {/* RESULTS COUNT                                                    */}
       {/* ================================================================ */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 mb-4">
-        {!isLoading && (
+        {!isLoading && !isError && (
           <p className="text-gray-500 text-sm">
             {filtered.length === 0 ? (
               "Aucun résultat"
@@ -474,6 +508,8 @@ export default function PublicDirectory() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+          ) : isError ? (
+            <ErrorState onRetry={() => refetch()} retrying={isFetching} />
           ) : filtered.length === 0 ? (
             <EmptyState query={search} tab={activeTab} />
           ) : (

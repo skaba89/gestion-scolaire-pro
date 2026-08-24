@@ -547,9 +547,17 @@ async def reorder_public_pages(
 
 public_router = APIRouter()
 
+# Read-only public browsing routes below — see the matching comment on
+# app/api/v1/endpoints/core/tenants.py::public_browsing_limiter for why
+# these carry a much higher ceiling than the app-wide 100/minute default
+# (real production incident, 2026-08-22).
+public_browsing_limiter = Limiter(key_func=get_remote_address)
+
 
 @public_router.get("/{tenant_slug}/pages/", response_model=List[PublicPageListItem])
+@public_browsing_limiter.limit("300/minute")
 async def list_published_pages_public(
+    request: Request,
     tenant_slug: str,
     db: Session = Depends(get_db),
 ):
@@ -577,7 +585,9 @@ async def list_published_pages_public(
 
 
 @public_router.get("/{tenant_slug}/nav/", response_model=List[PublicPageNavResponse])
+@public_browsing_limiter.limit("300/minute")
 async def list_nav_pages_public(
+    request: Request,
     tenant_slug: str,
     db: Session = Depends(get_db),
 ):
@@ -606,7 +616,9 @@ async def list_nav_pages_public(
 
 
 @public_router.get("/{tenant_slug}/pages/{page_slug}/", response_model=PublicPagePublicResponse)
+@public_browsing_limiter.limit("300/minute")
 async def get_published_page_public(
+    request: Request,
     tenant_slug: str,
     page_slug: str,
     db: Session = Depends(get_db),
