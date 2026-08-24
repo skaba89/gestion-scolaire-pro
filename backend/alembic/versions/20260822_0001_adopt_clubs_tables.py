@@ -19,9 +19,20 @@ Pourquoi :
 
 CREATE TABLE IF NOT EXISTS ci-dessous est un no-op en production (les
 tables existent déjà, créées historiquement par operational_tables.py) et
-crée le schéma pour tout nouvel environnement. Le schéma reproduit
-exactement l'état actuel de production, y compris les correctifs
-appliqués après coup par operational_tables.py :
+crée le schéma pour tout nouvel environnement — MAIS il existe aussi une
+migration Alembic bien plus ancienne, 20260406_create_operational_tables,
+qui crée déjà "clubs"/"club_memberships" via op.create_table() (schéma
+d'ORIGINE, sans meeting_day/meeting_time/location, advisor_id -> profiles
+pas users). Sur une base neuve, cette migration-là s'applique la
+première : notre CREATE TABLE IF NOT EXISTS devient alors un no-op qui
+ne comble PAS ces écarts. D'où les ALTER TABLE ADD COLUMN IF NOT EXISTS
+et le bloc DO ci-dessous, indispensables et pas juste "ceinture et
+bretelles" — c'est le chemin réellement exercé sur toute base neuve
+(confirmé par le job CI Backend Tests (PostgreSQL), qui échouait sur
+"column meeting_day does not exist" avant ce correctif). Le schéma final
+reproduit exactement l'état actuel de production, y compris les
+correctifs appliqués après coup par operational_tables.py avant sa
+suppression de ce module :
   - id avec DEFAULT gen_random_uuid() (patch "Défaut UUID manquant sur 30
     tables", operational_tables.py ~ligne 1000).
   - clubs.advisor_id → users(id), pas profiles(id) : la FK d'origine vers
@@ -29,7 +40,8 @@ appliqués après coup par operational_tables.py :
     de ligne peuplée pour ce besoin, operational_tables.py ~ligne 1034).
   - clubs.meeting_day / meeting_time / location : ajoutées après coup
     (présentes dans le Pydantic et les requêtes SQL depuis toujours, mais
-    absentes de la table initiale).
+    absentes de la table initiale — y compris celle créée par la
+    migration Alembic d'origine, pas seulement le DDL brut).
 
 SQLite : ignorée (les modèles ORM assurent déjà la création du schéma via
 Base.metadata.create_all() dans les tests, voir tests/conftest.py — cette
@@ -74,6 +86,14 @@ def upgrade():
         )
     """))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_clubs_tenant_id ON clubs(tenant_id)"))
+
+    # Comble le schéma quand "clubs" existait déjà (créée par la migration
+    # d'origine 20260406_create_operational_tables, sans ces 3 colonnes —
+    # voir le docstring du module). Idempotent, s'applique aussi si le
+    # CREATE TABLE ci-dessus vient de créer la table au complet.
+    conn.execute(text("ALTER TABLE clubs ADD COLUMN IF NOT EXISTS meeting_day VARCHAR(50)"))
+    conn.execute(text("ALTER TABLE clubs ADD COLUMN IF NOT EXISTS meeting_time VARCHAR(50)"))
+    conn.execute(text("ALTER TABLE clubs ADD COLUMN IF NOT EXISTS location VARCHAR(255)"))
 
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS club_memberships (
