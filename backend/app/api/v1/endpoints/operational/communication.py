@@ -811,6 +811,15 @@ def poll_new_messages(
             "conversation_id": str(r.conversation_id),
             "sender_name": f"{r.first_name or ''} {r.last_name or ''}".strip()
         } for r in rows]
+    except HTTPException:
+        # resolve_current_tenant_id() raises its own HTTPException (400/403)
+        # when the tenant can't be resolved — the broad except below used to
+        # catch that too and mask it as a generic 500, hiding the real
+        # cause. Now that useRealtimeMessages() polls from all 6 portal
+        # layouts (previously only Parent), this endpoint is hit far more
+        # often across more identities, making any tenant-resolution edge
+        # case in this specific call site much more visible than before.
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error polling messages: %s", e)
