@@ -299,7 +299,7 @@ const CreateTenant = () => {
                       id="slug"
                       placeholder={t("createTenant.placeholderSlug")}
                       value={formData.slug}
-                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, slug: generateSlug(e.target.value) })}
                       required
                     />
                   </div>

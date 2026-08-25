@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, Building2, Save, Loader2, Palette, Globe, CreditCard,
-  MapPin, Image, Phone, Mail, BookOpen, Settings, Shield, FileText, KeyRound
+  MapPin, Image, Phone, Mail, BookOpen, Settings, Shield, FileText, KeyRound,
+  Pencil, Check, X,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -136,6 +137,32 @@ export default function TenantSettings() {
     logo_url: "",
     favicon_url: "",
     official_name: "",
+  });
+
+  // Édition du slug — séparée du gros formulaire ci-dessous : changer
+  // l'URL canonique d'un établissement (login, pages publiques,
+  // annuaire — voir src/App.tsx) est une opération distincte qui ne
+  // doit jamais partir accidentellement en même temps qu'un
+  // enregistrement de couleur ou de tagline. Seul chemin de réparation
+  // pour un slug déjà cassé (ex. une URL collée par erreur à la
+  // création) — voir PATCH /tenants/{id}/ côté backend, réservé
+  // SUPER_ADMIN.
+  const [editingSlug, setEditingSlug] = useState(false);
+  const [slugDraft, setSlugDraft] = useState("");
+
+  const updateSlugMutation = useMutation({
+    mutationFn: async (newSlug: string) => {
+      await apiClient.patch(`/tenants/${tenantId}/`, { slug: newSlug });
+    },
+    onSuccess: () => {
+      toast.success("Slug mis à jour avec succès");
+      setEditingSlug(false);
+      queryClient.invalidateQueries({ queryKey: ["tenant-detail", tenantId] });
+      queryClient.invalidateQueries({ queryKey: ["super-admin-tenants"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Erreur lors de la mise à jour du slug");
+    },
   });
 
   const { data: tenant, isLoading } = useQuery<TenantDetail>({
@@ -291,12 +318,50 @@ export default function TenantSettings() {
               <Settings className="w-6 h-6 text-primary" />
               Paramètres — {tenant.name}
             </h1>
-            <p className="text-muted-foreground text-sm flex items-center gap-2 mt-1">
-              <code className="bg-muted px-2 py-0.5 rounded text-xs">{tenant.slug}</code>
+            <div className="text-muted-foreground text-sm flex items-center gap-2 mt-1">
+              {editingSlug ? (
+                <>
+                  <Input
+                    value={slugDraft}
+                    onChange={(e) => setSlugDraft(e.target.value)}
+                    className="h-7 w-56 font-mono text-xs"
+                    placeholder="mon-etablissement"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost" size="icon" className="h-7 w-7 text-green-600"
+                    disabled={updateSlugMutation.isPending || !slugDraft.trim()}
+                    onClick={() => updateSlugMutation.mutate(slugDraft.trim())}
+                    aria-label="Confirmer le nouveau slug"
+                  >
+                    {updateSlugMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  </Button>
+                  <Button
+                    variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground"
+                    disabled={updateSlugMutation.isPending}
+                    onClick={() => setEditingSlug(false)}
+                    aria-label="Annuler"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <code className="bg-muted px-2 py-0.5 rounded text-xs">{tenant.slug}</code>
+                  <Button
+                    variant="ghost" size="icon" className="h-6 w-6"
+                    onClick={() => { setSlugDraft(tenant.slug); setEditingSlug(true); }}
+                    aria-label="Modifier le slug"
+                    title="Modifier le slug (URL de l'établissement)"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                </>
+              )}
               <Badge variant={tenant.is_active ? "default" : "secondary"}>
                 {tenant.is_active ? "Actif" : "Inactif"}
               </Badge>
-            </p>
+            </div>
           </div>
         </div>
         <Button

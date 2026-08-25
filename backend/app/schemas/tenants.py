@@ -1,10 +1,45 @@
+import re
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from uuid import UUID
 from datetime import datetime
 
+# Le slug devient le segment d'URL /:tenantSlug qui identifie
+# l'établissement dans toute l'app (login, pages publiques, annuaire —
+# voir src/App.tsx). Jusqu'ici aucune validation de format n'existait ni
+# côté frontend (CreateTenant.tsx laissait le champ libre en édition
+# manuelle) ni ici : un slug contenant une URL complète collée par erreur
+# passait tel quel, rendant l'établissement définitivement inaccessible
+# via /:slug une fois créé (incident réel — signalé par un utilisateur,
+# capture d'écran montrant /https.www.udm.com). DNS-label-like : minuscules,
+# chiffres, tirets, ni tiret ni chiffre en tête/fin de segment consécutif.
+SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+
+def validate_tenant_slug(v: str) -> str:
+    slug = v.strip().lower()
+    if not slug:
+        raise ValueError("Le slug ne peut pas être vide.")
+    if len(slug) > 63:
+        raise ValueError("Le slug ne peut pas dépasser 63 caractères.")
+    if not SLUG_PATTERN.match(slug):
+        raise ValueError(
+            "Le slug ne peut contenir que des lettres minuscules, chiffres et tirets "
+            "(ex. \"universite-la-source\") — pas d'URL, d'espace ni de caractère spécial."
+        )
+    return slug
+
 
 class TenantBase(BaseModel):
+    # NE PAS ajouter le validateur de format ici : TenantResponse hérite
+    # aussi de TenantBase (voir plus bas), et FastAPI applique les
+    # validateurs Pydantic à la SÉRIALISATION de sortie autant qu'à
+    # l'entrée. Un tenant existant portant un slug déjà non conforme
+    # (créé avant ce correctif, ou legacy) ferait alors planter n'importe
+    # quel endpoint qui le renvoie avec un ResponseValidationError/500 —
+    # reproduit en local en testant ce correctif avant de l'expédier.
+    # Le validateur va uniquement sur les schémas d'ÉCRITURE
+    # (TenantCreate, TenantWithAdminCreate) plus bas.
     name: str
     slug: str
     type: str
@@ -21,6 +56,11 @@ class TenantCreate(TenantBase):
     academic_year_end: Optional[datetime] = None
     levels: Optional[List[str]] = None
     terms: Optional[List[Dict[str, Any]]] = None
+
+    @field_validator("slug")
+    @classmethod
+    def _validate_slug(cls, v: str) -> str:
+        return validate_tenant_slug(v)
 
 
 class TenantUpdate(BaseModel):
@@ -72,6 +112,11 @@ class TenantWithAdminCreate(BaseModel):
     admin_email: str
     admin_first_name: str
     admin_last_name: str
+
+    @field_validator("slug")
+    @classmethod
+    def _validate_slug(cls, v: str) -> str:
+        return validate_tenant_slug(v)
 
 
 class TenantAdminUserCreate(BaseModel):
