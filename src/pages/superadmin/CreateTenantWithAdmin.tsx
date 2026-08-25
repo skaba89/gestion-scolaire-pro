@@ -224,7 +224,7 @@ const CreateTenantWithAdmin = () => {
                 <Input
                   id="slug"
                   value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
+                  onChange={(e) => setSlug(generateSlug(e.target.value))}
                   placeholder="lycee-sainte-marie"
                   required
                   className="font-mono"

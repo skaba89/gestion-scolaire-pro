@@ -44,6 +44,7 @@ from app.schemas.tenants import (
     TenantPublicResponse,
     TenantWithAdminCreate,
     TenantAdminUserCreate,
+    validate_tenant_slug,
 )
 from app.models import Tenant, AcademicYear, Campus, Level, Subject, User, UserRole
 
@@ -1616,6 +1617,27 @@ async def update_tenant(
             status_code=400,
             detail=f"Fields not allowed: {', '.join(sorted(unknown_fields))}"
         )
+
+    # "slug" is allowed here (SUPER_ADMIN only) but this endpoint takes a
+    # raw dict + setattr, entirely bypassing the Pydantic schema validators
+    # (validate_tenant_slug in app/schemas/tenants.py) that guard slug
+    # format on create — this is in fact the only route that can currently
+    # fix an already-broken slug (e.g. one containing a full URL, pasted
+    # by mistake at creation — real incident), so it must apply the same
+    # validation itself rather than trust the raw input.
+    if "slug" in tenant_updates:
+        try:
+            new_slug = validate_tenant_slug(str(tenant_updates["slug"]))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        collision = (
+            db.query(Tenant)
+            .filter(Tenant.slug == new_slug, Tenant.id != tenant_id)
+            .first()
+        )
+        if collision:
+            raise HTTPException(status_code=409, detail="Ce slug est déjà utilisé par un autre établissement.")
+        tenant_updates["slug"] = new_slug
 
     for key, value in tenant_updates.items():
         setattr(tenant, key, value)
