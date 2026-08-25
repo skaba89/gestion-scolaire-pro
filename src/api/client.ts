@@ -320,7 +320,16 @@ apiClient.interceptors.response.use(
     // `toast(err.response?.data?.detail || '...')` : passer l'objet à React
     // lève « Objects are not valid as a React child » (erreur #31) et fait
     // planter toute l'application au lieu d'afficher l'erreur de saisie.
-    if (error.response?.data) {
+    //
+    // error.response.data n'est pas toujours un objet : une réponse
+    // text/plain (ex. "Too Many Requests" renvoyée par la couche edge de
+    // Render avant même d'atteindre l'app — pas notre JSON habituel)
+    // laisse axios exposer une simple chaîne ici. Assigner une propriété
+    // sur un primitif string lève un TypeError en mode strict
+    // ("Cannot create property 'detail' on string ..."), qui écrasait le
+    // vrai message d'erreur par un plantage du bloc de gestion d'erreur
+    // lui-même — observé en prod sur /auth/login/ sous rate-limit.
+    if (error.response?.data && typeof error.response.data === "object") {
       error.response.data.detail = normalizeApiDetail(error.response.data.detail);
     }
 
