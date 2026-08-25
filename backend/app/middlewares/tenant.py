@@ -111,6 +111,24 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/admissions/public/",
         ]
 
+        # /uploads/{tenant_id}/{filename} is a Starlette static mount OUTSIDE
+        # settings.API_V1_STR (see app.mount("/uploads", ...) in main.py), so
+        # `check_path` above never strips any prefix from it, and it never
+        # matched the exact-path public_paths list or the file-extension
+        # allowlist further down (which only covered
+        # .ico/.png/.jpg/.jpeg/.svg/.css/.js — not .webp, or any future
+        # format). A tenant's public logo (rendered unauthenticated on
+        # /annuaire and the landing page, see resolveUploadUrl() usages)
+        # requesting a .webp file therefore hit the 401 branch below —
+        # <img src> never sends an Authorization header. Exempt the whole
+        # mount by prefix instead of chasing individual extensions:
+        # uploaded files are meant to be publicly fetchable static assets
+        # (the storage layer's own _SafeStaticFiles already forces
+        # Content-Disposition: attachment, see app/main.py), not
+        # tenant-RLS-scoped API responses.
+        if request.url.path.startswith("/uploads/"):
+            return await call_next(request)
+
         is_public = (
             request.method == "OPTIONS"
             or check_path in public_paths
