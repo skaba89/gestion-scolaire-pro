@@ -139,3 +139,45 @@ describe('apiClient cold-start retry (POST /auth/login/)', () => {
     expect(callCount).toBe(3); // 1 initial + 2 generic retries, not 7
   }, 10_000);
 });
+
+/**
+ * Prod incident (2026-08-25) — a 429 from Render's edge layer (hibernating
+ * free-tier service throttling wake attempts, before the request ever
+ * reaches the FastAPI app) comes back as a plain-text body
+ * ("Too Many Requests"), not our usual JSON `{detail: ...}` shape. axios
+ * exposes that as `error.response.data` being a bare string. The detail-
+ * normalization interceptor used to assign `.detail` onto it
+ * unconditionally — writing a property onto a string primitive throws
+ * `TypeError: Cannot create property 'detail' on string ...` in strict
+ * mode, which replaced the real 429 with a confusing crash on every
+ * login attempt (observed on both iPhone and PC simultaneously, from the
+ * user's own screenshot).
+ */
+describe('apiClient error interceptor — non-JSON error body', () => {
+  it('does not throw when the error response body is a plain string (e.g. edge-layer 429)', async () => {
+    const adapter = vi.fn(async (config: any) => {
+      const err = new AxiosError('Request failed with status code 429');
+      err.config = config;
+      err.response = {
+        status: 429,
+        data: 'Too Many Requests\n',
+        statusText: 'Too Many Requests',
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        config,
+      } as any;
+      throw err;
+    });
+
+    const rejection = apiClient.get('/tenants/public/', { adapter });
+    await expect(rejection).rejects.toThrow();
+
+    // The promise must reject with the *original* 429, not a TypeError
+    // from the interceptor itself crashing on the string body.
+    try {
+      await rejection;
+    } catch (err: any) {
+      expect(err.response?.status).toBe(429);
+      expect(err.response?.data).toBe('Too Many Requests\n');
+    }
+  });
+});
