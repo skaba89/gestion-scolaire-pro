@@ -503,7 +503,14 @@ def transition_status(
 def convert_to_student(
     request: Request,
     admission_id: str,
-    payload: ConvertPayload,
+    # BUG RÉEL (reproduit en prod, 422 systématique) : ConvertPayload a
+    # tous ses champs optionnels, mais SANS valeur par défaut sur le
+    # paramètre lui-même, FastAPI exige quand même un corps de requête
+    # présent — un appel sans corps du tout (ex. apiClient.post(url) côté
+    # frontend, sans second argument) échoue la validation avant même
+    # d'atteindre le code. Un défaut rend l'ensemble du corps facultatif,
+    # cohérent avec le fait que chaque champ l'est déjà individuellement.
+    payload: ConvertPayload = ConvertPayload(),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:write")),
 ):
