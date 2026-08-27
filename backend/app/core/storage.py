@@ -158,8 +158,22 @@ class LocalStorageClient:
             if hostname:
                 backend_url = f"https://{hostname}"
             else:
-                # Last resort: return a relative path that the frontend can resolve
-                return f"/uploads/{object_name}"
+                # BUG RÉEL (signalé par un utilisateur, capture d'écran à
+                # l'appui) : un lien "Voir" sur un document renvoyait ici
+                # "/uploads/{object_name}" — un chemin relatif résolu par
+                # le NAVIGATEUR contre l'origine de la page COURANTE, donc
+                # l'origine du FRONTEND (server.mjs / vite en dev), pas le
+                # backend. server.mjs ne proxifie vers le backend que les
+                # chemins commençant par /api/ ou /api-proxy (voir
+                # server.mjs::serveStatic) — un simple /uploads/... tombe
+                # dans le fallback SPA et sert index.html, d'où le "Oups !
+                # Page non trouvée" de React Router au lieu du fichier
+                # (le backend monte pourtant bien /uploads, voir
+                # app.mount("/uploads", ...) dans main.py — jamais atteint
+                # dans ce cas précis). /api-proxy est justement le préfixe
+                # que le frontend (prod ET dev, voir vite.config.ts) sait
+                # reconnaître et retransmettre tel quel au backend.
+                return f"/api-proxy/uploads/{object_name}"
         return f"{backend_url.rstrip('/')}/uploads/{object_name}"
 
 
