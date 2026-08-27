@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import axios from "axios";
+import { AdmissionTimeline } from "@/components/admin/admissions/AdmissionTimeline";
+import type { AdmissionStep } from "@/queries/admissions";
 
 interface Application {
   id: string;
@@ -21,6 +23,7 @@ interface Application {
   submitted_at: string | null;
   notes: string | null;
   type: string;
+  steps: AdmissionStep[];
 }
 
 const STATUS_ICONS: Record<string, JSX.Element> = {
@@ -198,6 +201,11 @@ export default function ApplicationStatus() {
                     <p className="mt-2 text-xs text-gray-600 italic bg-white rounded-lg p-2 border border-gray-100">
                       {app.notes}
                     </p>
+                  )}
+                  {app.steps && app.steps.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <AdmissionTimeline steps={app.steps} />
+                    </div>
                   )}
                 </div>
               ))}

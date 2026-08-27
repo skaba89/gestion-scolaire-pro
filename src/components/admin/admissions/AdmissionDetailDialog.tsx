@@ -7,6 +7,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useQuery } from "@tanstack/react-query";
 import {
     User,
     Users,
@@ -20,10 +21,13 @@ import {
     Briefcase,
     StickyNote,
     FileWarning,
+    ListChecks,
+    Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { AdmissionApplication } from "@/queries/admissions";
+import { AdmissionApplication, admissionTimelineQuery } from "@/queries/admissions";
+import { AdmissionTimeline } from "./AdmissionTimeline";
 
 // Reprend exactement les libellés de src/pages/public/AdmissionForm.tsx —
 // c'est là que ces document_type sont produits, le dossier admin doit les
@@ -74,6 +78,14 @@ export const AdmissionDetailDialog = ({
     onOpenChange,
     studentLabel,
 }: AdmissionDetailDialogProps) => {
+    // Toujours appelé (règle des hooks) — `enabled` côté requête empêche
+    // le fetch tant que le dialog est fermé ou qu'aucun dossier n'est
+    // sélectionné.
+    const { data: timeline, isLoading: timelineLoading } = useQuery({
+        ...admissionTimelineQuery(application?.id || ""),
+        enabled: open && !!application?.id,
+    });
+
     if (!application) return null;
 
     const documents = application.documents ?? [];
@@ -88,6 +100,22 @@ export const AdmissionDetailDialog = ({
                 </DialogHeader>
 
                 <div className="space-y-6">
+                    {/* Évolution du dossier */}
+                    <section className="space-y-3">
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                            <ListChecks className="w-4 h-4" /> Évolution du dossier
+                        </h3>
+                        {timelineLoading ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                                <Loader2 className="w-4 h-4 animate-spin" /> Chargement…
+                            </div>
+                        ) : timeline ? (
+                            <AdmissionTimeline steps={timeline.steps} />
+                        ) : null}
+                    </section>
+
+                    <Separator />
+
                     {/* Étudiant */}
                     <section className="space-y-3">
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">

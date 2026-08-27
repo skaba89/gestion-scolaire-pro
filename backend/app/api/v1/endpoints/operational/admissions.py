@@ -19,6 +19,8 @@ from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.core.storage import storage_client
 from app.models.base import GUID
+from app.models.audit_log import AuditLog
+from app.models.user import User
 from app.utils.audit import log_audit
 import logging
 
@@ -38,6 +40,124 @@ VALID_TRANSITIONS: dict = {
     "REJECTED":             [],
     "CONVERTED_TO_STUDENT": [],
 }
+
+
+# ─── Timeline / suivi de candidature ───────────────────────────────────────────
+#
+# Signalé par un utilisateur : le candidat (ou son parent) doit pouvoir suivre
+# l'évolution de son dossier étape par étape, pas seulement voir le statut
+# actuel — et l'admin doit traiter le dossier étape par étape (déjà le cas
+# côté état de la machine ci-dessus/AdmissionTable.tsx, mais sans vue
+# d'ensemble de l'historique). Les transitions sont déjà journalisées via
+# log_audit() (transition_status/convert_to_student) — cette section
+# reconstruit une timeline lisible à partir de audit_logs, plutôt que
+# d'ajouter une nouvelle table dédiée.
+
+ADMISSION_STEP_SEQUENCE = ["SUBMITTED", "UNDER_REVIEW", "ACCEPTED", "CONVERTED_TO_STUDENT"]
+
+
+def _status_from_audit_action(action: str) -> Optional[str]:
+    """Retrouve le statut atteint par une entrée audit_logs d'admission.
+
+    convert_to_student() journalise ADMISSION_CONVERTED (pas
+    ADMISSION_CONVERTED_TO_STUDENT) — cas particulier. transition_status()
+    journalise toujours ADMISSION_{new_status} littéralement.
+    """
+    if action == "ADMISSION_CONVERTED":
+        return "CONVERTED_TO_STUDENT"
+    if action and action.startswith("ADMISSION_"):
+        suffix = action[len("ADMISSION_"):]
+        if suffix in ADMISSION_STEP_SEQUENCE or suffix == "REJECTED":
+            return suffix
+    return None
+
+
+def _iso(value) -> Optional[str]:
+    """BUG RÉEL trouvé en testant : un SELECT text() brut renvoie les
+    colonnes DateTime en tant que chaîne déjà formatée sur SQLite, mais en
+    objet datetime natif sur PostgreSQL (psycopg) — `.isoformat()`
+    plantait (AttributeError: 'str' object has no attribute 'isoformat')
+    partout où ce module appelait ça sans garde, jamais capté faute de
+    test SQLite avant cette fonctionnalité."""
+    if not value:
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
+def _admission_type_label(documents_field) -> str:
+    """BUG RÉEL trouvé en construisant la timeline : admission_applications
+    .documents est polymorphe — une LISTE de fichiers déposés pour une
+    nouvelle candidature (public_apply), ou un DICT {"type": "REINSCRIPTION",
+    "student_id": ...} pour une réinscription (public_reenroll), jamais les
+    deux. `(r["documents"] or {}).get("type", ...)` plantait
+    (AttributeError: 'list' object has no attribute 'get') dès qu'un
+    candidat ayant déposé des pièces jointes consultait son statut — donc
+    quasiment toute nouvelle candidature réelle utilisant l'upload de
+    documents (voir AdmissionForm.tsx). Sur SQLite, un SELECT text() brut
+    contourne aussi le type JSON de l'ORM et renvoie la chaîne encodée
+    telle quelle plutôt qu'un objet déjà parsé."""
+    value = documents_field
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError):
+            value = None
+    if isinstance(value, dict):
+        return value.get("type", "CANDIDATURE")
+    return "CANDIDATURE"
+
+
+def _build_admission_steps(current_status: str, reached: dict) -> list:
+    """Construit la liste ordonnée des étapes (parcours "heureux"), chacune
+    marquée done/current/pending — plus une étape REJECTED distincte quand
+    le dossier a été refusé, à la place des étapes qui ne seront jamais
+    atteintes."""
+    steps = []
+    for key in ADMISSION_STEP_SEQUENCE:
+        if current_status == "REJECTED" and key in ("ACCEPTED", "CONVERTED_TO_STUDENT"):
+            break
+        reached_at = reached.get(key)
+        if reached_at:
+            state = "done"
+        elif key == current_status:
+            state = "current"
+        else:
+            state = "pending"
+        steps.append({"key": key, "label": STATUS_LABELS.get(key, key), "date": _iso(reached_at), "state": state})
+    if current_status == "REJECTED":
+        steps.append({
+            "key": "REJECTED",
+            "label": STATUS_LABELS.get("REJECTED", "Refusé"),
+            "date": _iso(reached.get("REJECTED")),
+            "state": "rejected",
+        })
+    return steps
+
+
+def _admission_events_reached(db: Session, tenant_id: str, admission_id: str, fallback_submitted_at=None) -> tuple:
+    """Retourne (reached: {status: datetime}, events: [AuditLog]) — reached
+    garde la PREMIÈRE fois que chaque statut a été atteint. SUBMITTED a un
+    filet de sécurité sur application.submitted_at/created_at : les
+    candidatures déposées avant l'ajout du log_audit() dans public_apply()
+    n'ont pas d'entrée audit_logs pour leur toute première étape."""
+    events = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.resource_type == "ADMISSION",
+            AuditLog.resource_id == str(admission_id),
+        )
+        .order_by(AuditLog.created_at.asc())
+        .all()
+    )
+    reached: dict = {}
+    for e in events:
+        status = _status_from_audit_action(e.action)
+        if status and status not in reached:
+            reached[status] = e.created_at
+    if "SUBMITTED" not in reached and fallback_submitted_at:
+        reached["SUBMITTED"] = fallback_submitted_at
+    return reached, events
 
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
@@ -252,6 +372,44 @@ def get_admission(
     current_user: dict = Depends(require_permission("admissions:read")),
 ):
     return _fetch(db, admission_id, resolve_current_tenant_id(request, current_user, db))
+
+
+# ─── GET /{id}/timeline — évolution du dossier, vue admin ────────────────────
+#
+# Signalé par un utilisateur : l'admin doit pouvoir suivre/traiter un
+# dossier étape par étape avec une vue d'ensemble de son évolution, pas
+# seulement le statut courant (déjà visible dans la table).
+
+@router.get("/{admission_id}/timeline/")
+def get_admission_timeline(
+    request: Request,
+    admission_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("admissions:read")),
+):
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    application = _fetch(db, admission_id, tenant_id)  # 404 si absent/mauvais tenant
+    reached, events = _admission_events_reached(
+        db, tenant_id, admission_id, fallback_submitted_at=application.get("submitted_at") or application.get("created_at"),
+    )
+    steps = _build_admission_steps(application["status"], reached)
+
+    actor_ids = {e.user_id for e in events if e.user_id and e.user_id != "public"}
+    actors: dict = {}
+    if actor_ids:
+        for u in db.query(User).filter(User.id.in_(actor_ids)).all():
+            name = f"{u.first_name or ''} {u.last_name or ''}".strip()
+            actors[str(u.id)] = name or u.email
+
+    events_out = [{
+        "action": e.action,
+        "status": _status_from_audit_action(e.action),
+        "created_at": _iso(e.created_at),
+        "actor": ("Candidat" if e.user_id == "public" else actors.get(e.user_id)),
+        "details": e.details,
+    } for e in events]
+
+    return {"steps": steps, "events": events_out}
 
 
 # ─── POST / ───────────────────────────────────────────────────────────────────
@@ -597,6 +755,16 @@ def public_apply(
         "notes": payload.get("notes"),
     }).mappings().first()
 
+    # Sans cet appel, la toute première étape ("Candidature soumise") de la
+    # timeline (voir _admission_events_reached) n'avait aucune entrée
+    # audit_logs pour le flux réel (dépôt public) — seules les créations
+    # DRAFT par un admin (create_admission) étaient journalisées. user_id
+    # NOT NULL sur audit_logs, et cet endpoint est public (pas de
+    # current_user) — "public" plutôt que None, qui échouerait le NOT
+    # NULL en silence (log_audit avale ses propres exceptions).
+    log_audit(db, user_id="public", tenant_id=tenant_id,
+              action="ADMISSION_SUBMITTED", resource_type="ADMISSION", resource_id=str(row["id"]),
+              details={"from": None, "to": "SUBMITTED"})
     db.commit()
     return dict(row)
 
@@ -629,11 +797,31 @@ def public_check_status(
     db: Session = Depends(get_db),
 ):
     """Check candidature status by parent email (and optionally application ID)."""
+    # bindparam(type_=GUID()) sur tenant_id/reference : sans ça, un bind
+    # texte brut compare la valeur avec tirets de l'appelant à la valeur
+    # sans tirets stockée par le GUID TypeDecorator sur SQLite et ne
+    # matche jamais aucune ligne (fonctionne sur PostgreSQL, qui n'a pas
+    # cet écart) — même bug déjà corrigé dans _fetch()/list_admissions()
+    # (voir plus haut), jamais appliqué ici faute de test avant cette
+    # fonctionnalité. `reference` comparé directement à la colonne GUID
+    # plutôt que CAST(id AS TEXT) = :reference (l'ancien CAST donnait la
+    # forme sans tirets sur SQLite, ne matchant jamais non plus la
+    # référence avec tirets renvoyée au candidat par cette même fonction).
     params: dict = {"tenant_id": tenant_id, "email": email.strip().lower()}
     extra = "AND LOWER(a.parent_email) = :email"
+    bind_types = [bindparam("tenant_id", type_=GUID())]
     if reference:
-        extra += " AND CAST(a.id AS TEXT) = :reference"
-        params["reference"] = reference.strip()
+        try:
+            # Comparaison directe à la colonne GUID (voir plus haut) —
+            # valide le format ici plutôt que de laisser
+            # GUID.process_bind_param lever une ValueError non gérée (une
+            # référence mal formée, saisie à la main par un candidat, doit
+            # rendre "aucun dossier trouvé", pas un 500).
+            params["reference"] = str(uuid.UUID(reference.strip()))
+            extra += " AND a.id = :reference"
+            bind_types.append(bindparam("reference", type_=GUID()))
+        except ValueError:
+            return {"applications": []}
 
     rows = db.execute(text(f"""
         SELECT
@@ -651,20 +839,40 @@ def public_check_status(
           {extra}
         ORDER BY a.submitted_at DESC
         LIMIT 20
-    """), params).mappings().all()
+    """).bindparams(*bind_types), params).mappings().all()
 
     results = []
     for r in rows:
+        # str(uuid.UUID(...)) plutôt que str(r["id"]) directement : un
+        # SELECT text() brut renvoie la valeur stockée telle quelle sans
+        # passer par GUID.process_result_value — sur SQLite ça donne la
+        # forme sans tirets (CHAR(32) hex), qui ne matcherait jamais
+        # AuditLog.resource_id (toujours stocké avec tirets). N'affecte
+        # aucun environnement réel (dev et prod tournent sur PostgreSQL,
+        # qui renvoie déjà un uuid.UUID avec tirets), mais corrige aussi
+        # les tests locaux/CI SQLite.
+        admission_id = str(uuid.UUID(str(r["id"])))
+        # Timeline publique : statut + date par étape uniquement — jamais
+        # les notes internes (payload.notes de transition_status peut
+        # contenir des remarques admin non destinées au candidat, voir
+        # get_admission_timeline pour la version complète réservée à
+        # l'admin authentifié).
+        reached, _events = _admission_events_reached(
+            db, tenant_id, admission_id, fallback_submitted_at=r["submitted_at"],
+        )
+        steps = _build_admission_steps(r["status"], reached)
+
         results.append({
-            "id": str(r["id"]),
+            "id": admission_id,
             "status": r["status"],
             "status_label": STATUS_LABELS.get(r["status"], r["status"]),
             "status_color": STATUS_COLORS.get(r["status"], "gray"),
             "student_name": f"{r['student_first_name']} {r['student_last_name']}",
             "level": r["level_name"],
-            "submitted_at": r["submitted_at"].isoformat() if r["submitted_at"] else None,
+            "submitted_at": _iso(r["submitted_at"]),
             "notes": r["notes"],
-            "type": (r["documents"] or {}).get("type", "CANDIDATURE"),
+            "type": _admission_type_label(r["documents"]),
+            "steps": steps,
         })
     return {"applications": results}
 

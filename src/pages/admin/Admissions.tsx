@@ -4,7 +4,7 @@ import { useTenant } from "@/contexts/TenantContext";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { BookOpen } from "lucide-react";
-import { admissionQueries, useUpdateAdmissionStatus, AdmissionStatus, AdmissionApplication } from "@/queries/admissions";
+import { admissionQueries, useUpdateAdmissionStatus, useConvertAdmission, AdmissionStatus, AdmissionApplication } from "@/queries/admissions";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { AdmissionStats } from "@/components/admin/admissions/AdmissionStats";
@@ -21,6 +21,7 @@ const Admissions = () => {
 
   const { data: applications, isLoading, error } = useQuery(admissionQueries.all(tenant?.id || ""));
   const updateStatusMutation = useUpdateAdmissionStatus(tenant?.id || "");
+  const convertMutation = useConvertAdmission(tenant?.id || "");
 
   const filteredApplications = useMemo(() => {
     // Extensive safety check for 'applications'
@@ -75,6 +76,10 @@ const Admissions = () => {
     });
   };
 
+  const handleConvert = (id: string, application: AdmissionApplication) => {
+    convertMutation.mutate({ id });
+  };
+
   return (
     <div className="space-y-6 min-h-0">
       <AdmissionHeader />
@@ -104,6 +109,8 @@ const Admissions = () => {
             isLoading={isLoading}
             studentLabel={StudentLabel}
             onUpdateStatus={handleUpdateStatus}
+            onConvert={handleConvert}
+            isConverting={convertMutation.isPending}
           />
         </CardContent>
       </Card>

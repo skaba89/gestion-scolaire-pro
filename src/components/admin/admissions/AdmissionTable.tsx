@@ -30,6 +30,12 @@ interface AdmissionTableProps {
     isLoading: boolean;
     studentLabel: string;
     onUpdateStatus: (id: string, status: AdmissionStatus, application: AdmissionApplication) => void;
+    // Séparé de onUpdateStatus : contrairement aux autres transitions,
+    // "Inscrire" doit créer une vraie ligne Student (POST /convert/), pas
+    // seulement mettre à jour le champ status (PATCH /status/) — voir
+    // le commentaire dans useConvertAdmission (queries/admissions.ts).
+    onConvert: (id: string, application: AdmissionApplication) => void;
+    isConverting?: boolean;
 }
 
 const statusConfig: Record<AdmissionStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -45,7 +51,9 @@ export const AdmissionTable = ({
     applications,
     isLoading,
     studentLabel,
-    onUpdateStatus
+    onUpdateStatus,
+    onConvert,
+    isConverting = false,
 }: AdmissionTableProps) => {
     const parentRef = useRef<HTMLDivElement>(null);
     const [detailApplication, setDetailApplication] = useState<AdmissionApplication | null>(null);
@@ -199,7 +207,8 @@ export const AdmissionTable = ({
                                             <Button
                                                 size="sm"
                                                 variant="default"
-                                                onClick={() => onUpdateStatus(app.id, "CONVERTED_TO_STUDENT", app)}
+                                                disabled={isConverting}
+                                                onClick={() => onConvert(app.id, app)}
                                             >
                                                 <UserPlus className="w-4 h-4 mr-1" />
                                                 Inscrire
