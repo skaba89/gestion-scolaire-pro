@@ -40,12 +40,28 @@ UUID sans contrainte FK dans le DDL d'origine — reproduites à l'identique
 (pas de nouvelle contrainte qui pourrait échouer sur des données de
 production existantes).
 
-RLS : library_borrow_records a des policies RLS explicites dans
-operational_tables.py (~ligne 970), mais _sweep_operational_rls() —
-appelée génériquement à chaque démarrage réel dans
-ensure_operational_tables() — détecte déjà TOUTE table avec une colonne
-tenant_id et lui applique RLS + une policy d'isolation si absente. Pas
-besoin de les répliquer ici (même conclusion que pour clubs/surveys).
+RLS — CORRECTIF POST-MERGE (PR #126 mergée avec un readiness check CI
+rouge, non vérifié avant merge) : la version initiale de cette migration
+partait du principe que _sweep_operational_rls() — appelée
+génériquement à chaque démarrage réel dans ensure_operational_tables() —
+suffirait à protéger library_borrow_records, comme pour clubs/surveys.
+FAUX pour cette table précise : contrairement à clubs/surveys/
+library_categories/library_resources (qui existent dans la chaîne
+Alembic depuis avril et sont donc balayées par le sweep générique de
+20260713_0002_enforce_rls_on_current_tenant_tables), library_borrow_records
+n'a JAMAIS existé dans la chaîne Alembic avant CETTE migration — elle
+n'était créée qu'au démarrage réel de l'app, jamais pendant `alembic
+upgrade head` seul. Le job CI "Backend Tests (PostgreSQL)" exécute
+UNIQUEMENT `alembic upgrade head` puis interroge pg_catalog directement
+(_check_database_and_rls() dans app/main.py), sans jamais démarrer l'app
+— donc sans jamais voir la protection RLS runtime. Le sweep de
+20260713_0002 étant plus ancien que cette migration, rien ne rebalaie
+library_borrow_records après sa création ici : elle porte donc
+maintenant sa propre protection RLS explicite (ENABLE/FORCE ROW LEVEL
+SECURITY + policy), reproduisant l'ancien DO-block d'operational_tables.py.
+Leçon retenue : vérifier `gh run list`/`gh pr checks` sur CHAQUE PR avant
+de la signaler comme prête à merger, pas seulement faire confiance à la
+suite SQLite locale.
 
 BUG RÉEL, PAS SEULEMENT DE LA DETTE TECHNIQUE : les endpoints
 POST/PUT /library/resources/, POST /library/categories/, POST
@@ -137,6 +153,39 @@ def upgrade():
         )
     """))
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_library_borrow_tenant ON library_borrow_records (tenant_id, status)"))
+
+    # RLS explicite pour library_borrow_records — CORRECTIF (voir incident
+    # CI ci-dessous). library_categories/library_resources existent dans
+    # la chaîne Alembic depuis 20260406_create_operational_tables et sont
+    # donc déjà protégées par le sweep générique de
+    # 20260713_0002_enforce_rls_on_current_tenant_tables (qui découvre
+    # dynamiquement toute table avec tenant_id PRÉSENTE AU MOMENT OÙ IL
+    # S'EXÉCUTE). Mais library_borrow_records n'a JAMAIS existé dans la
+    # chaîne Alembic avant CETTE migration — jusqu'ici elle n'était créée
+    # qu'au démarrage réel de l'app (ensure_operational_tables(), qui ne
+    # tourne jamais pendant `alembic upgrade head` seul). Le job CI
+    # "Backend Tests (PostgreSQL)" exécute UNIQUEMENT `alembic upgrade
+    # head` puis interroge pg_catalog directement (voir
+    # _check_database_and_rls() dans app/main.py) — sans jamais démarrer
+    # l'app, donc sans jamais voir la protection RLS runtime. Le sweep de
+    # 20260713_0002 étant déjà passé (il est plus ancien que cette
+    # migration), rien ne balaie plus library_borrow_records après sa
+    # création ici : elle doit donc porter sa propre protection RLS
+    # explicite, comme le faisait l'ancien DO-block d'operational_tables.py
+    # avant d'être retiré.
+    conn.execute(text("ALTER TABLE library_borrow_records ENABLE ROW LEVEL SECURITY"))
+    conn.execute(text("ALTER TABLE library_borrow_records FORCE ROW LEVEL SECURITY"))
+    conn.execute(text("""
+DO $$
+BEGIN
+    DROP POLICY IF EXISTS "tenant_isolation_library_borrow_records" ON library_borrow_records;
+    CREATE POLICY "tenant_isolation_library_borrow_records" ON library_borrow_records
+    AS PERMISSIVE FOR ALL TO PUBLIC
+    USING (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''))
+    WITH CHECK (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''));
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+"""))
 
     # Aligne un environnement déjà existant (cas réel de production) sur
     # le schéma complet ci-dessus. No-op sur un environnement fraîchement
