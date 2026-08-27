@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
     Table,
@@ -13,14 +13,17 @@ import { Button } from "@/components/ui/button";
 import {
     BookOpen,
     Eye,
+    FileSearch,
     CheckCircle,
     XCircle,
-    UserPlus
+    UserPlus,
+    Paperclip
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AdmissionApplication, AdmissionStatus } from "@/queries/admissions";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AdmissionDetailDialog } from "./AdmissionDetailDialog";
 
 interface AdmissionTableProps {
     applications: AdmissionApplication[];
@@ -45,6 +48,7 @@ export const AdmissionTable = ({
     onUpdateStatus
 }: AdmissionTableProps) => {
     const parentRef = useRef<HTMLDivElement>(null);
+    const [detailApplication, setDetailApplication] = useState<AdmissionApplication | null>(null);
 
     const rowVirtualizer = useVirtualizer({
         count: applications.length,
@@ -89,6 +93,7 @@ export const AdmissionTable = ({
     }
 
     return (
+        <>
         <div
             ref={parentRef}
             className="h-[600px] overflow-auto border rounded-md relative"
@@ -115,9 +120,20 @@ export const AdmissionTable = ({
                             <TableRow key={app.id} style={{ height: `${virtualRow.size}px` }}>
                                 <TableCell>
                                     <div>
-                                        <p className="font-medium">
-                                            {app.student_first_name} {app.student_last_name}
-                                        </p>
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="font-medium">
+                                                {app.student_first_name} {app.student_last_name}
+                                            </p>
+                                            {(app.documents?.length ?? 0) > 0 && (
+                                                <span
+                                                    className="inline-flex items-center gap-0.5 text-xs text-muted-foreground"
+                                                    title={`${app.documents!.length} document(s) déposé(s)`}
+                                                >
+                                                    <Paperclip className="w-3 h-3" />
+                                                    {app.documents!.length}
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="text-sm text-muted-foreground">
                                             {app.student_date_of_birth && format(new Date(app.student_date_of_birth), "dd MMM yyyy", { locale: fr })}
                                         </p>
@@ -144,6 +160,14 @@ export const AdmissionTable = ({
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex items-center justify-end gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            title="Voir le dossier complet"
+                                            onClick={() => setDetailApplication(app)}
+                                        >
+                                            <FileSearch className="w-4 h-4" />
+                                        </Button>
                                         {app.status === "SUBMITTED" && (
                                             <Button
                                                 size="sm"
@@ -194,6 +218,13 @@ export const AdmissionTable = ({
                 </TableBody>
             </Table>
         </div>
+        <AdmissionDetailDialog
+            application={detailApplication}
+            open={!!detailApplication}
+            onOpenChange={(open) => { if (!open) setDetailApplication(null); }}
+            studentLabel={studentLabel}
+        />
+        </>
     );
 };
 
