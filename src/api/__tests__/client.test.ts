@@ -141,6 +141,75 @@ describe('apiClient cold-start retry (POST /auth/login/)', () => {
 });
 
 /**
+ * Suite du même incident prod que le test "erreur non-JSON" plus haut —
+ * Render's edge throttle le réveil d'un service en veille avec un 429
+ * portant l'en-tête x-render-routing: hibernate-rate-limited, AVANT même
+ * d'atteindre notre app. Contrairement à un 5xx générique ou une réponse
+ * perdue, ce signal précis garantit que la requête n'a jamais atteint le
+ * serveur — donc la rejouer est toujours sûr, même pour un POST.
+ */
+describe('apiClient cold-start retry — Render hibernate-rate-limited (any method/path)', () => {
+  function hibernateThrottled(config: any): AxiosError {
+    const err = new AxiosError('Too Many Requests');
+    err.config = config;
+    err.response = {
+      status: 429,
+      data: 'Too Many Requests\n',
+      statusText: 'Too Many Requests',
+      headers: { 'x-render-routing': 'hibernate-rate-limited' },
+      config,
+    } as any;
+    return err;
+  }
+
+  it('retries a GET unrelated to /auth/login/ (e.g. the annuaire) past the generic budget', async () => {
+    let callCount = 0;
+    const adapter = vi.fn(async (config: any) => {
+      callCount += 1;
+      if (callCount <= 3) throw hibernateThrottled(config);
+      return { data: [], status: 200, statusText: 'OK', headers: {}, config };
+    });
+
+    const resp = await apiClient.get('/tenants/public/', { adapter });
+    expect(callCount).toBe(4);
+    expect(resp.data).toEqual([]);
+  }, 15_000);
+
+  it('retries a POST too — the request never reached the app, so no side effect to duplicate', async () => {
+    let callCount = 0;
+    const adapter = vi.fn(async (config: any) => {
+      callCount += 1;
+      if (callCount <= 3) throw hibernateThrottled(config);
+      return { data: { ok: true }, status: 201, statusText: 'Created', headers: {}, config };
+    });
+
+    const resp = await apiClient.post('/payments/register/', { amount: 1000 }, { adapter });
+    expect(callCount).toBe(4);
+    expect(resp.data).toEqual({ ok: true });
+  }, 15_000);
+
+  it('does NOT extend the long budget to a plain 429 without the Render header (regression guard)', async () => {
+    // e.g. the app's own login rate-limiter (5/minute) — a real "you're
+    // going too fast" from our backend, not Render's edge blocking a
+    // wake-up attempt. Must stay bounded by the generic 2-retry budget.
+    let callCount = 0;
+    const adapter = vi.fn(async (config: any) => {
+      callCount += 1;
+      const err = new AxiosError('Too Many Requests');
+      err.config = config;
+      err.response = { status: 429, data: {}, statusText: '', headers: {}, config } as any;
+      throw err;
+    });
+
+    await expect(
+      apiClient.get('/tenants/public/', { adapter })
+    ).rejects.toThrow();
+
+    expect(callCount).toBe(1); // 429 isn't even in the generic retry list
+  }, 10_000);
+});
+
+/**
  * Prod incident (2026-08-25) — a 429 from Render's edge layer (hibernating
  * free-tier service throttling wake attempts, before the request ever
  * reaches the FastAPI app) comes back as a plain-text body
