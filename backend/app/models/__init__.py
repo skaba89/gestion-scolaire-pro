@@ -53,3 +53,4 @@ from app.models.message_item import MessageItem
 from app.models.idempotency_key import IdempotencyKey
 from app.models.club import Club, ClubMembership
 from app.models.survey import Survey, SurveyQuestion, SurveyResponse
+from app.models.library import LibraryCategory, LibraryResource, LibraryBorrowRecord

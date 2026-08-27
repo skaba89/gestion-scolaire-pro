@@ -1,11 +1,15 @@
+"""Bibliothèque — migré vers Alembic + ORM (Horizon 2, voir
+alembic/versions/20260827_0001_adopt_library_tables.py pour le détail du
+schéma repris/complété et des bugs réels corrigés au passage : les
+anciens endpoints POST/PUT utilisaient du SQL brut PostgreSQL-only
+(gen_random_uuid()/NOW()), jamais exécutable sur SQLite, donc jamais
+couvert par un seul test avant cette migration.
+"""
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import Optional
 from uuid import UUID
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -13,30 +17,46 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
+from app.models import User
+from app.models.library import LibraryCategory, LibraryResource, LibraryBorrowRecord
+from app.schemas.library import (
+    CategoryCreate, CategoryUpdate, CategoryOut,
+    ResourceCreate, ResourceUpdate, ResourceOut,
+    BorrowRequest, ReturnRequest,
+)
+from app.crud import library as crud_library
 
 router = APIRouter()
+
+
+def _category_out(db: Session, category: LibraryCategory) -> dict:
+    out = CategoryOut.model_validate(category).model_dump()
+    return out
+
+
+def _resource_out(db: Session, resource: LibraryResource) -> dict:
+    out = ResourceOut.model_validate(resource).model_dump()
+    category = None
+    if resource.category_id:
+        category = db.query(LibraryCategory).filter(LibraryCategory.id == resource.category_id).first()
+    uploader = db.query(User).filter(User.id == resource.uploaded_by).first() if resource.uploaded_by else None
+    out["category"] = (
+        {"id": category.id, "name": category.name, "color": category.color} if category else None
+    )
+    out["uploader"] = (
+        {"first_name": uploader.first_name, "last_name": uploader.last_name} if uploader else None
+    )
+    return out
 
 
 # --- Category CRUD ---
 
 @router.get("/categories/")
 def list_categories(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         return []
-    return db.execute(text("SELECT * FROM library_categories WHERE tenant_id = :tid ORDER BY name"), {"tid": tenant_id}).mappings().all()
-
-
-class CategoryCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    color: Optional[str] = None
-
-
-class CategoryUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    color: Optional[str] = None
+    return [_category_out(db, c) for c in crud_library.get_categories(db, tenant_id)]
 
 
 @router.post("/categories/", status_code=status.HTTP_201_CREATED)
@@ -47,25 +67,17 @@ def create_category(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new library category."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
-        result = db.execute(text("""
-            INSERT INTO library_categories (id, tenant_id, name, description, color, created_at, updated_at)
-            VALUES (gen_random_uuid(), :tid, :name, :desc, :color, NOW(), NOW())
-            RETURNING id, tenant_id, name, description, color, created_at, updated_at
-        """), {
-            "tid": tenant_id,
-            "name": category.name,
-            "desc": category.description,
-            "color": category.color,
-        }).mappings().first()
+        db_obj = crud_library.create_category(db, category, tenant_id)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="CREATE_LIBRARY_CATEGORY", resource_type="LIBRARY_CATEGORY",
-                  resource_id=str(result["id"]))
+                  resource_id=str(db_obj.id))
         db.commit()
-        return result
+        db.refresh(db_obj)
+        return _category_out(db, db_obj)
     except Exception as e:
         db.rollback()
         logger.error("Failed to create library category: %s", e, exc_info=True)
@@ -81,37 +93,22 @@ def update_category(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a library category."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    db_obj = crud_library.get_category(db, category_id, tenant_id)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Category not found")
+    if not category.model_dump(exclude_unset=True):
+        raise HTTPException(status_code=400, detail="No fields to update")
     try:
-        sets = []
-        params = {"cid": str(category_id), "tid": tenant_id, "now": datetime.now(timezone.utc)}
-        if category.name is not None:
-            sets.append("name = :name")
-            params["name"] = category.name
-        if category.description is not None:
-            sets.append("description = :desc")
-            params["desc"] = category.description
-        if category.color is not None:
-            sets.append("color = :color")
-            params["color"] = category.color
-        if not sets:
-            raise HTTPException(status_code=400, detail="No fields to update")
-        sets.append("updated_at = :now")
-        query_str = f"""
-            UPDATE library_categories SET {', '.join(sets)}
-            WHERE id = :cid AND tenant_id = :tid
-            RETURNING id, tenant_id, name, description, color, created_at, updated_at
-        """
-        result = db.execute(text(query_str), params).mappings().first()
-        if not result:
-            raise HTTPException(status_code=404, detail="Category not found")
+        db_obj = crud_library.update_category(db, db_obj, category)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="UPDATE_LIBRARY_CATEGORY", resource_type="LIBRARY_CATEGORY",
                   resource_id=str(category_id))
         db.commit()
-        return result
+        db.refresh(db_obj)
+        return _category_out(db, db_obj)
     except HTTPException:
         raise
     except Exception as e:
@@ -128,21 +125,19 @@ def delete_category(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a library category."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    db_obj = crud_library.get_category(db, category_id, tenant_id)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Category not found")
     try:
-        result = db.execute(text("DELETE FROM library_categories WHERE id = :cid AND tenant_id = :tid"),
-                            {"cid": str(category_id), "tid": tenant_id})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Category not found")
+        crud_library.delete_category(db, db_obj)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="DELETE_LIBRARY_CATEGORY", resource_type="LIBRARY_CATEGORY",
                   resource_id=str(category_id))
         db.commit()
         return {"status": "success"}
-    except HTTPException:
-        raise
     except Exception as e:
         db.rollback()
         logger.error("Failed to delete library category: %s", e, exc_info=True)
@@ -162,73 +157,22 @@ def list_resources(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         return []
-    query = """
-        SELECT r.*, c.name as category_name, c.color as category_color,
-               u.first_name as uploader_first_name, u.last_name as uploader_last_name
-        FROM library_resources r
-        LEFT JOIN library_categories c ON c.id = r.category_id
-        LEFT JOIN users u ON u.id = r.uploaded_by
-        WHERE r.tenant_id = :tid
-    """
-    params = {"tid": tenant_id}
+    category_id = None
     if category and category != "all":
-        query += " AND r.category_id = :cid"
-        params["cid"] = category
-    if resource_type and resource_type != "all":
-        query += " AND r.resource_type = :rtype"
-        params["rtype"] = resource_type
-    if search:
-        query += " AND (r.title ILIKE :s OR r.description ILIKE :s OR r.author ILIKE :s)"
-        params["s"] = f"%{search}%"
-
-    query += " ORDER BY r.created_at DESC LIMIT :limit OFFSET :offset"
-    params["limit"] = page_size
-    params["offset"] = (page - 1) * page_size
-    rows = db.execute(text(query), params).fetchall()
-    return [{
-        **dict(r._mapping),
-        "category": {"id": r.category_id, "name": r.category_name, "color": r.category_color},
-        "uploader": {"first_name": r.uploader_first_name, "last_name": r.uploader_last_name}
-    } for r in rows]
-
-
-class ResourceCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-    author: Optional[str] = None
-    resource_type: str = "BOOK"
-    category_id: Optional[str] = None
-    isbn: Optional[str] = None
-    total_copies: int = 1
-    available_copies: int = 1
-    file_url: Optional[str] = None
-    cover_url: Optional[str] = None
-    external_url: Optional[str] = None
-    publication_year: Optional[int] = None
-    tags: Optional[List[str]] = None
-    is_featured: bool = False
-    is_public: bool = False
-
-
-class ResourceUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    author: Optional[str] = None
-    resource_type: Optional[str] = None
-    category_id: Optional[str] = None
-    isbn: Optional[str] = None
-    total_copies: Optional[int] = None
-    available_copies: Optional[int] = None
-    file_url: Optional[str] = None
-    cover_url: Optional[str] = None
-    external_url: Optional[str] = None
-    publication_year: Optional[int] = None
-    tags: Optional[List[str]] = None
-    is_featured: Optional[bool] = None
-    is_public: Optional[bool] = None
+        try:
+            category_id = UUID(category)
+        except ValueError:
+            return []
+    resources = crud_library.get_resources(
+        db, tenant_id,
+        category_id=category_id,
+        resource_type=resource_type if resource_type and resource_type != "all" else None,
+        search=search, page=page, page_size=page_size,
+    )
+    return [_resource_out(db, r) for r in resources]
 
 
 @router.post("/resources/", status_code=status.HTTP_201_CREATED)
@@ -239,44 +183,18 @@ def create_resource(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Create a new library resource."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
-        import json as _json
-        result = db.execute(text("""
-            INSERT INTO library_resources (id, tenant_id, title, description, author, resource_type,
-                category_id, isbn, total_copies, available_copies, file_url, cover_url, external_url,
-                publication_year, tags, is_featured, is_public, uploaded_by, created_at, updated_at)
-            VALUES (gen_random_uuid(), :tid, :title, :desc, :author, :rtype, :cid, :isbn,
-                :total, :available, :furl, :curl, :eurl, :pyear, :tags, :featured, :public, :uid, NOW(), NOW())
-            RETURNING id, tenant_id, title, description, author, resource_type, category_id,
-                isbn, total_copies, available_copies, file_url, cover_url, external_url,
-                publication_year, tags, is_featured, is_public, uploaded_by, created_at, updated_at
-        """), {
-            "tid": tenant_id,
-            "title": resource.title,
-            "desc": resource.description,
-            "author": resource.author,
-            "rtype": resource.resource_type,
-            "cid": resource.category_id or None,
-            "isbn": resource.isbn,
-            "total": resource.total_copies,
-            "available": resource.available_copies,
-            "furl": resource.file_url,
-            "curl": resource.cover_url,
-            "eurl": resource.external_url,
-            "pyear": resource.publication_year,
-            "tags": _json.dumps(resource.tags or []),
-            "featured": resource.is_featured,
-            "public": resource.is_public,
-            "uid": current_user.get("id"),
-        }).mappings().first()
+        uploaded_by = current_user.get("id")
+        db_obj = crud_library.create_resource(db, resource, tenant_id, uploaded_by)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="CREATE_LIBRARY_RESOURCE", resource_type="LIBRARY_RESOURCE",
-                  resource_id=str(result["id"]))
+                  resource_id=str(db_obj.id))
         db.commit()
-        return result
+        db.refresh(db_obj)
+        return _resource_out(db, db_obj)
     except Exception as e:
         db.rollback()
         logger.error("Failed to create library resource: %s", e, exc_info=True)
@@ -292,54 +210,22 @@ def update_resource(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a library resource."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    db_obj = crud_library.get_resource(db, resource_id, tenant_id)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    if not resource.model_dump(exclude_unset=True):
+        raise HTTPException(status_code=400, detail="No fields to update")
     try:
-        sets = []
-        params = {"rid": str(resource_id), "tid": tenant_id, "now": datetime.now(timezone.utc)}
-        field_map = {
-            "title": resource.title,
-            "description": resource.description,
-            "author": resource.author,
-            "resource_type": resource.resource_type,
-            "category_id": resource.category_id or None,
-            "isbn": resource.isbn,
-            "total_copies": resource.total_copies,
-            "available_copies": resource.available_copies,
-            "file_url": resource.file_url,
-            "cover_url": resource.cover_url,
-            "external_url": resource.external_url,
-            "publication_year": resource.publication_year,
-            "is_featured": resource.is_featured,
-            "is_public": resource.is_public,
-        }
-        for col, val in field_map.items():
-            if val is not None:
-                sets.append(f"{col} = :{col}")
-                params[col] = val
-        if resource.tags is not None:
-            import json as _json
-            sets.append("tags = :tags")
-            params["tags"] = _json.dumps(resource.tags)
-        if not sets:
-            raise HTTPException(status_code=400, detail="No fields to update")
-        sets.append("updated_at = :now")
-        query_str = f"""
-            UPDATE library_resources SET {', '.join(sets)}
-            WHERE id = :rid AND tenant_id = :tid
-            RETURNING id, tenant_id, title, description, author, resource_type, category_id,
-                isbn, total_copies, available_copies, file_url, cover_url, external_url,
-                publication_year, tags, is_featured, is_public, uploaded_by, created_at, updated_at
-        """
-        result = db.execute(text(query_str), params).mappings().first()
-        if not result:
-            raise HTTPException(status_code=404, detail="Resource not found")
+        db_obj = crud_library.update_resource(db, db_obj, resource)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="UPDATE_LIBRARY_RESOURCE", resource_type="LIBRARY_RESOURCE",
                   resource_id=str(resource_id))
         db.commit()
-        return result
+        db.refresh(db_obj)
+        return _resource_out(db, db_obj)
     except HTTPException:
         raise
     except Exception as e:
@@ -356,21 +242,19 @@ def delete_resource(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Delete a library resource."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    db_obj = crud_library.get_resource(db, resource_id, tenant_id)
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Resource not found")
     try:
-        result = db.execute(text("DELETE FROM library_resources WHERE id = :rid AND tenant_id = :tid"),
-                            {"rid": str(resource_id), "tid": tenant_id})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Resource not found")
+        crud_library.delete_resource(db, db_obj)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="DELETE_LIBRARY_RESOURCE", resource_type="LIBRARY_RESOURCE",
                   resource_id=str(resource_id))
         db.commit()
         return {"status": "success"}
-    except HTTPException:
-        raise
     except Exception as e:
         db.rollback()
         logger.error("Failed to delete library resource: %s", e, exc_info=True)
@@ -378,18 +262,6 @@ def delete_resource(
 
 
 # --- Borrowing ---
-
-class BorrowRequest(BaseModel):
-    resource_id: str
-    user_id: str
-    due_date: str
-    notes: Optional[str] = None
-
-
-class ReturnRequest(BaseModel):
-    borrow_id: str
-    notes: Optional[str] = None
-
 
 @router.post("/borrow/", status_code=status.HTTP_201_CREATED)
 def borrow_resource(
@@ -399,44 +271,22 @@ def borrow_resource(
     current_user: dict = Depends(get_current_user),
 ):
     """Borrow a library resource."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    resource = crud_library.get_resource(db, borrow.resource_id, tenant_id)
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    if (resource.available_copies or 0) <= 0:
+        raise HTTPException(status_code=400, detail="No copies available")
     try:
-        # Check availability
-        resource = db.execute(text("""
-            SELECT available_copies, total_copies FROM library_resources
-            WHERE id = :rid AND tenant_id = :tid
-        """), {"rid": borrow.resource_id, "tid": tenant_id}).mappings().first()
-        if not resource:
-            raise HTTPException(status_code=404, detail="Resource not found")
-        if resource["available_copies"] <= 0:
-            raise HTTPException(status_code=400, detail="No copies available")
-
-        # Create borrow record
-        result = db.execute(text("""
-            INSERT INTO library_borrow_records (id, tenant_id, resource_id, borrowed_by, borrowed_at, due_date, status, notes)
-            VALUES (gen_random_uuid(), :tid, :rid, :uid, NOW(), :due, 'BORROWED', :notes)
-            RETURNING id, tenant_id, resource_id, borrowed_by, borrowed_at, due_date, status, notes
-        """), {
-            "tid": tenant_id,
-            "rid": borrow.resource_id,
-            "uid": borrow.user_id,
-            "due": borrow.due_date,
-            "notes": borrow.notes,
-        }).mappings().first()
-
-        # Decrement available copies
-        db.execute(text("""
-            UPDATE library_resources SET available_copies = available_copies - 1, updated_at = NOW()
-            WHERE id = :rid AND tenant_id = :tid
-        """), {"rid": borrow.resource_id, "tid": tenant_id})
-
+        db_obj = crud_library.borrow_resource(db, resource, borrow, tenant_id)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="BORROW_RESOURCE", resource_type="LIBRARY_BORROW",
-                  resource_id=str(result["id"]))
+                  resource_id=str(db_obj.id))
         db.commit()
-        return result
+        db.refresh(db_obj)
+        return db_obj
     except HTTPException:
         raise
     except Exception as e:
@@ -453,34 +303,21 @@ def return_resource(
     current_user: dict = Depends(get_current_user),
 ):
     """Return a borrowed library resource."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    borrow_record = crud_library.get_active_borrow_record(db, ret.borrow_id, tenant_id)
+    if not borrow_record:
+        raise HTTPException(status_code=404, detail="Active borrow record not found")
+    resource = crud_library.get_resource(db, borrow_record.resource_id, tenant_id)
     try:
-        # Update borrow record
-        result = db.execute(text("""
-            UPDATE library_borrow_records SET returned_at = NOW(), status = 'RETURNED', notes = :notes
-            WHERE id = :bid AND tenant_id = :tid AND status = 'BORROWED'
-            RETURNING id, tenant_id, resource_id, borrowed_by, borrowed_at, due_date, returned_at, status, notes
-        """), {
-            "bid": ret.borrow_id,
-            "tid": tenant_id,
-            "notes": ret.notes,
-        }).mappings().first()
-        if not result:
-            raise HTTPException(status_code=404, detail="Active borrow record not found")
-
-        # Increment available copies
-        db.execute(text("""
-            UPDATE library_resources SET available_copies = available_copies + 1, updated_at = NOW()
-            WHERE id = :rid AND tenant_id = :tid
-        """), {"rid": str(result["resource_id"]), "tid": tenant_id})
-
+        db_obj = crud_library.return_resource(db, borrow_record, resource, ret)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="RETURN_RESOURCE", resource_type="LIBRARY_BORROW",
                   resource_id=str(ret.borrow_id))
         db.commit()
-        return result
+        db.refresh(db_obj)
+        return db_obj
     except HTTPException:
         raise
     except Exception as e:
@@ -498,21 +335,28 @@ def list_borrowers(
     current_user: dict = Depends(get_current_user),
 ):
     """List current borrowers (active borrow records)."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         return []
-    rows = db.execute(text("""
-        SELECT br.*, r.title as resource_title, r.resource_type,
-               u.first_name, u.last_name, u.email
-        FROM library_borrow_records br
-        JOIN library_resources r ON r.id = br.resource_id
-        JOIN users u ON u.id = br.borrowed_by
-        WHERE br.tenant_id = :tid AND br.status = 'BORROWED'
-        ORDER BY br.due_date ASC
-        LIMIT :limit OFFSET :offset
-    """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
-    return [{
-        **dict(r._mapping),
-        "resource": {"title": r.resource_title, "type": r.resource_type},
-        "borrower": {"first_name": r.first_name, "last_name": r.last_name, "email": r.email}
-    } for r in rows]
+    records = crud_library.get_active_borrowers(db, tenant_id, page, page_size)
+    out = []
+    for br in records:
+        resource = db.query(LibraryResource).filter(LibraryResource.id == br.resource_id).first()
+        borrower = db.query(User).filter(User.id == br.borrowed_by).first()
+        out.append({
+            "id": br.id,
+            "tenant_id": br.tenant_id,
+            "resource_id": br.resource_id,
+            "borrowed_by": br.borrowed_by,
+            "borrowed_at": br.borrowed_at,
+            "due_date": br.due_date,
+            "returned_at": br.returned_at,
+            "status": br.status,
+            "notes": br.notes,
+            "resource": {"title": resource.title, "type": resource.resource_type} if resource else None,
+            "borrower": (
+                {"first_name": borrower.first_name, "last_name": borrower.last_name, "email": borrower.email}
+                if borrower else None
+            ),
+        })
+    return out
