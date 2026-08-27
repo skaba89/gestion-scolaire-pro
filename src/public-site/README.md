@@ -63,8 +63,8 @@ app needs to know about this registry.
 
 ## Not part of this slice
 
-Campus Prestige, Primary Bloom (only School Excellence is implemented —
-the registry array has one entry today), real drag-and-drop reordering
+Primary Bloom (School Excellence and Campus Prestige are implemented —
+the registry array has two entries today), real drag-and-drop reordering
 inside `SectionsBuilder.tsx`, a real draft-preview mode, and a full
 "start from this template" scaffolding flow using `defaultSections`. See
 the plan file for the complete list.
