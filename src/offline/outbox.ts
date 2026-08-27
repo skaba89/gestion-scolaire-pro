@@ -35,6 +35,23 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
+// La file est rejouée dans l'ordre d'insertion (voir flushOfflineQueue),
+// trié sur createdAt — un simple `new Date().toISOString()` n'a qu'une
+// résolution milliseconde. Deux enqueueAction() dans le même tick (ex :
+// marquer plusieurs élèves présents d'affilée, hors-ligne) peuvent
+// obtenir le même createdAt, rendant l'ordre de rejeu non déterministe
+// (constaté en CI : src/offline/__tests__/outbox.test.ts échouait de
+// façon intermittente, sur des assertions différentes selon l'ordre
+// gagnant). Horloge monotone : garantit createdAt strictement croissant
+// au sein d'une même session d'onglet, sans changer le format stocké
+// (toujours une chaîne ISO valide).
+let _lastCreatedAtMs = 0;
+function monotonicIsoNow(): string {
+  const ms = Math.max(Date.now(), _lastCreatedAtMs + 1);
+  _lastCreatedAtMs = ms;
+  return new Date(ms).toISOString();
+}
+
 /** Full history — every status, including resolved (SYNCED/REJECTED) rows
  * still within their retention window. Use this for a "brouillons"/drafts
  * UI that must show PENDING/SYNCING/SYNCED/REJECTED, not just what's left
@@ -70,7 +87,7 @@ async function pruneOldResolvedActions(): Promise<void> {
 export async function enqueueAction(
   action: Pick<OfflineAction, "kind" | "method" | "url" | "body" | "dedupeKey" | "tenantId" | "userId">,
 ): Promise<OfflineAction> {
-  const now = new Date().toISOString();
+  const now = monotonicIsoNow();
   const entry: OfflineAction = {
     ...action,
     id: newId(),
