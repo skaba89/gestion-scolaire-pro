@@ -14,6 +14,13 @@ step to keep main.py clean while preserving existing behavior.
 
 MIGRÉ (voir app/models/club.py + alembic/versions/20260822_0001_*) :
 clubs, club_memberships — pilote de cette migration, retirées d'ici.
+
+MIGRÉ (voir app/models/survey.py + alembic/versions/20260823_0001_*) :
+surveys, survey_questions, survey_responses — retirées d'ici.
+
+MIGRÉ (voir app/models/library.py + alembic/versions/20260827_0001_*) :
+library_categories, library_resources, library_borrow_records —
+retirées d'ici (colonnes ALTER TABLE ADD COLUMN incluses).
 """
 import logging
 from sqlalchemy import text
@@ -23,36 +30,6 @@ logger = logging.getLogger(__name__)
 
 # fmt: off
 _DDL = [
-    # ── Library ──────────────────────────────────────────────────────────
-    """CREATE TABLE IF NOT EXISTS library_categories (
-        id UUID PRIMARY KEY,
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        name VARCHAR(255) NOT NULL,
-        color VARCHAR(50),
-        description VARCHAR(500),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_library_categories_tenant_id
-        ON library_categories(tenant_id)""",
-
-    """CREATE TABLE IF NOT EXISTS library_resources (
-        id UUID PRIMARY KEY,
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        category_id UUID REFERENCES library_categories(id) ON DELETE SET NULL,
-        title VARCHAR(500) NOT NULL,
-        description TEXT,
-        author VARCHAR(255),
-        resource_type VARCHAR(100),
-        uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at TIMESTAMPTZ
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_library_resources_tenant_id
-        ON library_resources(tenant_id)""",
-    """CREATE INDEX IF NOT EXISTS ix_library_resources_category_id
-        ON library_resources(category_id)""",
-
     # ── Inventory ────────────────────────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS inventory_categories (
         id UUID PRIMARY KEY,
@@ -866,19 +843,6 @@ _DDL = [
         ALTER TABLE levels ADD CONSTRAINT uq_levels_tenant_name UNIQUE (tenant_id, name);
     EXCEPTION WHEN OTHERS THEN NULL;
     END $$""",
-    # ── Emprunts bibliothèque (utilisé par /library/borrowers|borrow|return) ──
-    """CREATE TABLE IF NOT EXISTS library_borrow_records (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-        resource_id UUID NOT NULL,
-        borrowed_by UUID NOT NULL,
-        borrowed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        due_date DATE,
-        returned_at TIMESTAMPTZ,
-        status VARCHAR(20) NOT NULL DEFAULT 'BORROWED',
-        notes TEXT
-    )""",
-    """CREATE INDEX IF NOT EXISTS ix_library_borrow_tenant ON library_borrow_records (tenant_id, status)""",
     # ── Rendus de devoirs (utilisé par /homework-submissions/) ────────────────
     """CREATE TABLE IF NOT EXISTS homework_submissions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -924,8 +888,6 @@ _DDL = [
     # ── Défaut UUID manquant sur 30 tables (id UUID PRIMARY KEY sans DEFAULT)
     # — cause racine de multiples 500 "NotNullViolation ... column id" sur
     # tout INSERT brut qui omet id. Fix générique plutôt que correctif par table.
-    """ALTER TABLE library_categories ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
-    """ALTER TABLE library_resources ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE inventory_categories ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE inventory_items ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
     """ALTER TABLE inventory_transactions ALTER COLUMN id SET DEFAULT gen_random_uuid()""",
@@ -967,23 +929,11 @@ _DDL = [
     END $$""",
     # ── RLS sur les nouvelles tables opérationnelles (le health check exige
     # une policy tenant sur TOUTE table portant tenant_id) ──────────────────
-    """ALTER TABLE library_borrow_records ENABLE ROW LEVEL SECURITY""",
-    """ALTER TABLE library_borrow_records FORCE ROW LEVEL SECURITY""",
-    """DO $$ BEGIN
-        DROP POLICY IF EXISTS "tenant_isolation_library_borrow_records" ON library_borrow_records;
-        CREATE POLICY "tenant_isolation_library_borrow_records" ON library_borrow_records
-        AS PERMISSIVE FOR ALL TO PUBLIC
-        USING (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''))
-        WITH CHECK (tenant_id::text = COALESCE(current_setting('app.current_tenant_id', true), ''));
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END $$""",
-    """DO $$ BEGIN
-        DROP POLICY IF EXISTS "superadmin_bypass_library_borrow_records" ON library_borrow_records;
-        CREATE POLICY "superadmin_bypass_library_borrow_records" ON library_borrow_records
-        AS PERMISSIVE FOR ALL TO PUBLIC
-        USING (COALESCE(current_setting('app.is_superadmin', true), 'false') = 'true');
-    EXCEPTION WHEN OTHERS THEN NULL;
-    END $$""",
+    # library_borrow_records : MIGRÉ (voir app/models/library.py +
+    # alembic/versions/20260827_0001_adopt_library_tables.py). Ses policies
+    # RLS explicites ne sont plus nécessaires ici : _sweep_operational_rls()
+    # ci-dessous détecte génériquement toute table avec tenant_id et lui
+    # applique RLS + policy d'isolation si absente.
     """ALTER TABLE homework_submissions ENABLE ROW LEVEL SECURITY""",
     """ALTER TABLE homework_submissions FORCE ROW LEVEL SECURITY""",
     """DO $$ BEGIN
@@ -1048,22 +998,6 @@ _DDL = [
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS graduation_year INTEGER""",
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS industry VARCHAR(255)""",
     """ALTER TABLE alumni_mentors ADD COLUMN IF NOT EXISTS max_mentees INTEGER DEFAULT 3""",
-
-    # ── library_resources : colonnes attendues par le backend et le formulaire
-    # admin depuis toujours (isbn/copies/urls dans le Pydantic+INSERT, tags/
-    # featured/public/publication_year dans ResourceDialog.tsx) mais jamais
-    # créées -> UndefinedColumn systématique à la création d'une ressource.
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS isbn VARCHAR(50)""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS total_copies INTEGER DEFAULT 1""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS available_copies INTEGER DEFAULT 1""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS file_url VARCHAR(1000)""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS cover_url VARCHAR(1000)""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS external_url VARCHAR(1000)""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS publication_year INTEGER""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS is_featured BOOLEAN DEFAULT false""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false""",
-    """ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0""",
 
     # ── message_reactions ──────────────────────────────────────────────────
     # MessageReactions.tsx (messagerie interne) appelle
