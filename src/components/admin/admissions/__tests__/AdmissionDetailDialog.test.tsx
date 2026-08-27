@@ -5,12 +5,30 @@
  * déposés par le candidat, alors que le backend les stockait bel et bien
  * (admission_applications.documents). Ce test verrouille que le dialog
  * de détail les affiche réellement, avec un lien fonctionnel par pièce.
+ *
+ * Suite (même utilisateur) : "il faut que l'étudiant ... puisse suivre
+ * ... l'évolution des dossiers et l'administrateur puisse traiter par
+ * étape" — le dialog doit maintenant charger et afficher la timeline
+ * (GET /admissions/{id}/timeline/), d'où le passage à un
+ * QueryClientProvider et le mock d'apiClient.get ci-dessous (absents
+ * avant, ce composant n'avait aucune requête réseau à l'époque).
  */
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { AdmissionDetailDialog } from "../AdmissionDetailDialog";
-import type { AdmissionApplication } from "@/queries/admissions";
+import type { AdmissionApplication, AdmissionTimeline } from "@/queries/admissions";
+
+const mockApiGet = vi.fn();
+vi.mock("@/api/client", () => ({
+  apiClient: { get: (...args: unknown[]) => mockApiGet(...args) },
+}));
+
+function renderWithClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 function makeApplication(overrides: Partial<AdmissionApplication> = {}): AdmissionApplication {
   return {
@@ -30,8 +48,26 @@ function makeApplication(overrides: Partial<AdmissionApplication> = {}): Admissi
   };
 }
 
+function makeTimeline(overrides: Partial<AdmissionTimeline> = {}): AdmissionTimeline {
+  return {
+    steps: [
+      { key: "SUBMITTED", label: "Soumis", date: "2026-08-01T10:00:00Z", state: "done" },
+      { key: "UNDER_REVIEW", label: "En cours d'examen", date: null, state: "current" },
+      { key: "ACCEPTED", label: "Accepté", date: null, state: "pending" },
+      { key: "CONVERTED_TO_STUDENT", label: "Inscrit", date: null, state: "pending" },
+    ],
+    events: [],
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  mockApiGet.mockReset();
+  mockApiGet.mockResolvedValue({ data: makeTimeline() });
+});
+
 describe("AdmissionDetailDialog — pièces jointes du candidat", () => {
-  it("affiche chaque document déposé avec son libellé et un lien vers le fichier", () => {
+  it("affiche chaque document déposé avec son libellé et un lien vers le fichier", async () => {
     const application = makeApplication({
       documents: [
         {
@@ -49,7 +85,7 @@ describe("AdmissionDetailDialog — pièces jointes du candidat", () => {
       ],
     });
 
-    render(
+    renderWithClient(
       <AdmissionDetailDialog
         application={application}
         open={true}
@@ -73,7 +109,7 @@ describe("AdmissionDetailDialog — pièces jointes du candidat", () => {
   });
 
   it("affiche un état vide honnête quand aucun document n'a été déposé", () => {
-    render(
+    renderWithClient(
       <AdmissionDetailDialog
         application={makeApplication({ documents: [] })}
         open={true}
@@ -86,7 +122,7 @@ describe("AdmissionDetailDialog — pièces jointes du candidat", () => {
   });
 
   it("affiche les informations complètes du candidat et du parent", () => {
-    render(
+    renderWithClient(
       <AdmissionDetailDialog
         application={makeApplication({
           student_address: "Quartier Almamya, Conakry",
@@ -104,5 +140,36 @@ describe("AdmissionDetailDialog — pièces jointes du candidat", () => {
     expect(screen.getByText("École Les Palmiers")).toBeInTheDocument();
     expect(screen.getByText("Commerçante")).toBeInTheDocument();
     expect(screen.getByText("Dossier prioritaire — fratrie déjà inscrite.")).toBeInTheDocument();
+  });
+});
+
+describe("AdmissionDetailDialog — évolution du dossier (suivi étape par étape)", () => {
+  it("charge et affiche la timeline du dossier ouvert", async () => {
+    renderWithClient(
+      <AdmissionDetailDialog
+        application={makeApplication({ id: "app-42" })}
+        open={true}
+        onOpenChange={() => {}}
+        studentLabel="Élève"
+      />,
+    );
+
+    await waitFor(() => expect(mockApiGet).toHaveBeenCalledWith("/admissions/app-42/timeline/"));
+    expect(await screen.findByText("Soumis")).toBeInTheDocument();
+    expect(screen.getByText("En cours d'examen")).toBeInTheDocument();
+    expect(screen.getByText("Accepté")).toBeInTheDocument();
+    expect(screen.getByText("Inscrit")).toBeInTheDocument();
+  });
+
+  it("ne charge pas la timeline quand le dialog est fermé", () => {
+    renderWithClient(
+      <AdmissionDetailDialog
+        application={makeApplication()}
+        open={false}
+        onOpenChange={() => {}}
+        studentLabel="Élève"
+      />,
+    );
+    expect(mockApiGet).not.toHaveBeenCalled();
   });
 });
