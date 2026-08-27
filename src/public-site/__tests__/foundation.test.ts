@@ -27,10 +27,18 @@ describe("siteTemplateRegistry", () => {
   });
 
   it("getSiteTemplatesFor filters by compatible tenant group", () => {
-    expect(getSiteTemplatesFor("highschool").map((t) => t.id)).toContain("school-excellence");
-    expect(getSiteTemplatesFor("university").map((t) => t.id)).not.toContain("school-excellence");
+    expect(getSiteTemplatesFor("highschool").map((t) => t.id)).toEqual(["school-excellence"]);
+    expect(getSiteTemplatesFor("university").map((t) => t.id)).toEqual(["campus-prestige"]);
+    expect(getSiteTemplatesFor("university")).not.toContain(expect.objectContaining({ id: "school-excellence" }));
     expect(getSiteTemplatesFor("primary")).toHaveLength(0);
     expect(getSiteTemplatesFor("default")).toHaveLength(0);
+  });
+
+  it("getSiteTemplate returns the Campus Prestige template by id", () => {
+    const tpl = getSiteTemplate("campus-prestige");
+    expect(tpl).toBeDefined();
+    expect(tpl?.name).toBe("Campus Prestige");
+    expect(tpl?.compatibleGroups).toEqual(["university"]);
   });
 
   it("every registered template has a stable, unique id", () => {

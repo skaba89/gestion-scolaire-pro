@@ -1,14 +1,15 @@
 import type { TenantTemplateGroup } from "@/lib/tenantTemplateGroup";
 import type { SiteTemplateDefinition } from "./types";
 import { schoolExcellenceTemplate } from "../templates/school-excellence";
+import { campusPrestigeTemplate } from "../templates/campus-prestige";
 
-/** Central registry of site templates. Campus Prestige (université) and
- * Primary Bloom (primaire) will be added here in follow-up PRs, once
- * this foundation has proven itself on School Excellence — the
- * SiteTemplateDefinition shape and this array are deliberately additive,
- * so adding them later requires no change to this file's structure. */
+/** Central registry of site templates. Primary Bloom (primaire) will be
+ * added here in a follow-up PR — the SiteTemplateDefinition shape and
+ * this array are deliberately additive, so adding it later requires no
+ * change to this file's structure. */
 export const siteTemplateRegistry: SiteTemplateDefinition[] = [
   schoolExcellenceTemplate,
+  campusPrestigeTemplate,
 ];
 
 export function getSiteTemplate(id: string | null | undefined): SiteTemplateDefinition | undefined {
