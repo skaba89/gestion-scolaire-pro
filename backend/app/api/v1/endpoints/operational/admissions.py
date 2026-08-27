@@ -6,7 +6,7 @@ Admissions module — workflow complet:
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from pydantic import BaseModel
 from datetime import date, datetime
 import json
@@ -18,6 +18,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.core.storage import storage_client
+from app.models.base import GUID
 from app.utils.audit import log_audit
 import logging
 
@@ -80,8 +81,61 @@ class AdmissionEdit(BaseModel):
 
 # ─── Internal helper ──────────────────────────────────────────────────────────
 
+def _refresh_document_urls(application: dict) -> dict:
+    """Re-sign each document's storage URL at read time rather than trusting
+    the one saved on the row at upload time.
+
+    The admin review UI (AdmissionDetailDialog.tsx) had no document viewer
+    at all until this feature — the documents were uploaded and stored
+    (see public_upload_document()/public_apply() above) but never surfaced
+    anywhere for staff to actually open. MinIO presigned URLs expire after
+    7 days (storage.py::MinioStorage.get_presigned_url default) — an
+    application reviewed weeks after submission would otherwise show a
+    dead link for a document that genuinely exists. Local-storage URLs
+    (the current production fallback) are stable and don't need this, but
+    re-signing them is a harmless no-op (LocalStorage.get_presigned_url
+    just rebuilds the same /uploads/{object_name} path).
+    """
+    documents = application.get("documents")
+    # This is a raw text() SELECT, not an ORM query — SQLAlchemy's JSON
+    # type decoder (json.loads on read) only applies to ORM-mapped
+    # columns, so on SQLite `documents` comes back as the raw JSON-encoded
+    # string, not a parsed list (PostgreSQL's native json/jsonb columns
+    # get decoded by the driver either way, so this only bites on SQLite —
+    # the exact recurring divergence class from the clubs/surveys ORM
+    # migrations earlier this session).
+    if isinstance(documents, str):
+        try:
+            documents = json.loads(documents)
+        except (TypeError, ValueError):
+            documents = None
+        # Normalize the parsed value back onto the row even when we're
+        # about to bail below — otherwise a JSON-encoded 'null' string
+        # (SQLAlchemy's generic JSON type serializes Python None as the
+        # JSON literal "null" rather than SQL NULL by default) would
+        # leak out to the frontend as the literal string "null" instead
+        # of an empty/absent value.
+        application["documents"] = documents
+    if not documents or not isinstance(documents, list):
+        return application
+    refreshed = []
+    for doc in documents:
+        if isinstance(doc, dict) and doc.get("key"):
+            doc = {**doc, "url": storage_client.get_presigned_url(doc["key"])}
+        refreshed.append(doc)
+    application["documents"] = refreshed
+    return application
+
+
 def _fetch(db: Session, admission_id: str, tenant_id: str) -> dict:
-    row = db.execute(text("""
+    # bindparam(type_=GUID()) on id/tenant_id: on SQLite the GUID
+    # TypeDecorator stores UUIDs dash-less — a plain string bind compares
+    # the dashed value the caller has against the dash-less value in the
+    # column and silently matches zero rows (works fine on real
+    # PostgreSQL, which doesn't have this mismatch — this endpoint had no
+    # test coverage before this feature and would 404 every single time
+    # under SQLite otherwise).
+    stmt = text("""
         SELECT a.*,
                ay.name AS academic_year_name,
                l.name  AS level_name
@@ -89,10 +143,11 @@ def _fetch(db: Session, admission_id: str, tenant_id: str) -> dict:
         LEFT JOIN academic_years ay ON a.academic_year_id = ay.id
         LEFT JOIN levels         l  ON a.level_id         = l.id
         WHERE  a.id = :id AND a.tenant_id = :tenant_id
-    """), {"id": admission_id, "tenant_id": tenant_id}).mappings().first()
+    """).bindparams(bindparam("id", type_=GUID()), bindparam("tenant_id", type_=GUID()))
+    row = db.execute(stmt, {"id": admission_id, "tenant_id": tenant_id}).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Application not found")
-    return dict(row)
+    return _refresh_document_urls(dict(row))
 
 
 # ─── GET / ────────────────────────────────────────────────────────────────────
@@ -115,23 +170,30 @@ def list_admissions(
         return {"items": [], "total": 0}
     where = " WHERE a.tenant_id = :tenant_id"
     params: dict = {"tenant_id": tenant_id}
+    # UUID-typed params need bindparam(type_=GUID()) below — see _fetch()'s
+    # comment. status/search stay plain strings.
+    guid_params = ["tenant_id"]
     if status:
         where += " AND a.status = :status"
         params["status"] = status.upper()
     if academic_year_id:
         where += " AND a.academic_year_id = :ay_id"
         params["ay_id"] = academic_year_id
+        guid_params.append("ay_id")
     if level_id:
         where += " AND a.level_id = :level_id"
         params["level_id"] = level_id
+        guid_params.append("level_id")
     if search:
         where += """ AND (a.student_first_name ILIKE :search OR a.student_last_name ILIKE :search
                    OR a.parent_email ILIKE :search OR a.parent_phone ILIKE :search)"""
         params["search"] = f"%{search}%"
 
+    bindparams = [bindparam(name, type_=GUID()) for name in guid_params]
+
     # Separate COUNT query for accurate total
-    count_q = "SELECT COUNT(*) FROM admission_applications a" + where
-    total = db.execute(text(count_q), params).scalar()
+    count_stmt = text("SELECT COUNT(*) FROM admission_applications a" + where).bindparams(*bindparams)
+    total = db.execute(count_stmt, params).scalar()
 
     q = """
         SELECT a.*, ay.name AS academic_year_name, l.name AS level_name
@@ -140,8 +202,9 @@ def list_admissions(
         LEFT JOIN levels         l  ON a.level_id         = l.id
     """ + where + " ORDER BY a.created_at DESC LIMIT :limit OFFSET :offset"
     params.update({"limit": limit, "offset": offset})
-    rows = db.execute(text(q), params).mappings().all()
-    return {"items": [dict(r) for r in rows], "total": total}
+    list_stmt = text(q).bindparams(*bindparams)
+    rows = db.execute(list_stmt, params).mappings().all()
+    return {"items": [_refresh_document_urls(dict(r)) for r in rows], "total": total}
 
 
 # ─── GET /stats ───────────────────────────────────────────────────────────────

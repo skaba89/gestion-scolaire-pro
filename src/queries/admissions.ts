@@ -4,11 +4,20 @@ import { toast } from "sonner";
 
 export type AdmissionStatus = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "ACCEPTED" | "REJECTED" | "CONVERTED_TO_STUDENT";
 
+export interface AdmissionDocument {
+    key: string;
+    url: string;
+    filename: string;
+    document_type: string;
+}
+
 export interface AdmissionApplication {
     id: string;
     tenant_id: string;
     academic_year_id?: string;
+    academic_year_name?: string;
     level_id?: string;
+    level_name?: string;
     student_first_name: string;
     student_last_name: string;
     student_date_of_birth?: string;
@@ -23,7 +32,7 @@ export interface AdmissionApplication {
     parent_occupation?: string;
     status: AdmissionStatus;
     notes?: string;
-    documents?: any;
+    documents?: AdmissionDocument[] | null;
     submitted_at?: string;
     reviewed_at?: string;
     reviewed_by?: string;
