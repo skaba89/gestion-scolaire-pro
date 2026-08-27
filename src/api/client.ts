@@ -33,6 +33,25 @@ function isColdStartRetryablePath(url?: string): boolean {
   return COLD_START_RETRYABLE_PATHS.some((p) => url.includes(p));
 }
 
+/**
+ * Render's own edge (not our FastAPI app) throttles wake-up attempts on a
+ * hibernating free-tier service: a burst of requests while the container
+ * is asleep gets a 429 with this response header, body "Too Many
+ * Requests" — served by Cloudflare/Render before the request ever reaches
+ * our app (confirmed live: seen on GET /tenants/public/, POST
+ * /auth/login/, alike). That's the key property that makes retrying this
+ * ALWAYS safe regardless of HTTP method or path — unlike a generic 5xx or
+ * lost-response scenario, a request that never reached the app can never
+ * have had a server-side side effect to duplicate. Reuses the same
+ * cold-start retry budget/event as the /auth/login/ case above so any
+ * page already listening for "schoolflow:cold-start-retry" (TenantAuth,
+ * AuthNative) shows the same "server waking up" messaging for free; pages
+ * that don't listen still get the automatic recovery silently.
+ */
+function isRenderHibernateThrottle(error: { response?: { headers?: Record<string, unknown> } }): boolean {
+  return error.response?.headers?.['x-render-routing'] === 'hibernate-rate-limited';
+}
+
 // Mutex for token refresh — prevents concurrent refresh calls
 let refreshPromise: Promise<string> | null = null;
 
@@ -218,8 +237,10 @@ apiClient.interceptors.response.use(
     // after ~1.5s.
     if (
       originalRequest &&
-      isColdStartRetryablePath(originalRequest.url) &&
-      (httpStatus ? RETRYABLE_STATUS_CODES.includes(httpStatus) : isNetworkError)
+      (
+        (isColdStartRetryablePath(originalRequest.url) && (httpStatus ? RETRYABLE_STATUS_CODES.includes(httpStatus) : isNetworkError))
+        || isRenderHibernateThrottle(error)
+      )
     ) {
       const attempt = originalRequest._retryCount ?? 0;
       if (attempt < COLD_START_MAX_RETRIES) {
