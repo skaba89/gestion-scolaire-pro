@@ -6,6 +6,7 @@ import { usePublicPages } from '@/hooks/usePublicPages';
 import { getLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from '@/utils/url';
 import { getTenantTemplateGroup } from '@/lib/tenantTemplateGroup';
+import { getSiteTemplate } from '@/public-site/registry/siteTemplateRegistry';
 import { UniversityTemplate } from './landing/UniversityTemplate';
 import { HighSchoolTemplate } from './landing/HighSchoolTemplate';
 import { DefaultLandingTemplate } from './landing/DefaultLandingTemplate';
@@ -227,6 +228,18 @@ const TenantLanding = () => {
   if (homePage) {
     window.location.href = `/${tenantSlug}/pages/${homePage.slug}`;
     return <LandingSkeleton />;
+  }
+
+  // Website Builder premium: a tenant that has opted into a new site
+  // template (settings.landing.site_template_id) gets it rendered here,
+  // BEFORE the legacy switch below — but only if it's still compatible
+  // with the tenant's current type. If the tenant's type changed after
+  // choosing a template (or nothing was chosen), this falls straight
+  // through to the exact same legacy behavior as before this existed.
+  const chosenSiteTemplate = getSiteTemplate(settings.site_template_id);
+  if (chosenSiteTemplate && chosenSiteTemplate.compatibleGroups.includes(selectTemplate(tenant.type))) {
+    const SiteTemplate = chosenSiteTemplate.render;
+    return <SiteTemplate tenant={tenant} settings={settings} />;
   }
 
   // Fallback to legacy template-based landing

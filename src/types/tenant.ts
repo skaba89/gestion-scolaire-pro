@@ -37,6 +37,11 @@ export interface TenantLandingSettings {
   facebook_url?: string | null;
   twitter_url?: string | null;
   linkedin_url?: string | null;
+  /** Website Builder premium — id of the chosen site template (see
+   * src/public-site/registry/siteTemplateRegistry.ts), e.g.
+   * "school-excellence". Undefined/null = tenant hasn't opted in; the
+   * legacy per-group template (TenantLanding.tsx's switch) is used. */
+  site_template_id?: string | null;
 }
 
 export interface TenantPublicStats {

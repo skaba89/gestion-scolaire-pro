@@ -22,10 +22,14 @@ import {
   Loader2,
   School,
   ExternalLink,
+  LayoutTemplate,
+  Check,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveUploadUrl } from "@/utils/url";
+import { getTenantTemplateGroup } from "@/lib/tenantTemplateGroup";
+import { getSiteTemplatesFor } from "@/public-site/registry/siteTemplateRegistry";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,9 +72,11 @@ interface LandingSettings {
   show_stats?: boolean;
   show_programs?: boolean;
   show_gallery?: boolean;
+  // Website Builder premium
+  site_template_id?: string;
 }
 
-type TabKey = "general" | "media" | "colors" | "announcements" | "gallery" | "social" | "options";
+type TabKey = "general" | "media" | "colors" | "announcements" | "gallery" | "social" | "options" | "template";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -829,6 +835,70 @@ function TabOptions({
 }
 
 // ---------------------------------------------------------------------------
+// Tab: Site Template (Website Builder premium)
+// ---------------------------------------------------------------------------
+
+function TabTemplate({
+  data,
+  onChange,
+  tenantType,
+}: {
+  data: LandingSettings;
+  onChange: (patch: Partial<LandingSettings>) => void;
+  tenantType?: string;
+}) {
+  const { t } = useTranslation();
+  const group = getTenantTemplateGroup(tenantType);
+  const available = getSiteTemplatesFor(group);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-gray-500 mb-2">{t("landingPageEditor.templatePickerDescription")}</p>
+
+      {available.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">{t("landingPageEditor.templatePickerNoneAvailable")}</p>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-4">
+          <button
+            type="button"
+            onClick={() => onChange({ site_template_id: undefined })}
+            className={`text-left p-4 rounded-xl border-2 transition-all ${
+              !data.site_template_id ? "border-[#1e3a5f] bg-blue-50" : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-semibold text-gray-800">{t("landingPageEditor.templatePickerDefault")}</p>
+              {!data.site_template_id && <Check className="w-4 h-4 text-[#1e3a5f]" />}
+            </div>
+            <p className="text-xs text-gray-400">{t("landingPageEditor.templatePickerDefaultDesc")}</p>
+          </button>
+
+          {available.map((tpl) => {
+            const selected = data.site_template_id === tpl.id;
+            return (
+              <button
+                key={tpl.id}
+                type="button"
+                onClick={() => onChange({ site_template_id: tpl.id })}
+                className={`text-left p-4 rounded-xl border-2 transition-all ${
+                  selected ? "border-[#1e3a5f] bg-blue-50" : "border-gray-200 hover:border-gray-300"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-semibold text-gray-800">{tpl.name}</p>
+                  {selected && <Check className="w-4 h-4 text-[#1e3a5f]" />}
+                </div>
+                <p className="text-xs text-gray-400">{tpl.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -842,6 +912,7 @@ export default function LandingPageEditor() {
 
   const tabs = useMemo<{ key: TabKey; label: string; icon: React.FC<{ className?: string }> }[]>(() => [
     { key: "general", label: t("landingPageEditor.tabGeneral"), icon: School },
+    { key: "template", label: t("landingPageEditor.tabTemplate"), icon: LayoutTemplate },
     { key: "media", label: t("landingPageEditor.tabMedia"), icon: Image },
     { key: "colors", label: t("landingPageEditor.tabColors"), icon: Palette },
     { key: "announcements", label: t("landingPageEditor.tabAnnouncements"), icon: Megaphone },
@@ -884,6 +955,7 @@ export default function LandingPageEditor() {
         show_stats: tenantData.landing?.show_stats ?? true,
         show_programs: tenantData.landing?.show_programs ?? true,
         show_gallery: tenantData.landing?.show_gallery ?? true,
+        site_template_id: tenantData.landing?.site_template_id ?? undefined,
       });
     }
   }, [tenantData]);
@@ -1032,6 +1104,9 @@ export default function LandingPageEditor() {
               {/* Tab content */}
               {activeTab === "general" && (
                 <TabGeneral data={localData} onChange={handleChange} />
+              )}
+              {activeTab === "template" && (
+                <TabTemplate data={localData} onChange={handleChange} tenantType={tenantData?.type} />
               )}
               {activeTab === "media" && (
                 <TabMedia data={localData} onChange={handleChange} />

@@ -155,6 +155,16 @@ class TenantLandingSettings(BaseModel):
     facebook_url: Optional[str] = None
     twitter_url: Optional[str] = None
     linkedin_url: Optional[str] = None
+    # Website Builder premium (Horizon "public-site") — id of the chosen
+    # SiteTemplateDefinition (see src/public-site/registry/siteTemplateRegistry.ts),
+    # e.g. "school-excellence". None = tenant hasn't opted in, frontend falls
+    # back to the legacy per-group template. This field MUST be declared
+    # here: PATCH /tenants/settings/ already accepts arbitrary landing keys
+    # unvalidated, but the PUBLIC read path (_build_public_response below)
+    # rebuilds TenantLandingSettings(**landing_raw) — any key absent from
+    # this model is silently dropped there, so omitting it here would mean
+    # the admin's choice never reaches the public site at all.
+    site_template_id: Optional[str] = None
 
 
 class TenantPublicCard(BaseModel):
