@@ -5,6 +5,7 @@ from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.exc import IntegrityError
 from uuid import uuid4, UUID
 from datetime import datetime, date
 import traceback
@@ -1303,6 +1304,37 @@ async def delete_tenant(
 
         db.delete(tenant)
         db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        # Pull the offending table/constraint straight from the driver's
+        # diagnostics (psycopg 3 — `.orig.diag`) instead of guessing across
+        # ~70 tenant-scoped tables every time this happens. Previously this
+        # branch fell into the generic `except Exception` below and always
+        # returned the same static "check your CASCADE constraints"
+        # message, with the real Postgres error only ever reaching the
+        # server log — not visible to the SUPER_ADMIN who hit the button
+        # and has no way to check Render's logs themselves. This endpoint
+        # is SUPER_ADMIN-only (see _require_super_admin above), so surfacing
+        # the raw constraint/table name here is not a cross-tenant leak.
+        diag = getattr(getattr(exc, "orig", None), "diag", None)
+        constraint = getattr(diag, "constraint_name", None)
+        blocking_table = getattr(diag, "table_name", None)
+        logger.error(
+            "Failed to delete tenant '%s' (%s): IntegrityError constraint=%s table=%s — %s",
+            tenant_name, tenant_id, constraint, blocking_table, exc,
+        )
+        if blocking_table:
+            detail = (
+                f"Suppression bloquée par la table '{blocking_table}' "
+                f"(contrainte '{constraint}' — il lui manque ON DELETE CASCADE vers tenants). "
+                "Signalez cette table précise pour un correctif de migration."
+            )
+        else:
+            detail = (
+                "Suppression bloquée par une contrainte de base de données non identifiée. "
+                "Consultez les journaux serveur pour le détail exact."
+            )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
     except Exception as exc:
         db.rollback()
         logger.error(
