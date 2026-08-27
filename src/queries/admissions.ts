@@ -109,7 +109,13 @@ export const useConvertAdmission = (tenantId: string) => {
 
     return useMutation({
         mutationFn: async ({ id }: { id: string }) => {
-            const response = await apiClient.post(`/admissions/${id}/convert/`);
+            // BUG RÉEL (reproduit en prod, capture d'écran à l'appui —
+            // 422 sur POST .../convert/) : sans second argument, axios
+            // n'envoie aucun corps de requête. Le paramètre `payload:
+            // ConvertPayload` du backend n'a pas de valeur par défaut —
+            // même avec des champs tous optionnels, FastAPI exige un
+            // corps présent (au moins {}) pour construire le modèle.
+            const response = await apiClient.post(`/admissions/${id}/convert/`, {});
             return response.data as { student_name: string; registration_number: string };
         },
         onSuccess: (data) => {
