@@ -29,8 +29,8 @@ describe("siteTemplateRegistry", () => {
   it("getSiteTemplatesFor filters by compatible tenant group", () => {
     expect(getSiteTemplatesFor("highschool").map((t) => t.id)).toEqual(["school-excellence"]);
     expect(getSiteTemplatesFor("university").map((t) => t.id)).toEqual(["campus-prestige"]);
+    expect(getSiteTemplatesFor("primary").map((t) => t.id)).toEqual(["primary-bloom"]);
     expect(getSiteTemplatesFor("university")).not.toContain(expect.objectContaining({ id: "school-excellence" }));
-    expect(getSiteTemplatesFor("primary")).toHaveLength(0);
     expect(getSiteTemplatesFor("default")).toHaveLength(0);
   });
 
@@ -39,6 +39,13 @@ describe("siteTemplateRegistry", () => {
     expect(tpl).toBeDefined();
     expect(tpl?.name).toBe("Campus Prestige");
     expect(tpl?.compatibleGroups).toEqual(["university"]);
+  });
+
+  it("getSiteTemplate returns the Primary Bloom template by id", () => {
+    const tpl = getSiteTemplate("primary-bloom");
+    expect(tpl).toBeDefined();
+    expect(tpl?.name).toBe("Primary Bloom");
+    expect(tpl?.compatibleGroups).toEqual(["primary"]);
   });
 
   it("every registered template has a stable, unique id", () => {

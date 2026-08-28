@@ -31,8 +31,7 @@ site template is closer in shape to the legacy full-page components.
 ## Why not one set of components per template?
 
 That would 3x-duplicate near-identical Hero/Stats/CTA/etc. components
-across School Excellence, and the future Campus Prestige and Primary
-Bloom. Instead:
+across School Excellence, Campus Prestige, and Primary Bloom. Instead:
 
 - `sections/` holds **shared, token-styled** components (Hero, Stats,
   CTA, Testimonials, FAQ, Gallery, ContactForm, Text, Programs, Results,
@@ -63,8 +62,9 @@ app needs to know about this registry.
 
 ## Not part of this slice
 
-Primary Bloom (School Excellence and Campus Prestige are implemented —
-the registry array has two entries today), real drag-and-drop reordering
-inside `SectionsBuilder.tsx`, a real draft-preview mode, and a full
-"start from this template" scaffolding flow using `defaultSections`. See
-the plan file for the complete list.
+All three flagship templates are implemented (School Excellence,
+Campus Prestige, Primary Bloom — the registry array has three entries
+today). Still not built: real drag-and-drop reordering inside
+`SectionsBuilder.tsx`, a real draft-preview mode, and a full "start
+from this template" scaffolding flow using `defaultSections`. See the
+plan file for the complete list.
