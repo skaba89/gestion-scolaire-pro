@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from "@/utils/url";
-import { usePublicNav } from "@/hooks/usePublicPages";
+import { useCustomNavLinks } from "@/hooks/usePublicPages";
+import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -43,9 +44,7 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
   const primaryColor = settings.primary_color || '#f97316';
   const secondaryColor = settings.secondary_color || '#3b82f6';
 
-  const pinnedAnnouncements = settings.announcements.filter((a) => a.is_pinned);
-  const unpinnedAnnouncements = settings.announcements.filter((a) => !a.is_pinned);
-  const allAnnouncements = [...pinnedAnnouncements, ...unpinnedAnnouncements];
+  const allAnnouncements = sortAnnouncementsPinnedFirst(settings.announcements);
 
   // Classes réelles du tenant uniquement — jamais de repli fabriqué
   // (CP/CE1/CE2/CM1/CM2 générique) : une école qui n'a pas encore
@@ -58,12 +57,7 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
   // Custom pages created via "Pages publiques" (admin) with "Afficher dans
   // le menu" checked appear here automatically — see UniversityTemplate.tsx
   // for the full rationale.
-  const navPagesQuery = usePublicNav(slug);
-  const customNavLinks = (navPagesQuery.data || []).map((item) => ({
-    label: item.nav_label || item.title,
-    href: `/${slug}/pages/${item.slug}`,
-    external: false,
-  }));
+  const customNavLinks = useCustomNavLinks(slug);
 
   const navLinks = [
     { label: '🏠 Accueil', href: `/ecole/${slug}`, external: false },
@@ -144,6 +138,7 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
               <button
                 className="lg:hidden p-2 rounded-full hover:bg-white/20 transition-colors text-white"
                 onClick={() => setMobileOpen(!mobileOpen)}
+                aria-label="Menu"
               >
                 {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>

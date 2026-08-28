@@ -31,7 +31,8 @@ import {
 } from 'lucide-react';
 import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from "@/utils/url";
-import { usePublicNav } from "@/hooks/usePublicPages";
+import { useCustomNavLinks } from "@/hooks/usePublicPages";
+import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -47,9 +48,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
   const accentColor = settings.secondary_color || '#7c3aed';
   const goldColor = '#f59e0b';
 
-  const pinnedAnnouncements = settings.announcements.filter((a) => a.is_pinned);
-  const unpinnedAnnouncements = settings.announcements.filter((a) => !a.is_pinned);
-  const allAnnouncements = [...pinnedAnnouncements, ...unpinnedAnnouncements];
+  const allAnnouncements = sortAnnouncementsPinnedFirst(settings.announcements);
 
   const programs = tenant.programs || [];
   const departments = (tenant as any).departments || [];
@@ -65,12 +64,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
   // them appear here automatically, instead of the old behavior where
   // having any custom page at all replaced this whole template with a
   // generic directory (see TenantLanding.tsx).
-  const navPagesQuery = usePublicNav(slug);
-  const customNavLinks = (navPagesQuery.data || []).map((item) => ({
-    label: item.nav_label || item.title,
-    href: `/${slug}/pages/${item.slug}`,
-    external: false,
-  }));
+  const customNavLinks = useCustomNavLinks(slug);
 
   const navLinks = [
     { label: 'Formations', href: `#programmes`, external: false },
@@ -209,6 +203,7 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
               <button
                 className="xl:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
                 onClick={() => setMobileOpen(!mobileOpen)}
+                aria-label="Menu"
               >
                 {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
