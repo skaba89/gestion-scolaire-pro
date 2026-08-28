@@ -106,6 +106,7 @@ export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderPro
           }}
           tokens={tokens}
           fallbackBackgroundImage={settings.banner_url}
+          images={settings.show_gallery !== false ? settings.gallery : []}
         />
 
         {settings.description && (

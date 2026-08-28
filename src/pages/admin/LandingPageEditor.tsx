@@ -30,6 +30,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { resolveUploadUrl } from "@/utils/url";
 import { getTenantTemplateGroup } from "@/lib/tenantTemplateGroup";
 import { getSiteTemplatesFor } from "@/public-site/registry/siteTemplateRegistry";
+import { MultiImageUpload } from "@/components/common/MultiImageUpload";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -680,7 +681,7 @@ function TabGallery({
   const gallery = data.gallery ?? [];
   const [newUrl, setNewUrl] = useState("");
 
-  const addPhoto = () => {
+  const addPhotoByUrl = () => {
     const url = newUrl.trim();
     if (!url) return;
     if (gallery.includes(url)) {
@@ -691,24 +692,30 @@ function TabGallery({
     setNewUrl("");
   };
 
-  const removePhoto = (url: string) => {
-    onChange({ gallery: gallery.filter((u) => u !== url) });
-  };
-
   return (
     <div className="flex flex-col gap-6">
-      {/* Add URL */}
-      <div className="flex gap-3">
+      {/* Ces mêmes photos alimentent aussi le carrousel de la bannière
+          d'accueil (templates premium) — pas seulement la section
+          galerie. */}
+      <MultiImageUpload
+        images={gallery}
+        onChange={(next) => onChange({ gallery: next })}
+        emptyLabel={t("landingPageEditor.noPhotos")}
+        helpText={t("landingPageEditor.noPhotosHelp")}
+      />
+
+      {/* Repli : coller une URL externe (image déjà hébergée ailleurs) */}
+      <div className="flex gap-3 pt-2 border-t border-gray-100">
         <input
           type="url"
           value={newUrl}
           onChange={(e) => setNewUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && addPhoto()}
+          onKeyDown={(e) => e.key === "Enter" && addPhotoByUrl()}
           placeholder="https://exemple.com/photo.jpg"
           className="flex-1 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
         />
         <button
-          onClick={addPhoto}
+          onClick={addPhotoByUrl}
           disabled={!newUrl.trim()}
           className="px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2"
         >
@@ -716,39 +723,6 @@ function TabGallery({
           {t("landingPageEditor.addPhoto")}
         </button>
       </div>
-
-      {/* Grid */}
-      {gallery.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl">
-          <Camera className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">{t("landingPageEditor.noPhotos")}</p>
-          <p className="text-xs mt-1">{t("landingPageEditor.noPhotosHelp")}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {gallery.map((url, i) => (
-            <div key={i} className="relative group rounded-xl overflow-hidden bg-gray-100 aspect-video">
-              <img
-                src={url}
-                alt={`Photo ${i + 1}`}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  const el = e.target as HTMLImageElement;
-                  el.parentElement!.classList.add("border", "border-red-200", "bg-red-50");
-                  el.style.display = "none";
-                }}
-              />
-              <button
-                onClick={() => removePhoto(url)}
-                className="absolute top-1.5 right-1.5 p-1 bg-white/90 rounded-full text-red-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:bg-white"
-                title="Supprimer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
 
       <p className="text-xs text-gray-400">
         {t("landingPageEditor.photoCount", { count: gallery.length })}

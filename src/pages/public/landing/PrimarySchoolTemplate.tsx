@@ -22,6 +22,7 @@ import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant
 import { resolveUploadUrl } from "@/utils/url";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
+import { LegacyHeroBackground } from "./LegacyHeroBackground";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -200,14 +201,13 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
             )}
           </div>
 
-          {settings.banner_url && (
-            <>
-              <img
-                src={settings.banner_url}
-                alt={tenant.name}
-                className="absolute inset-0 w-full h-full object-cover opacity-10"
-              />
-            </>
+          {(settings.banner_url || (settings.gallery && settings.gallery.length > 0)) && (
+            <LegacyHeroBackground
+              images={settings.gallery}
+              bannerUrl={settings.banner_url}
+              imageClassName="opacity-10"
+              alt={tenant.name}
+            />
           )}
 
           <div className="container mx-auto px-4 py-20 relative z-10 text-center">
