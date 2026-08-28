@@ -52,6 +52,33 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     commune = Column(String(100), nullable=True, index=True)
 
     # Relationships
-    users = relationship("User", back_populates="tenant")
-    students = relationship("Student", back_populates="tenant")
-    public_pages = relationship("PublicPage", back_populates="tenant", order_by="PublicPage.sort_order")
+    #
+    # passive_deletes=True sur les trois : sans ça, SQLAlchemy charge la
+    # collection enfant en mémoire au moment de `db.delete(tenant)` et lui
+    # applique SA PROPRE logique de "détachement" — un UPDATE qui met
+    # tenant_id à NULL sur chaque ligne enfant déjà trackée — AVANT même
+    # que la suppression de la ligne parente n'atteigne la base et ne
+    # déclenche le vrai ON DELETE CASCADE de Postgres. Comme tenant_id est
+    # NOT NULL partout (TenantMixin, app/models/base.py), cet UPDATE échoue
+    # avec une violation NOT NULL — pas une violation de clé étrangère,
+    # d'où l'errance de diagnostic (2026-08-27/28, PR #134/#135/#136) :
+    # la contrainte CASCADE en base a toujours été correcte, le vrai
+    # problème était entièrement côté ORM, jamais côté schéma.
+    #
+    # Ce bug ne s'est jamais manifesté avant sur `users`/`students` très
+    # probablement parce qu'aucun tenant supprimé jusqu'ici n'avait de
+    # lignes réelles dans ces deux tables au moment de sa suppression —
+    # mais le même déclencheur (SQLAlchemy chargeant puis nullifiant la
+    # collection) s'y appliquerait identiquement dès qu'un tenant avec de
+    # vrais users/students serait supprimé. Corrigé ici de façon
+    # préventive sur les trois relations, pas seulement public_pages.
+    #
+    # passive_deletes=True dit à SQLAlchemy : ne charge pas la collection,
+    # ne fais rien toi-même, fais confiance au ON DELETE CASCADE déjà en
+    # place au niveau de la contrainte FK (TenantMixin.tenant_id,
+    # ondelete="CASCADE") pour que Postgres s'en charge nativement.
+    users = relationship("User", back_populates="tenant", passive_deletes=True)
+    students = relationship("Student", back_populates="tenant", passive_deletes=True)
+    public_pages = relationship(
+        "PublicPage", back_populates="tenant", order_by="PublicPage.sort_order", passive_deletes=True
+    )
