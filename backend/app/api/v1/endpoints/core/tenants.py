@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from sqlalchemy.orm.attributes import flag_modified
@@ -23,13 +23,17 @@ logger = logging.getLogger(__name__)
 # 429ing under completely ordinary browsing traffic — reproduced live).
 # Deliberately generous; these routes carry no PII beyond what's already
 # published, so there's no meaningful abuse surface to defend by throttling
-# harder here. Root cause of *why* ordinary traffic exhausts the app-wide
-# 100/minute this fast (proxy IP trust collapsing every visitor onto one
-# shared bucket, see _get_client_ip in app/main.py) is a separate,
-# infrastructure-level investigation — this raises the ceiling on the
-# routes that must never be the ones that break for a stranger evaluating
-# the platform, regardless of that root cause.
-public_browsing_limiter = Limiter(key_func=get_remote_address)
+# harder here.
+#
+# UPDATE (2026-08-28): the *why* flagged above as a separate investigation
+# — proxy IP trust collapsing every visitor onto one shared rate-limit
+# bucket behind Render — is now actually fixed at the root, here and on
+# every other Limiter in the codebase (see app/core/client_ip.py). This
+# limiter still imports the shared, now-correct get_client_ip — the
+# generous 300/minute ceiling stays as defense in depth (this route
+# genuinely does get hit by many distinct anonymous visitors at once),
+# not as a workaround for the bucket-collapsing bug anymore.
+public_browsing_limiter = Limiter(key_func=get_client_ip)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission

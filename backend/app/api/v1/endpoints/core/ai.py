@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 
 from app.core.security import get_current_user, require_plan
 from app.services.groq_service import groq_service
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 # AI endpoints use external LLM API calls — stricter rate limit to control cost
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 
 
 # ---------------------------------------------------------------------------

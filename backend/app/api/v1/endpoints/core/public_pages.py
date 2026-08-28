@@ -13,8 +13,8 @@ import hashlib
 import traceback
 import logging
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from app.core.client_ip import get_client_ip
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -53,7 +53,7 @@ def _submit_form_rate_key(request: Request) -> str:
     starve every tenant's quota at once. Scoping by tenant_slug keeps the
     limit meaningful per school."""
     tenant_slug = request.path_params.get("tenant_slug", "-")
-    return f"{get_remote_address(request)}:{tenant_slug}"
+    return f"{get_client_ip(request)}:{tenant_slug}"
 
 limiter = Limiter(key_func=_submit_form_rate_key)
 
@@ -550,8 +550,10 @@ public_router = APIRouter()
 # Read-only public browsing routes below — see the matching comment on
 # app/api/v1/endpoints/core/tenants.py::public_browsing_limiter for why
 # these carry a much higher ceiling than the app-wide 100/minute default
-# (real production incident, 2026-08-22).
-public_browsing_limiter = Limiter(key_func=get_remote_address)
+# (real production incident, 2026-08-22) and for why get_client_ip
+# (not slowapi's raw get_remote_address) is required behind Render's
+# proxy (root-caused and fixed 2026-08-28, see app/core/client_ip.py).
+public_browsing_limiter = Limiter(key_func=get_client_ip)
 
 
 @public_router.get("/{tenant_slug}/pages/", response_model=List[PublicPageListItem])
@@ -666,7 +668,7 @@ async def submit_public_form(
     (see PublicFormSubmissionCreate) — all rejections a bot triggers are
     logged with a hashed IP only, never the submitted content.
     """
-    ip_hash = _hash_ip(get_remote_address(request), tenant_slug)
+    ip_hash = _hash_ip(get_client_ip(request), tenant_slug)
 
     # Honeypot: a real visitor's browser never populates this field (it's
     # hidden via CSS, not `type="hidden"` — some bots skip those but still

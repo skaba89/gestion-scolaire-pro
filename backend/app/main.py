@@ -1,5 +1,4 @@
 import asyncio
-import ipaddress
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -8,11 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
+from app.core.client_ip import get_client_ip
 
 # ─── Sentry — initialisation avant tout le reste ─────────────────────────────
 def _init_sentry() -> None:
@@ -75,43 +74,17 @@ from fastapi.exceptions import HTTPException
 setup_logging(level=settings.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
-# Render/Cloudflare proxy IPs — only trust X-Forwarded-For from these.
-# These are CIDR *networks*, not literal address prefixes — a direct
-# `str.startswith("10.0.0.0")` check (the previous implementation) never
-# matches a real internal address like "10.0.4.23" (only literal strings
-# starting with "10.0.0.0" would), so it silently never trusted Render's
-# actual proxy IPs. Every request then fell back to get_remote_address(),
-# which behind Render/Cloudflare resolves to the same edge connection for
-# all traffic — collapsing every client onto one shared rate-limit bucket
-# (discovered when a single visitor exhausted the 5/minute bootstrap
-# limit and it never reset until the in-memory limiter was restarted).
-_TRUSTED_PROXY_NETWORKS = [
-    ipaddress.ip_network("127.0.0.1/32"),
-    ipaddress.ip_network("::1/128"),
-    # Render internal proxy ranges (RFC 1918 private space)
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-]
-
-def _get_client_ip(request: Request) -> str:
-    """Extract real client IP, respecting X-Forwarded-For from trusted proxies.
-
-    SECURITY: Only trust X-Forwarded-For when the direct connection comes from
-    a known proxy. Otherwise, clients can spoof this header to bypass rate limiting.
-    """
-    client_host = request.client.host if request.client else None
-    if client_host:
-        try:
-            addr = ipaddress.ip_address(client_host)
-            is_trusted = any(addr in network for network in _TRUSTED_PROXY_NETWORKS)
-        except ValueError:
-            is_trusted = False
-        if is_trusted:
-            forwarded = request.headers.get("X-Forwarded-For")
-            if forwarded:
-                return forwarded.split(",")[0].strip()
-    return get_remote_address(request)
+# Proxy-aware client-IP resolution moved to app/core/client_ip.py
+# (2026-08-28) so every OTHER slowapi Limiter in the codebase — one per
+# endpoint module needing its own rate limit — can import the same,
+# already-fixed logic instead of each defining its own (which is exactly
+# how 11 of them ended up using slowapi's raw get_remote_address, still
+# silently bucketing every visitor behind Render's proxy into one shared
+# rate-limit counter; see that module's docstring for the full incident
+# history). `_get_client_ip` kept as a local alias — it's the name
+# tests/test_client_ip_trust.py imports from app.main, and other code in
+# this file may still reference it by that name below.
+_get_client_ip = get_client_ip
 
 limiter = Limiter(
     key_func=_get_client_ip,

@@ -14,7 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 from sqlalchemy import func, case, text
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ from app.models.user_role import UserRole
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 
 # ─── SUPER_ADMIN guard ────────────────────────────────────────────────────────
 

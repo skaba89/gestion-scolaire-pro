@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -17,7 +17,7 @@ from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 
 NUM_CODES = 10
 CODE_LENGTH = 8  # characters per segment (format: XXXX-XXXX)
