@@ -109,3 +109,45 @@ describe("PublicDirectory — erreur API vs données de démo", () => {
     expect(screen.queryByText("Université La Source")).not.toBeInTheDocument();
   });
 });
+
+describe("PublicDirectory — filtre par type (audit 2026-08-28)", () => {
+  // tenant.type réel envoyé par les formulaires de création :
+  // "school"|"primary"|"middle"|"high"|"university"|"training" — jamais
+  // "high_school"/"primary_school"/"training_center". L'onglet "Lycées"
+  // comparait activeTab==="high_school" à tenant.type==="high" et ne
+  // matchait donc jamais rien pour un vrai lycée.
+  it("l'onglet 'Lycées' affiche bien un tenant réel de type 'high'", () => {
+    mockUsePublicTenants.mockReturnValue({
+      data: [
+        { id: "1", name: "Université Test", slug: "univ-test", type: "university" },
+        { id: "2", name: "Lycée Test", slug: "lycee-test", type: "high" },
+      ],
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: mockRefetch,
+    });
+
+    renderDirectory();
+
+    fireEvent.click(screen.getByRole("button", { name: /Lycées/i }));
+
+    expect(screen.getByText("Lycée Test")).toBeInTheDocument();
+    expect(screen.queryByText("Université Test")).not.toBeInTheDocument();
+  });
+
+  it("affiche le badge 'Lycée' (pas la valeur brute 'high') sur une carte d'établissement", () => {
+    mockUsePublicTenants.mockReturnValue({
+      data: [{ id: "1", name: "Lycée Test", slug: "lycee-test", type: "high" }],
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: mockRefetch,
+    });
+
+    renderDirectory();
+
+    expect(screen.getByText("Lycée")).toBeInTheDocument();
+    expect(screen.queryByText("high")).not.toBeInTheDocument();
+  });
+});

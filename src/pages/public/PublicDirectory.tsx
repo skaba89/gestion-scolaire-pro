@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { usePublicTenants } from "@/hooks/usePublicTenant";
 import { resolveUploadUrl } from "@/utils/url";
+import { getTenantTypeLabel, getTenantTypeBadgeColor } from "@/lib/tenantTemplateGroup";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,46 +37,35 @@ interface PublicTenant {
   };
 }
 
-type FilterTab = "all" | "university" | "high_school" | "primary_school" | "training_center";
+// Valeurs alignées sur les vraies valeurs de tenant.type (audit 2026-08-28) :
+// "school"|"primary"|"middle"|"high"|"university"|"training" — jamais les
+// anciennes formes "high_school"/"primary_school"/"training_center", qui ne
+// correspondaient à aucune donnée réelle et cassaient silencieusement à la
+// fois les badges/icônes ET les onglets de filtre ci-dessous (voir
+// getTenantTypeLabel/getTenantTypeBadgeColor, désormais partagés avec
+// ConnectionHub.tsx via src/lib/tenantTemplateGroup.ts).
+type FilterTab = "all" | "university" | "high" | "primary" | "training";
 type SortOption = "az" | "recent";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getTenantTypeLabel(type: string | undefined): string {
-  const labels: Record<string, string> = {
-    university: "Université",
-    high_school: "Lycée",
-    primary_school: "École primaire",
-    training_center: "Centre de formation",
-    other: "Autre",
-  };
-  return type ? (labels[type] ?? type) : "Établissement";
-}
-
 function getTenantTypeIcon(type: string | undefined) {
   switch (type) {
     case "university":
       return GraduationCap;
-    case "high_school":
+    case "high":
+    case "middle":
       return School;
-    case "primary_school":
+    case "primary":
       return BookOpen;
-    case "training_center":
+    case "training":
       return Users;
     default:
       return Building2;
   }
 }
-
-const TYPE_BADGE_COLORS: Record<string, string> = {
-  university: "bg-blue-100 text-blue-800",
-  high_school: "bg-purple-100 text-purple-800",
-  primary_school: "bg-green-100 text-green-800",
-  training_center: "bg-orange-100 text-orange-800",
-  other: "bg-gray-100 text-gray-700",
-};
 
 // ---------------------------------------------------------------------------
 // Static fallback data (used when API returns nothing)
@@ -97,7 +87,7 @@ const FALLBACK_TENANTS: PublicTenant[] = [
     id: "2",
     name: "Lycée Montesquieu",
     slug: "lycee-montesquieu",
-    type: "high_school",
+    type: "high",
     city: "Bordeaux",
     country: "France",
     description:
@@ -108,7 +98,7 @@ const FALLBACK_TENANTS: PublicTenant[] = [
     id: "3",
     name: "Centre AFPA Rennes",
     slug: "afpa-rennes",
-    type: "training_center",
+    type: "training",
     city: "Rennes",
     country: "France",
     description:
@@ -119,7 +109,7 @@ const FALLBACK_TENANTS: PublicTenant[] = [
     id: "4",
     name: "École Primaire Les Oliviers",
     slug: "ecole-les-oliviers",
-    type: "primary_school",
+    type: "primary",
     city: "Marseille",
     country: "France",
     description:
@@ -141,7 +131,7 @@ const FALLBACK_TENANTS: PublicTenant[] = [
     id: "6",
     name: "Lycée Technique Jules Verne",
     slug: "lycee-jules-verne",
-    type: "high_school",
+    type: "high",
     city: "Nantes",
     country: "France",
     description:
@@ -246,7 +236,7 @@ function EmptyState({ query, tab }: { query: string; tab: FilterTab }) {
 function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
   const navigate = useNavigate();
   const TypeIcon = getTenantTypeIcon(tenant.type);
-  const badgeColor = TYPE_BADGE_COLORS[tenant.type ?? "other"] ?? "bg-gray-100 text-gray-700";
+  const badgeColor = getTenantTypeBadgeColor(tenant.type);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-blue-100 transition-all duration-300 p-6 flex flex-col gap-4 group">
@@ -323,9 +313,9 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
 const FILTER_TABS: { key: FilterTab; label: string; icon: React.FC<{ className?: string }> }[] = [
   { key: "all", label: "Tous", icon: Building2 },
   { key: "university", label: "Universités", icon: GraduationCap },
-  { key: "high_school", label: "Lycées", icon: School },
-  { key: "primary_school", label: "Écoles primaires", icon: BookOpen },
-  { key: "training_center", label: "Centres de formation", icon: Users },
+  { key: "high", label: "Lycées", icon: School },
+  { key: "primary", label: "Écoles primaires", icon: BookOpen },
+  { key: "training", label: "Centres de formation", icon: Users },
 ];
 
 export default function PublicDirectory() {
