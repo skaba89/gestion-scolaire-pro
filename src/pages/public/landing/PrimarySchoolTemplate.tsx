@@ -36,15 +36,6 @@ const CLASS_COLORS = [
   { bg: '#ede9fe', text: '#7c3aed', border: '#c4b5fd', emoji: '🚀' },
 ];
 
-const DEFAULT_CLASS_LEVELS = ['CP', 'CE1', 'CE2', 'CM1', 'CM2'];
-
-const ACTIVITY_CARDS = [
-  { emoji: '⚽', title: 'Sport & EPS', desc: 'Activités sportives et développement physique', bg: '#fef3c7', text: '#d97706' },
-  { emoji: '🎨', title: 'Art & Créativité', desc: 'Dessin, peinture, travaux manuels', bg: '#fce7f3', text: '#be185d' },
-  { emoji: '🔬', title: 'Sciences & Découvertes', desc: 'Expériences et exploration du monde', bg: '#d1fae5', text: '#059669' },
-  { emoji: '🎵', title: 'Musique & Chant', desc: 'Éveil musical et activités rythmiques', bg: '#ede9fe', text: '#7c3aed' },
-];
-
 export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const slug = tenant.slug;
@@ -56,11 +47,11 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
   const unpinnedAnnouncements = settings.announcements.filter((a) => !a.is_pinned);
   const allAnnouncements = [...pinnedAnnouncements, ...unpinnedAnnouncements];
 
-  // Use programs as class levels, or fall back to default
-  const classLevels =
-    tenant.programs && tenant.programs.length > 0
-      ? tenant.programs
-      : DEFAULT_CLASS_LEVELS;
+  // Classes réelles du tenant uniquement — jamais de repli fabriqué
+  // (CP/CE1/CE2/CM1/CM2 générique) : une école qui n'a pas encore
+  // renseigné ses classes n'affiche simplement pas cette section (voir
+  // plus bas), plutôt que de prétendre en avoir.
+  const classLevels = tenant.programs && tenant.programs.length > 0 ? tenant.programs : [];
 
   const currentYear = new Date().getFullYear();
 
@@ -299,70 +290,65 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
         </header>
 
         {/* ─── NOS CLASSES ─────────────────────────────────────────── */}
-        <section id="classes" className="py-20">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-              <div className="text-4xl mb-3">📚</div>
-              <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-3">Nos Classes</h2>
-              <p className="text-gray-500 text-lg">
-                Une progression adaptée à chaque étape de la scolarité
-              </p>
-            </div>
+        {/* Uniquement les classes réellement renseignées par l'école —
+            jamais de repli CP/CE1/CE2/CM1/CM2 générique (voir classLevels
+            ci-dessus). Section masquée si aucune classe n'est renseignée. */}
+        {classLevels.length > 0 && (
+          <section id="classes" className="py-20">
+            <div className="container mx-auto px-4">
+              <div className="text-center mb-12">
+                <div className="text-4xl mb-3">📚</div>
+                <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-3">Nos Classes</h2>
+                <p className="text-gray-500 text-lg">
+                  Une progression adaptée à chaque étape de la scolarité
+                </p>
+              </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {classLevels.map((level, i) => {
-                const colors = CLASS_COLORS[i % CLASS_COLORS.length];
-                return (
-                  <div
-                    key={i}
-                    className="rounded-3xl p-6 text-center border-2 hover:shadow-lg hover:-translate-y-1 transition-all cursor-default"
-                    style={{
-                      backgroundColor: colors.bg,
-                      borderColor: colors.border,
-                    }}
-                  >
-                    <div className="text-4xl mb-3">{colors.emoji}</div>
-                    <p className="font-black text-lg" style={{ color: colors.text }}>
-                      {level}
-                    </p>
-                  </div>
-                );
-              })}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {classLevels.map((level, i) => {
+                  const colors = CLASS_COLORS[i % CLASS_COLORS.length];
+                  return (
+                    <div
+                      key={i}
+                      className="rounded-3xl p-6 text-center border-2 hover:shadow-lg hover:-translate-y-1 transition-all cursor-default"
+                      style={{
+                        backgroundColor: colors.bg,
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <div className="text-4xl mb-3">{colors.emoji}</div>
+                      <p className="font-black text-lg" style={{ color: colors.text }}>
+                        {level}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ─── LA VIE A L'ECOLE ────────────────────────────────────── */}
-        <section className="py-20 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-12">
-              <div className="text-4xl mb-3">🌈</div>
-              <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-3">
-                La vie à l'école
-              </h2>
-              <p className="text-gray-500 text-lg">
-                Des activités variées pour l'épanouissement de votre enfant
-              </p>
-            </div>
+        {/* Uniquement les activités réellement renseignées par l'école
+            (settings.features) — l'ancienne version affichait 4 cartes
+            fixes (Sport & EPS, Art & Créativité, Sciences & Découvertes,
+            Musique & Chant) inconditionnellement, sans lien avec les
+            vraies activités de l'établissement. Section masquée si
+            aucune activité n'est renseignée. */}
+        {settings.features && settings.features.length > 0 && (
+          <section className="py-20 bg-white">
+            <div className="container mx-auto px-4">
+              <div className="text-center mb-12">
+                <div className="text-4xl mb-3">🌈</div>
+                <h2 className="text-3xl md:text-4xl font-black text-gray-800 mb-3">
+                  La vie à l'école
+                </h2>
+                <p className="text-gray-500 text-lg">
+                  Des activités variées pour l'épanouissement de votre enfant
+                </p>
+              </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {ACTIVITY_CARDS.map((activity, i) => (
-                <div
-                  key={i}
-                  className="rounded-3xl p-6 text-center hover:shadow-lg hover:-translate-y-1 transition-all"
-                  style={{ backgroundColor: activity.bg }}
-                >
-                  <div className="text-5xl mb-4">{activity.emoji}</div>
-                  <h3 className="font-black text-lg mb-2" style={{ color: activity.text }}>
-                    {activity.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 leading-relaxed">{activity.desc}</p>
-                </div>
-              ))}
-            </div>
-
-            {settings.features && settings.features.length > 0 && (
-              <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
                 {settings.features.map((feat, i) => (
                   <div
                     key={i}
@@ -373,9 +359,9 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        </section>
+            </div>
+          </section>
+        )}
 
         {/* ─── STATS SECTION ───────────────────────────────────────── */}
         {settings.show_stats && tenant.stats && (
@@ -402,22 +388,28 @@ export const PrimarySchoolTemplate = ({ tenant, settings }: LandingTemplateProps
                     bg: '#dbeafe',
                     text: '#1d4ed8',
                   },
-                  {
-                    emoji: '📖',
-                    value: `${classLevels.length}`,
-                    label: 'niveaux',
-                    bg: '#d1fae5',
-                    text: '#065f46',
-                  },
-                  {
-                    emoji: '🏆',
-                    value: settings.founded_year
-                      ? `${currentYear - settings.founded_year}`
-                      : '20+',
-                    label: "ans d'expérience",
-                    bg: '#fef3c7',
-                    text: '#92400e',
-                  },
+                  // "niveaux" et "ans d'expérience" : seulement si adossés à
+                  // une vraie donnée (classes réellement renseignées /
+                  // founded_year réel) — l'ancien code affichait "20+"
+                  // inconditionnellement en repli, un chiffre inventé.
+                  ...(classLevels.length > 0
+                    ? [{
+                        emoji: '📖',
+                        value: `${classLevels.length}`,
+                        label: 'niveaux',
+                        bg: '#d1fae5',
+                        text: '#065f46',
+                      }]
+                    : []),
+                  ...(settings.founded_year
+                    ? [{
+                        emoji: '🏆',
+                        value: `${currentYear - settings.founded_year}`,
+                        label: "ans d'expérience",
+                        bg: '#fef3c7',
+                        text: '#92400e',
+                      }]
+                    : []),
                 ].map((stat, i) => (
                   <div
                     key={i}
