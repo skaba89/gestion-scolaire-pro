@@ -185,6 +185,24 @@ export interface ContactFormSectionData {
   settings?: { label?: string };
 }
 
+/** Same {url, caption?} shape as GalleryItem — a carousel and a gallery
+ * grid show the same kind of real, tenant-uploaded photos, just laid out
+ * differently (auto-advancing slides vs. a static grid). Kept as its own
+ * named type (not a re-export of GalleryItem) so each section's items
+ * can evolve independently later without one silently affecting the
+ * other. */
+export interface CarouselItem {
+  url: string;
+  caption?: string;
+}
+export interface CarouselSectionData {
+  type: "carousel";
+  title?: string;
+  subtitle?: string;
+  items?: CarouselItem[];
+  settings?: { label?: string; autoplay?: boolean; interval_ms?: number };
+}
+
 export type SiteSection =
   | HeroSectionData
   | TextSectionData
@@ -195,6 +213,7 @@ export type SiteSection =
   | EventsSectionData
   | NewsSectionData
   | GallerySectionData
+  | CarouselSectionData
   | CTASectionData
   | TestimonialsSectionData
   | FAQSectionData
@@ -210,6 +229,7 @@ const KNOWN_TYPES = new Set<SiteSection["type"]>([
   "events",
   "news",
   "gallery",
+  "carousel",
   "cta",
   "testimonials",
   "faq",

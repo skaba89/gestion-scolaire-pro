@@ -115,6 +115,23 @@ export const SECTION_TYPES: SectionTypeConfig[] = [
     itemLabel: "Image",
   },
   {
+    type: "carousel",
+    label: "Carrousel photo",
+    description: "Photos qui défilent automatiquement — même liste d'images que la Galerie photo, présentée en diaporama au lieu d'une grille.",
+    hasTitle: true,
+    hasSubtitle: true,
+    content: null,
+    settingsFields: [
+      { key: "label", label: "Sur-titre", kind: "text" },
+      { key: "autoplay", label: "Défilement automatique", kind: "checkbox" },
+    ],
+    itemFields: [
+      { key: "url", label: "Image (URL)", kind: "url" },
+      { key: "caption", label: "Légende", kind: "text" },
+    ],
+    itemLabel: "Image",
+  },
+  {
     type: "cta",
     label: "Appel à l'action",
     description: "Bandeau de fin de page pour inciter à candidater/contacter.",

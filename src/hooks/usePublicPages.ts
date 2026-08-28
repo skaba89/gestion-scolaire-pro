@@ -22,7 +22,7 @@ export interface PublicNavItem {
 }
 
 export interface PublicPageSection {
-  type: string; // hero | text | features | stats | gallery | cta | faq | contact_form | testimonials | timeline | custom_html
+  type: string; // hero | text | features | stats | gallery | carousel | cta | faq | contact_form | testimonials | timeline | custom_html
   title?: string;
   subtitle?: string;
   content?: string;

@@ -97,6 +97,13 @@ describe("normalizeSections", () => {
     expect(result[0].type).toBe("hero");
   });
 
+  it("keeps the 'carousel' type (audit 2026-08-28 — banner/carousel work)", () => {
+    const raw = [{ type: "carousel", items: [{ url: "/uploads/a.jpg" }] }];
+    const result = normalizeSections(raw);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("carousel");
+  });
+
   it("drops sections with unrecognized types (e.g. custom_html, timeline — legacy CMS-only types)", () => {
     const raw = [
       { type: "hero", title: "Bienvenue" },
