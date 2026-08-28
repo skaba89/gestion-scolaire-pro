@@ -26,7 +26,6 @@ import {
   TrendingUp,
   Clock,
   ArrowRight,
-  Calendar,
   Linkedin,
 } from 'lucide-react';
 import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant';
@@ -429,8 +428,15 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
           )}
 
           {/* ─── INFORMATIONS ADMISSION ───────────────────────────────── */}
+          {/* Les 4 cartes précédentes affichaient des informations
+              procédurales inventées (pièces requises, délai de 15 jours,
+              modalités d'entretien) présentées comme des faits réels de
+              l'établissement, sans aucune donnée tenant derrière — aucun
+              champ de ce type n'existe dans TenantLandingSettings. Réduit
+              à un en-tête générique + CTA vers la vraie page d'admission,
+              où les informations exactes sont gérées par l'établissement. */}
           <section>
-            <div className="mb-8">
+            <div className="mb-8 text-center">
               <div
                 className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full mb-3"
                 style={{ backgroundColor: `${navyColor}12`, color: navyColor }}
@@ -438,58 +444,13 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                 <Award className="w-3 h-3" />
                 Inscriptions
               </div>
-              <h2 className="text-3xl font-bold text-gray-900">Informations Admission</h2>
+              <h2 className="text-3xl font-bold text-gray-900">Admissions</h2>
               <p className="text-gray-500 mt-2">
                 Rejoignez notre établissement pour l'année scolaire {currentYear}/{currentYear + 1}
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[
-                {
-                  icon: <Calendar className="w-5 h-5" />,
-                  title: "Période d'inscription",
-                  desc: `Dépôt des dossiers ouvert pour l'année ${currentYear}/${currentYear + 1}. Candidatez en ligne dès maintenant.`,
-                  color: navyColor,
-                },
-                {
-                  icon: <BookOpen className="w-5 h-5" />,
-                  title: "Pièces requises",
-                  desc: "Bulletins scolaires des 2 dernières années, acte de naissance, photo d'identité.",
-                  color: accentColor,
-                },
-                {
-                  icon: <Users className="w-5 h-5" />,
-                  title: "Entretien d'admission",
-                  desc: "Un entretien avec l'équipe pédagogique peut être organisé selon les filières.",
-                  color: '#10b981',
-                },
-                {
-                  icon: <Shield className="w-5 h-5" />,
-                  title: 'Résultats & Notifications',
-                  desc: "Les résultats d'admission sont communiqués par email dans un délai de 15 jours.",
-                  color: goldColor,
-                },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex gap-4 hover:shadow-md transition-shadow"
-                >
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                    style={{ backgroundColor: `${item.color}18`, color: item.color }}
-                  >
-                    {item.icon}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 mb-1">{item.title}</h3>
-                    <p className="text-sm text-gray-600 leading-relaxed">{item.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 flex justify-center">
+            <div className="flex justify-center">
               <Link
                 to={`/admissions/${slug}`}
                 className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-white shadow-lg hover:opacity-90 transition-opacity"

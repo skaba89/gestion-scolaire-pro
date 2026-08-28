@@ -25,10 +25,7 @@ import {
   Calendar,
   Star,
   Linkedin,
-  Lightbulb,
-  Trophy,
   Search,
-  Globe2,
   Building,
   Clock,
 } from 'lucide-react';
@@ -343,62 +340,29 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
         </header>
 
         {/* ─── MISSION STATEMENT ───────────────────────────────────── */}
-        <section className="py-20 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="max-w-3xl mx-auto text-center mb-16">
-              <p className="text-sm font-semibold uppercase tracking-widest mb-3" style={{ color: accentColor }}>
-                Notre Mission
-              </p>
-              {settings.description ? (
+        {/* Uniquement si l'établissement a réellement renseigné sa
+            description — l'ancienne version affichait une citation
+            fabriquée ("Former les esprits de demain...") comme s'il
+            s'agissait de la vraie devise de l'université. Les "3 piliers"
+            (Excellence/Innovation/Diversité) affichaient eux aussi du
+            texte marketing générique inconditionnel, prétendant
+            l'existence de "laboratoires de recherche" sans aucune donnée
+            réelle derrière — retirés entièrement, pas de donnée tenant
+            équivalente à afficher à la place. */}
+        {settings.description && (
+          <section className="py-20 bg-white">
+            <div className="container mx-auto px-4">
+              <div className="max-w-3xl mx-auto text-center">
+                <p className="text-sm font-semibold uppercase tracking-widest mb-3" style={{ color: accentColor }}>
+                  Notre Mission
+                </p>
                 <blockquote className="text-2xl md:text-3xl font-light text-gray-700 leading-relaxed italic">
                   "{settings.description}"
                 </blockquote>
-              ) : (
-                <blockquote className="text-2xl md:text-3xl font-light text-gray-700 leading-relaxed italic">
-                  "Former les esprits de demain, cultiver l'excellence académique et contribuer à l'avancement du savoir."
-                </blockquote>
-              )}
+              </div>
             </div>
-
-            {/* 3 Pillars */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[
-                {
-                  icon: <Trophy className="w-8 h-8" />,
-                  title: 'Excellence',
-                  desc: 'Un enseignement de haut niveau dispensé par des professeurs reconnus dans leurs domaines respectifs.',
-                  color: goldColor,
-                },
-                {
-                  icon: <Lightbulb className="w-8 h-8" />,
-                  title: 'Innovation',
-                  desc: 'Des laboratoires de recherche et des programmes innovants pour préparer les étudiants aux défis de demain.',
-                  color: accentColor,
-                },
-                {
-                  icon: <Globe2 className="w-8 h-8" />,
-                  title: 'Diversité',
-                  desc: 'Un campus ouvert sur le monde, favorisant l\'échange interculturel et les partenariats internationaux.',
-                  color: '#10b981',
-                },
-              ].map((pillar, i) => (
-                <div
-                  key={i}
-                  className="text-center p-8 rounded-2xl border border-gray-100 hover:shadow-lg transition-shadow"
-                >
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
-                    style={{ backgroundColor: `${pillar.color}15`, color: pillar.color }}
-                  >
-                    {pillar.icon}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{pillar.title}</h3>
-                  <p className="text-gray-500 leading-relaxed text-sm">{pillar.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ─── FORMATIONS / PROGRAMMES ─────────────────────────────── */}
         {settings.show_programs && tenant.programs && tenant.programs.length > 0 && (
@@ -455,10 +419,16 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
                         {typeof program === 'string' ? program : program.name}
                       </h3>
 
-                      <p className="text-sm text-gray-500 mb-5 leading-relaxed">
-                        Programme complet conçu pour répondre aux exigences du marché du travail
-                        et préparer les étudiants à l'excellence professionnelle.
-                      </p>
+                      {/* Description réelle du programme uniquement — le
+                          texte fixe précédent ("Programme complet conçu
+                          pour répondre aux exigences du marché du
+                          travail...") était attaché à chaque programme
+                          réel mais entièrement inventé. */}
+                      {typeof program !== 'string' && program.description && (
+                        <p className="text-sm text-gray-500 mb-5 leading-relaxed">
+                          {program.description}
+                        </p>
+                      )}
 
                       <Link
                         to={`/admissions/${slug}`}
