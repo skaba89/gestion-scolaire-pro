@@ -1319,20 +1319,48 @@ async def delete_tenant(
         diag = getattr(getattr(exc, "orig", None), "diag", None)
         constraint = getattr(diag, "constraint_name", None)
         blocking_table = getattr(diag, "table_name", None)
+        # Le driver ne remplit pas toujours .diag.constraint_name (déjà vu :
+        # 'None' malgré un blocking_table connu) — mais le message Postgres
+        # brut, lui, contient quasi-systématiquement le vrai texte de
+        # l'erreur (SQLSTATE + nom de contrainte + table), même quand les
+        # champs .diag structurés sont absents. On l'expose tel quel : ce
+        # n'est ni une fuite (endpoint SUPER_ADMIN-only) ni une donnée
+        # tenant, seulement de la métadonnée de schéma.
+        raw_pg_error = str(getattr(exc, "orig", None) or exc).strip()
+        live_delete_rule = None
+        if blocking_table:
+            try:
+                live_check = db.execute(
+                    text("""
+                        SELECT rc.delete_rule
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.referential_constraints rc
+                            ON tc.constraint_name = rc.constraint_name
+                            AND tc.table_schema = rc.constraint_schema
+                        WHERE tc.table_schema = 'public'
+                          AND tc.table_name = :table_name
+                          AND tc.constraint_type = 'FOREIGN KEY'
+                    """),
+                    {"table_name": blocking_table},
+                ).fetchall()
+                live_delete_rule = [row[0] for row in live_check]
+            except Exception:
+                db.rollback()
         logger.error(
-            "Failed to delete tenant '%s' (%s): IntegrityError constraint=%s table=%s — %s",
-            tenant_name, tenant_id, constraint, blocking_table, exc,
+            "Failed to delete tenant '%s' (%s): IntegrityError constraint=%s table=%s live_delete_rules=%s — %s",
+            tenant_name, tenant_id, constraint, blocking_table, live_delete_rule, exc,
         )
         if blocking_table:
             detail = (
                 f"Suppression bloquée par la table '{blocking_table}' "
-                f"(contrainte '{constraint}' — il lui manque ON DELETE CASCADE vers tenants). "
-                "Signalez cette table précise pour un correctif de migration."
+                f"(contrainte '{constraint}', delete_rule(s) FK actuel(s)={live_delete_rule}). "
+                f"Erreur Postgres brute : {raw_pg_error} "
+                "Signalez ce détail précis pour un correctif de migration."
             )
         else:
             detail = (
                 "Suppression bloquée par une contrainte de base de données non identifiée. "
-                "Consultez les journaux serveur pour le détail exact."
+                f"Erreur Postgres brute : {raw_pg_error}"
             )
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
     except Exception as exc:

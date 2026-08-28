@@ -17,7 +17,18 @@ Ce module verrouille que la table et la contrainte réellement en cause
 sont désormais renvoyées dans le message d'erreur (endpoint
 SUPER_ADMIN-only, donc pas de fuite cross-tenant à exposer ce détail),
 et que le comportement générique existant est préservé pour toute autre
-erreur non-FK."""
+erreur non-FK.
+
+SUITE (2026-08-27) : en production, la table réellement bloquante s'est
+avérée être 'public_pages' — mais avec `.diag.constraint_name` revenant
+`None`, rendant le message "il lui manque ON DELETE CASCADE" (une
+supposition, jamais vérifiée) trompeur. Un correctif de migration
+(PR #135, sweep générique ON DELETE CASCADE) a été déployé mais n'a rien
+changé au comportement — signe que la cause n'était probablement pas un
+CASCADE manquant après tout. Ce module verrouille maintenant aussi
+l'exposition du message Postgres brut (`str(exc.orig)`) et d'un contrôle
+en direct du `delete_rule` réel de la table bloquante, pour obtenir un
+fait vérifié plutôt qu'une hypothèse la prochaine fois."""
 import uuid
 
 import pytest
@@ -96,7 +107,38 @@ class TestDeleteTenantSurfacesTheRealForeignKeyViolation:
         detail = resp.json()["detail"]
         assert "students" in detail
         assert "students_tenant_id_fkey" in detail
-        assert "CASCADE" in detail
+        # Le message Postgres brut (str(exc.orig)) est désormais toujours
+        # exposé tel quel — plus fiable que les seuls champs .diag
+        # structurés, qui peuvent revenir vides selon le driver (voir
+        # test_reports_the_raw_postgres_error_even_when_diag_constraint_name_is_none
+        # ci-dessous, cas réellement rencontré en production sur
+        # 'public_pages').
+        assert "foreign key violation" in detail
+
+    def test_reports_the_raw_postgres_error_even_when_diag_constraint_name_is_none(self, monkeypatch):
+        """Cas réellement rencontré en production (2026-08-27) : le driver
+        remplit .diag.table_name ('public_pages') mais PAS
+        .diag.constraint_name (None) — le message doit rester exploitable
+        malgré ça, en s'appuyant sur le texte d'erreur Postgres brut plutôt
+        que sur la seule supposition "il lui manque CASCADE" (qui s'est
+        révélée être une fausse piste : le sweep de PR #135 n'a rien
+        trouvé à corriger sur cette contrainte)."""
+        tenant_id = _make_tenant()
+        headers = _as_super_admin()
+
+        orig = _FakeDriverError(_FakeDiag(constraint_name=None, table_name="public_pages"))
+
+        def _raise_fk_violation(self, *args, **kwargs):
+            raise IntegrityError("DELETE FROM tenants WHERE id = %s", {}, orig)
+
+        monkeypatch.setattr(Session, "commit", _raise_fk_violation)
+
+        resp = client.delete(f"{BASE}/{tenant_id}/", headers=headers)
+
+        assert resp.status_code == 500
+        detail = resp.json()["detail"]
+        assert "public_pages" in detail
+        assert "foreign key violation" in detail
 
     def test_falls_back_to_a_generic_message_when_the_driver_gives_no_diagnostics(self, monkeypatch):
         # A synthetic IntegrityError whose .orig has no .diag at all (e.g.
@@ -115,7 +157,7 @@ class TestDeleteTenantSurfacesTheRealForeignKeyViolation:
 
         assert resp.status_code == 500
         detail = resp.json()["detail"]
-        assert "journaux serveur" in detail
+        assert "constraint violation" in detail
 
     def test_non_integrity_errors_keep_the_original_generic_message(self, monkeypatch):
         # Regression guard: an unrelated failure (not a DB constraint at
