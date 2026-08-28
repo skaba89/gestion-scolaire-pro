@@ -139,31 +139,56 @@ class TenantLandingAnnouncement(BaseModel):
 
 
 class TenantLandingSettings(BaseModel):
-    """Structured landing page settings stored inside Tenant.settings['landing']."""
+    """Structured landing page settings stored inside Tenant.settings['landing'].
+
+    Every field the frontend's own TenantLandingSettings (src/types/tenant.ts)
+    can write MUST be declared here too: PATCH /tenants/settings/ already
+    accepts arbitrary landing keys unvalidated, but the PUBLIC read path
+    (_build_public_response below) rebuilds TenantLandingSettings(**landing_raw)
+    — any key absent from this model is silently dropped there, so omitting
+    it here means the admin's choice never reaches the public site at all,
+    with no error anywhere to reveal it. Audit 2026-08-28 (templates de site
+    public) found 11 fields missing this way — tagline, facebook, instagram,
+    twitter, youtube, opening_hours, features, show_gallery, school_motto,
+    founded_year, accreditation — despite being genuinely read by all 6 site
+    templates (4 legacy + 2 Website Builder premium). Added below.
+    """
     logo_url: Optional[str] = None
     banner_url: Optional[str] = None
     description: Optional[str] = None
+    tagline: Optional[str] = None
     primary_color: str = "#1e3a5f"
     secondary_color: Optional[str] = None
     custom_domain: Optional[str] = None
     show_stats: bool = True
     show_programs: bool = True
+    show_gallery: Optional[bool] = None
     gallery: List[str] = Field(default_factory=list)
     announcements: List[TenantLandingAnnouncement] = Field(default_factory=list)
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
+    opening_hours: Optional[str] = None
+    # Réseaux sociaux — deux conventions de nommage coexistent côté
+    # templates (facebook/instagram/twitter/youtube sans suffixe, utilisées
+    # par les 4 templates legacy et PublicPageView.tsx ; facebook_url/
+    # twitter_url/linkedin_url avec suffixe, préférées en premier par les
+    # 2 templates premium avec repli sur la forme sans suffixe). Les deux
+    # doivent survivre la lecture publique.
+    facebook: Optional[str] = None
+    instagram: Optional[str] = None
+    twitter: Optional[str] = None
+    youtube: Optional[str] = None
     facebook_url: Optional[str] = None
     twitter_url: Optional[str] = None
     linkedin_url: Optional[str] = None
+    features: List[str] = Field(default_factory=list)
+    school_motto: Optional[str] = None
+    founded_year: Optional[int] = None
+    accreditation: Optional[str] = None
     # Website Builder premium (Horizon "public-site") — id of the chosen
     # SiteTemplateDefinition (see src/public-site/registry/siteTemplateRegistry.ts),
     # e.g. "school-excellence". None = tenant hasn't opted in, frontend falls
-    # back to the legacy per-group template. This field MUST be declared
-    # here: PATCH /tenants/settings/ already accepts arbitrary landing keys
-    # unvalidated, but the PUBLIC read path (_build_public_response below)
-    # rebuilds TenantLandingSettings(**landing_raw) — any key absent from
-    # this model is silently dropped there, so omitting it here would mean
-    # the admin's choice never reaches the public site at all.
+    # back to the legacy per-group template.
     site_template_id: Optional[str] = None
 
 
