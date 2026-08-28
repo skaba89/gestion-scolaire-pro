@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from datetime import date, datetime
 import json
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 import uuid
 
 from app.core.database import get_db
@@ -27,7 +27,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 
 
 # ─── State machine ────────────────────────────────────────────────────────────

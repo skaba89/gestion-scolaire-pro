@@ -15,7 +15,7 @@ import uuid as _uuid
 import math, secrets
 from datetime import datetime
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 
 from app.core.database import get_db
 from app.core.config import settings
@@ -24,7 +24,7 @@ from app.core.tenant_resolution import resolve_current_tenant_id
 from app.services.payment_gateways import CinetPayGateway, get_gateway
 from app.utils.audit import log_audit
 
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 from app.crud import payment as crud_payment
 from app.schemas.payment import (
     Payment, PaymentCreate, PaymentUpdate, PaymentList,

@@ -6,10 +6,10 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import get_client_ip
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
@@ -24,12 +24,18 @@ def _login_rate_limit_key(request: Request) -> str:
     """Rate-limit key for this module's `limiter` — shared by every
     @limiter.limit(...) route below (login, refresh, logout, change-
     password, register, register-school, bootstrap, forgot/reset-password),
-    normally just the client IP. A request carrying header
-    X-Load-Test-Token equal to settings.LOAD_TEST_BYPASS_SECRET is instead
-    keyed on a fresh uuid4 per call, so it can never accumulate against
-    anyone's real quota — this is how an authorized load campaign logs in
-    10, 100 or 1000 simulated tenant admins without needing 13s of spacing
-    per login (see docs/runbooks/load-testing.md).
+    normally just the client IP (via get_client_ip — proxy-aware since
+    2026-08-28; the raw slowapi get_remote_address used here before that
+    resolved to Render's shared edge connection for every visitor,
+    collapsing every real client's login attempts onto one rate-limit
+    bucket — a single attacker spamming failed logins could throttle
+    every OTHER visitor's login too, not just their own; see
+    app/core/client_ip.py). A request carrying header X-Load-Test-Token
+    equal to settings.LOAD_TEST_BYPASS_SECRET is instead keyed on a fresh
+    uuid4 per call, so it can never accumulate against anyone's real
+    quota — this is how an authorized load campaign logs in 10, 100 or
+    1000 simulated tenant admins without needing 13s of spacing per login
+    (see docs/runbooks/load-testing.md).
 
     Inert by default: LOAD_TEST_BYPASS_SECRET is empty unless a deployment
     operator deliberately sets it, and the comparison is constant-time
@@ -52,7 +58,7 @@ def _login_rate_limit_key(request: Request) -> str:
         if presented and secrets.compare_digest(presented, settings.LOAD_TEST_BYPASS_SECRET):
             logger.info("Login rate limit bypassed via X-Load-Test-Token (authorized load test)")
             return f"load-test-exempt-{uuid.uuid4()}"
-    return get_remote_address(request)
+    return get_client_ip(request)
 
 
 def _load_test_bypass_is_active() -> bool:

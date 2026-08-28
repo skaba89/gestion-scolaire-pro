@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel, ConfigDict
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import text
@@ -19,7 +19,7 @@ from app.schemas.notification_preference import NotificationPreferenceInDB, Noti
 from app.utils.audit import log_audit
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 
 # ─── Notification Preferences ────────────────────────────────────────────────
 # Source of truth for which notification categories a user wants. Previously

@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.core.client_ip import get_client_ip
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 from app.core.database import get_db
@@ -38,7 +38,7 @@ router = APIRouter()
 # mirror the auth.py/payments.py pattern — keyed by client IP, not identity,
 # so this is a coarse throttle, not a substitute for the permission checks
 # already enforced by require_permission()/get_current_user() below.
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_client_ip)
 
 
 def _privacy_tenant_scope(current_user: dict, *, allow_platform_admin: bool = True):

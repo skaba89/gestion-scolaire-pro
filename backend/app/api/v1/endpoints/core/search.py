@@ -14,10 +14,10 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import get_client_ip
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -30,8 +30,9 @@ router = APIRouter()
 # hammer it as fast as the network allows. 30/minute is generous for a
 # human typing in a search box (debounced client-side) while still
 # bounding the worst case, same mechanism already used across this file's
-# sibling endpoints (payments.py, auth.py — Limiter(key_func=get_remote_address)).
-limiter = Limiter(key_func=get_remote_address)
+# sibling endpoints (payments.py, auth.py — Limiter(key_func=get_client_ip),
+# proxy-aware since 2026-08-28, see app/core/client_ip.py).
+limiter = Limiter(key_func=get_client_ip)
 
 # ─── Searchable resource types ────────────────────────────────────────────────
 
