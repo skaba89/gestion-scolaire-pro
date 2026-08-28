@@ -1500,7 +1500,9 @@ const PublicPageView = () => {
         <meta name="theme-color" content={primaryColor} />
         <meta property="og:title" content={page.title} />
         <meta property="og:description" content={page.meta_description || ''} />
-        {page.hero_image && <meta property="og:image" content={page.hero_image} />}
+        {/* PublicPage.hero_image retiré (audit 2026-08-28) : jamais
+            exposé par aucun modèle/schéma backend ni aucune UI
+            d'upload — ce meta tag n'était donc jamais rempli. */}
       </Helmet>
 
       <div className="min-h-screen bg-gray-50 flex flex-col">

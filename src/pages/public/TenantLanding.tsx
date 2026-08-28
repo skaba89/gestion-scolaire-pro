@@ -363,22 +363,17 @@ function TenantPagesDirectory({
                   to={`/${tenantSlug}/pages/${page.slug}`}
                   className="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
                 >
-                  {page.hero_image ? (
-                    <div className="h-40 overflow-hidden">
-                      <img
-                        src={resolveUploadUrl(page.hero_image)}
-                        alt={page.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      className="h-40 flex items-center justify-center"
-                      style={{ backgroundColor: `${primaryColor}08` }}
-                    >
-                      <FileText className="w-12 h-12" style={{ color: `${primaryColor}30` }} />
-                    </div>
-                  )}
+                  {/* PublicPage.hero_image retiré (audit 2026-08-28) : la
+                      colonne existe en base mais n'était exposée par
+                      aucun modèle/schéma backend ni aucune UI d'upload —
+                      cette branche ne s'exécutait donc jamais en
+                      pratique. Repli générique conservé seul. */}
+                  <div
+                    className="h-40 flex items-center justify-center"
+                    style={{ backgroundColor: `${primaryColor}08` }}
+                  >
+                    <FileText className="w-12 h-12" style={{ color: `${primaryColor}30` }} />
+                  </div>
                   <div className="p-5">
                     <h3 className="font-bold text-gray-900 text-lg mb-2 group-hover:text-blue-600 transition-colors">
                       {page.title}

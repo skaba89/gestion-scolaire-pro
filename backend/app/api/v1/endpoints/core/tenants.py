@@ -1654,8 +1654,16 @@ async def update_tenant(
         "email", "phone", "address", "website", "city", "country",
         # Locale
         "currency", "timezone",
-        # Branding
-        "logo_url", "favicon_url",
+        # NOTE: "logo_url"/"favicon_url" deliberately NOT allowed here.
+        # Tenant (models/tenant.py) has no such columns — setattr() below
+        # was silently creating a throwaway instance attribute that
+        # db.commit() never persists, while the endpoint still returned
+        # 200 as if the save succeeded (audit 2026-08-28, templates de
+        # site public). No live caller ever sent these two fields to this
+        # endpoint (the real logo save path is BrandingSettings.tsx →
+        # updateSettings() → the "settings" JSON field, already allowed
+        # below) — removing them turns a silent no-op into an explicit
+        # 400 "Fields not allowed" if anything ever tries again.
         # Signatures (used by SignatureSettings)
         "director_name", "director_signature_url",
         "secretary_name", "secretary_signature_url",

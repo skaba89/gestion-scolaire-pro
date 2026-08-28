@@ -39,7 +39,6 @@ export interface PublicPageResponse {
   meta_title?: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
-  hero_image?: string | null;
   content: PublicPageSection[];
   is_published: boolean;
   sort_order?: number;
@@ -53,7 +52,6 @@ export interface PublicPageListItem {
   slug: string;
   meta_description?: string | null;
   primary_color?: string | null;
-  hero_image?: string | null;
   is_home?: boolean;
   sort_order?: number;
 }
@@ -124,4 +122,27 @@ export function usePublicNav(tenantSlug: string | undefined) {
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   });
+}
+
+export interface CustomNavLink {
+  label: string;
+  href: string;
+  external: boolean;
+}
+
+/**
+ * Custom pages created via "Pages publiques" (admin) with "Afficher dans
+ * le menu" checked appear in every site template's navbar automatically —
+ * this maps usePublicNav()'s raw items into the {label, href, external}
+ * shape every template's own navLinks array already uses. Previously
+ * duplicated verbatim in all 6 site templates (4 legacy + School
+ * Excellence + Campus Prestige) — audit 2026-08-28.
+ */
+export function useCustomNavLinks(tenantSlug: string | undefined): CustomNavLink[] {
+  const navPagesQuery = usePublicNav(tenantSlug);
+  return (navPagesQuery.data || []).map((item) => ({
+    label: item.nav_label || item.title,
+    href: `/${tenantSlug}/pages/${item.slug}`,
+    external: false,
+  }));
 }

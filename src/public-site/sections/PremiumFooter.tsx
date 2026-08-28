@@ -62,17 +62,22 @@ export function PremiumFooter({ tenantName, logoUrl, navLinks, facebookUrl, twit
               Navigation
             </h4>
             <ul className="space-y-2">
+              {/* <a href> uniformément, comme PremiumNavbar.tsx (audit
+                  2026-08-28) — pas de <Link> React Router pour ces liens :
+                  certains pointent vers une ancre de la même page
+                  (`/ecole/${slug}#contact`), et <Link> ne déclenche pas le
+                  scroll natif du navigateur vers le fragment quand la
+                  route elle-même ne change pas, contrairement à <a>. */}
               {navLinks.map((link) => (
                 <li key={link.label}>
-                  {link.external ? (
-                    <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-white/60 hover:text-white text-sm transition-colors">
-                      {link.label}
-                    </a>
-                  ) : (
-                    <Link to={link.href} className="text-white/60 hover:text-white text-sm transition-colors">
-                      {link.label}
-                    </Link>
-                  )}
+                  <a
+                    href={link.href}
+                    target={link.external ? "_blank" : undefined}
+                    rel={link.external ? "noopener noreferrer" : undefined}
+                    className="text-white/60 hover:text-white text-sm transition-colors"
+                  >
+                    {link.label}
+                  </a>
                 </li>
               ))}
             </ul>

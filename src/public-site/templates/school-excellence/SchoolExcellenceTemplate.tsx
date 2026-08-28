@@ -1,5 +1,5 @@
 import { Helmet } from "react-helmet-async";
-import { usePublicNav } from "@/hooks/usePublicPages";
+import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { resolveUploadUrl } from "@/utils/url";
 import { resolveTheme } from "../../theme/themeResolver";
 import {
@@ -37,11 +37,7 @@ export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRende
   // Custom pages created via "Pages publiques" (admin) with "Afficher
   // dans le menu" checked — same pattern as the legacy templates
   // (see HighSchoolTemplate.tsx for the full incident rationale).
-  const navPagesQuery = usePublicNav(slug);
-  const customNavLinks: NavLink[] = (navPagesQuery.data || []).map((item) => ({
-    label: item.nav_label || item.title,
-    href: `/${slug}/pages/${item.slug}`,
-  }));
+  const customNavLinks: NavLink[] = useCustomNavLinks(slug);
   const navLinks: NavLink[] = [
     { label: "L'Établissement", href: `/ecole/${slug}#presentation` },
     { label: "Filières", href: `/ecole/${slug}#filieres` },

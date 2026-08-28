@@ -1,5 +1,5 @@
 import { Helmet } from "react-helmet-async";
-import { usePublicNav } from "@/hooks/usePublicPages";
+import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { resolveUploadUrl } from "@/utils/url";
 import { resolveTheme } from "../../theme/themeResolver";
 import {
@@ -43,11 +43,7 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
   const slug = tenant.slug;
   const currentYear = new Date().getFullYear();
 
-  const navPagesQuery = usePublicNav(slug);
-  const customNavLinks: NavLink[] = (navPagesQuery.data || []).map((item) => ({
-    label: item.nav_label || item.title,
-    href: `/${slug}/pages/${item.slug}`,
-  }));
+  const customNavLinks: NavLink[] = useCustomNavLinks(slug);
   const navLinks: NavLink[] = [
     { label: "L'Université", href: `/ecole/${slug}#presentation` },
     { label: "Formations", href: `/ecole/${slug}#formations` },
