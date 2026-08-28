@@ -108,6 +108,7 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
           }}
           tokens={tokens}
           fallbackBackgroundImage={settings.banner_url}
+          images={settings.show_gallery !== false ? settings.gallery : []}
         />
 
         {settings.description && (

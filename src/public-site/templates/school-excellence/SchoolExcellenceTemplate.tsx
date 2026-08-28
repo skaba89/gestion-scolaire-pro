@@ -97,6 +97,7 @@ export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRende
           }}
           tokens={tokens}
           fallbackBackgroundImage={settings.banner_url}
+          images={settings.show_gallery !== false ? settings.gallery : []}
         />
 
         {settings.description && (

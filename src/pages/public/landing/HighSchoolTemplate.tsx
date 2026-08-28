@@ -32,6 +32,7 @@ import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant
 import { resolveUploadUrl } from "@/utils/url";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
+import { LegacyHeroBackground } from "./LegacyHeroBackground";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -240,12 +241,13 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
           className="relative overflow-hidden"
           style={{ backgroundColor: navyColor, minHeight: '520px' }}
         >
-          {settings.banner_url && (
+          {(settings.banner_url || (settings.gallery && settings.gallery.length > 0)) && (
             <>
-              <img
-                src={settings.banner_url}
+              <LegacyHeroBackground
+                images={settings.gallery}
+                bannerUrl={settings.banner_url}
+                imageClassName="opacity-25"
                 alt={tenant.name}
-                className="absolute inset-0 w-full h-full object-cover opacity-25"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-gray-900/90 to-gray-900/40" />
             </>

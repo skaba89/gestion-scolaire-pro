@@ -42,8 +42,8 @@ global.IntersectionObserver = class IntersectionObserver {
 } as any;
 
 // Mock ResizeObserver — jsdom has no implementation. Needed by
-// embla-carousel-react (src/public-site/sections/Carousel.tsx and
-// Hero.tsx's carrousel, src/components/ui/carousel.tsx) as of the
+// embla-carousel-react (src/public-site/sections/Hero.tsx and
+// Carousel.tsx's carrousels, src/components/ui/carousel.tsx) as of the
 // photo-carousel work (audit 2026-08-28); without this, any test that
 // mounts an Embla carousel throws "ReferenceError: ResizeObserver is
 // not defined".
