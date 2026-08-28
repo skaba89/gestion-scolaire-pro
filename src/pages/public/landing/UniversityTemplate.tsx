@@ -33,6 +33,7 @@ import type { TenantPublicResponse, TenantLandingSettings } from '@/types/tenant
 import { resolveUploadUrl } from "@/utils/url";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
+import { LegacyHeroBackground } from "./LegacyHeroBackground";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -251,17 +252,17 @@ export const UniversityTemplate = ({ tenant, settings }: LandingTemplateProps) =
         <header
           className="relative min-h-[600px] flex items-center overflow-hidden"
           style={{
-            background: settings.banner_url
+            background: (settings.banner_url || (settings.gallery && settings.gallery.length > 0))
               ? undefined
               : `linear-gradient(135deg, ${deepColor} 0%, ${accentColor} 60%, #1d1b8a 100%)`,
           }}
         >
-          {settings.banner_url && (
+          {(settings.banner_url || (settings.gallery && settings.gallery.length > 0)) && (
             <>
-              <img
-                src={settings.banner_url}
+              <LegacyHeroBackground
+                images={settings.gallery}
+                bannerUrl={settings.banner_url}
                 alt={tenant.name}
-                className="absolute inset-0 w-full h-full object-cover"
               />
               <div
                 className="absolute inset-0"
