@@ -9,6 +9,7 @@ export { CTA } from "./CTA";
 export { Testimonials } from "./Testimonials";
 export { FAQ } from "./FAQ";
 export { Gallery } from "./Gallery";
+export { Carousel } from "./Carousel";
 export { ContactForm } from "./ContactForm";
 export { ProgramsSection } from "./ProgramsSection";
 export { ResultsSection } from "./ResultsSection";
