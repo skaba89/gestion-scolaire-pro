@@ -205,8 +205,16 @@ async def get_current_user(
             .all()
         ]
 
-        token_roles = token.get("roles", []) or []
-        roles = list(dict.fromkeys([*token_roles, *db_roles]))
+        # SECURITY (audit P0-2): the database is the single source of truth
+        # for a user's roles. Roles are NOT unioned with the token's own
+        # "roles" claim any more — that union let a role REVOKED in the DB
+        # keep granting access until the (attacker-uncontrollable but still
+        # lingering) token expired. The token's roles claim is issued from
+        # this very same user_roles table at login/refresh, so db_roles is
+        # always the authoritative, current set: a role added in the DB is
+        # already picked up here, and a role removed in the DB now takes
+        # effect immediately on the very next request.
+        roles = list(dict.fromkeys(db_roles))
 
         resolved_tenant_id = str(user_db.tenant_id) if user_db.tenant_id else None
 
