@@ -501,9 +501,15 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         )
 
     # 4. Fetch current roles from DB
-    roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user_id).all()]
-    token_roles = payload.get("roles", []) or []
-    all_roles = list(dict.fromkeys([*token_roles, *roles]))
+    # SECURITY (audit P0-2): the DB is the single source of truth for roles.
+    # The refreshed token carries ONLY the current DB roles — it is no longer
+    # unioned with the old token's roles claim, so a role revoked in the DB
+    # cannot be carried forward into a freshly minted token (which would keep
+    # it alive for another full token lifetime, including on the WebSocket
+    # path in realtime.py that trusts the token's roles claim).
+    all_roles = list(dict.fromkeys(
+        role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user_id).all()
+    ))
 
     # 5. Generate new token
     token_jti = hashlib.sha256(f"{user_id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
