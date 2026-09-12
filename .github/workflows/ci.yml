@@ -447,21 +447,27 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run npm audit
-        run: |
-          npm audit --audit-level=high --json > audit-results.json 2>&1 || true
-          HIGH_COUNT=$(python3 -c "import json; d=json.load(open('audit-results.json')); print(sum(1 for v in d.get('vulnerabilities',{}).values() if v.get('severity') in ('high','critical'))" 2>/dev/null || echo 0)
-          if [ "$HIGH_COUNT" -gt 0 ]; then
-            echo "::error::$HIGH_COUNT high/critical npm vulnerabilities found"
-            npm audit --audit-level=high
-            exit 1
-          fi
-          echo "No high/critical vulnerabilities"
-
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Run npm audit (HIGH/CRITICAL severity gate)
+        run: |
+          # P0 audit fix: the previous inline parser had an unbalanced
+          # paren; the SyntaxError was swallowed by `2>/dev/null || echo 0`
+          # so HIGH_COUNT was ALWAYS 0 — a silent false negative that hid
+          # real high/critical advisories. It is replaced by a dedicated,
+          # unit-tested gate that fails loudly on any parse/schema problem
+          # and on any high/critical advisory not on its documented,
+          # time-boxed allowlist. See scripts/ci/npm_audit_severity_gate.py
+          # and backend/tests/test_npm_audit_severity_gate.py.
+          # `npm audit --json` exits non-zero when advisories exist, so the
+          # `|| true` only preserves the captured JSON — the gate, not npm's
+          # exit code, decides pass/fail.
+          npm audit --json > npm-audit-results.json 2>npm-audit-stderr.log || true
+          cat npm-audit-stderr.log
+          python3 scripts/ci/npm_audit_severity_gate.py npm-audit-results.json
 
       - name: Install pip-audit
         run: pip install pip-audit
