@@ -4,8 +4,6 @@ import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wand2, Loader2, AlertTriangle, Info, MapPin } from "lucide-react";
+import { Wand2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 const DAYS = [
