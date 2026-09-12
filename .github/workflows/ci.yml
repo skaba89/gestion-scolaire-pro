@@ -38,17 +38,20 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Lint (ESLint)
-        run: npm run lint -- --max-warnings 2179
-        # Progressive debt budget: current baseline is 2179 warnings (was
-        # 2182 — 7 stale `eslint-disable` directives removed by `--fix`,
-        # zero behavioral change). Target for the next cleanup PR: 1500.
-        # Breakdown at time of writing: 1441 @typescript-eslint/no-explicit-any
-        # (needs real type analysis, one file at a time) + ~672
+        run: npm run lint -- --max-warnings 2116
+        # Progressive debt budget: current baseline is 2116 warnings (was
+        # 2179 — this PR ratcheted it down: 16 pre-existing slack captured +
+        # 47 dead imports removed from 5 stub/legacy components, proven safe
+        # by `tsc --noEmit` staying green, zero behavioral change). Earlier
+        # step (2182 -> 2179) removed 7 stale `eslint-disable` directives.
+        # Target for the next cleanup PR: 1500.
+        # Breakdown at time of writing: 1465 @typescript-eslint/no-explicit-any
+        # (needs real type analysis, one file at a time) + ~591
         # @typescript-eslint/no-unused-vars (mostly safe deletions, but not
         # auto-fixable — each needs a quick human check that the var is truly
-        # dead code, not a destructured placeholder). Reducing 2179 -> 1500
-        # is a ~680-warning ratchet: deliberately NOT attempted in one PR to
-        # keep changes reviewable and avoid regressions across dozens of files.
+        # dead code, not a destructured placeholder). Reducing 2116 -> 1500
+        # is deliberately NOT attempted in one PR: kept reviewable and
+        # regression-free, one bounded slice at a time.
         # Any increase above this baseline still fails CI immediately.
 
       - name: Type-check (TypeScript)

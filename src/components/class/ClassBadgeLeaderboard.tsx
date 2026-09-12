@@ -4,11 +4,9 @@
  */
 
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Medal, TrendingUp } from "lucide-react";
 import { useClassBadgeLeaderboard } from "@/hooks/useBadges";
-import BadgeDisplay from "@/components/badges/BadgeDisplay";
 
 interface ClassBadgeLeaderboardProps {
   classId: string;

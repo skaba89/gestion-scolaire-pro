@@ -1,25 +1,8 @@
-import { useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Users } from "lucide-react";
-
 // Realtime presence disabled — migrated from supabase.channel()
 // The presence feature relied on Supabase Realtime and has been disabled.
-
-interface PresenceState {
-  id: string;
-  firstName: string;
-  lastName: string;
-  page: string;
-  online_at: string;
-}
+// Imports and the internal PresenceState type were removed as dead code
+// (the component is a `return null` stub); the props interface is kept so
+// existing call sites remain source-compatible.
 
 interface RealtimePresenceProps {
   channelName: string;

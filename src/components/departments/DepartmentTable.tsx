@@ -3,7 +3,6 @@ import {
     Search,
     Pencil,
     Trash2,
-    BookOpen,
     ChevronLeft,
     ChevronRight
 } from "lucide-react";
@@ -25,13 +24,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger
-} from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Select,
     SelectContent,
