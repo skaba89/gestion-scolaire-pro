@@ -210,3 +210,23 @@ Provisionner un environnement de staging dimensionné comme ci-dessus est
 une décision d'infrastructure et de budget qui appartient à l'opérateur
 avec accès au compte Render/cloud — pas quelque chose qu'un agent IA sans
 accès à ce compte peut créer depuis cet environnement de développement.
+
+---
+
+## Campagne de charge industrialisée (2026-09) — 250 / 500 / 1000 / 2500 VU
+
+Voir **`docs/reports/PERF_CAMPAIGN_2026-09.md`** pour le plan complet, les SLO
+et la méthode d'identification du goulot. Outillage sous `load-tests/` :
+
+- `run-campaign.sh` — échelle 250→500→1000→2500 VU + capture infra + synthèse
+  (`summarize.py` → `SYNTHESIS.md` : tableaux RPS/p50/p95/p99/erreurs/timeouts
+  + verdict « premier point de saturation »).
+- `campaign.js` — mix métier (login, dashboard, élèves, présences, notes,
+  résultats, paiements, notifications, resync offline), SLO explicites.
+- `saturation.js` — `ramping-arrival-rate` (modèle ouvert) pour le genou de débit.
+- `resilience.js` + `chaos/` — Redis down/slow, worker arrêté/saturé, PostgreSQL
+  saturé, stockage indisponible, timeout réseau ; retry/idempotence ; resync massif.
+- `capture-infra-metrics.sh` — PostgreSQL, pool, Redis, jobs Arq, CPU/mém, MinIO.
+
+> ⚠️ Jamais contre la production. `TENANTS_FILE` requis
+> (voir `load-tests/seed-load-test-tenants.md`).
