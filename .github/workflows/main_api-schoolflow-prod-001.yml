@@ -1,523 +1,71 @@
-# =============================================================================
-# Academy Guinéenne — Continuous Integration Pipeline
-# =============================================================================
-# Runs on push to main and pull_request to main.
-# Five independent jobs: frontend (lint+typecheck+build), browser smoke (Playwright),
-# backend (syntax+security+pytest), backend-tests (PostgreSQL integration),
-# and security (dependency + secret scanning).
-# Designed to complete in under 5 minutes.
-# =============================================================================
-
-name: CI
+name: Deploy API to Azure App Service
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
+
+env:
+  AZURE_WEBAPP_NAME: api-schoolflow-prod-001
+  PYTHON_VERSION: "3.11"
 
 jobs:
-  frontend:
-    name: Frontend
+  build:
+    name: Build API package
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Lint (ESLint)
-        run: npm run lint -- --max-warnings 2116
-        # Progressive debt budget: current baseline is 2116 warnings (was
-        # 2179 — this PR ratcheted it down: 16 pre-existing slack captured +
-        # 47 dead imports removed from 5 stub/legacy components, proven safe
-        # by `tsc --noEmit` staying green, zero behavioral change). Earlier
-        # step (2182 -> 2179) removed 7 stale `eslint-disable` directives.
-        # Target for the next cleanup PR: 1500.
-        # Breakdown at time of writing: 1465 @typescript-eslint/no-explicit-any
-        # (needs real type analysis, one file at a time) + ~591
-        # @typescript-eslint/no-unused-vars (mostly safe deletions, but not
-        # auto-fixable — each needs a quick human check that the var is truly
-        # dead code, not a destructured placeholder). Reducing 2116 -> 1500
-        # is deliberately NOT attempted in one PR: kept reviewable and
-        # regression-free, one bounded slice at a time.
-        # Any increase above this baseline still fails CI immediately.
-
-      - name: Type-check (TypeScript)
-        run: npm run type-check
-
-      - name: Check i18n key completeness
-        # AUDIT 2026-08: scripts/check-i18n-keys.mjs already existed (blocks
-        # on high-visibility namespaces missing from fr.json, warns on
-        # es/ar/zh gaps against fr) but was never wired into CI, and its
-        # locale list was missing 'zh' entirely. Both fixed. The ~500-600
-        # missing keys per locale (en/es/ar/zh) found by the audit have
-        # since been backfilled (translated from the fr.json source,
-        # verified against this script and a real npm run build) — all four
-        # locales report 0 missing keys against fr.json as of this commit.
-        # ar/zh translations in particular should still get a native-speaker
-        # review pass before being considered fully polished; kept
-        # non-blocking on the warning path so any *future* drift is caught
-        # without ever hard-failing CI on translation content quality.
-        run: npm run check:i18n
-
-      - name: Run stable frontend test baseline with coverage
-        # Auto-discover every Vitest suite so new unit tests enter the gate by default.
-        # Playwright end-to-end suites remain isolated by vitest.config.ts.
-        run: npm run test -- --run --coverage --reporter=verbose
-        env:
-          CI: true
-
-      - name: Upload frontend coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-coverage
-          path: coverage/
-          retention-days: 7
-
-      - name: Build (Vite)
-        run: npm run build
-        env:
-          CI: true
-
-  browser-smoke:
-    name: Browser Smoke (Playwright)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run critical browser smoke tests
-        run: npm run test:e2e:smoke
-        env:
-          CI: true
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-smoke-report
-          path: playwright-report/
-          retention-days: 7
-
-  backend:
-    name: Backend
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
-      - name: Install dependencies
-        run: pip install -r backend/requirements.txt
-
-      - name: Validate Alembic migrations (no multiple heads)
+      - name: Validate backend dependencies
+        working-directory: backend
         run: |
-          cd backend
-          HEADS=$(python -c "
-          from alembic.config import Config
-          from alembic.script import ScriptDirectory
-          cfg = Config('alembic.ini')
-          script = ScriptDirectory.from_config(cfg)
-          heads = script.get_heads()
-          print(len(heads))
-          for h in heads: print(f'  head: {h}')
-          ")
-          echo "Migration heads: $HEADS"
-          HEAD_COUNT=$(echo "$HEADS" | head -1)
-          if [ "$HEAD_COUNT" -gt 1 ]; then
-            echo "::error::Multiple Alembic migration heads detected — merge required"
-            exit 1
-          fi
-          echo "Migration chain OK (single head)"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m py_compile app/main.py
 
-      - name: Validate Python syntax (all app files)
+      - name: Prepare deployment package
         run: |
-          ERRORS=0
-          for f in $(find backend/app -name "*.py"); do
-            if ! python -m py_compile "$f" 2>/dev/null; then
-              echo "FAIL: $f"
-              ERRORS=$((ERRORS + 1))
-            fi
-          done
-          echo "Checked all Python files. Errors: $ERRORS"
-          exit $ERRORS
+          mkdir -p deploy-api
+          rsync -a --delete \
+            --exclude='__pycache__' \
+            --exclude='.pytest_cache' \
+            --exclude='.coverage' \
+            --exclude='tests' \
+            backend/ deploy-api/
 
-      - name: Check for hardcoded secrets
-        run: |
-          echo "Scanning for hardcoded secrets in backend..."
-          SECRETS_FOUND=0
-          if rg -l 'password\s*=\s*["\x27][^"\x27]{4,}["\x27]' backend/app/ --type py 2>/dev/null; then
-            echo "WARNING: Possible hardcoded password found"
-            SECRETS_FOUND=1
-          fi
-          if rg -l 'SECRET.*=\s*["\x27][^"\x27]{8,}["\x27]' backend/app/ --type py 2>/dev/null; then
-            echo "WARNING: Possible hardcoded secret found"
-            SECRETS_FOUND=1
-          fi
-          if [ $SECRETS_FOUND -eq 0 ]; then
-            echo "No hardcoded secrets detected"
-          fi
-
-      - name: Check for dangerous patterns
-        run: |
-          echo "Scanning for dangerous patterns..."
-          if rg -l '\beval\s*\(' backend/app/ --type py 2>/dev/null; then
-            echo "WARNING: eval() found in backend code"
-          fi
-          if rg -l '\bexec\s*\(' backend/app/ --type py 2>/dev/null; then
-            echo "WARNING: exec() found in backend code"
-          fi
-          if rg -l 'pickle\.load' backend/app/ --type py 2>/dev/null; then
-            echo "WARNING: pickle.load (insecure deserialization) found"
-          fi
-          if rg -l 'shell\s*=\s*True' backend/app/ --type py 2>/dev/null; then
-            echo "WARNING: subprocess with shell=True found"
-          fi
-
-      - name: Check dynamic SQL text() interpolation
-        # AUDIT 2026-08: the codebase has 50+ text(f"...") call sites
-        # (homework.py, analytics.py, payments.py, etc). Every one sampled
-        # in the audit correctly binds user values as params and only
-        # interpolates developer-controlled fragments (column/table names
-        # from a hardcoded allowlist) — no confirmed injection found. But
-        # the pattern is risky by construction and growing, so this is a
-        # non-blocking visibility check: it lists every text(f"...") call
-        # site on every PR so a reviewer can spot-check new ones, rather
-        # than relying on someone remembering to re-audit manually. Not a
-        # hard gate — telling safe allowlisted interpolation apart from
-        # unsafe raw interpolation by regex alone would false-positive on
-        # most of the existing, correct call sites — but a growing count
-        # here across PRs is a signal this tech debt (see
-        # backend/app/core/operational_tables.py TODO) is getting bigger,
-        # not smaller.
-        run: |
-          echo "Dynamic SQL text(f\"...\") call sites (informational, not a gate):"
-          rg -n 'text\(f["\x27]' backend/app/ --type py 2>/dev/null || true
-          COUNT=$(rg -c 'text\(f["\x27]' backend/app/ --type py 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
-          echo "Total: ${COUNT} call sites. Review any new ones for: are interpolated fragments from a hardcoded allowlist (safe), or built from request input (unsafe)?"
-
-      - name: Install coverage tools
-        run: pip install pytest-cov
-
-      - name: Run backend tests (SQLite) with coverage
-        # Progressive coverage floor: 37 -> 43 (measured, verified — see
-        # tests/test_token_lifecycle.py and the new Phase 3/6 cases in
-        # test_tenant_isolation.py added in this PR). Target for the next
-        # coverage PR: 45 — 2 points short of it here; raising the floor
-        # exactly to the (slightly higher) measured value rather than
-        # claiming 45 when the real number is 43, which would just fail CI.
-        run: |
-          cd backend && python -m pytest tests/ -v --tb=short \
-            --cov=app --cov-report=term-missing --cov-report=xml \
-            --cov-fail-under=43
-        env:
-          DATABASE_URL: sqlite:///./test.db
-          DATABASE_URL_SYNC: sqlite:///./test.db
-          DATABASE_URL_ASYNC: sqlite+aiosqlite:///./test.db
-          DEBUG: "true"
-          SECRET_KEY: test-secret-key-for-ci-min-32-chars
-          BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
-
-      - name: Upload backend coverage report
-        if: always()
+      - name: Upload API package
         uses: actions/upload-artifact@v4
         with:
-          name: backend-coverage-sqlite
-          path: backend/coverage.xml
-          retention-days: 7
+          name: api-package
+          path: deploy-api/
+          retention-days: 1
 
-  backend-tests:
-    name: Backend Tests (PostgreSQL)
+  deploy:
+    name: Deploy API
     runs-on: ubuntu-latest
+    needs: build
+    environment: Production
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare Docker CI environment
-        run: |
-          cat > .env.docker.ci <<'EOF'
-          POSTGRES_DB=schoolflow_test
-          POSTGRES_USER=schoolflow
-          POSTGRES_PASSWORD=testpassword
-          POSTGRES_PORT=5432
-          REDIS_PASSWORD=testredispassword
-          REDIS_PORT=6379
-          MINIO_ROOT_USER=minioadmin
-          MINIO_ROOT_PASSWORD=testminio123
-          MINIO_BUCKET=schoolflow
-          MINIO_API_PORT=9002
-          MINIO_CONSOLE_PORT=9001
-          SECRET_KEY=test-secret-key-for-ci-min-32-chars
-          BOOTSTRAP_SECRET=test-bootstrap-secret-key-for-ci-32chars
-          ADMIN_DEFAULT_EMAIL=admin@schoolflow.local
-          ADMIN_DEFAULT_PASSWORD=testpassword123
-          API_PORT=8000
-          FRONTEND_PORT=3000
-          VITE_API_URL=/api
-          DEBUG=true
-          LOG_LEVEL=INFO
-          BACKEND_CORS_ORIGINS=http://localhost:3000
-          GROQ_API_KEY=
-          GROQ_MODEL=llama-3.3-70b-versatile
-          GROQ_MAX_TOKENS=4096
-          BACKUP_SCHEDULE=@daily
-          BACKUP_KEEP_DAYS=7
-          BACKUP_KEEP_WEEKS=4
-          BACKUP_KEEP_MONTHS=6
-          EOF
-          sed -i 's/^          //' .env.docker.ci
-          # docker-compose.yml references .env.docker through service env_file.
-          # Keep --env-file for Compose interpolation and provide the referenced file.
-          cp .env.docker.ci .env.docker
-
-      - name: Validate docker compose config
-        run: docker compose --env-file .env.docker.ci -f docker-compose.yml config >/tmp/compose.yml
-
-      - name: Start PostgreSQL and Redis services
-        run: docker compose --env-file .env.docker.ci -f docker-compose.yml up postgres redis -d --wait
-
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          for i in $(seq 1 30); do
-            if docker compose --env-file .env.docker.ci -f docker-compose.yml exec -T postgres pg_isready -U schoolflow -d schoolflow_test > /dev/null 2>&1; then
-              echo "PostgreSQL is ready"
-              break
-            fi
-            echo "Waiting for PostgreSQL... ($i/30)"
-            sleep 2
-          done
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
+      - name: Download API package
+        uses: actions/download-artifact@v4
         with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
+          name: api-package
+          path: .
 
-      - name: Install dependencies
-        run: pip install -r backend/requirements.txt
-
-      - name: Apply PostgreSQL migrations
-        run: cd backend && alembic upgrade head
-        env:
-          DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
-          DATABASE_URL_SYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
-          DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
-          DEBUG: "true"
-          SECRET_KEY: test-secret-key-for-ci-min-32-chars
-          BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
-
-      - name: Validate production readiness dependencies
-        run: |
-          cd backend
-          python - <<'PY'
-          import asyncio
-
-          from app.main import _check_cache_readiness, _check_database_and_rls
-
-          database_status = _check_database_and_rls()
-          cache_status = asyncio.run(_check_cache_readiness())
-          if database_status != ("connected", "active"):
-              raise SystemExit(
-                  f"PostgreSQL readiness invariant failed: {database_status}"
-              )
-          if cache_status != "connected":
-              raise SystemExit(f"Redis readiness check failed: {cache_status}")
-          print("PostgreSQL tenant RLS and Redis readiness checks are active")
-          PY
-        env:
-          DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
-          DATABASE_URL_SYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
-          DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
-          REDIS_URL: redis://:testredispassword@localhost:6379/0
-          DEBUG: "true"
-
-      - name: Validate backup and restore drill against PostgreSQL
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client
-          BACKUP_DIR="$(mktemp -d)"
-          export BACKUP_DIR
-          export DB_HOST=localhost
-          export DB_PORT=5432
-          export DB_NAME=schoolflow_test
-          export DB_USER=schoolflow
-          export DB_PASSWORD=testpassword
-          export MIN_FREE_SPACE_MB=0
-          export RETENTION_DAYS=1
-
-          cleanup() {
-            PGPASSWORD="$DB_PASSWORD" dropdb \
-              -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
-              --if-exists schoolflow_restore_drill >/dev/null 2>&1 || true
-            rm -rf "$BACKUP_DIR"
-          }
-          trap cleanup EXIT
-
-          scripts/backup-database.sh
-          BACKUP_FILE="$(find "$BACKUP_DIR" -maxdepth 1 -name 'schoolflow_backup_*.dump' -type f -print -quit)"
-          test -n "$BACKUP_FILE"
-          scripts/restore-database.sh --backup "$BACKUP_FILE"
-
-          PGPASSWORD="$DB_PASSWORD" createdb \
-            -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
-            schoolflow_restore_drill
-          scripts/restore-database.sh \
-            --backup "$BACKUP_FILE" \
-            --target-db schoolflow_restore_drill \
-            --execute \
-            --confirm schoolflow_restore_drill
-          PGPASSWORD="$DB_PASSWORD" psql \
-            -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
-            -d schoolflow_restore_drill -v ON_ERROR_STOP=1 \
-            -c "SELECT count(*) FROM alembic_version;"
-
-      - name: Install coverage tools
-        run: pip install pytest-cov
-
-      - name: Run backend tests (PostgreSQL) with coverage
-        run: |
-          cd backend && python -m pytest tests/ -v --tb=short \
-            --cov=app --cov-report=term-missing --cov-report=xml \
-            --cov-fail-under=43
-        env:
-          DATABASE_URL: postgresql://schoolflow:testpassword@localhost:5432/schoolflow_test
-          DATABASE_URL_SYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
-          DATABASE_URL_ASYNC: postgresql+psycopg://schoolflow:testpassword@localhost:5432/schoolflow_test
-          REDIS_URL: redis://:testredispassword@localhost:6379/0
-          DEBUG: "true"
-          SECRET_KEY: test-secret-key-for-ci-min-32-chars
-          BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
-
-      - name: Upload backend coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
         with:
-          name: backend-coverage-postgres
-          path: backend/coverage.xml
-          retention-days: 7
-
-      - name: Stop integration services
-        if: always()
-        run: docker compose --env-file .env.docker.ci -f docker-compose.yml down -v
-
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Run npm audit (HIGH/CRITICAL severity gate)
-        run: |
-          # P0 audit fix: the previous inline parser had an unbalanced
-          # paren; the SyntaxError was swallowed by `2>/dev/null || echo 0`
-          # so HIGH_COUNT was ALWAYS 0 — a silent false negative that hid
-          # real high/critical advisories. It is replaced by a dedicated,
-          # unit-tested gate that fails loudly on any parse/schema problem
-          # and on any high/critical advisory not on its documented,
-          # time-boxed allowlist. See scripts/ci/npm_audit_severity_gate.py
-          # and backend/tests/test_npm_audit_severity_gate.py.
-          # `npm audit --json` exits non-zero when advisories exist, so the
-          # `|| true` only preserves the captured JSON — the gate, not npm's
-          # exit code, decides pass/fail.
-          npm audit --json > npm-audit-results.json 2>npm-audit-stderr.log || true
-          cat npm-audit-stderr.log
-          python3 scripts/ci/npm_audit_severity_gate.py npm-audit-results.json
-
-      - name: Install pip-audit
-        run: pip install pip-audit
-
-      - name: Run pip-audit on backend
-        run: |
-          # Audit finding (round 2, Medium): this used to be a bare
-          # `pip-audit -r ... --desc` with no severity floor at all — any
-          # single advisory, any severity, failed the whole CI job, unlike
-          # the npm audit step above (--audit-level=high). pip-audit's own
-          # JSON output (even with -s osv) doesn't include a severity field
-          # to filter on locally, so severity is resolved per-finding via
-          # OSV's public API (which does return it) — see
-          # backend/scripts/pip_audit_severity_gate.py. Fail-safe by design:
-          # a vulnerability whose severity can't be determined (API
-          # unreachable, no CVSS data published) is treated as blocking,
-          # same as HIGH/CRITICAL — silence is never treated as "safe" here.
-          pip-audit -r backend/requirements.txt --desc -f json --progress-spinner off > pip-audit-results.json 2>pip-audit-stderr.log || true
-          cat pip-audit-stderr.log
-          python3 backend/scripts/pip_audit_severity_gate.py pip-audit-results.json
-
-      - name: Check for .env files in git
-        run: |
-          echo "Checking for committed .env files..."
-          ENV_FILES=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -Ev '(\.example|\.template)(\.clean)?$' || true)
-          if [ -n "$ENV_FILES" ]; then
-            echo "ERROR: .env files committed to git:"
-            echo "$ENV_FILES"
-            exit 1
-          else
-            echo "No .env files committed to git"
-          fi
-
-      - name: Check for credential files
-        run: |
-          echo "Checking for committed credential files..."
-          CRED_FILES=$(git ls-files | grep -iE '(^|/)(credentials(\.[^/]*)?|secret[^/]*\.txt)$|(\.pem|\.key)$' || true)
-          if [ -n "$CRED_FILES" ]; then
-            echo "ERROR: Possible credential files committed:"
-            echo "$CRED_FILES"
-            exit 1
-          else
-            echo "No credential files committed to git"
-          fi
-
-      - name: Gitleaks secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_API_SCHOOLFLOW_PROD_001 }}
+          package: .
