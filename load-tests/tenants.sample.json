@@ -1,0 +1,17 @@
+[
+  {
+    "slug": "loadtest-01",
+    "email": "admin@loadtest-01.test",
+    "password": "REPLACE_ME_STRONG_PASSWORD",
+    "student_id": "00000000-0000-0000-0000-000000000000",
+    "subject_id": "00000000-0000-0000-0000-000000000000",
+    "classroom_id": "00000000-0000-0000-0000-000000000000",
+    "assessment_id": "00000000-0000-0000-0000-000000000000"
+  },
+  {
+    "slug": "loadtest-02",
+    "email": "admin@loadtest-02.test",
+    "password": "REPLACE_ME_STRONG_PASSWORD",
+    "student_id": "00000000-0000-0000-0000-000000000000"
+  }
+]
