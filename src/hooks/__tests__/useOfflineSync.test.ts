@@ -134,11 +134,18 @@ describe("erreur réseau", () => {
       await result.current.syncNow();
     });
 
+    // renderHook's mount effect fires its own syncNow() as soon as
+    // navigator.onLine is true, racing with the explicit call above (same
+    // race as the 409 test). Assert on the SETTLED IndexedDB state inside
+    // waitFor — reading it once, straight after act(), could catch the row
+    // mid-flight as "SYNCING" and flake (seen intermittently under CI's
+    // --coverage timing). waitFor retries until the network error has
+    // settled the draft back to a replayable PENDING with no penalty.
     await waitFor(async () => {
       expect(mockApiPost).toHaveBeenCalled();
+      const rows = await offlineDb.pendingGrades.toArray();
+      expect(rows[0].syncStatus).toBe("PENDING");
+      expect(rows[0].retries).toBe(0);
     });
-    const rows = await offlineDb.pendingGrades.toArray();
-    expect(rows[0].syncStatus).toBe("PENDING");
-    expect(rows[0].retries).toBe(0);
   });
 });
