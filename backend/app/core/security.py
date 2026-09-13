@@ -117,6 +117,108 @@ async def _get_token_version_from_redis(user_id: str) -> int:
         return 0
 
 
+# ─── Differentiated JWT-revocation policy (P0) ───────────────────────────────
+#
+# Accounts whose EVERY request must be revocation-verified: if Redis (the
+# blacklist / logout-all backend) is unreachable, these are refused with a
+# controlled 503 rather than fail-open. Institutional/admin roles only.
+PRIVILEGED_ROLES: set[str] = {
+    "SUPER_ADMIN",
+    "TENANT_ADMIN",
+    "MINISTRY_ADMIN",
+    "REGIONAL_DIRECTOR",
+    "PREFECTURE_ADMIN",
+    "COMMUNE_ADMIN",
+}
+
+# Operations that must be revocation-verified regardless of the caller's role
+# (e.g. an ACCOUNTANT posting a payment, a DIRECTOR editing users). Keyed by
+# the `resource:action` string passed to require_permission().
+SENSITIVE_PERMISSIONS: set[str] = {
+    # user & role administration
+    "users:write", "users:delete", "auth:manage",
+    # tenant administration
+    "tenants:write", "tenants:delete",
+    # sensitive financial operations
+    "finance:write", "payments:write", "invoices:write", "fees:write",
+    # security / compliance administration
+    "mfa:manage", "audit:write", "rgpd:write", "rgpd:delete",
+}
+
+
+def _privileged_fail_closed() -> bool:
+    """Indirection over settings.AUTH_PRIVILEGED_FAIL_CLOSED so tests can flip
+    the policy deterministically without mutating the pydantic settings object."""
+    return settings.AUTH_PRIVILEGED_FAIL_CLOSED
+
+
+async def _evaluate_revocation(user_id: str, token_jti: str | None, token_version: int) -> bool:
+    """Perform the two revocation checks (per-token blacklist + logout-all
+    token-version) against Redis.
+
+    Returns True when the revocation status was verified reliably (Redis
+    reachable), False when Redis was unavailable for either check so the
+    status is UNKNOWN. Raises HTTP 401 when the token is actually revoked
+    (blacklisted or a stale logout-all version). It never raises on Redis
+    unavailability — the caller applies the differentiated fail-open (normal
+    accounts) / fail-closed (privileged) policy based on this return value.
+
+    This replaces the previous unconditional fail-open, which returned the
+    same "not revoked" signal whether the token was verified-clean or simply
+    unverifiable — collapsing exactly the distinction this policy needs.
+    """
+    reliable = True
+
+    # 1) Per-token blacklist (logout / password change). A token with no jti
+    #    predates per-token revocation and can only be covered by logout-all
+    #    below; its absence is not a Redis failure, so it doesn't flip reliable.
+    if token_jti:
+        try:
+            from app.core.cache import redis_client
+            blacklisted = await redis_client.exists(f"token_blacklist:{token_jti}")
+        except Exception as exc:
+            logger.warning(
+                "Redis unavailable during blacklist check (revocation status UNVERIFIED): %s", exc
+            )
+            reliable = False
+            blacklisted = False
+        if blacklisted:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # 2) logout-all (global token-version counter). redis_client.get() prefixes
+    #    "sfp:", matching the key blacklist_all_user_tokens() increments
+    #    (sfp:user_token_version:{user_id}).
+    try:
+        from app.core.cache import redis_client
+        raw = await redis_client.get(f"user_token_version:{user_id}")
+        current_version = int(raw) if raw else 0
+    except Exception as exc:
+        logger.warning(
+            "Redis unavailable during token-version check (revocation status UNVERIFIED): %s", exc
+        )
+        return False  # cannot evaluate logout-all → status unknown
+
+    # Reliable read: apply the same stale-token logic as validate_token_version.
+    if current_version > 0 and (not token_version or token_version <= 0):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated (logged out from all devices)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if token_version and token_version > 0 and current_version > token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been invalidated (logged out from all devices)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return reliable
+
+
 async def get_current_user(
     request: Request,
     token: dict = Depends(verify_token),
@@ -149,35 +251,16 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # SECURITY: Check the blacklist before anything else so a revoked token
-    # never reaches the DB lookup. Deferred import to avoid a circular import
-    # (app.api.v1.endpoints.core.auth imports several names from this module).
-    #
-    # Fail-open by design if Redis is unavailable: the rest of this codebase
-    # already fails open for every other Redis-optional security feature
-    # (login lockout, session limits, password history) — a hard fail-closed
-    # here would 401 every authenticated user platform-wide on a transient
-    # Redis blip, which is a worse outage than a revoked token staying valid
-    # for at most its remaining lifetime (<= ACCESS_TOKEN_EXPIRE_MINUTES).
-    # This is a deliberate, documented trade-off, not an oversight.
-    token_jti = token.get("jti")
-    if token_jti:
-        from app.api.v1.endpoints.core.auth import is_token_blacklisted
-        if await is_token_blacklisted(token_jti):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-    # SECURITY: Enforce logout-all. blacklist_all_user_tokens() only bumps
-    # sfp:user_token_version:{user_id} in Redis — nothing previously read it
-    # back on the request path, so /auth/logout-all/ silently did nothing:
-    # every token issued before the call stayed valid until its natural
-    # ACCESS_TOKEN_EXPIRE_MINUTES expiry. validate_token_version() existed
-    # but was dead code (defined, never invoked). Wiring it in here mirrors
-    # the blacklist check above and covers every authenticated route.
-    await validate_token_version(user_id, token.get("tv", 0))
+    # SECURITY (P0 — differentiated revocation policy): run the blacklist
+    # (logout / password change) and logout-all (token-version) checks and
+    # learn whether Redis could be reached. A genuinely revoked token still
+    # raises 401 here. If Redis was UNREACHABLE the status is unknown; the
+    # fail-open (normal accounts) vs fail-closed (privileged) decision is
+    # taken AFTER roles are loaded, below. `token_version` (tv claim) is read
+    # here so an outage on the version read is reflected in reliability.
+    revocation_verified = await _evaluate_revocation(
+        user_id, token.get("jti"), token.get("tv", 0)
+    )
 
     with SessionLocal() as db:
         # SECURITY: Reset RLS context on this independent session to prevent
@@ -215,6 +298,28 @@ async def get_current_user(
         # already picked up here, and a role removed in the DB now takes
         # effect immediately on the very next request.
         roles = list(dict.fromkeys(db_roles))
+
+        # SECURITY (P0 — differentiated revocation policy): a PRIVILEGED account
+        # must never be admitted on an unverifiable revocation status. If the
+        # blacklist/logout-all checks could not reach Redis and this user holds
+        # a privileged role, refuse with a controlled 503 (retryable) instead of
+        # fail-open. Non-privileged accounts fall through (fail-open) so a Redis
+        # blip never causes a platform-wide outage. Gated by
+        # AUTH_PRIVILEGED_FAIL_CLOSED (strict in production, relaxed under DEBUG).
+        if (
+            not revocation_verified
+            and _privileged_fail_closed()
+            and any(r in PRIVILEGED_ROLES for r in roles)
+        ):
+            logger.error(
+                "Revocation status unverifiable (Redis down) for privileged user %s roles=%s "
+                "— refusing with 503 (fail-closed).", user_id, roles,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Le contrôle de révocation du jeton est momentanément indisponible pour un compte privilégié. Réessayez plus tard.",
+                headers={"Retry-After": "5"},
+            )
 
         resolved_tenant_id = str(user_db.tenant_id) if user_db.tenant_id else None
 
@@ -260,6 +365,10 @@ async def get_current_user(
             "tenant_id": resolved_tenant_id,
             "tenant_name": tenant_name,
             "_token_version": token.get("tv", 0),
+            # Whether the JWT revocation status was verified reliably this
+            # request. Consumed by require_permission() to fail-close
+            # SENSITIVE_PERMISSIONS operations regardless of the caller's role.
+            "_revocation_verified": revocation_verified,
         }
 
 
@@ -439,17 +548,44 @@ def require_permission(permission: str):
             perms = ROLE_PERMISSIONS.get(role, [])
             user_permissions.update(perms)
 
-        if "*" in user_permissions or permission in user_permissions:
-            return current_user
-
         resource = permission.split(":")[0]
-        if f"{resource}:*" in user_permissions:
-            return current_user
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Permission refusée: {permission}",
+        granted = (
+            "*" in user_permissions
+            or permission in user_permissions
+            or f"{resource}:*" in user_permissions
         )
+
+        if not granted:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission refusée: {permission}",
+            )
+
+        # SECURITY (P0 — differentiated revocation policy): a SENSITIVE
+        # operation must never proceed on an unverifiable revocation status,
+        # even for a non-privileged role (e.g. an ACCOUNTANT posting a payment,
+        # a DIRECTOR editing users). If the blacklist/logout-all check could
+        # not reach Redis this request, refuse with a controlled 503 instead of
+        # trusting a possibly-revoked token. Privileged ACCOUNTS are already
+        # blocked upstream in get_current_user; this covers privileged
+        # OPERATIONS performed by otherwise-normal accounts.
+        if (
+            permission in SENSITIVE_PERMISSIONS
+            and _privileged_fail_closed()
+            and not current_user.get("_revocation_verified", True)
+        ):
+            logger.error(
+                "Revocation status unverifiable (Redis down) for sensitive operation %s "
+                "by user %s — refusing with 503 (fail-closed).",
+                permission, current_user.get("id"),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Le contrôle de révocation du jeton est momentanément indisponible pour cette opération sensible. Réessayez plus tard.",
+                headers={"Retry-After": "5"},
+            )
+
+        return current_user
 
     return decorator
 

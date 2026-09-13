@@ -272,6 +272,20 @@ class Settings(BaseSettings):
     # during the initial rollout window.
     ENFORCE_MFA: bool = os.getenv("ENFORCE_MFA", "false" if os.getenv("DEBUG", "False").lower() == "true" else "true").lower() == "true"
 
+    # SECURITY (P0 — differentiated JWT-revocation policy): when Redis (the
+    # blacklist / logout-all backend) cannot be reached, the revocation status
+    # of a token cannot be verified. For PRIVILEGED accounts and PRIVILEGED
+    # operations, an unverifiable revocation status must NOT fail open — access
+    # is refused with a controlled 503 rather than silently trusting a
+    # possibly-revoked token. Non-privileged traffic still fails open so a
+    # transient Redis blip never causes a platform-wide outage.
+    # Same rollout convention as ENFORCE_MFA: strict (True) in production,
+    # relaxed (False) under DEBUG so local/dev/CI without Redis stays usable.
+    AUTH_PRIVILEGED_FAIL_CLOSED: bool = os.getenv(
+        "AUTH_PRIVILEGED_FAIL_CLOSED",
+        "false" if os.getenv("DEBUG", "False").lower() == "true" else "true",
+    ).lower() == "true"
+
     # Stripe Billing
     STRIPE_SECRET_KEY: str = get_secret("STRIPE_SECRET_KEY", "")
     STRIPE_PUBLISHABLE_KEY: str = get_secret("STRIPE_PUBLISHABLE_KEY", "")
