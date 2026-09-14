@@ -1,5 +1,15 @@
 # Analyse Stratégique - Academy Guinéenne
 
+> ⚠️ **Document archivé — obsolète depuis la migration hors Supabase.**
+> Ce document décrit une architecture Supabase / RLS PostgreSQL / Kong qui
+> n'existe plus dans ce dépôt : le backend actuel est **FastAPI + SQLAlchemy
+> + Alembic** (voir `CLAUDE.md`, qui interdit explicitement
+> `@supabase/supabase-js`). Les migrations, la structure `src/features`, et
+> les chiffres cités ici (200 migrations SQL, `App.tsx` 26KB) ne correspondent
+> plus au code. Conservé pour l'historique uniquement — ne pas s'y fier pour
+> une décision technique ou une présentation externe. État réel et à jour :
+> voir [`docs/STATUT_ACTUEL.md`](./STATUT_ACTUEL.md).
+
 Ce document présente une analyse détaillée de l'état actuel du projet, identifiant ses forces, ses faiblesses techniques, et proposant une feuille de route pour améliorer la robustesse et la scalabilité du système.
 
 ---

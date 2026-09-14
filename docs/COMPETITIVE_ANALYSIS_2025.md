@@ -1,5 +1,20 @@
 # Academy Guinéenne — Competitive Analysis Report (2025)
 
+> ⚠️ **Partially outdated — do not use for external presentations without
+> reading this note first.** Verified against the current codebase
+> (2026-09): three items this report lists as "❌ Critical / Must-Have,
+> not implemented" **are now implemented and in production**:
+> - **Mobile money / online payments** (gap #1) — `backend/app/services/payment_gateways.py`
+>   integrates CinetPay and PayTech (Wave, Orange Money, MTN) with webhook confirmation.
+> - **SMS notifications** (gap #3) — `backend/app/services/notifications.py`
+>   supports Android SMS Gateway and Africa's Talking.
+> - **Official transcript generation** (gap #6) — `backend/app/api/v1/endpoints/academic/transcripts.py`.
+>
+> The rest of this report (competitor profiles, remaining gaps such as
+> timetable auto-generation, LMS/exams, biometric attendance, transportation,
+> hostel management) has not been re-verified and may also be stale. For the
+> current, dated feature status, see [`docs/STATUT_ACTUEL.md`](./STATUT_ACTUEL.md).
+>
 > **Date**: July 2025  
 > **Version**: 1.0  
 > **Scope**: Global School Management Systems / SIS / University ERP market, with focus on Francophone Africa
