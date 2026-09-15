@@ -179,12 +179,19 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     if (!currentTenant) return;
 
     const type = (currentTenant.type || "").toUpperCase().trim();
+    // Terminology fix (2026-09): this only checked university-type values,
+    // so a training center ("centre de formation", tenant.type === "training")
+    // never got these overrides and silently kept "élève"/pupil wording
+    // everywhere below — see the same fix in src/hooks/useTerminology.ts
+    // (isHigherEd) and src/lib/terminology.ts (isTrainingTenant). Kept as
+    // the name `isUniversity` here (not renamed) to avoid touching the ~180
+    // lines of per-language override objects below that all read it.
     const isUniversity = [
       'UNIVERSITY', 'UNIVERSITÉ', 'UNIVERSITE',
       'HIGHER_EDUCATION', 'ENSEIGNEMENT_SUPERIEUR', 'ENSEIGNEMENT SUPERIEUR',
       'FACULTE', 'FACULTÉ', 'INSTITUT', 'ECOLE_SUPERIEURE', 'ÉCOLE_SUPÉRIEURE',
       'BTS', 'IUT'
-    ].includes(type);
+    ].includes(type) || type === 'TRAINING';
 
     const overrides: Record<string, Record<string, unknown>> = {
       // French: Élève (school) / Étudiant (university)

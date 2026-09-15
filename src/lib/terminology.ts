@@ -13,13 +13,22 @@ export function isUniversityTenant(tenant: { type?: string | null } | null | und
     ].includes(type);
 }
 
+export function isTrainingTenant(tenant: { type?: string | null } | null | undefined): boolean {
+    return (tenant?.type || "").toLowerCase().trim() === "training";
+}
+
 export function getStudentLabel(
     tenant: { type?: string | null } | null | undefined,
     options: { plural?: boolean; capitalize?: boolean } = {}
 ): string {
     const { plural = false, capitalize = false } = options;
-    const university = isUniversityTenant(tenant);
-    let label = university
+    // Terminology fix (2026-09): was isUniversityTenant-only, so a training
+    // center's PDFs (analytics reports, dashboards, student sheets) printed
+    // "élève" instead of "étudiant" — see useTerminology.ts's isHigherEd,
+    // which this mirrors, for why a training center counts the same as a
+    // university here.
+    const higherEd = isUniversityTenant(tenant) || isTrainingTenant(tenant);
+    let label = higherEd
         ? (plural ? "étudiants" : "étudiant")
         : (plural ? "élèves" : "élève");
     if (capitalize) label = label.charAt(0).toUpperCase() + label.slice(1);
