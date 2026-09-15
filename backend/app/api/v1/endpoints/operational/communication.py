@@ -712,6 +712,23 @@ class ReactionCreate(BaseModel):
     emoji: str
 
 
+def _require_message_participant(db: Session, *, tenant_id: str, user_id: str, message_id: str) -> None:
+    """SECURITY (institutional-readiness audit, 2026-09): list/add reaction
+    took an arbitrary message_id with no check that the caller is even a
+    participant of the conversation it belongs to — any authenticated
+    tenant user could see who reacted to, or react to, a message inside a
+    private 1-on-1 conversation they have no part in. Same participant
+    check already enforced by get_messages/send_message above."""
+    row = db.execute(text("""
+        SELECT 1 FROM messages m
+        JOIN conversation_participants cp
+            ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
+        WHERE m.id = :mid AND m.tenant_id = :tid
+    """), {"mid": message_id, "uid": user_id, "tid": tenant_id}).first()
+    if not row:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+
 @router.get("/messages/{message_id}/reactions/")
 def list_message_reactions(
     request: Request,
@@ -720,6 +737,7 @@ def list_message_reactions(
     current_user: dict = Depends(get_current_user),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    _require_message_participant(db, tenant_id=tenant_id, user_id=current_user.get("id"), message_id=message_id)
     rows = db.execute(text("""
         SELECT emoji, user_id FROM message_reactions
         WHERE message_id = :mid AND tenant_id = :tid
@@ -737,6 +755,7 @@ def add_message_reaction(
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    _require_message_participant(db, tenant_id=tenant_id, user_id=user_id, message_id=message_id)
     try:
         db.execute(text("""
             INSERT INTO message_reactions (tenant_id, message_id, user_id, emoji)
