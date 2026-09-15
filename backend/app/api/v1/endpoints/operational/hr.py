@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.hr import (
     Employee, EmployeeCreate, EmployeeUpdate,
@@ -22,13 +22,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# SECURITY (institutional-readiness audit, 2026-09, P0): every endpoint below
+# for employees/contracts/leave-requests/payslips previously depended on
+# get_current_user() ONLY — no require_permission() call at all. Any
+# authenticated user of ANY role in the tenant (STUDENT, PARENT, ALUMNI
+# included) could read every employee's payslip (salary data) and
+# create/update/delete employee, contract, leave-request and payslip
+# records, limited only by tenant isolation (resolve_current_tenant_id),
+# never by role. Fixed by requiring hr:read (GET) / hr:write (write) —
+# matching the pattern already used correctly elsewhere in this file
+# (job-offers/career-events below) and in every other endpoint module.
+# STAFF/ACCOUNTANT/SECRETARY were granted hr:read/hr:write in
+# ROLE_PERMISSIONS as part of this fix (backend/app/core/security.py) to
+# match the route-level access they already have to /admin/hr
+# (src/App.tsx AdminLayout allowedRoles) — this closes the hole for every
+# role that was never meant to reach this data (STUDENT, PARENT, ALUMNI,
+# TEACHER, DEPARTMENT_HEAD) without removing access from the roles the
+# product already exposes this page to. See docs/PERMISSIONS_MATRIX.md.
+
 # --- Employees ---
 
 @router.get("/employees/", response_model=List[Employee])
 def read_employees(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:read")),
 ):
     """Retrieve all employees for the tenant."""
     return crud_hr.get_employees(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
@@ -39,7 +57,7 @@ def create_employee(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: EmployeeCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     """Create a new employee."""
     return crud_hr.create_employee(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
@@ -49,7 +67,7 @@ def read_employee(
     employee_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:read")),
 ):
     """Get a specific employee."""
     employee = crud_hr.get_employee(db, employee_id=employee_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
@@ -64,7 +82,7 @@ def update_employee(
     db: Session = Depends(get_db),
     employee_id: UUID,
     obj_in: EmployeeUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     """Update an employee."""
     employee = crud_hr.update_employee(db, employee_id=employee_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
@@ -77,7 +95,7 @@ def delete_employee(
     employee_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     """Delete an employee."""
     success = crud_hr.delete_employee(db, employee_id=employee_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
@@ -91,7 +109,7 @@ def delete_employee(
 def read_contracts(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:read")),
 ):
     return crud_hr.get_contracts(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -101,7 +119,7 @@ def create_contract(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: ContractCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     return crud_hr.create_contract(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -112,7 +130,7 @@ def update_contract(
     db: Session = Depends(get_db),
     contract_id: UUID,
     obj_in: ContractUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     contract = crud_hr.update_contract(db, contract_id=contract_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not contract:
@@ -124,7 +142,7 @@ def delete_contract(
     contract_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     success = crud_hr.delete_contract(db, contract_id=contract_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not success:
@@ -137,7 +155,7 @@ def delete_contract(
 def read_leave_requests(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:read")),
 ):
     return crud_hr.get_leave_requests(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -147,7 +165,7 @@ def create_leave_request(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: LeaveRequestCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     return crud_hr.create_leave_request(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -158,7 +176,7 @@ def update_leave_status(
     db: Session = Depends(get_db),
     leave_id: UUID,
     obj_in: LeaveRequestUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     leave = crud_hr.update_leave_status(db, leave_id=leave_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not leave:
@@ -170,7 +188,7 @@ def delete_leave_request(
     leave_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     """Delete a leave request."""
     success = crud_hr.delete_leave_request(db, leave_id=leave_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
@@ -184,7 +202,7 @@ def delete_leave_request(
 def read_payslips(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:read")),
 ):
     return crud_hr.get_payslips(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -194,7 +212,7 @@ def create_payslip(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: PayslipCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     return crud_hr.create_payslip(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -205,7 +223,7 @@ def update_payslip(
     db: Session = Depends(get_db),
     payslip_id: UUID,
     obj_in: PayslipUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     """Update a payslip."""
     payslip = crud_hr.update_payslip(db, payslip_id=payslip_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
@@ -218,7 +236,7 @@ def delete_payslip(
     payslip_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:write")),
 ):
     success = crud_hr.delete_payslip(db, payslip_id=payslip_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not success:
@@ -229,7 +247,7 @@ def delete_payslip(
 def read_last_employee_number(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("hr:read")),
 ):
     """Get the last employee number for the tenant."""
     return crud_hr.get_last_employee_number(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))

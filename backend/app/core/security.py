@@ -506,15 +506,24 @@ ROLE_PERMISSIONS: dict = {
     "ALUMNI": ["students:read", "grades:read", "attendance:read", "schedule:read", "subjects:read"],
     "STAFF": ["users:read", "students:read", "students:write", "attendance:read",
               "settings:read",
-              "admissions:read", "admissions:write", "inventory:read", "inventory:write"],
+              "admissions:read", "admissions:write", "inventory:read", "inventory:write",
+              # Institutional-readiness audit (2026-09): STAFF already has
+              # route-level access to /admin/hr (src/App.tsx AdminLayout
+              # allowedRoles) but no matching backend permission — added
+              # here as part of closing the hr.py authorization hole (see
+              # that file's module docstring) rather than removing access
+              # this role's UI already exposes.
+              "hr:read", "hr:write"],
     "ACCOUNTANT": ["finance:read", "finance:write", "students:read", "payments:read", "payments:write",
-                    "inventory:read", "settings:read"],
+                    "inventory:read", "settings:read",
+                    "hr:read", "hr:write"],  # same fix as STAFF above
     "SECRETARY": ["users:read", "students:read", "students:write", "attendance:read", "attendance:write",
                   "grades:read", "settings:read",
                   "admissions:read", "admissions:write",
                   "enrollments:read", "enrollments:write",
                   "certificates:read", "certificates:write",
-                  "inventory:read", "inventory:write"],
+                  "inventory:read", "inventory:write",
+                  "hr:read", "hr:write"],  # same fix as STAFF above
     # National audit Phase 2 — first institutional role above TENANT_ADMIN.
     # Deliberately narrow: a single permission for cross-tenant AGGREGATE
     # counts only (app/api/v1/endpoints/core/ministry.py). MINISTRY_ADMIN
