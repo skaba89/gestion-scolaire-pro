@@ -92,11 +92,18 @@ def _log_webhook_event(
 
 # --- List all parents ---
 
+# SECURITY (institutional-readiness audit, 2026-09): this endpoint returns
+# the full tenant parent directory (name, email, phone, address, occupation,
+# and which students each parent is linked to). It previously only depended
+# on get_current_user() — no require_permission() at all — so ANY
+# authenticated user in the tenant (STUDENT, TEACHER, ALUMNI...) could pull
+# every parent's contact details, not just staff managing student records.
+# Same bug class/fix pattern as the hr.py and communication.py fixes above.
 @router.get("/", response_model=List[dict])
 def list_parents(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("parents:read")),
     search: Optional[str] = Query(None, description="Search by first_name, last_name, or email"),
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
@@ -295,15 +302,38 @@ def read_parent_children(
     """Retrieve all children associated with the current parent user."""
     return crud_parents.get_parent_children(db, parent_id=current_user.get("id"), tenant_id=resolve_current_tenant_id(request, current_user, db))
 
+# SECURITY (institutional-readiness audit, 2026-09): took an arbitrary
+# student_id with no permission check and no ownership check — any
+# authenticated user (e.g. a STUDENT) could pass a classmate's student_id
+# and get that classmate's parents' names/email/phone. STUDENT does not
+# hold students:read (blocked outright by the gate below), but PARENT does
+# (it needs it for its own child's grades/homework), so gating on
+# students:read alone would still let a PARENT enumerate any other family's
+# contact info — hence the extra ownership check for PARENT-only callers,
+# same pattern as generate_smart_report_card in school_life.py. Staff roles
+# (TENANT_ADMIN/DIRECTOR/STAFF/SECRETARY) and TEACHER (e.g. notifying a
+# parent of an absence, see useAbsenceNotifications) keep full access.
 @router.get("/students/{student_id}/parents/", response_model=List[ParentStudent])
 def read_student_parents(
     request: Request,
     student_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("students:read")),
 ):
     """Retrieve all parents associated with a specific student."""
-    return crud_parents.get_student_parents(db, student_id=student_id, tenant_id=resolve_current_tenant_id(request, current_user, db))
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if not privileged and "PARENT" in roles:
+        own_children = crud_parents.get_parent_children(
+            db, parent_id=current_user.get("id"), tenant_id=tenant_id
+        )
+        if str(student_id) not in {str(link.student_id) for link in own_children}:
+            raise HTTPException(status_code=403, detail="Accès refusé aux informations de ce parent")
+
+    return crud_parents.get_student_parents(db, student_id=student_id, tenant_id=tenant_id)
 
 
 # --- Relationship Management ---

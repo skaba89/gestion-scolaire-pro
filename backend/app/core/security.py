@@ -485,6 +485,11 @@ ROLE_PERMISSIONS: dict = {
         # create_announcement/delete_announcement authorization hole in
         # communication.py (see that file), same pattern as the hr.py fix.
         "communications:read", "communications:write",
+        # Institutional-readiness audit (2026-09): DIRECTOR links parents to
+        # students via LinkParentDialog/StudentForm (same students:write
+        # gated UI) but GET /parents/ had no permission check at all — see
+        # the fix in operational/parents.py::list_parents.
+        "parents:read",
     ],
     "DEPARTMENT_HEAD": [
         "users:read",
@@ -520,7 +525,8 @@ ROLE_PERMISSIONS: dict = {
               # that file's module docstring) rather than removing access
               # this role's UI already exposes.
               "hr:read", "hr:write",
-              "communications:read", "communications:write"],  # announcements fix, see communication.py
+              "communications:read", "communications:write",  # announcements fix, see communication.py
+              "parents:read"],  # links parents to students, see parents.py::list_parents fix
     "ACCOUNTANT": ["finance:read", "finance:write", "students:read", "payments:read", "payments:write",
                     "inventory:read", "settings:read",
                     "hr:read", "hr:write",
@@ -532,7 +538,8 @@ ROLE_PERMISSIONS: dict = {
                   "certificates:read", "certificates:write",
                   "inventory:read", "inventory:write",
                   "hr:read", "hr:write",
-                  "communications:read", "communications:write"],  # same fix as STAFF above
+                  "communications:read", "communications:write",  # same fix as STAFF above
+                  "parents:read"],  # same fix as STAFF above
     # National audit Phase 2 — first institutional role above TENANT_ADMIN.
     # Deliberately narrow: a single permission for cross-tenant AGGREGATE
     # counts only (app/api/v1/endpoints/core/ministry.py). MINISTRY_ADMIN
