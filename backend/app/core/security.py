@@ -428,6 +428,13 @@ ROLE_PERMISSIONS: dict = {
         "departments:read", "departments:write",
         "campuses:read", "campuses:write",
         "classrooms:read", "classrooms:write",
+        # Institutional-readiness audit (2026-09): infrastructure.py's
+        # rooms/programs/classrooms/enrollments write endpoints had NO
+        # require_permission() at all (see that file's own comment) — any
+        # authenticated tenant user could create/delete them. programs:* is
+        # new (higher-ed "filières"); rooms/classrooms/enrollments:write
+        # already existed and are reused as-is.
+        "programs:read", "programs:write",
         # Finance
         "payments:read", "payments:write",
         "invoices:read", "invoices:write",
@@ -473,6 +480,14 @@ ROLE_PERMISSIONS: dict = {
         "academic_years:read", "academic_years:write",
         "terms:read", "terms:write",
         "classrooms:read", "classrooms:write",
+        # Institutional-readiness audit (2026-09): frontend already shows
+        # DIRECTOR "rooms:manage" (src/lib/permissions.ts) and infrastructure.py
+        # had no permission check at all on room/program writes (see that
+        # file), so this gap only surfaced now that the endpoints are
+        # actually gated — without this, DIRECTOR would 403 on a save it
+        # could previously (accidentally) make.
+        "rooms:read", "rooms:write",
+        "programs:read", "programs:write",
         "analytics:read", "reports:read", "finance:read",
         "audit:read", "audit:write",
         "rgpd:read", "rgpd:write",
