@@ -11,6 +11,9 @@ from datetime import datetime, date, time, timezone
 from pydantic import BaseModel
 
 from app.models.base import GUID
+from app.models.student import Student as StudentModel
+from app.models.parent_student import ParentStudent as ParentStudentModel
+from app.models.user import User as UserModel
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -1805,7 +1808,16 @@ def generate_smart_report_card(
     request: Request,
     body: SmartReportCardRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY (institutional-readiness audit, 2026-09): previously
+    # get_current_user() only — this endpoint fetches a student's real
+    # grades/rank/absences server-side by student_id, so any authenticated
+    # STUDENT or PARENT could pass a classmate's (or unrelated child's)
+    # student_id and download their full report card. require_permission
+    # keeps the same broad grant grades:read already has (STUDENT/PARENT
+    # included, matching every other grades endpoint); the ownership check
+    # below narrows it to "your own" for those two roles specifically —
+    # same pattern already established in academic/grades.py::list_grades.
+    current_user: dict = Depends(require_permission("grades:read")),
 ):
     """
     POST /school-life/generate-report-card/v2/
@@ -1815,6 +1827,33 @@ def generate_smart_report_card(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
+
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if not privileged and roles & {"STUDENT", "PARENT"}:
+        # ORM queries (not raw text() SQL) so the GUID TypeDecorator handles
+        # the SQLite-hex-vs-Postgres-native-UUID storage difference
+        # transparently on both bind and result — a raw text() query
+        # bypasses that coercion entirely and silently never matches on
+        # SQLite, even for a legitimate owner.
+        user_id = current_user.get("id")
+        allowed_ids: set[str] = set()
+        if "STUDENT" in roles:
+            own_email = db.query(UserModel.email).filter(UserModel.id == user_id).scalar()
+            rows = db.query(StudentModel.id).filter(
+                StudentModel.tenant_id == tenant_id,
+                (StudentModel.user_id == user_id) | (StudentModel.email == own_email),
+            ).all()
+            allowed_ids.update(str(r[0]) for r in rows)
+        if "PARENT" in roles:
+            rows = db.query(ParentStudentModel.student_id).filter(
+                ParentStudentModel.tenant_id == tenant_id,
+                ParentStudentModel.parent_id == user_id,
+            ).all()
+            allowed_ids.update(str(r[0]) for r in rows)
+        if str(body.student_id) not in allowed_ids:
+            raise HTTPException(status_code=403, detail="Accès refusé à ce bulletin")
 
     try:
         # ── Fetch base data ──────────────────────────────────────────────────
@@ -1914,7 +1953,15 @@ def generate_batch_report_cards(
     request: Request,
     body: SmartBatchRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY (institutional-readiness audit, 2026-09): previously
+    # get_current_user() only — generates every active student's grades/
+    # rank/absences for an entire classroom in one call. Any authenticated
+    # user (STUDENT, PARENT included) could dump a whole class's grades by
+    # passing any classroom_id. grades:write (not grades:read) is
+    # deliberate: STUDENT/PARENT only ever have grades:read, so this
+    # naturally restricts batch generation to roles that can also edit
+    # grades (TEACHER and above) without a separate role allowlist.
+    current_user: dict = Depends(require_permission("grades:write")),
 ):
     """
     POST /school-life/generate-report-cards/batch/
