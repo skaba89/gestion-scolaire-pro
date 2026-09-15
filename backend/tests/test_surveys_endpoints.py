@@ -160,9 +160,13 @@ class TestSurveySubmissionBugFix:
 
     def test_submit_response_rejected_on_inactive_survey(self):
         tenant_id = _make_tenant()
-        headers = _as_real_user(tenant_id, ["STUDENT"])
-        survey_id = client.post(f"{BASE}/", json={"title": "S", "is_active": False}, headers=headers).json()["id"]
+        # Creating the survey needs settings:write (institutional-readiness
+        # audit, 2026-09 — POST /surveys/ used to have no permission check
+        # at all); submitting a response doesn't, so separate identities.
+        admin_headers = _as_real_user(tenant_id, ["TENANT_ADMIN"])
+        survey_id = client.post(f"{BASE}/", json={"title": "S", "is_active": False}, headers=admin_headers).json()["id"]
 
+        headers = _as_real_user(tenant_id, ["STUDENT"])
         resp = client.post(f"{BASE}/{survey_id}/submit/", json={"responses": []}, headers=headers)
         assert resp.status_code == 400
 

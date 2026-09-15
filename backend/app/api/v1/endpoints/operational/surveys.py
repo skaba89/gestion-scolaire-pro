@@ -63,12 +63,17 @@ def list_survey_questions(
     return crud_survey.get_questions(db, survey_id, tenant_id)
 
 
+# SECURITY (institutional-readiness audit, 2026-09): create/update/delete_survey
+# were the only survey write endpoints with no require_permission() at all
+# — every other write here (add/update/delete_survey_question) already
+# requires settings:write. Any authenticated tenant user could create,
+# edit or delete an entire survey (and cascade its questions).
 @router.post("/", response_model=SurveyOut, status_code=status.HTTP_201_CREATED)
 def create_survey(
     request: Request,
     survey: SurveyCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("settings:write")),
 ):
     tenant_id = _require_tenant(request, current_user, db)
     user_id = current_user.get("id")
@@ -93,7 +98,7 @@ def update_survey(
     survey_id: UUID,
     survey: SurveyUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("settings:write")),
 ):
     tenant_id = _require_tenant(request, current_user, db)
     try:
@@ -116,7 +121,8 @@ def update_survey(
 
 @router.delete("/{survey_id}/")
 def delete_survey(
-    request: Request, survey_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user),
+    request: Request, survey_id: UUID, db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
 ):
     tenant_id = _require_tenant(request, current_user, db)
     try:

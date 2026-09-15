@@ -263,12 +263,19 @@ def delete_resource(
 
 # --- Borrowing ---
 
+# SECURITY (institutional-readiness audit, 2026-09): borrow/return took an
+# arbitrary user_id/borrow_id with no permission check — the borrower
+# recorded is whoever the CALLER names in the body (BorrowRequest.user_id),
+# by design (a librarian checks a book out to a patron), but with no gate
+# at all any authenticated tenant user could attribute a borrow (or falsely
+# mark any active borrow as returned) to anyone else. Gated on library:write,
+# the module's own dedicated permission.
 @router.post("/borrow/", status_code=status.HTTP_201_CREATED)
 def borrow_resource(
     request: Request,
     borrow: BorrowRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("library:write")),
 ):
     """Borrow a library resource."""
     tenant_id = resolve_current_tenant_id(request, current_user, db)
@@ -300,7 +307,7 @@ def return_resource(
     request: Request,
     ret: ReturnRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("library:write")),
 ):
     """Return a borrowed library resource."""
     tenant_id = resolve_current_tenant_id(request, current_user, db)
