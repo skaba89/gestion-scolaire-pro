@@ -188,6 +188,21 @@ def global_search(
     else:
         resource_types = list(RESOURCE_CONFIGS.keys())
 
+    # SECURITY (institutional-readiness audit, 2026-09): this endpoint had
+    # no role-based filtering at all — any authenticated tenant user
+    # (STUDENT, PARENT, ALUMNI included) could search "payments" and get
+    # back OTHER families' payment references and amounts tenant-wide.
+    # PARENT does hold payments:read, but that grant is for viewing their
+    # OWN children's payments via a properly scoped endpoint elsewhere —
+    # this search has no per-student ownership filter, so it must not be
+    # reachable by that broader role set. Restricted to the roles that
+    # actually administer payments tenant-wide (payments:write holders).
+    roles = set(current_user.get("roles", []))
+    if "payments" in resource_types and not (roles & {"SUPER_ADMIN", "TENANT_ADMIN", "ACCOUNTANT"}):
+        resource_types = [t for t in resource_types if t != "payments"]
+        if not resource_types:
+            raise HTTPException(status_code=403, detail="Accès refusé à ce type de ressource")
+
     results = {}
     total_count = 0
 
