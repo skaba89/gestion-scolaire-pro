@@ -9,7 +9,7 @@ import datetime, json
 
 from app.core.database import get_db
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
@@ -74,7 +74,12 @@ def create_announcement(
     request: Request,
     announcement: AnnouncementCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # SECURITY (institutional-readiness audit, 2026-09): previously
+    # get_current_user() only — any authenticated user of any role
+    # (STUDENT, PARENT, ALUMNI included) could broadcast a school-wide
+    # announcement. GET /announcements/ intentionally stays ungated: reading
+    # announcements is meant to be broad (that's the point of the feature).
+    current_user: dict = Depends(require_permission("communications:write")),
 ):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -119,7 +124,10 @@ def delete_announcement(
     request: Request,
     announcement_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # SECURITY: same fix as create_announcement above — previously anyone
+    # authenticated could delete any announcement, no role or ownership
+    # check at all.
+    current_user: dict = Depends(require_permission("communications:write")),
 ):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
