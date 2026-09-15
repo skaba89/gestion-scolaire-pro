@@ -128,24 +128,57 @@ utilisent `require_permission("levels:write" | "subjects:write" |
 - Étendre cet audit aux autres modules (finance, RH, communication) dans une
   passe ultérieure si besoin.
 
-## À auditer ensuite
+## Audit institutionnel 2026-09 — modules couverts
 
-Modules non couverts par cet audit (backend `read`/`write`/`delete` vs.
-frontend `read`/`manage`, cohérence par rôle) — même méthode à appliquer
-avant d'y toucher massivement :
+Suite de l'audit initial (onboarding/settings/levels/subjects), même
+méthode appliquée à chaque module de la liste "À auditer ensuite"
+ci-dessous. Vraies failles trouvées et corrigées :
 
-- Finance
-- Paiements
-- Factures
-- RH
-- Messages
-- Journaux d'audit (audit logs)
-- Imports / Exports
-- Bulletins (report cards)
-- Parents
-- Enseignants
-- Élèves
+- **RH** (PR #159, **P0**) — `hr.py` : tous les endpoints RH/paie/contrats/
+  congés ne dépendaient que de `get_current_user()`, aucune permission —
+  n'importe quel utilisateur authentifié du tenant pouvait lire/modifier
+  les données RH de tout le monde. Corrigé avec `require_permission
+  ("hr:read"/"hr:write")`.
+- **Messages** (PR #160, #165) — `communication.py` : création/suppression
+  d'annonces ouvertes à tout rôle (#160) ; réactions aux messages
+  consultables/ajoutables hors de la conversation d'appartenance, sans
+  vérification de participation (#165).
+- **Bulletins** (PR #162) — `school_life.py::generate_smart_report_card` :
+  un élève/parent authentifié pouvait consulter le bulletin de n'importe
+  quel autre élève via un `student_id` arbitraire.
+- **Parents** (PR #163) — `parents.py` : `GET /parents/` (annuaire complet :
+  nom, email, téléphone, adresse, enfants liés) sans aucune permission ;
+  `GET /parents/students/{id}/parents/` sans vérification de propriété
+  pour le rôle PARENT.
+- **Enseignants** — `teachers.py` : gate sur `settings:write` au lieu d'un
+  nom de permission dédié, mais même ensemble de rôles au final
+  (TENANT_ADMIN/DIRECTOR) que ce qu'attend le frontend — pas de vraie
+  faille, juste un nommage incohérent, laissé tel quel.
+- **Élèves** — `students.py` : sain (chaque endpoint sur `students:read`/
+  `students:write` ; les 2 endpoints self-scopés — dashboard, contacts
+  de messagerie — n'exposent que les données du user courant).
+- **Alumni** (module découvert en creusant "Messages"/"Élèves", pas dans
+  la liste initiale) (PR #164) — `alumni.py` : `student_id` fourni par le
+  client faisait autorité pour lire/écrire les candidatures et demandes
+  de mentorat d'un autre élève ; deux bugs fonctionnels préexistants
+  découverts en testant contre PostgreSQL réel (contrainte `ON CONFLICT`
+  manquante bloquant 100% des candidatures, colonne `goals` inexistante
+  cassant silencieusement la liste des demandes de mentorat).
 
-Ne pas refondre ces permissions en une seule passe — documenter d'abord,
-harmoniser module par module dans des PR séparées, comme fait ici pour
-onboarding/settings/levels/subjects.
+Modules vérifiés sains (déjà correctement gatés `require_permission`,
+aucun changement nécessaire) : **Finance**, **Paiements**, **Factures**,
+**Journaux d'audit** (`audit.py`), **Imports/Exports** (`imports.py` —
+templates de téléchargement délibérément ouverts, preview/confirm gatés
+sur `students:write`/`users:write`), **departments.py** (auto-scopé par
+appartenance au département, pas de `require_permission` mais pas de
+fuite non plus).
+
+Méthodologie retenue pour la suite : ne jamais se fier à la seule présence
+de `require_permission(...)` — vérifier aussi (1) que le jeu de rôles
+qu'il autorise correspond à ce que montre le frontend, et (2) pour tout
+endpoint prenant un identifiant en paramètre (`student_id`, `message_id`,
+`conversation_id`...), qu'il existe une vérification de propriété/
+participation quand le rôle appelant n'est pas un rôle "staff" à accès
+large. Écrire les tests de régression contre PostgreSQL réel (pas
+seulement SQLite, où plusieurs tables opérationnelles n'existent même
+pas) — c'est ce qui a révélé les deux bugs fonctionnels d'alumni.py.
