@@ -22,6 +22,7 @@ from app.core.database import SessionLocal, engine  # noqa: E402
 from app.core.security import get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
+from app.models.user import User  # noqa: E402
 
 HEADERS = {"Authorization": "Bearer mock-token"}
 
@@ -36,6 +37,21 @@ def _make_tenant(name: str) -> str:
         ))
         db.commit()
     return tenant_id
+
+
+def _make_user_identity(tenant_id: str, role: str) -> dict:
+    """Real User row — announcements.author_id has a real FK on users(id)
+    (enforced by Postgres, not by SQLite, which is why a fake id worked in
+    the SQLite-only negative tests above but not here)."""
+    user_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.add(User(
+            id=user_id, tenant_id=tenant_id, email=f"{user_id[:8]}@example.com",
+            username=f"user-{user_id[:8]}", password_hash="x",
+            first_name="Test", last_name=role, is_active=True,
+        ))
+        db.commit()
+    return {"id": user_id, "roles": [role], "tenant_id": tenant_id}
 
 
 def _as(user: dict):
@@ -97,7 +113,7 @@ class TestNoBusinessBroadcastingAnnouncements:
 class TestRolesAlreadyExposedToAnnouncementsPageKeepWorking:
     def test_director_can_create_and_delete_announcement(self):
         tenant_id = _make_tenant("École Announce Director")
-        director = {"id": str(uuid.uuid4()), "roles": ["DIRECTOR"], "tenant_id": tenant_id}
+        director = _make_user_identity(tenant_id, "DIRECTOR")
 
         resp = _as(director).post(
             "/api/v1/communication/announcements/",
@@ -114,7 +130,7 @@ class TestRolesAlreadyExposedToAnnouncementsPageKeepWorking:
 
     def test_secretary_can_create_announcement(self):
         tenant_id = _make_tenant("École Announce Secretary")
-        secretary = {"id": str(uuid.uuid4()), "roles": ["SECRETARY"], "tenant_id": tenant_id}
+        secretary = _make_user_identity(tenant_id, "SECRETARY")
         resp = _as(secretary).post(
             "/api/v1/communication/announcements/",
             json=_announcement_payload(),
