@@ -2,6 +2,12 @@
 
 Bienvenue dans la documentation de Academy Guinéenne. Ce répertoire contient toute la documentation importante pour comprendre, développer et maintenir la plateforme.
 
+> 📌 **Avant une présentation externe (ministère, partenaire, bailleur)** :
+> consulter [`STATUT_ACTUEL.md`](./STATUT_ACTUEL.md) pour l'état des
+> fonctionnalités vérifié et daté. Plusieurs documents plus anciens
+> (`PROJECT_ANALYSIS.md`, `COMPETITIVE_ANALYSIS_2025.md`) contiennent des
+> informations dépassées, signalées par un bandeau en tête de chaque fichier.
+
 ## 📚 Structure
 
 ```
