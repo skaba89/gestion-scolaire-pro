@@ -442,12 +442,20 @@ class ParentAlertRequest(BaseModel):
     student_name: str
     details: Dict[str, Any] = {}
 
+# SECURITY (institutional-readiness audit, 2026-09): had no permission
+# check at all — any authenticated tenant user (STUDENT, PARENT, ALUMNI
+# included) could send an arbitrary "absence"/"low_grade"/custom alert,
+# with attacker-controlled content, to the parents of ANY student in the
+# tenant — a harassment/social-engineering vector impersonating the
+# school's own notification system. Gated on school_life:write, already
+# held by TEACHER/TENANT_ADMIN/DIRECTOR (who legitimately trigger these
+# alerts from attendance/grading workflows).
 @router.post("/send-parent-alert/")
 def send_parent_alert(
     request: Request,
     body: ParentAlertRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     """
     Send a notification to parents of a student.
@@ -475,9 +483,15 @@ def send_parent_alert(
 
     count = 0
     for pu in parent_users:
+        # BUG (found while adding the permission-check fix above, 2026-09):
+        # Notification.id has no server-side default (default=uuid.uuid4
+        # is Python/ORM-side only — see app/models/notification.py) but
+        # this raw INSERT never supplied one, so every call has always
+        # raised NotNullViolation on real Postgres. Never caught by a test
+        # before, since no test exercised this endpoint's actual insert.
         db.execute(text("""
-            INSERT INTO notifications (tenant_id, user_id, type, title, message, is_read, created_at)
-            VALUES (:tenant_id, :user_id, :type, :title, :message, false, NOW())
+            INSERT INTO notifications (id, tenant_id, user_id, type, title, message, is_read, created_at)
+            VALUES (gen_random_uuid(), :tenant_id, :user_id, :type, :title, :message, false, NOW())
         """), {
             "tenant_id": tenant_id, "user_id": str(pu.id),
             "type": body.type.upper(), "title": title, "message": message
