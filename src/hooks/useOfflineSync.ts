@@ -47,12 +47,25 @@ export function useOfflineSync() {
 
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSyncingRef = useRef(false);
+  // Guards setState calls that resolve after unmount (e.g. a syncNow() fired
+  // on mount whose promise settles once the component is already gone) —
+  // without it, React logs a "no-op on unmounted component" warning and, in
+  // a test environment where jsdom's window is torn down between files, the
+  // pending setState can throw ReferenceError: window is not defined.
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // ── Update pending count ─────────────────────────────────────────────────
 
   const refreshPendingCount = useCallback(async () => {
     try {
       const counts = await getPendingCounts();
+      if (!isMountedRef.current) return;
       setState((prev) => ({ ...prev, pendingCount: counts.total }));
     } catch {
       // IndexedDB might not be available in all environments
@@ -248,13 +261,15 @@ export function useOfflineSync() {
     } finally {
       isSyncingRef.current = false;
       const counts = await getPendingCounts();
-      setState((prev) => ({
-        ...prev,
-        isSyncing: false,
-        pendingCount: counts.total,
-        lastSyncAt: new Date(),
-        lastSyncResult: { synced, failed, conflicts },
-      }));
+      if (isMountedRef.current) {
+        setState((prev) => ({
+          ...prev,
+          isSyncing: false,
+          pendingCount: counts.total,
+          lastSyncAt: new Date(),
+          lastSyncResult: { synced, failed, conflicts },
+        }));
+      }
     }
 
     return { synced, failed, conflicts };
