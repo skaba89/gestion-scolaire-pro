@@ -15,7 +15,7 @@ from app.core.client_ip import get_client_ip
 import uuid
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.core.storage import storage_client
 from app.models.base import GUID
@@ -414,12 +414,18 @@ def get_admission_timeline(
 
 # ─── POST / ───────────────────────────────────────────────────────────────────
 
+# SECURITY (institutional-readiness audit, 2026-09): the internal/staff
+# creation endpoint (distinct from the unauthenticated POST /public/apply/
+# used by prospective applicants) depended only on get_current_user() — no
+# require_permission() — so any authenticated tenant user (STUDENT, PARENT,
+# ALUMNI included) could create DRAFT admission applications. Every other
+# write on this router already requires admissions:write.
 @router.post("/", status_code=201)
 def create_admission(
     request: Request,
     payload: AdmissionCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("admissions:write")),
 ):
     """Create a new admission application (starts as DRAFT)."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
