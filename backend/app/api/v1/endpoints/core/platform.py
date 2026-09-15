@@ -786,6 +786,74 @@ async def get_email_health(_admin: dict = Depends(_require_super_admin)):
     }
 
 
+@router.get("/security/database-role/")
+async def get_database_role_security(
+    db: Session = Depends(get_db),
+    _admin: dict = Depends(_require_super_admin),
+):
+    """Institutional-readiness diagnostic (docs/SECURITY_MODEL.md P1).
+
+    Row-Level Security is enabled on tenant tables, but PostgreSQL grants
+    BYPASSRLS implicitly to any superuser role regardless of ENABLE/FORCE
+    RLS. If this deployment's connection role is a superuser (true of the
+    local Docker `schoolflow` role by design), tenant isolation depends
+    entirely on the application's own `WHERE tenant_id = ...` filtering —
+    RLS is not a real second line of defense for that role. Never returns
+    secrets — only the role name and two booleans.
+    """
+    from app.core.config import settings
+
+    if settings.is_sqlite:
+        return {
+            "applicable": False,
+            "detail": (
+                "SQLite ne supporte pas les rôles PostgreSQL ni le Row-Level "
+                "Security — ce diagnostic n'a de sens qu'en production PostgreSQL."
+            ),
+        }
+
+    role_row = db.execute(text(
+        "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+    )).mappings().first()
+
+    if role_row is None:
+        return {
+            "applicable": True,
+            "checked": False,
+            "detail": "Impossible de lire pg_roles pour le rôle courant (permissions insuffisantes).",
+        }
+
+    is_superuser = bool(role_row["rolsuper"])
+    bypasses_rls = bool(role_row["rolbypassrls"])
+    rls_effective = not is_superuser and not bypasses_rls
+
+    if not rls_effective:
+        logger.critical(
+            "SECURITY: rôle PostgreSQL applicatif '%s' contourne le Row-Level "
+            "Security (rolsuper=%s, rolbypassrls=%s) — vérifié via "
+            "/platform/security/database-role/.",
+            role_row["rolname"], is_superuser, bypasses_rls,
+        )
+
+    return {
+        "applicable": True,
+        "checked": True,
+        "role_name": role_row["rolname"],
+        "is_superuser": is_superuser,
+        "bypasses_rls": bypasses_rls,
+        "rls_effective": rls_effective,
+        "detail": (
+            "Row-Level Security effectivement appliqué pour ce rôle."
+            if rls_effective else
+            "ALERTE : ce rôle contourne le Row-Level Security PostgreSQL "
+            "(superutilisateur ou BYPASSRLS explicite). L'isolation entre "
+            "établissements repose uniquement sur le filtrage applicatif "
+            "tenant_id. Créer un rôle applicatif dédié sans ces attributs "
+            "avant tout déploiement institutionnel."
+        ),
+    }
+
+
 @router.post("/email/test-send/")
 @limiter.limit("5/hour")
 async def send_test_email(
