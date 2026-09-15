@@ -88,9 +88,29 @@ utilisent `require_permission("levels:write" | "subjects:write" |
 | SUPER_ADMIN | `*` | `subjects:manage` | ✅ |
 | TENANT_ADMIN | `subjects:read`, `subjects:write` | `subjects:manage` | ✅ |
 | **DIRECTOR** | `subjects:read`, `subjects:write` ✅ (corrigé) | `subjects:manage` | ✅ **Corrigé** — même fix que pour `levels`. |
-| DEPARTMENT_HEAD | `subjects:read`, `subjects:write` | `subjects:manage` | ✅ |
+| **DEPARTMENT_HEAD** | `subjects:read`, `subjects:write` | `subjects:manage` | ⚠️ **Faux positif corrigé (2026-09)** — voir note ci-dessous. |
 | TEACHER | `subjects:read` | pas de `subjects:manage` (lecture implicite via pages qui vérifient `subjects:read`) | ✅ |
 | ALUMNI | `subjects:read` | pas de mapping frontend dédié | ✅ (pas de page Subjects exposée aux alumni) |
+
+> ⚠️ **Correction méthodologique (institutional-readiness audit, 2026-09)** :
+> la ligne DEPARTMENT_HEAD ci-dessus était marquée ✅ en comparant uniquement
+> les *noms* de permission entre les deux fichiers — sans vérifier laquelle
+> l'endpoint réel (`backend/app/api/v1/endpoints/academic/subjects.py`)
+> vérifiait vraiment. En réalité, ce routeur contrôlait `settings:write` sur
+> tous ses endpoints d'écriture, jamais `subjects:write` — un fait invisible
+> à un audit qui ne compare que les deux `ROLE_PERMISSIONS`. Résultat concret :
+> DEPARTMENT_HEAD avait bien `subjects:write` dans `ROLE_PERMISSIONS`
+> (permission jamais vérifiée par aucun endpoint — morte), mais seulement
+> `settings:read` (pas `settings:write`) — donc son bouton "modifier une
+> matière", pourtant affiché par le frontend, retournait 403 à chaque clic.
+> **Corrigé** en changeant les 5 vérifications d'écriture de `subjects.py`
+> vers `subjects:write` (les lectures restent sur `settings:read`,
+> volontairement non modifiées — voir le commentaire en tête de ce fichier).
+> Testé : `test_department_head_can_write_subjects` et
+> `test_teacher_still_cannot_write_subjects` (`backend/tests/test_tenant_isolation.py`).
+> **Leçon pour les audits futurs** : comparer les noms de permission entre
+> frontend et backend ne suffit pas — il faut tracer jusqu'à l'endpoint réel
+> pour savoir quelle chaîne `require_permission(...)` compte vraiment.
 
 ## Résumé des actions
 

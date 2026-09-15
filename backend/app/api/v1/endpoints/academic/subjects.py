@@ -14,6 +14,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# PERMISSIONS (institutional-readiness audit, 2026-09): write endpoints below
+# check "subjects:write", not "settings:write" — DEPARTMENT_HEAD is granted
+# subjects:write (matching its frontend subjects:manage) but only
+# settings:read, not settings:write. Before this fix, every write call here
+# checked settings:write, so DEPARTMENT_HEAD's own "edit subject" button
+# always 403'd despite ROLE_PERMISSIONS explicitly granting subjects:write —
+# a dead permission grant, never actually checked by this router. See
+# docs/PERMISSIONS_MATRIX.md and test_department_head_can_write_subjects in
+# backend/tests/test_tenant_isolation.py. Reads intentionally left on
+# settings:read (unchanged) — narrowing them risks removing access from
+# roles not fully audited yet; only the write path had a verified live bug.
+
 @router.get("/", response_model=List[Subject])
 def list_subjects(
     request: Request,
@@ -44,7 +56,7 @@ def create_subject(
     request: Request,
     subject_in: SubjectCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(require_permission("subjects:write")),
 ):
     """Create a new subject."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -58,7 +70,7 @@ def update_subject(
     subject_id: UUID,
     subject_in: SubjectUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(require_permission("subjects:write")),
 ):
     """Update a subject."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -74,7 +86,7 @@ def delete_subject(
     request: Request,
     subject_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(require_permission("subjects:write")),
 ):
     """Delete a subject."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -125,7 +137,7 @@ def assign_subject_to_level(
     subject_id: UUID,
     level_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(require_permission("subjects:write")),
 ):
     """Assign a subject to a level."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -146,7 +158,7 @@ def remove_subject_from_level(
     subject_id: UUID,
     level_id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(require_permission("subjects:write")),
 ):
     """Remove a subject from a level."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
