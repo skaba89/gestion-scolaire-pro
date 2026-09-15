@@ -25,7 +25,7 @@ promesse au-delà de ce qui est vérifié dans le code.
 | Erreurs 4xx/5xx par tenant | P2 | Le middleware `metrics.py` (Prometheus) n'inclut pas `tenant_id` — voir stratégie ci-dessous |
 | Temps de réponse moyen par tenant | P2 | Même limitation |
 | Imports échoués par tenant (agrégé, pas juste le rapport d'un import) | P2 | Chaque import produit un rapport individuel (voir `docs/IMPORT_EXCEL_READINESS.md`) mais rien n'agrège "combien d'imports ont échoué ce mois pour ce tenant" |
-| Alertes automatiques (5xx, import échoué, backup échoué, tenant inactif) | P2 | **Paiement webhook rejeté : ✅ livré** (voir ci-dessous). Les 4 autres (5xx, import, backup, inactivité) restent à construire — nécessitent des seuils/destinataires métier à valider avec le support, pas un simple choix technique. |
+| Alertes automatiques (5xx, import échoué, backup échoué, tenant inactif) | P2 | **Paiement webhook rejeté : ✅ livré. Import échoué : ✅ livré (2026-09). Backup échoué : ✅ déjà câblé, vérifié.** Restent : 5xx par tenant et tenant inactif — nécessitent des seuils/destinataires métier à valider avec le support, pas un simple choix technique. |
 | Dashboard Grafana ou écran admin dédié | ✅ livré | `GET /platform/tenants/{id}/health/` (SUPER_ADMIN) + écran `TenantHealthDialog` dans le SaaS Dashboard — statut global, quotas, jobs échoués, dernier import, dernier webhook paiement échoué, dernière activité. Pas de Grafana, juste un écran admin, comme recommandé ci-dessous. |
 
 ## Stratégie recommandée : table agrégée, pas Prometheus par tenant
@@ -52,9 +52,9 @@ approche plutôt que d'ajouter des labels Prometheus :
 | Alerte | Seuil | Canal | État |
 |---|---|---|---|
 | Paiement webhook rejeté | tout échec de vérification de signature CinetPay/PayTech | Email à `ALERT_EMAIL` (env var backend, vide = désactivé) | ✅ livré — `_send_webhook_rejection_alert()` dans `app/api/v1/endpoints/operational/parents.py`, planifié via `BackgroundTasks` pour ne jamais ralentir la réponse au fournisseur. Testé (`tests/test_payment_webhook_events.py::TestWebhookRejectionAlert`). |
+| Import échoué | > 50% de lignes en erreur sur un import (élèves, parents, enseignants) | Email à `ALERT_EMAIL` + à l'email/email de facturation de l'établissement | ✅ livré (2026-09) — `_maybe_alert_import_failure_rate()` dans `app/api/v1/endpoints/core/imports.py`, appelé après commit sur les 3 endpoints `.../confirm/`. Best-effort (ne bloque jamais la réponse d'import). Testé (`tests/test_import_failure_alert.py`). |
+| Backup échoué | tout échec de sauvegarde quotidienne | Alerte immédiate équipe technique (P1 opérationnel) | ✅ déjà câblé — `scripts/backup-database.sh::send_alert()` est appelé par `fail()` à chaque point d'échec (pg_dump, espace disque, vérification checksum, upload S3...) ; envoie à `ALERT_EMAIL` (commande `mail`) et/ou `ALERT_WEBHOOK` (Slack-compatible). Vérifié par lecture du script (2026-09) — reste à confirmer que ces deux variables sont bien renseignées sur l'environnement de production réel (action opérationnelle, pas un manque de code). |
 | Taux d'erreur 5xx | > 5% des requêtes sur 15 min pour un tenant | Slack/email support | ⏳ à construire — nécessite d'abord la ventilation 5xx par tenant (voir tableau ci-dessus) |
-| Import échoué | > 50% de lignes en erreur sur un import | Email au support + à l'établissement | ⏳ à construire — seuil "50%" à valider avec le support avant implémentation |
-| Backup échoué | tout échec de sauvegarde quotidienne | Alerte immédiate équipe technique (P1 opérationnel) | ⏳ à construire — le script de backup accepte déjà `ALERT_EMAIL`/`ALERT_WEBHOOK` en variables (voir `tests/test_backup_scripts.py`), reste à vérifier qu'ils sont bien câblés en production |
 | Tenant inactif anormal | 0 connexion depuis 14 jours sur un tenant payant actif | Email commercial (risque de churn) | ⏳ à construire — décision commerciale sur le destinataire, pas un choix technique |
 
 ## Dashboard support
@@ -68,6 +68,6 @@ opérationnel, conforme à la recommandation initiale de ce document.
 
 ## Limites actuelles
 
-- Une seule alerte automatique existe à ce jour (webhook paiement rejeté) — les 4 autres du tableau ci-dessus restent à découvrir manuellement via le dashboard support, les logs, ou un ticket client.
+- Trois alertes automatiques existent à ce jour (webhook paiement rejeté, import échoué, backup échoué) — les 2 restantes (5xx par tenant, tenant inactif) restent à découvrir manuellement via le dashboard support, les logs, ou un ticket client, en attendant une décision produit sur leurs seuils/destinataires.
 - Le "dernier backup" n'est vérifiable qu'au niveau plateforme, pas encore par tenant individuel (peu critique tant qu'un seul cluster PostgreSQL sert tous les tenants — la sauvegarde est de toute façon globale).
 - Aucune donnée personnelle n'est exposée dans les métriques actuelles (`/metrics` expose des compteurs Python/GC et des agrégats de requêtes, jamais de contenu métier) — à maintenir strictement lors de toute extension.

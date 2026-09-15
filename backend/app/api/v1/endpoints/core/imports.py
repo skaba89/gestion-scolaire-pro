@@ -17,17 +17,62 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, require_plan
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.student import Student
+from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.services.notifications import EmailSender
 from app.utils.audit import log_audit
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Docs: docs/TENANT_MONITORING.md — "Import échoué" was the one alert in
+# that table left as "à construire", with its threshold already agreed:
+# alert when more than half a batch's rows failed. Best-effort, never
+# raises — an alerting hiccup must never turn a successful import into a
+# 500 for the person who just ran it.
+IMPORT_FAILURE_ALERT_THRESHOLD = 0.5
+
+
+def _maybe_alert_import_failure_rate(
+    db: Session, *, tenant_id: str, import_type: str, skipped: int, total: int, filename: str,
+) -> None:
+    if total <= 0 or (skipped / total) <= IMPORT_FAILURE_ALERT_THRESHOLD:
+        return
+    try:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        recipients = [e for e in {settings.ALERT_EMAIL, tenant.billing_email if tenant else None, tenant.email if tenant else None} if e]
+        if not recipients:
+            return
+        sender = EmailSender(
+            resend_api_key=settings.RESEND_API_KEY,
+            smtp_host=settings.SMTP_HOST,
+            smtp_port=settings.SMTP_PORT,
+            smtp_user=settings.SMTP_USER,
+            smtp_pass=settings.SMTP_PASS,
+            from_email=settings.FROM_EMAIL,
+            from_name=settings.FROM_NAME,
+        )
+        pct = round((skipped / total) * 100)
+        subject = f"[Academy Guinéenne] Import {import_type} — {pct}% des lignes en erreur"
+        html = (
+            f"<p>Un import <strong>{import_type}</strong> ({filename}) pour l'établissement "
+            f"<strong>{tenant.name if tenant else tenant_id}</strong> a échoué sur "
+            f"<strong>{skipped}/{total} lignes ({pct}%)</strong>.</p>"
+            f"<p>Cause fréquente : fichier mal formaté, colonnes non reconnues, ou données "
+            f"de référence manquantes (matricules, emails). Voir le détail des erreurs dans "
+            f"la réponse de l'import ou les journaux d'audit de l'établissement.</p>"
+        )
+        for recipient in recipients:
+            sender.send(recipient, subject, html)
+    except Exception as exc:
+        logger.warning("Failed to send import failure alert: %s", exc)
 
 # ── Column aliases (French + English) ─────────────────────────────────────────
 
@@ -366,6 +411,10 @@ async def confirm_student_import(
         logger.error("Import commit failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
 
+    _maybe_alert_import_failure_rate(
+        db, tenant_id=tenant_id, import_type="élèves", skipped=skipped, total=len(rows), filename=file.filename,
+    )
+
     return {
         "created": created,
         "skipped": skipped,
@@ -697,6 +746,10 @@ async def confirm_parent_import(
         logger.error("Parent import commit failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
 
+    _maybe_alert_import_failure_rate(
+        db, tenant_id=tenant_id, import_type="parents", skipped=skipped_rows, total=len(rows), filename=file.filename,
+    )
+
     return {
         "created_parents": created_parents,
         "reused_parents": reused_parents,
@@ -913,6 +966,10 @@ async def confirm_teacher_import(
         db.rollback()
         logger.error("Teacher import commit failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
+
+    _maybe_alert_import_failure_rate(
+        db, tenant_id=tenant_id, import_type="enseignants", skipped=skipped, total=len(rows), filename=file.filename,
+    )
 
     return {
         "created": created,
