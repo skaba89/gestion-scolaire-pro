@@ -248,6 +248,50 @@ async def lifespan(app: FastAPI):
     except Exception as admin_err:
         logger.warning("Super admin auto-creation skipped: %s", admin_err)
 
+    # SECURITY (institutional-readiness, docs/SECURITY_MODEL.md P1): Row-Level
+    # Security is enabled on tenant tables, but PostgreSQL grants BYPASSRLS
+    # implicitly to any superuser role — ENABLE/FORCE RLS does not matter for
+    # such a role. If the application's own connection role is a superuser
+    # (true of the local Docker `schoolflow` role, by design, for migrations),
+    # tenant isolation falls back entirely to the application's own
+    # `WHERE tenant_id = ...` filtering with no database-level second line of
+    # defense. Logged at every startup — deliberately not gated behind a
+    # dashboard click — so this can never silently go unverified on a real
+    # deployment. See also GET /platform/security/database-role/.
+    if not settings.is_sqlite:
+        try:
+            from app.core.database import SessionLocal as _SessionLocal
+            from sqlalchemy import text as _text
+
+            db = _SessionLocal()
+            try:
+                role_row = db.execute(_text(
+                    "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
+                )).mappings().first()
+                if role_row and (role_row["rolsuper"] or role_row["rolbypassrls"]):
+                    logger.critical(
+                        "SECURITY: le rôle PostgreSQL applicatif '%s' contourne le "
+                        "Row-Level Security (rolsuper=%s, rolbypassrls=%s) — "
+                        "l'isolation entre établissements repose uniquement sur le "
+                        "filtrage applicatif tenant_id, sans second rempart au niveau "
+                        "base de données. Voir docs/SECURITY_MODEL.md avant tout "
+                        "déploiement institutionnel.",
+                        role_row["rolname"], role_row["rolsuper"], role_row["rolbypassrls"],
+                    )
+                elif role_row:
+                    logger.info(
+                        "Rôle PostgreSQL applicatif '%s' : Row-Level Security effectif "
+                        "(ni superutilisateur, ni BYPASSRLS).",
+                        role_row["rolname"],
+                    )
+            finally:
+                db.close()
+        except Exception as role_check_err:
+            logger.warning(
+                "Vérification du rôle PostgreSQL (RLS/superutilisateur) impossible "
+                "au démarrage: %s", role_check_err,
+            )
+
     logger.info(
         "Academy Guinéenne API started",
         extra={"debug": settings.DEBUG, "log_level": settings.LOG_LEVEL},

@@ -47,10 +47,18 @@ qui l'implémente.
   un rôle PostgreSQL superutilisateur contourne TOUJOURS RLS, `FORCE` ou
   pas. Le rôle Docker local (`schoolflow`) EST superutilisateur — RLS y est
   donc un no-op, et la vraie isolation tenant en local repose sur le
-  filtrage `WHERE tenant_id = ...` de chaque endpoint, pas sur RLS. Non
-  vérifié contre la base de production (accès non disponible depuis cette
-  session) : à faire absolument avant mise en production —
-  `SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = '<rôle prod>';`
+  filtrage `WHERE tenant_id = ...` de chaque endpoint, pas sur RLS.
+  **Vérification automatisée depuis 2026-09** (`backend/app/main.py`,
+  bloc de démarrage) : à chaque démarrage de l'API sur PostgreSQL, le rôle
+  de connexion est interrogé (`pg_roles`) et un `logger.critical()` est émis
+  s'il est superutilisateur ou `BYPASSRLS` — visible dans les logs
+  applicatifs et Sentry, sans étape manuelle. Consultable aussi à la demande
+  via `GET /platform/security/database-role/` (SUPER_ADMIN uniquement,
+  jamais de secret retourné). **Reste à faire par un opérateur humain avec
+  accès au déploiement réel** : lancer l'app contre la base de production et
+  lire le résultat — cette session n'a pas cet accès. Requête manuelle
+  équivalente si besoin : `SELECT rolname, rolsuper, rolbypassrls FROM
+  pg_roles WHERE rolname = '<rôle prod>';`
 - Isolation vérifiée par tests dédiés : `test_tenant_isolation.py`, et par
   isolation systématique dans chaque nouveau module ajouté (ex. transcripts,
   teachers, payment receipts — jamais de fuite inter-tenant même avec un
