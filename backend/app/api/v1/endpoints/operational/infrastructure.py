@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from fastapi import Query
 from app.crud import academic as crud
@@ -32,12 +32,19 @@ def read_rooms(
 ):
     return crud.get_rooms(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
+# SECURITY (institutional-readiness audit, 2026-09): every write endpoint in
+# this file depended only on get_current_user() — no require_permission()
+# at all — so any authenticated tenant user (STUDENT/PARENT/ALUMNI
+# included) could create/delete rooms, programs, classrooms and
+# enrollments, or reassign a classroom's subjects, for their tenant. Reads
+# stay open (broad academic-structure visibility is intentional, same as
+# subjects/levels); only writes are now gated.
 @router.post("/rooms/", response_model=Room)
 def create_room(
     obj_in: RoomCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("rooms:write")),
 ):
     return crud.create_room(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -55,7 +62,7 @@ def create_program(
     obj_in: ProgramCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("programs:write")),
 ):
     return crud.create_program(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -65,7 +72,7 @@ def update_program(
     obj_in: ProgramUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("programs:write")),
 ):
     """Was missing entirely — a tenant had no way (UI nor API) to rename or
     remove the generic 'Licence 1/Master 1/...' placeholder programs some
@@ -80,7 +87,7 @@ def delete_program(
     program_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("programs:write")),
 ):
     deleted = crud.delete_program(db, program_id=program_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     if not deleted:
@@ -100,7 +107,7 @@ def create_classroom(
     obj_in: ClassroomCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("classrooms:write")),
 ):
     return crud.create_classroom(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -125,7 +132,7 @@ def create_enrollment(
     obj_in: EnrollmentCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("enrollments:write")),
 ):
     return crud.create_enrollment(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
@@ -211,7 +218,7 @@ def assign_subject_to_classroom(
     payload: dict,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("classrooms:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(class_subjects.insert().values(
@@ -230,7 +237,7 @@ def remove_subject_from_classroom(
     subject_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("classrooms:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(class_subjects.delete().where(
