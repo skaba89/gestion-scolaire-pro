@@ -419,11 +419,17 @@ def list_job_applications(
         where = ["ja.tenant_id = :tid"]
         params: dict = {"tid": tenant_id}
 
-        # Non-admins can only see their own applications
+        # SECURITY (institutional-readiness audit, 2026-09): a non-admin used
+        # to be scoped to `student_id or user_id` — i.e. the CLIENT-SUPPLIED
+        # student_id won whenever present, letting any authenticated alumnus
+        # read another alumnus's job applications (including cover letters)
+        # by simply passing ?student_id=<other>. Only TENANT_ADMIN/DIRECTOR/
+        # STAFF may look up another student's applications; everyone else is
+        # always scoped to their own id regardless of the query param.
         roles = current_user.get("roles", [])
         if not any(r in roles for r in ("TENANT_ADMIN", "DIRECTOR", "STAFF")):
             where.append("ja.student_id = :uid")
-            params["uid"] = student_id or user_id
+            params["uid"] = user_id
         elif student_id:
             where.append("ja.student_id = :uid")
             params["uid"] = student_id
@@ -465,7 +471,11 @@ def create_job_application(
         """), {
             "id": new_id,
             "tid": tenant_id,
-            "sid": body.get("student_id") or user_id,
+            # SECURITY (institutional-readiness audit, 2026-09): previously
+            # `body.get("student_id") or user_id` — a client-supplied
+            # student_id let anyone submit a job application AS another
+            # student. An application always belongs to its caller.
+            "sid": user_id,
             "jid": body.get("job_offer_id"),
             "cover": body.get("cover_letter", ""),
         })
@@ -488,9 +498,24 @@ def list_mentorship_requests_student(
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
-        effective_id = student_id or user_id
+        # SECURITY (institutional-readiness audit, 2026-09): this endpoint
+        # blindly trusted a client-supplied ?student_id=, with no admin
+        # exception at all — any authenticated user could read another
+        # student's mentorship requests (personal message/goals + mentor
+        # identity) by passing someone else's id. There is no legitimate
+        # frontend use of this param (see the dedicated, permission-gated
+        # GET /alumni/admin/mentorship-requests/ for staff), so it is now
+        # always ignored in favour of the caller's own id.
+        effective_id = user_id
+        # BUG (found while adding the ownership-scoping fix above, 2026-09):
+        # this SELECT referenced m.goals, a column that has never existed on
+        # mentorship_requests (create_mentorship_request folds goals into
+        # the message column — see MentorshipRequestCreate below). Every
+        # call therefore raised, was swallowed by the except below, and
+        # silently returned [] — this student-facing list has apparently
+        # never actually worked against Postgres.
         rows = db.execute(text("""
-            SELECT m.id, m.student_id, m.mentor_id, m.message, m.goals,
+            SELECT m.id, m.student_id, m.mentor_id, m.message,
                    m.status, m.created_at,
                    am.first_name as mentor_first_name, am.last_name as mentor_last_name,
                    am.current_position, am.current_company
