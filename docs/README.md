@@ -7,6 +7,12 @@ Bienvenue dans la documentation de Academy Guinéenne. Ce répertoire contient t
 > fonctionnalités vérifié et daté. Plusieurs documents plus anciens
 > (`PROJECT_ANALYSIS.md`, `COMPETITIVE_ANALYSIS_2025.md`) contiennent des
 > informations dépassées, signalées par un bandeau en tête de chaque fichier.
+>
+> 📋 **Avant un engagement institutionnel (plusieurs établissements, contrat
+> ministériel)** : consulter [`CADRE_INSTITUTIONNEL.md`](./CADRE_INSTITUTIONNEL.md)
+> — sépare explicitement ce qui est prêt (pilote) de ce qui ne l'est pas
+> encore (échelle nationale), avec une grille Go/No-Go et un registre de
+> décisions.
 
 ## 📚 Structure
 
