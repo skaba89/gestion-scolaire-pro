@@ -172,6 +172,63 @@ def test_director_can_write_levels_and_subjects():
         app.dependency_overrides.pop(get_current_user, None)
 
 
+def test_department_head_can_write_subjects():
+    """Regression test (institutional-readiness audit, 2026-09): DEPARTMENT_HEAD's
+    frontend UI shows subjects:manage (src/lib/permissions.ts) and ROLE_PERMISSIONS
+    explicitly grants it subjects:write — but every write endpoint in
+    backend/app/api/v1/endpoints/academic/subjects.py checked settings:write, not
+    subjects:write, and DEPARTMENT_HEAD only has settings:read. Its "edit subject"
+    button always 403'd despite the permission grant existing. See
+    docs/PERMISSIONS_MATRIX.md.
+
+    Distinct from test_director_can_write_levels_and_subjects above, which
+    covers the one-time onboarding wizard (POST /tenants/onboarding/...) — a
+    different router with its own, already-correct subjects:write/levels:write
+    checks. This test covers the ongoing subject-management CRUD used after
+    onboarding.
+    """
+    tenant_id = _make_tenant("École Department Head")
+    head = {"id": str(uuid.uuid4()), "roles": ["DEPARTMENT_HEAD"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(head).post(
+            "/api/v1/subjects/",
+            json={"name": "Physique-Chimie"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 201, resp.text
+        subject_id = resp.json()["id"]
+
+        resp = _as(head).put(
+            f"/api/v1/subjects/{subject_id}/",
+            json={"name": "Physique-Chimie (renommé)"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+
+        resp = _as(head).delete(f"/api/v1/subjects/{subject_id}/", headers=HEADERS)
+        assert resp.status_code == 204, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_teacher_still_cannot_write_subjects():
+    """TEACHER has subjects:read but no subjects:write on either side — the
+    fix above must not accidentally widen access beyond DEPARTMENT_HEAD."""
+    tenant_id = _make_tenant("École Teacher Subjects")
+    teacher = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id}
+
+    try:
+        resp = _as(teacher).post(
+            "/api/v1/subjects/",
+            json={"name": "Ne devrait pas passer"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 403, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+
 def test_public_slug_endpoint_never_returns_settings():
     """GET /tenants/slug/{slug}/ is unauthenticated -- must never leak
     tenant.settings (security config, MEN Guinee data, signature URLs, ...).
