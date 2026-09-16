@@ -22,10 +22,10 @@ promesse au-delà de ce qui est vérifié dans le code.
 | Manque | Priorité | Pourquoi |
 |---|---|---|
 | Connexions par jour par tenant | P2 | Aucune table de log de connexion agrégée — seulement les sessions actives Redis (éphémères, pas d'historique) |
-| Erreurs 4xx/5xx par tenant | P2 | Le middleware `metrics.py` (Prometheus) n'inclut pas `tenant_id` — voir stratégie ci-dessous |
+| Erreurs 5xx par tenant | ✅ livré (2026-09) | Fenêtre glissante en mémoire par tenant dans `MetricsMiddleware` (voir Alertes ci-dessous) — pas un label Prometheus (cardinalité), conforme à la stratégie recommandée ci-dessous. Limite : par processus, sous-compte en multi-réplica. |
 | Temps de réponse moyen par tenant | P2 | Même limitation |
 | Imports échoués par tenant (agrégé, pas juste le rapport d'un import) | P2 | Chaque import produit un rapport individuel (voir `docs/IMPORT_EXCEL_READINESS.md`) mais rien n'agrège "combien d'imports ont échoué ce mois pour ce tenant" |
-| Alertes automatiques (5xx, import échoué, backup échoué, tenant inactif) | P2 | **Paiement webhook rejeté : ✅ livré. Import échoué : ✅ livré (2026-09). Backup échoué : ✅ déjà câblé, vérifié.** Restent : 5xx par tenant et tenant inactif — nécessitent des seuils/destinataires métier à valider avec le support, pas un simple choix technique. |
+| Alertes automatiques (5xx, import échoué, backup échoué, tenant inactif) | ✅ livré (2026-09) | Les 5 alertes existent désormais — voir tableau "Alertes" ci-dessous. Seuils/destinataire choisis par défaut faute de décision métier formelle (5% de 5xx/15min, 14 jours d'inactivité, tout envoyé à `ALERT_EMAIL`) — à ajuster si le support en a une meilleure lecture terrain. |
 | Dashboard Grafana ou écran admin dédié | ✅ livré | `GET /platform/tenants/{id}/health/` (SUPER_ADMIN) + écran `TenantHealthDialog` dans le SaaS Dashboard — statut global, quotas, jobs échoués, dernier import, dernier webhook paiement échoué, dernière activité. Pas de Grafana, juste un écran admin, comme recommandé ci-dessous. |
 
 ## Stratégie recommandée : table agrégée, pas Prometheus par tenant
@@ -54,8 +54,8 @@ approche plutôt que d'ajouter des labels Prometheus :
 | Paiement webhook rejeté | tout échec de vérification de signature CinetPay/PayTech | Email à `ALERT_EMAIL` (env var backend, vide = désactivé) | ✅ livré — `_send_webhook_rejection_alert()` dans `app/api/v1/endpoints/operational/parents.py`, planifié via `BackgroundTasks` pour ne jamais ralentir la réponse au fournisseur. Testé (`tests/test_payment_webhook_events.py::TestWebhookRejectionAlert`). |
 | Import échoué | > 50% de lignes en erreur sur un import (élèves, parents, enseignants) | Email à `ALERT_EMAIL` + à l'email/email de facturation de l'établissement | ✅ livré (2026-09) — `_maybe_alert_import_failure_rate()` dans `app/api/v1/endpoints/core/imports.py`, appelé après commit sur les 3 endpoints `.../confirm/`. Best-effort (ne bloque jamais la réponse d'import). Testé (`tests/test_import_failure_alert.py`). |
 | Backup échoué | tout échec de sauvegarde quotidienne | Alerte immédiate équipe technique (P1 opérationnel) | ✅ déjà câblé — `scripts/backup-database.sh::send_alert()` est appelé par `fail()` à chaque point d'échec (pg_dump, espace disque, vérification checksum, upload S3...) ; envoie à `ALERT_EMAIL` (commande `mail`) et/ou `ALERT_WEBHOOK` (Slack-compatible). Vérifié par lecture du script (2026-09) — reste à confirmer que ces deux variables sont bien renseignées sur l'environnement de production réel (action opérationnelle, pas un manque de code). |
-| Taux d'erreur 5xx | > 5% des requêtes sur 15 min pour un tenant | Slack/email support | ⏳ à construire — nécessite d'abord la ventilation 5xx par tenant (voir tableau ci-dessus) |
-| Tenant inactif anormal | 0 connexion depuis 14 jours sur un tenant payant actif | Email commercial (risque de churn) | ⏳ à construire — décision commerciale sur le destinataire, pas un choix technique |
+| Taux d'erreur 5xx | > 5% des requêtes sur une fenêtre glissante de 15 min pour un tenant (minimum 20 requêtes observées, pour ne pas alerter sur 1 échec isolé) | Email à `ALERT_EMAIL` | ✅ livré (2026-09) — `_track_tenant_5xx()`/`_check_tenant_5xx_rate()` dans `app/middlewares/metrics.py` détectent le dépassement en mémoire par tenant, puis `enqueue_job("send_tenant_5xx_alert", ...)` (dédupliqué par tenant+heure via `_job_id`) déclenche l'envoi côté worker Arq (`send_tenant_5xx_alert` dans `app/workers/tasks.py`) — jamais dans le event loop de la requête. Testé (`tests/test_tenant_5xx_alert.py`). |
+| Tenant inactif anormal | 0 activité (audit log) depuis 14 jours sur un tenant `subscription_status == "active"` | Email digest à `ALERT_EMAIL` (pas encore de destinataire commercial dédié — même canal que les autres alertes faute de config séparée) | ✅ livré (2026-09) — cron quotidien `check_inactive_tenants` (`app/workers/tasks.py`, 4h00 UTC), un seul email récapitulatif par run, avec ré-alerte au plus tous les 7 jours par tenant (`tenant.settings["_last_inactivity_alert_at"]`). Testé (`tests/test_tenant_inactivity_alert.py`). |
 
 ## Dashboard support
 
@@ -68,6 +68,8 @@ opérationnel, conforme à la recommandation initiale de ce document.
 
 ## Limites actuelles
 
-- Trois alertes automatiques existent à ce jour (webhook paiement rejeté, import échoué, backup échoué) — les 2 restantes (5xx par tenant, tenant inactif) restent à découvrir manuellement via le dashboard support, les logs, ou un ticket client, en attendant une décision produit sur leurs seuils/destinataires.
+- Les 5 alertes automatiques existent désormais (webhook paiement rejeté, import échoué, backup échoué, 5xx par tenant, tenant inactif).
+- Le seuil 5xx est calculé par processus applicatif (pas agrégé entre réplicas) — sur un déploiement multi-réplica, chaque instance ne voit qu'une partie du trafic d'un tenant et peut donc rater un dépassement que la somme des réplicas aurait déclenché. Passer à une table agrégée (voir stratégie ci-dessus) si ça devient un problème réel en production.
+- L'alerte tenant inactif et l'alerte 5xx partagent `ALERT_EMAIL` avec les 3 autres alertes faute de destinataire commercial dédié configuré — à séparer si le support/commercial veut un canal distinct.
 - Le "dernier backup" n'est vérifiable qu'au niveau plateforme, pas encore par tenant individuel (peu critique tant qu'un seul cluster PostgreSQL sert tous les tenants — la sauvegarde est de toute façon globale).
 - Aucune donnée personnelle n'est exposée dans les métriques actuelles (`/metrics` expose des compteurs Python/GC et des agrégats de requêtes, jamais de contenu métier) — à maintenir strictement lors de toute extension.
