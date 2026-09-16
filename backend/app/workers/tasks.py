@@ -601,6 +601,178 @@ async def purge_expired_idempotency_keys(ctx: dict) -> dict:
     return {"deleted": deleted}
 
 
+async def send_tenant_5xx_alert(
+    ctx: dict, *, tenant_id: str, error_rate: float, sample_size: int, window_seconds: int,
+) -> dict:
+    """Alerte "Taux d'erreur 5xx" (docs/TENANT_MONITORING.md) — enqueued by
+    MetricsMiddleware (app/middlewares/metrics.py) when a tenant's rolling
+    in-memory error window crosses the threshold. Kept out of the request
+    path: enqueue_job() itself never blocks the response, and the actual
+    email send (Resend/SMTP, both blocking network calls) belongs in the
+    worker, not in the ASGI middleware's event loop.
+    """
+    job_id = _job_started("send_tenant_5xx_alert", tenant_id, {"error_rate": error_rate, "sample_size": sample_size})
+    try:
+        from app.core.config import settings
+        from app.models.tenant import Tenant
+        from app.services.notifications import EmailSender
+
+        if not settings.ALERT_EMAIL:
+            _job_finished(job_id, success=True, result={"skipped": "no_alert_email_configured"})
+            return {"job_id": job_id, "skipped": "no_alert_email_configured"}
+
+        with SessionLocal() as db:
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            tenant_name = tenant.name if tenant else tenant_id
+
+        sender = EmailSender(
+            resend_api_key=settings.RESEND_API_KEY,
+            smtp_host=settings.SMTP_HOST,
+            smtp_port=settings.SMTP_PORT,
+            smtp_user=settings.SMTP_USER,
+            smtp_pass=settings.SMTP_PASS,
+            from_email=settings.FROM_EMAIL,
+            from_name=settings.FROM_NAME,
+        )
+        pct = round(error_rate * 100)
+        window_minutes = round(window_seconds / 60)
+        subject = f"[Academy Guinéenne] Taux d'erreur 5xx anormal — {tenant_name} ({pct}%)"
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
+          <h2 style="color:#dc2626">⚠️ Taux d'erreur 5xx anormal</h2>
+          <p><strong>Établissement :</strong> {tenant_name}</p>
+          <p><strong>Taux d'erreur :</strong> {pct}% sur les {window_minutes} dernières minutes ({sample_size} requêtes observées)</p>
+          <p style="color:#6b7280;font-size:13px">Alerte générée automatiquement par le middleware de métriques. Vérifiez les logs applicatifs pour identifier la cause.</p>
+        </div>"""
+        sent = sender.send(to=settings.ALERT_EMAIL, subject=subject, html=html)
+        _job_finished(job_id, success=True, result={"sent": sent is True})
+        return {"job_id": job_id, "sent": sent is True}
+    except Exception as exc:
+        logger.warning("send_tenant_5xx_alert failed for tenant %s: %s", tenant_id, exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "sent": False, "error": str(exc)}
+
+
+async def check_inactive_tenants(ctx: dict, *, inactivity_days: int = 14, realert_after_days: int = 7) -> dict:
+    """Alerte "Tenant inactif anormal" (docs/TENANT_MONITORING.md) — daily
+    cron job. Flags active, paying tenants (subscription_status == "active")
+    with no recorded activity in `inactivity_days`.
+
+    "Dernière activité" reuses the same definition already established by
+    GET /platform/tenants/{id}/health/ (app/api/v1/endpoints/core/
+    platform.py): the most recent audit_logs row of any kind for the
+    tenant, since no dedicated login-event table exists yet. A tenant with
+    zero audit_logs rows ever is measured against its own creation date
+    instead, so a tenant that's been provisioned but never touched doesn't
+    get silently skipped.
+
+    Dedup: each alerted tenant gets `settings["_last_inactivity_alert_at"]`
+    stamped so it isn't re-alerted on every single daily run — only after
+    `realert_after_days` have passed since the last alert for that tenant
+    (still inactive by then). Sent as ONE digest email (not one per tenant)
+    to keep this readable for the commercial recipient.
+    """
+    from app.models.audit_log import AuditLog
+    from app.models.tenant import Tenant
+
+    job_id = _job_started("check_inactive_tenants", None, {"inactivity_days": inactivity_days})
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=inactivity_days)
+    flagged = []
+    try:
+        with SessionLocal() as db:
+            candidates = (
+                db.query(Tenant)
+                .filter(Tenant.is_active == True, Tenant.subscription_status == "active")  # noqa: E712
+                .all()
+            )
+            for tenant in candidates:
+                last_activity_row = (
+                    db.query(AuditLog.created_at)
+                    .filter(AuditLog.tenant_id == tenant.id)
+                    .order_by(AuditLog.created_at.desc())
+                    .first()
+                )
+                last_activity_at = last_activity_row[0] if last_activity_row else tenant.created_at
+                if not last_activity_at:
+                    continue
+                if last_activity_at.tzinfo is None:
+                    last_activity_at = last_activity_at.replace(tzinfo=timezone.utc)
+                if last_activity_at > cutoff:
+                    continue
+
+                tenant_settings = tenant.settings if isinstance(tenant.settings, dict) else {}
+                last_alert_raw = tenant_settings.get("_last_inactivity_alert_at")
+                if last_alert_raw:
+                    try:
+                        last_alert_at = datetime.fromisoformat(last_alert_raw)
+                        if last_alert_at.tzinfo is None:
+                            last_alert_at = last_alert_at.replace(tzinfo=timezone.utc)
+                        if (now - last_alert_at).days < realert_after_days:
+                            continue
+                    except ValueError:
+                        pass
+
+                flagged.append({
+                    "tenant_id": str(tenant.id),
+                    "name": tenant.name,
+                    "slug": tenant.slug,
+                    "plan": tenant.subscription_plan,
+                    "days_inactive": (now - last_activity_at).days,
+                })
+                tenant_settings = dict(tenant_settings)
+                tenant_settings["_last_inactivity_alert_at"] = now.isoformat()
+                tenant.settings = tenant_settings
+            if flagged:
+                db.commit()
+
+        if flagged:
+            try:
+                from app.core.config import settings
+                from app.services.notifications import EmailSender
+
+                if settings.ALERT_EMAIL:
+                    sender = EmailSender(
+                        resend_api_key=settings.RESEND_API_KEY,
+                        smtp_host=settings.SMTP_HOST,
+                        smtp_port=settings.SMTP_PORT,
+                        smtp_user=settings.SMTP_USER,
+                        smtp_pass=settings.SMTP_PASS,
+                        from_email=settings.FROM_EMAIL,
+                        from_name=settings.FROM_NAME,
+                    )
+                    rows = "".join(
+                        f"<tr><td>{t['name']}</td><td>{t['slug']}</td><td>{t['plan'] or '-'}</td>"
+                        f"<td>{t['days_inactive']} j</td></tr>"
+                        for t in flagged
+                    )
+                    html = f"""
+                    <div style="font-family:Arial,sans-serif;max-width:700px;margin:auto;padding:32px">
+                      <h2 style="color:#1a56db">📉 Établissements inactifs ({len(flagged)})</h2>
+                      <p>Aucune activité depuis au moins {inactivity_days} jours sur un abonnement payant actif.</p>
+                      <table style="width:100%;border-collapse:collapse" cellpadding="8">
+                        <tr style="background:#f9fafb;text-align:left">
+                          <th>Établissement</th><th>Slug</th><th>Plan</th><th>Inactif depuis</th>
+                        </tr>
+                        {rows}
+                      </table>
+                    </div>"""
+                    sender.send(
+                        to=settings.ALERT_EMAIL,
+                        subject=f"[Academy Guinéenne] {len(flagged)} établissement(s) payant(s) inactif(s)",
+                        html=html,
+                    )
+            except Exception as exc:
+                logger.warning("check_inactive_tenants: alert email failed: %s", exc)
+
+        _job_finished(job_id, success=True, result={"flagged_count": len(flagged)})
+        return {"job_id": job_id, "flagged_count": len(flagged), "flagged": flagged}
+    except Exception as exc:
+        logger.warning("check_inactive_tenants crashed: %s", exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "error": str(exc)}
+
+
 async def purge_old_public_form_submissions(ctx: dict, *, retention_days: Optional[int] = None) -> dict:
     """RGPD (Phase 5): delete public contact-form messages older than the
     retention window (see settings.PUBLIC_FORM_RETENTION_DAYS). Tenant
@@ -641,6 +813,8 @@ class WorkerSettings:
         sync_whatsapp_statuses,
         purge_expired_idempotency_keys,
         purge_old_public_form_submissions,
+        send_tenant_5xx_alert,
+        check_inactive_tenants,
     ]
     # Runs once a day regardless of manual enqueue_job() calls — expired
     # idempotency keys / old public-form messages would otherwise only ever
@@ -648,6 +822,11 @@ class WorkerSettings:
     cron_jobs = [
         cron(purge_expired_idempotency_keys, hour=3, minute=0),
         cron(purge_old_public_form_submissions, hour=3, minute=30),
+        # Tenant-inactivity digest (docs/TENANT_MONITORING.md) — daily is
+        # enough given its own 7-day re-alert dedup; send_tenant_5xx_alert
+        # is NOT listed here, it's only ever enqueued on-demand by
+        # MetricsMiddleware when a tenant's error window actually trips.
+        cron(check_inactive_tenants, hour=4, minute=0),
     ]
     redis_settings: RedisSettings = get_redis_settings()
     max_jobs = 10
