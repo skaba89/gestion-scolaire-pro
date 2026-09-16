@@ -76,6 +76,38 @@ def _set_mfa_enabled(email: str, enabled: bool) -> None:
         db.close()
 
 
+def _fresh_ministry_admin() -> str:
+    """MINISTRY_ADMIN is a platform-level role (no tenant_id) that reads
+    aggregated data across every establishment in the country (see
+    app/api/v1/endpoints/core/ministry.py) — docs/CADRE_INSTITUTIONNEL.md
+    §4.1 lists it as requiring mandatory MFA alongside SUPER_ADMIN/
+    TENANT_ADMIN/DIRECTOR, but it was missing from PRIVILEGED_ROLES_
+    REQUIRING_MFA in auth.py until this fix (institutional-readiness
+    audit, 2026-09)."""
+    import uuid
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.user import User
+    from app.models.user_role import UserRole
+
+    user_id = str(uuid.uuid4())
+    email = f"ministry.{uuid.uuid4().hex[:8]}@education.gov.gn"
+    db = SessionLocal()
+    try:
+        db.add(User(
+            id=user_id, tenant_id=None, email=email, username=email,
+            first_name="Ministère", last_name="Éducation",
+            password_hash=get_password_hash(STRONG_PASSWORD),
+            is_active=True, is_verified=True,
+        ))
+        db.add(UserRole(user_id=user_id, tenant_id=None, role="MINISTRY_ADMIN"))
+        db.commit()
+    finally:
+        db.close()
+    return email
+
+
 class TestMFAEnforcementForPrivilegedRoles:
     def test_login_blocked_when_enforce_mfa_true_and_mfa_disabled(self, monkeypatch):
         """A SUPER_ADMIN (privileged role) without MFA enabled must be
@@ -113,6 +145,30 @@ class TestMFAEnforcementForPrivilegedRoles:
 
         email = _fresh_super_admin()
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", False)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 200, resp.text
+
+    def test_ministry_admin_is_blocked_without_mfa(self, monkeypatch):
+        """MINISTRY_ADMIN is documented (docs/CADRE_INSTITUTIONNEL.md §4.1)
+        as requiring mandatory MFA alongside SUPER_ADMIN/TENANT_ADMIN/
+        DIRECTOR — it was missing from PRIVILEGED_ROLES_REQUIRING_MFA
+        despite being a platform-level role with national data visibility."""
+        from app.core.config import settings as app_settings
+
+        email = _fresh_ministry_admin()
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 403, resp.text
+        assert "MFA" in resp.json()["detail"]
+
+    def test_ministry_admin_allowed_once_mfa_enabled(self, monkeypatch):
+        from app.core.config import settings as app_settings
+
+        email = _fresh_ministry_admin()
+        _set_mfa_enabled(email, True)
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
         assert resp.status_code == 200, resp.text
