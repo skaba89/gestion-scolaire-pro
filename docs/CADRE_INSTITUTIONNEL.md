@@ -79,8 +79,13 @@ déploiement national).
       (voir `docs/NATIONAL_SCALE_READINESS.md` — 10 tenants validé, 100
       non représentatif, 1000+ jamais exécuté).
 - [ ] Monitoring ventilé par tenant en place si l'infrastructure est
-      mutualisée entre plusieurs établissements sensibles (actuellement un
-      agrégat plateforme uniquement).
+      mutualisée entre plusieurs établissements sensibles. Partiellement
+      couvert depuis 2026-09 : alerte de taux d'erreur 5xx par tenant avec
+      agrégation cross-réplica via Redis (voir
+      `docs/TENANT_MONITORING.md`) — reste à valider en conditions réelles
+      (plusieurs réplicas, trafic représentatif) avant de cocher cette
+      case, et les métriques Prometheus restent un agrégat plateforme
+      uniquement (choix délibéré, cardinalité).
 
 ### 4.4 Business / opérationnel
 

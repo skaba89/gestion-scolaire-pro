@@ -65,10 +65,20 @@ mutualisée.
 
 ## 6. Monitoring par tenant
 
-Middleware `metrics.py` expose des métriques Prometheus, mais pas encore
-ventilées par tenant_id — actuellement un agrégat plateforme uniquement.
-Point à traiter avant un déploiement à 1000+ tenants pour pouvoir isoler un
-tenant bruyant/problématique.
+Middleware `metrics.py` expose des métriques Prometheus en agrégat
+plateforme (pas de label `tenant_id`, pour éviter l'explosion de
+cardinalité — voir `docs/TENANT_MONITORING.md`). En complément, depuis
+2026-09 : détection du taux d'erreur 5xx par tenant, avec agrégation
+cross-réplica via des compteurs Redis (une seule minute par bucket, TTL
+court) — chaque réplica écrit sur chaque requête, et la réplica qui
+déclenche l'alerte locale relit l'agrégat Redis avant d'envoyer l'email,
+pour rapporter un taux représentatif de la flotte entière et pas juste de
+son propre trafic. Limite connue : le déclenchement lui-même reste local
+par réplica (pour ne jamais ajouter un aller-retour Redis à chaque requête
+de l'application) — un tenant dont les erreurs sont réparties également
+entre plusieurs réplicas, sans qu'aucune ne dépasse seule le seuil, ne
+déclenchera pas l'alerte. Voir `app/middlewares/metrics.py` pour le détail
+du compromis.
 
 ## 7. Backup / restore
 
