@@ -579,21 +579,28 @@ ROLE_PERMISSIONS: dict = {
     "COMMUNE_ADMIN": ["ministry:read"],
 }
 
+def user_has_permission(current_user: dict, permission: str) -> bool:
+    """Same grant logic as require_permission()'s dependency, exposed as a
+    plain function for endpoints that need to branch on a permission
+    in-line (e.g. redacting a field) rather than 403ing the whole request."""
+    user_roles = current_user.get("roles", [])
+    user_permissions: set[str] = set()
+
+    for role in user_roles:
+        perms = ROLE_PERMISSIONS.get(role, [])
+        user_permissions.update(perms)
+
+    resource = permission.split(":")[0]
+    return (
+        "*" in user_permissions
+        or permission in user_permissions
+        or f"{resource}:*" in user_permissions
+    )
+
+
 def require_permission(permission: str):
     def decorator(current_user: dict = Depends(get_current_user)):
-        user_roles = current_user.get("roles", [])
-        user_permissions: set[str] = set()
-
-        for role in user_roles:
-            perms = ROLE_PERMISSIONS.get(role, [])
-            user_permissions.update(perms)
-
-        resource = permission.split(":")[0]
-        granted = (
-            "*" in user_permissions
-            or permission in user_permissions
-            or f"{resource}:*" in user_permissions
-        )
+        granted = user_has_permission(current_user, permission)
 
         if not granted:
             raise HTTPException(
