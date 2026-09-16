@@ -85,9 +85,11 @@ du compromis.
 Testé et documenté : `docs/BACKUP_SETUP.md`, `docs/DRP_GUIDE.md`, suite
 `backend/tests/test_backup_scripts.py` (atomicité, checksum, non-publication
 en cas d'échec pg_dump, rotation, restauration en mode vérification par
-défaut). Ces tests échouent actuellement en environnement Windows local
-(limitation `tmp_path` de pytest sur ce poste, sans rapport avec la logique
-testée) — à revalider en CI Linux avant industrialisation.
+défaut) — 10/10 verts. La limitation `tmp_path` observée sur un poste de
+développement Windows était propre à cet environnement local (jamais
+reproduite en CI, qui tourne sur `ubuntu-latest` — voir
+`.github/workflows/ci.yml`) ; reconfirmé en 2026-09 en environnement Linux
+réel : aucune régression, rien à corriger dans le code testé.
 
 ## 8. Import Excel massif
 
