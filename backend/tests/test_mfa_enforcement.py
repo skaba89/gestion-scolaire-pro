@@ -108,6 +108,48 @@ def _fresh_ministry_admin() -> str:
     return email
 
 
+def _fresh_institutional_role(role: str) -> str:
+    """REGIONAL_DIRECTOR/PREFECTURE_ADMIN/COMMUNE_ADMIN are tenant-scoped
+    (unlike MINISTRY_ADMIN/SUPER_ADMIN, which have tenant_id = NULL) — each
+    narrows GET /ministry/overview/ to its own region/prefecture/commune
+    (see app/api/v1/endpoints/core/ministry.py's _SCOPE_ROLES)."""
+    import uuid
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.tenant import Tenant
+    from app.models.user import User
+    from app.models.user_role import UserRole
+
+    tenant_id = str(uuid.uuid4())
+    user_id = str(uuid.uuid4())
+    email = f"{role.lower()}.{uuid.uuid4().hex[:8]}@education.gov.gn"
+    db = SessionLocal()
+    try:
+        # Flush after each insert rather than relying on SQLAlchemy's
+        # automatic flush-order heuristic: with no explicit relationship()
+        # configured between User and UserRole, that heuristic isn't
+        # guaranteed to insert users before user_roles, and did in fact
+        # insert user_roles first here — a FOREIGN KEY violation on SQLite.
+        db.add(Tenant(
+            id=tenant_id, name="École MFA Institutionnel Test", slug=f"mfa-inst-{tenant_id[:8]}",
+            type="primary", country="GN", is_active=True, settings={},
+        ))
+        db.flush()
+        db.add(User(
+            id=user_id, tenant_id=tenant_id, email=email, username=email,
+            first_name="Agent", last_name="Institutionnel",
+            password_hash=get_password_hash(STRONG_PASSWORD),
+            is_active=True, is_verified=True,
+        ))
+        db.flush()
+        db.add(UserRole(user_id=user_id, tenant_id=tenant_id, role=role))
+        db.commit()
+    finally:
+        db.close()
+    return email
+
+
 class TestMFAEnforcementForPrivilegedRoles:
     def test_login_blocked_when_enforce_mfa_true_and_mfa_disabled(self, monkeypatch):
         """A SUPER_ADMIN (privileged role) without MFA enabled must be
@@ -167,6 +209,34 @@ class TestMFAEnforcementForPrivilegedRoles:
         from app.core.config import settings as app_settings
 
         email = _fresh_ministry_admin()
+        _set_mfa_enabled(email, True)
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 200, resp.text
+
+    @pytest.mark.parametrize("role", ["REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN"])
+    def test_institutional_scoped_role_is_blocked_without_mfa(self, monkeypatch, role):
+        """docs/INSTITUTIONAL_ROLES.md wrongly claimed these three roles
+        "don't exist yet in ROLE_PERMISSIONS" — they do (each holds
+        ministry:read, see ministry.py's _SCOPE_ROLES), and that stale doc
+        claim is exactly why they were missing from
+        PRIVILEGED_ROLES_REQUIRING_MFA despite being institutional-tier
+        roles like MINISTRY_ADMIN (institutional-readiness audit, 2026-09)."""
+        from app.core.config import settings as app_settings
+
+        email = _fresh_institutional_role(role)
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 403, resp.text
+        assert "MFA" in resp.json()["detail"]
+
+    @pytest.mark.parametrize("role", ["REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN"])
+    def test_institutional_scoped_role_allowed_once_mfa_enabled(self, monkeypatch, role):
+        from app.core.config import settings as app_settings
+
+        email = _fresh_institutional_role(role)
         _set_mfa_enabled(email, True)
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 

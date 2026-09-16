@@ -396,7 +396,19 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         # role that reads aggregated data across every establishment in the
         # country (see app/api/v1/endpoints/core/ministry.py) — it was
         # missing from this set despite being in the documented gate.
-        PRIVILEGED_ROLES_REQUIRING_MFA = {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT", "MINISTRY_ADMIN"}
+        #
+        # REGIONAL_DIRECTOR/PREFECTURE_ADMIN/COMMUNE_ADMIN added the same
+        # audit pass, one level further (2026-09): same class of gap — each
+        # holds "ministry:read" (app/core/security.py ROLE_PERMISSIONS) and
+        # sits in PRIVILEGED_ROLES (fail-closed token revocation, same file)
+        # alongside MINISTRY_ADMIN, but docs/INSTITUTIONAL_ROLES.md wrongly
+        # claimed these roles "don't exist yet in ROLE_PERMISSIONS" — that
+        # stale claim is why they were never added here despite being real,
+        # institutional-tier, ministry-scoped roles like MINISTRY_ADMIN.
+        PRIVILEGED_ROLES_REQUIRING_MFA = {
+            "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT", "MINISTRY_ADMIN",
+            "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
+        }
         user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
 
         if user_privileged_roles:
