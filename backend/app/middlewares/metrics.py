@@ -95,16 +95,37 @@ def _record_business_metrics(method: str, endpoint: str, status_code: int) -> No
 #
 # Deliberately NOT a Prometheus label (tenant_id on REQUEST_COUNT/DURATION
 # would blow up cardinality with hundreds/thousands of tenants — see the
-# doc's own "Stratégie recommandée" section). Instead: a small in-memory
-# rolling window per tenant_id, process-local. On a multi-replica
-# deployment each replica only sees its own share of a tenant's traffic,
-# so this under-counts rather than over-counts — an accepted first-version
-# limitation (same spirit as the doc's other "best-effort" alerts), not a
-# false positive risk either way.
+# doc's own "Stratégie recommandée" section). Two layers:
+#
+# 1. An in-memory rolling window per tenant_id, process-local — the trigger
+#    gate. Cheap (no I/O), so it's safe to run on every single request even
+#    at national scale, and it works even if Redis is down.
+# 2. Once that local gate trips, a best-effort read of Redis counters that
+#    EVERY replica writes to on every request (fire-and-forget, via
+#    asyncio.create_task, never awaited on the response path) — this gives
+#    the alert email a cross-replica rate instead of just this process's
+#    share of the tenant's traffic. Redis is already a hard dependency of
+#    this app (see app/core/jobs.py), so this adds no new infrastructure.
+#
+# Known trade-off: the trigger itself stays local, so a tenant whose errors
+# are spread evenly across many replicas (no single replica's share alone
+# crosses the threshold) won't fire — same failure mode as before this
+# layer existed. Reading Redis on every request instead (to make the
+# trigger itself cross-replica) was deliberately rejected: it would add a
+# network round-trip to every authenticated request in the entire
+# application, which is a cost this doesn't buy back for the marginal case
+# it would catch. Revisit only if that specific gap turns out to matter in
+# practice.
 _TENANT_5XX_WINDOW_SECONDS = 15 * 60
 _TENANT_5XX_MIN_SAMPLES = 20  # avoid alerting on e.g. 1 error out of 1 request
 _TENANT_5XX_THRESHOLD = 0.05
 _tenant_request_windows: "defaultdict[str, deque]" = defaultdict(deque)
+
+_TENANT_5XX_BUCKET_SECONDS = 60
+_TENANT_5XX_BUCKET_COUNT = _TENANT_5XX_WINDOW_SECONDS // _TENANT_5XX_BUCKET_SECONDS
+# TTL well past the window so a bucket a slow reader is still summing over
+# never expires mid-read; buckets naturally age out on their own after that.
+_TENANT_5XX_REDIS_TTL = _TENANT_5XX_WINDOW_SECONDS + (5 * 60)
 
 
 def _check_tenant_5xx_rate(tenant_id: str, is_error: bool) -> Optional[tuple]:
@@ -126,11 +147,73 @@ def _check_tenant_5xx_rate(tenant_id: str, is_error: bool) -> Optional[tuple]:
     return rate, total
 
 
-async def _enqueue_tenant_5xx_alert(tenant_id: str, rate: float, sample_size: int) -> None:
+async def _bump_tenant_redis_counters(tenant_id: str, is_error: bool) -> None:
+    """Best-effort, cross-replica request/error counters — one fixed-size
+    bucket per minute per tenant. Always scheduled via asyncio.create_task
+    (see _track_tenant_5xx below), so a slow or unreachable Redis can never
+    add latency to the request that triggered it; any failure here is
+    swallowed, matching this codebase's existing fail-open convention for
+    every other Redis-optional feature (blacklist, lockout, session limits
+    — see app/core/jobs.py's own docstring)."""
+    try:
+        from app.core.cache import redis_client
+
+        bucket = int(time.time() // _TENANT_5XX_BUCKET_SECONDS)
+        client = await redis_client.client
+        total_key = f"sfp:5xx:{tenant_id}:{bucket}:total"
+        pipe = client.pipeline()
+        pipe.incr(total_key)
+        pipe.expire(total_key, _TENANT_5XX_REDIS_TTL)
+        if is_error:
+            err_key = f"sfp:5xx:{tenant_id}:{bucket}:err"
+            pipe.incr(err_key)
+            pipe.expire(err_key, _TENANT_5XX_REDIS_TTL)
+        await pipe.execute()
+    except Exception as exc:
+        logger.debug("5xx Redis counter bump failed for tenant %s: %s", tenant_id, exc)
+
+
+async def _read_tenant_redis_rate(tenant_id: str) -> Optional[tuple]:
+    """Sum the last _TENANT_5XX_BUCKET_COUNT per-minute buckets across every
+    replica. Returns None (never raises) if Redis is unreachable or the
+    aggregate doesn't cross the threshold — callers must have their own
+    (local, always-available) fallback."""
+    try:
+        from app.core.cache import redis_client
+
+        client = await redis_client.client
+        now_bucket = int(time.time() // _TENANT_5XX_BUCKET_SECONDS)
+        buckets = range(now_bucket - _TENANT_5XX_BUCKET_COUNT + 1, now_bucket + 1)
+        total_keys = [f"sfp:5xx:{tenant_id}:{b}:total" for b in buckets]
+        err_keys = [f"sfp:5xx:{tenant_id}:{b}:err" for b in buckets]
+        totals = await client.mget(total_keys)
+        errors_raw = await client.mget(err_keys)
+        total = sum(int(v) for v in totals if v)
+        errors = sum(int(v) for v in errors_raw if v)
+        if total < _TENANT_5XX_MIN_SAMPLES:
+            return None
+        rate = errors / total
+        if rate <= _TENANT_5XX_THRESHOLD:
+            return None
+        return rate, total
+    except Exception as exc:
+        logger.debug("5xx Redis aggregate read failed for tenant %s: %s", tenant_id, exc)
+        return None
+
+
+async def _enqueue_tenant_5xx_alert(tenant_id: str, local_rate: float, local_sample_size: int) -> None:
     """Fire-and-forget: enqueue_job() itself never raises (fails open if
     Redis is unreachable), so this is safe to schedule via
-    asyncio.create_task without a caller ever awaiting or handling it."""
+    asyncio.create_task without a caller ever awaiting or handling it.
+
+    Prefers the cross-replica Redis aggregate over the local (single
+    process) numbers that triggered this call, when Redis is reachable —
+    see the module-level comment above for why the trigger itself stays
+    local while the reported rate doesn't have to."""
     from app.core.jobs import enqueue_job
+
+    aggregate = await _read_tenant_redis_rate(tenant_id)
+    rate, sample_size = aggregate if aggregate is not None else (local_rate, local_sample_size)
 
     hour_bucket = int(time.time() // 3600)
     await enqueue_job(
@@ -151,12 +234,20 @@ def _track_tenant_5xx(request: Request, status_code: int) -> None:
     tenant_id = getattr(request.state, "tenant_id", None)
     if not tenant_id:
         return
-    result = _check_tenant_5xx_rate(str(tenant_id), status_code >= 500)
+    tenant_id = str(tenant_id)
+    is_error = status_code >= 500
+
+    try:
+        asyncio.create_task(_bump_tenant_redis_counters(tenant_id, is_error))
+    except RuntimeError:
+        pass  # no running event loop — never let counter bumping break the request
+
+    result = _check_tenant_5xx_rate(tenant_id, is_error)
     if result is None:
         return
     rate, sample_size = result
     try:
-        asyncio.create_task(_enqueue_tenant_5xx_alert(str(tenant_id), rate, sample_size))
+        asyncio.create_task(_enqueue_tenant_5xx_alert(tenant_id, rate, sample_size))
     except RuntimeError:
         # No running event loop (shouldn't happen inside an async ASGI
         # middleware, but never let alerting break request handling).
