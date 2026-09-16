@@ -30,15 +30,17 @@ from app.models.tenant import Tenant  # noqa: E402
 
 SETTINGS_URL = "/api/v1/tenants/settings/"
 
+_PLACEHOLDER_PREFIX = "notarealcredential-fixture-value-"
+
 _SECRETS = {
-    "cinetPayApiKey": "cp-live-secret-123",
-    "paytechApiKey": "pt-live-key-456",
-    "paytechSecretKey": "pt-live-secret-789",
-    "smtpPass": "super-secret-smtp-password",
-    "resendApiKey": "re_live_abcdef",
-    "whatsappAccessToken": "wa-token-xyz",
-    "whatsappVerifyToken": "wa-verify-xyz",
-    "whatsappAppSecret": "wa-app-secret-xyz",
+    "cinetPayApiKey": _PLACEHOLDER_PREFIX + "cinetpayapikey",
+    "paytechApiKey": _PLACEHOLDER_PREFIX + "paytechapikey",
+    "paytechSecretKey": _PLACEHOLDER_PREFIX + "paytechsecretkey",
+    "smtpPass": _PLACEHOLDER_PREFIX + "smtppass",
+    "resendApiKey": _PLACEHOLDER_PREFIX + "resendapikey",
+    "whatsappAccessToken": _PLACEHOLDER_PREFIX + "whatsappaccesstoken",
+    "whatsappVerifyToken": _PLACEHOLDER_PREFIX + "whatsappverifytoken",
+    "whatsappAppSecret": _PLACEHOLDER_PREFIX + "whatsappappsecret",
 }
 _NON_SECRETS = {
     "logoUrl": "https://cdn.example.com/logo.png",
