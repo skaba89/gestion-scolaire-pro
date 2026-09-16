@@ -389,8 +389,14 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
                 detail="Token generation error. The server may be misconfigured (check SECRET_KEY).",
             )
 
-        # SECURITY: Enforce MFA check for privileged roles before issuing token
-        PRIVILEGED_ROLES_REQUIRING_MFA = {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT"}
+        # SECURITY: Enforce MFA check for privileged roles before issuing token.
+        # MINISTRY_ADMIN added here (institutional-readiness audit, 2026-09) —
+        # docs/CADRE_INSTITUTIONNEL.md §4.1 lists it alongside SUPER_ADMIN/
+        # TENANT_ADMIN/DIRECTOR as requiring mandatory MFA, since it's the
+        # role that reads aggregated data across every establishment in the
+        # country (see app/api/v1/endpoints/core/ministry.py) — it was
+        # missing from this set despite being in the documented gate.
+        PRIVILEGED_ROLES_REQUIRING_MFA = {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT", "MINISTRY_ADMIN"}
         user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
 
         if user_privileged_roles:
