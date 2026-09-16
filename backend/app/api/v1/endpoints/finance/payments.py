@@ -641,8 +641,43 @@ def delete_invoice_endpoint(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """Delete an invoice by ID."""
+    """Delete an invoice by ID.
+
+    SECURITY/DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    this endpoint used to run an unconditional DELETE regardless of the
+    invoice's status or payment history — docs/PAYMENTS_READINESS.md even
+    flagged it as "(brouillon uniquement — à vérifier)" without the check
+    ever having been added. Any holder of payments:write (TENANT_ADMIN,
+    DIRECTOR, ACCOUNTANT) could delete a fully PAID invoice: Payment.
+    invoice_id is ON DELETE SET NULL (see app/models/payment.py), so the
+    invoice's line items/amounts/dates would be gone forever and every
+    payment ever registered against it would be silently orphaned
+    (invoice_id → NULL) — directly contradicting this same doc's headline
+    claim that the payments module never physically deletes financial
+    history. Now blocked whenever ANY payment (including a reversed one)
+    references this invoice, so the audit trail can't be severed this way.
+    """
     tenant_id = _get_tenant_id(request, current_user, db)
+    invoice_row = db.execute(text("""
+        SELECT id FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
+    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
+    if not invoice_row:
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+
+    has_payments = db.execute(text("""
+        SELECT 1 FROM payments WHERE invoice_id = :invoice_id LIMIT 1
+    """), {"invoice_id": invoice_id}).first()
+    if has_payments:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Impossible de supprimer une facture ayant des paiements "
+                "enregistrés, même annulés — l'historique financier ne peut "
+                "jamais être effacé. Utilisez le statut de la facture pour "
+                "la marquer autrement si besoin."
+            ),
+        )
+
     result = db.execute(text("""
         DELETE FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id})
