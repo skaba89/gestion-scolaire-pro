@@ -1523,23 +1523,52 @@ def create_parent_appointment_slot(
     current_user: dict = Depends(get_current_user),
 ):
     """Create an appointment slot (parent portal).
-    Typically used by admin/teachers to make slots available for booking."""
+    Typically used by admin/teachers to make slots available for booking.
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): had no
+    permission check at all despite this docstring — any authenticated
+    user, including PARENT/STUDENT, could inject fake appointment slots
+    under an arbitrary teacher_id. Real caller is
+    src/pages/teacher/AppointmentSlots.tsx (a teacher publishing their own
+    availability); settings:write holders (admins) may create a slot for
+    any teacher, everyone else only for themselves.
+    """
+    from app.core.security import user_has_permission
+
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     if not tenant_id or not user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    if not user_has_permission(current_user, "settings:write"):
+        if "TEACHER" not in current_user.get("roles", []):
+            raise HTTPException(status_code=403, detail="Permission refusée")
+        if body.teacher_id and str(body.teacher_id) != str(user_id):
+            raise HTTPException(status_code=403, detail="Vous ne pouvez créer un créneau que pour vous-même")
+        body.teacher_id = user_id
 
     try:
         import uuid
         slot_id = str(uuid.uuid4())
+        # BUG (found while testing the ownership fix above, 2026-09):
+        # `:date::date` (no space before the cast) is never recognized as
+        # a bind parameter by SQLAlchemy's text() — its regex deliberately
+        # treats a colon immediately followed by another colon as
+        # PostgreSQL's own `::` cast operator, not a param reference — so
+        # this literal `:date::date`/`:start_time::time`/`:end_time::time`
+        # text was sent to Postgres unresolved on every call, always
+        # raising a syntax error. This endpoint had zero test coverage
+        # (found only once a real permission/ownership check was added and
+        # actually exercised end-to-end), so it apparently never worked
+        # against Postgres. Fixed with the space SQLAlchemy's own docs
+        # recommend for this exact case.
         db.execute(text("""
             INSERT INTO appointment_slots (
                 id, tenant_id, teacher_id, date, start_time, end_time,
                 max_appointments, location, is_active,
                 created_at, updated_at
             ) VALUES (
-                :id, :tenant_id, :teacher_id, :date::date,
-                :start_time::time, :end_time::time,
+                :id, :tenant_id, :teacher_id, :date ::date,
+                :start_time ::time, :end_time ::time,
                 :max_appointments, :location, true, NOW(), NOW()
             ) RETURNING id
         """), {
