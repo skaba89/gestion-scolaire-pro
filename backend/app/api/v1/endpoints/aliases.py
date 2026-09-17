@@ -60,11 +60,14 @@ def create_enrollment_alias(
     """POST /enrollments/ — mirrors POST /infrastructure/enrollments/"""
     from app.crud import academic as crud
     from app.schemas.academic import EnrollmentCreate
-    return crud.create_enrollment(
-        db,
-        obj_in=EnrollmentCreate(**obj_in.model_dump()),
-        tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
-    )
+    try:
+        return crud.create_enrollment(
+            db,
+            obj_in=EnrollmentCreate(**obj_in.model_dump()),
+            tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @enrollments_alias_router.get("/counts/")
