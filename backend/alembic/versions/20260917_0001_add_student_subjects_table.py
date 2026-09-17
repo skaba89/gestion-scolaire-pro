@@ -54,11 +54,26 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_student_subjects_tenant_id"), "student_subjects", ["tenant_id"], unique=False
     )
+    # RLS: every table with a tenant_id column must be scoped (CI's
+    # PostgreSQL readiness check enforces this generically) — same
+    # ENABLE+FORCE+policy pattern as its sibling association tables (see
+    # 20260805_0003_subject_preferred_rooms.py).
+    op.execute("ALTER TABLE student_subjects ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE student_subjects FORCE ROW LEVEL SECURITY")
+    op.execute("""
+        DROP POLICY IF EXISTS tenant_isolation_student_subjects ON student_subjects;
+        CREATE POLICY tenant_isolation_student_subjects ON student_subjects
+        USING (
+            tenant_id::text = current_setting('app.current_tenant_id', true)
+            OR current_setting('app.current_tenant_id', true) IS NULL
+        )
+    """)
 
 
 def downgrade() -> None:
     conn = op.get_bind()
     if _is_sqlite(conn):
         return
+    op.execute("DROP POLICY IF EXISTS tenant_isolation_student_subjects ON student_subjects")
     op.drop_index(op.f("ix_student_subjects_tenant_id"), table_name="student_subjects")
     op.drop_table("student_subjects")
