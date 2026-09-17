@@ -204,6 +204,60 @@ class TestLibraryResourceCrud:
             assert crud_library.get_resource(db, resource_id, tenant_id) is None
 
 
+class TestLibraryResourceCopiesConsistency:
+    """Institutional-readiness audit (2026-09): total_copies/
+    available_copies were two fully independent client-supplied ints with
+    no relationship enforced -- available_copies could exceed
+    total_copies, letting borrow_resource() (whose only gate is
+    available_copies <= 0) hand out more copies than physically exist."""
+
+    def test_create_rejects_available_copies_above_total(self):
+        import pytest
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            ResourceCreate(title="Livre incoherent", total_copies=2, available_copies=5)
+
+    def test_create_accepts_available_copies_equal_to_total(self):
+        payload = ResourceCreate(title="Livre coherent", total_copies=3, available_copies=3)
+        assert payload.available_copies == 3
+
+    def test_update_schema_rejects_available_copies_above_total_when_both_given(self):
+        import pytest
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            ResourceUpdate(total_copies=1, available_copies=4)
+
+    def test_crud_update_rejects_lone_available_copies_exceeding_existing_total(self):
+        import pytest
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            resource = crud_library.create_resource(
+                db, ResourceCreate(title="Livre", total_copies=2, available_copies=2), tenant_id, uploaded_by=None,
+            )
+            db.commit()
+            resource_id = resource.id
+
+        with SessionLocal() as db:
+            db_obj = crud_library.get_resource(db, resource_id, tenant_id)
+            with pytest.raises(ValueError):
+                crud_library.update_resource(db, db_obj, ResourceUpdate(available_copies=5))
+
+    def test_crud_update_rejects_lone_total_copies_below_existing_available(self):
+        import pytest
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            resource = crud_library.create_resource(
+                db, ResourceCreate(title="Livre", total_copies=5, available_copies=5), tenant_id, uploaded_by=None,
+            )
+            db.commit()
+            resource_id = resource.id
+
+        with SessionLocal() as db:
+            db_obj = crud_library.get_resource(db, resource_id, tenant_id)
+            with pytest.raises(ValueError):
+                crud_library.update_resource(db, db_obj, ResourceUpdate(total_copies=2))
+
+
 class TestLibraryBorrowing:
     def test_borrow_decrements_available_copies(self):
         tenant_id = _make_tenant()

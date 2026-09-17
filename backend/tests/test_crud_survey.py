@@ -205,3 +205,45 @@ class TestSurveyResponseSubmission:
             )
             db.commit()
             assert db_obj.respondent_id is None
+
+
+class TestSurveyDuplicateResponseGuard:
+    """Institutional-readiness audit (2026-09): submit_survey_response()
+    had no duplicate-guard at all -- the same authenticated respondent
+    could submit any number of times, skewing get_survey_results()'
+    aggregated counts. has_existing_response() backs the guard added at
+    the endpoint level (surveys.py), scoped to non-anonymous surveys
+    only -- an anonymous one never stores respondent_id."""
+
+    def test_no_existing_response_returns_false(self):
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            survey = crud_survey.create_survey(db, SurveyCreate(title="S", is_anonymous=False), tenant_id, created_by=None)
+            db.commit()
+            assert crud_survey.has_existing_response(db, survey.id, tenant_id, str(uuid.uuid4())) is False
+
+    def test_detects_existing_response_for_same_respondent(self):
+        tenant_id = _make_tenant()
+        respondent_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            survey = crud_survey.create_survey(db, SurveyCreate(title="S", is_anonymous=False), tenant_id, created_by=None)
+            db.commit()
+            survey_id = survey.id
+
+        with SessionLocal() as db:
+            survey = crud_survey.get_survey(db, survey_id, tenant_id)
+            crud_survey.add_survey_response(
+                db, survey, SurveyResponseSubmit(responses=[]), tenant_id, respondent_id=respondent_id,
+            )
+            db.commit()
+
+        with SessionLocal() as db:
+            assert crud_survey.has_existing_response(db, survey_id, tenant_id, respondent_id) is True
+            assert crud_survey.has_existing_response(db, survey_id, tenant_id, str(uuid.uuid4())) is False
+
+    def test_null_respondent_id_never_matches(self):
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            survey = crud_survey.create_survey(db, SurveyCreate(title="S", is_anonymous=False), tenant_id, created_by=None)
+            db.commit()
+            assert crud_survey.has_existing_response(db, survey.id, tenant_id, None) is False

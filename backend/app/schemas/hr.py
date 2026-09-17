@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field, model_validator
+from typing import Literal, Optional, List
 from uuid import UUID
 from datetime import date, datetime
 
@@ -110,16 +110,37 @@ class LeaveRequestBase(BaseModel):
     leave_type: str
     start_date: date
     end_date: date
-    total_days: int
+    total_days: int = Field(..., gt=0)
     status: str = "PENDING"
     reason: Optional[str] = None
     employee_id: UUID
+
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09):
+    # total_days was a fully independent client-supplied int, never
+    # checked against start_date/end_date — payroll/leave-balance
+    # calculations relying on it could be fed a number inconsistent with
+    # the actual date range.
+    @model_validator(mode="after")
+    def _dates_and_total_days_consistent(self):
+        if self.end_date < self.start_date:
+            raise ValueError("La date de fin ne peut pas précéder la date de début")
+        span_days = (self.end_date - self.start_date).days + 1
+        if self.total_days > span_days:
+            raise ValueError(
+                f"total_days ({self.total_days}) ne peut pas dépasser la durée du congé ({span_days} jours)"
+            )
+        return self
 
 class LeaveRequestCreate(LeaveRequestBase):
     pass
 
 class LeaveRequestUpdate(BaseModel):
-    status: Optional[str] = None
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): status
+    # accepted any string with no allowed-transition enforcement — see
+    # crud.hr.update_leave_status() for the PENDING-only transition rule.
+    # Restricted to the only two actions the UI ever sends
+    # (LeavesTab.tsx handleStatusUpdate).
+    status: Optional[Literal["APPROVED", "REJECTED"]] = None
     reviewed_at: Optional[date] = None
 
 class LeaveRequest(LeaveRequestBase):

@@ -167,7 +167,10 @@ def create_leave_request(
     obj_in: LeaveRequestCreate,
     current_user: dict = Depends(require_permission("hr:write")),
 ):
-    return crud_hr.create_leave_request(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    try:
+        return crud_hr.create_leave_request(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 @router.put("/leave-requests/{leave_id}/", response_model=LeaveRequest)
 def update_leave_status(
@@ -178,7 +181,10 @@ def update_leave_status(
     obj_in: LeaveRequestUpdate,
     current_user: dict = Depends(require_permission("hr:write")),
 ):
-    leave = crud_hr.update_leave_status(db, leave_id=leave_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    try:
+        leave = crud_hr.update_leave_status(db, leave_id=leave_id, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     if not leave:
         raise HTTPException(status_code=404, detail="Leave request not found")
     return leave

@@ -170,6 +170,34 @@ class TestSurveySubmissionBugFix:
         resp = client.post(f"{BASE}/{survey_id}/submit/", json={"responses": []}, headers=headers)
         assert resp.status_code == 400
 
+    def test_second_submission_by_same_respondent_is_rejected(self):
+        """Institutional-readiness audit (2026-09): no duplicate-guard at
+        all — the same respondent could submit any number of times."""
+        tenant_id = _make_tenant()
+        admin_headers = _as_real_user(tenant_id, ["TENANT_ADMIN"])
+        survey_id = client.post(f"{BASE}/", json={"title": "S", "is_active": True, "is_anonymous": False}, headers=admin_headers).json()["id"]
+
+        headers = _as_real_user(tenant_id, ["STUDENT"])
+        first = client.post(f"{BASE}/{survey_id}/submit/", json={"responses": []}, headers=headers)
+        assert first.status_code == 201, first.text
+
+        second = client.post(f"{BASE}/{survey_id}/submit/", json={"responses": []}, headers=headers)
+        assert second.status_code == 409, second.text
+
+    def test_anonymous_survey_allows_repeated_submissions(self):
+        """No respondent identity is ever stored for an anonymous survey,
+        so the duplicate-guard must not apply to it."""
+        tenant_id = _make_tenant()
+        admin_headers = _as_real_user(tenant_id, ["TENANT_ADMIN"])
+        survey_id = client.post(f"{BASE}/", json={"title": "S", "is_active": True, "is_anonymous": True}, headers=admin_headers).json()["id"]
+
+        headers = _as_real_user(tenant_id, ["STUDENT"])
+        first = client.post(f"{BASE}/{survey_id}/submit/", json={"responses": []}, headers=headers)
+        assert first.status_code == 201, first.text
+
+        second = client.post(f"{BASE}/{survey_id}/submit/", json={"responses": []}, headers=headers)
+        assert second.status_code == 201, second.text
+
     def test_results_aggregate_from_json_blob_correctly(self):
         tenant_id = _make_tenant()
         headers = _as_real_user(tenant_id, ["TENANT_ADMIN"])
