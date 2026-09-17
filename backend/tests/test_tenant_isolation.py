@@ -80,11 +80,31 @@ def test_create_tenant_requires_tenants_write_permission():
     that silently skipped the permission check entirely.
     """
     student = {"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": str(uuid.uuid4())}
-    payload = {"name": "École Non Autorisée", "slug": f"unauthorized-{uuid.uuid4().hex[:8]}", "type": "SCHOOL"}
+    payload = {"name": "École Non Autorisée", "slug": f"unauthorized-{uuid.uuid4().hex[:8]}", "type": "primary"}
 
     try:
         resp = _as(student).post("/api/v1/tenants/", json=payload, headers=HEADERS)
         assert resp.status_code == 403, resp.text
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+
+    with SessionLocal() as db:
+        assert db.query(Tenant).filter(Tenant.slug == payload["slug"]).first() is None
+
+
+def test_create_tenant_rejects_invalid_type():
+    """Institutional-readiness audit (2026-09): TenantCreate.type accepted
+    any string — POST /tenants/ never validated it, unlike /auth/register-
+    school/ which restricts to the same 5-value set both admin wizards
+    (CreateTenant.tsx, CreateTenantWithAdmin.tsx) actually send."""
+    admin = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}
+    payload = {
+        "name": "École Type Invalide", "slug": f"bad-type-{uuid.uuid4().hex[:8]}",
+        "type": "not_a_real_type",
+    }
+    try:
+        resp = _as(admin).post("/api/v1/tenants/", json=payload, headers=HEADERS)
+        assert resp.status_code == 422, resp.text
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
@@ -127,7 +147,7 @@ def test_create_tenant_does_not_enroll_super_admin_as_tenant_admin():
     try:
         resp = _as(super_admin).post(
             "/api/v1/tenants/",
-            json={"name": "Ecole Sans Enrolement Admin", "slug": slug, "type": "SCHOOL"},
+            json={"name": "Ecole Sans Enrolement Admin", "slug": slug, "type": "primary"},
             headers=HEADERS,
         )
         assert resp.status_code == 201, resp.text
@@ -517,7 +537,7 @@ def test_create_tenant_initializes_currency_timezone_locale():
     try:
         resp = _as(super_admin).post(
             "/api/v1/tenants/",
-            json={"name": "Ecole Contrat Settings", "slug": slug, "type": "SCHOOL"},
+            json={"name": "Ecole Contrat Settings", "slug": slug, "type": "primary"},
             headers=HEADERS,
         )
         assert resp.status_code == 201, resp.text
