@@ -1133,7 +1133,12 @@ def create_achievement_definition(
     request: Request,
     body: AchievementDefCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): no permission
+    # check at all previously — any authenticated user, including STUDENT/
+    # PARENT/ALUMNI, could create a tenant-wide achievement definition with
+    # an arbitrary points_value. school_life:write matches the sibling
+    # gamification_router.rules CRUD in this same file.
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     row = db.execute(text("""
@@ -1157,7 +1162,7 @@ def update_achievement_definition(
     achievement_id: str,
     body: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     allowed = {"name", "description", "icon", "category", "points_value", "trigger_type", "trigger_threshold", "is_active"}
@@ -1183,7 +1188,7 @@ def delete_achievement_definition(
     request: Request,
     achievement_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM achievement_definitions WHERE id = :id AND tenant_id = :tid"),
@@ -1227,7 +1232,13 @@ def award_student_achievement(
     request: Request,
     body: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): no permission
+    # check at all previously — any authenticated user, including STUDENT/
+    # PARENT, could award an arbitrary achievement_id to any student_id in
+    # the tenant. This is a direct manual award (unlike the automatic,
+    # self-triggerable /gamification/process-event/ below), so it always
+    # requires school_life:write — no self-service exception.
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
@@ -1257,11 +1268,37 @@ def award_student_achievement(
 gamification_router = APIRouter()
 
 
+def _can_trigger_event_for_student(db: Session, *, current_user: dict, student_id: str, tenant_id: str) -> bool:
+    """Whether current_user may trigger a gamification event for student_id.
+
+    A privileged role (TEACHER/DIRECTOR/TENANT_ADMIN, all holding
+    school_life:write) triggers this after grading/marking attendance for
+    any student. A STUDENT triggers it for themselves right after
+    submitting their own homework (onHomeworkSubmitted, gamification-
+    triggers.ts) — no other self-service case exists, so that is the only
+    exception granted.
+    """
+    from app.core.security import user_has_permission
+    from app.models.student import Student
+
+    if user_has_permission(current_user, "school_life:write"):
+        return True
+    student = db.query(Student).filter(
+        Student.id == student_id, Student.tenant_id == tenant_id,
+    ).first()
+    return bool(student and student.user_id and str(student.user_id) == str(current_user.get("id")))
+
+
 @gamification_router.post("/process-event/")
 def process_gamification_event(
     request: Request,
     body: dict,
     db: Session = Depends(get_db),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): no permission
+    # or ownership check at all previously — any authenticated user could
+    # POST an arbitrary event_type/student_id pair to farm gamification
+    # points/badges for any student. See
+    # _can_trigger_event_for_student() for the exact rule.
     current_user: dict = Depends(get_current_user),
 ):
     """Process a gamification event and award matching achievements."""
@@ -1271,6 +1308,8 @@ def process_gamification_event(
 
     if not student_id or not event_type:
         raise HTTPException(status_code=400, detail="student_id and event_type required")
+    if not _can_trigger_event_for_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas déclencher cet événement pour cet élève")
 
     # Find matching achievement definitions for this event type
     rows = db.execute(text("""
@@ -1657,8 +1696,25 @@ def delete_shared_note(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """DELETE /shared-notes/{id}"""
+    """DELETE /shared-notes/{id}
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): this had no
+    author check and no permission gate at all — any authenticated tenant
+    user (STUDENT included) could delete any other user's shared note by
+    id, unlike create_shared_note() which correctly stamps author_id.
+    Restricted to the note's own author or a school_life:write holder
+    (teacher/admin moderation).
+    """
+    from app.core.security import user_has_permission
+
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not user_has_permission(current_user, "school_life:write"):
+        note = db.execute(text("SELECT author_id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                           {"id": note_id, "tid": tenant_id}).mappings().first()
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        if str(note["author_id"]) != str(current_user.get("id")):
+            raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer la note d'un autre utilisateur")
     db.execute(text("DELETE FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
                {"id": note_id, "tid": tenant_id})
     db.commit()
