@@ -208,6 +208,27 @@ def create_attendance(
         if cached is not None:
             return cached[0]
 
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): there was
+    # no guard against recording the same student/date/subject attendance
+    # twice — no unique constraint at the DB level and no application-level
+    # check — so a duplicate submission silently created a second row,
+    # double-counting that absence/presence in every downstream statistic.
+    # A dedicated PATCH /attendance/{id}/ already exists for corrections,
+    # so a duplicate is rejected rather than silently overwritten.
+    existing = db.execute(text("""
+        SELECT id FROM attendance
+        WHERE tenant_id = :tenant_id AND student_id = :student_id AND date = :date
+          AND subject_id IS NOT DISTINCT FROM :subject_id
+    """), {
+        "tenant_id": tenant_id, "student_id": record.student_id,
+        "date": record.date, "subject_id": record.subject_id,
+    }).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Une présence existe déjà pour cet élève à cette date. Utilisez la modification pour la corriger.",
+        )
+
     query = text("""
         INSERT INTO attendance (id, tenant_id, student_id, date, status, reason, subject_id, classroom_id, created_at, updated_at)
         VALUES (gen_random_uuid(), :tenant_id, :student_id, :date, :status, :reason, :subject_id, :classroom_id, NOW(), NOW())
@@ -251,6 +272,25 @@ def create_attendance_bulk(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): same
+    # duplicate-attendance gap as the single-record endpoint above, applied
+    # per record so one already-marked student in the batch doesn't get a
+    # second, double-counted row.
+    for record in payload.records:
+        existing = db.execute(text("""
+            SELECT id FROM attendance
+            WHERE tenant_id = :tenant_id AND student_id = :student_id AND date = :date
+              AND subject_id IS NOT DISTINCT FROM :subject_id
+        """), {
+            "tenant_id": tenant_id, "student_id": record.student_id,
+            "date": record.date, "subject_id": record.subject_id,
+        }).first()
+        if existing:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Une présence existe déjà pour l'élève {record.student_id} à cette date. Utilisez la modification pour la corriger.",
+            )
+
     inserted = []
     try:
         for record in payload.records:

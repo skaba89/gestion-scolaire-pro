@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from slowapi import Limiter
-from sqlalchemy import or_, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.core.client_ip import get_client_ip
@@ -860,8 +860,17 @@ async def register(
     # 1. Validate password strength
     validate_password_strength(body.password)
 
+    # SECURITY FIX (institutional-readiness audit, 2026-09): this compared
+    # User.email == body.email with no case normalization, while
+    # /auth/forgot-password/, imports.py and users.py's invite/convert
+    # endpoints all normalize with func.lower(User.email). "Foo@Bar.com"
+    # and "foo@bar.com" could both self-register as two distinct,
+    # unrelated accounts for the same real mailbox, one of which
+    # forgot-password's lower-cased lookup could never reach.
+    body.email = body.email.strip().lower()
+
     # 2. Check if email already exists
-    existing = db.query(User).filter(User.email == body.email).first()
+    existing = db.query(User).filter(func.lower(User.email) == body.email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -1025,8 +1034,12 @@ async def register_school(
     from app.core.security import get_password_hash, create_access_token
     from app.models.tenant import Tenant
 
+    # SECURITY FIX (institutional-readiness audit, 2026-09): same
+    # case-sensitivity gap as /auth/register/ above.
+    body.email = body.email.strip().lower()
+
     # 1. Check email uniqueness
-    existing_user = db.query(User).filter(User.email == body.email).first()
+    existing_user = db.query(User).filter(func.lower(User.email) == body.email).first()
     if existing_user:
         raise HTTPException(status_code=409, detail="Un compte avec cet email existe déjà.")
 

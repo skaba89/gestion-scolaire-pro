@@ -217,9 +217,12 @@ def update_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
-    updated_grade = crud_grade.update_grade(
-        db, grade_id, grade_update, tenant_id
-    )
+    try:
+        updated_grade = crud_grade.update_grade(
+            db, grade_id, grade_update, tenant_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     if not updated_grade:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -289,12 +292,20 @@ def create_bulk_grades(
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
 
-    # Validate score ranges
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): this
+    # validated score against a hardcoded 0-100 range, but BulkGradeItem
+    # never carries a max_score and the raw INSERT below never sets one
+    # either — the `grades` table's own column default is 20.0 (see
+    # 20260424_0003_ensure_core_table_columns.py), matching every other
+    # grade in this app (GradeBase.max_score default, same 20.0). A score
+    # of e.g. 85 passed this check yet produced a >400% grade once stored
+    # against that real max_score, corrupting averages/transcripts.
+    BULK_GRADE_DEFAULT_MAX_SCORE = 20.0
     for i, item in enumerate(body.grades):
-        if item.score is not None and (item.score < 0 or item.score > 100):
+        if item.score is not None and (item.score < 0 or item.score > BULK_GRADE_DEFAULT_MAX_SCORE):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Note #{i+1}: le score doit être entre 0 et 100"
+                detail=f"Note #{i+1}: le score doit être entre 0 et {BULK_GRADE_DEFAULT_MAX_SCORE:g}"
             )
 
     created = []

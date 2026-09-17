@@ -134,7 +134,10 @@ def create_enrollment(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:write")),
 ):
-    return crud.create_enrollment(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    try:
+        return crud.create_enrollment(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 # --- Associations Helpers ---
 

@@ -260,7 +260,12 @@ class TestPrivacyActions:
         user = self._user(user_id, tenant_id)
         profile = SimpleNamespace(phone="+224611111111", avatar_url="profile.jpg")
         db = MagicMock()
-        db.query.side_effect = [_query(first=user), _query(first=profile)]
+        db.query.side_effect = [
+            _query(first=user),
+            _query(first=profile),
+            _query(all_rows=[]),  # _anonymize_user: own_students
+            _query(all_rows=[]),  # _anonymize_user: parent_linked_ids
+        ]
 
         with patch(
             "app.api.v1.endpoints.core.rgpd.resolve_current_tenant_id",
@@ -292,7 +297,12 @@ class TestPrivacyActions:
         user = self._user(user_id, tenant_id)
         profile = SimpleNamespace(phone="+224611111111", avatar_url="profile.jpg")
         db = MagicMock()
-        db.query.side_effect = [_query(first=user), _query(first=profile)]
+        db.query.side_effect = [
+            _query(first=user),
+            _query(first=profile),
+            _query(all_rows=[]),  # _related_student_ids: ParentStudent
+            _query(all_rows=[]),  # _related_student_ids: Student (own)
+        ]
 
         with patch(
             "app.api.v1.endpoints.core.rgpd.resolve_current_tenant_id",
@@ -307,6 +317,11 @@ class TestPrivacyActions:
         assert result["user"]["email"] == "person@example.gn"
         assert result["profile"]["phone"] == "+224611111111"
         assert result["export_metadata"]["tenant_id"] == str(tenant_id)
+        assert result["students"] == []
+        assert result["grades"] == []
+        assert result["attendance"] == []
+        assert result["payments"] == []
+        assert result["invoices"] == []
         db.commit.assert_called_once()
         db.add.assert_called_once()
 
@@ -332,6 +347,8 @@ class TestPrivacyActions:
             _query(first=request),
             _query(first=user),
             _query(first=profile),
+            _query(all_rows=[]),  # _anonymize_user: own_students
+            _query(all_rows=[]),  # _anonymize_user: parent_linked_ids
         ]
 
         result = process_deletion_request(

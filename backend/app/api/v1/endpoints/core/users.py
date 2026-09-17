@@ -617,14 +617,26 @@ def update_user(
 
 
 @router.patch("/{user_id}/toggle-status/")
-def toggle_user_status(
+async def toggle_user_status(
     user_id: str,
     body: ToggleStatusRequest,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
-    """Activate or deactivate a user account."""
+    """Activate or deactivate a user account.
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): deactivating a
+    user used to have zero immediate effect — get_current_user() didn't
+    check is_active (now fixed, security.py) and this endpoint never called
+    blacklist_all_user_tokens(), so the deactivated user's already-issued
+    access token kept authenticating for up to its full lifetime
+    (ACCESS_TOKEN_EXPIRE_MINUTES). Both fixes are defense-in-depth: the
+    is_active check closes the gap even if this call is somehow bypassed,
+    and blacklisting here cuts off access immediately instead of waiting
+    for token expiry, same pattern as reset_user_password() above.
+    """
+    from app.api.v1.endpoints.core.auth import blacklist_all_user_tokens
     from app.core.tenant_resolution import resolve_current_tenant_id
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
@@ -658,6 +670,9 @@ def toggle_user_status(
     )
 
     db.commit()
+
+    if not body.is_active:
+        await blacklist_all_user_tokens(user_id)
 
     return {"message": f"User {action} successfully"}
 
@@ -1078,7 +1093,7 @@ class ConvertRequest(BaseModel):
     email: EmailStr
     first_name: str
     last_name: str
-    type: Literal["student", "parent"]
+    type: Literal["student", "parent", "teacher"]
     password: Optional[str] = None
 
 @router.post("/convert/")
@@ -1087,7 +1102,19 @@ async def convert_to_account(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
-    """Convert a student or parent entry into a full user account."""
+    """Convert a student or parent entry into a full user account.
+
+    SECURITY/FUNCTIONAL FIX (institutional-readiness audit, 2026-09):
+    "teacher" added — bulk-imported teacher accounts
+    (POST /import/teachers/confirm/) are created with password_hash=None,
+    is_active=False, must_change_password=True, same "pending" shape as an
+    imported parent, but this endpoint only accepted "student"/"parent" —
+    there was no activation path for them at all: /auth/reset-forced-
+    password/ requires an authenticated session (impossible with no
+    password), and /auth/forgot-password/ filters is_active=true, so it
+    can't find them either. An imported teacher could never log in through
+    any documented path. Mirrors the "parent" branch exactly.
+    """
     tenant_id = current_user.get("tenant_id")
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
@@ -1100,7 +1127,7 @@ async def convert_to_account(
         deliver_password_setup_link,
     )
 
-    role = 'STUDENT' if body.type == 'student' else 'PARENT'
+    role = {"student": "STUDENT", "parent": "PARENT", "teacher": "TEACHER"}[body.type]
 
     # Generate password if not provided
     if body.password:
@@ -1115,19 +1142,20 @@ async def convert_to_account(
 
     delivery = None
     try:
-        if body.type == "parent":
+        if body.type in ("parent", "teacher"):
+            expected_role = "PARENT" if body.type == "parent" else "TEACHER"
             account = db.query(User).join(
                 UserRole,
                 (UserRole.user_id == User.id) & (UserRole.tenant_id == User.tenant_id),
             ).filter(
                 User.id == body.id,
                 User.tenant_id == tenant_id,
-                UserRole.role == "PARENT",
+                UserRole.role == expected_role,
             ).first()
             if not account:
-                raise HTTPException(status_code=404, detail="Pending parent not found")
+                raise HTTPException(status_code=404, detail=f"Pending {body.type} not found")
             if account.is_active:
-                raise HTTPException(status_code=409, detail="Parent account is already active")
+                raise HTTPException(status_code=409, detail=f"{body.type.capitalize()} account is already active")
 
             email_owner = db.query(User).filter(func.lower(User.email) == normalized_email).first()
             if email_owner and email_owner.id != account.id:

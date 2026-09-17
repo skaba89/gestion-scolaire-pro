@@ -152,7 +152,18 @@ def update_grade(
     update_data = grade_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_grade, field, value)
-    
+
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): a partial
+    # update sending only `score` (the common case — max_score rarely
+    # changes after an assessment exists) bypassed GradeUpdate's own
+    # score<=max_score validator, which only fires when both fields are
+    # present in the same request. Re-check against the merged, final
+    # row so a lone score update can't exceed the grade's existing barème.
+    if db_grade.score > db_grade.max_score:
+        raise ValueError(
+            f"Le score ({db_grade.score}) ne peut pas dépasser le barème ({db_grade.max_score})"
+        )
+
     db.commit()
     db.refresh(db_grade)
     return db_grade
