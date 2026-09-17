@@ -2,8 +2,13 @@
 
 When Redis (the blacklist / logout-all backend) is unreachable, the token's
 revocation status cannot be verified. Policy:
-  * PRIVILEGED accounts (SUPER_ADMIN, TENANT_ADMIN, MINISTRY_ADMIN,
-    REGIONAL_DIRECTOR, PREFECTURE_ADMIN, COMMUNE_ADMIN) → refuse with 503.
+  * PRIVILEGED accounts (SUPER_ADMIN, TENANT_ADMIN, DIRECTOR, ACCOUNTANT,
+    MINISTRY_ADMIN, REGIONAL_DIRECTOR, PREFECTURE_ADMIN, COMMUNE_ADMIN) →
+    refuse with 503. DIRECTOR/ACCOUNTANT added institutional-readiness
+    audit 2026-09: both are documented MFA-mandatory privileged roles
+    (PRIVILEGED_ROLES_REQUIRING_MFA, auth.py) but were missing here, so a
+    blacklisted DIRECTOR/ACCOUNTANT token was fail-OPEN during a Redis
+    outage — the exact bypass this policy exists to close.
   * SENSITIVE operations (users:write, payments:write, …) → refuse with 503,
     even for an otherwise non-privileged role (e.g. ACCOUNTANT).
   * Everyone/everything else → fail open (no platform-wide outage).
@@ -124,7 +129,7 @@ async def test_blacklisted_token_redis_available_401(monkeypatch):
 # ─── 3. Redis unavailable + privileged account → 503 ─────────────────────────
 @pytest.mark.asyncio
 @pytest.mark.parametrize("role", [
-    "SUPER_ADMIN", "TENANT_ADMIN", "MINISTRY_ADMIN",
+    "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT", "MINISTRY_ADMIN",
     "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
 ])
 async def test_redis_down_privileged_account_503(monkeypatch, role):

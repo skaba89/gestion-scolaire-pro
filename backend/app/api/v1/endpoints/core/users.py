@@ -617,14 +617,26 @@ def update_user(
 
 
 @router.patch("/{user_id}/toggle-status/")
-def toggle_user_status(
+async def toggle_user_status(
     user_id: str,
     body: ToggleStatusRequest,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
-    """Activate or deactivate a user account."""
+    """Activate or deactivate a user account.
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): deactivating a
+    user used to have zero immediate effect — get_current_user() didn't
+    check is_active (now fixed, security.py) and this endpoint never called
+    blacklist_all_user_tokens(), so the deactivated user's already-issued
+    access token kept authenticating for up to its full lifetime
+    (ACCESS_TOKEN_EXPIRE_MINUTES). Both fixes are defense-in-depth: the
+    is_active check closes the gap even if this call is somehow bypassed,
+    and blacklisting here cuts off access immediately instead of waiting
+    for token expiry, same pattern as reset_user_password() above.
+    """
+    from app.api.v1.endpoints.core.auth import blacklist_all_user_tokens
     from app.core.tenant_resolution import resolve_current_tenant_id
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
@@ -658,6 +670,9 @@ def toggle_user_status(
     )
 
     db.commit()
+
+    if not body.is_active:
+        await blacklist_all_user_tokens(user_id)
 
     return {"message": f"User {action} successfully"}
 
