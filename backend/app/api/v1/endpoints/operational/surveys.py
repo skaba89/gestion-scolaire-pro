@@ -254,6 +254,16 @@ def submit_survey_response(
         if not survey.is_active:
             raise HTTPException(status_code=400, detail="Survey is not active")
 
+        # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): no
+        # duplicate-guard at all — the same authenticated respondent could
+        # call this endpoint any number of times, each producing a new
+        # response row that skews get_survey_results()' aggregated
+        # counts/distribution. Only applies to non-anonymous surveys —
+        # an anonymous one never stores respondent_id, by design, so
+        # there is nothing to dedupe against.
+        if not survey.is_anonymous and crud_survey.has_existing_response(db, survey_id, tenant_id, current_user.get("id")):
+            raise HTTPException(status_code=409, detail="Vous avez déjà répondu à ce sondage")
+
         db_obj = crud_survey.add_survey_response(
             db, survey, submission, tenant_id, respondent_id=current_user.get("id"),
         )

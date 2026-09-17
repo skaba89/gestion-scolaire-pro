@@ -201,7 +201,14 @@ def adjust_stock(request: Request, body: AdjustmentBody, db: Session = Depends(g
         if body.type == "IN": new_qty += body.quantity
         elif body.type == "OUT": new_qty -= body.quantity
         elif body.type == "ADJUST": new_qty = body.quantity
-        
+
+        # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): no
+        # floor check at all — an OUT larger than current stock, or a
+        # negative ADJUST, silently drove stock_quantity negative,
+        # corrupting the inventory dashboard and any reorder logic.
+        if new_qty < 0:
+            raise HTTPException(status_code=400, detail=f"Stock insuffisant : quantité résultante négative ({new_qty})")
+
         db.execute(text("UPDATE inventory_items SET stock_quantity = :qty WHERE id = :iid AND tenant_id = :tid"), {"qty": new_qty, "iid": body.item_id, "tid": tenant_id})
         db.commit()
         return {"stock_quantity": new_qty}
@@ -241,32 +248,66 @@ def list_orders(
 
 @router.post("/orders/")
 def create_order(request: Request, body: OrderCreateBody, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:write"))):
+    """BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): two
+    bugs. (a) stock_quantity was decremented with no prior check that
+    enough stock existed, driving it negative on any oversell — same
+    class of gap as adjust_stock() above. (b) total_amount and each
+    item's unit_price/total_price were client-supplied and stored
+    verbatim, never checked against the item's real inventory price — a
+    cashier could submit any total regardless of what the items actually
+    cost. Both fixed by re-fetching each item's real price/stock from
+    inventory_items and recomputing the order total server-side; the
+    client's unit_price/total_price/total_amount are now ignored for any
+    line tied to a real item_id.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
+        resolved_items = []
+        computed_total = 0.0
+        for item in body.items:
+            qty = item.get("quantity") or 0
+            item_id = item.get("item_id")
+            if item_id:
+                inv = db.execute(text(
+                    "SELECT name, unit_price, stock_quantity FROM inventory_items WHERE id = :iid AND tenant_id = :tid"
+                ), {"iid": item_id, "tid": tenant_id}).mappings().first()
+                if not inv:
+                    raise HTTPException(status_code=404, detail=f"Article introuvable : {item_id}")
+                if qty > inv["stock_quantity"]:
+                    raise HTTPException(status_code=400, detail=f"Stock insuffisant pour '{inv['name']}' (demandé {qty}, disponible {inv['stock_quantity']})")
+                name, price = inv["name"], inv["unit_price"]
+            else:
+                name, price = item.get("item_name"), item.get("unit_price") or 0
+            line_total = qty * price
+            computed_total += line_total
+            resolved_items.append({"item_id": item_id, "name": name, "qty": qty, "price": price, "total": line_total})
+
         order_id = db.execute(text("""
             INSERT INTO orders (tenant_id, student_id, total_amount, payment_method, status, notes)
             VALUES (:tid, :sid, :amount, :method, :status, :notes) RETURNING id
         """), {
-            "tid": tenant_id, "sid": body.student_id, "amount": body.total_amount, 
+            "tid": tenant_id, "sid": body.student_id, "amount": computed_total,
             "method": body.payment_method, "status": body.status, "notes": body.notes
         }).scalar()
-        
-        for item in body.items:
+
+        for item in resolved_items:
             db.execute(text("""
                 INSERT INTO order_items (order_id, item_id, item_name, quantity, unit_price, total_price)
                 VALUES (:oid, :iid, :name, :qty, :price, :total)
             """), {
-                "oid": order_id, "iid": item.get("item_id"), "name": item.get("item_name"),
-                "qty": item.get("quantity"), "price": item.get("unit_price"), "total": item.get("total_price")
+                "oid": order_id, "iid": item["item_id"], "name": item["name"],
+                "qty": item["qty"], "price": item["price"], "total": item["total"],
             })
-            # Stock adjustment
-            if item.get("item_id"):
-                db.execute(text("UPDATE inventory_items SET stock_quantity = stock_quantity - :qty WHERE id = :iid AND tenant_id = :tid"), {"qty": item.get("quantity"), "iid": item.get("item_id"), "tid": tenant_id})
+            if item["item_id"]:
+                db.execute(text("UPDATE inventory_items SET stock_quantity = stock_quantity - :qty WHERE id = :iid AND tenant_id = :tid"), {"qty": item["qty"], "iid": item["item_id"], "tid": tenant_id})
 
         db.commit()
-        return {"id": str(order_id), "message": "Order created"}
+        return {"id": str(order_id), "message": "Order created", "total_amount": computed_total}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error("create_order failed: %s", e)

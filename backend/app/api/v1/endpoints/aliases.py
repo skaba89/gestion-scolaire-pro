@@ -2327,10 +2327,18 @@ def delete_quiz_question(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
-    """DELETE /quiz-questions/{id}/"""
+    """DELETE /quiz-questions/{id}/
+
+    BUG FIX (institutional-readiness audit, 2026-09): missing db.commit()
+    — SessionLocal is autocommit=False and get_db()'s finally only calls
+    db.close(), which rolls back a pending transaction. The API returned
+    204 but the row was never actually removed; every other write
+    endpoint in this file commits explicitly.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM quiz_questions WHERE id = :id AND tenant_id = :tid"),
                {"id": question_id, "tid": tenant_id})
+    db.commit()
 
 
 # ─── 33. Subject preferred rooms (/subject-preferred-rooms/) ──────────────────

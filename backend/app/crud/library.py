@@ -96,6 +96,18 @@ def create_resource(db: Session, obj_in: ResourceCreate, tenant_id: UUID, upload
 def update_resource(db: Session, db_obj: LibraryResource, obj_in: ResourceUpdate) -> LibraryResource:
     for field, value in obj_in.model_dump(exclude_unset=True).items():
         setattr(db_obj, field, value)
+
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): a lone
+    # total_copies update (the common case — reducing it after a copy is
+    # lost/damaged) bypassed ResourceUpdate's own cross-field validator,
+    # which only fires when both fields are present in the same request.
+    # Re-check against the merged, final row.
+    if (db_obj.available_copies or 0) > (db_obj.total_copies or 0):
+        raise ValueError(
+            f"Le nombre d'exemplaires disponibles ({db_obj.available_copies}) ne peut pas "
+            f"dépasser le nombre total d'exemplaires ({db_obj.total_copies})"
+        )
+
     db.flush()
     return db_obj
 

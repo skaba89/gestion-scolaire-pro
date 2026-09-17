@@ -228,6 +228,9 @@ def update_resource(
         return _resource_out(db, db_obj)
     except HTTPException:
         raise
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         db.rollback()
         logger.error("Failed to update library resource: %s", e, exc_info=True)
