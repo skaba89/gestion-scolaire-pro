@@ -481,6 +481,12 @@ ROLE_PERMISSIONS: dict = {
         "terms:read", "terms:write",
         "classrooms:read", "classrooms:write",
         # Institutional-readiness audit (2026-09): frontend already shows
+        # DIRECTOR "departments:manage" (src/lib/permissions.ts) — backend
+        # had no matching grant, and academic/departments.py itself was
+        # gated on the wrong permission (settings:write) instead of this
+        # one; both fixed together (see that file).
+        "departments:read", "departments:write",
+        # Institutional-readiness audit (2026-09): frontend already shows
         # DIRECTOR "rooms:manage" (src/lib/permissions.ts) and infrastructure.py
         # had no permission check at all on room/program writes (see that
         # file), so this gap only surfaced now that the endpoints are
@@ -515,6 +521,18 @@ ROLE_PERMISSIONS: dict = {
         "settings:read",
         "schedule:read", "schedule:write",
         "admissions:read",
+        # Institutional-readiness audit (2026-09): frontend already
+        # describes this role as "Gestion complète du département"
+        # (src/lib/permissions.ts, "department:own") but academic/
+        # departments.py had no matching backend permission — DEPARTMENT_HEAD
+        # held neither departments:write nor settings:write, so they could
+        # view departments (via settings:read) but never edit even their
+        # own. departments:write is deliberately NOT granted here (that
+        # would let them edit or delete ANY department in the tenant, not
+        # just their own) — read_department's update endpoint instead
+        # allows a departments:read holder to edit only the department
+        # they head (Department.head_id), see that endpoint's own comment.
+        "departments:read",
     ],
     "TEACHER": [
         "users:read",
@@ -541,7 +559,16 @@ ROLE_PERMISSIONS: dict = {
               # this role's UI already exposes.
               "hr:read", "hr:write",
               "communications:read", "communications:write",  # announcements fix, see communication.py
-              "parents:read"],  # links parents to students, see parents.py::list_parents fix
+              "parents:read",  # links parents to students, see parents.py::list_parents fix
+              # Institutional-readiness audit (2026-09): the student
+              # create/edit form (useStudentForm.ts) fetches GET
+              # /departments/{id}/ to auto-generate a registration number —
+              # STAFF holds students:write (can create/edit students) but
+              # academic/departments.py used to be gated on settings:read,
+              # which STAFF also holds; switching that endpoint to the
+              # dedicated departments:read permission would have silently
+              # broken this form for STAFF without this grant.
+              "departments:read"],
     "ACCOUNTANT": ["finance:read", "finance:write", "students:read", "payments:read", "payments:write",
                     "inventory:read", "settings:read",
                     "hr:read", "hr:write",
@@ -554,7 +581,8 @@ ROLE_PERMISSIONS: dict = {
                   "inventory:read", "inventory:write",
                   "hr:read", "hr:write",
                   "communications:read", "communications:write",  # same fix as STAFF above
-                  "parents:read"],  # same fix as STAFF above
+                  "parents:read",  # same fix as STAFF above
+                  "departments:read"],  # same student-form fix as STAFF above
     # National audit Phase 2 — first institutional role above TENANT_ADMIN.
     # Deliberately narrow: a single permission for cross-tenant AGGREGATE
     # counts only (app/api/v1/endpoints/core/ministry.py). MINISTRY_ADMIN

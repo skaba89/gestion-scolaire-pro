@@ -12,7 +12,7 @@ from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -488,7 +488,24 @@ def delete_student_parent_link(
         raise HTTPException(status_code=400, detail="Failed to delete resource. Please try again.")
 
 
-# ─── 8. Student Subjects (/student-subjects/) ─────────────────────────────────
+# ─── 8. Student Subjects (/student-subjects/) — individual course registration
+#
+# Institutional-readiness audit (2026-09), university/LMD "base structure":
+# this router previously had only POST, and it inserted into a
+# `student_subjects` table that never actually existed anywhere (no model,
+# no migration — see 20260917_0001_add_student_subjects_table.py). Every
+# call ever made to this endpoint against real PostgreSQL has always
+# failed. Fixed alongside completing the CRUD (list + unassign) and two
+# gaps found while doing so:
+#   - No permission ever existed for this action — settings:write is a
+#     platform-configuration permission, not an academic one. Switched to
+#     subjects:write (TENANT_ADMIN/DIRECTOR/DEPARTMENT_HEAD), the closest
+#     existing permission for curriculum/course-assignment actions. No
+#     prior behavior to preserve here: the endpoint has never worked.
+#   - student_id/subject_id were trusted as-is with no check that either
+#     belongs to the caller's own tenant — a cross-tenant student_id or
+#     subject_id would have silently inserted a cross-tenant row once the
+#     table existed. Both now verified before insert.
 
 student_subjects_router = APIRouter()
 
@@ -499,18 +516,69 @@ class StudentSubjectAssign(BaseModel):
     class_id: Optional[UUID] = None
 
 
+def _validate_student_and_subjects_in_tenant(
+    db: Session, *, tenant_id: str, student_id: UUID, subject_ids: list[UUID],
+) -> None:
+    student_row = db.execute(text(
+        "SELECT 1 FROM students WHERE id = :sid AND tenant_id = :tid"
+    ), {"sid": str(student_id), "tid": tenant_id}).first()
+    if not student_row:
+        raise HTTPException(status_code=404, detail="Élève introuvable")
+
+    if subject_ids:
+        stmt = text(
+            "SELECT id FROM subjects WHERE tenant_id = :tid AND id IN :ids"
+        ).bindparams(bindparam("ids", expanding=True))
+        found = db.execute(stmt, {"tid": tenant_id, "ids": [str(s) for s in subject_ids]}).fetchall()
+        found_ids = {str(r.id) for r in found}
+        missing = [str(s) for s in subject_ids if str(s) not in found_ids]
+        if missing:
+            raise HTTPException(status_code=404, detail=f"Cours introuvable(s): {', '.join(missing)}")
+
+
+@student_subjects_router.get("/")
+def list_student_subjects(
+    request: Request,
+    student_id: UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("subjects:read")),
+):
+    """GET /student-subjects/?student_id=... — list a student's registered courses."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    rows = db.execute(text("""
+        SELECT s.id, s.name, s.code, s.ects, ss.created_at
+        FROM student_subjects ss
+        JOIN subjects s ON s.id = ss.subject_id
+        WHERE ss.student_id = :sid AND ss.tenant_id = :tid
+        ORDER BY s.name
+    """), {"sid": str(student_id), "tid": tenant_id}).fetchall()
+    return [
+        {
+            "subject_id": str(r.id), "name": r.name, "code": r.code,
+            "ects": float(r.ects or 0),
+            "assigned_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+
 @student_subjects_router.post("/", status_code=status.HTTP_201_CREATED)
 def assign_subjects_to_student(
     request: Request,
     body: StudentSubjectAssign,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(require_permission("subjects:write")),
 ):
     """POST /student-subjects/ — assign subjects to a student."""
     from app.utils.audit import log_audit
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _validate_student_and_subjects_in_tenant(
+        db, tenant_id=tenant_id, student_id=body.student_id, subject_ids=body.subject_ids,
+    )
     try:
         assigned = []
         for subject_id in body.subject_ids:
@@ -522,9 +590,12 @@ def assign_subjects_to_student(
             if not existing:
                 db.execute(text("""
                     INSERT INTO student_subjects (student_id, subject_id, tenant_id, created_at)
-                    VALUES (:sid, :subid, :tid, NOW())
+                    VALUES (:sid, :subid, :tid, :now)
                     ON CONFLICT DO NOTHING
-                """), {"sid": str(body.student_id), "subid": str(subject_id), "tid": tenant_id})
+                """), {
+                    "sid": str(body.student_id), "subid": str(subject_id), "tid": tenant_id,
+                    "now": datetime.now(timezone.utc),
+                })
                 assigned.append(str(subject_id))
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="ASSIGN_SUBJECTS_TO_STUDENT", resource_type="STUDENT_SUBJECT",
@@ -532,10 +603,38 @@ def assign_subjects_to_student(
                   details={"subject_ids": [str(s) for s in body.subject_ids]})
         db.commit()
         return {"assigned": assigned, "total": len(assigned)}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Failed to assign subjects to student: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
+
+
+@student_subjects_router.delete("/{subject_id}/", status_code=status.HTTP_204_NO_CONTENT)
+def unassign_subject_from_student(
+    request: Request,
+    subject_id: UUID,
+    student_id: UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("subjects:write")),
+):
+    """DELETE /student-subjects/{subject_id}/?student_id=... — drop a course."""
+    from app.utils.audit import log_audit
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    result = db.execute(text("""
+        DELETE FROM student_subjects
+        WHERE student_id = :sid AND subject_id = :subid AND tenant_id = :tid
+    """), {"sid": str(student_id), "subid": str(subject_id), "tid": tenant_id})
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Inscription introuvable")
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="UNASSIGN_SUBJECT_FROM_STUDENT", resource_type="STUDENT_SUBJECT",
+              resource_id=str(student_id), details={"subject_id": str(subject_id)})
+    db.commit()
+    return None
 
 
 # ─── 9. Push Subscriptions alias (/push-subscriptions/) ───────────────────────

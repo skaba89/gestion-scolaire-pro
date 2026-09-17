@@ -1,4 +1,6 @@
-from sqlalchemy import Column, ForeignKey, Boolean, Float, Table, UniqueConstraint
+from datetime import datetime, timezone
+
+from sqlalchemy import Column, DateTime, ForeignKey, Boolean, Float, Table, UniqueConstraint
 from app.core.database import Base
 
 from app.models.base import GUID
@@ -44,4 +46,22 @@ class_subjects = Table(
     Column("is_optional", Boolean, default=False),
     Column("coefficient", Float),
     UniqueConstraint('class_id', 'subject_id', name='uix_class_subject')
+)
+
+# Association between Students and Subjects — individual course
+# registration (institutional-readiness audit, 2026-09): the endpoint that
+# writes to this table (POST /student-subjects/, app/api/v1/endpoints/
+# aliases.py) has existed for a while, but this table itself was never
+# defined anywhere — no ORM model, no Table object, no Alembic migration.
+# Every call to that endpoint against a real Postgres database would raise
+# "relation student_subjects does not exist". Defined here so tests (which
+# create schema via Base.metadata.create_all) and the paired Alembic
+# migration both pick it up, matching the sibling tables above.
+student_subjects = Table(
+    "student_subjects",
+    Base.metadata,
+    Column("tenant_id", GUID(), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("student_id", GUID(), ForeignKey("students.id", ondelete="CASCADE"), primary_key=True),
+    Column("subject_id", GUID(), ForeignKey("subjects.id", ondelete="CASCADE"), primary_key=True),
+    Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc), nullable=False),
 )
