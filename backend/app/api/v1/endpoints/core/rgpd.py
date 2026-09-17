@@ -82,8 +82,41 @@ def _related_student_ids(db: Session, *, user: User, tenant_id) -> list:
     return list(linked_ids)
 
 
+def _serialize_value(value):
+    """JSON-safe conversion for export payloads (UUID/Decimal/date/datetime)."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
 def _anonymize_user(db: Session, user: User) -> None:
-    """Remove direct identifiers consistently from user and profile records."""
+    """Remove direct identifiers from the user/profile records AND from
+    every Student row tied to them.
+
+    SECURITY/RGPD FIX (institutional-readiness audit, 2026-09): this
+    function used to touch only User/Profile — a "deleted" user's linked
+    Student record (their own name/email/phone/address if the user IS the
+    student, or the parent_name/parent_phone/parent_email contact fields
+    duplicated onto a child's row if the user is a linked PARENT) was left
+    fully intact and queryable, directly breaking the "droit à l'oubli"
+    promise (docs/SECURITY_MODEL.md §7). export_user_data() already proved
+    the app knows how to resolve these links (_related_student_ids); this
+    function just never used that knowledge.
+
+    Two distinct cases, handled differently on purpose:
+    - The user IS the student (Student.user_id == user.id, or matched by
+      email before any account existed): their own record is anonymized
+      outright, same guarantee as the User row.
+    - The user is a linked PARENT (via ParentStudent): only the
+      parent_name/parent_phone/parent_email columns duplicated onto the
+      child's row are cleared — never the child's own name/identity.
+      Erasing a parent's data must never erase their child's record.
+    """
+    original_email = user.email
+    tenant_id = user.tenant_id
+
     anonymous_id = str(user.id).replace("-", "")
     user.email = f"deleted_{anonymous_id}@schoolflow.deleted"
     user.username = f"deleted_{anonymous_id}"
@@ -97,11 +130,42 @@ def _anonymize_user(db: Session, user: User) -> None:
 
     profile = db.query(Profile).filter(
         Profile.id == user.id,
-        Profile.tenant_id == user.tenant_id,
+        Profile.tenant_id == tenant_id,
     ).first()
     if profile:
         profile.phone = None
         profile.avatar_url = None
+
+    own_students = db.query(Student).filter(
+        Student.tenant_id == tenant_id,
+        or_(
+            Student.user_id == user.id,
+            and_(Student.user_id.is_(None), Student.email == original_email) if original_email else False,
+        ),
+    ).all()
+    for student in own_students:
+        student.first_name = "Élève"
+        student.last_name = "Anonymisé"
+        student.email = None
+        student.phone = None
+        student.address = None
+        student.city = None
+        student.parent_name = None
+        student.parent_phone = None
+        student.parent_email = None
+
+    own_student_ids = {s.id for s in own_students}
+    parent_linked_ids = {
+        row[0] for row in db.query(ParentStudent.student_id).filter(
+            ParentStudent.parent_id == user.id,
+            ParentStudent.tenant_id == tenant_id,
+        ).all()
+    } - own_student_ids
+    if parent_linked_ids:
+        for student in db.query(Student).filter(Student.id.in_(parent_linked_ids)).all():
+            student.parent_name = None
+            student.parent_phone = None
+            student.parent_email = None
 
 @router.post("/requests/", response_model=DeletionRequest)
 def create_deletion_request(
@@ -443,7 +507,16 @@ def export_user_data(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Generate an export of all personal data for the user.
+    Generate an export of all personal data for the user (droit à la
+    portabilité, RGPD art. 20).
+
+    RGPD FIX (institutional-readiness audit, 2026-09): this export used to
+    contain only the User/Profile rows — none of the student-linked academic
+    or financial data (grades, attendance, payments, invoices) that
+    check_legal_retention() already knows how to resolve via
+    _related_student_ids(). A user requesting "all my personal data" got a
+    materially incomplete export, understating what the platform actually
+    holds about them or their children.
     """
     user_id = uuid.UUID(current_user["id"])
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -455,7 +528,31 @@ def export_user_data(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     profile = db.query(Profile).filter(Profile.id == user_id).first()
-    
+
+    student_ids = _related_student_ids(db, user=user, tenant_id=tenant_id)
+
+    def _rows_for_students(model, fields):
+        if not student_ids:
+            return []
+        rows = db.query(model).filter(
+            model.tenant_id == tenant_id,
+            model.student_id.in_(student_ids),
+        ).all()
+        return [{f: _serialize_value(getattr(row, f)) for f in fields} for row in rows]
+
+    students_data = [
+        {
+            "id": str(s.id),
+            "first_name": s.first_name,
+            "last_name": s.last_name,
+            "email": s.email,
+            "phone": s.phone,
+            "address": s.address,
+            "city": s.city,
+        }
+        for s in db.query(Student).filter(Student.id.in_(student_ids)).all()
+    ] if student_ids else []
+
     export_data = {
         "user": {
             "id": str(user.id),
@@ -472,12 +569,17 @@ def export_user_data(
             "phone": profile.phone if profile else None,
             "avatar_url": profile.avatar_url if profile else None
         },
+        "students": students_data,
+        "grades": _rows_for_students(Grade, ["id", "student_id", "subject_id", "score", "max_score", "created_at"]),
+        "attendance": _rows_for_students(Attendance, ["id", "student_id", "status", "date", "created_at"]),
+        "payments": _rows_for_students(Payment, ["id", "student_id", "amount", "payment_method", "created_at"]),
+        "invoices": _rows_for_students(Invoice, ["id", "student_id", "total_amount", "status", "created_at"]),
         "export_metadata": {
             "exported_at": datetime.now(timezone.utc).isoformat(),
             "tenant_id": str(tenant_id)
         }
     }
-    
+
     # Log the export action
     log_audit(
         db,
