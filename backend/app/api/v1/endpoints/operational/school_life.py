@@ -52,7 +52,14 @@ def create_assessment(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: AssessmentCreate,
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): this endpoint
+    # had NO permission check at all (get_current_user only) — any
+    # authenticated user of any role, including STUDENT/PARENT/ALUMNI,
+    # could create assessments for any tenant. delete_assessment() below
+    # already requires settings:write, matching the sibling
+    # academic/assessments.py router's own convention for assessment CRUD
+    # — this just closes the gap on create/update to match.
+    current_user: dict = Depends(require_permission("settings:write")),
 ):
     try:
         return crud_sl.create_assessment(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
@@ -68,7 +75,7 @@ def update_assessment(
     *,
     db: Session = Depends(get_db),
     obj_in: AssessmentUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("settings:write")),
 ):
     """Update a school life assessment."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -122,7 +129,16 @@ def create_grade(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: GradeCreate,
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): NO permission
+    # check at all previously — any authenticated user, including STUDENT
+    # or PARENT, could create/edit grades for any student in the tenant
+    # (e.g. a STUDENT giving themselves a grade). grades:write matches
+    # both TEACHER's actual ROLE_PERMISSIONS grant and the canonical
+    # academic/grades.py router's own convention for grade CRUD — the
+    # frontend never calls this school-life-scoped route for writes
+    # (grep confirms zero POST/PUT callers), so this closes a real gap
+    # with no legitimate workflow depending on the old open access.
+    current_user: dict = Depends(require_permission("grades:write")),
 ):
     try:
         return crud_sl.create_grade(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
@@ -138,7 +154,7 @@ def update_grade(
     *,
     db: Session = Depends(get_db),
     obj_in: GradeUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("grades:write")),
 ):
     """Update a school life grade."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -193,7 +209,15 @@ def create_attendance(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: AttendanceCreate,
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): NO permission
+    # check at all previously — any authenticated user, including STUDENT
+    # or PARENT, could mark attendance for any student in the tenant (e.g.
+    # a STUDENT marking themselves present). attendance:write matches
+    # TEACHER's actual ROLE_PERMISSIONS grant and academic/attendance.py's
+    # own convention — frontend never calls this route for writes (grep
+    # confirms zero POST/PUT callers), so no legitimate workflow depends
+    # on the old open access.
+    current_user: dict = Depends(require_permission("attendance:write")),
 ):
     try:
         return crud_sl.create_attendance(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
@@ -209,7 +233,7 @@ def update_attendance(
     *,
     db: Session = Depends(get_db),
     obj_in: AttendanceUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("attendance:write")),
 ):
     """Update an attendance record."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -292,7 +316,13 @@ def create_event(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: SchoolEventCreate,
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): NO permission
+    # check at all previously — any authenticated user of any role could
+    # create school-wide calendar events. update_event()/delete_event()
+    # below already require settings:write; this closes the gap on
+    # create to match its own siblings (real caller: SchoolCalendar.tsx,
+    # an admin-only page).
+    current_user: dict = Depends(require_permission("settings:write")),
 ):
     try:
         return crud_sl.create_event(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))

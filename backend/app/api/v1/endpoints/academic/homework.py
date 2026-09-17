@@ -336,6 +336,30 @@ def delete_homework(
 
 # ─── POST /homework/{homework_id}/submit ────────────────────────────────────
 
+def _can_submit_for_student(db: Session, *, current_user: dict, student_id: str, tenant_id: str) -> bool:
+    """Whether current_user may submit homework as/for the given student."""
+    from app.core.security import user_has_permission
+    from app.models.student import Student
+    from app.models.parent_student import ParentStudent
+
+    if user_has_permission(current_user, "homework:write"):
+        return True
+
+    student = db.query(Student).filter(
+        Student.id == student_id, Student.tenant_id == tenant_id,
+    ).first()
+    if not student:
+        return False
+    user_id = current_user.get("id")
+    if student.user_id and str(student.user_id) == str(user_id):
+        return True
+    return db.query(ParentStudent).filter(
+        ParentStudent.tenant_id == tenant_id,
+        ParentStudent.parent_id == user_id,
+        ParentStudent.student_id == student.id,
+    ).first() is not None
+
+
 @router.post("/{homework_id}/submit/", status_code=status.HTTP_201_CREATED)
 def submit_homework(
     request: Request,
@@ -344,8 +368,21 @@ def submit_homework(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Submit homework (student)."""
+    """Submit homework (student).
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): body.student_id
+    was taken directly from the client with no ownership check at all —
+    any authenticated user (including another STUDENT, or a TEACHER/STAFF
+    account) could POST a submission for an arbitrary student_id in the
+    tenant, forging someone else's homework submission. Now restricted to
+    the student themselves, a linked parent submitting for their own
+    child, or a homework:write holder (TEACHER) submitting on a student's
+    behalf — same "a submission always belongs to who it claims to belong
+    to" rule already applied to create_job_application() in alumni.py.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not _can_submit_for_student(db, current_user=current_user, student_id=body.student_id, tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas soumettre un devoir pour cet élève")
     try:
         result = db.execute(text("""
             INSERT INTO homework_submissions (tenant_id, homework_id, student_id, content, submitted_at)
