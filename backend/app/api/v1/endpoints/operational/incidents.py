@@ -258,11 +258,22 @@ def assign_incident(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
-    """Assign an incident to a resolver."""
+    """Assign an incident to a resolver.
+
+    DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    resolver_id was written straight into assigned_to with no check it's a
+    real user in this tenant — a typo or stray id silently created an
+    orphaned assignment with no FK enforcement on this raw-SQL table.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     try:
+        resolver = db.execute(text(
+            "SELECT id FROM users WHERE id = :uid AND tenant_id = :tid"
+        ), {"uid": assign.resolver_id, "tid": tenant_id}).first()
+        if not resolver:
+            raise HTTPException(status_code=404, detail="Resolver introuvable dans cet établissement")
         params = {
             "iid": str(incident_id), "tid": tenant_id,
             "resolver": assign.resolver_id,

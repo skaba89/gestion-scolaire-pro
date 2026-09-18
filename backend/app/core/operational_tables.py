@@ -867,6 +867,11 @@ _DDL = [
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolution TEXT""",
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS action_taken TEXT""",
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS notes TEXT""",
+    # BUG FIX (institutional-readiness audit, 2026-09): assigned_to was
+    # referenced by assign_incident() (operational/incidents.py) but never
+    # existed on this table at all — every call raised UndefinedColumn on
+    # real Postgres, meaning incident assignment has never worked.
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_to UUID""",
     # Composite (tenant_id, occurred_at) for list_incidents()'s
     # WHERE tenant_id = :tid ORDER BY occurred_at DESC LIMIT :limit — this
     # table only exists at runtime (created above, not by an Alembic

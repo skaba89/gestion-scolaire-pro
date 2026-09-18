@@ -94,6 +94,18 @@ def _make_job_application(tenant_id: str, student_id: str, job_offer_id: str) ->
         db.commit()
 
 
+def _make_mentor(tenant_id: str) -> str:
+    from sqlalchemy import text
+    mentor_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.execute(text("""
+            INSERT INTO alumni_mentors (id, tenant_id, first_name, last_name)
+            VALUES (:id, :tid, 'Mentor', 'Test')
+        """), {"id": mentor_id, "tid": tenant_id})
+        db.commit()
+    return mentor_id
+
+
 def _make_mentorship_request(tenant_id: str, student_id: str) -> None:
     from sqlalchemy import text
     with SessionLocal() as db:
@@ -165,6 +177,45 @@ class TestCannotReadOrActAsAnotherStudent:
         )
         assert resp.status_code == 200, resp.text
         assert resp.json() == [], "must not leak another student's mentorship requests"
+
+    def test_student_cannot_create_mentorship_request_as_another_student(self):
+        """create_mentorship_request() used to insert payload.student_id
+        verbatim (institutional-readiness audit, 2026-09) — same class of
+        bug as create_job_application above, missed in that same pass."""
+        tenant_id = _make_tenant()
+        mentor_id = _make_mentor(tenant_id)
+        victim_id = _make_student(tenant_id, reg="ALU-5")
+        attacker_id = _make_student(tenant_id, reg="ALU-5-ATTACKER")
+
+        attacker = {"id": attacker_id, "roles": ["ALUMNI"], "tenant_id": tenant_id}
+        resp = _as(attacker).post(
+            "/api/v1/alumni/mentorship-requests/",
+            json={"mentor_id": mentor_id, "student_id": victim_id, "message": "spoofed"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["student_id"] == attacker_id
+
+        with SessionLocal() as db:
+            from sqlalchemy import text
+            row = db.execute(text(
+                "SELECT student_id FROM mentorship_requests WHERE mentor_id = :mid"
+            ), {"mid": mentor_id}).mappings().first()
+        assert str(row["student_id"]) == attacker_id, "request must be attributed to the caller, not the spoofed student_id"
+
+    def test_mentorship_request_rejects_mentor_from_another_tenant(self):
+        tenant_a = _make_tenant()
+        tenant_b = _make_tenant()
+        foreign_mentor_id = _make_mentor(tenant_b)
+        student_id = _make_student(tenant_a, reg="ALU-6")
+
+        caller = {"id": student_id, "roles": ["ALUMNI"], "tenant_id": tenant_a}
+        resp = _as(caller).post(
+            "/api/v1/alumni/mentorship-requests/",
+            json={"mentor_id": foreign_mentor_id, "student_id": student_id, "message": "x"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 404, resp.text
 
 
 class TestOwnDataStillWorks:
