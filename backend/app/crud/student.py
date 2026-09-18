@@ -24,6 +24,12 @@ def get_student_by_registration(db: Session, registration_number: str, tenant_id
     ).first()
 
 
+def get_student_by_card_uid(db: Session, card_uid: str) -> Optional[Student]:
+    """Look up a student by their NFC/RFID card UID — global, not tenant-scoped
+    (the UID is a hardware identifier)."""
+    return db.query(Student).filter(Student.card_uid == card_uid).first()
+
+
 def get_students(
     db: Session,
     tenant_id: UUID,
