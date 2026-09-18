@@ -2028,23 +2028,39 @@ def create_course_discussion(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /course-discussions/"""
+    """POST /course-discussions/
+
+    DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): course_id
+    was inserted verbatim with no check it belongs to the caller's tenant
+    — any authenticated user could attach a forum post to an arbitrary or
+    cross-tenant course_id.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
+        course_id = body.get("course_id")
+        course = db.execute(text(
+            "SELECT id FROM elearning_courses WHERE id = :cid AND tenant_id = :tid"
+        ), {"cid": course_id, "tid": tenant_id}).first()
+        if not course:
+            raise HTTPException(status_code=404, detail="Cours introuvable dans cet établissement")
+
         row = db.execute(text("""
             INSERT INTO course_discussions (tenant_id, course_id, user_id, content, parent_id)
             VALUES (:tid, :course_id, :user_id, :content, :parent_id)
             RETURNING id, course_id, user_id, content, parent_id, created_at
         """), {
             "tid": tenant_id,
-            "course_id": body.get("course_id"),
+            "course_id": course_id,
             "user_id": user_id,
             "content": body.get("content", ""),
             "parent_id": body.get("parent_id"),
         }).mappings().first()
         db.commit()
         return dict(row)
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2145,13 +2161,27 @@ def create_student_badge(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
-    """POST /student-badges/"""
+    """POST /student-badges/
+
+    DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    student_id was inserted verbatim with no check it belongs to the
+    caller's tenant — a staff account could award a badge to a
+    student_id from any other tenant, polluting cross-tenant gamification
+    data. Same bug class already fixed for mentorship-request/
+    job-application student_id spoofing.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         # body may be a list or a single object
         items = body if isinstance(body, list) else [body]
         created = []
         for item in items:
+            student_id = item.get("student_id")
+            student = db.execute(text(
+                "SELECT id FROM students WHERE id = :sid AND tenant_id = :tid"
+            ), {"sid": student_id, "tid": tenant_id}).first()
+            if not student:
+                raise HTTPException(status_code=404, detail=f"Élève introuvable dans cet établissement : {student_id}")
             row = db.execute(text("""
                 INSERT INTO student_badges
                 (tenant_id, student_id, badge_type, badge_name, description, icon, status, classroom_id)
@@ -2170,6 +2200,9 @@ def create_student_badge(
                 created.append(dict(row))
         db.commit()
         return created
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2297,10 +2330,25 @@ def create_point_transaction(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
-    """POST /point-transactions/ — award or deduct points."""
+    """POST /point-transactions/ — award or deduct points.
+
+    DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): student_id
+    was inserted verbatim with no check it belongs to the caller's tenant
+    — a staff account could award/deduct points on a student_id from any
+    other tenant, polluting cross-tenant gamification data. (This column
+    actually references users.id, per list_point_transactions' own
+    `LEFT JOIN users u ON u.id = pt.student_id` above.)
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     import uuid as _uuid
     try:
+        student_id = body.get("student_id")
+        target = db.execute(text(
+            "SELECT id FROM users WHERE id = :uid AND tenant_id = :tid"
+        ), {"uid": student_id, "tid": tenant_id}).first()
+        if not target:
+            raise HTTPException(status_code=404, detail=f"Utilisateur introuvable dans cet établissement : {student_id}")
+
         new_id = str(_uuid.uuid4())
         db.execute(text("""
             INSERT INTO point_transactions
@@ -2308,7 +2356,7 @@ def create_point_transaction(
             VALUES (:id, :student_id, :points, :reason, :category, :ref_id, :tid, NOW())
         """), {
             "id": new_id,
-            "student_id": body.get("student_id"),
+            "student_id": student_id,
             "points": body.get("points", 0),
             "reason": body.get("reason", ""),
             "category": body.get("category", "manual"),
@@ -2317,6 +2365,9 @@ def create_point_transaction(
         })
         db.commit()
         return {"id": new_id, **body, "tenant_id": tenant_id}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
