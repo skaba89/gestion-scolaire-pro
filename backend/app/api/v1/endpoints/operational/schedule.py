@@ -263,3 +263,91 @@ def delete_schedule_slot(
     db.commit()
 
     return None
+
+
+def _can_view_roster(db: Session, *, current_user: dict, slot: dict, tenant_id: str) -> bool:
+    """Feature (institutional-readiness audit, 2026-09, classroom badge-in):
+    a class roster (every enrolled student's name + today's attendance
+    status) is sensitive enough to restrict beyond the blanket
+    schedule:read permission STUDENT/PARENT also hold for their own
+    timetable — only staff/admin, or the slot's own teacher, may see it."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if not privileged:
+        return False
+    if "TEACHER" in roles and not (roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}):
+        return slot["teacher_id"] is not None and str(slot["teacher_id"]) == str(current_user.get("id"))
+    return True
+
+
+@router.get("/{slot_id}/roster/")
+def get_schedule_slot_roster(
+    request: Request,
+    slot_id: str,
+    on_date: Optional[str] = Query(None, description="Date (YYYY-MM-DD), défaut aujourd'hui"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("schedule:read")),
+):
+    """The class roster for a schedule slot's course, with each enrolled
+    student's attendance status for the given date (defaults to today):
+    PRESENT/ABSENT/LATE/EXCUSED if already recorded — including
+    automatically, by a student badging in at a room-bound kiosk device
+    (see operational/kiosk.py::kiosk_scan) — or PENDING otherwise. This is
+    what a teacher opens before or during their course to see who is
+    expected and who has actually shown up.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+
+    slot = db.execute(text("""
+        SELECT s.id, s.class_id, s.subject_id, s.teacher_id, s.day_of_week, s.start_time, s.end_time,
+               c.name AS class_name, sub.name AS subject_name
+        FROM schedule s
+        LEFT JOIN classes c ON c.id = s.class_id
+        LEFT JOIN subjects sub ON sub.id = s.subject_id
+        WHERE s.id = :slot_id AND s.tenant_id = :tenant_id
+    """), {"slot_id": slot_id, "tenant_id": tenant_id}).mappings().first()
+    if not slot:
+        raise HTTPException(status_code=404, detail="Créneau introuvable")
+    if not _can_view_roster(db, current_user=current_user, slot=slot, tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé à la liste de cette classe")
+
+    target_date = on_date or datetime.now().date().isoformat()
+
+    rows = db.execute(text("""
+        SELECT st.id AS student_id, st.first_name, st.last_name, st.registration_number,
+               a.status AS attendance_status, a.created_at AS recorded_at, a.reason
+        FROM enrollments e
+        JOIN students st ON st.id = e.student_id
+        LEFT JOIN attendance a ON a.student_id = st.id AND a.tenant_id = :tenant_id
+            AND a.date = :target_date AND a.subject_id IS NOT DISTINCT FROM :subject_id
+        WHERE e.tenant_id = :tenant_id AND e.class_id = :class_id AND e.status = 'ACTIVE'
+        ORDER BY st.last_name, st.first_name
+    """), {
+        "tenant_id": tenant_id, "class_id": slot["class_id"], "subject_id": slot["subject_id"],
+        "target_date": target_date,
+    }).mappings().all()
+
+    return {
+        "slot": {
+            "id": str(slot["id"]), "class_name": slot["class_name"], "subject_name": slot["subject_name"],
+            "day_of_week": slot["day_of_week"],
+            "start_time": slot["start_time"].strftime("%H:%M") if slot["start_time"] else None,
+            "end_time": slot["end_time"].strftime("%H:%M") if slot["end_time"] else None,
+        },
+        "date": target_date,
+        "students": [
+            {
+                "student_id": str(r["student_id"]),
+                "first_name": r["first_name"],
+                "last_name": r["last_name"],
+                "registration_number": r["registration_number"],
+                "status": r["attendance_status"] or "PENDING",
+                "recorded_at": r["recorded_at"].isoformat() if r["recorded_at"] else None,
+                "auto_marked": bool(r["reason"] and "Badge automatique" in r["reason"]),
+            }
+            for r in rows
+        ],
+    }
