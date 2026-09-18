@@ -20,6 +20,32 @@ from app.schemas.grade import Grade, GradeCreate, GradeUpdate, GradeList
 router = APIRouter()
 
 
+def _validate_grade_fks(db: Session, *, tenant_id: str, student_id=None, subject_id=None, assessment_id=None) -> None:
+    """FK injection guard (institutional-readiness audit, 2026-09):
+    student_id/subject_id/assessment_id were inserted/updated as-is from
+    the client with no check they belong to the caller's tenant — a
+    TEACHER (grades:write) could attach a grade to another establishment's
+    student or assessment, corrupting that tenant's averages/transcripts."""
+    if student_id:
+        exists = db.execute(text(
+            "SELECT 1 FROM students WHERE id = :id AND tenant_id = :tid"
+        ), {"id": str(student_id), "tid": tenant_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Élève introuvable dans cet établissement")
+    if subject_id:
+        exists = db.execute(text(
+            "SELECT 1 FROM subjects WHERE id = :id AND tenant_id = :tid"
+        ), {"id": str(subject_id), "tid": tenant_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
+    if assessment_id:
+        exists = db.execute(text(
+            "SELECT 1 FROM assessments WHERE id = :id AND tenant_id = :tid"
+        ), {"id": str(assessment_id), "tid": tenant_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Évaluation introuvable dans cet établissement")
+
+
 @router.get("/", response_model=GradeList)
 def list_grades(
     request: Request,
@@ -179,6 +205,10 @@ def create_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
+    _validate_grade_fks(
+        db, tenant_id=tenant_id, student_id=grade.student_id,
+        subject_id=grade.subject_id, assessment_id=grade.assessment_id,
+    )
 
     idem_key = request.headers.get("x-idempotency-key")
     request_body = grade.model_dump(mode="json")
@@ -217,6 +247,10 @@ def update_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
+    _validate_grade_fks(
+        db, tenant_id=tenant_id, student_id=grade_update.student_id,
+        subject_id=grade_update.subject_id, assessment_id=grade_update.assessment_id,
+    )
     try:
         updated_grade = crud_grade.update_grade(
             db, grade_id, grade_update, tenant_id
@@ -307,6 +341,9 @@ def create_bulk_grades(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Note #{i+1}: le score doit être entre 0 et {BULK_GRADE_DEFAULT_MAX_SCORE:g}"
             )
+        _validate_grade_fks(
+            db, tenant_id=tenant_id, student_id=item.student_id, assessment_id=item.assessment_id,
+        )
 
     created = []
     try:
