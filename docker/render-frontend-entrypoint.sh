@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # ─── Render Frontend Entrypoint ────────────────────────────────────────────
 # Substitutes environment variables into config.js at runtime (after build).
 # This allows the same Docker image to work across environments without rebuild.
