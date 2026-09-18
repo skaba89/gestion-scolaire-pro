@@ -12,7 +12,7 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ScanLine, LogIn, LogOut, Settings, CheckCircle2, XCircle } from "lucide-react";
+import { ScanLine, LogIn, LogOut, Settings, CheckCircle2, XCircle, BookX } from "lucide-react";
 
 function tokenStorageKey(tenantSlug: string) {
     return `schoolflow:kiosk_token:${tenantSlug}`;
@@ -28,6 +28,7 @@ const kioskAxios = axios.create({ baseURL: apiClient.defaults.baseURL, timeout: 
 type ScanResult = {
     status: "success" | "not_found" | "error";
     message: string;
+    libraryOverdueTitles?: string[];
 };
 
 export default function KioskScanPage() {
@@ -62,11 +63,21 @@ export default function KioskScanPage() {
                 { qr_payload: qrData, direction },
                 { headers: { "X-Kiosk-Token": token } },
             );
+            const base = `${data.student_first_name} ${data.student_last_name} — ${data.direction === "IN" ? "Entrée" : "Sortie"} enregistrée`;
+            const courseNote = data.attendance_marked && data.course_name
+                ? ` — présent(e) marqué(e) pour ${data.course_name}`
+                : "";
+            const overdueTitles: string[] | undefined = data.library_overdue ? data.library_overdue_titles : undefined;
             setLastResult({
                 status: "success",
-                message: `${data.student_first_name} ${data.student_last_name} — ${data.direction === "IN" ? "Entrée" : "Sortie"} enregistrée`,
+                message: `${base}${courseNote}`,
+                libraryOverdueTitles: overdueTitles,
             });
             if (window.navigator.vibrate) window.navigator.vibrate(100);
+            // A library-overdue notice needs more than the usual 3s glance —
+            // give staff/student time to actually read it before it clears.
+            setTimeout(() => setLastResult(null), overdueTitles?.length ? 7000 : 3000);
+            return;
         } catch (err: any) {
             const httpStatus = err?.response?.status;
             if (httpStatus === 401 || httpStatus === 403) {
@@ -76,9 +87,8 @@ export default function KioskScanPage() {
             } else {
                 setLastResult({ status: "error", message: "Erreur de connexion, réessayez" });
             }
-        } finally {
-            setTimeout(() => setLastResult(null), 3000);
         }
+        setTimeout(() => setLastResult(null), 3000);
     }, [token, direction]);
 
     if (!token) {
@@ -153,17 +163,32 @@ export default function KioskScanPage() {
             </div>
 
             {lastResult && (
-                <div
-                    className={`fixed inset-x-4 bottom-8 mx-auto max-w-md rounded-lg shadow-lg p-4 flex items-center gap-3 animate-in slide-in-from-bottom-4 ${
-                        lastResult.status === "success" ? "bg-emerald-600 text-white" : "bg-destructive text-destructive-foreground"
-                    }`}
-                >
-                    {lastResult.status === "success" ? (
-                        <CheckCircle2 className="h-6 w-6 shrink-0" />
-                    ) : (
-                        <XCircle className="h-6 w-6 shrink-0" />
+                <div className="fixed inset-x-4 bottom-8 mx-auto max-w-md space-y-2 animate-in slide-in-from-bottom-4">
+                    <div
+                        className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${
+                            lastResult.status === "success" ? "bg-emerald-600 text-white" : "bg-destructive text-destructive-foreground"
+                        }`}
+                    >
+                        {lastResult.status === "success" ? (
+                            <CheckCircle2 className="h-6 w-6 shrink-0" />
+                        ) : (
+                            <XCircle className="h-6 w-6 shrink-0" />
+                        )}
+                        <span className="font-medium">{lastResult.message}</span>
+                    </div>
+                    {!!lastResult.libraryOverdueTitles?.length && (
+                        <div className="rounded-lg shadow-lg p-4 flex items-start gap-3 bg-amber-500 text-amber-950">
+                            <BookX className="h-6 w-6 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="font-semibold">Livre(s) en retard à la bibliothèque :</p>
+                                <ul className="list-disc list-inside text-sm">
+                                    {lastResult.libraryOverdueTitles.map((title) => (
+                                        <li key={title}>{title}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
                     )}
-                    <span className="font-medium">{lastResult.message}</span>
                 </div>
             )}
 
