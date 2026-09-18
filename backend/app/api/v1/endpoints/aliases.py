@@ -228,18 +228,34 @@ def update_invoice_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """PUT /invoices/{id}/ — mirrors PUT /payments/invoices/{id}/"""
+    """PUT /invoices/{id}/ — mirrors PUT /payments/invoices/{id}/
+
+    BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): this alias
+    duplicated the canonical endpoint's pre-fix logic — editing
+    total_amount never recalculated status against paid_amount, so a
+    PARTIAL invoice whose total was reduced below paid_amount stayed
+    PARTIAL forever (or the reverse). Now mirrors
+    finance/payments.py's update_invoice_endpoint() exactly.
+    """
     import json
     from app.utils.audit import log_audit
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    existing = db.execute(text("""
+        SELECT paid_amount FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
+    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    paid_amount = float(existing["paid_amount"] or 0)
+    new_status = "PAID" if paid_amount >= float(body.total_amount) else ("PARTIAL" if paid_amount > 0 else "PENDING")
+
     result = db.execute(text("""
         UPDATE invoices SET
             student_id = :student_id, invoice_number = :invoice_number,
             total_amount = :total_amount, items = :items, due_date = :due_date,
             notes = :notes, has_payment_plan = :has_payment_plan,
-            installments_count = :installments_count, updated_at = NOW()
+            installments_count = :installments_count, status = :status, updated_at = NOW()
         WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {
         "tenant_id": tenant_id, "invoice_id": invoice_id,
@@ -249,7 +265,8 @@ def update_invoice_alias(
         "due_date": body.due_date if body.due_date else None,
         "notes": body.notes,
         "has_payment_plan": body.has_payment_plan,
-        "installments_count": body.installments_count
+        "installments_count": body.installments_count,
+        "status": new_status,
     })
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -266,11 +283,39 @@ def delete_invoice_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """DELETE /invoices/{id}/ — mirrors DELETE /payments/invoices/{id}/"""
+    """DELETE /invoices/{id}/ — mirrors DELETE /payments/invoices/{id}/
+
+    SECURITY/DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    this alias duplicated the canonical endpoint's pre-fix logic — an
+    unconditional DELETE with no payment-history check. Payment.invoice_id
+    is ON DELETE SET NULL, so deleting a paid invoice through this route
+    would silently orphan every payment ever registered against it. Now
+    mirrors finance/payments.py's delete_invoice_endpoint() exactly.
+    """
     from app.utils.audit import log_audit
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    invoice_row = db.execute(text("""
+        SELECT id FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
+    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
+    if not invoice_row:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    has_payments = db.execute(text("""
+        SELECT 1 FROM payments WHERE invoice_id = :invoice_id LIMIT 1
+    """), {"invoice_id": invoice_id}).first()
+    if has_payments:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Impossible de supprimer une facture ayant des paiements "
+                "enregistrés, même annulés — l'historique financier ne peut "
+                "jamais être effacé. Utilisez le statut de la facture pour "
+                "la marquer autrement si besoin."
+            ),
+        )
+
     result = db.execute(text("""
         DELETE FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id})
@@ -1536,23 +1581,47 @@ def update_homework_submission(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
-    """PUT /homework-submissions/{id} — grade a submission."""
+    """PUT /homework-submissions/{id} — grade a submission.
+
+    BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): two gaps.
+    (a) graded_by came from the request body, falling back to the caller
+    only if absent — any holder of homework:write could attribute a grade
+    to an arbitrary user id instead of themselves, breaking the "who
+    actually graded this" audit trail. (b) grade (NUMERIC(5,2), no CHECK
+    constraint) was inserted with no bound at all; homework_submissions
+    has no max_score column to validate against (unlike Grade), so this
+    uses the same 0-20 scale already the default for assessments
+    (school_life.py's AssessmentBase.max_score = 20.0).
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
+    grade = body.get("grade")
+    if grade is not None and not (0 <= float(grade) <= 20):
+        raise HTTPException(status_code=422, detail="La note doit être comprise entre 0 et 20")
+
+    # BUG FIX (institutional-readiness audit, 2026-09): `:graded_at::timestamptz`
+    # (no space before the cast) is never recognized as a bind parameter by
+    # SQLAlchemy's text() — its regex treats a `:` immediately followed by
+    # `:` as Postgres's own cast operator, not a param reference. The
+    # literal string ":graded_at::timestamptz" was sent to Postgres
+    # verbatim, so every call with a truthy body["graded_at"] (or even
+    # None, since psycopg still chokes on the stray `:`) raised a syntax
+    # error — this endpoint has never actually worked. Same class of bug
+    # already found in operational/parents.py's create_parent_appointment_slot.
     row = db.execute(text("""
         UPDATE homework_submissions
         SET grade = :grade,
             feedback = :feedback,
             graded_by = :graded_by,
-            graded_at = COALESCE(:graded_at::timestamptz, NOW())
+            graded_at = COALESCE(:graded_at ::timestamptz, NOW())
         WHERE id = :id AND tenant_id = :tenant_id
         RETURNING id, homework_id, student_id, grade, feedback, graded_at
     """), {
         "id": submission_id,
         "tenant_id": tenant_id,
-        "grade": body.get("grade"),
+        "grade": grade,
         "feedback": body.get("feedback"),
-        "graded_by": body.get("graded_by") or current_user.get("id"),
+        "graded_by": current_user.get("id"),
         "graded_at": body.get("graded_at"),
     }).mappings().first()
 
@@ -2132,8 +2201,17 @@ def register_trusted_device(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /trusted-devices/ — register a trusted device for 2FA bypass."""
-    user_id = body.get("user_id") or current_user.get("id")
+    """POST /trusted-devices/ — register a trusted device for 2FA bypass.
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): user_id used to
+    come from the request body, falling back to current_user only if
+    absent. Any authenticated user could pass an arbitrary user_id and
+    register their own device as a trusted (2FA-bypassing) device for a
+    victim account, with no ownership or tenant check at all. This is a
+    self-service endpoint — it can only ever register a device for the
+    caller.
+    """
+    user_id = current_user.get("id")
     try:
         db.execute(text("""
             INSERT INTO trusted_devices
