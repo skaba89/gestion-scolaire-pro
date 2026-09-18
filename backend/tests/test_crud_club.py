@@ -167,6 +167,26 @@ class TestClubMembershipCrud:
         with SessionLocal() as db:
             assert crud_club.get_membership(db, membership_id, tenant_id) is None
 
+    def test_add_member_rejects_student_from_another_tenant(self):
+        tenant_a = _make_tenant()
+        tenant_b = _make_tenant()
+        student_b = _make_student(tenant_b)
+        with SessionLocal() as db:
+            club = crud_club.create_club(db, ClubCreate(name="Club A"), tenant_a)
+            db.commit()
+            club_id = club.id
+
+        with SessionLocal() as db:
+            result = crud_club.add_club_member(
+                db, ClubMembershipCreate(club_id=club_id, student_id=student_b), tenant_a,
+            )
+            assert result is None, "un élève d'un autre tenant ne doit jamais être ajouté"
+            db.commit()
+
+        with SessionLocal() as db:
+            memberships = crud_club.get_memberships(db, tenant_a)
+            assert memberships == []
+
     def test_membership_not_visible_from_other_tenant(self):
         tenant_a = _make_tenant()
         tenant_b = _make_tenant()

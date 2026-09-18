@@ -252,7 +252,7 @@ def create_webhook(
 
         row = db.execute(text("""
             INSERT INTO webhooks (tenant_id, url, events, description, is_active, secret)
-            VALUES (:tid, :url, :events::text[], :desc, :active, :secret)
+            VALUES (:tid, :url, :events ::text[], :desc, :active, :secret)
             RETURNING id, url, events, description, is_active,
                       (secret IS NOT NULL AND secret <> '') AS has_secret,
                       created_at

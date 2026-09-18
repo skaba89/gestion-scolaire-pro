@@ -1140,6 +1140,14 @@ def list_course_modules(
     current_user: dict = Depends(require_permission("homework:read")),
 ):
     """List modules for a specific course."""
+    from fastapi import HTTPException
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    course = db.execute(
+        text("SELECT id FROM elearning_courses WHERE id = :cid AND tenant_id = :tid"),
+        {"cid": course_id, "tid": tenant_id},
+    ).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
     rows = db.execute(text("""
         SELECT id, course_id, title, description, order_index, created_at
         FROM elearning_modules

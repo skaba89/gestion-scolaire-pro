@@ -168,3 +168,25 @@ class TestClubMembershipsRouteShape:
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
         resp = client.delete(f"{BASE}/memberships/{uuid.uuid4()}/", headers=headers)
         assert resp.status_code == 404
+
+
+class TestClubMembershipCrossTenantFk:
+    """Injection de FK inter-tenant (audit institutionnel 2026-09) : un
+    client ne doit pas pouvoir lier un élève d'un autre établissement à un
+    club du sien via student_id."""
+
+    def test_add_member_rejects_student_from_another_tenant(self):
+        tenant_a = _make_tenant()
+        tenant_b = _make_tenant()
+        student_b = _make_student(tenant_b)
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_a})
+
+        club_id = client.post(f"{BASE}/", json={"name": "Club Robotique"}, headers=headers).json()["id"]
+
+        resp = client.post(f"{BASE}/memberships/", json={
+            "club_id": club_id, "student_id": student_b,
+        }, headers=headers)
+        assert resp.status_code == 404
+
+        remaining = client.get(f"{BASE}/memberships/", headers=headers)
+        assert remaining.json() == []
