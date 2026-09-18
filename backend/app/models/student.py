@@ -53,6 +53,14 @@ class Student(Base, UUIDMixin, TimestampMixin, TenantMixin):
     
     # Media
     photo_url = Column(String(500))
+
+    # NFC/RFID card UID (institutional-readiness audit, 2026-09): the
+    # student's physical badge — the same card used to badge into a
+    # classroom (see operational/kiosk.py::kiosk_scan) doubles as their
+    # library card, since the UID is a hardware-manufactured identifier
+    # and thus globally unique across every establishment, not just this
+    # tenant.
+    card_uid = Column(String(64), unique=True, index=True, nullable=True)
     
     # Parent/Guardian
     parent_name = Column(String(200))

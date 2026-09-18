@@ -287,6 +287,17 @@ def update_student(
     Permissions: students:write
     """
     tenant_id = resolve_current_tenant_id(request, current_user, db)
+    if student_update.card_uid:
+        # A card's UID is a hardware identifier — globally unique, so this
+        # check isn't tenant-scoped. Without it, re-issuing a lost card
+        # (or a data-entry mistake) would surface as an opaque 500 from
+        # the DB's unique constraint instead of a clear 409.
+        other = crud_student.get_student_by_card_uid(db, student_update.card_uid)
+        if other and other.id != student_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cette carte est déjà associée à un autre élève",
+            )
     updated_student = crud_student.update_student(
         db, student_id, student_update, tenant_id
     )

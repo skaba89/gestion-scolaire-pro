@@ -203,6 +203,28 @@ def _auto_mark_attendance(db: Session, *, tenant_id, student_id, slot: dict, tod
     return True
 
 
+def _find_overdue_library_loans(db: Session, *, tenant_id, student: Student) -> list:
+    """The same card badges into class and identifies the student at the
+    library circulation desk (institutional-readiness audit, 2026-09) —
+    surface any overdue, unreturned loan on every scan so staff can act on
+    it without a separate lookup. library_borrow_records.borrowed_by
+    references a User, not a Student (see crud/library.py::borrow_resource)
+    — a student with no linked portal account simply has no borrow
+    history to check, which is the correct (empty) result, not an error."""
+    if not student.user_id:
+        return []
+    rows = db.execute(text("""
+        SELECT r.title
+        FROM library_borrow_records b
+        JOIN library_resources r ON r.id = b.resource_id
+        WHERE b.tenant_id = :tenant_id AND b.borrowed_by = :user_id
+          AND b.status = 'BORROWED' AND b.due_date IS NOT NULL AND b.due_date < :today
+        ORDER BY b.due_date ASC
+        LIMIT 10
+    """), {"tenant_id": tenant_id, "user_id": str(student.user_id), "today": datetime.now(timezone.utc).date()}).all()
+    return [r[0] for r in rows]
+
+
 @router.post("/scan/")
 def kiosk_scan(
     body: KioskScanRequest,
@@ -229,6 +251,9 @@ def kiosk_scan(
     if direction not in ("IN", "OUT"):
         direction = "IN"
 
+    # qr_payload doubles as the card body for an NFC/RFID reader (the
+    # reader sends the card's UID here instead of a decoded QR string) —
+    # same field, matched against one more column.
     qr_payload = body.qr_payload.strip()
     student = None
     if _looks_like_uuid(qr_payload):
@@ -238,6 +263,10 @@ def kiosk_scan(
     if not student:
         student = db.query(Student).filter(
             Student.tenant_id == device.tenant_id, Student.registration_number == qr_payload,
+        ).first()
+    if not student:
+        student = db.query(Student).filter(
+            Student.tenant_id == device.tenant_id, Student.card_uid == qr_payload,
         ).first()
 
     device.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -270,6 +299,8 @@ def kiosk_scan(
             subject = db.execute(text("SELECT name FROM subjects WHERE id = :id"), {"id": slot["subject_id"]}).scalar()
             course_name = subject
 
+    library_overdue_titles = _find_overdue_library_loans(db, tenant_id=device.tenant_id, student=student)
+
     db.commit()
 
     return {
@@ -280,6 +311,8 @@ def kiosk_scan(
         "checked_at": check_in.checked_at,
         "attendance_marked": attendance_marked,
         "course_name": course_name,
+        "library_overdue": bool(library_overdue_titles),
+        "library_overdue_titles": library_overdue_titles,
     }
 
 

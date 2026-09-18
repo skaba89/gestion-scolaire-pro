@@ -574,3 +574,106 @@ class TestScheduleSlotRoster:
         assert resp.status_code == 200, resp.text
         student_row = next(s for s in resp.json()["students"] if s["student_id"] == student_id)
         assert student_row["status"] == "ABSENT"
+
+
+class TestScanByCardUid:
+    """Une carte NFC/RFID sert de badge physique — le lecteur envoie l'UID
+    de la carte dans qr_payload plutôt qu'un QR décodé (audit institutionnel
+    2026-09, voir kiosk.py::kiosk_scan)."""
+
+    def test_scan_matches_student_by_card_uid(self):
+        tenant_id = _make_tenant()
+        student_id, _ = _make_student(tenant_id)
+        card_uid = f"04{uuid.uuid4().hex[:12]}"
+        with SessionLocal() as db:
+            db.query(Student).filter(Student.id == student_id).update({"card_uid": card_uid})
+            db.commit()
+        token = _create_device(tenant_id)
+
+        resp = client.post(SCAN_URL, json={"qr_payload": card_uid, "direction": "IN"}, headers={"X-Kiosk-Token": token})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["student_first_name"] == "Enfant"
+
+    def test_card_uid_isolated_per_tenant(self):
+        tenant_a = _make_tenant("École A")
+        tenant_b = _make_tenant("École B")
+        student_b, _ = _make_student(tenant_b, reg="CARD-B")
+        card_uid = f"04{uuid.uuid4().hex[:12]}"
+        with SessionLocal() as db:
+            db.query(Student).filter(Student.id == student_b).update({"card_uid": card_uid})
+            db.commit()
+        token_a = _create_device(tenant_a)
+
+        resp = client.post(SCAN_URL, json={"qr_payload": card_uid}, headers={"X-Kiosk-Token": token_a})
+        assert resp.status_code == 404
+
+
+class TestScanLibraryOverdueNotice:
+    """La même carte identifie l'élève au comptoir de la bibliothèque — un
+    scan doit signaler tout emprunt en retard, quel que soit l'endroit où
+    le badge a lieu (audit institutionnel 2026-09)."""
+
+    def _make_student_with_user(self, tenant_id: str) -> tuple:
+        from app.models.user import User
+        user_id = str(uuid.uuid4())
+        student_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(User(
+                id=user_id, tenant_id=tenant_id, email=f"{user_id[:8]}@example.com",
+                username=f"user-{user_id[:8]}", password_hash="x",
+                first_name="Enfant", last_name="Test", is_active=True,
+            ))
+            db.add(Student(
+                id=student_id, tenant_id=tenant_id, user_id=user_id,
+                registration_number=f"REG-{student_id[:8]}",
+                first_name="Enfant", last_name="Test", date_of_birth="2012-01-01",
+                gender=Gender.MALE, status=StudentStatus.ACTIVE,
+            ))
+            db.commit()
+        return student_id, user_id
+
+    def _borrow_overdue(self, tenant_id: str, user_id: str, title: str = "Livre en retard"):
+        from datetime import timedelta
+        from app.models.library import LibraryBorrowRecord, LibraryResource
+        with SessionLocal() as db:
+            resource = LibraryResource(id=str(uuid.uuid4()), tenant_id=tenant_id, title=title)
+            db.add(resource)
+            db.flush()
+            db.add(LibraryBorrowRecord(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, resource_id=resource.id,
+                borrowed_by=user_id, due_date=date.today() - timedelta(days=5), status="BORROWED",
+            ))
+            db.commit()
+
+    def test_scan_reports_overdue_loan(self):
+        tenant_id = _make_tenant()
+        student_id, user_id = self._make_student_with_user(tenant_id)
+        self._borrow_overdue(tenant_id, user_id)
+        token = _create_device(tenant_id)
+
+        resp = client.post(SCAN_URL, json={"qr_payload": student_id}, headers={"X-Kiosk-Token": token})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["library_overdue"] is True
+        assert "Livre en retard" in body["library_overdue_titles"]
+
+    def test_scan_reports_no_overdue_when_none(self):
+        tenant_id = _make_tenant()
+        student_id, _ = _make_student(tenant_id)
+        token = _create_device(tenant_id)
+
+        resp = client.post(SCAN_URL, json={"qr_payload": student_id}, headers={"X-Kiosk-Token": token})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["library_overdue"] is False
+        assert resp.json()["library_overdue_titles"] == []
+
+    def test_student_without_linked_user_has_no_overdue_crash(self):
+        """A student not yet converted to a portal account has no borrow
+        history — must resolve to an empty result, not an error."""
+        tenant_id = _make_tenant()
+        student_id, _ = _make_student(tenant_id)
+        token = _create_device(tenant_id)
+
+        resp = client.post(SCAN_URL, json={"qr_payload": student_id}, headers={"X-Kiosk-Token": token})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["library_overdue"] is False
