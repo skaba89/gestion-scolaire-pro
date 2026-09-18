@@ -152,21 +152,49 @@ def create_payment_schedules(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """Create one or more payment schedules (bulk insert)."""
+    """Create one or more payment schedules (bulk insert).
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): invoice_id was
+    inserted verbatim with no check it belongs to the caller's tenant. A
+    holder of payments:write in tenant A could point a schedule at another
+    tenant's invoice_id — the row would still carry tenant_id=A, but any
+    balance/reconciliation logic that joins schedules to their invoice
+    (e.g. this router's own list_payment_schedules, which LEFT JOINs
+    invoices with no tenant check on the join) would then mix tenant B's
+    invoice data into tenant A's ledger.
+    """
     tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
     created_ids = []
 
     try:
+        invoice_ids = {schedule.invoice_id for schedule in body}
+        if invoice_ids:
+            found = db.execute(text("""
+                SELECT id FROM invoices WHERE id = ANY(:ids) AND tenant_id = :tenant_id
+            """), {"ids": list(invoice_ids), "tenant_id": tenant_id}).scalars().all()
+            missing = invoice_ids - {str(i) for i in found}
+            if missing:
+                raise HTTPException(status_code=404, detail=f"Facture(s) introuvable(s) dans cet établissement : {', '.join(missing)}")
+
         for schedule in body:
+            # BUG FIX (institutional-readiness audit, 2026-09):
+            # `:due_date::date`/`:paid_date::timestamptz` (no space before
+            # the cast) are never recognized as bind parameters by
+            # SQLAlchemy's text() — its regex treats a `:` immediately
+            # followed by `:` as Postgres's own cast operator, not a param
+            # reference. Every call to this endpoint has therefore always
+            # raised a syntax error — same class of bug already found in
+            # operational/parents.py and aliases.py's
+            # update_homework_submission.
             # SECURITY: Always use tenant_id from current_user, never from request body
             sid = db.execute(text("""
                 INSERT INTO payment_schedules
                     (tenant_id, invoice_id, installment_number, amount, due_date,
                      paid_date, status, notes, created_at, updated_at)
                 VALUES
-                    (:tenant_id, :invoice_id, :installment_number, :amount, :due_date::date,
-                     :paid_date::timestamptz, :status, :notes, NOW(), NOW())
+                    (:tenant_id, :invoice_id, :installment_number, :amount, :due_date ::date,
+                     :paid_date ::timestamptz, :status, :notes, NOW(), NOW())
                 RETURNING id
             """), {
                 "tenant_id": tenant_id,
@@ -193,6 +221,9 @@ def create_payment_schedules(
 
         db.commit()
         return {"ids": created_ids, "count": len(created_ids)}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error("create_payment_schedules failed: %s", e)
@@ -256,7 +287,10 @@ def update_payment_schedule(
         set_parts.append("amount = :amount")
         params["amount"] = updates["amount"]
     if "due_date" in updates:
-        set_parts.append("due_date = :due_date::date")
+        # BUG FIX (institutional-readiness audit, 2026-09): same
+        # no-space-before-cast bind-param bug as create_payment_schedules
+        # above — this UPDATE has never worked when due_date was supplied.
+        set_parts.append("due_date = :due_date ::date")
         params["due_date"] = updates["due_date"]
     if "status" in updates:
         set_parts.append("status = :status")
@@ -265,7 +299,7 @@ def update_payment_schedule(
         set_parts.append("notes = :notes")
         params["notes"] = updates["notes"]
     if "paid_date" in updates:
-        set_parts.append("paid_date = :paid_date::timestamptz")
+        set_parts.append("paid_date = :paid_date ::timestamptz")
         params["paid_date"] = updates["paid_date"]
 
     set_parts.append("updated_at = NOW()")

@@ -185,6 +185,19 @@ def create_notification(
     notification_data = notification_in.dict()
     if not is_admin:
         notification_data["user_id"] = current_user.get("id")
+    elif notification_data.get("user_id"):
+        # SECURITY FIX (institutional-readiness audit, 2026-09): the bulk
+        # sibling endpoint (create_bulk_notifications, below) already
+        # checks this — an admin-role user could target a user_id from
+        # another tenant here, creating a notification tagged with THIS
+        # tenant_id for a victim in a different tenant. Missed when the
+        # bulk endpoint was hardened.
+        target_user = db.query(User).filter(User.id == notification_data["user_id"]).first()
+        if target_user and str(target_user.tenant_id) != str(tenant_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"L'utilisateur cible {notification_data['user_id']} n'appartient pas à votre tenant.",
+            )
 
     db_obj = Notification(
         **notification_data,
