@@ -44,6 +44,61 @@ class AttendanceUpdate(BaseModel):
     reason: Optional[str] = None
 
 
+def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_id: str) -> Optional[set]:
+    """Ownership scoping (institutional-readiness audit, 2026-09): mirrors
+    the filter grades.py::list_grades already applies. attendance:read is
+    granted to STUDENT/PARENT, but without this an unfiltered request (no
+    student_id) returned every attendance record in the tenant — every
+    student's absences and reasons — to a single student or parent
+    account. Returns None for a privileged caller (no restriction), or the
+    set of student ids the caller may see (possibly empty)."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if privileged or not (roles & {"STUDENT", "PARENT"}):
+        return None
+    user_id = current_user.get("id")
+    allowed_ids = set()
+    if "STUDENT" in roles:
+        rows = db.execute(text(
+            "SELECT id FROM students WHERE tenant_id = :tid AND (user_id = :uid "
+            "OR email = (SELECT email FROM users WHERE id = :uid))"
+        ), {"tid": tenant_id, "uid": user_id}).fetchall()
+        allowed_ids.update(str(r[0]) for r in rows)
+    if "PARENT" in roles:
+        rows = db.execute(text(
+            "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
+        ), {"tid": tenant_id, "uid": user_id}).fetchall()
+        allowed_ids.update(str(r[0]) for r in rows)
+    return allowed_ids
+
+
+def _validate_attendance_fks(db: Session, *, tenant_id: str, student_id: str,
+                              subject_id: Optional[str], classroom_id: Optional[str]) -> None:
+    """FK injection guard (institutional-readiness audit, 2026-09):
+    student_id/subject_id/classroom_id were inserted as-is from the client
+    with no check they belong to the caller's tenant."""
+    exists = db.execute(text(
+        "SELECT 1 FROM students WHERE id = :id AND tenant_id = :tid"
+    ), {"id": student_id, "tid": tenant_id}).first()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Élève introuvable dans cet établissement")
+    if subject_id:
+        exists = db.execute(text(
+            "SELECT 1 FROM subjects WHERE id = :id AND tenant_id = :tid"
+        ), {"id": subject_id, "tid": tenant_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
+    if classroom_id:
+        # Despite the column name, attendance.classroom_id is a FK to
+        # classes.id (see app/models/attendance.py), not classrooms.id.
+        exists = db.execute(text(
+            "SELECT 1 FROM classes WHERE id = :id AND tenant_id = :tid"
+        ), {"id": classroom_id, "tid": tenant_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Classe introuvable dans cet établissement")
+
+
 # ─── GET /attendance ───────────────────────────────────────────────────────────
 
 @router.get("/")
@@ -65,6 +120,14 @@ def get_attendance(
     if not tenant_id:
         return {"items": [], "total": 0, "limit": limit, "offset": offset}
 
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None:
+        if student_id:
+            if student_id not in allowed_ids:
+                return {"items": [], "total": 0, "limit": limit, "offset": offset}
+        elif not allowed_ids:
+            return {"items": [], "total": 0, "limit": limit, "offset": offset}
+
     query_str = """
         SELECT a.*,
                st.first_name || ' ' || st.last_name AS student_name,
@@ -74,7 +137,7 @@ def get_attendance(
         FROM attendance a
         LEFT JOIN students st ON a.student_id = st.id
         LEFT JOIN subjects su ON a.subject_id = su.id
-        LEFT JOIN classrooms c ON a.classroom_id = c.id
+        LEFT JOIN classes c ON a.classroom_id = c.id
         WHERE a.tenant_id = :tenant_id
     """
     params: dict = {"tenant_id": tenant_id}
@@ -82,6 +145,11 @@ def get_attendance(
     if student_id:
         query_str += " AND a.student_id = :student_id"
         params["student_id"] = student_id
+    elif allowed_ids is not None:
+        # STUDENT/PARENT with no explicit filter: restrict to their own
+        # (or their children's) records rather than the whole tenant.
+        query_str += " AND a.student_id = ANY(:allowed_student_ids)"
+        params["allowed_student_ids"] = list(allowed_ids)
     if classroom_id:
         query_str += " AND a.classroom_id = :classroom_id"
         params["classroom_id"] = classroom_id
@@ -145,6 +213,14 @@ def get_attendance_stats(
     if not tenant_id:
         return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "attendance_rate": 0.0}
 
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None:
+        if student_id:
+            if student_id not in allowed_ids:
+                return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "attendance_rate": 0.0}
+        elif not allowed_ids:
+            return {"total": 0, "present": 0, "absent": 0, "late": 0, "excused": 0, "attendance_rate": 0.0}
+
     query_str = """
         SELECT
             COUNT(*) AS total,
@@ -160,6 +236,9 @@ def get_attendance_stats(
     if student_id:
         query_str += " AND student_id = :student_id"
         params["student_id"] = student_id
+    elif allowed_ids is not None:
+        query_str += " AND student_id = ANY(:allowed_student_ids)"
+        params["allowed_student_ids"] = list(allowed_ids)
     if classroom_id:
         query_str += " AND classroom_id = :classroom_id"
         params["classroom_id"] = classroom_id
@@ -197,6 +276,10 @@ def create_attendance(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    _validate_attendance_fks(
+        db, tenant_id=tenant_id, student_id=record.student_id,
+        subject_id=record.subject_id, classroom_id=record.classroom_id,
+    )
 
     idem_key = request.headers.get("x-idempotency-key")
     request_body = record.model_dump(mode="json")
@@ -277,6 +360,10 @@ def create_attendance_bulk(
     # per record so one already-marked student in the batch doesn't get a
     # second, double-counted row.
     for record in payload.records:
+        _validate_attendance_fks(
+            db, tenant_id=tenant_id, student_id=record.student_id,
+            subject_id=record.subject_id, classroom_id=record.classroom_id,
+        )
         existing = db.execute(text("""
             SELECT id FROM attendance
             WHERE tenant_id = :tenant_id AND student_id = :student_id AND date = :date
