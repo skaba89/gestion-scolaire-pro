@@ -619,6 +619,16 @@ def update_invoice_endpoint(
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).mappings().first()
     if not existing:
         raise HTTPException(status_code=404, detail="Facture introuvable")
+    # DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): unlike
+    # create, this update never re-checked student_id against the
+    # caller's tenant — an existing, possibly-paid invoice could be
+    # re-pointed to an arbitrary/cross-tenant student, breaking that
+    # student's (or another tenant's) financial records.
+    student = db.execute(text(
+        "SELECT id FROM students WHERE id = :sid AND tenant_id = :tenant_id"
+    ), {"sid": body.student_id, "tenant_id": tenant_id}).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Élève introuvable dans cet établissement")
     paid_amount = float(existing["paid_amount"] or 0)
     new_status = "PAID" if paid_amount >= float(body.total_amount) else ("PARTIAL" if paid_amount > 0 else "PENDING")
 

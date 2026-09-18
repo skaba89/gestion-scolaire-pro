@@ -118,6 +118,43 @@ class TestUpdateInvoiceAliasRecalculatesStatus:
             assert invoice.status == InvoiceStatus.PARTIAL
 
 
+class TestUpdateInvoiceAliasValidatesStudentTenant:
+    """DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): unlike
+    create, update never re-checked student_id against the caller's
+    tenant — an existing, possibly-paid invoice could be re-pointed to an
+    arbitrary/cross-tenant student."""
+
+    def test_repointing_to_a_student_from_another_tenant_is_rejected(self):
+        ctx = _build_invoice(total_amount=100000.0, paid_amount=0.0, status=InvoiceStatus.DRAFT)
+        other_tenant_id = str(uuid.uuid4())
+        foreign_student_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(Tenant(
+                id=other_tenant_id, name="École B", slug=f"inv-alias-b-{other_tenant_id[:8]}",
+                type="primary", country="GN", is_active=True, settings={},
+            ))
+            db.commit()
+            db.add(Student(
+                id=foreign_student_id, tenant_id=other_tenant_id,
+                registration_number=f"REG-{foreign_student_id[:8]}",
+                first_name="Autre", last_name="Élève",
+                date_of_birth=date(2011, 5, 20), gender=Gender.FEMALE,
+                status=StudentStatus.ACTIVE,
+            ))
+            db.commit()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.put(f"/api/v1/invoices/{ctx['invoice_id']}/", json={
+            "student_id": foreign_student_id, "invoice_number": "INV-HIJACKED",
+            "total_amount": 100000.0, "due_date": "2026-02-01",
+        }, headers=headers)
+        assert resp.status_code == 404, resp.text
+
+        with SessionLocal() as db:
+            invoice = db.query(Invoice).filter(Invoice.id == ctx["invoice_id"]).first()
+            assert str(invoice.student_id) == ctx["student_id"], "invoice must not be re-pointed"
+
+
 class TestDeleteInvoiceAliasBlocksOnPaymentHistory:
     def test_invoice_with_payment_cannot_be_deleted(self):
         ctx = _build_invoice(total_amount=100000.0, paid_amount=100000.0, status=InvoiceStatus.PAID, with_payment=True)

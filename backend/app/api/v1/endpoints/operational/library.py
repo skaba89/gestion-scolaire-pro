@@ -299,6 +299,9 @@ def borrow_resource(
         return db_obj
     except HTTPException:
         raise
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         db.rollback()
         logger.error("Failed to borrow resource: %s", e, exc_info=True)

@@ -247,6 +247,15 @@ def update_invoice_alias(
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).mappings().first()
     if not existing:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    # DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): same
+    # missing student_id tenant check as the canonical
+    # finance/payments.py::update_invoice_endpoint — an existing invoice
+    # could be re-pointed to an arbitrary/cross-tenant student.
+    student = db.execute(text(
+        "SELECT id FROM students WHERE id = :sid AND tenant_id = :tenant_id"
+    ), {"sid": body.student_id, "tenant_id": tenant_id}).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found in this tenant")
     paid_amount = float(existing["paid_amount"] or 0)
     new_status = "PAID" if paid_amount >= float(body.total_amount) else ("PARTIAL" if paid_amount > 0 else "PENDING")
 
@@ -976,9 +985,18 @@ def list_rooms_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /rooms/ — mirrors GET /infrastructure/rooms/"""
+    """GET /rooms/ — mirrors GET /infrastructure/rooms/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): the
+    client-supplied `tenant_id` query param used to WIN over the caller's
+    resolved tenant (`tenant_id or resolve_current_tenant_id(...)`) — any
+    authenticated user could read another tenant's rooms by passing
+    ?tenant_id=<other-tenant-uuid>. The param is now ignored; only
+    resolve_current_tenant_id() (which already handles the legitimate
+    SUPER_ADMIN cross-tenant case via X-Tenant-ID) decides the tenant.
+    """
     from app.crud import academic as crud
-    tid = tenant_id or str(resolve_current_tenant_id(request, current_user, db))
+    tid = str(resolve_current_tenant_id(request, current_user, db))
     if not tid:
         return []
     results = crud.get_rooms(db, tenant_id=tid)
@@ -1093,9 +1111,16 @@ def list_schedule_slots_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /schedule-slots/ — mirrors GET /schedule/"""
+    """GET /schedule-slots/ — mirrors GET /schedule/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): same
+    client-supplied-tenant_id-wins bug as list_rooms_alias above — any
+    authenticated user could read another tenant's classroom schedule
+    (teacher names, room names, times) via ?tenant_id=<other-tenant-uuid>.
+    The param is now ignored.
+    """
     from sqlalchemy import text as sql_text
-    tid = tenant_id or str(resolve_current_tenant_id(request, current_user, db))
+    tid = str(resolve_current_tenant_id(request, current_user, db))
     if not tid:
         return []
 
@@ -1800,23 +1825,32 @@ def list_note_likes(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /shared-note-likes/"""
-    where = []
-    params: dict = {}
+    """GET /shared-note-likes/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): shared_note_likes
+    has no tenant_id column of its own — this endpoint never joined to
+    shared_notes to scope by tenant, unlike shared_notes_router just above
+    it. Any authenticated user in any tenant could read likes for a
+    note_id belonging to a different school.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    where = ["n.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
 
     if note_id__in:
         ids = [i.strip() for i in note_id__in.split(",") if i.strip()]
         if ids:
-            where.append("note_id = ANY(:ids)")
+            where.append("l.note_id = ANY(:ids)")
             params["ids"] = ids
     if user_id:
-        where.append("user_id = :user_id")
+        where.append("l.user_id = :user_id")
         params["user_id"] = user_id
 
-    sql = "SELECT id, note_id, user_id, created_at FROM shared_note_likes"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " LIMIT 1000"
+    sql = """
+        SELECT l.id, l.note_id, l.user_id, l.created_at
+        FROM shared_note_likes l
+        JOIN shared_notes n ON n.id = l.note_id
+        WHERE """ + " AND ".join(where) + " LIMIT 1000"
 
     rows = db.execute(text(sql), params).mappings().all()
     return [dict(r) for r in rows]
@@ -1829,9 +1863,19 @@ def like_note(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /shared-note-likes/"""
+    """POST /shared-note-likes/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): note_id was
+    never checked against the caller's tenant — any authenticated user
+    could like a note belonging to a different school.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     note_id = body.get("note_id")
+    note = db.execute(text("SELECT id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                       {"id": note_id, "tid": tenant_id}).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
     try:
         db.execute(text("""
             INSERT INTO shared_note_likes (note_id, user_id)
@@ -1852,8 +1896,17 @@ def unlike_note(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """DELETE /shared-note-likes/?note_id=X"""
+    """DELETE /shared-note-likes/?note_id=X
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): note_id was
+    never checked against the caller's tenant.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    note = db.execute(text("SELECT id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                       {"id": note_id, "tid": tenant_id}).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
     db.execute(text("DELETE FROM shared_note_likes WHERE note_id = :nid AND user_id = :uid"),
                {"nid": note_id, "uid": user_id})
     db.commit()
@@ -1872,9 +1925,16 @@ def list_note_comments(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /shared-note-comments/"""
-    where = []
-    params: dict = {}
+    """GET /shared-note-comments/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): shared_note_comments
+    has no tenant_id column of its own — this endpoint never joined to
+    shared_notes to scope by tenant. Any authenticated user in any tenant
+    could read comments on a note belonging to a different school.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    where = ["n.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
 
     if note_id:
         where.append("snc.note_id = :note_id")
@@ -1889,11 +1949,11 @@ def list_note_comments(
         SELECT snc.id, snc.note_id, snc.content, snc.created_at,
                u.id as user_id, u.first_name, u.last_name
         FROM shared_note_comments snc
+        JOIN shared_notes n ON n.id = snc.note_id
         LEFT JOIN users u ON u.id = snc.user_id
+        WHERE """ + " AND ".join(where) + """
+        ORDER BY snc.created_at ASC LIMIT 500
     """
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY snc.created_at ASC LIMIT 500"
 
     rows = db.execute(text(sql), params).mappings().all()
     return [
@@ -1916,12 +1976,21 @@ def create_note_comment(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /shared-note-comments/"""
+    """POST /shared-note-comments/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): note_id was
+    never checked against the caller's tenant.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     note_id = body.get("note_id")
     content = body.get("content", "")
     if not note_id or not content:
         raise HTTPException(status_code=400, detail="note_id and content required")
+    note = db.execute(text("SELECT id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                       {"id": note_id, "tid": tenant_id}).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
 
     row = db.execute(text("""
         INSERT INTO shared_note_comments (note_id, user_id, content)
