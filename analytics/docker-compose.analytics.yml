@@ -20,7 +20,11 @@ services:
       - schoolflow_analytics
 
   minio_analytics:
-    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    # DevOps fix (2026-09): Docker Hub's minio/minio repository was
+    # deprecated/pulled by MinIO in 2024 — see docker-compose.yml's minio
+    # service for the same fix. MinIO now publishes exclusively to
+    # quay.io.
+    image: quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z
     container_name: schoolflow_minio_analytics
     command: server /data --console-address ":9001"
     environment:
