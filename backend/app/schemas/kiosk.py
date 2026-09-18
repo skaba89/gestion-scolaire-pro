@@ -6,6 +6,10 @@ from typing import Optional
 
 class KioskDeviceCreate(BaseModel):
     label: str
+    # Classroom badge-in feature (institutional-readiness audit, 2026-09):
+    # binds this device to a specific room's door instead of the generic
+    # school entrance — see KioskDevice.room_id and kiosk_scan().
+    room_id: Optional[str] = None
 
 
 class KioskDeviceInDB(BaseModel):
@@ -14,6 +18,7 @@ class KioskDeviceInDB(BaseModel):
     id: UUID
     label: str
     is_active: bool
+    room_id: Optional[UUID] = None
     last_used_at: Optional[datetime] = None
     created_at: datetime
 
