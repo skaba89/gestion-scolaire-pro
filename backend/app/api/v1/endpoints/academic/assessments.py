@@ -14,6 +14,32 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _validate_assessment_fks(db: Session, *, tenant_id: str, subject_id: Optional[str],
+                              term_id: Optional[str], class_id: Optional[str]) -> None:
+    """DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    create_assessment/update_assessment inserted/updated subject_id/
+    term_id/class_id verbatim with no check they belong to the caller's
+    tenant — a staff account could attach an assessment to another
+    tenant's subject/term/class, corrupting joins used by grades/report
+    cards/transcripts. Same class of bug already fixed for department
+    exam FKs (operational/departments.py)."""
+    if subject_id:
+        row = db.execute(text("SELECT id FROM subjects WHERE id = :id AND tenant_id = :tid"),
+                          {"id": subject_id, "tid": tenant_id}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
+    if term_id:
+        row = db.execute(text("SELECT id FROM terms WHERE id = :id AND tenant_id = :tid"),
+                          {"id": term_id, "tid": tenant_id}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Période introuvable dans cet établissement")
+    if class_id:
+        row = db.execute(text("SELECT id FROM classes WHERE id = :id AND tenant_id = :tid"),
+                          {"id": class_id, "tid": tenant_id}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Classe introuvable dans cet établissement")
+
+
 class AssessmentCreate(BaseModel):
     subject_id: str
     term_id: Optional[str] = None
@@ -118,6 +144,8 @@ def create_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=assessment.subject_id,
+                              term_id=assessment.term_id, class_id=assessment.class_id)
 
     # Build INSERT dynamically based on provided fields
     columns = ["id", "tenant_id", "subject_id", "name", "assessment_type", "date", "max_score", "created_at", "updated_at"]
@@ -141,6 +169,21 @@ def create_assessment(
         values.append(":weight")
         params["weight"] = assessment.weight
 
+    if assessment.class_id:
+        # BUG FIX (institutional-readiness audit, 2026-09): class_id was
+        # accepted by AssessmentCreate but never added to this dynamic
+        # INSERT — a caller setting it on creation got no error, but the
+        # row was silently saved with class_id = NULL until a follow-up
+        # PUT (which does honor it) was issued.
+        columns.append("class_id")
+        values.append(":class_id")
+        params["class_id"] = assessment.class_id
+
+    if assessment.description is not None:
+        columns.append("description")
+        values.append(":description")
+        params["description"] = assessment.description
+
     returning = ", ".join(columns)
     query_str = f"""
         INSERT INTO assessments ({", ".join(columns)})
@@ -162,6 +205,8 @@ def create_assessment(
                 "date": result["date"].isoformat() if hasattr(result.get("date", None), "isoformat") else str(result.get("date")),
                 "max_score": float(result["max_score"]) if result.get("max_score") else None,
                 "weight": float(result["weight"]) if result.get("weight") else None,
+                "class_id": str(result["class_id"]) if result.get("class_id") else None,
+                "description": result.get("description"),
             }
         raise HTTPException(status_code=500, detail="Failed to create assessment")
     except HTTPException:
@@ -211,6 +256,8 @@ def update_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=assessment.subject_id,
+                              term_id=assessment.term_id, class_id=assessment.class_id)
 
     sets = []
     params = {"id": str(id), "tenant_id": tenant_id}

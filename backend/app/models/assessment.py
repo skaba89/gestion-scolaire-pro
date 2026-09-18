@@ -15,9 +15,17 @@ class Assessment(Base, UUIDMixin, TimestampMixin, TenantMixin):
     subject_id = Column(GUID(), ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False)
     academic_year_id = Column(GUID(), ForeignKey("academic_years.id", ondelete="SET NULL"))
     term_id = Column(GUID(), ForeignKey("terms.id", ondelete="SET NULL"))
-    
+    # BUG FIX (institutional-readiness audit, 2026-09): academic/
+    # assessments.py's AssessmentCreate/AssessmentUpdate schemas and
+    # endpoints reference class_id, but this column never existed on the
+    # ORM model or the migrated table — any request supplying class_id
+    # raised UndefinedColumn on real Postgres. Added additively (see
+    # matching Alembic migration).
+    class_id = Column(GUID(), ForeignKey("classes.id", ondelete="SET NULL"))
+
     # Relationships
     subject = relationship("Subject")
     academic_year = relationship("AcademicYear")
     term = relationship("Term")
+    classroom = relationship("Classroom")
     grades = relationship("Grade", back_populates="assessment", cascade="all, delete-orphan")

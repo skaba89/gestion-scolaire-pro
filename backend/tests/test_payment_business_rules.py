@@ -166,3 +166,30 @@ class TestInvoiceStatusRecalculatedOnUpdate:
         with SessionLocal() as db:
             inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
             assert inv.status == InvoiceStatus.PARTIAL
+
+
+class TestInvoiceUpdateValidatesStudentTenant:
+    """DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): unlike
+    create, update never re-checked student_id against the caller's
+    tenant — an existing, possibly-paid invoice could be re-pointed to an
+    arbitrary/cross-tenant student."""
+
+    def test_repointing_to_a_student_from_another_tenant_is_rejected(self):
+        tenant_a = _make_tenant()
+        tenant_b = _make_tenant()
+        student_id, invoice_id = _make_invoice(tenant_a, total=100000.0, paid=0.0, inv_status=InvoiceStatus.PENDING)
+        foreign_student_id, _ = _make_invoice(tenant_b)
+
+        resp = client.put(
+            INVOICE_URL.format(invoice_id=invoice_id),
+            json={
+                "student_id": foreign_student_id, "invoice_number": f"INV-{invoice_id[:8]}",
+                "total_amount": 100000.0, "due_date": str(date.today() + timedelta(days=30)),
+            },
+            headers=_admin_headers(tenant_a),
+        )
+        assert resp.status_code == 404, resp.text
+
+        with SessionLocal() as db:
+            inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+            assert str(inv.student_id) == student_id, "invoice must not be re-pointed"
