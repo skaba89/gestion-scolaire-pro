@@ -6,10 +6,6 @@ No external dependency: uses Python stdlib csv + io.
 import csv
 import io
 import logging
-import random
-import string
-from datetime import datetime, date
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -19,14 +15,24 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.jobs import enqueue_job
 from app.core.security import get_current_user, require_permission, require_plan
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.models.job import Job
 from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.student import Student
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.services.notifications import EmailSender
+from app.services.student_import import (
+    STUDENT_COLUMN_MAP,
+    detect_columns as _detect_columns,
+    parse_date as _parse_date,
+    parse_gender as _parse_gender,
+    parse_csv_bytes as _parse_csv_bytes,
+    run_student_import,
+)
 from app.utils.audit import log_audit
 
 router = APIRouter()
@@ -75,28 +81,8 @@ def _maybe_alert_import_failure_rate(
         logger.warning("Failed to send import failure alert: %s", exc)
 
 # ── Column aliases (French + English) ─────────────────────────────────────────
-
-STUDENT_COLUMN_MAP = {
-    # Identification
-    "first_name": ["first_name", "prenom", "prénom", "firstname", "given_name"],
-    "last_name": ["last_name", "nom", "surname", "family_name", "lastname"],
-    "date_of_birth": ["date_of_birth", "date_naissance", "naissance", "dob", "birth_date"],
-    "gender": ["gender", "sexe", "genre"],
-    "registration_number": ["registration_number", "matricule", "numero", "numéro", "reg_number"],
-    # Academic
-    "level": ["level", "niveau", "classe_niveau"],
-    "class_name": ["class_name", "classe", "class", "classname"],
-    "academic_year": ["academic_year", "annee_scolaire", "année_scolaire", "annee", "year"],
-    # Contact
-    "email": ["email", "courriel", "mail"],
-    "phone": ["phone", "telephone", "téléphone", "tel"],
-    "address": ["address", "adresse"],
-    "city": ["city", "ville"],
-    # Parent/Guardian
-    "parent_name": ["parent_name", "nom_parent", "tuteur", "guardian_name", "parent"],
-    "parent_phone": ["parent_phone", "tel_parent", "telephone_parent", "phone_parent"],
-    "parent_email": ["parent_email", "email_parent", "courriel_parent"],
-}
+# STUDENT_COLUMN_MAP now lives in app/services/student_import.py (imported
+# above) — shared with the Arq job path (app/workers/tasks.py).
 
 TEACHER_COLUMN_MAP = {
     "first_name": ["first_name", "prenom", "prénom"],
@@ -130,73 +116,6 @@ PARENT_COLUMN_MAP = {
     ],
     "student_emails": ["student_emails", "email_eleve", "student_email"],
 }
-
-
-def _detect_columns(headers: list[str], column_map: dict) -> dict[str, Optional[str]]:
-    """Map CSV headers → canonical field names, case-insensitively."""
-    normalized = {h.lower().strip(): h for h in headers}
-    result = {}
-    for field, aliases in column_map.items():
-        result[field] = None
-        for alias in aliases:
-            if alias.lower() in normalized:
-                result[field] = normalized[alias.lower()]
-                break
-    return result
-
-
-def _parse_date(val: str) -> Optional[date]:
-    val = val.strip()
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%m/%d/%Y"):
-        try:
-            return datetime.strptime(val, fmt).date()
-        except ValueError:
-            continue
-    return None
-
-
-def _parse_gender(val: str) -> str:
-    v = val.strip().upper()
-    if v in ("M", "MALE", "MASCULIN", "H", "HOMME", "GARCON", "GARÇON"):
-        return "MALE"
-    if v in ("F", "FEMALE", "FEMININ", "FÉMININ", "FEMME", "FILLE"):
-        return "FEMALE"
-    return "OTHER"
-
-
-def _generate_registration(tenant_id: str, existing: set) -> str:
-    prefix = "ETU"
-    while True:
-        suffix = "".join(random.choices(string.digits, k=6))
-        reg = f"{prefix}{suffix}"
-        if reg not in existing:
-            existing.add(reg)
-            return reg
-
-
-def _parse_csv_bytes(content: bytes) -> tuple[list[str], list[dict]]:
-    """Auto-detect delimiter (;  or ,) and return (headers, rows)."""
-    try:
-        text = content.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        # Fallback: try latin-1 (common for Excel exports from Windows)
-        try:
-            text = content.decode("latin-1")
-        except UnicodeDecodeError as exc:
-            from fastapi import HTTPException
-            raise HTTPException(
-                status_code=400,
-                detail=f"Encodage du fichier non supporté. Veuillez utiliser UTF-8 ou Latin-1. Détail : {exc}",
-            )
-    # Detect delimiter
-    sample = text[:2048]
-    semicolons = sample.count(";")
-    commas = sample.count(",")
-    delim = ";" if semicolons > commas else ","
-    reader = csv.DictReader(io.StringIO(text), delimiter=delim)
-    headers = reader.fieldnames or []
-    rows = [dict(r) for r in reader]
-    return list(headers), rows
 
 
 # ── Preview endpoint ───────────────────────────────────────────────────────────
@@ -298,10 +217,19 @@ async def confirm_student_import(
 ):
     """
     POST /import/students/confirm/
-    Actually imports all students from the CSV into the database.
-    Returns count of created / skipped / errored rows.
+
+    national-readiness audit, 2026-09, priority 5: this used to process
+    every row synchronously inside the request — a CSV of "thousands of
+    students" (the audit's own words) blocked the HTTP request for as
+    long as that took, with no way to recover if the connection dropped
+    partway through. Now enqueues app.workers.tasks.import_students_job
+    and returns a job_id immediately; poll GET /import/jobs/{job_id}/ for
+    the result. Falls back to running inline in this request if the queue
+    is unreachable (see docs/ASYNC_JOBS_GUIDE.md's "pattern enqueue avec
+    repli") — same guarantee this endpoint always had, just no longer the
+    only path.
     """
-    from sqlalchemy import text
+    from app.workers.tasks import _job_finished, _job_started
 
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
@@ -309,118 +237,90 @@ async def confirm_student_import(
 
     content = await file.read()
     headers, rows = _parse_csv_bytes(content)
-    mapping = _detect_columns(headers, STUDENT_COLUMN_MAP)
 
-    # Fetch existing registration numbers to avoid duplicates
-    existing_regs = set(
-        r[0] for r in db.execute(
-            text("SELECT registration_number FROM students WHERE tenant_id = :tid"),
-            {"tid": tenant_id}
-        ).fetchall()
+    job_id = _job_started(
+        "import_students", tenant_id,
+        {"filename": file.filename, "total_rows": len(rows), "user_id": current_user.get("id")},
     )
 
-    created = 0
-    skipped = 0
-    error_rows = []
+    arq_job_id = await enqueue_job(
+        "import_students_job",
+        job_id=job_id, tenant_id=tenant_id, headers=headers, rows=rows,
+        skip_errors=skip_errors, default_academic_year=default_academic_year,
+        user_id=current_user.get("id"), filename=file.filename,
+    )
 
-    for i, row in enumerate(rows, start=2):
+    if arq_job_id is None:
+        # Redis/Arq unreachable — run inline rather than leave the job
+        # stuck at RUNNING forever with nothing to ever finish it.
         try:
-            def get(field: str) -> str:
-                col = mapping.get(field)
-                return row.get(col, "").strip() if col else ""
-
-            first_name = get("first_name")
-            last_name = get("last_name")
-            if not first_name or not last_name:
-                skipped += 1
-                error_rows.append({"row": i, "error": "Nom/prénom manquant", "data": dict(row)})
-                continue
-
-            dob_str = get("date_of_birth")
-            dob = _parse_date(dob_str) if dob_str else None
-            if not dob:
-                if not skip_errors:
-                    error_rows.append({"row": i, "error": f"Date naissance invalide: '{dob_str}'", "data": dict(row)})
-                    skipped += 1
-                    continue
-                dob = date(2000, 1, 1)  # Default fallback
-
-            gender = _parse_gender(get("gender")) if get("gender") else "OTHER"
-            reg = get("registration_number")
-            if not reg or reg in existing_regs:
-                reg = _generate_registration(tenant_id, existing_regs)
-            else:
-                existing_regs.add(reg)
-
-            academic_year = get("academic_year") or default_academic_year or ""
-
-            db.execute(text("""
-                INSERT INTO students (
-                    id, tenant_id, registration_number, first_name, last_name,
-                    date_of_birth, gender, level, class_name, academic_year,
-                    email, phone, address, city,
-                    parent_name, parent_phone, parent_email,
-                    status, created_at, updated_at
-                ) VALUES (
-                    gen_random_uuid(), :tid, :reg, :fn, :ln,
-                    :dob, :gender, :level, :class_name, :ay,
-                    :email, :phone, :address, :city,
-                    :parent_name, :parent_phone, :parent_email,
-                    'ACTIVE', NOW(), NOW()
-                )
-                ON CONFLICT (registration_number) DO NOTHING
-            """), {
-                "tid": tenant_id,
-                "reg": reg,
-                "fn": first_name,
-                "ln": last_name,
-                "dob": dob.isoformat(),
-                "gender": gender,
-                "level": get("level"),
-                "class_name": get("class_name"),
-                "ay": academic_year,
-                "email": get("email") or None,
-                "phone": get("phone") or None,
-                "address": get("address") or None,
-                "city": get("city") or None,
-                "parent_name": get("parent_name") or None,
-                "parent_phone": get("parent_phone") or None,
-                "parent_email": get("parent_email") or None,
-            })
-            created += 1
-
+            outcome = run_student_import(
+                db, tenant_id, headers, rows,
+                skip_errors=skip_errors, default_academic_year=default_academic_year,
+            )
+            # SECURITY (Phase 2, commercialisation): imports were creating/
+            # modifying student data with zero audit trail — no way to
+            # answer "who imported these 200 students, and when" after the
+            # fact. Logged before commit, same pattern as every other
+            # data-mutating endpoint in this codebase.
+            log_audit(
+                db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                action="IMPORT_STUDENTS", resource_type="STUDENT",
+                details={
+                    "created": outcome["created"], "skipped": outcome["skipped"],
+                    "total": len(rows), "filename": file.filename,
+                },
+            )
+            db.commit()
+            _maybe_alert_import_failure_rate(
+                db, tenant_id=tenant_id, import_type="élèves",
+                skipped=outcome["skipped"], total=len(rows), filename=file.filename,
+            )
+            result = {
+                "created": outcome["created"],
+                "skipped": outcome["skipped"],
+                "errors": outcome["error_rows"][:20],
+                "total": len(rows),
+                "message": f"{outcome['created']} élève(s) importé(s), {outcome['skipped']} ignoré(s)",
+            }
+            _job_finished(job_id, success=True, result=result)
         except Exception as exc:
-            logger.warning("Import row %s error: %s", i, exc)
-            error_rows.append({"row": i, "error": str(exc), "data": dict(row)})
-            skipped += 1
+            db.rollback()
+            logger.error("Import commit failed: %s", exc)
+            _job_finished(job_id, success=False, error=str(exc))
+            raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
 
-    # SECURITY (Phase 2, commercialisation): imports were creating/modifying
-    # student data with zero audit trail — no way to answer "who imported
-    # these 200 students, and when" after the fact. Logged before commit,
-    # same pattern as every other data-mutating endpoint in this codebase.
-    log_audit(
-        db, user_id=current_user.get("id"), tenant_id=tenant_id,
-        action="IMPORT_STUDENTS", resource_type="STUDENT",
-        details={"created": created, "skipped": skipped, "total": len(rows), "filename": file.filename},
-    )
+    return {"job_id": job_id}
 
-    try:
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        logger.error("Import commit failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
 
-    _maybe_alert_import_failure_rate(
-        db, tenant_id=tenant_id, import_type="élèves", skipped=skipped, total=len(rows), filename=file.filename,
-    )
+@router.get("/jobs/{job_id}/")
+def get_import_job_status(
+    job_id: str,
+    request: Request,
+    current_user: dict = Depends(require_permission("students:write")),
+    db: Session = Depends(get_db),
+):
+    """
+    GET /import/jobs/{job_id}/
+    Poll the status of a job started by one of the /import/*/confirm/
+    endpoints above. Scoped to the caller's own tenant — a job_id from
+    another school must never be readable here (the same isolation every
+    other tenant-scoped endpoint in this codebase enforces).
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job or (job.tenant_id and str(job.tenant_id) != tenant_id):
+        raise HTTPException(status_code=404, detail="Job introuvable")
 
     return {
-        "created": created,
-        "skipped": skipped,
-        "errors": error_rows[:20],
-        "total": len(rows),
-        "message": f"{created} élève(s) importé(s), {skipped} ignoré(s)",
+        "id": str(job.id),
+        "job_type": job.job_type,
+        "status": job.status,
+        "result": job.result,
+        "error": job.error,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     }
 
 

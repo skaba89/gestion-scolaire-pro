@@ -165,29 +165,54 @@ function DataImportContent() {
     setLoading(true);
     setProgress(10);
 
+    // Simulate progress while waiting for the job to finish — the real
+    // progress (created/skipped counts) only exists once the job
+    // completes, there's no per-row signal to poll for. Declared outside
+    // the try block so every exit path (success, failure, timeout) clears it.
+    let interval: ReturnType<typeof setInterval> | undefined;
+
     try {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("skip_errors", String(skipErrors));
       fd.append("default_academic_year", defaultYear);
 
-      // Simulate progress
-      const interval = setInterval(() => {
+      interval = setInterval(() => {
         setProgress(p => Math.min(p + 8, 85));
       }, 400);
 
-      const res = await apiClient.post<ImportResult>("/import/students/confirm/", fd, {
+      const res = await apiClient.post<{ job_id: string }>("/import/students/confirm/", fd, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      clearInterval(interval);
+      // national-readiness audit, 2026-09, priority 5: the import now runs
+      // as an async job (Arq) rather than blocking this request — poll
+      // until it's done. If Redis was unreachable, the backend already ran
+      // it synchronously and the very first poll returns the final result.
+      const jobId = res.data.job_id;
+      let jobResult: ImportResult | null = null;
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const jobRes = await apiClient.get(`/import/jobs/${jobId}/`);
+        if (jobRes.data.status === "SUCCESS") {
+          jobResult = jobRes.data.result as ImportResult;
+          break;
+        }
+        if (jobRes.data.status === "FAILED") {
+          throw new Error(jobRes.data.error || t("dataImport.importError"));
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      if (!jobResult) {
+        throw new Error(t("dataImport.importError"));
+      }
+
       setProgress(100);
-      setResult(res.data);
+      setResult(jobResult);
       setStep("done");
 
       toast({
         title: t("dataImport.importDone"),
-        description: res.data.message,
+        description: jobResult.message,
       });
     } catch (err: any) {
       toast({
@@ -197,6 +222,7 @@ function DataImportContent() {
       });
       setStep("preview");
     } finally {
+      clearInterval(interval);
       setLoading(false);
     }
   };
