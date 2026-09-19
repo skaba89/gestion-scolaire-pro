@@ -75,6 +75,23 @@ def _clear_overrides():
     app.dependency_overrides.pop(get_current_user, None)
 
 
+@pytest.fixture(autouse=True)
+def _force_sync_fallback(monkeypatch):
+    """The CI Postgres job runs against a real, reachable Redis with no Arq
+    worker process consuming it (unlike this file's local/SQLite-adjacent
+    runs, which have none) — a job that actually gets enqueued sits at
+    RUNNING forever and every test below would flake on whether Redis
+    happens to be reachable. Forces the synchronous fallback path
+    deterministically, same pattern as test_imports.py's enqueue-failure
+    tests for confirm_student_import."""
+    from app.api.v1.endpoints.core import imports as imports_module
+
+    async def _fail(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(imports_module, "enqueue_job", _fail)
+
+
 def _admin_headers(tenant_id: str) -> dict:
     return _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
 
