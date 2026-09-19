@@ -117,6 +117,31 @@ def is_accepted(idents: list[str], today: datetime.date) -> bool:
     return False
 
 
+def is_registry_unavailable_error(report: dict) -> bool:
+    """True only for the exact HTTP-error envelope `npm audit --json` dumps
+    when npm's own audit endpoint itself errors out (observed 2026-09:
+    npmjs.org's "quick" audit endpoint returning 400 while being retired,
+    and its replacement "bulk" endpoint returning 503 during registry
+    maintenance) — never for a genuinely malformed/unexpected report.
+
+    Deliberately narrow: requires the specific combination of `statusCode`
+    (npm's HTTP client always sets this on request failure) and a `uri`
+    pointing at npm's own registry, with no `vulnerabilities` key. A
+    report like `{"totally": "different"}` (the existing schema-fail-safe
+    test) does NOT match this and still blocks CI as before — this only
+    recognises "the audit service itself could not be reached", not "we
+    don't understand the report"."""
+    if "vulnerabilities" in report:
+        return False
+    uri = report.get("uri")
+    return (
+        isinstance(report.get("statusCode"), int)
+        and isinstance(uri, str)
+        and "registry.npmjs.org" in uri
+        and "method" in report
+    )
+
+
 def collect_advisories(report: dict) -> dict[str, dict]:
     """Flatten `vulnerabilities[*].via[]` into a dict keyed by a stable
     advisory id. String `via` entries are cross-references to other
@@ -164,6 +189,16 @@ def main() -> int:
         # The exact failure mode the old one-liner swallowed. Never exit 0 here.
         print(f"::error::could not read/parse npm audit report: {exc}", file=sys.stderr)
         return 2
+
+    if isinstance(report, dict) and is_registry_unavailable_error(report):
+        print(
+            "::warning::npm's own audit endpoint returned an error "
+            f"(statusCode={report.get('statusCode')}, uri={report.get('uri')}) — "
+            "no advisory data could be obtained this run. Not blocking CI on an "
+            "upstream registry issue, but this means NO dependency scan actually "
+            "ran: re-check on the next push/run once the registry recovers."
+        )
+        return 0
 
     try:
         advisories = collect_advisories(report)

@@ -89,6 +89,65 @@ class TestFalseNegativeGuards:
         assert module.main() == 1
 
 
+class TestRegistryUnavailable:
+    """2026-09: npmjs.org's audit "quick" endpoint (being retired) and its
+    "bulk" replacement (mid-maintenance) both returned HTTP errors, so
+    `npm audit --json` dumped npm's own HTTP-error envelope instead of a
+    report — CI failed on every PR, unrelated to any real advisory. This
+    pins the narrow carve-out: that exact envelope shape is treated as
+    "audit unavailable" (non-blocking), while anything else without a
+    `vulnerabilities` key still fails loudly as before (see
+    test_unexpected_schema_exits_nonzero above, which must keep failing)."""
+
+    def _registry_error(self, status=400, uri="https://registry.npmjs.org/-/npm/v1/security/audits/quick"):
+        return {
+            "message": f"{status} Bad Request - POST {uri} - Bad Request",
+            "method": "POST",
+            "uri": uri,
+            "headers": {},
+            "statusCode": status,
+            "body": {"statusCode": status, "error": "Bad Request", "message": "..."},
+            "error": {"summary": "", "detail": ""},
+        }
+
+    def test_npm_audit_endpoint_http_error_does_not_block(self, tmp_path, monkeypatch):
+        module = _load_module()
+        path = _write(tmp_path, self._registry_error())
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 0
+
+    def test_bulk_endpoint_503_does_not_block(self, tmp_path, monkeypatch):
+        module = _load_module()
+        path = _write(tmp_path, self._registry_error(
+            status=503, uri="https://registry.npmjs.org/-/npm/v1/security/advisories/bulk",
+        ))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 0
+
+    def test_unrelated_schema_without_registry_shape_still_blocks(self, tmp_path, monkeypatch):
+        """The pre-existing regression guard must not regress: a report
+        that merely lacks 'vulnerabilities' (not npm's specific HTTP-error
+        envelope) still fails loudly."""
+        module = _load_module()
+        path = _write(tmp_path, {"totally": "different"})
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 2
+
+    def test_missing_uri_still_blocks(self, tmp_path, monkeypatch):
+        """statusCode alone (no uri) is not enough to match — avoids a
+        narrow bypass via a partially-similar but unrelated payload."""
+        module = _load_module()
+        path = _write(tmp_path, {"statusCode": 400, "method": "POST"})
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 2
+
+    def test_uri_not_pointing_at_npm_registry_still_blocks(self, tmp_path, monkeypatch):
+        module = _load_module()
+        path = _write(tmp_path, self._registry_error(uri="https://evil.example.com/whatever"))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 2
+
+
 class TestSeverityFloor:
     def test_no_vulnerabilities_exits_zero(self, tmp_path, monkeypatch):
         module = _load_module()
