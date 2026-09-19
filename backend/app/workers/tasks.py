@@ -147,6 +147,36 @@ async def deliver_payment_reminders(ctx: dict, *, tenant_id: str, deliveries: li
         return {"job_id": job_id, "delivered": 0, "error": str(exc)}
 
 
+async def send_password_reset_email(ctx: dict, *, user_id: str, email: str, user_name: str) -> dict:
+    """Password reset link delivery, migrated off FastAPI's in-process
+    BackgroundTasks (see _deliver_reset_link_background in auth.py, now
+    the synchronous fallback used only if enqueueing here fails — same
+    national audit Phase 5 pattern as send_welcome_email above).
+
+    Security-sensitive to lose silently: a user who requested a reset and
+    never got the email, with no visible error (forgot-password always
+    returns 200 to prevent enumeration), has no way to know it failed and
+    no way to retry beyond guessing to ask again.
+    """
+    from app.services.account_provisioning import (
+        PasswordSetupDeliveryError,
+        deliver_password_setup_link,
+    )
+
+    job_id = _job_started("send_password_reset_email", None, {"user_id": user_id})
+    try:
+        await deliver_password_setup_link(
+            user_id=user_id, email=email, user_name=user_name,
+            purpose="reset", expires_in=900,
+        )
+        _job_finished(job_id, success=True, result={"sent_to": email})
+        return {"job_id": job_id, "sent": True}
+    except PasswordSetupDeliveryError as exc:
+        logger.error("Password reset link delivery failed for user %s: %s", user_id, exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "sent": False, "error": str(exc)}
+
+
 # ─── WhatsApp Cloud API — async jobs ───────────────────────────────────────
 # Never send WhatsApp inside the HTTP request path — a slow Graph API call
 # (or one blocked by Meta rate limits) must never make a payment/attendance/
@@ -836,6 +866,7 @@ class WorkerSettings:
     functions = [
         send_welcome_email,
         deliver_payment_reminders,
+        send_password_reset_email,
         send_public_form_submission_alert,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,
