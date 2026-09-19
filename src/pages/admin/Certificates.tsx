@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -413,6 +414,53 @@ const Certificates = () => {
     }
   };
 
+  // ── Download real PDF (national-readiness audit, 2026-09) ───────────────────
+  // Unlike generateCertificate() above (client HTML → window.print()), this
+  // hits the WeasyPrint-backed server endpoint and gets back an actual PDF
+  // file — the document a school issues is something the platform can
+  // archive, not just render-and-print on demand (same pattern already
+  // shipped for bulletins, see ReportCards.tsx::downloadBulletinPdf).
+  const downloadCertificatePdf = async () => {
+    if (!selectedStudent) {
+      toast.error(t("certificates.selectStudentError", { student: studentLabel }));
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await apiClient.post(
+        "/school-life/generate-certificate/pdf/",
+        { student_id: selectedStudent.id, certificate_type: certificateType },
+        { responseType: "blob" },
+      );
+      const name = `${selectedStudent.last_name}_${selectedStudent.first_name}`.replace(/\s+/g, "_");
+
+      const url = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Attestation_${certificateType}_${name}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      // responseType "blob" means an error response's body also arrives as
+      // a Blob (even though the server sent JSON) rather than being parsed
+      // for us — read it back out before falling back to a generic message.
+      let detail: string | undefined;
+      if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          detail = JSON.parse(text)?.detail;
+        } catch {
+          // Not JSON (or empty) — fall through to the generic message below.
+        }
+      }
+      toast.error(detail || t("certificates.printWindowError"));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const filteredStudents = students.filter((s) =>
     `${s.first_name} ${s.last_name} ${s.registration_number || ""}`
       .toLowerCase()
@@ -548,14 +596,25 @@ const Certificates = () => {
               </div>
             )}
 
-            <Button
-              onClick={generateCertificate}
-              disabled={!selectedStudent || !enrollment || isLoading}
-              className="w-full"
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              {isLoading ? t("certificates.generating") : t("certificates.generatePrint")}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={generateCertificate}
+                disabled={!selectedStudent || !enrollment || isLoading}
+                className="flex-1"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                {isLoading ? t("certificates.generating") : t("certificates.generatePrint")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={downloadCertificatePdf}
+                disabled={!selectedStudent || !enrollment || isLoading}
+                title="Télécharger un fichier PDF réel (archivable), plutôt que la version imprimable du navigateur"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                PDF
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

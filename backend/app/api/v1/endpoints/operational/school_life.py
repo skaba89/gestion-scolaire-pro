@@ -1215,6 +1215,14 @@ class SmartBatchRequest(BaseModel):
     show_guinea_header: bool = True
 
 
+class CertificateRequest(BaseModel):
+    """Enrollment/attendance/level certificate for one student — see
+    generate_certificate_pdf below (national-readiness audit, 2026-09,
+    priority: second server-side PDF document)."""
+    student_id: str
+    certificate_type: str = "enrollment"  # "enrollment" | "attendance" | "level"
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _grade_mention_v2(avg: float) -> str:
@@ -1245,13 +1253,15 @@ def _fetch_student_data(db, student_id: str, tenant_id: str) -> dict:
     # Student
     s_row = db.execute(text("""
         SELECT first_name, last_name, registration_number,
-               date_of_birth, gender
+               date_of_birth, gender, level, class_name, academic_year
         FROM students WHERE id = :sid AND tenant_id = :tid
     """), {"sid": student_id, "tid": tenant_id}).mappings().first()
 
     # Tenant
     t_row = db.execute(text("""
-        SELECT name, address, phone, email, settings
+        SELECT name, address, phone, email, settings, city,
+               director_name, director_signature_url,
+               secretary_name, secretary_signature_url
         FROM tenants WHERE id = :tid
     """), {"tid": tenant_id}).mappings().first()
 
@@ -2169,6 +2179,262 @@ def generate_report_card_pdf(
         raise
     except Exception as exc:
         logger.error("generate-report-card/pdf error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF")
+
+
+# ── Certificates (enrollment / attendance / level) ─────────────────────────────
+#
+# national-readiness audit, 2026-09: the only certificate generator in the
+# product was Certificates.tsx (admin UI) — pure client-side HTML handed to
+# window.print(), the same "not a real file" problem the bulletin had
+# before generate-report-card/pdf/ (P1-1). This is the second official
+# document moved to a real, server-generated PDF (WeasyPrint), so it can be
+# archived/hashed/handed to a batch job the same way. The wording below
+# mirrors Certificates.tsx's three certificate types verbatim so switching
+# a school over doesn't change what the document says.
+
+_CERTIFICATE_TITLES = {
+    "enrollment": "Attestation de scolarité",
+    "attendance": "Attestation de fréquentation",
+    "level": "Attestation de niveau",
+}
+
+
+def _fetch_current_enrollment(db: Session, student_id: str, tenant_id: str) -> Optional[dict]:
+    """Current-year classroom/level for one student, same "current academic
+    year" notion Certificates.tsx uses client-side (academic_years.is_current)."""
+    row = db.execute(text("""
+        SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
+        FROM enrollments e
+        JOIN classes c ON e.class_id = c.id
+        LEFT JOIN levels l ON c.level_id = l.id
+        JOIN academic_years ay ON e.academic_year_id = ay.id
+        WHERE e.student_id = :sid AND e.tenant_id = :tid AND ay.is_current = true
+        ORDER BY e.enrollment_date DESC
+        LIMIT 1
+    """), {"sid": student_id, "tid": tenant_id}).mappings().first()
+    return dict(row) if row else None
+
+
+def _build_certificate_html(
+    *,
+    certificate_type: str,
+    school_name: str,
+    school_address: str = "",
+    school_phone: str = "",
+    school_email: str = "",
+    school_logo_url: str = "",
+    school_city: str = "",
+    director_name: str = "",
+    director_signature_url: str = "",
+    secretary_name: str = "",
+    secretary_signature_url: str = "",
+    student_name: str,
+    registration_number: str = "",
+    date_of_birth: str = "",
+    class_name: str = "",
+    level_name: str = "",
+    academic_year: str = "",
+) -> str:
+    """Same document Certificates.tsx renders client-side for
+    window.print() — ported here so it can also be produced as a real PDF
+    server-side. Every interpolated value is escaped: tenant/director/
+    secretary fields and student names are user-editable data, not
+    trusted markup."""
+    esc = html_mod.escape
+    title = _CERTIFICATE_TITLES.get(certificate_type, _CERTIFICATE_TITLES["enrollment"])
+    today = datetime.now().strftime("%d %B %Y")
+
+    class_display = f"{class_name} ({level_name})" if class_name and level_name else (class_name or level_name or "")
+
+    content_by_type = {
+        "enrollment": f"est régulièrement inscrit(e) dans notre établissement pour l'année académique {esc(academic_year)} en classe de {esc(class_display)}.",
+        "attendance": f"est régulièrement scolarisé(e) dans notre établissement au titre de l'année académique {esc(academic_year)}. Il/Elle est actuellement en classe de {esc(class_display)}.",
+        "level": f"a atteint le niveau {esc(level_name or class_name)} au cours de l'année académique {esc(academic_year)} dans notre établissement.",
+    }
+    body_text = content_by_type.get(certificate_type, content_by_type["enrollment"])
+
+    logo_html = f'<img src="{esc(school_logo_url)}" alt="Logo" style="width:60px;height:60px;margin:0 auto 8px;display:block;" />' if school_logo_url else ""
+
+    school_info_parts = [p for p in [
+        esc(school_address) if school_address else "",
+        f"Tél : {esc(school_phone)}" if school_phone else "",
+        esc(school_email) if school_email else "",
+    ] if p]
+    school_info_html = " &nbsp;|&nbsp; ".join(school_info_parts)
+
+    director_sig_html = (
+        f'<img src="{esc(director_signature_url)}" alt="Signature" style="height:50px;max-width:150px;object-fit:contain;margin:5px auto;display:block;" />'
+        if director_signature_url else
+        '<div style="height:50px;border-bottom:1px solid #333;margin:5px auto;width:120px;"></div>'
+    )
+    secretary_sig_html = (
+        f'<img src="{esc(secretary_signature_url)}" alt="Signature" style="height:50px;max-width:150px;object-fit:contain;margin:5px auto;display:block;" />'
+        if secretary_signature_url else
+        '<div style="height:50px;border-bottom:1px solid #333;margin:5px auto;width:120px;"></div>'
+    )
+
+    return f"""
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+    <meta charset="UTF-8">
+    <title>{esc(title)}</title>
+    <style>
+      @page {{ size: A4; margin: 15mm; }}
+      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+      body {{ font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; color: #333; }}
+      .header {{ text-align: center; border-bottom: 2px double #1a365d; padding-bottom: 12px; margin-bottom: 15px; }}
+      .school-name {{ font-size: 18pt; font-weight: bold; color: #1a365d; margin-bottom: 4px; }}
+      .school-info {{ font-size: 9pt; color: #666; line-height: 1.3; }}
+      .title {{ text-align: center; font-size: 16pt; font-weight: bold; text-transform: uppercase; letter-spacing: 3px; margin: 20px 0; color: #1a365d; text-decoration: underline; text-underline-offset: 6px; }}
+      .content {{ text-align: justify; padding: 0 15px; }}
+      .content p {{ margin-bottom: 12px; }}
+      .student-info {{ text-align: center; margin: 15px 0; padding: 10px; background: linear-gradient(180deg, transparent 40%, #fef3c7 40%); }}
+      .student-name {{ font-weight: bold; font-size: 14pt; text-transform: uppercase; color: #1a365d; }}
+      .details {{ margin: 10px 0; padding: 8px 15px; background: #f8f9fa; border-radius: 4px; font-size: 11pt; }}
+      .purpose {{ font-style: italic; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #ccc; }}
+      .footer {{ margin-top: 40px; }}
+      .date-location {{ text-align: right; margin-bottom: 20px; font-size: 11pt; }}
+      .signatures {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }}
+      .signature-block {{ text-align: center; min-width: 180px; }}
+      .signature-title {{ font-weight: bold; font-size: 10pt; margin-bottom: 5px; color: #1a365d; }}
+      .signature-name {{ font-size: 10pt; font-weight: 500; }}
+      .stamp-area {{ border: 1.5px dashed #999; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 8pt; border-radius: 50%; margin: 0 auto; }}
+      .ref-number {{ font-size: 8pt; color: #888; text-align: center; margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; }}
+    </style>
+    </head>
+    <body>
+      <div class="header">
+        {logo_html}
+        <div class="school-name">{esc(school_name)}</div>
+        <div class="school-info">{school_info_html}</div>
+      </div>
+
+      <div class="title">{esc(title)}</div>
+
+      <div class="content">
+        <p>Je soussigné(e), <strong>{esc(director_name or "Le/La Directeur(trice)")}</strong>, Directeur/Directrice de l'établissement <strong>{esc(school_name)}</strong>, atteste par la présente que :</p>
+
+        <div class="student-info"><span class="student-name">{esc(student_name)}</span></div>
+
+        <div class="details">
+          <strong>Date de naissance :</strong> {esc(date_of_birth or "Non renseignée")}<br>
+          {f"<strong>N° Enregistrement :</strong> {esc(registration_number)}" if registration_number else ""}
+        </div>
+
+        <p>{body_text}</p>
+
+        <p class="purpose">En foi de quoi, la présente attestation est délivrée à l'intéressé(e) pour servir et valoir ce que de droit.</p>
+      </div>
+
+      <div class="footer">
+        <div class="date-location">Fait à {esc(school_city or "_______________")}, le {esc(today)}</div>
+
+        <div class="signatures">
+          <div class="signature-block">
+            <div class="signature-title">Le/La Secrétaire Général(e)</div>
+            {secretary_sig_html}
+            <div class="signature-name">{esc(secretary_name or "Le/La Secrétaire Général(e)")}</div>
+          </div>
+          <div class="stamp-area">Cachet</div>
+          <div class="signature-block">
+            <div class="signature-title">Le/La Directeur(trice)</div>
+            {director_sig_html}
+            <div class="signature-name">{esc(director_name or "Le/La Directeur(trice)")}</div>
+          </div>
+        </div>
+
+        <div class="ref-number">Document généré électroniquement — validité vérifiable auprès de l'établissement</div>
+      </div>
+    </body>
+    </html>
+    """
+
+
+@router.post("/generate-certificate/pdf/")
+def generate_certificate_pdf(
+    request: Request,
+    body: CertificateRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("students:read")),
+):
+    """
+    POST /school-life/generate-certificate/pdf/
+
+    Server-side PDF for the enrollment/attendance/level certificate
+    (national-readiness audit, 2026-09) — second official document moved
+    off the client-only window.print() path, same WeasyPrint approach as
+    generate-report-card/pdf/ above.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+
+    if body.certificate_type not in _CERTIFICATE_TITLES:
+        raise HTTPException(status_code=400, detail="Type d'attestation invalide")
+
+    # SECURITY: "students:read" is also granted to PARENT/ALUMNI — without
+    # this, any parent could pull ANY student's certificate in the tenant
+    # by guessing/enumerating student_id, not just their own child's. Same
+    # ownership rule already proven for the report card endpoints above
+    # (the function's name predates this second use; the check itself is
+    # generic to "does this caller own this student record").
+    _authorize_report_card_access(current_user, db, tenant_id, body.student_id)
+
+    try:
+        info = _fetch_student_data(db, body.student_id, tenant_id)
+        s, t = info["student"], info["tenant"]
+        if not s:
+            raise HTTPException(status_code=404, detail="Élève introuvable")
+
+        enrollment = _fetch_current_enrollment(db, body.student_id, tenant_id) or {}
+
+        dob = s.get("date_of_birth")
+        dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
+        student_name = f"{s.get('last_name', '')} {s.get('first_name', '')}".strip()
+
+        settings: dict = {}
+        if t and t.get("settings"):
+            raw = t["settings"]
+            settings = raw if isinstance(raw, dict) else {}
+
+        html_content = _build_certificate_html(
+            certificate_type=body.certificate_type,
+            school_name=t["name"] if t else "École",
+            school_address=(t.get("address") or "") if t else "",
+            school_phone=(t.get("phone") or "") if t else "",
+            school_email=(t.get("email") or "") if t else "",
+            school_logo_url=settings.get("logoUrl", ""),
+            school_city=(t.get("city") or "") if t else "",
+            director_name=(t.get("director_name") or "") if t else "",
+            director_signature_url=(t.get("director_signature_url") or "") if t else "",
+            secretary_name=(t.get("secretary_name") or "") if t else "",
+            secretary_signature_url=(t.get("secretary_signature_url") or "") if t else "",
+            student_name=student_name,
+            registration_number=s.get("registration_number") or "",
+            date_of_birth=dob_str,
+            class_name=enrollment.get("class_name") or s.get("class_name") or "",
+            level_name=enrollment.get("level_name") or s.get("level") or "",
+            academic_year=enrollment.get("year_name") or s.get("academic_year") or "",
+        )
+
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html_content).write_pdf()
+
+        safe_name = re.sub(r"[^\w\-]+", "_", student_name or "attestation")
+        filename = f"Attestation_{safe_name}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("generate-certificate/pdf error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF")
 
 
