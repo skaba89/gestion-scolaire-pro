@@ -17,6 +17,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from app.workers.tasks import (
     _job_finished, _job_started, deliver_payment_reminders,
+    generate_report_cards_batch_job,
     import_parents_job, import_students_job, import_teachers_job,
     send_password_reset_email, send_welcome_email,
 )
@@ -530,6 +531,89 @@ class TestImportTeachersJobTask:
             {}, job_id=job_id, tenant_id=tenant_id,
             headers=["prenom", "nom", "email"], rows=[{"prenom": "A", "nom": "B", "email": "a@b.com"}],
             skip_errors=False, user_id="u1", filename="x.csv",
+        )
+
+        assert "error" in result
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            assert job.status == "FAILED"
+
+
+class TestGenerateReportCardsBatchJobTask:
+    """generate_report_cards_batch_job — national-readiness audit,
+    2026-09: last remaining synchronous endpoint (P0-2), moved off the
+    request path the same way CSV imports were. Full behavioral coverage
+    (weighted averages, ranking, exclusion of other classes) lives in
+    test_school_life.py::TestGenerateBatchReportCards — this only pins
+    the job-status wiring (success/failure paths update the `jobs` row)."""
+
+    def _make_tenant_class_term_student(self):
+        from datetime import date
+        from app.models.academic_year import AcademicYear
+        from app.models.classroom import Classroom
+        from app.models.enrollment import Enrollment
+        from app.models.term import Term
+
+        tenant_id = _make_tenant()
+        year_id = str(uuid.uuid4())
+        class_id = str(uuid.uuid4())
+        term_id = str(uuid.uuid4())
+        student_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(AcademicYear(
+                id=year_id, tenant_id=tenant_id, name="2026-2027", code="2026-2027",
+                start_date=date(2026, 9, 1), end_date=date(2027, 6, 30), is_current=True,
+            ))
+            db.commit()
+            db.add(Classroom(id=class_id, tenant_id=tenant_id, name="Terminale A", academic_year_id=year_id))
+            db.commit()
+            db.add(Term(
+                id=term_id, tenant_id=tenant_id, academic_year_id=year_id,
+                name="Semestre 1", start_date=date(2026, 9, 1), end_date=date(2027, 1, 31),
+                sequence_number=1, is_active=True,
+            ))
+            db.add(Student(
+                id=student_id, tenant_id=tenant_id, registration_number=f"REG-{student_id[:8]}",
+                first_name="Ibrahima", last_name="Bah",
+                date_of_birth=date(2010, 1, 1), gender=Gender.MALE, status=StudentStatus.ACTIVE,
+            ))
+            db.commit()
+            db.add(Enrollment(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, student_id=student_id,
+                class_id=class_id, academic_year_id=year_id, status="ACTIVE",
+            ))
+            db.commit()
+        return tenant_id, class_id, term_id
+
+    @pytest.mark.asyncio
+    async def test_success_path_marks_job_success(self):
+        tenant_id, class_id, term_id = self._make_tenant_class_term_student()
+        job_id = _job_started("generate_report_cards_batch", tenant_id, {"classroom_id": class_id})
+
+        result = await generate_report_cards_batch_job(
+            {}, job_id=job_id, tenant_id=tenant_id, classroom_id=class_id, term_id=term_id,
+            director_comment="", decision="", show_guinea_header=True,
+        )
+
+        assert result["count"] == 1
+        assert "html" in result
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            assert job.status == "SUCCESS"
+            assert job.result["count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_no_active_enrollments_marks_job_failed_not_raised(self):
+        """The 404 the sync endpoint raises directly becomes a FAILED job
+        here — the task must never propagate an unhandled exception to
+        the Arq worker loop."""
+        tenant_id = _make_tenant()
+        job_id = _job_started("generate_report_cards_batch", tenant_id, {"classroom_id": "none"})
+
+        result = await generate_report_cards_batch_job(
+            {}, job_id=job_id, tenant_id=tenant_id,
+            classroom_id=str(uuid.uuid4()), term_id=str(uuid.uuid4()),
+            director_comment="", decision="", show_guinea_header=True,
         )
 
         assert "error" in result

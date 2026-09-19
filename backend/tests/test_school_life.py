@@ -187,7 +187,43 @@ class TestGenerateBatchReportCards:
     existait) — ces tests exercent le chemin batché de bout en bout,
     avec deux élèves aux notes/coefficients différents pour distinguer
     une vraie moyenne pondérée d'une moyenne plate, et verrouillent le
-    classement + les absences par élève."""
+    classement + les absences par élève.
+
+    national-readiness audit, 2026-09: this endpoint now follows the
+    async "polling" pattern (docs/ASYNC_JOBS_GUIDE.md) — it returns
+    {"job_id": ...} instead of the result inline. _confirm() below posts
+    and polls GET /school-life/jobs/{job_id}/ once. The autouse fixture
+    forces the synchronous fallback deterministically: the CI Postgres
+    job has a real reachable Redis with no Arq worker consuming it (same
+    flake already hit and fixed for CSV imports in test_imports.py), so a
+    job that actually got enqueued would sit at RUNNING forever."""
+
+    @pytest.fixture(autouse=True)
+    def _force_sync_fallback(self, monkeypatch):
+        from app.api.v1.endpoints.operational import school_life as school_life_module
+
+        async def _fail(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(school_life_module, "enqueue_job", _fail)
+
+    def _confirm(self, payload: dict, headers: dict):
+        """POST the batch request, then poll the job once for its result.
+        Returns (post_response, result_dict_or_None) — result is None if
+        the POST itself didn't return 200 (e.g. a 404 raised synchronously
+        for a class with no active enrollments)."""
+        resp = client.post(
+            "/api/v1/school-life/generate-report-cards/batch/",
+            json=payload, headers=headers,
+        )
+        if resp.status_code != 200:
+            return resp, None
+        job_id = resp.json()["job_id"]
+        job_resp = client.get(f"/api/v1/school-life/jobs/{job_id}/", headers=headers)
+        assert job_resp.status_code == 200, job_resp.text
+        job_body = job_resp.json()
+        assert job_body["status"] == "SUCCESS", job_body
+        return resp, job_body["result"]
 
     def _make_tenant_and_class(self):
         from app.models.academic_year import AcademicYear
@@ -302,15 +338,12 @@ class TestGenerateBatchReportCards:
         )
 
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
-        resp = client.post(
-            "/api/v1/school-life/generate-report-cards/batch/",
-            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
-            headers=headers,
+        resp, result = self._confirm(
+            {"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]}, headers,
         )
 
         assert resp.status_code == 200, resp.text
-        body = resp.json()
-        html = base64.b64decode(body["html"]).decode("utf-8")
+        html = base64.b64decode(result["html"]).decode("utf-8")
 
         # Both students' bulletins present, in last-name order (Bah before Camara)
         assert html.index("Ibrahima Bah") < html.index("Fatoumata Camara")
@@ -341,24 +374,20 @@ class TestGenerateBatchReportCards:
         )
 
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
-        resp = client.post(
-            "/api/v1/school-life/generate-report-cards/batch/",
-            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
-            headers=headers,
+        resp, result = self._confirm(
+            {"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]}, headers,
         )
 
         assert resp.status_code == 200, resp.text
-        html = base64.b64decode(resp.json()["html"]).decode("utf-8")
+        html = base64.b64decode(result["html"]).decode("utf-8")
         assert "Ibrahima Bah" in html
         assert "Zainab Sylla" not in html
 
     def test_404_for_a_class_with_no_active_enrollments(self):
         ctx = self._make_tenant_and_class()
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
-        resp = client.post(
-            "/api/v1/school-life/generate-report-cards/batch/",
-            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
-            headers=headers,
+        resp, _result = self._confirm(
+            {"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]}, headers,
         )
         assert resp.status_code == 404
 
@@ -381,10 +410,8 @@ class TestGenerateBatchReportCards:
         )
 
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
-        resp = client.post(
-            "/api/v1/school-life/generate-report-cards/batch/",
-            json={"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]},
-            headers=headers,
+        resp, result = self._confirm(
+            {"classroom_id": ctx["class_id"], "term_id": ctx["term_id"]}, headers,
         )
         assert resp.status_code == 200, resp.text
 
@@ -395,7 +422,7 @@ class TestGenerateBatchReportCards:
         assert expected_rank == 1
         assert expected_total == 2
 
-        html = base64.b64decode(resp.json()["html"]).decode("utf-8")
+        html = base64.b64decode(result["html"]).decode("utf-8")
         assert "Aissatou Toure" in html
         toure_section_start = html.index("Aissatou Toure")
         toure_section = html[toure_section_start:toure_section_start + 3000]
