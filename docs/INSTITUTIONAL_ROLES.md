@@ -32,13 +32,26 @@ du périmètre du renforcement MFA fait pour `MINISTRY_ADMIN`.
 | **MFA** | **Corrigé le même jour que cette note** — ces trois rôles étaient absents de `PRIVILEGED_ROLES_REQUIRING_MFA` (`app/api/v1/endpoints/core/auth.py`) à cause de cette doc obsolète les déclarant inexistants. Ajoutés (voir `test_mfa_enforcement.py`). |
 | **Tests** | `backend/tests/test_ministry.py` couvre le narrowing par scope et le cas "scope vide → aucun établissement visible". |
 
+### `NATIONAL_INSPECTOR`
+
+| | |
+|---|---|
+| **Portée** | Plateforme (`tenant_id = NULL` sur la ligne `user_roles`), même forme que `MINISTRY_ADMIN`. |
+| **Permissions backend** | `ministry:read` uniquement (`backend/app/core/security.py`, `ROLE_PERMISSIONS`) — même permission que `MINISTRY_ADMIN`, distinction d'intention (audit/inspection plutôt qu'administration) sans distinction d'accès à ce stade. |
+| **Endpoint** | Mêmes endpoints que `MINISTRY_ADMIN` (`GET /ministry/overview/`, `GET /ministry/overview/export/`) — visibilité nationale complète, jamais narrowé (`_institutional_scope()` dans `ministry.py` le traite comme platform-level, au même titre que `SUPER_ADMIN`/`MINISTRY_ADMIN`). |
+| **Middleware tenant** | Exempté de l'obligation `tenant_id` dans le JWT (`backend/app/middlewares/tenant.py`), même bypass que `MINISTRY_ADMIN`. |
+| **Révocation de token** | Inclus dans `PRIVILEGED_ROLES` (`app/core/security.py`) — refus 503 (fail-closed) si Redis/blacklist est injoignable. |
+| **MFA** | Ajouté à `PRIVILEGED_ROLES_REQUIRING_MFA` (`app/api/v1/endpoints/core/auth.py`) **dans le même changement** qui introduit le rôle — pas en correctif après coup, précisément pour éviter de répéter le trou laissé par la doc obsolète pour `MINISTRY_ADMIN`/`REGIONAL_DIRECTOR`/`PREFECTURE_ADMIN`/`COMMUNE_ADMIN` ci-dessus. |
+| **Frontend** | Type `NATIONAL_INSPECTOR` ajouté à `AppRole` (`src/lib/types.ts`). Pas de page dédiée. |
+| **Tests** | `backend/tests/test_ministry.py` (accès accordé, visibilité nationale non narrowée) et `backend/tests/test_mfa_enforcement.py`/`test_auth_revocation_fail_closed.py` (MFA obligatoire, fail-closed sur panne Redis). |
+
 ### Modèle : `Tenant.region` / `Tenant.prefecture` / `Tenant.commune`
 
 Colonnes texte libre nullables (`backend/app/models/tenant.py`, migrations `20260724_0003` et `20260727_0001`) — permettent le groupement/narrowing sans construire toute la hiérarchie Pays/Région/Préfecture/Commune/Académie. Volontairement pas un enum ni une table séparée : chaque pays a ses propres régions administratives, et une liste figée bloquerait l'onboarding du premier tenant hors Guinée.
 
 ## Pas encore implémenté (différé)
 
-- `NATIONAL_INSPECTOR`, `UNIVERSITY_RECTOR` — aucun de ces rôles n'existe encore en base ni dans `ROLE_PERMISSIONS`. À ajouter un par un, avec le même niveau de rigueur (permission dédiée, endpoint scopé, middleware si nécessaire, tests, MFA si le rôle est institutionnel/privilégié, mise à jour de ce document) — jamais tous en même temps. **Leçon de la correction ci-dessus : la mise à jour de ce document au moment même où le rôle est ajouté au code n'est pas optionnelle — un rôle "oublié" ici a directement empêché son inclusion dans le renforcement MFA fait pour un rôle voisin.**
+- `UNIVERSITY_RECTOR` — n'existe pas encore en base ni dans `ROLE_PERMISSIONS`. À ajouter avec le même niveau de rigueur que `NATIONAL_INSPECTOR` ci-dessus (permission dédiée, endpoint scopé, middleware si nécessaire, tests, MFA si le rôle est institutionnel/privilégié, mise à jour de ce document) — jamais tous en même temps. **Leçon de la correction plus haut : la mise à jour de ce document au moment même où le rôle est ajouté au code n'est pas optionnelle — un rôle "oublié" ici a directement empêché son inclusion dans le renforcement MFA fait pour un rôle voisin.**
 - Hiérarchie complète Pays/Région/Préfecture/Commune/Académie/DPE-DCE comme entités à part entière (tables dédiées, relations) — les colonnes texte libre actuelles sont une étape minimale, pas la structure finale.
 
 ## Découverte importante pendant ce travail

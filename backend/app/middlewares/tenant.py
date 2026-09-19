@@ -182,11 +182,13 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         # Platform-level roles bypass: no tenant required. SUPER_ADMIN can
         # still target a specific tenant via X-Tenant-ID (above). MINISTRY_ADMIN
-        # (national audit Phase 2) never targets a specific tenant at all — it
-        # only ever reaches cross-tenant AGGREGATE endpoints (ministry.py),
-        # gated separately by require_permission("ministry:read"); this
-        # middleware bypass alone grants no additional access.
-        if ("SUPER_ADMIN" in user_roles or "MINISTRY_ADMIN" in user_roles) and not tenant_id:
+        # (national audit Phase 2) and NATIONAL_INSPECTOR (national-readiness
+        # audit, 2026-09 — same platform-level shape) never target a specific
+        # tenant at all — they only ever reach cross-tenant AGGREGATE
+        # endpoints (ministry.py), gated separately by
+        # require_permission("ministry:read"); this middleware bypass alone
+        # grants no additional access.
+        if ({"SUPER_ADMIN", "MINISTRY_ADMIN", "NATIONAL_INSPECTOR"} & set(user_roles)) and not tenant_id:
             return await call_next(request)
 
         if not tenant_id:

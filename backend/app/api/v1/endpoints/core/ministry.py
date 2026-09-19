@@ -62,7 +62,10 @@ def _institutional_scope(request: Request, db: Session, current_user: dict) -> t
     its own scope just because that scope isn't configured yet).
     """
     roles = set(current_user.get("roles") or [])
-    if roles & {"SUPER_ADMIN", "MINISTRY_ADMIN"}:
+    # NATIONAL_INSPECTOR added here when the role itself was introduced
+    # (national-readiness audit, 2026-09) — same platform-level shape as
+    # MINISTRY_ADMIN (tenant_id NULL), full national visibility.
+    if roles & {"SUPER_ADMIN", "MINISTRY_ADMIN", "NATIONAL_INSPECTOR"}:
         return None  # platform-level always wins — full visibility
 
     for role, field in _SCOPE_ROLES:
