@@ -177,6 +177,67 @@ async def send_password_reset_email(ctx: dict, *, user_id: str, email: str, user
         return {"job_id": job_id, "sent": False, "error": str(exc)}
 
 
+async def import_students_job(
+    ctx: dict, *, job_id: str, tenant_id: str, headers: list, rows: list,
+    skip_errors: bool, default_academic_year: str, user_id: str, filename: str,
+) -> dict:
+    """Bulk student CSV import (national-readiness audit, 2026-09,
+    priority 5 — "finish migrating BackgroundTasks to Arq"). Moved off the
+    synchronous request path: a CSV of "thousands of students" (the
+    original audit's own words) used to block the HTTP request for as
+    long as the whole file took to process, with no way to recover if the
+    connection dropped partway through.
+
+    Unlike this file's other tasks, the `jobs` row is created by the
+    CALLER (confirm_student_import in imports.py) before enqueueing, not
+    by this task with _job_started() — the endpoint needs a job_id to
+    return immediately for polling, before Arq has even picked the job up.
+
+    Does not re-raise on failure: retrying a partially-completed import
+    would re-run the whole file, and rows without an explicit
+    registration_number get a freshly generated one on every attempt —
+    a retry after a partial failure would duplicate those. Safer to fail
+    once, visibly (job.status == "FAILED"), than to let Arq's default
+    retry silently create duplicate students.
+    """
+    from app.services.student_import import run_student_import
+    from app.utils.audit import log_audit
+
+    with SessionLocal() as db:
+        try:
+            outcome = run_student_import(
+                db, tenant_id, headers, rows,
+                skip_errors=skip_errors, default_academic_year=default_academic_year,
+            )
+            # SECURITY (Phase 2, commercialisation): same audit-trail
+            # requirement as every other data-mutating endpoint — see the
+            # matching log_audit() call in imports.py's synchronous
+            # fallback path.
+            log_audit(
+                db, user_id=user_id, tenant_id=tenant_id,
+                action="IMPORT_STUDENTS", resource_type="STUDENT",
+                details={
+                    "created": outcome["created"], "skipped": outcome["skipped"],
+                    "total": len(rows), "filename": filename,
+                },
+            )
+            db.commit()
+            result = {
+                "created": outcome["created"],
+                "skipped": outcome["skipped"],
+                "errors": outcome["error_rows"][:20],
+                "total": len(rows),
+                "message": f"{outcome['created']} élève(s) importé(s), {outcome['skipped']} ignoré(s)",
+            }
+            _job_finished(job_id, success=True, result=result)
+            return result
+        except Exception as exc:
+            db.rollback()
+            logger.error("import_students_job failed for tenant %s: %s", tenant_id, exc)
+            _job_finished(job_id, success=False, error=str(exc))
+            return {"job_id": job_id, "error": str(exc)}
+
+
 # ─── WhatsApp Cloud API — async jobs ───────────────────────────────────────
 # Never send WhatsApp inside the HTTP request path — a slow Graph API call
 # (or one blocked by Meta rate limits) must never make a payment/attendance/
@@ -867,6 +928,7 @@ class WorkerSettings:
         send_welcome_email,
         deliver_payment_reminders,
         send_password_reset_email,
+        import_students_job,
         send_public_form_submission_alert,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,

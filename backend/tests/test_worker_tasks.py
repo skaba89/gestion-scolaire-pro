@@ -10,12 +10,13 @@ from conftest import get_test_client
 
 client = get_test_client()
 
-from app.core.database import SessionLocal  # noqa: E402
+from app.core.database import SessionLocal, engine  # noqa: E402
 from app.models.job import Job
+from app.models.student import Student
 from app.models.tenant import Tenant
 from app.workers.tasks import (
     _job_finished, _job_started, deliver_payment_reminders,
-    send_password_reset_email, send_welcome_email,
+    import_students_job, send_password_reset_email, send_welcome_email,
 )
 
 
@@ -356,4 +357,67 @@ class TestSendPasswordResetEmailTask:
         assert "Redis unavailable" in result["error"]
         with SessionLocal() as db:
             job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job.status == "FAILED"
+
+
+@pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="import_students_job's INSERT uses gen_random_uuid() (Postgres-only), "
+           "same constraint as confirm_student_import in imports.py.",
+)
+class TestImportStudentsJobTask:
+    """import_students_job — national-readiness audit, 2026-09, priority 5:
+    the student CSV import moved off the synchronous request path (see
+    confirm_student_import in imports.py, now the fallback used only if
+    enqueueing here fails). Unlike this file's other tasks, the `jobs` row
+    already exists (created by the endpoint, so it can return a job_id for
+    polling before Arq even picks the job up) — the task updates it rather
+    than creating its own via _job_started()."""
+
+    @pytest.mark.asyncio
+    async def test_success_path_creates_students_and_marks_job_success(self):
+        tenant_id = _make_tenant()
+        job_id = _job_started("import_students", tenant_id, {"filename": "x.csv"})
+
+        result = await import_students_job(
+            {}, job_id=job_id, tenant_id=tenant_id,
+            headers=["prenom", "nom", "date_naissance"],
+            rows=[{"prenom": "Mamadou", "nom": "Diallo", "date_naissance": "2010-01-01"}],
+            skip_errors=False, default_academic_year="", user_id="u1", filename="x.csv",
+        )
+
+        assert result["created"] == 1
+        assert result["skipped"] == 0
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            assert job.status == "SUCCESS"
+            assert job.result["created"] == 1
+            count = db.query(Student).filter(Student.tenant_id == tenant_id).count()
+            assert count == 1
+
+    @pytest.mark.asyncio
+    async def test_failure_does_not_raise_and_marks_job_failed(self, monkeypatch):
+        """Must never re-raise: Arq's default retry on this job type would
+        re-run the whole file, and rows without an explicit
+        registration_number get a freshly generated one on every attempt —
+        a retry after a partial failure would duplicate those students."""
+        tenant_id = _make_tenant()
+        job_id = _job_started("import_students", tenant_id, {"filename": "x.csv"})
+
+        def _raise(*args, **kwargs):
+            raise RuntimeError("DB unavailable (simulated)")
+
+        monkeypatch.setattr(
+            "app.services.student_import.run_student_import", _raise,
+        )
+
+        result = await import_students_job(
+            {}, job_id=job_id, tenant_id=tenant_id,
+            headers=["prenom", "nom"], rows=[{"prenom": "A", "nom": "B"}],
+            skip_errors=False, default_academic_year="", user_id="u1", filename="x.csv",
+        )
+
+        assert "error" in result
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
             assert job.status == "FAILED"

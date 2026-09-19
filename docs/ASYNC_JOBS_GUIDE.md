@@ -50,6 +50,42 @@ if job_id is None:
 3. Depuis l'endpoint : `job_id = await enqueue_job("generer_bulletin_masse", tenant_id=..., classe_id=...)`, avec un filet de sécurité si `job_id is None` (dégrader gracieusement plutôt que planter — synchrone en dernier recours si l'opération est critique, ou renvoyer un message "réessayez plus tard" si elle ne l'est pas).
 4. Tester : voir `backend/tests/test_async_jobs.py` pour le pattern (échec ouvert + succès de bout en bout).
 
+## Le pattern "polling" (quand l'appelant a besoin du résultat)
+
+Les tâches ci-dessus (email, WhatsApp, relances) sont "fire-and-forget" —
+l'appelant n'a pas besoin de savoir quand elles se terminent. Un import
+CSV est différent : la personne qui a lancé l'import veut voir "142
+élèves importés, 3 lignes en erreur" dans l'interface. Pattern retenu
+(voir `import_students_job` dans `app/workers/tasks.py` et
+`confirm_student_import`/`get_import_job_status` dans
+`app/api/v1/endpoints/core/imports.py`) :
+
+1. L'endpoint crée la ligne `jobs` **lui-même**, via `_job_started(...)`,
+   *avant* d'enfiler la tâche — pour pouvoir renvoyer `job_id` tout de
+   suite, avant même que le worker ait pu s'en saisir.
+2. Il enfile la tâche en lui passant ce `job_id` déjà créé.
+3. La tâche ne rappelle PAS `_job_started()` (elle recréerait une seconde
+   ligne) — elle traite, puis appelle `_job_finished(job_id, ...)` sur la
+   ligne existante.
+4. Si `enqueue_job()` échoue (Redis injoignable), l'endpoint exécute la
+   même logique **de façon synchrone**, dans la requête, avec le même
+   `job_id` — et renvoie quand même `{"job_id": ...}`. Le premier appel du
+   frontend à `GET /import/jobs/{job_id}/` verra alors directement le
+   statut final (`SUCCESS`/`FAILED`), sans jamais avoir eu besoin de
+   savoir si la file était disponible ou non.
+5. Un nouvel endpoint `GET /.../jobs/{job_id}/` renvoie `{status, result,
+   error, ...}`, scopé au tenant de l'appelant (404 si le job appartient à
+   un autre établissement).
+6. Le frontend poll cet endpoint toutes les ~1s jusqu'à `SUCCESS`/`FAILED`.
+
+**Ne jamais laisser Arq retenter ce genre de tâche** : un import CSV
+partiellement traité qui repart de zéro va dupliquer les lignes sans
+matricule fourni (un nouveau matricule est généré à chaque tentative). La
+tâche attrape ses propres exceptions, appelle `_job_finished(..., success=False)`
+et **ne relance pas** l'exception — contrairement à l'exemple `raise` du
+paragraphe précédent, qui convient aux tâches idempotentes (un envoi
+d'email raté peut sans risque être retenté).
+
 ## Lancer le worker en local (hors Docker)
 
 ```bash
@@ -62,7 +98,8 @@ python -m arq app.workers.tasks.WorkerSettings --burst
 ## Ce qui n'est PAS fait dans cette passe
 
 Volontairement laissé pour des PR dédiées ultérieures (voir `docs/NATIONAL_AUDIT_PHASE0.md`, Phase 5) :
-- Migration des exports Excel/PDF, imports CSV, rapports ministère, relances de paiement.
-- Génération de bulletins PDF côté serveur (actuellement uniquement côté navigateur — voir P1-1 de l'audit).
-- Dashboard de supervision des jobs dans l'interface admin (aujourd'hui, la table `jobs` est consultable en base uniquement).
+- **Fait (national-readiness audit, 2026-09, priorité 5)** : import CSV élèves (`confirm_student_import`) — premier exemple du pattern polling ci-dessus.
+- Import CSV parents/enseignants, exports Excel/PDF, rapports ministère — même pattern, pas encore appliqué (un import à la fois).
+- Génération de bulletins PDF côté serveur — un vrai fichier PDF existe maintenant (`generate-report-card/pdf/`, WeasyPrint), mais la génération elle-même reste synchrone dans la requête ; la génération en masse (`generate-report-cards/batch/`) l'est aussi.
+- Dashboard de supervision des jobs dans l'interface admin (aujourd'hui, la table `jobs` est consultable en base, ou via `GET /import/jobs/{job_id}/` pour un job précis).
 - Notifications de fin de traitement (email/push quand un job long se termine).
