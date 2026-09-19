@@ -4,6 +4,15 @@ Réutilise TEACHER_COLUMN_MAP (déjà présent dans imports.py, jusque-là mort
 -- aucun endpoint ne l'utilisait). Contrairement aux parents, un email en
 doublon est un échec dur : deux personnes différentes ne partagent jamais
 légitimement un compte enseignant, donc aucune réutilisation silencieuse.
+
+national-readiness audit, 2026-09: confirm_teacher_import now follows the
+same async "polling" pattern as confirm_student_import (see
+docs/ASYNC_JOBS_GUIDE.md) -- the endpoint returns {"job_id": ...}
+immediately rather than the result inline. _confirm() below posts the file
+and polls GET /import/jobs/{job_id}/ once (Redis is unreachable in this
+test environment, so the endpoint always falls back to running the import
+synchronously within the same request -- by the time it returns job_id,
+the job's status is already terminal).
 """
 import io
 import csv
@@ -66,8 +75,44 @@ def _clear_overrides():
     app.dependency_overrides.pop(get_current_user, None)
 
 
+@pytest.fixture(autouse=True)
+def _force_sync_fallback(monkeypatch):
+    """The CI Postgres job runs against a real, reachable Redis with no Arq
+    worker process consuming it (unlike this file's local/SQLite-adjacent
+    runs, which have none) — a job that actually gets enqueued sits at
+    RUNNING forever and every test below would flake on whether Redis
+    happens to be reachable. Forces the synchronous fallback path
+    deterministically, same pattern as test_imports.py's enqueue-failure
+    tests for confirm_student_import."""
+    from app.api.v1.endpoints.core import imports as imports_module
+
+    async def _fail(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(imports_module, "enqueue_job", _fail)
+
+
 def _admin_headers(tenant_id: str) -> dict:
     return _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+
+
+def _confirm(rows: list[dict], headers: dict, filename: str = "t.csv"):
+    """POST the CSV, then poll the job once for its result. Returns
+    (post_response, job_body) — job_body is None if the confirm call
+    itself didn't return 200 (no job to poll)."""
+    resp = client.post(
+        CONFIRM_URL,
+        files={"file": (filename, io.BytesIO(_make_csv(rows)), "text/csv")},
+        headers=headers,
+    )
+    if resp.status_code != 200:
+        return resp, None
+    job_id = resp.json()["job_id"]
+    job_resp = client.get(f"/api/v1/import/jobs/{job_id}/", headers=headers)
+    assert job_resp.status_code == 200, job_resp.text
+    job_body = job_resp.json()
+    assert job_body["status"] == "SUCCESS", job_body
+    return resp, job_body["result"]
 
 
 VALID_ROW = {
@@ -141,13 +186,9 @@ class TestImportValidTeachers:
         email = f"teacher.{uuid.uuid4().hex[:6]}@ecole.gn"
         rows = [{**VALID_ROW, "email": email}]
 
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        assert resp.json()["created"] == 1
+        assert body["created"] == 1
 
         with SessionLocal() as db:
             teacher = db.query(User).filter(User.email == email).first()
@@ -165,13 +206,9 @@ class TestImportValidTeachers:
             {**VALID_ROW, "email": f"t1.{uuid.uuid4().hex[:6]}@ecole.gn"},
             {**VALID_ROW, "prenom": "Ousmane", "email": f"t2.{uuid.uuid4().hex[:6]}@ecole.gn"},
         ]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        assert resp.json()["created"] == 2
+        assert body["created"] == 2
 
 
 class TestDuplicateEmail:
@@ -180,17 +217,16 @@ class TestDuplicateEmail:
         compte d'un autre rôle/tenant) doit être ignoré, jamais réécrit."""
         tenant_id = _make_pro_tenant()
         email = f"dup.{uuid.uuid4().hex[:6]}@ecole.gn"
+        headers = _admin_headers(tenant_id)
 
         rows = [{**VALID_ROW, "email": email}]
-        headers = _admin_headers(tenant_id)
-        resp1 = client.post(CONFIRM_URL, files={"file": ("a.csv", io.BytesIO(_make_csv(rows)), "text/csv")}, headers=headers)
-        assert resp1.json()["created"] == 1
+        resp1, body1 = _confirm(rows, headers, filename="a.csv")
+        assert body1["created"] == 1
 
         # Re-import with a DIFFERENT name for the same email.
         rows2 = [{**VALID_ROW, "prenom": "Autre", "nom": "Personne", "email": email}]
-        resp2 = client.post(CONFIRM_URL, files={"file": ("b.csv", io.BytesIO(_make_csv(rows2)), "text/csv")}, headers=headers)
+        resp2, body2 = _confirm(rows2, headers, filename="b.csv")
         assert resp2.status_code == 200, resp2.text
-        body2 = resp2.json()
         assert body2["created"] == 0
         assert body2["skipped"] == 1
         assert any("existe déjà" in e["error"] for e in body2["errors"])
@@ -205,13 +241,8 @@ class TestDuplicateEmail:
         tenant_id = _make_pro_tenant()
         email = f"samefile.{uuid.uuid4().hex[:6]}@ecole.gn"
         rows = [{**VALID_ROW, "email": email}, {**VALID_ROW, "prenom": "Second", "email": email}]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        body = resp.json()
         assert body["created"] == 1
         assert body["skipped"] == 1
 
@@ -220,13 +251,8 @@ class TestFileWithErrors:
     def test_row_missing_email_is_skipped_not_crashed(self):
         tenant_id = _make_pro_tenant()
         rows = [{**VALID_ROW, "email": ""}]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        body = resp.json()
         assert body["created"] == 0
         assert body["skipped"] == 1
 
@@ -248,13 +274,9 @@ class TestFieldsNotYetPersisted:
             "matieres": "Mathématiques,Physique", "departement": "Sciences",
             "type_contrat": "CDI", "diplome": "Doctorat", "date_embauche": "01/09/2020",
         }]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        assert resp.json()["created"] == 1
+        assert body["created"] == 1
 
         with SessionLocal() as db:
             teacher = db.query(User).filter(User.email == email).first()
@@ -274,13 +296,9 @@ class TestTenantIsolation:
         email = f"isolated.{uuid.uuid4().hex[:6]}@ecole.gn"
         rows = [{**VALID_ROW, "email": email}]
 
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("t.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_a),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_a))
         assert resp.status_code == 200, resp.text
-        assert resp.json()["created"] == 1
+        assert body["created"] == 1
 
         with SessionLocal() as db:
             teacher = db.query(User).filter(User.email == email).first()
@@ -298,11 +316,7 @@ class TestAuditLog:
         email = f"audit.{uuid.uuid4().hex[:6]}@ecole.gn"
         rows = [{**VALID_ROW, "email": email}]
 
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("teachers.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, _body = _confirm(rows, _admin_headers(tenant_id), filename="teachers.csv")
         assert resp.status_code == 200, resp.text
 
         with SessionLocal() as db:
@@ -312,3 +326,28 @@ class TestAuditLog:
             assert entry is not None
             assert entry.details.get("created") == 1
             assert entry.details.get("filename") == "teachers.csv"
+
+
+class TestJobPolling:
+    def test_confirm_returns_job_id_scoped_to_tenant(self):
+        """national-readiness audit, 2026-09: confirm_teacher_import now
+        returns {"job_id": ...} instead of the result inline (same pattern
+        as confirm_student_import); a job from tenant A must be unreadable
+        by tenant B."""
+        tenant_a = _make_pro_tenant("École Prof A - Job")
+        tenant_b = _make_pro_tenant("École Prof B - Job")
+        rows = [{**VALID_ROW, "email": f"job.{uuid.uuid4().hex[:6]}@ecole.gn"}]
+
+        headers_a = _admin_headers(tenant_a)
+        resp = client.post(
+            CONFIRM_URL,
+            files={"file": ("j.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
+            headers=headers_a,
+        )
+        assert resp.status_code == 200, resp.text
+        job_id = resp.json()["job_id"]
+        assert job_id
+
+        headers_b = _admin_headers(tenant_b)
+        cross_tenant_resp = client.get(f"/api/v1/import/jobs/{job_id}/", headers=headers_b)
+        assert cross_tenant_resp.status_code == 404, cross_tenant_resp.text
