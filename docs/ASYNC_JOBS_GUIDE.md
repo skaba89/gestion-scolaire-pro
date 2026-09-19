@@ -99,7 +99,8 @@ python -m arq app.workers.tasks.WorkerSettings --burst
 
 Volontairement laissé pour des PR dédiées ultérieures (voir `docs/NATIONAL_AUDIT_PHASE0.md`, Phase 5) :
 - **Fait (national-readiness audit, 2026-09, priorité 5)** : import CSV élèves (`confirm_student_import`) — premier exemple du pattern polling ci-dessus.
-- Import CSV parents/enseignants, exports Excel/PDF, rapports ministère — même pattern, pas encore appliqué (un import à la fois).
+- **Fait (national-readiness audit, 2026-09)** : import CSV parents (`confirm_parent_import`) et enseignants (`confirm_teacher_import`) — même pattern polling, logique extraite dans `app/services/parent_import.py` / `app/services/teacher_import.py`, tâches `import_parents_job`/`import_teachers_job` dans `app/workers/tasks.py`. Le frontend (`DataImport.tsx`) n'a pour l'instant de page d'import que pour les élèves — parents/enseignants sont utilisables via l'API mais n'ont pas encore d'écran dédié.
+- Exports Excel/PDF, rapports ministère — même pattern, pas encore appliqué.
 - Génération de bulletins PDF côté serveur — un vrai fichier PDF existe maintenant (`generate-report-card/pdf/`, WeasyPrint), mais la génération elle-même reste synchrone dans la requête ; la génération en masse (`generate-report-cards/batch/`) l'est aussi.
 - Dashboard de supervision des jobs dans l'interface admin (aujourd'hui, la table `jobs` est consultable en base, ou via `GET /import/jobs/{job_id}/` pour un job précis).
 - Notifications de fin de traitement (email/push quand un job long se termine).

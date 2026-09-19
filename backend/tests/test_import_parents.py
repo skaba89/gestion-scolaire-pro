@@ -4,6 +4,15 @@ Contrairement à l'import élèves, un parent importé doit produire un vrai
 compte lié (users + user_roles PARENT) et un lien parent_students vers
 chaque élève référencé -- jamais juste du texte libre parent_name/
 parent_phone sur Student.
+
+national-readiness audit, 2026-09: confirm_parent_import now follows the
+same async "polling" pattern as confirm_student_import (see
+docs/ASYNC_JOBS_GUIDE.md) -- the endpoint returns {"job_id": ...}
+immediately rather than the result inline. _confirm() below posts the file
+and polls GET /import/jobs/{job_id}/ once (Redis is unreachable in this
+test environment, so the endpoint always falls back to running the import
+synchronously within the same request -- by the time it returns job_id,
+the job's status is already terminal).
 """
 import io
 import csv
@@ -83,8 +92,44 @@ def _clear_overrides():
     app.dependency_overrides.pop(get_current_user, None)
 
 
+@pytest.fixture(autouse=True)
+def _force_sync_fallback(monkeypatch):
+    """The CI Postgres job runs against a real, reachable Redis with no Arq
+    worker process consuming it (unlike this file's local/SQLite-adjacent
+    runs, which have none) — a job that actually gets enqueued sits at
+    RUNNING forever and every test below would flake on whether Redis
+    happens to be reachable. Forces the synchronous fallback path
+    deterministically, same pattern as test_imports.py's enqueue-failure
+    tests for confirm_student_import."""
+    from app.api.v1.endpoints.core import imports as imports_module
+
+    async def _fail(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(imports_module, "enqueue_job", _fail)
+
+
 def _admin_headers(tenant_id: str) -> dict:
     return _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+
+
+def _confirm(rows: list[dict], headers: dict, filename: str = "p.csv"):
+    """POST the CSV, then poll the job once for its result. Returns
+    (post_response, job_body) — job_body is None if the confirm call
+    itself didn't return 200 (no job to poll)."""
+    resp = client.post(
+        CONFIRM_URL,
+        files={"file": (filename, io.BytesIO(_make_csv(rows)), "text/csv")},
+        headers=headers,
+    )
+    if resp.status_code != 200:
+        return resp, None
+    job_id = resp.json()["job_id"]
+    job_resp = client.get(f"/api/v1/import/jobs/{job_id}/", headers=headers)
+    assert job_resp.status_code == 200, job_resp.text
+    job_body = job_resp.json()
+    assert job_body["status"] == "SUCCESS", job_body
+    return resp, job_body["result"]
 
 
 class TestAuthRequired:
@@ -191,13 +236,8 @@ class TestImportValidParents:
             "telephone": "+224620000001", "matricule_eleve": reg, "lien": "FATHER",
             "contact_principal": "oui",
         }]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        body = resp.json()
         assert body["created_parents"] == 1
         assert body["created_links"] == 1
 
@@ -231,13 +271,8 @@ class TestImportValidParents:
             {"prenom": "Aissatou", "nom": "Konaté", "email": email, "matricule_eleve": reg1},
             {"prenom": "Aissatou", "nom": "Konaté", "email": email, "matricule_eleve": reg2},
         ]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        body = resp.json()
         # Same batch: row 2 reuses the in-memory parent created by row 1
         # (not yet committed to re-query), so it counts as created once,
         # never as a DB-level "reused" (that's covered by the cross-batch
@@ -261,23 +296,15 @@ class TestImportAlreadyExistingParent:
         _, reg2 = _make_student(tenant_id, reg="ETU-P-021")
         email = f"existing.{uuid.uuid4().hex[:6]}@ecole.gn"
 
+        headers = _admin_headers(tenant_id)
         first_rows = [{"prenom": "Jean", "nom": "Camara", "email": email, "matricule_eleve": reg1}]
-        resp1 = client.post(
-            CONFIRM_URL,
-            files={"file": ("p1.csv", io.BytesIO(_make_csv(first_rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp1, body1 = _confirm(first_rows, headers, filename="p1.csv")
         assert resp1.status_code == 200, resp1.text
-        assert resp1.json()["created_parents"] == 1
+        assert body1["created_parents"] == 1
 
         second_rows = [{"prenom": "Jean", "nom": "Camara", "email": email, "matricule_eleve": reg2}]
-        resp2 = client.post(
-            CONFIRM_URL,
-            files={"file": ("p2.csv", io.BytesIO(_make_csv(second_rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp2, body2 = _confirm(second_rows, headers, filename="p2.csv")
         assert resp2.status_code == 200, resp2.text
-        body2 = resp2.json()
         assert body2["created_parents"] == 0
         assert body2["reused_parents"] == 1
         assert body2["created_links"] == 1
@@ -296,13 +323,13 @@ class TestImportAlreadyExistingParent:
         rows = [{"prenom": "Marie", "nom": "Bah", "email": email, "matricule_eleve": reg}]
 
         headers = _admin_headers(tenant_id)
-        resp1 = client.post(CONFIRM_URL, files={"file": ("a.csv", io.BytesIO(_make_csv(rows)), "text/csv")}, headers=headers)
-        assert resp1.json()["created_links"] == 1
+        resp1, body1 = _confirm(rows, headers, filename="a.csv")
+        assert body1["created_links"] == 1
 
-        resp2 = client.post(CONFIRM_URL, files={"file": ("b.csv", io.BytesIO(_make_csv(rows)), "text/csv")}, headers=headers)
+        resp2, body2 = _confirm(rows, headers, filename="b.csv")
         assert resp2.status_code == 200, resp2.text
-        assert resp2.json()["created_links"] == 0
-        assert resp2.json()["skipped_links"] == 1
+        assert body2["created_links"] == 0
+        assert body2["skipped_links"] == 1
 
 
 class TestCrossTenantEmail:
@@ -319,24 +346,15 @@ class TestCrossTenantEmail:
         # Parent already exists in tenant A.
         _, reg_a = _make_student(tenant_a, reg="ETU-XT-A")
         rows_a = [{"prenom": "Original", "nom": "DeA", "email": shared_email, "matricule_eleve": reg_a}]
-        resp_a = client.post(
-            CONFIRM_URL,
-            files={"file": ("a.csv", io.BytesIO(_make_csv(rows_a)), "text/csv")},
-            headers=_admin_headers(tenant_a),
-        )
+        resp_a, body_a = _confirm(rows_a, _admin_headers(tenant_a), filename="a.csv")
         assert resp_a.status_code == 200, resp_a.text
-        assert resp_a.json()["created_parents"] == 1
+        assert body_a["created_parents"] == 1
 
         # Tenant B tries to import a parent with the SAME email.
         _, reg_b = _make_student(tenant_b, reg="ETU-XT-B")
         rows_b = [{"prenom": "Intrus", "nom": "DeB", "email": shared_email, "matricule_eleve": reg_b}]
-        resp_b = client.post(
-            CONFIRM_URL,
-            files={"file": ("b.csv", io.BytesIO(_make_csv(rows_b)), "text/csv")},
-            headers=_admin_headers(tenant_b),
-        )
+        resp_b, body_b = _confirm(rows_b, _admin_headers(tenant_b), filename="b.csv")
         assert resp_b.status_code == 200, resp_b.text
-        body_b = resp_b.json()
         assert body_b["created_parents"] == 0
         assert body_b["reused_parents"] == 0
         assert body_b["created_links"] == 0
@@ -357,13 +375,8 @@ class TestFileWithErrors:
     def test_row_missing_student_reference_is_skipped_not_crashed(self):
         tenant_id = _make_pro_tenant()
         rows = [{"prenom": "Sans", "nom": "Enfant", "email": f"orphan.{uuid.uuid4().hex[:6]}@ecole.gn", "matricule_eleve": ""}]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        body = resp.json()
         assert body["created_parents"] == 0
         assert body["skipped_rows"] == 1
         assert len(body["errors"]) == 1
@@ -371,13 +384,8 @@ class TestFileWithErrors:
     def test_row_with_unknown_matricule_reports_error_but_continues(self):
         tenant_id = _make_pro_tenant()
         rows = [{"prenom": "X", "nom": "Y", "email": f"ghost.{uuid.uuid4().hex[:6]}@ecole.gn", "matricule_eleve": "DOES-NOT-EXIST"}]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_id))
         assert resp.status_code == 200, resp.text
-        body = resp.json()
         assert any("introuvable" in e["error"] for e in body["errors"])
 
 
@@ -388,13 +396,8 @@ class TestTenantIsolation:
         _, reg = _make_student(tenant_b, reg="ETU-CROSS-001")  # belongs to tenant B only
 
         rows = [{"prenom": "Cross", "nom": "Tenant", "email": f"cross.{uuid.uuid4().hex[:6]}@ecole.gn", "matricule_eleve": reg}]
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("p.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_a),
-        )
+        resp, body = _confirm(rows, _admin_headers(tenant_a))
         assert resp.status_code == 200, resp.text
-        body = resp.json()
         assert body["created_links"] == 0
         assert any("introuvable" in e["error"] for e in body["errors"])
 
@@ -408,11 +411,7 @@ class TestAuditLog:
         _, reg = _make_student(tenant_id, reg="ETU-AUDIT-001")
         rows = [{"prenom": "Audit", "nom": "Test", "email": f"audit.{uuid.uuid4().hex[:6]}@ecole.gn", "matricule_eleve": reg}]
 
-        resp = client.post(
-            CONFIRM_URL,
-            files={"file": ("parents.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
-            headers=_admin_headers(tenant_id),
-        )
+        resp, _body = _confirm(rows, _admin_headers(tenant_id), filename="parents.csv")
         assert resp.status_code == 200, resp.text
 
         with SessionLocal() as db:
@@ -422,3 +421,28 @@ class TestAuditLog:
             assert entry is not None
             assert entry.details.get("created_parents") == 1
             assert entry.details.get("filename") == "parents.csv"
+
+
+class TestJobPolling:
+    def test_confirm_returns_job_id_scoped_to_tenant(self):
+        """national-readiness audit, 2026-09: confirm_parent_import now
+        returns {"job_id": ...} instead of the result inline (same pattern
+        as confirm_student_import); a job from tenant A must be unreadable
+        by tenant B."""
+        tenant_a = _make_pro_tenant("École A - Job")
+        tenant_b = _make_pro_tenant("École B - Job")
+        rows = [{"prenom": "Job", "nom": "Test", "email": f"job.{uuid.uuid4().hex[:6]}@ecole.gn", "matricule_eleve": "NONE"}]
+
+        headers_a = _admin_headers(tenant_a)
+        resp = client.post(
+            CONFIRM_URL,
+            files={"file": ("j.csv", io.BytesIO(_make_csv(rows)), "text/csv")},
+            headers=headers_a,
+        )
+        assert resp.status_code == 200, resp.text
+        job_id = resp.json()["job_id"]
+        assert job_id
+
+        headers_b = _admin_headers(tenant_b)
+        cross_tenant_resp = client.get(f"/api/v1/import/jobs/{job_id}/", headers=headers_b)
+        assert cross_tenant_resp.status_code == 404, cross_tenant_resp.text

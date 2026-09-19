@@ -238,6 +238,96 @@ async def import_students_job(
             return {"job_id": job_id, "error": str(exc)}
 
 
+async def import_parents_job(
+    ctx: dict, *, job_id: str, tenant_id: str, headers: list, rows: list,
+    skip_errors: bool, user_id: str, filename: str,
+) -> dict:
+    """Bulk parent CSV import — extends the polling pattern from
+    import_students_job above (national-readiness audit, 2026-09) to
+    parents. Same rules apply: the `jobs` row is created by the CALLER
+    (confirm_parent_import in imports.py) before enqueueing, and this task
+    does not re-raise on failure (a retry would re-run parent/link creation
+    against whatever the first attempt already committed, double-counting
+    "created" on a partial success)."""
+    from app.services.parent_import import run_parent_import
+    from app.utils.audit import log_audit
+
+    with SessionLocal() as db:
+        try:
+            outcome = run_parent_import(db, tenant_id, headers, rows, skip_errors=skip_errors)
+            log_audit(
+                db, user_id=user_id, tenant_id=tenant_id,
+                action="IMPORT_PARENTS", resource_type="PARENT",
+                details={
+                    "created_parents": outcome["created_parents"],
+                    "reused_parents": outcome["reused_parents"],
+                    "created_links": outcome["created_links"],
+                    "skipped_links": outcome["skipped_links"],
+                    "skipped_rows": outcome["skipped_rows"],
+                    "total": len(rows),
+                    "filename": filename,
+                },
+            )
+            db.commit()
+            result = {
+                "created_parents": outcome["created_parents"],
+                "reused_parents": outcome["reused_parents"],
+                "created_links": outcome["created_links"],
+                "skipped_links": outcome["skipped_links"],
+                "skipped_rows": outcome["skipped_rows"],
+                "errors": outcome["error_rows"][:20],
+                "total": len(rows),
+                "message": (
+                    f"{outcome['created_parents']} parent(s) importé(s), {outcome['reused_parents']} réutilisé(s), "
+                    f"{outcome['created_links']} lien(s) élève créé(s)"
+                ),
+            }
+            _job_finished(job_id, success=True, result=result)
+            return result
+        except Exception as exc:
+            db.rollback()
+            logger.error("import_parents_job failed for tenant %s: %s", tenant_id, exc)
+            _job_finished(job_id, success=False, error=str(exc))
+            return {"job_id": job_id, "error": str(exc)}
+
+
+async def import_teachers_job(
+    ctx: dict, *, job_id: str, tenant_id: str, headers: list, rows: list,
+    skip_errors: bool, user_id: str, filename: str,
+) -> dict:
+    """Bulk teacher CSV import — extends the polling pattern from
+    import_students_job above (national-readiness audit, 2026-09) to
+    teachers. Does not re-raise on failure, same reasoning as
+    import_parents_job above (a retry would re-check email uniqueness
+    against rows this same attempt already committed)."""
+    from app.services.teacher_import import run_teacher_import
+    from app.utils.audit import log_audit
+
+    with SessionLocal() as db:
+        try:
+            outcome = run_teacher_import(db, tenant_id, headers, rows, skip_errors=skip_errors)
+            log_audit(
+                db, user_id=user_id, tenant_id=tenant_id,
+                action="IMPORT_TEACHERS", resource_type="TEACHER",
+                details={"created": outcome["created"], "skipped": outcome["skipped"], "total": len(rows), "filename": filename},
+            )
+            db.commit()
+            result = {
+                "created": outcome["created"],
+                "skipped": outcome["skipped"],
+                "errors": outcome["error_rows"][:20],
+                "total": len(rows),
+                "message": f"{outcome['created']} enseignant(s) importé(s), {outcome['skipped']} ignoré(s)",
+            }
+            _job_finished(job_id, success=True, result=result)
+            return result
+        except Exception as exc:
+            db.rollback()
+            logger.error("import_teachers_job failed for tenant %s: %s", tenant_id, exc)
+            _job_finished(job_id, success=False, error=str(exc))
+            return {"job_id": job_id, "error": str(exc)}
+
+
 # ─── WhatsApp Cloud API — async jobs ───────────────────────────────────────
 # Never send WhatsApp inside the HTTP request path — a slow Graph API call
 # (or one blocked by Meta rate limits) must never make a payment/attendance/
@@ -929,6 +1019,8 @@ class WorkerSettings:
         deliver_payment_reminders,
         send_password_reset_email,
         import_students_job,
+        import_parents_job,
+        import_teachers_job,
         send_public_form_submission_alert,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,

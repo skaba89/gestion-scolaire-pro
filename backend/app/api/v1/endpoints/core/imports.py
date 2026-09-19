@@ -9,8 +9,6 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,12 +17,12 @@ from app.core.jobs import enqueue_job
 from app.core.security import get_current_user, require_permission, require_plan
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.job import Job
-from app.models.parent_student import ParentStudent as ParentStudentModel
-from app.models.student import Student
 from app.models.tenant import Tenant
-from app.models.user import User
-from app.models.user_role import UserRole
 from app.services.notifications import EmailSender
+from app.services.parent_import import (
+    PARENT_COLUMN_MAP,
+    run_parent_import,
+)
 from app.services.student_import import (
     STUDENT_COLUMN_MAP,
     detect_columns as _detect_columns,
@@ -32,6 +30,10 @@ from app.services.student_import import (
     parse_gender as _parse_gender,
     parse_csv_bytes as _parse_csv_bytes,
     run_student_import,
+)
+from app.services.teacher_import import (
+    TEACHER_COLUMN_MAP,
+    run_teacher_import,
 )
 from app.utils.audit import log_audit
 
@@ -81,41 +83,9 @@ def _maybe_alert_import_failure_rate(
         logger.warning("Failed to send import failure alert: %s", exc)
 
 # ── Column aliases (French + English) ─────────────────────────────────────────
-# STUDENT_COLUMN_MAP now lives in app/services/student_import.py (imported
-# above) — shared with the Arq job path (app/workers/tasks.py).
-
-TEACHER_COLUMN_MAP = {
-    "first_name": ["first_name", "prenom", "prénom"],
-    "last_name": ["last_name", "nom", "surname"],
-    "email": ["email", "courriel", "mail"],
-    "phone": ["phone", "telephone", "téléphone"],
-    "subjects": ["subjects", "matieres", "matières", "subject", "discipline"],
-    "qualification": ["qualification", "diplome", "diplôme", "degree"],
-    "department": ["department", "departement", "département"],
-    "contract_type": ["contract_type", "type_contrat", "contrat"],
-    "date_of_birth": ["date_of_birth", "date_naissance", "naissance", "dob"],
-    "gender": ["gender", "sexe"],
-    "hire_date": ["hire_date", "date_embauche", "date_recrutement"],
-    "salary": ["salary", "salaire"],
-}
-
-PARENT_COLUMN_MAP = {
-    "first_name": ["first_name", "prenom", "prénom"],
-    "last_name": ["last_name", "nom", "surname"],
-    "email": ["email", "courriel", "mail"],
-    "phone": ["phone", "telephone", "téléphone", "tel"],
-    "occupation": ["occupation", "profession", "métier", "metier"],
-    "address": ["address", "adresse"],
-    "relation_type": ["relation_type", "relation", "lien", "lien_parente"],
-    "is_primary": ["is_primary", "principal", "contact_principal"],
-    # Which student(s) this parent is linked to — comma-separated matricules
-    # (or emails) to support one parent with several children in one row.
-    "student_registration_numbers": [
-        "student_registration_numbers", "matricule_eleve", "matricules_eleves",
-        "matricule", "registration_number", "student_registration_number",
-    ],
-    "student_emails": ["student_emails", "email_eleve", "student_email"],
-}
+# STUDENT_COLUMN_MAP, TEACHER_COLUMN_MAP, PARENT_COLUMN_MAP now live in
+# app/services/*_import.py (imported above) — shared with the Arq job
+# path (app/workers/tasks.py).
 
 
 # ── Preview endpoint ───────────────────────────────────────────────────────────
@@ -389,14 +359,6 @@ def download_student_template(
 # existing account is ever modified by the import.
 # \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 
-def _parse_bool(val: str) -> bool:
-    return val.strip().lower() in ("1", "true", "vrai", "oui", "yes", "y", "o")
-
-
-def _split_list(val: str) -> list[str]:
-    return [v.strip() for v in val.split(",") if v.strip()]
-
-
 @router.post("/parents/preview/")
 async def preview_parent_import(
     file: UploadFile = File(...),
@@ -480,189 +442,73 @@ async def confirm_parent_import(
     `parent_students` link to every referenced child within THIS tenant
     only. An existing parent (matched by email, within this tenant, already
     holding the PARENT role) is reused rather than duplicated.
+
+    national-readiness audit, 2026-09: extends the async-import "polling"
+    pattern (docs/ASYNC_JOBS_GUIDE.md) from students to parents \u2014 same
+    enqueue-with-fallback, same GET /import/jobs/{job_id}/ polling endpoint.
     """
+    from app.workers.tasks import _job_finished, _job_started
+
     tenant_id = str(resolve_current_tenant_id(request, current_user, db) or "")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID manquant")
 
     content = await file.read()
     headers, rows = _parse_csv_bytes(content)
-    mapping = _detect_columns(headers, PARENT_COLUMN_MAP)
 
-    created_parents = 0
-    reused_parents = 0
-    created_links = 0
-    skipped_links = 0
-    skipped_rows = 0
-    error_rows = []
+    job_id = _job_started(
+        "import_parents", tenant_id,
+        {"filename": file.filename, "total_rows": len(rows), "user_id": current_user.get("id")},
+    )
 
-    # Parents created/reused earlier in THIS batch \u2014 avoids re-querying and
-    # avoids trying to INSERT the same email twice within one import.
-    parents_in_batch: dict[str, User] = {}
+    arq_job_id = await enqueue_job(
+        "import_parents_job",
+        job_id=job_id, tenant_id=tenant_id, headers=headers, rows=rows,
+        skip_errors=skip_errors, user_id=current_user.get("id"), filename=file.filename,
+    )
 
-    for i, row in enumerate(rows, start=2):
+    if arq_job_id is None:
         try:
-            def get(field: str) -> str:
-                col = mapping.get(field)
-                return row.get(col, "").strip() if col else ""
-
-            first_name = get("first_name")
-            last_name = get("last_name")
-            email = get("email").strip().lower()
-            if not first_name or not last_name or not email:
-                skipped_rows += 1
-                error_rows.append({"row": i, "error": "Nom/pr\u00e9nom/email manquant", "data": dict(row)})
-                continue
-
-            reg_numbers = _split_list(get("student_registration_numbers"))
-            student_emails = [e.lower() for e in _split_list(get("student_emails"))]
-            if not reg_numbers and not student_emails:
-                skipped_rows += 1
-                error_rows.append({"row": i, "error": "Aucun \u00e9l\u00e8ve r\u00e9f\u00e9renc\u00e9 (matricule ou email \u00e9l\u00e8ve)", "data": dict(row)})
-                continue
-
-            # \u2500\u2500 Resolve the parent account \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-            parent = parents_in_batch.get(email)
-            if parent is None:
-                existing = db.query(User).filter(func.lower(User.email) == email).first()
-                if existing is not None:
-                    if str(existing.tenant_id) != tenant_id:
-                        skipped_rows += 1
-                        error_rows.append({
-                            "row": i,
-                            "error": f"Email '{email}' d\u00e9j\u00e0 utilis\u00e9 par un compte d'un autre \u00e9tablissement",
-                            "data": dict(row),
-                        })
-                        continue
-                    existing_roles = {
-                        r.role for r in db.query(UserRole).filter(
-                            UserRole.user_id == existing.id, UserRole.tenant_id == tenant_id,
-                        ).all()
-                    }
-                    if "PARENT" not in existing_roles:
-                        skipped_rows += 1
-                        error_rows.append({
-                            "row": i,
-                            "error": f"Email '{email}' d\u00e9j\u00e0 utilis\u00e9 par un compte non-parent existant",
-                            "data": dict(row),
-                        })
-                        continue
-                    parent = existing
-                    reused_parents += 1
-                else:
-                    parent = User(
-                        tenant_id=tenant_id,
-                        email=email,
-                        username=email,
-                        first_name=first_name,
-                        last_name=last_name,
-                        phone=get("phone") or None,
-                        occupation=get("occupation") or None,
-                        address=get("address") or None,
-                        password_hash=None,
-                        is_active=False,
-                        is_verified=False,
-                        must_change_password=True,
-                    )
-                    db.add(parent)
-                    db.flush()
-                    db.add(UserRole(tenant_id=tenant_id, user_id=parent.id, role="PARENT"))
-                    created_parents += 1
-                parents_in_batch[email] = parent
-
-            # \u2500\u2500 Resolve referenced students \u2014 THIS tenant only \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-            student_ids: set[str] = set()
-            if reg_numbers:
-                found = db.query(Student).filter(
-                    Student.tenant_id == tenant_id,
-                    Student.registration_number.in_(reg_numbers),
-                ).all()
-                found_regs = {s.registration_number for s in found}
-                student_ids.update(str(s.id) for s in found)
-                for missing in set(reg_numbers) - found_regs:
-                    error_rows.append({"row": i, "error": f"\u00c9l\u00e8ve introuvable (matricule '{missing}')", "data": dict(row)})
-            if student_emails:
-                found = db.query(Student).filter(
-                    Student.tenant_id == tenant_id,
-                    func.lower(Student.email).in_(student_emails),
-                ).all()
-                found_emails = {(s.email or "").lower() for s in found}
-                student_ids.update(str(s.id) for s in found)
-                for missing in set(student_emails) - found_emails:
-                    error_rows.append({"row": i, "error": f"\u00c9l\u00e8ve introuvable (email '{missing}')", "data": dict(row)})
-
-            if not student_ids:
-                skipped_rows += 1
-                continue
-
-            relation_type = get("relation_type") or None
-            is_primary = _parse_bool(get("is_primary"))
-
-            for sid in student_ids:
-                already = db.query(ParentStudentModel).filter(
-                    ParentStudentModel.tenant_id == tenant_id,
-                    ParentStudentModel.parent_id == parent.id,
-                    ParentStudentModel.student_id == sid,
-                ).first()
-                if already:
-                    skipped_links += 1
-                    continue
-                db.add(ParentStudentModel(
-                    tenant_id=tenant_id,
-                    parent_id=parent.id,
-                    student_id=sid,
-                    is_primary=is_primary,
-                    relation_type=relation_type,
-                ))
-                created_links += 1
-
+            outcome = run_parent_import(db, tenant_id, headers, rows, skip_errors=skip_errors)
+            log_audit(
+                db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                action="IMPORT_PARENTS", resource_type="PARENT",
+                details={
+                    "created_parents": outcome["created_parents"],
+                    "reused_parents": outcome["reused_parents"],
+                    "created_links": outcome["created_links"],
+                    "skipped_links": outcome["skipped_links"],
+                    "skipped_rows": outcome["skipped_rows"],
+                    "total": len(rows),
+                    "filename": file.filename,
+                },
+            )
+            db.commit()
+            _maybe_alert_import_failure_rate(
+                db, tenant_id=tenant_id, import_type="parents",
+                skipped=outcome["skipped_rows"], total=len(rows), filename=file.filename,
+            )
+            result = {
+                "created_parents": outcome["created_parents"],
+                "reused_parents": outcome["reused_parents"],
+                "created_links": outcome["created_links"],
+                "skipped_links": outcome["skipped_links"],
+                "skipped_rows": outcome["skipped_rows"],
+                "errors": outcome["error_rows"][:20],
+                "total": len(rows),
+                "message": (
+                    f"{outcome['created_parents']} parent(s) cr\u00e9\u00e9(s), {outcome['reused_parents']} r\u00e9utilis\u00e9(s), "
+                    f"{outcome['created_links']} lien(s) \u00e9l\u00e8ve cr\u00e9\u00e9(s)"
+                ),
+            }
+            _job_finished(job_id, success=True, result=result)
         except Exception as exc:
-            logger.warning("Parent import row %s error: %s", i, exc)
-            error_rows.append({"row": i, "error": str(exc), "data": dict(row)})
-            skipped_rows += 1
+            db.rollback()
+            logger.error("Parent import commit failed: %s", exc)
+            _job_finished(job_id, success=False, error=str(exc))
+            raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
 
-    log_audit(
-        db, user_id=current_user.get("id"), tenant_id=tenant_id,
-        action="IMPORT_PARENTS", resource_type="PARENT",
-        details={
-            "created_parents": created_parents,
-            "reused_parents": reused_parents,
-            "created_links": created_links,
-            "skipped_links": skipped_links,
-            "skipped_rows": skipped_rows,
-            "total": len(rows),
-            "filename": file.filename,
-        },
-    )
-
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        logger.error("Parent import commit failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
-    except Exception as exc:
-        db.rollback()
-        logger.error("Parent import commit failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
-
-    _maybe_alert_import_failure_rate(
-        db, tenant_id=tenant_id, import_type="parents", skipped=skipped_rows, total=len(rows), filename=file.filename,
-    )
-
-    return {
-        "created_parents": created_parents,
-        "reused_parents": reused_parents,
-        "created_links": created_links,
-        "skipped_links": skipped_links,
-        "skipped_rows": skipped_rows,
-        "errors": error_rows[:20],
-        "total": len(rows),
-        "message": (
-            f"{created_parents} parent(s) cr\u00e9\u00e9(s), {reused_parents} r\u00e9utilis\u00e9(s), "
-            f"{created_links} lien(s) \u00e9l\u00e8ve cr\u00e9\u00e9(s)"
-        ),
-    }
+    return {"job_id": job_id}
 
 
 @router.get("/parents/template/")
@@ -784,100 +630,59 @@ async def confirm_teacher_import(
     teacher_assignments module (POST /teachers/) once the account exists;
     wiring that automatically from free-text subject names is a separate,
     larger piece of work deliberately left out of this import.
+
+    national-readiness audit, 2026-09: extends the async-import "polling"
+    pattern (docs/ASYNC_JOBS_GUIDE.md) from students to teachers \u2014 same
+    enqueue-with-fallback, same GET /import/jobs/{job_id}/ polling endpoint.
     """
+    from app.workers.tasks import _job_finished, _job_started
+
     tenant_id = str(resolve_current_tenant_id(request, current_user, db) or "")
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID manquant")
 
     content = await file.read()
     headers, rows = _parse_csv_bytes(content)
-    mapping = _detect_columns(headers, TEACHER_COLUMN_MAP)
 
-    created = 0
-    skipped = 0
-    error_rows = []
-    emails_in_batch: set[str] = set()
+    job_id = _job_started(
+        "import_teachers", tenant_id,
+        {"filename": file.filename, "total_rows": len(rows), "user_id": current_user.get("id")},
+    )
 
-    for i, row in enumerate(rows, start=2):
+    arq_job_id = await enqueue_job(
+        "import_teachers_job",
+        job_id=job_id, tenant_id=tenant_id, headers=headers, rows=rows,
+        skip_errors=skip_errors, user_id=current_user.get("id"), filename=file.filename,
+    )
+
+    if arq_job_id is None:
         try:
-            def get(field: str) -> str:
-                col = mapping.get(field)
-                return row.get(col, "").strip() if col else ""
-
-            first_name = get("first_name")
-            last_name = get("last_name")
-            email = get("email").strip().lower()
-            if not first_name or not last_name or not email:
-                skipped += 1
-                error_rows.append({"row": i, "error": "Nom/pr\u00e9nom/email manquant", "data": dict(row)})
-                continue
-
-            if email in emails_in_batch:
-                skipped += 1
-                error_rows.append({"row": i, "error": f"Email '{email}' en doublon dans le fichier", "data": dict(row)})
-                continue
-
-            if db.query(User).filter(func.lower(User.email) == email).first() is not None:
-                skipped += 1
-                error_rows.append({"row": i, "error": f"Un compte existe d\u00e9j\u00e0 pour l'email '{email}'", "data": dict(row)})
-                continue
-
-            dob_str = get("date_of_birth")
-            dob = _parse_date(dob_str) if dob_str else None
-            if dob_str and dob is None:
-                error_rows.append({"row": i, "error": f"Date de naissance invalide: '{dob_str}' (ignor\u00e9e)", "data": dict(row)})
-
-            teacher = User(
-                tenant_id=tenant_id,
-                email=email,
-                username=email,
-                first_name=first_name,
-                last_name=last_name,
-                phone=get("phone") or None,
-                password_hash=None,
-                is_active=False,
-                is_verified=False,
-                must_change_password=True,
+            outcome = run_teacher_import(db, tenant_id, headers, rows, skip_errors=skip_errors)
+            log_audit(
+                db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                action="IMPORT_TEACHERS", resource_type="TEACHER",
+                details={"created": outcome["created"], "skipped": outcome["skipped"], "total": len(rows), "filename": file.filename},
             )
-            db.add(teacher)
-            db.flush()
-            db.add(UserRole(tenant_id=tenant_id, user_id=teacher.id, role="TEACHER"))
-            emails_in_batch.add(email)
-            created += 1
-
+            db.commit()
+            _maybe_alert_import_failure_rate(
+                db, tenant_id=tenant_id, import_type="enseignants",
+                skipped=outcome["skipped"], total=len(rows), filename=file.filename,
+            )
+            result = {
+                "created": outcome["created"],
+                "skipped": outcome["skipped"],
+                "errors": outcome["error_rows"][:20],
+                "total": len(rows),
+                "message": f"{outcome['created']} enseignant(s) import\u00e9(s), {outcome['skipped']} ignor\u00e9(s)",
+            }
+            _job_finished(job_id, success=True, result=result)
         except Exception as exc:
-            logger.warning("Teacher import row %s error: %s", i, exc)
-            error_rows.append({"row": i, "error": str(exc), "data": dict(row)})
-            skipped += 1
+            db.rollback()
+            logger.error("Teacher import commit failed: %s", exc)
+            _job_finished(job_id, success=False, error=str(exc))
+            raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
 
-    log_audit(
-        db, user_id=current_user.get("id"), tenant_id=tenant_id,
-        action="IMPORT_TEACHERS", resource_type="TEACHER",
-        details={"created": created, "skipped": skipped, "total": len(rows), "filename": file.filename},
-    )
-
-    try:
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        logger.error("Teacher import commit failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
-    except Exception as exc:
-        db.rollback()
-        logger.error("Teacher import commit failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
-
-    _maybe_alert_import_failure_rate(
-        db, tenant_id=tenant_id, import_type="enseignants", skipped=skipped, total=len(rows), filename=file.filename,
-    )
-
-    return {
-        "created": created,
-        "skipped": skipped,
-        "errors": error_rows[:20],
-        "total": len(rows),
-        "message": f"{created} enseignant(s) import\u00e9(s), {skipped} ignor\u00e9(s)",
-    }
+    return {"job_id": job_id}
 
 
 @router.get("/teachers/template/")
