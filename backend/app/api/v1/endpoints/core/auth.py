@@ -1616,12 +1616,27 @@ async def forgot_password(
 
     if user:
         user_name = f"{user['first_name'] or ''} {user['last_name'] or ''}".strip() or user["email"]
-        background_tasks.add_task(
-            _deliver_reset_link_background,
+        # Persistent Arq/Redis queue (national audit Phase 5) — a reset
+        # email is security-sensitive to lose silently, since this endpoint
+        # always returns 200 (anti-enumeration) with no way for the caller
+        # to know delivery failed. Falls back to the old in-process
+        # BackgroundTasks path only if enqueueing itself fails, e.g. Redis
+        # unreachable — same pattern as send_welcome_email in this file.
+        from app.core.jobs import enqueue_job
+
+        job_id = await enqueue_job(
+            "send_password_reset_email",
             user_id=str(user["id"]),
             email=user["email"],
             user_name=user_name,
         )
+        if job_id is None:
+            background_tasks.add_task(
+                _deliver_reset_link_background,
+                user_id=str(user["id"]),
+                email=user["email"],
+                user_name=user_name,
+            )
 
     # Always return the same message to prevent email enumeration
     return {"message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé."}

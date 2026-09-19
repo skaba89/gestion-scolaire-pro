@@ -13,7 +13,10 @@ client = get_test_client()
 from app.core.database import SessionLocal  # noqa: E402
 from app.models.job import Job
 from app.models.tenant import Tenant
-from app.workers.tasks import _job_finished, _job_started, deliver_payment_reminders, send_welcome_email
+from app.workers.tasks import (
+    _job_finished, _job_started, deliver_payment_reminders,
+    send_password_reset_email, send_welcome_email,
+)
 
 
 def _make_tenant() -> str:
@@ -299,3 +302,58 @@ class TestDeliverPaymentRemindersTask:
         with SessionLocal() as db:
             job = db.query(Job).filter(Job.id == result["job_id"]).first()
             assert job.status == "SUCCESS"
+
+
+class TestSendPasswordResetEmailTask:
+    """send_password_reset_email — national audit Phase 5: forgot-password's
+    reset link delivery moved off in-process BackgroundTasks (see
+    _deliver_reset_link_background in auth.py, still the synchronous
+    fallback when enqueueing itself fails)."""
+
+    @pytest.mark.asyncio
+    async def test_success_path_marks_job_success(self, monkeypatch):
+        from app.services.account_provisioning import PasswordSetupDelivery
+
+        captured = {}
+
+        async def _fake_deliver(*, user_id, email, user_name, purpose, expires_in):
+            captured.update(user_id=user_id, email=email, purpose=purpose, expires_in=expires_in)
+            return PasswordSetupDelivery(token="tok", expires_in=expires_in)
+
+        monkeypatch.setattr(
+            "app.services.account_provisioning.deliver_password_setup_link", _fake_deliver,
+        )
+
+        result = await send_password_reset_email(
+            {}, user_id="u1", email="directeur@ecole.example", user_name="Aïssatou",
+        )
+
+        assert result["sent"] is True
+        assert captured["purpose"] == "reset"
+        assert captured["expires_in"] == 900
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job.status == "SUCCESS"
+            assert job.job_type == "send_password_reset_email"
+            assert job.tenant_id is None  # not tenant-scoped — see _job_started
+
+    @pytest.mark.asyncio
+    async def test_delivery_error_marks_job_failed_and_does_not_raise(self, monkeypatch):
+        from app.services.account_provisioning import PasswordSetupDeliveryError
+
+        async def _raise(*, user_id, email, user_name, purpose, expires_in):
+            raise PasswordSetupDeliveryError("Redis unavailable (simulated)")
+
+        monkeypatch.setattr(
+            "app.services.account_provisioning.deliver_password_setup_link", _raise,
+        )
+
+        result = await send_password_reset_email(
+            {}, user_id="u2", email="directeur@ecole.example", user_name="Ibrahima",
+        )
+
+        assert result["sent"] is False
+        assert "Redis unavailable" in result["error"]
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job.status == "FAILED"
