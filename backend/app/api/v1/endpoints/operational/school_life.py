@@ -885,6 +885,43 @@ def list_check_in_assignments(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
+def _is_self_or_parent_of_student(db: Session, *, current_user: dict, student_id, tenant_id) -> bool:
+    """Whether current_user IS the given student, or a parent linked to them."""
+    student = db.query(StudentModel).filter(
+        StudentModel.id == student_id, StudentModel.tenant_id == tenant_id,
+    ).first()
+    if not student:
+        return False
+    user_id = current_user.get("id")
+    if student.user_id and str(student.user_id) == str(user_id):
+        return True
+    return db.query(ParentStudentModel).filter(
+        ParentStudentModel.tenant_id == tenant_id,
+        ParentStudentModel.parent_id == user_id,
+        ParentStudentModel.student_id == student.id,
+    ).first() is not None
+
+
+def _can_access_checkin_for_student(db: Session, *, current_user: dict, student_id, tenant_id, write: bool) -> bool:
+    """Whether current_user may read/write check-ins for the given student.
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): both endpoints
+    below took student_id/student_ids straight from the caller with only
+    get_current_user() — no permission check, no ownership check, and no
+    verification that student_id even belonged to the caller's tenant. Any
+    authenticated user (including a STUDENT or PARENT, who hold neither
+    school_life:read nor school_life:write) could read or forge check-in/
+    attendance-badge records for an arbitrary student, in or outside their
+    own tenant. Same self/parent/permission-holder rule as
+    homework.py's _can_submit_for_student().
+    """
+    from app.core.security import user_has_permission
+    perm = "school_life:write" if write else "school_life:read"
+    if user_has_permission(current_user, perm):
+        return True
+    return _is_self_or_parent_of_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id)
+
+
 @router.get("/check-ins/", response_model=List[StudentCheckIn])
 def read_check_ins(
     request: Request,
@@ -893,7 +930,17 @@ def read_check_ins(
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.get_check_ins(db, tenant_id=resolve_current_tenant_id(request, current_user, db), student_ids=student_ids)
+        tenant_id = resolve_current_tenant_id(request, current_user, db)
+        from app.core.security import user_has_permission
+        if not user_has_permission(current_user, "school_life:read"):
+            if not student_ids:
+                raise HTTPException(status_code=403, detail="student_ids is required for this role.")
+            for sid in student_ids:
+                if not _can_access_checkin_for_student(db, current_user=current_user, student_id=sid, tenant_id=tenant_id, write=False):
+                    raise HTTPException(status_code=403, detail="Not authorized to view this student's check-ins.")
+        return crud_sl.get_check_ins(db, tenant_id=tenant_id, student_ids=student_ids)
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error reading check-ins: %s", e)
@@ -909,7 +956,12 @@ def create_check_in(
     current_user: dict = Depends(get_current_user),
 ):
     try:
-        return crud_sl.create_check_in(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
+        tenant_id = resolve_current_tenant_id(request, current_user, db)
+        if not _can_access_checkin_for_student(db, current_user=current_user, student_id=obj_in.student_id, tenant_id=tenant_id, write=True):
+            raise HTTPException(status_code=403, detail="Not authorized to check in this student.")
+        return crud_sl.create_check_in(db, obj_in=obj_in, tenant_id=tenant_id)
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error creating check-in: %s", e)
@@ -980,20 +1032,57 @@ def list_event_registrations(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    """
+    SECURITY FIX (institutional-readiness audit, 2026-09): no permission
+    check at all — any authenticated user could omit student_id and list
+    every career-event registration (names, event_id) in the tenant, or
+    pass an arbitrary student_id to see someone else's registrations.
+    Staff (hr:read/settings:read) keep full tenant access; anyone else is
+    restricted to their own registrations (self student, own alumni_id).
+    """
+    from app.core.security import user_has_permission
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
+        is_staff = user_has_permission(current_user, "hr:read") or user_has_permission(current_user, "settings:read")
+        user_id = current_user.get("id")
         params: dict = {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}
         where = "WHERE tenant_id = :tid"
-        if student_id:
+        if not is_staff:
+            if student_id:
+                if not _is_self_or_parent_of_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id):
+                    raise HTTPException(status_code=403, detail="Not authorized to view this student's registrations.")
+                where += " AND student_id = :student_id"
+                params["student_id"] = student_id
+            else:
+                # No student_id given by a non-staff caller: restrict to
+                # their own registrations (as student or as alumni) rather
+                # than defaulting to the whole tenant. student_id here is a
+                # Student row id, not the caller's user id — resolve their
+                # own student row plus any linked children (PARENT).
+                own_ids = [str(r[0]) for r in db.query(StudentModel.id).filter(
+                    StudentModel.tenant_id == tenant_id, StudentModel.user_id == user_id,
+                ).all()]
+                own_ids += [str(r[0]) for r in db.query(ParentStudentModel.student_id).filter(
+                    ParentStudentModel.tenant_id == tenant_id, ParentStudentModel.parent_id == user_id,
+                ).all()]
+                params["allowed_student_ids"] = own_ids
+                params["self_alumni_id"] = user_id
+                where += " AND (student_id IN :allowed_student_ids OR alumni_id = :self_alumni_id)"
+        elif student_id:
             where += " AND student_id = :student_id"
             params["student_id"] = student_id
-        rows = db.execute(text(
+        stmt = text(
             f"SELECT event_id, id, student_id, registered_at FROM career_event_registrations {where} "
             "ORDER BY registered_at DESC LIMIT :limit OFFSET :offset"
-        ), params).mappings().all()
+        )
+        if "allowed_student_ids" in params:
+            stmt = stmt.bindparams(bindparam("allowed_student_ids", expanding=True))
+        rows = db.execute(stmt, params).mappings().all()
         return [dict(r) for r in rows]
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error listing event registrations: %s", e)
@@ -1014,10 +1103,42 @@ def create_event_registration(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    """
+    SECURITY FIX (institutional-readiness audit, 2026-09): no permission or
+    ownership check at all, and event_id/student_id/alumni_id were never
+    verified to belong to the caller's tenant (cross-tenant FK injection —
+    same class of bug already fixed elsewhere, e.g. clubs/e-learning). A
+    STUDENT/PARENT could register an arbitrary student_id/alumni_id
+    (possibly from another tenant) for an event_id from another tenant
+    entirely. Staff (hr:write/settings:write) can register anyone; anyone
+    else may only register themselves (self student/parent's own child,
+    or their own alumni_id, which IS their user id — see alumni.py), for
+    an event that actually exists in their own tenant.
+    """
+    from app.core.security import user_has_permission
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=400, detail="tenant_id required")
+        if not payload.student_id and not payload.alumni_id:
+            raise HTTPException(status_code=400, detail="student_id or alumni_id is required")
+
+        is_staff = user_has_permission(current_user, "hr:write") or user_has_permission(current_user, "settings:write")
+        user_id = current_user.get("id")
+        if not is_staff:
+            if payload.alumni_id and str(payload.alumni_id) != str(user_id):
+                raise HTTPException(status_code=403, detail="Not authorized to register this alumnus.")
+            if payload.student_id and not _is_self_or_parent_of_student(
+                db, current_user=current_user, student_id=payload.student_id, tenant_id=tenant_id,
+            ):
+                raise HTTPException(status_code=403, detail="Not authorized to register this student.")
+
+        event_row = db.execute(text(
+            "SELECT id FROM career_events WHERE id = :id AND tenant_id = :tid"
+        ), {"id": payload.event_id, "tid": tenant_id}).first()
+        if not event_row:
+            raise HTTPException(status_code=404, detail="Event not found")
+
         new_id = str(uuid4())
         db.execute(text("""
             INSERT INTO career_event_registrations
