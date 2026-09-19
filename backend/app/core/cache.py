@@ -32,7 +32,10 @@ class RedisClient:
                 "decode_responses": True,
             }
             if ssl_required:
-                client_kwargs["ssl"] = True
+                # redis.from_url already selects SSLConnection from the
+                # "rediss://" scheme; passing the generic ssl=True kwarg on
+                # top of that raises "unexpected keyword argument 'ssl'" on
+                # current redis-py. Only SSLConnection-specific kwargs go here.
                 client_kwargs["ssl_cert_reqs"] = "required"
 
             self._client = redis.from_url(redis_url, **client_kwargs)
