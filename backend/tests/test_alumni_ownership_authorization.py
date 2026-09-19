@@ -203,6 +203,25 @@ class TestCannotReadOrActAsAnotherStudent:
             ), {"mid": mentor_id}).mappings().first()
         assert str(row["student_id"]) == attacker_id, "request must be attributed to the caller, not the spoofed student_id"
 
+    def test_job_application_rejects_job_offer_from_another_tenant(self):
+        """job_applications.job_offer_id has a real FK to job_offers(id),
+        but that FK is NOT tenant-scoped (job_offers.id is a global unique
+        key) — create_job_application() never checked the offer belonged
+        to the caller's own tenant before this fix (institutional-
+        readiness audit, 2026-09, 10e vague)."""
+        tenant_a = _make_tenant()
+        tenant_b = _make_tenant()
+        foreign_offer_id = _make_job_offer(tenant_b)
+        student_id = _make_student(tenant_a, reg="ALU-7")
+
+        caller = {"id": student_id, "roles": ["ALUMNI"], "tenant_id": tenant_a}
+        resp = _as(caller).post(
+            "/api/v1/alumni/careers/applications/",
+            json={"job_offer_id": foreign_offer_id, "cover_letter": "x"},
+            headers=HEADERS,
+        )
+        assert resp.status_code == 404, resp.text
+
     def test_mentorship_request_rejects_mentor_from_another_tenant(self):
         tenant_a = _make_tenant()
         tenant_b = _make_tenant()
