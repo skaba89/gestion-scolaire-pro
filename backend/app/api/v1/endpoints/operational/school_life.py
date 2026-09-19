@@ -1037,15 +1037,19 @@ def list_event_registrations(
     check at all — any authenticated user could omit student_id and list
     every career-event registration (names, event_id) in the tenant, or
     pass an arbitrary student_id to see someone else's registrations.
-    Staff (hr:read/settings:read) keep full tenant access; anyone else is
+    Staff (hr:read/settings:write) keep full tenant access; anyone else is
     restricted to their own registrations (self student, own alumni_id).
+    settings:read is deliberately NOT used as the staff gate here — STUDENT
+    and PARENT both already hold settings:read for unrelated reasons (their
+    own settings:read-gated views elsewhere), which would have made this
+    check trivially true for exactly the roles it's meant to restrict.
     """
     from app.core.security import user_has_permission
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             return []
-        is_staff = user_has_permission(current_user, "hr:read") or user_has_permission(current_user, "settings:read")
+        is_staff = user_has_permission(current_user, "hr:read") or user_has_permission(current_user, "settings:write")
         user_id = current_user.get("id")
         params: dict = {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}
         where = "WHERE tenant_id = :tid"
