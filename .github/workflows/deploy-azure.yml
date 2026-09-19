@@ -1,0 +1,89 @@
+name: Deploy to Azure (Container Apps)
+
+# national-readiness audit, 2026-09: the infrastructure this repo has
+# targeted since docs/DEPLOIEMENT_PRODUCTION.md (Container Apps, Key
+# Vault, Application Insights, separate DEV/REC/PROD environments) has
+# never actually existed — build-push-acr.yml only builds and pushes an
+# image. This workflow is the missing "apply the infra + deploy the
+# image" step, deliberately manual-only (workflow_dispatch, never a push
+# trigger): applying infra/azure/main.bicep creates and can resize real,
+# billed Azure resources, so it must never fire without a human
+# explicitly choosing an environment and clicking Run.
+#
+# Each `environment:` below is a GitHub Environment that MUST be
+# configured with required reviewers before this workflow can do
+# anything real — see infra/azure/README.md for the one-time setup.
+# Until that's done and AZURE_CLIENT_ID/AZURE_TENANT_ID/
+# AZURE_SUBSCRIPTION_ID/POSTGRES_ADMIN_PASSWORD secrets are populated per
+# environment, every run of this workflow fails at the "Azure login"
+# step — that's the intended fail-safe, not a bug to silence.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - rec
+          - prod
+      image_tag:
+        description: "Image tag to deploy (api/worker share this tag; frontend uses the same tag if it shares a build)"
+        required: true
+        default: "latest"
+
+permissions:
+  id-token: write # required for OIDC federated login (azure/login@v2)
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC — no client secret stored anywhere)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Ensure resource group exists
+        run: |
+          az group create \
+            --name "rg-schoolflow-${{ inputs.environment }}" \
+            --location francecentral
+
+      - name: Validate Bicep template (what-if — no changes applied)
+        env:
+          POSTGRES_ADMIN_PASSWORD_DEV: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_ADMIN_PASSWORD_REC: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+        run: |
+          az deployment group what-if \
+            --resource-group "rg-schoolflow-${{ inputs.environment }}" \
+            --template-file infra/azure/main.bicep \
+            --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam \
+            --parameters apiImageTag=${{ inputs.image_tag }} workerImageTag=${{ inputs.image_tag }} frontendImageTag=${{ inputs.image_tag }}
+
+      # The `environment:` protection rule above already required a human
+      # reviewer to approve this run before reaching this step — that
+      # approval IS the deploy confirmation, no further prompt here.
+      - name: Deploy Bicep template
+        env:
+          POSTGRES_ADMIN_PASSWORD_DEV: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_ADMIN_PASSWORD_REC: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+        run: |
+          az deployment group create \
+            --resource-group "rg-schoolflow-${{ inputs.environment }}" \
+            --template-file infra/azure/main.bicep \
+            --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam \
+            --parameters apiImageTag=${{ inputs.image_tag }} workerImageTag=${{ inputs.image_tag }} frontendImageTag=${{ inputs.image_tag }} \
+            --query "properties.outputs"
