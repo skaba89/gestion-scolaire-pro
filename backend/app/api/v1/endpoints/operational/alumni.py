@@ -462,6 +462,19 @@ def create_job_application(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
+        # SECURITY (institutional-readiness audit, 2026-09, 10e vague):
+        # job_applications.job_offer_id has a real FK to job_offers(id), but
+        # that FK is NOT tenant-scoped (job_offers(id) is a global unique
+        # key) — a caller could apply to a job_offer_id belonging to another
+        # tenant entirely, since nothing here ever checked it belonged to
+        # the caller's own tenant. Same class of cross-tenant FK injection
+        # already fixed on clubs/e-learning/payment-schedules elsewhere.
+        offer = db.execute(text(
+            "SELECT id FROM job_offers WHERE id = :jid AND tenant_id = :tid"
+        ), {"jid": body.get("job_offer_id"), "tid": tenant_id}).first()
+        if not offer:
+            raise HTTPException(status_code=404, detail="Offre d'emploi introuvable")
+
         new_id = str(_uuid.uuid4())
         db.execute(text("""
             INSERT INTO job_applications
@@ -481,6 +494,8 @@ def create_job_application(
         })
         db.commit()
         return {"id": new_id, **body, "status": "pending"}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error creating job application: %s", e)
