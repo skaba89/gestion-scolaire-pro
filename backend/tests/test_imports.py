@@ -185,12 +185,25 @@ def _clear_import_overrides():
 
 
 class TestConfirmImportAuditLog:
-    def test_confirm_import_writes_audit_log(self):
-        """No Redis in the test environment, so confirm_student_import
-        falls open to its synchronous path (national-readiness audit,
-        2026-09, priority 5) — the response is now {"job_id": ...} rather
-        than the result inline; poll the job to get it, same as the
-        frontend does."""
+    def test_confirm_import_writes_audit_log(self, monkeypatch):
+        """confirm_student_import falls open to its synchronous path when
+        the queue is unreachable (national-readiness audit, 2026-09,
+        priority 5) — the response is now {"job_id": ...} rather than the
+        result inline; poll the job to get it, same as the frontend does.
+
+        Forces that fallback deterministically: the CI Postgres job runs
+        against a real Redis (unlike this file's SQLite-mode runs, which
+        have none) with no Arq worker process consuming it, so a job that
+        actually got enqueued would sit at RUNNING forever and this test
+        would flake on whether Redis happens to be reachable — same
+        pattern as test_async_jobs.py's enqueue-failure tests."""
+        from app.api.v1.endpoints.core import imports as imports_module
+
+        async def _fail(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(imports_module, "enqueue_job", _fail)
+
         tenant_id = _make_pro_tenant()
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
         csv_bytes = _make_csv([VALID_ROW])
@@ -218,11 +231,23 @@ class TestConfirmImportAuditLog:
             assert entry.details.get("created") == 1
             assert entry.details.get("filename") == "students.csv"
 
-    def test_job_status_endpoint_rejects_another_tenants_job(self):
+    def test_job_status_endpoint_rejects_another_tenants_job(self, monkeypatch):
         """_as() overrides get_current_user globally (identity comes from
         the override, not the Authorization header content) — it must be
         called again right before each request as the caller who should
-        make it, not once upfront for both."""
+        make it, not once upfront for both.
+
+        Forces the synchronous fallback (see the test above) so this
+        doesn't depend on whether Redis happens to be reachable in this
+        environment — the isolation check itself doesn't care which path
+        produced the job."""
+        from app.api.v1.endpoints.core import imports as imports_module
+
+        async def _fail(*args, **kwargs):
+            return None
+
+        monkeypatch.setattr(imports_module, "enqueue_job", _fail)
+
         tenant_a = _make_pro_tenant()
         tenant_b = _make_pro_tenant()
         csv_bytes = _make_csv([VALID_ROW])
