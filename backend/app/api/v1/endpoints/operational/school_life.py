@@ -12,10 +12,12 @@ from datetime import datetime, date, time, timezone
 from pydantic import BaseModel
 
 from app.models.base import GUID
+from app.models.job import Job
 from app.models.student import Student as StudentModel
 from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.user import User as UserModel
 from app.core.database import get_db
+from app.core.jobs import enqueue_job
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.school_life import (
@@ -2438,8 +2440,158 @@ def generate_certificate_pdf(
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF")
 
 
+def _generate_batch_report_cards(
+    db: Session, tenant_id: str, *,
+    classroom_id: str, term_id: str,
+    director_comment: str = "", decision: str = "", show_guinea_header: bool = True,
+) -> dict:
+    """Build the combined multi-student bulletin HTML for a classroom.
+    Extracted from generate_batch_report_cards (national-readiness audit,
+    2026-09) so the exact same logic runs either synchronously (Redis
+    down) or from the Arq worker (generate_report_cards_batch_job) — never
+    two divergent copies. Raises HTTPException for the same 404 cases the
+    endpoint always raised. Returns {html, count} — html is the raw
+    (not yet base64-encoded) combined document."""
+    # All active students in the class
+    student_stmt = text("""
+        SELECT e.student_id, s.first_name, s.last_name, s.registration_number,
+               s.date_of_birth, s.gender
+        FROM enrollments e
+        JOIN students s ON s.id = e.student_id
+        WHERE e.class_id  = :cid
+          AND e.tenant_id = :tid
+          AND e.status    = 'ACTIVE'
+        ORDER BY s.last_name
+    """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
+    student_rows = db.execute(student_stmt, {"cid": classroom_id, "tid": tenant_id}).mappings().all()
+
+    if not student_rows:
+        raise HTTPException(status_code=404, detail="Aucun élève inscrit dans cette classe")
+
+    # Tenant + class/term data (shared across all bulletins)
+    t_stmt = text(
+        "SELECT name, address, phone, email, settings FROM tenants WHERE id = :tid"
+    ).bindparams(bindparam("tid", type_=GUID()))
+    t_row = db.execute(t_stmt, {"tid": tenant_id}).mappings().first()
+
+    cls_stmt = text("""
+        SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
+        FROM classes c
+        LEFT JOIN levels l ON c.level_id = l.id
+        LEFT JOIN academic_years ay ON c.academic_year_id = ay.id
+        WHERE c.id = :cid AND c.tenant_id = :tid
+    """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
+    cls_row = db.execute(cls_stmt, {"cid": classroom_id, "tid": tenant_id}).mappings().first()
+
+    term_stmt = text("""
+        SELECT name, start_date, end_date FROM terms
+        WHERE id = :tid_term AND tenant_id = :tid
+    """).bindparams(bindparam("tid_term", type_=GUID()), bindparam("tid", type_=GUID()))
+    term_row = db.execute(term_stmt, {"tid_term": term_id, "tid": tenant_id}).mappings().first()
+
+    settings: dict = {}
+    if t_row and t_row.get("settings"):
+        raw = t_row["settings"]
+        settings = raw if isinstance(raw, dict) else {}
+
+    # Batched once for the whole class instead of once per student
+    # (dette technique — audit stratégique 2026-08-16): each of these
+    # used to be a separate per-student query/loop iteration
+    # (_fetch_grades_for_term, _fetch_absences, _compute_class_rank),
+    # for a 500-élève établissement that's ~1500 redundant round
+    # trips at end-of-term. Single-student callers elsewhere
+    # (generate-report-card/v2/) are untouched — they still use the
+    # original functions, no behavior change there.
+    grades_by_student = _fetch_grades_for_term_batch(db, classroom_id, term_id, tenant_id)
+    ranks_by_student = _compute_class_ranks_batch(db, classroom_id, term_id, tenant_id)
+    absences_by_student: dict = {}
+    if term_row and term_row["start_date"] and term_row["end_date"]:
+        absences_by_student = _fetch_absences_batch(
+            db, classroom_id, term_row["start_date"], term_row["end_date"], tenant_id,
+        )
+
+    html_parts: list[str] = []
+
+    for s in student_rows:
+        sid = str(s["student_id"])
+
+        grades = grades_by_student.get(sid, [])
+        general_avg = _compute_average(grades)
+
+        absences = absences_by_student.get(sid, {"excused": 0, "absent": 0, "late": 0})
+
+        rank, total = ranks_by_student.get(sid, (0, 0))
+
+        dob = s.get("date_of_birth")
+        dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
+
+        bulletin_html = _build_bulletin_v2(
+            school_name=t_row["name"] if t_row else "École",
+            school_address=t_row.get("address") or "" if t_row else "",
+            school_phone=t_row.get("phone") or "" if t_row else "",
+            school_email=t_row.get("email") or "" if t_row else "",
+            school_logo_url=settings.get("logoUrl", ""),
+            student_name=f"{s.get('first_name', '')} {s.get('last_name', '')}".strip(),
+            registration_number=s.get("registration_number") or "",
+            date_of_birth=dob_str,
+            gender=s.get("gender") or "",
+            classroom=cls_row["class_name"] if cls_row else "",
+            level=cls_row["level_name"] if cls_row else "",
+            academic_year=cls_row["year_name"] if cls_row else "",
+            term=term_row["name"] if term_row else "",
+            grades=grades,
+            general_average=general_avg,
+            class_rank=rank,
+            class_total=total,
+            absences_excused=absences["excused"],
+            absences_absent=absences["absent"],
+            absences_late=absences["late"],
+            director_comment=director_comment or "",
+            decision=decision or "",
+            show_guinea_header=show_guinea_header,
+        )
+
+        # Extract body content for merging (strip full HTML wrapper)
+        b_start = bulletin_html.find("<body>") + len("<body>")
+        b_end = bulletin_html.rfind("</body>")
+        body_content = bulletin_html[b_start:b_end]
+        html_parts.append(f'<div style="page-break-after:always;">{body_content}</div>')
+
+    if not html_parts:
+        raise HTTPException(status_code=404, detail="Aucun bulletin généré")
+
+    # Build combined document (reuse CSS from first bulletin)
+    first_full = _build_bulletin_v2(
+        school_name=t_row["name"] if t_row else "École",
+        show_guinea_header=show_guinea_header,
+        student_name="", grades=[],
+    )
+    css_start = first_full.find("<style>")
+    css_end = first_full.find("</style>") + len("</style>")
+    shared_css = first_full[css_start:css_end]
+
+    n = len(html_parts)
+    combined = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Bulletins — {html_mod.escape(cls_row["class_name"] if cls_row else "")} — {html_mod.escape(term_row["name"] if term_row else "")} ({n} élèves)</title>
+{shared_css}
+</head>
+<body>
+{"".join(html_parts)}
+<div class="print-bar no-print">
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimer tous les bulletins ({n} élèves)</button>
+</div>
+</body>
+</html>"""
+
+    encoded = base64.b64encode(combined.encode("utf-8")).decode("ascii")
+    return {"html": encoded, "format": "html", "count": n}
+
+
 @router.post("/generate-report-cards/batch/")
-def generate_batch_report_cards(
+async def generate_batch_report_cards(
     request: Request,
     body: SmartBatchRequest,
     db: Session = Depends(get_db),
@@ -2455,155 +2607,83 @@ def generate_batch_report_cards(
 ):
     """
     POST /school-life/generate-report-cards/batch/
-    Generate all bulletins for a classroom in a single printable HTML document.
+
+    national-readiness audit, 2026-09: last remaining synchronous batch
+    endpoint (P0-2) — moved off the request path the same way
+    confirm_student_import was (docs/ASYNC_JOBS_GUIDE.md's "pattern
+    polling"): enqueues generate_report_cards_batch_job and returns
+    {"job_id": ...} immediately, falling back to running inline if Redis
+    is unreachable. Poll GET /school-life/jobs/{job_id}/ for the result
+    (same shape this endpoint always returned: {html, format, count}).
     """
+    from app.workers.tasks import _job_finished, _job_started
+
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
-    try:
-        # All active students in the class
-        student_stmt = text("""
-            SELECT e.student_id, s.first_name, s.last_name, s.registration_number,
-                   s.date_of_birth, s.gender
-            FROM enrollments e
-            JOIN students s ON s.id = e.student_id
-            WHERE e.class_id  = :cid
-              AND e.tenant_id = :tid
-              AND e.status    = 'ACTIVE'
-            ORDER BY s.last_name
-        """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
-        student_rows = db.execute(student_stmt, {"cid": body.classroom_id, "tid": tenant_id}).mappings().all()
+    job_id = _job_started(
+        "generate_report_cards_batch", tenant_id,
+        {"classroom_id": body.classroom_id, "term_id": body.term_id, "user_id": current_user.get("id")},
+    )
 
-        if not student_rows:
-            raise HTTPException(status_code=404, detail="Aucun élève inscrit dans cette classe")
+    arq_job_id = await enqueue_job(
+        "generate_report_cards_batch_job",
+        job_id=job_id, tenant_id=tenant_id,
+        classroom_id=body.classroom_id, term_id=body.term_id,
+        director_comment=body.director_comment or "", decision=body.decision or "",
+        show_guinea_header=body.show_guinea_header,
+    )
 
-        # Tenant + class/term data (shared across all bulletins)
-        t_stmt = text(
-            "SELECT name, address, phone, email, settings FROM tenants WHERE id = :tid"
-        ).bindparams(bindparam("tid", type_=GUID()))
-        t_row = db.execute(t_stmt, {"tid": tenant_id}).mappings().first()
-
-        cls_stmt = text("""
-            SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
-            FROM classes c
-            LEFT JOIN levels l ON c.level_id = l.id
-            LEFT JOIN academic_years ay ON c.academic_year_id = ay.id
-            WHERE c.id = :cid AND c.tenant_id = :tid
-        """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
-        cls_row = db.execute(cls_stmt, {"cid": body.classroom_id, "tid": tenant_id}).mappings().first()
-
-        term_stmt = text("""
-            SELECT name, start_date, end_date FROM terms
-            WHERE id = :tid_term AND tenant_id = :tid
-        """).bindparams(bindparam("tid_term", type_=GUID()), bindparam("tid", type_=GUID()))
-        term_row = db.execute(term_stmt, {"tid_term": body.term_id, "tid": tenant_id}).mappings().first()
-
-        settings: dict = {}
-        if t_row and t_row.get("settings"):
-            raw = t_row["settings"]
-            settings = raw if isinstance(raw, dict) else {}
-
-        # Batched once for the whole class instead of once per student
-        # (dette technique — audit stratégique 2026-08-16): each of these
-        # used to be a separate per-student query/loop iteration
-        # (_fetch_grades_for_term, _fetch_absences, _compute_class_rank),
-        # for a 500-élève établissement that's ~1500 redundant round
-        # trips at end-of-term. Single-student callers elsewhere
-        # (generate-report-card/v2/) are untouched — they still use the
-        # original functions, no behavior change there.
-        grades_by_student = _fetch_grades_for_term_batch(db, body.classroom_id, body.term_id, tenant_id)
-        ranks_by_student = _compute_class_ranks_batch(db, body.classroom_id, body.term_id, tenant_id)
-        absences_by_student: dict = {}
-        if term_row and term_row["start_date"] and term_row["end_date"]:
-            absences_by_student = _fetch_absences_batch(
-                db, body.classroom_id, term_row["start_date"], term_row["end_date"], tenant_id,
-            )
-
-        html_parts: list[str] = []
-
-        for s in student_rows:
-            sid = str(s["student_id"])
-
-            grades = grades_by_student.get(sid, [])
-            general_avg = _compute_average(grades)
-
-            absences = absences_by_student.get(sid, {"excused": 0, "absent": 0, "late": 0})
-
-            rank, total = ranks_by_student.get(sid, (0, 0))
-
-            dob = s.get("date_of_birth")
-            dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
-
-            bulletin_html = _build_bulletin_v2(
-                school_name=t_row["name"] if t_row else "École",
-                school_address=t_row.get("address") or "" if t_row else "",
-                school_phone=t_row.get("phone") or "" if t_row else "",
-                school_email=t_row.get("email") or "" if t_row else "",
-                school_logo_url=settings.get("logoUrl", ""),
-                student_name=f"{s.get('first_name', '')} {s.get('last_name', '')}".strip(),
-                registration_number=s.get("registration_number") or "",
-                date_of_birth=dob_str,
-                gender=s.get("gender") or "",
-                classroom=cls_row["class_name"] if cls_row else "",
-                level=cls_row["level_name"] if cls_row else "",
-                academic_year=cls_row["year_name"] if cls_row else "",
-                term=term_row["name"] if term_row else "",
-                grades=grades,
-                general_average=general_avg,
-                class_rank=rank,
-                class_total=total,
-                absences_excused=absences["excused"],
-                absences_absent=absences["absent"],
-                absences_late=absences["late"],
-                director_comment=body.director_comment or "",
-                decision=body.decision or "",
+    if arq_job_id is None:
+        try:
+            result = _generate_batch_report_cards(
+                db, tenant_id,
+                classroom_id=body.classroom_id, term_id=body.term_id,
+                director_comment=body.director_comment or "", decision=body.decision or "",
                 show_guinea_header=body.show_guinea_header,
             )
+            _job_finished(job_id, success=True, result=result)
+        except HTTPException as exc:
+            _job_finished(job_id, success=False, error=exc.detail)
+            raise
+        except Exception as exc:
+            logger.error("generate-report-cards/batch error: %s", exc, exc_info=True)
+            _job_finished(job_id, success=False, error=str(exc))
+            raise HTTPException(status_code=500, detail="Erreur lors de la génération groupée des bulletins")
 
-            # Extract body content for merging (strip full HTML wrapper)
-            b_start = bulletin_html.find("<body>") + len("<body>")
-            b_end = bulletin_html.rfind("</body>")
-            body_content = bulletin_html[b_start:b_end]
-            html_parts.append(f'<div style="page-break-after:always;">{body_content}</div>')
+    return {"job_id": job_id}
 
-        if not html_parts:
-            raise HTTPException(status_code=404, detail="Aucun bulletin généré")
 
-        # Build combined document (reuse CSS from first bulletin)
-        first_full = _build_bulletin_v2(
-            school_name=t_row["name"] if t_row else "École",
-            show_guinea_header=body.show_guinea_header,
-            student_name="", grades=[],
-        )
-        css_start = first_full.find("<style>")
-        css_end = first_full.find("</style>") + len("</style>")
-        shared_css = first_full[css_start:css_end]
+@router.get("/jobs/{job_id}/")
+def get_school_life_job_status(
+    job_id: str,
+    request: Request,
+    current_user: dict = Depends(require_permission("grades:write")),
+    db: Session = Depends(get_db),
+):
+    """
+    GET /school-life/jobs/{job_id}/
+    Poll the status of a job started by generate-report-cards/batch/
+    above. Scoped to the caller's own tenant — same isolation pattern as
+    GET /import/jobs/{job_id}/ in imports.py (a separate endpoint since
+    this router's jobs use a different permission scope: grades:write,
+    not students:write)."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job or (job.tenant_id and str(job.tenant_id) != tenant_id):
+        raise HTTPException(status_code=404, detail="Job introuvable")
 
-        n = len(html_parts)
-        combined = f"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Bulletins — {html_mod.escape(cls_row["class_name"] if cls_row else "")} — {html_mod.escape(term_row["name"] if term_row else "")} ({n} élèves)</title>
-{shared_css}
-</head>
-<body>
-{"".join(html_parts)}
-<div class="print-bar no-print">
-  <button class="print-btn" onclick="window.print()">🖨️ Imprimer tous les bulletins ({n} élèves)</button>
-</div>
-</body>
-</html>"""
-
-        encoded = base64.b64encode(combined.encode("utf-8")).decode("ascii")
-        return {"html": encoded, "format": "html", "count": n}
-
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error("generate-report-cards/batch error: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail="Erreur lors de la génération groupée des bulletins")
+    return {
+        "id": str(job.id),
+        "job_type": job.job_type,
+        "status": job.status,
+        "result": job.result,
+        "error": job.error,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    }
 
 
 # ─── Bulletin de notes (Report Card) — Legacy v1 ──────────────────────────────

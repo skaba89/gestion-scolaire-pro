@@ -328,6 +328,41 @@ async def import_teachers_job(
             return {"job_id": job_id, "error": str(exc)}
 
 
+async def generate_report_cards_batch_job(
+    ctx: dict, *, job_id: str, tenant_id: str, classroom_id: str, term_id: str,
+    director_comment: str, decision: str, show_guinea_header: bool,
+) -> dict:
+    """Batch bulletin generation for a whole classroom — the last
+    remaining synchronous endpoint from the national-readiness audit's
+    P0-2 finding, moved off the request path the same way CSV imports
+    were. Unlike those, this is read-only (no DB writes), so a retry
+    can't duplicate anything — but Arq's default retry would still just
+    redo the same expensive query/render work for no benefit if it fails
+    once, so this still fails once, visibly, rather than retrying blindly.
+
+    Same as import_students_job above: the `jobs` row is created by the
+    CALLER (generate_batch_report_cards in school_life.py) before
+    enqueueing, not by this task, so it can return a job_id immediately
+    for polling."""
+    from app.api.v1.endpoints.operational.school_life import _generate_batch_report_cards
+
+    with SessionLocal() as db:
+        try:
+            result = _generate_batch_report_cards(
+                db, tenant_id,
+                classroom_id=classroom_id, term_id=term_id,
+                director_comment=director_comment, decision=decision,
+                show_guinea_header=show_guinea_header,
+            )
+            _job_finished(job_id, success=True, result=result)
+            return result
+        except Exception as exc:
+            detail = exc.detail if hasattr(exc, "detail") else str(exc)
+            logger.error("generate_report_cards_batch_job failed for tenant %s: %s", tenant_id, detail)
+            _job_finished(job_id, success=False, error=str(detail))
+            return {"job_id": job_id, "error": str(detail)}
+
+
 # ─── WhatsApp Cloud API — async jobs ───────────────────────────────────────
 # Never send WhatsApp inside the HTTP request path — a slow Graph API call
 # (or one blocked by Meta rate limits) must never make a payment/attendance/
@@ -1021,6 +1056,7 @@ class WorkerSettings:
         import_students_job,
         import_parents_job,
         import_teachers_job,
+        generate_report_cards_batch_job,
         send_public_form_submission_alert,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,
