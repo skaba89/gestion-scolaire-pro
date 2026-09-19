@@ -468,7 +468,21 @@ jobs:
           # `npm audit --json` exits non-zero when advisories exist, so the
           # `|| true` only preserves the captured JSON — the gate, not npm's
           # exit code, decides pass/fail.
-          npm audit --json > npm-audit-results.json 2>npm-audit-stderr.log || true
+          #
+          # npmjs.org's audit endpoint occasionally answers a transient
+          # 400 (observed: "audit endpoint returned an error" with no
+          # 'vulnerabilities' key in the response, unrelated to any real
+          # advisory or to this repo's dependencies) — retry a couple of
+          # times before handing the result to the gate, which still fails
+          # loudly on any report it can't parse, transient or not.
+          for attempt in 1 2 3; do
+            npm audit --json > npm-audit-results.json 2>npm-audit-stderr.log || true
+            if grep -q '"vulnerabilities"' npm-audit-results.json; then
+              break
+            fi
+            echo "npm audit attempt $attempt returned no 'vulnerabilities' key — retrying" >&2
+            sleep 5
+          done
           cat npm-audit-stderr.log
           python3 scripts/ci/npm_audit_severity_gate.py npm-audit-results.json
 
