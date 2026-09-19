@@ -139,7 +139,7 @@ const AuthNative = () => {
     }
   };
 
-  const redirectAfterLogin = (profileData: any) => {
+  const redirectAfterLogin = (profileData: unknown) => {
     const returnPath = requestedPath || getSafeReturnPath(sessionStorage.getItem(RETURN_TO_STORAGE_KEY));
     if (returnPath) {
       sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
@@ -147,8 +147,9 @@ const AuthNative = () => {
       return;
     }
 
-    const userRoles: string[] = (profileData?.roles as string[]) || [];
-    const tenantSlug = (profileData?.tenant?.slug as string) || null;
+    const typedProfileData = profileData as { roles?: string[]; tenant?: { slug?: string } } | undefined;
+    const userRoles: string[] = typedProfileData?.roles || [];
+    const tenantSlug = typedProfileData?.tenant?.slug || null;
 
     if (userRoles.includes("SUPER_ADMIN")) {
       navigate("/super-admin", { replace: true });

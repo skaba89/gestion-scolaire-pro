@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { apiClient, TOKEN_STORAGE_KEY } from "@/api/client";
 import type { AppRole, Profile, Tenant } from "@/lib/types";
 
@@ -21,7 +22,7 @@ type AuthContextType = {
   mustChangePassword: boolean;
   isMfaVerified: boolean;
   signIn: (email: string, password: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any; mfaRequired?: boolean; mfaToken?: string }>;
-  completeMfaLogin: (mfaToken: string, code: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any }>;
+  completeMfaLogin: (mfaToken: string, code: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: unknown }>;
   verifyMfa: (token: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string, metadata?: unknown) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -231,8 +232,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const profileResponse = await apiClient.get("/users/me/", tenantId ? { headers: { "X-Tenant-ID": tenantId } } : undefined);
       applyProfileData(profileResponse.data);
       return { error: null, profileData: profileResponse.data };
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail || error?.response?.data?.message;
+    } catch (error: unknown) {
+      const detail = axios.isAxiosError<{ detail?: string; message?: string }>(error)
+        ? error.response?.data?.detail || error.response?.data?.message
+        : undefined;
       return { error: new Error(detail || "Code invalide ou expiré") };
     } finally {
       setIsLoading(false);

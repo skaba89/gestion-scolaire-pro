@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -152,8 +153,9 @@ export const useEnrollMFA = () => {
             const response = await apiClient.post<{ secret: string; uri: string }>("/mfa/totp/enroll/");
             return { id: 'pending', totp: response.data };
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Erreur lors de l'enrôlement");
+        onError: (error: unknown) => {
+            const detail = axios.isAxiosError<{ detail?: string }>(error) ? error.response?.data?.detail : undefined;
+            toast.error(detail || "Erreur lors de l'enrôlement");
         },
     });
 };
