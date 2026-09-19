@@ -3,12 +3,14 @@
 When Redis (the blacklist / logout-all backend) is unreachable, the token's
 revocation status cannot be verified. Policy:
   * PRIVILEGED accounts (SUPER_ADMIN, TENANT_ADMIN, DIRECTOR, ACCOUNTANT,
-    MINISTRY_ADMIN, REGIONAL_DIRECTOR, PREFECTURE_ADMIN, COMMUNE_ADMIN) →
-    refuse with 503. DIRECTOR/ACCOUNTANT added institutional-readiness
-    audit 2026-09: both are documented MFA-mandatory privileged roles
-    (PRIVILEGED_ROLES_REQUIRING_MFA, auth.py) but were missing here, so a
-    blacklisted DIRECTOR/ACCOUNTANT token was fail-OPEN during a Redis
-    outage — the exact bypass this policy exists to close.
+    MINISTRY_ADMIN, NATIONAL_INSPECTOR, REGIONAL_DIRECTOR, PREFECTURE_ADMIN,
+    COMMUNE_ADMIN) → refuse with 503. DIRECTOR/ACCOUNTANT added
+    institutional-readiness audit 2026-09: both are documented MFA-mandatory
+    privileged roles (PRIVILEGED_ROLES_REQUIRING_MFA, auth.py) but were
+    missing here, so a blacklisted DIRECTOR/ACCOUNTANT token was fail-OPEN
+    during a Redis outage — the exact bypass this policy exists to close.
+    NATIONAL_INSPECTOR added directly when the role itself was introduced
+    (national-readiness audit, 2026-09).
   * SENSITIVE operations (users:write, payments:write, …) → refuse with 503,
     even for an otherwise non-privileged role (e.g. ACCOUNTANT).
   * Everyone/everything else → fail open (no platform-wide outage).
@@ -130,11 +132,11 @@ async def test_blacklisted_token_redis_available_401(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("role", [
     "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT", "MINISTRY_ADMIN",
-    "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
+    "NATIONAL_INSPECTOR", "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
 ])
 async def test_redis_down_privileged_account_503(monkeypatch, role):
     _redis_down(monkeypatch, fail_closed=True)
-    tid = None if role in ("SUPER_ADMIN", "MINISTRY_ADMIN") else _make_tenant()
+    tid = None if role in ("SUPER_ADMIN", "MINISTRY_ADMIN", "NATIONAL_INSPECTOR") else _make_tenant()
     uid = _make_user([role], tid)
     with pytest.raises(HTTPException) as exc:
         await get_current_user(request=_request(), token=_token(uid, tid))

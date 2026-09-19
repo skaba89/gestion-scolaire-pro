@@ -405,9 +405,14 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         # claimed these roles "don't exist yet in ROLE_PERMISSIONS" — that
         # stale claim is why they were never added here despite being real,
         # institutional-tier, ministry-scoped roles like MINISTRY_ADMIN.
+        #
+        # NATIONAL_INSPECTOR added when the role itself was introduced
+        # (national-readiness audit, 2026-09) — added in the same change
+        # this time, not as a follow-up fix, precisely to avoid repeating
+        # the "documented as not existing yet" gap above.
         PRIVILEGED_ROLES_REQUIRING_MFA = {
             "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT", "MINISTRY_ADMIN",
-            "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
+            "NATIONAL_INSPECTOR", "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
         }
         user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
 

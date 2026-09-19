@@ -84,6 +84,14 @@ class TestMinistryOverviewAccess:
         resp = client.get(OVERVIEW_URL, headers=_as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}))
         assert resp.status_code == 200, resp.text
 
+    def test_national_inspector_can_access_overview(self):
+        """NATIONAL_INSPECTOR (national-readiness audit, 2026-09) — same
+        platform-level shape as MINISTRY_ADMIN, added with the same rigor
+        docs/INSTITUTIONAL_ROLES.md called for (permission, endpoint scope,
+        MFA, tests, doc update in the same change)."""
+        resp = client.get(OVERVIEW_URL, headers=_as({"id": str(uuid.uuid4()), "roles": ["NATIONAL_INSPECTOR"], "tenant_id": None}))
+        assert resp.status_code == 200, resp.text
+
     def test_tenant_admin_cannot_access_overview(self):
         resp = client.get(OVERVIEW_URL, headers=_as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": str(uuid.uuid4())}))
         assert resp.status_code == 403, resp.text
@@ -178,6 +186,22 @@ class TestRegionalDirectorScoping:
         # Not asserting an exact count (shared DB across tests) — only that
         # it is NOT narrowed to the single-tenant region-only view.
         assert resp.json()["total_establishments"] >= 1
+
+    def test_national_inspector_sees_national_view_not_narrowed(self):
+        """NATIONAL_INSPECTOR is platform-level (tenant_id NULL) — unlike
+        REGIONAL_DIRECTOR/PREFECTURE_ADMIN/COMMUNE_ADMIN, it must never be
+        narrowed to a single tenant's region/prefecture/commune."""
+        region_a = f"region-insp-a-{uuid.uuid4().hex[:8]}"
+        region_b = f"region-insp-b-{uuid.uuid4().hex[:8]}"
+        _make_tenant("École Inspection A", region=region_a)
+        _make_tenant("École Inspection B", region=region_b)
+
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["NATIONAL_INSPECTOR"], "tenant_id": None})
+        resp = client.get(OVERVIEW_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert region_a in data["by_region"]
+        assert region_b in data["by_region"]
 
 
 class TestPrefectureAndCommuneScoping:

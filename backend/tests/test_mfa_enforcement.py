@@ -108,6 +108,37 @@ def _fresh_ministry_admin() -> str:
     return email
 
 
+def _fresh_national_inspector() -> str:
+    """NATIONAL_INSPECTOR is platform-level (no tenant_id), same shape as
+    MINISTRY_ADMIN — added directly to PRIVILEGED_ROLES_REQUIRING_MFA when
+    the role itself was introduced (national-readiness audit, 2026-09), not
+    as a follow-up fix, to avoid repeating the "documented as not existing
+    yet" gap that caused MINISTRY_ADMIN/REGIONAL_DIRECTOR/PREFECTURE_ADMIN/
+    COMMUNE_ADMIN to be missed above."""
+    import uuid
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.user import User
+    from app.models.user_role import UserRole
+
+    user_id = str(uuid.uuid4())
+    email = f"inspector.{uuid.uuid4().hex[:8]}@education.gov.gn"
+    db = SessionLocal()
+    try:
+        db.add(User(
+            id=user_id, tenant_id=None, email=email, username=email,
+            first_name="Inspecteur", last_name="National",
+            password_hash=get_password_hash(STRONG_PASSWORD),
+            is_active=True, is_verified=True,
+        ))
+        db.add(UserRole(user_id=user_id, tenant_id=None, role="NATIONAL_INSPECTOR"))
+        db.commit()
+    finally:
+        db.close()
+    return email
+
+
 def _fresh_institutional_role(role: str) -> str:
     """REGIONAL_DIRECTOR/PREFECTURE_ADMIN/COMMUNE_ADMIN are tenant-scoped
     (unlike MINISTRY_ADMIN/SUPER_ADMIN, which have tenant_id = NULL) — each
@@ -209,6 +240,30 @@ class TestMFAEnforcementForPrivilegedRoles:
         from app.core.config import settings as app_settings
 
         email = _fresh_ministry_admin()
+        _set_mfa_enabled(email, True)
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 200, resp.text
+
+    def test_national_inspector_is_blocked_without_mfa(self, monkeypatch):
+        """NATIONAL_INSPECTOR was added directly to
+        PRIVILEGED_ROLES_REQUIRING_MFA in the same change that introduced
+        the role (national-readiness audit, 2026-09) — this proves that
+        held, rather than assuming it from the code."""
+        from app.core.config import settings as app_settings
+
+        email = _fresh_national_inspector()
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 403, resp.text
+        assert "MFA" in resp.json()["detail"]
+
+    def test_national_inspector_allowed_once_mfa_enabled(self, monkeypatch):
+        from app.core.config import settings as app_settings
+
+        email = _fresh_national_inspector()
         _set_mfa_enabled(email, True)
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 

@@ -21,7 +21,11 @@ export type AppRole =
   // (keeps a normal tenant_id) but also granted ministry:read, narrowed to
   // their own tenant's region only (see _regional_director_region() in
   // ministry.py). No dedicated UI page yet.
-  | "REGIONAL_DIRECTOR";
+  | "REGIONAL_DIRECTOR"
+  // National-readiness audit, 2026-09 — third institutional role, same
+  // platform-level shape as MINISTRY_ADMIN (no tenant_id), full national
+  // visibility on the same aggregate endpoint. No dedicated UI page yet.
+  | "NATIONAL_INSPECTOR";
 
 export type AdmissionStatus =
   | "DRAFT"

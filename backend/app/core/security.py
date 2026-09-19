@@ -130,12 +130,19 @@ async def _get_token_version_from_redis(user_id: str) -> int:
 # blacklisted (logout, password change, logout-all) was fail-OPEN during a
 # Redis outage, the exact class of bypass this differentiated-revocation
 # policy exists to close for every other privileged role.
+#
+# NATIONAL_INSPECTOR added (national-readiness audit, 2026-09): platform-
+# level like MINISTRY_ADMIN (tenant_id NULL), same class of institutional
+# role — docs/INSTITUTIONAL_ROLES.md listed it as "not implemented yet"
+# until now; added with the same rigor called for there (dedicated
+# permission, scoped endpoint, MFA, tests, doc update in the same change).
 PRIVILEGED_ROLES: set[str] = {
     "SUPER_ADMIN",
     "TENANT_ADMIN",
     "DIRECTOR",
     "ACCOUNTANT",
     "MINISTRY_ADMIN",
+    "NATIONAL_INSPECTOR",
     "REGIONAL_DIRECTOR",
     "PREFECTURE_ADMIN",
     "COMMUNE_ADMIN",
@@ -618,6 +625,14 @@ ROLE_PERMISSIONS: dict = {
     # records, only how many establishments/students exist per region/type.
     # Platform-level like SUPER_ADMIN (tenant_id NULL on its UserRole row).
     "MINISTRY_ADMIN": ["ministry:read"],
+    # National-readiness audit, 2026-09 — third institutional role, same
+    # class as MINISTRY_ADMIN (platform-level, tenant_id NULL, ministry:read
+    # only, full national visibility on /ministry/overview/ — see
+    # _institutional_scope() in ministry.py). Distinct from MINISTRY_ADMIN
+    # in intent (audit/inspection rather than administration) but identical
+    # in access today; a narrower or different permission set is a decision
+    # for whenever inspector-specific endpoints exist, not before.
+    "NATIONAL_INSPECTOR": ["ministry:read"],
     # National audit Phase 7 — second institutional role. Unlike
     # MINISTRY_ADMIN, a REGIONAL_DIRECTOR is NOT platform-level: they keep
     # their normal tenant_id (they run one establishment) but are also
