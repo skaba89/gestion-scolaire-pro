@@ -130,6 +130,32 @@ class TestInfrastructureEnrollments:
         assert resp.status_code == 200, resp.text
         assert len(resp.json()) == 3
 
+    def test_unfiltered_query_is_capped(self, monkeypatch):
+        """Institutional-readiness audit (2026-09, Phase 3): the tenant-wide
+        (no class_id) call had no bound at all. Monkeypatch the safety limit
+        down to 2 instead of inserting thousands of rows to prove the cap
+        actually applies."""
+        import app.crud.academic as crud_academic
+
+        monkeypatch.setattr(crud_academic, "ENROLLMENTS_UNFILTERED_SAFETY_LIMIT", 2)
+        tenant_id, _, _, _ = _make_fixture()
+
+        resp = client.get(URL, headers=_as(tenant_id))
+        assert resp.status_code == 200, resp.text
+        assert len(resp.json()) == 2
+
+    def test_per_class_query_ignores_the_cap(self, monkeypatch):
+        """The cap only guards the unfiltered path — a real class roster
+        (naturally small) must never be truncated by it."""
+        import app.crud.academic as crud_academic
+
+        monkeypatch.setattr(crud_academic, "ENROLLMENTS_UNFILTERED_SAFETY_LIMIT", 1)
+        tenant_id, class_a_id, _, _ = _make_fixture()
+
+        resp = client.get(URL, params={"class_id": class_a_id}, headers=_as(tenant_id))
+        assert resp.status_code == 200, resp.text
+        assert len(resp.json()) == 2
+
 
 class TestDuplicateEnrollmentRejected:
     """Institutional-readiness audit (2026-09), business-rules subagent:
