@@ -12,11 +12,13 @@ client = get_test_client()
 
 from app.core.database import SessionLocal, engine  # noqa: E402
 from app.models.job import Job
-from app.models.student import Student
+from app.models.student import Student, Gender, StudentStatus
 from app.models.tenant import Tenant
+from app.models.user import User
 from app.workers.tasks import (
     _job_finished, _job_started, deliver_payment_reminders,
-    import_students_job, send_password_reset_email, send_welcome_email,
+    import_parents_job, import_students_job, import_teachers_job,
+    send_password_reset_email, send_welcome_email,
 )
 
 
@@ -415,6 +417,119 @@ class TestImportStudentsJobTask:
             {}, job_id=job_id, tenant_id=tenant_id,
             headers=["prenom", "nom"], rows=[{"prenom": "A", "nom": "B"}],
             skip_errors=False, default_academic_year="", user_id="u1", filename="x.csv",
+        )
+
+        assert "error" in result
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            assert job.status == "FAILED"
+
+
+@pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="run_parent_import queries students/parent_students, exercised against Postgres in this suite.",
+)
+class TestImportParentsJobTask:
+    """import_parents_job — national-readiness audit, 2026-09: extends the
+    polling pattern from import_students_job above to parents. Same rule:
+    the `jobs` row already exists (created by confirm_parent_import) and
+    the task must never re-raise on failure."""
+
+    @pytest.mark.asyncio
+    async def test_success_path_creates_parent_and_marks_job_success(self):
+        tenant_id = _make_tenant()
+        student_id = str(uuid.uuid4())
+        reg = f"ETU-WT-{uuid.uuid4().hex[:6]}"
+        with SessionLocal() as db:
+            db.add(Student(
+                id=student_id, tenant_id=tenant_id, registration_number=reg,
+                first_name="Enfant", last_name="Test", date_of_birth="2012-01-01",
+                gender=Gender.MALE, status=StudentStatus.ACTIVE,
+            ))
+            db.commit()
+
+        job_id = _job_started("import_parents", tenant_id, {"filename": "x.csv"})
+        email = f"parent.{uuid.uuid4().hex[:6]}@ecole.gn"
+
+        result = await import_parents_job(
+            {}, job_id=job_id, tenant_id=tenant_id,
+            headers=["prenom", "nom", "email", "matricule_eleve"],
+            rows=[{"prenom": "Mamadou", "nom": "Diallo", "email": email, "matricule_eleve": reg}],
+            skip_errors=False, user_id="u1", filename="x.csv",
+        )
+
+        assert result["created_parents"] == 1
+        assert result["created_links"] == 1
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            assert job.status == "SUCCESS"
+            assert job.result["created_parents"] == 1
+            assert db.query(User).filter(User.email == email).count() == 1
+
+    @pytest.mark.asyncio
+    async def test_failure_does_not_raise_and_marks_job_failed(self, monkeypatch):
+        tenant_id = _make_tenant()
+        job_id = _job_started("import_parents", tenant_id, {"filename": "x.csv"})
+
+        def _raise(*args, **kwargs):
+            raise RuntimeError("DB unavailable (simulated)")
+
+        monkeypatch.setattr("app.services.parent_import.run_parent_import", _raise)
+
+        result = await import_parents_job(
+            {}, job_id=job_id, tenant_id=tenant_id,
+            headers=["prenom", "nom", "email"], rows=[{"prenom": "A", "nom": "B", "email": "a@b.com"}],
+            skip_errors=False, user_id="u1", filename="x.csv",
+        )
+
+        assert "error" in result
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            assert job.status == "FAILED"
+
+
+@pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="run_teacher_import is exercised against Postgres in this suite (RLS-backed users/user_roles).",
+)
+class TestImportTeachersJobTask:
+    """import_teachers_job — national-readiness audit, 2026-09: extends the
+    polling pattern from import_students_job above to teachers."""
+
+    @pytest.mark.asyncio
+    async def test_success_path_creates_teacher_and_marks_job_success(self):
+        tenant_id = _make_tenant()
+        job_id = _job_started("import_teachers", tenant_id, {"filename": "x.csv"})
+        email = f"teacher.{uuid.uuid4().hex[:6]}@ecole.gn"
+
+        result = await import_teachers_job(
+            {}, job_id=job_id, tenant_id=tenant_id,
+            headers=["prenom", "nom", "email"],
+            rows=[{"prenom": "Fatoumata", "nom": "Bah", "email": email}],
+            skip_errors=False, user_id="u1", filename="x.csv",
+        )
+
+        assert result["created"] == 1
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == job_id).first()
+            assert job.status == "SUCCESS"
+            assert job.result["created"] == 1
+            assert db.query(User).filter(User.email == email).count() == 1
+
+    @pytest.mark.asyncio
+    async def test_failure_does_not_raise_and_marks_job_failed(self, monkeypatch):
+        tenant_id = _make_tenant()
+        job_id = _job_started("import_teachers", tenant_id, {"filename": "x.csv"})
+
+        def _raise(*args, **kwargs):
+            raise RuntimeError("DB unavailable (simulated)")
+
+        monkeypatch.setattr("app.services.teacher_import.run_teacher_import", _raise)
+
+        result = await import_teachers_job(
+            {}, job_id=job_id, tenant_id=tenant_id,
+            headers=["prenom", "nom", "email"], rows=[{"prenom": "A", "nom": "B", "email": "a@b.com"}],
+            skip_errors=False, user_id="u1", filename="x.csv",
         )
 
         assert "error" in result
