@@ -359,6 +359,9 @@ def create_classroom(db: Session, obj_in: ClassroomCreate, tenant_id: UUID) -> C
     return db_obj
 
 # --- Enrollment ---
+ENROLLMENTS_UNFILTERED_SAFETY_LIMIT = 5000
+
+
 def get_enrollments(
     db: Session,
     tenant_id: UUID,
@@ -374,6 +377,13 @@ def get_enrollments(
         # Enrollment.status is stored uppercase (e.g. "ACTIVE") but callers
         # (useAttendance.ts) send lowercase — compare case-insensitively.
         query = query.filter(func.upper(Enrollment.status) == status.upper())
+    if class_id is None:
+        # Institutional-readiness audit (2026-09, Phase 3): unlike the
+        # per-class call (naturally bounded to one classroom's size), the
+        # unfiltered tenant-wide call had no bound at all — every
+        # enrollment ever created, every year, loaded into memory on every
+        # call. Defensive cap only; a per-class query never hits it.
+        query = query.limit(ENROLLMENTS_UNFILTERED_SAFETY_LIMIT)
     return query.all()
 
 def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) -> Enrollment:
