@@ -102,13 +102,22 @@ class TestWhatsAppReminderEnqueue:
             resp = client.post(URL, json={"invoice_ids": [invoice_id]}, headers=headers)
 
         assert resp.status_code == 200, resp.text
-        mock_enqueue.assert_awaited_once()
-        call = mock_enqueue.await_args
-        assert call.args[0] == "send_whatsapp_notification"
-        assert call.kwargs["event_type"] == "payment_reminder"
-        assert call.kwargs["to_phone"] == "+224623456789"
-        assert call.kwargs["student_id"] == student_id
-        assert call.kwargs["_job_id"] == f"wa:payment_reminder:{invoice_id}"
+        # Two jobs are enqueued for this single invoice: the tracked WhatsApp
+        # send, and (national audit Phase 5) the push/email delivery batch —
+        # both go through the same enqueue_job() helper, so filter by the
+        # function name each call targets instead of asserting a single call.
+        assert mock_enqueue.await_count == 2
+        wa_call = next(c for c in mock_enqueue.await_args_list if c.args[0] == "send_whatsapp_notification")
+        assert wa_call.kwargs["event_type"] == "payment_reminder"
+        assert wa_call.kwargs["to_phone"] == "+224623456789"
+        assert wa_call.kwargs["student_id"] == student_id
+        assert wa_call.kwargs["_job_id"] == f"wa:payment_reminder:{invoice_id}"
+
+        reminder_call = next(c for c in mock_enqueue.await_args_list if c.args[0] == "deliver_payment_reminders")
+        assert len(reminder_call.kwargs["deliveries"]) == 1
+        # WhatsApp already queued via the tracked job above — the push/email
+        # batch must not send it a second time through the untracked path.
+        assert reminder_call.kwargs["deliveries"][0]["_skip_whatsapp"] is True
 
     def test_enqueue_failure_falls_back_to_untracked_delivery(self):
         """If Redis is unreachable, enqueue_job fails open (returns None,

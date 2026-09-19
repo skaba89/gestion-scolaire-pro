@@ -13,7 +13,7 @@ client = get_test_client()
 from app.core.database import SessionLocal  # noqa: E402
 from app.models.job import Job
 from app.models.tenant import Tenant
-from app.workers.tasks import _job_finished, _job_started, send_welcome_email
+from app.workers.tasks import _job_finished, _job_started, deliver_payment_reminders, send_welcome_email
 
 
 def _make_tenant() -> str:
@@ -204,3 +204,98 @@ class TestSendWelcomeEmailTask:
         log_text = caplog.text
         assert "re_super_secret_do_not_log_12345" not in log_text
         assert "smtp_super_secret_do_not_log_67890" not in log_text
+
+
+class TestDeliverPaymentRemindersTask:
+    """deliver_payment_reminders — national audit Phase 5: the push/email
+    half of send-reminders/ moved off in-process BackgroundTasks (see
+    _deliver_reminders_background in payments.py, now called from inside
+    this task instead of directly from the request path)."""
+
+    @pytest.mark.asyncio
+    async def test_success_path_marks_job_success_and_delivers_all(self, monkeypatch):
+        from app.services.notifications import NotifResult
+
+        calls = []
+
+        class FakeService:
+            whatsapp = None
+
+            def send_payment_reminder(self, **kwargs):
+                calls.append(kwargs)
+                return NotifResult(email=True)
+
+        monkeypatch.setattr(
+            "app.services.notifications.build_service_from_db",
+            lambda db, tenant_id: FakeService(),
+        )
+
+        tenant_id = _make_tenant()
+        deliveries = [
+            {"to_email": "parent1@ecole.gn", "invoice_number": "INV-1", "_skip_whatsapp": True},
+            {"to_email": "parent2@ecole.gn", "invoice_number": "INV-2", "_skip_whatsapp": True},
+        ]
+        result = await deliver_payment_reminders({}, tenant_id=tenant_id, deliveries=deliveries)
+
+        assert result["delivered"] == 2
+        assert len(calls) == 2
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job.status == "SUCCESS"
+            assert job.job_type == "deliver_payment_reminders"
+
+    @pytest.mark.asyncio
+    async def test_no_notification_service_configured_marks_job_failed(self, monkeypatch):
+        """A tenant with no email/WhatsApp settings configured returns None
+        from build_service_from_db — must be a recorded failure, not a
+        crash (svc.whatsapp/svc.send_payment_reminder on None)."""
+        monkeypatch.setattr(
+            "app.services.notifications.build_service_from_db",
+            lambda db, tenant_id: None,
+        )
+
+        tenant_id = _make_tenant()
+        result = await deliver_payment_reminders(
+            {}, tenant_id=tenant_id, deliveries=[{"to_email": "parent@ecole.gn"}],
+        )
+
+        assert result["delivered"] == 0
+        assert "error" in result
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job.status == "FAILED"
+
+    @pytest.mark.asyncio
+    async def test_per_delivery_exception_does_not_fail_whole_batch(self, monkeypatch):
+        """_deliver_reminders_background already catches per-delivery
+        exceptions and keeps going (see its own docstring) — this task must
+        still report the batch as a whole SUCCESS, matching that existing
+        fail-soft behavior rather than aborting on the first bad recipient."""
+        from app.services.notifications import NotifResult
+
+        class FlakyService:
+            whatsapp = None
+            calls = 0
+
+            def send_payment_reminder(self, **kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("provider timeout (simulated)")
+                return NotifResult(email=True)
+
+        monkeypatch.setattr(
+            "app.services.notifications.build_service_from_db",
+            lambda db, tenant_id: FlakyService(),
+        )
+
+        tenant_id = _make_tenant()
+        deliveries = [
+            {"to_email": "bad@ecole.gn", "invoice_number": "INV-1", "_skip_whatsapp": True},
+            {"to_email": "good@ecole.gn", "invoice_number": "INV-2", "_skip_whatsapp": True},
+        ]
+        result = await deliver_payment_reminders({}, tenant_id=tenant_id, deliveries=deliveries)
+
+        assert result["delivered"] == 2
+        with SessionLocal() as db:
+            job = db.query(Job).filter(Job.id == result["job_id"]).first()
+            assert job.status == "SUCCESS"

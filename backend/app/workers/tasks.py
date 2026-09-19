@@ -114,6 +114,39 @@ async def send_welcome_email(
         return {"job_id": job_id, "sent": False, "error": str(exc)}
 
 
+async def deliver_payment_reminders(ctx: dict, *, tenant_id: str, deliveries: list) -> dict:
+    """Push/email payment-reminder delivery, migrated off FastAPI's
+    in-process BackgroundTasks (see _deliver_reminders_background in
+    payments.py, now the synchronous fallback used only if enqueueing here
+    fails, e.g. Redis unreachable — same national audit Phase 5 pattern
+    as send_welcome_email above).
+
+    Up to 200 invoices x several external calls each previously ran on the
+    API process itself, tying up a worker thread for minutes and getting
+    silently dropped on a restart. `deliveries` is the same list of plain
+    dicts send_payment_reminders() already built (JSON-serializable —
+    only strings/bools, no ORM objects), so no extra DB round-trip is
+    needed here beyond rebuilding the NotificationService.
+    """
+    from app.api.v1.endpoints.finance.payments import _deliver_reminders_background
+    from app.services.notifications import build_service_from_db
+
+    job_id = _job_started("deliver_payment_reminders", tenant_id, {"count": len(deliveries)})
+    try:
+        with SessionLocal() as db:
+            svc = build_service_from_db(db, tenant_id)
+        if svc is None:
+            _job_finished(job_id, success=False, error="No notification service configured for tenant")
+            return {"job_id": job_id, "delivered": 0, "error": "No notification service configured for tenant"}
+        _deliver_reminders_background(svc, deliveries)
+        _job_finished(job_id, success=True, result={"count": len(deliveries)})
+        return {"job_id": job_id, "delivered": len(deliveries)}
+    except Exception as exc:
+        logger.warning("deliver_payment_reminders failed for tenant %s: %s", tenant_id, exc)
+        _job_finished(job_id, success=False, error=str(exc))
+        return {"job_id": job_id, "delivered": 0, "error": str(exc)}
+
+
 # ─── WhatsApp Cloud API — async jobs ───────────────────────────────────────
 # Never send WhatsApp inside the HTTP request path — a slow Graph API call
 # (or one blocked by Meta rate limits) must never make a payment/attendance/
@@ -802,6 +835,7 @@ class WorkerSettings:
 
     functions = [
         send_welcome_email,
+        deliver_payment_reminders,
         send_public_form_submission_alert,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,
