@@ -41,6 +41,11 @@ class TestParentSchemas:
             ParentCreate(first_name="Mamadou", last_name="Diallo", email="")
 
     def test_convert_type_is_restricted(self):
+        """"teacher" is a legitimate value since the institutional-
+        readiness audit (2026-09) added an activation path for imported
+        teacher accounts (see TestAccountConversion.
+        test_activates_existing_pending_teacher) — restricted to a
+        genuinely-unsupported type instead."""
         from app.api.v1.endpoints.core.users import ConvertRequest
 
         with pytest.raises(ValidationError):
@@ -49,7 +54,7 @@ class TestParentSchemas:
                 email="parent@example.gn",
                 first_name="Mamadou",
                 last_name="Diallo",
-                type="teacher",
+                type="admin",
             )
 
     def test_relationship_response_contains_parent_and_student(self):
@@ -277,6 +282,53 @@ class TestAccountConversion:
         assert parent.is_active is True
         assert parent.password_hash == "hashed-password"
         assert parent.first_name == "Fatoumata"
+        db.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_activates_existing_pending_teacher(self):
+        """Institutional-readiness audit (2026-09), account-lifecycle
+        subagent finding #3: imported TEACHER accounts
+        (POST /import/teachers/confirm/) had no activation path at all —
+        ConvertRequest.type only accepted "student"/"parent". Mirrors
+        test_activates_existing_pending_parent exactly, for "teacher"."""
+        from app.api.v1.endpoints.core.users import ConvertRequest, convert_to_account
+
+        tenant_id = uuid.uuid4()
+        teacher_id = uuid.uuid4()
+        teacher = SimpleNamespace(
+            id=teacher_id,
+            tenant_id=tenant_id,
+            email="teacher@example.gn",
+            username="teacher@example.gn",
+            first_name="Teacher",
+            last_name="Pending",
+            password_hash=None,
+            is_active=False,
+            must_change_password=True,
+        )
+        db = MagicMock()
+        db.query.side_effect = [_query(first=teacher), _query(first=teacher)]
+
+        with patch("app.core.security.get_password_hash", return_value="hashed-password"):
+            result = await convert_to_account(
+                body=ConvertRequest(
+                    id=str(teacher_id),
+                    email="teacher@example.gn",
+                    first_name="Mamadou",
+                    last_name="Bah",
+                    type="teacher",
+                    password="Strong@Password2026",
+                ),
+                db=db,
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
+            )
+
+        assert result["userId"] == str(teacher_id)
+        assert result["email"] == "teacher@example.gn"
+        assert result["invitation_sent"] is False
+        assert teacher.is_active is True
+        assert teacher.password_hash == "hashed-password"
+        assert teacher.first_name == "Mamadou"
         db.commit.assert_called_once()
 
     @pytest.mark.asyncio

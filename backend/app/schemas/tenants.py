@@ -49,6 +49,15 @@ class TenantBase(BaseModel):
     website: Optional[str] = None
 
 
+# Institutional-readiness audit (2026-09): TenantCreate.type accepted any
+# string — POST /tenants/ (create_tenant, tenants.py) never validated it
+# at all, unlike /auth/register-school/ (auth.py) which restricts to this
+# exact set. Both CreateTenant.tsx and CreateTenantWithAdmin.tsx (the only
+# two UIs that hit this endpoint) already only ever send one of these five
+# values, so this closes the gap without touching any real usage.
+VALID_TENANT_TYPES = {"primary", "middle", "high", "university", "training"}
+
+
 class TenantCreate(TenantBase):
     country: Optional[str] = "GN"
     currency: Optional[str] = "GNF"
@@ -61,6 +70,15 @@ class TenantCreate(TenantBase):
     @classmethod
     def _validate_slug(cls, v: str) -> str:
         return validate_tenant_slug(v)
+
+    @field_validator("type")
+    @classmethod
+    def _validate_type(cls, v: str) -> str:
+        if v not in VALID_TENANT_TYPES:
+            raise ValueError(
+                f"Type d'établissement invalide. Valeurs acceptées : {', '.join(sorted(VALID_TENANT_TYPES))}"
+            )
+        return v
 
 
 class TenantUpdate(BaseModel):
@@ -117,6 +135,15 @@ class TenantWithAdminCreate(BaseModel):
     @classmethod
     def _validate_slug(cls, v: str) -> str:
         return validate_tenant_slug(v)
+
+    @field_validator("type")
+    @classmethod
+    def _validate_type(cls, v: str) -> str:
+        if v not in VALID_TENANT_TYPES:
+            raise ValueError(
+                f"Type d'établissement invalide. Valeurs acceptées : {', '.join(sorted(VALID_TENANT_TYPES))}"
+            )
+        return v
 
 
 class TenantAdminUserCreate(BaseModel):

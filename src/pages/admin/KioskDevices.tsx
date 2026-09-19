@@ -10,10 +10,17 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ScanLine, Plus, Copy, Trash2, Tablet, Check, AlertTriangle } from "lucide-react";
+import { ScanLine, Plus, Copy, Trash2, Tablet, Check, AlertTriangle, DoorOpen } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -22,8 +29,14 @@ interface KioskDevice {
     id: string;
     label: string;
     is_active: boolean;
+    room_id: string | null;
     last_used_at: string | null;
     created_at: string;
+}
+
+interface Room {
+    id: string;
+    name: string;
 }
 
 export default function KioskDevices() {
@@ -31,6 +44,7 @@ export default function KioskDevices() {
     const queryClient = useQueryClient();
     const [createOpen, setCreateOpen] = useState(false);
     const [label, setLabel] = useState("");
+    const [roomId, setRoomId] = useState<string>("");
     const [createdToken, setCreatedToken] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [revokeTarget, setRevokeTarget] = useState<KioskDevice | null>(null);
@@ -43,9 +57,21 @@ export default function KioskDevices() {
         },
     });
 
+    // Le nom de salle n'est pas renvoyé par /kiosk/devices/ (seulement
+    // room_id) — on fait la correspondance côté client plutôt que
+    // d'étendre la réponse backend pour un simple affichage.
+    const { data: rooms } = useQuery<Room[]>({
+        queryKey: ["rooms-for-kiosk"],
+        queryFn: async () => {
+            const { data } = await apiClient.get("/rooms/", { params: { ordering: "name" } });
+            return data;
+        },
+    });
+    const roomNameById = new Map((rooms ?? []).map((r) => [r.id, r.name]));
+
     const createMutation = useMutation({
-        mutationFn: async (label: string) => {
-            const { data } = await apiClient.post("/kiosk/devices/", { label });
+        mutationFn: async ({ label, room_id }: { label: string; room_id: string | null }) => {
+            const { data } = await apiClient.post("/kiosk/devices/", { label, room_id });
             return data;
         },
         onSuccess: (data) => {
@@ -72,6 +98,7 @@ export default function KioskDevices() {
     const resetCreateDialog = () => {
         setCreateOpen(false);
         setLabel("");
+        setRoomId("");
         setCreatedToken(null);
         setCopied(false);
     };
@@ -123,6 +150,7 @@ export default function KioskDevices() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Nom</TableHead>
+                                    <TableHead>Salle</TableHead>
                                     <TableHead>Statut</TableHead>
                                     <TableHead>Dernière utilisation</TableHead>
                                     <TableHead>Créé le</TableHead>
@@ -135,6 +163,16 @@ export default function KioskDevices() {
                                         <TableCell className="font-medium flex items-center gap-2">
                                             <Tablet className="h-4 w-4 text-muted-foreground" />
                                             {device.label}
+                                        </TableCell>
+                                        <TableCell>
+                                            {device.room_id ? (
+                                                <span className="inline-flex items-center gap-1 text-sm">
+                                                    <DoorOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    {roomNameById.get(device.room_id) ?? "Salle inconnue"}
+                                                </span>
+                                            ) : (
+                                                <span className="text-sm text-muted-foreground italic">Entrée générale</span>
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={device.is_active ? "default" : "outline"}>
@@ -179,20 +217,41 @@ export default function KioskDevices() {
                                     Donnez un nom pour identifier cet appareil (ex : "Tablette Entrée principale").
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="space-y-2 py-2">
-                                <Label htmlFor="kiosk-label">Nom de l'appareil</Label>
-                                <Input
-                                    id="kiosk-label" value={label}
-                                    onChange={(e) => setLabel(e.target.value)}
-                                    placeholder="Tablette Entrée principale"
-                                    autoFocus
-                                />
+                            <div className="space-y-4 py-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="kiosk-label">Nom de l'appareil</Label>
+                                    <Input
+                                        id="kiosk-label" value={label}
+                                        onChange={(e) => setLabel(e.target.value)}
+                                        placeholder="Tablette Entrée principale"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="kiosk-room">Salle (optionnel)</Label>
+                                    <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(v === "__none__" ? "" : v)}>
+                                        <SelectTrigger id="kiosk-room">
+                                            <SelectValue placeholder="Entrée générale de l'établissement" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="__none__">Entrée générale (pas de salle)</SelectItem>
+                                            {(rooms ?? []).map((room) => (
+                                                <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        Associez cet appareil à une salle pour badger l'entrée en cours :
+                                        le scan marquera automatiquement l'élève présent pour le cours en
+                                        session dans cette salle.
+                                    </p>
+                                </div>
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={resetCreateDialog}>Annuler</Button>
                                 <Button
                                     disabled={!label.trim() || createMutation.isPending}
-                                    onClick={() => createMutation.mutate(label.trim())}
+                                    onClick={() => createMutation.mutate({ label: label.trim(), room_id: roomId || null })}
                                 >
                                     Créer
                                 </Button>

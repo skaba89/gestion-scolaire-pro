@@ -16,6 +16,32 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _validate_assignment_fks(db: Session, *, tenant_id: str, teacher_id: Optional[str],
+                              class_id: Optional[str], subject_id: Optional[str]) -> None:
+    """DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    create_teacher_assignment/update_teacher_assignment inserted/updated
+    teacher_id/class_id/subject_id verbatim with no check they belong to
+    the caller's tenant — a TENANT_ADMIN could assign a cross-tenant user
+    as a teacher, or point the assignment at a cross-tenant classroom/
+    subject, corrupting get_teacher_dashboard and downstream schedule/
+    grade joins."""
+    if teacher_id:
+        row = db.execute(text("SELECT id FROM users WHERE id = :id AND tenant_id = :tid"),
+                          {"id": teacher_id, "tid": tenant_id}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Enseignant introuvable dans cet établissement")
+    if class_id:
+        row = db.execute(text("SELECT id FROM classes WHERE id = :id AND tenant_id = :tid"),
+                          {"id": class_id, "tid": tenant_id}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Classe introuvable dans cet établissement")
+    if subject_id:
+        row = db.execute(text("SELECT id FROM subjects WHERE id = :id AND tenant_id = :tid"),
+                          {"id": subject_id, "tid": tenant_id}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
+
+
 class TeacherAssignmentCreate(BaseModel):
     teacher_id: str
     class_id: Optional[str] = None
@@ -109,6 +135,8 @@ def create_teacher_assignment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _validate_assignment_fks(db, tenant_id=tenant_id, teacher_id=assignment.teacher_id,
+                              class_id=assignment.class_id, subject_id=assignment.subject_id)
     try:
         result = db.execute(text("""
             INSERT INTO teacher_assignments (id, tenant_id, user_id, classroom_id, subject_id, created_at, updated_at)
@@ -143,6 +171,8 @@ def update_teacher_assignment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _validate_assignment_fks(db, tenant_id=tenant_id, teacher_id=None,
+                              class_id=assignment.class_id, subject_id=assignment.subject_id)
     try:
         sets = []
         params = {"aid": str(assignment_id), "tid": tenant_id}

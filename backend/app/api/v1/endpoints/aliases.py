@@ -60,11 +60,14 @@ def create_enrollment_alias(
     """POST /enrollments/ — mirrors POST /infrastructure/enrollments/"""
     from app.crud import academic as crud
     from app.schemas.academic import EnrollmentCreate
-    return crud.create_enrollment(
-        db,
-        obj_in=EnrollmentCreate(**obj_in.model_dump()),
-        tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
-    )
+    try:
+        return crud.create_enrollment(
+            db,
+            obj_in=EnrollmentCreate(**obj_in.model_dump()),
+            tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @enrollments_alias_router.get("/counts/")
@@ -225,18 +228,43 @@ def update_invoice_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """PUT /invoices/{id}/ — mirrors PUT /payments/invoices/{id}/"""
+    """PUT /invoices/{id}/ — mirrors PUT /payments/invoices/{id}/
+
+    BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): this alias
+    duplicated the canonical endpoint's pre-fix logic — editing
+    total_amount never recalculated status against paid_amount, so a
+    PARTIAL invoice whose total was reduced below paid_amount stayed
+    PARTIAL forever (or the reverse). Now mirrors
+    finance/payments.py's update_invoice_endpoint() exactly.
+    """
     import json
     from app.utils.audit import log_audit
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    existing = db.execute(text("""
+        SELECT paid_amount FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
+    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    # DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): same
+    # missing student_id tenant check as the canonical
+    # finance/payments.py::update_invoice_endpoint — an existing invoice
+    # could be re-pointed to an arbitrary/cross-tenant student.
+    student = db.execute(text(
+        "SELECT id FROM students WHERE id = :sid AND tenant_id = :tenant_id"
+    ), {"sid": body.student_id, "tenant_id": tenant_id}).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found in this tenant")
+    paid_amount = float(existing["paid_amount"] or 0)
+    new_status = "PAID" if paid_amount >= float(body.total_amount) else ("PARTIAL" if paid_amount > 0 else "PENDING")
+
     result = db.execute(text("""
         UPDATE invoices SET
             student_id = :student_id, invoice_number = :invoice_number,
             total_amount = :total_amount, items = :items, due_date = :due_date,
             notes = :notes, has_payment_plan = :has_payment_plan,
-            installments_count = :installments_count, updated_at = NOW()
+            installments_count = :installments_count, status = :status, updated_at = NOW()
         WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {
         "tenant_id": tenant_id, "invoice_id": invoice_id,
@@ -246,7 +274,8 @@ def update_invoice_alias(
         "due_date": body.due_date if body.due_date else None,
         "notes": body.notes,
         "has_payment_plan": body.has_payment_plan,
-        "installments_count": body.installments_count
+        "installments_count": body.installments_count,
+        "status": new_status,
     })
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -263,11 +292,39 @@ def delete_invoice_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """DELETE /invoices/{id}/ — mirrors DELETE /payments/invoices/{id}/"""
+    """DELETE /invoices/{id}/ — mirrors DELETE /payments/invoices/{id}/
+
+    SECURITY/DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    this alias duplicated the canonical endpoint's pre-fix logic — an
+    unconditional DELETE with no payment-history check. Payment.invoice_id
+    is ON DELETE SET NULL, so deleting a paid invoice through this route
+    would silently orphan every payment ever registered against it. Now
+    mirrors finance/payments.py's delete_invoice_endpoint() exactly.
+    """
     from app.utils.audit import log_audit
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    invoice_row = db.execute(text("""
+        SELECT id FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
+    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
+    if not invoice_row:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    has_payments = db.execute(text("""
+        SELECT 1 FROM payments WHERE invoice_id = :invoice_id LIMIT 1
+    """), {"invoice_id": invoice_id}).first()
+    if has_payments:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Impossible de supprimer une facture ayant des paiements "
+                "enregistrés, même annulés — l'historique financier ne peut "
+                "jamais être effacé. Utilisez le statut de la facture pour "
+                "la marquer autrement si besoin."
+            ),
+        )
+
     result = db.execute(text("""
         DELETE FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id})
@@ -928,9 +985,18 @@ def list_rooms_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /rooms/ — mirrors GET /infrastructure/rooms/"""
+    """GET /rooms/ — mirrors GET /infrastructure/rooms/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): the
+    client-supplied `tenant_id` query param used to WIN over the caller's
+    resolved tenant (`tenant_id or resolve_current_tenant_id(...)`) — any
+    authenticated user could read another tenant's rooms by passing
+    ?tenant_id=<other-tenant-uuid>. The param is now ignored; only
+    resolve_current_tenant_id() (which already handles the legitimate
+    SUPER_ADMIN cross-tenant case via X-Tenant-ID) decides the tenant.
+    """
     from app.crud import academic as crud
-    tid = tenant_id or str(resolve_current_tenant_id(request, current_user, db))
+    tid = str(resolve_current_tenant_id(request, current_user, db))
     if not tid:
         return []
     results = crud.get_rooms(db, tenant_id=tid)
@@ -1045,9 +1111,16 @@ def list_schedule_slots_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /schedule-slots/ — mirrors GET /schedule/"""
+    """GET /schedule-slots/ — mirrors GET /schedule/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): same
+    client-supplied-tenant_id-wins bug as list_rooms_alias above — any
+    authenticated user could read another tenant's classroom schedule
+    (teacher names, room names, times) via ?tenant_id=<other-tenant-uuid>.
+    The param is now ignored.
+    """
     from sqlalchemy import text as sql_text
-    tid = tenant_id or str(resolve_current_tenant_id(request, current_user, db))
+    tid = str(resolve_current_tenant_id(request, current_user, db))
     if not tid:
         return []
 
@@ -1130,7 +1203,12 @@ def create_achievement_definition(
     request: Request,
     body: AchievementDefCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): no permission
+    # check at all previously — any authenticated user, including STUDENT/
+    # PARENT/ALUMNI, could create a tenant-wide achievement definition with
+    # an arbitrary points_value. school_life:write matches the sibling
+    # gamification_router.rules CRUD in this same file.
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     row = db.execute(text("""
@@ -1154,7 +1232,7 @@ def update_achievement_definition(
     achievement_id: str,
     body: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     allowed = {"name", "description", "icon", "category", "points_value", "trigger_type", "trigger_threshold", "is_active"}
@@ -1180,7 +1258,7 @@ def delete_achievement_definition(
     request: Request,
     achievement_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM achievement_definitions WHERE id = :id AND tenant_id = :tid"),
@@ -1224,7 +1302,13 @@ def award_student_achievement(
     request: Request,
     body: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): no permission
+    # check at all previously — any authenticated user, including STUDENT/
+    # PARENT, could award an arbitrary achievement_id to any student_id in
+    # the tenant. This is a direct manual award (unlike the automatic,
+    # self-triggerable /gamification/process-event/ below), so it always
+    # requires school_life:write — no self-service exception.
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
@@ -1254,11 +1338,37 @@ def award_student_achievement(
 gamification_router = APIRouter()
 
 
+def _can_trigger_event_for_student(db: Session, *, current_user: dict, student_id: str, tenant_id: str) -> bool:
+    """Whether current_user may trigger a gamification event for student_id.
+
+    A privileged role (TEACHER/DIRECTOR/TENANT_ADMIN, all holding
+    school_life:write) triggers this after grading/marking attendance for
+    any student. A STUDENT triggers it for themselves right after
+    submitting their own homework (onHomeworkSubmitted, gamification-
+    triggers.ts) — no other self-service case exists, so that is the only
+    exception granted.
+    """
+    from app.core.security import user_has_permission
+    from app.models.student import Student
+
+    if user_has_permission(current_user, "school_life:write"):
+        return True
+    student = db.query(Student).filter(
+        Student.id == student_id, Student.tenant_id == tenant_id,
+    ).first()
+    return bool(student and student.user_id and str(student.user_id) == str(current_user.get("id")))
+
+
 @gamification_router.post("/process-event/")
 def process_gamification_event(
     request: Request,
     body: dict,
     db: Session = Depends(get_db),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): no permission
+    # or ownership check at all previously — any authenticated user could
+    # POST an arbitrary event_type/student_id pair to farm gamification
+    # points/badges for any student. See
+    # _can_trigger_event_for_student() for the exact rule.
     current_user: dict = Depends(get_current_user),
 ):
     """Process a gamification event and award matching achievements."""
@@ -1268,6 +1378,8 @@ def process_gamification_event(
 
     if not student_id or not event_type:
         raise HTTPException(status_code=400, detail="student_id and event_type required")
+    if not _can_trigger_event_for_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas déclencher cet événement pour cet élève")
 
     # Find matching achievement definitions for this event type
     rows = db.execute(text("""
@@ -1494,23 +1606,47 @@ def update_homework_submission(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
-    """PUT /homework-submissions/{id} — grade a submission."""
+    """PUT /homework-submissions/{id} — grade a submission.
+
+    BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): two gaps.
+    (a) graded_by came from the request body, falling back to the caller
+    only if absent — any holder of homework:write could attribute a grade
+    to an arbitrary user id instead of themselves, breaking the "who
+    actually graded this" audit trail. (b) grade (NUMERIC(5,2), no CHECK
+    constraint) was inserted with no bound at all; homework_submissions
+    has no max_score column to validate against (unlike Grade), so this
+    uses the same 0-20 scale already the default for assessments
+    (school_life.py's AssessmentBase.max_score = 20.0).
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
+    grade = body.get("grade")
+    if grade is not None and not (0 <= float(grade) <= 20):
+        raise HTTPException(status_code=422, detail="La note doit être comprise entre 0 et 20")
+
+    # BUG FIX (institutional-readiness audit, 2026-09): `:graded_at::timestamptz`
+    # (no space before the cast) is never recognized as a bind parameter by
+    # SQLAlchemy's text() — its regex treats a `:` immediately followed by
+    # `:` as Postgres's own cast operator, not a param reference. The
+    # literal string ":graded_at::timestamptz" was sent to Postgres
+    # verbatim, so every call with a truthy body["graded_at"] (or even
+    # None, since psycopg still chokes on the stray `:`) raised a syntax
+    # error — this endpoint has never actually worked. Same class of bug
+    # already found in operational/parents.py's create_parent_appointment_slot.
     row = db.execute(text("""
         UPDATE homework_submissions
         SET grade = :grade,
             feedback = :feedback,
             graded_by = :graded_by,
-            graded_at = COALESCE(:graded_at::timestamptz, NOW())
+            graded_at = COALESCE(:graded_at ::timestamptz, NOW())
         WHERE id = :id AND tenant_id = :tenant_id
         RETURNING id, homework_id, student_id, grade, feedback, graded_at
     """), {
         "id": submission_id,
         "tenant_id": tenant_id,
-        "grade": body.get("grade"),
+        "grade": grade,
         "feedback": body.get("feedback"),
-        "graded_by": body.get("graded_by") or current_user.get("id"),
+        "graded_by": current_user.get("id"),
         "graded_at": body.get("graded_at"),
     }).mappings().first()
 
@@ -1654,8 +1790,25 @@ def delete_shared_note(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """DELETE /shared-notes/{id}"""
+    """DELETE /shared-notes/{id}
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): this had no
+    author check and no permission gate at all — any authenticated tenant
+    user (STUDENT included) could delete any other user's shared note by
+    id, unlike create_shared_note() which correctly stamps author_id.
+    Restricted to the note's own author or a school_life:write holder
+    (teacher/admin moderation).
+    """
+    from app.core.security import user_has_permission
+
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not user_has_permission(current_user, "school_life:write"):
+        note = db.execute(text("SELECT author_id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                           {"id": note_id, "tid": tenant_id}).mappings().first()
+        if not note:
+            raise HTTPException(status_code=404, detail="Note not found")
+        if str(note["author_id"]) != str(current_user.get("id")):
+            raise HTTPException(status_code=403, detail="Vous ne pouvez pas supprimer la note d'un autre utilisateur")
     db.execute(text("DELETE FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
                {"id": note_id, "tid": tenant_id})
     db.commit()
@@ -1672,23 +1825,32 @@ def list_note_likes(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /shared-note-likes/"""
-    where = []
-    params: dict = {}
+    """GET /shared-note-likes/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): shared_note_likes
+    has no tenant_id column of its own — this endpoint never joined to
+    shared_notes to scope by tenant, unlike shared_notes_router just above
+    it. Any authenticated user in any tenant could read likes for a
+    note_id belonging to a different school.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    where = ["n.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
 
     if note_id__in:
         ids = [i.strip() for i in note_id__in.split(",") if i.strip()]
         if ids:
-            where.append("note_id = ANY(:ids)")
+            where.append("l.note_id = ANY(:ids)")
             params["ids"] = ids
     if user_id:
-        where.append("user_id = :user_id")
+        where.append("l.user_id = :user_id")
         params["user_id"] = user_id
 
-    sql = "SELECT id, note_id, user_id, created_at FROM shared_note_likes"
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " LIMIT 1000"
+    sql = """
+        SELECT l.id, l.note_id, l.user_id, l.created_at
+        FROM shared_note_likes l
+        JOIN shared_notes n ON n.id = l.note_id
+        WHERE """ + " AND ".join(where) + " LIMIT 1000"
 
     rows = db.execute(text(sql), params).mappings().all()
     return [dict(r) for r in rows]
@@ -1701,9 +1863,19 @@ def like_note(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /shared-note-likes/"""
+    """POST /shared-note-likes/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): note_id was
+    never checked against the caller's tenant — any authenticated user
+    could like a note belonging to a different school.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     note_id = body.get("note_id")
+    note = db.execute(text("SELECT id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                       {"id": note_id, "tid": tenant_id}).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
     try:
         db.execute(text("""
             INSERT INTO shared_note_likes (note_id, user_id)
@@ -1724,8 +1896,17 @@ def unlike_note(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """DELETE /shared-note-likes/?note_id=X"""
+    """DELETE /shared-note-likes/?note_id=X
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): note_id was
+    never checked against the caller's tenant.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    note = db.execute(text("SELECT id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                       {"id": note_id, "tid": tenant_id}).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
     db.execute(text("DELETE FROM shared_note_likes WHERE note_id = :nid AND user_id = :uid"),
                {"nid": note_id, "uid": user_id})
     db.commit()
@@ -1744,9 +1925,16 @@ def list_note_comments(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /shared-note-comments/"""
-    where = []
-    params: dict = {}
+    """GET /shared-note-comments/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): shared_note_comments
+    has no tenant_id column of its own — this endpoint never joined to
+    shared_notes to scope by tenant. Any authenticated user in any tenant
+    could read comments on a note belonging to a different school.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    where = ["n.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
 
     if note_id:
         where.append("snc.note_id = :note_id")
@@ -1761,11 +1949,11 @@ def list_note_comments(
         SELECT snc.id, snc.note_id, snc.content, snc.created_at,
                u.id as user_id, u.first_name, u.last_name
         FROM shared_note_comments snc
+        JOIN shared_notes n ON n.id = snc.note_id
         LEFT JOIN users u ON u.id = snc.user_id
+        WHERE """ + " AND ".join(where) + """
+        ORDER BY snc.created_at ASC LIMIT 500
     """
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY snc.created_at ASC LIMIT 500"
 
     rows = db.execute(text(sql), params).mappings().all()
     return [
@@ -1788,12 +1976,21 @@ def create_note_comment(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /shared-note-comments/"""
+    """POST /shared-note-comments/
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): note_id was
+    never checked against the caller's tenant.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     note_id = body.get("note_id")
     content = body.get("content", "")
     if not note_id or not content:
         raise HTTPException(status_code=400, detail="note_id and content required")
+    note = db.execute(text("SELECT id FROM shared_notes WHERE id = :id AND tenant_id = :tid"),
+                       {"id": note_id, "tid": tenant_id}).first()
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
 
     row = db.execute(text("""
         INSERT INTO shared_note_comments (note_id, user_id, content)
@@ -1900,23 +2097,39 @@ def create_course_discussion(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /course-discussions/"""
+    """POST /course-discussions/
+
+    DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): course_id
+    was inserted verbatim with no check it belongs to the caller's tenant
+    — any authenticated user could attach a forum post to an arbitrary or
+    cross-tenant course_id.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
+        course_id = body.get("course_id")
+        course = db.execute(text(
+            "SELECT id FROM elearning_courses WHERE id = :cid AND tenant_id = :tid"
+        ), {"cid": course_id, "tid": tenant_id}).first()
+        if not course:
+            raise HTTPException(status_code=404, detail="Cours introuvable dans cet établissement")
+
         row = db.execute(text("""
             INSERT INTO course_discussions (tenant_id, course_id, user_id, content, parent_id)
             VALUES (:tid, :course_id, :user_id, :content, :parent_id)
             RETURNING id, course_id, user_id, content, parent_id, created_at
         """), {
             "tid": tenant_id,
-            "course_id": body.get("course_id"),
+            "course_id": course_id,
             "user_id": user_id,
             "content": body.get("content", ""),
             "parent_id": body.get("parent_id"),
         }).mappings().first()
         db.commit()
         return dict(row)
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2017,13 +2230,27 @@ def create_student_badge(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
-    """POST /student-badges/"""
+    """POST /student-badges/
+
+    DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    student_id was inserted verbatim with no check it belongs to the
+    caller's tenant — a staff account could award a badge to a
+    student_id from any other tenant, polluting cross-tenant gamification
+    data. Same bug class already fixed for mentorship-request/
+    job-application student_id spoofing.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         # body may be a list or a single object
         items = body if isinstance(body, list) else [body]
         created = []
         for item in items:
+            student_id = item.get("student_id")
+            student = db.execute(text(
+                "SELECT id FROM students WHERE id = :sid AND tenant_id = :tid"
+            ), {"sid": student_id, "tid": tenant_id}).first()
+            if not student:
+                raise HTTPException(status_code=404, detail=f"Élève introuvable dans cet établissement : {student_id}")
             row = db.execute(text("""
                 INSERT INTO student_badges
                 (tenant_id, student_id, badge_type, badge_name, description, icon, status, classroom_id)
@@ -2042,6 +2269,9 @@ def create_student_badge(
                 created.append(dict(row))
         db.commit()
         return created
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2073,8 +2303,17 @@ def register_trusted_device(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /trusted-devices/ — register a trusted device for 2FA bypass."""
-    user_id = body.get("user_id") or current_user.get("id")
+    """POST /trusted-devices/ — register a trusted device for 2FA bypass.
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): user_id used to
+    come from the request body, falling back to current_user only if
+    absent. Any authenticated user could pass an arbitrary user_id and
+    register their own device as a trusted (2FA-bypassing) device for a
+    victim account, with no ownership or tenant check at all. This is a
+    self-service endpoint — it can only ever register a device for the
+    caller.
+    """
+    user_id = current_user.get("id")
     try:
         db.execute(text("""
             INSERT INTO trusted_devices
@@ -2160,10 +2399,25 @@ def create_point_transaction(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
-    """POST /point-transactions/ — award or deduct points."""
+    """POST /point-transactions/ — award or deduct points.
+
+    DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): student_id
+    was inserted verbatim with no check it belongs to the caller's tenant
+    — a staff account could award/deduct points on a student_id from any
+    other tenant, polluting cross-tenant gamification data. (This column
+    actually references users.id, per list_point_transactions' own
+    `LEFT JOIN users u ON u.id = pt.student_id` above.)
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     import uuid as _uuid
     try:
+        student_id = body.get("student_id")
+        target = db.execute(text(
+            "SELECT id FROM users WHERE id = :uid AND tenant_id = :tid"
+        ), {"uid": student_id, "tid": tenant_id}).first()
+        if not target:
+            raise HTTPException(status_code=404, detail=f"Utilisateur introuvable dans cet établissement : {student_id}")
+
         new_id = str(_uuid.uuid4())
         db.execute(text("""
             INSERT INTO point_transactions
@@ -2171,7 +2425,7 @@ def create_point_transaction(
             VALUES (:id, :student_id, :points, :reason, :category, :ref_id, :tid, NOW())
         """), {
             "id": new_id,
-            "student_id": body.get("student_id"),
+            "student_id": student_id,
             "points": body.get("points", 0),
             "reason": body.get("reason", ""),
             "category": body.get("category", "manual"),
@@ -2180,6 +2434,9 @@ def create_point_transaction(
         })
         db.commit()
         return {"id": new_id, **body, "tenant_id": tenant_id}
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2268,10 +2525,18 @@ def delete_quiz_question(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
-    """DELETE /quiz-questions/{id}/"""
+    """DELETE /quiz-questions/{id}/
+
+    BUG FIX (institutional-readiness audit, 2026-09): missing db.commit()
+    — SessionLocal is autocommit=False and get_db()'s finally only calls
+    db.close(), which rolls back a pending transaction. The API returned
+    204 but the row was never actually removed; every other write
+    endpoint in this file commits explicitly.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.execute(text("DELETE FROM quiz_questions WHERE id = :id AND tenant_id = :tid"),
                {"id": question_id, "tid": tenant_id})
+    db.commit()
 
 
 # ─── 33. Subject preferred rooms (/subject-preferred-rooms/) ──────────────────

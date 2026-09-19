@@ -122,9 +122,19 @@ async def _get_token_version_from_redis(user_id: str) -> int:
 # Accounts whose EVERY request must be revocation-verified: if Redis (the
 # blacklist / logout-all backend) is unreachable, these are refused with a
 # controlled 503 rather than fail-open. Institutional/admin roles only.
+#
+# DIRECTOR/ACCOUNTANT added (institutional-readiness audit, 2026-09): both
+# are already documented as privileged, MFA-mandatory roles alongside
+# SUPER_ADMIN/TENANT_ADMIN (see PRIVILEGED_ROLES_REQUIRING_MFA, auth.py) —
+# their absence here meant a DIRECTOR or ACCOUNTANT whose token was
+# blacklisted (logout, password change, logout-all) was fail-OPEN during a
+# Redis outage, the exact class of bypass this differentiated-revocation
+# policy exists to close for every other privileged role.
 PRIVILEGED_ROLES: set[str] = {
     "SUPER_ADMIN",
     "TENANT_ADMIN",
+    "DIRECTOR",
+    "ACCOUNTANT",
     "MINISTRY_ADMIN",
     "REGIONAL_DIRECTOR",
     "PREFECTURE_ADMIN",
@@ -278,6 +288,23 @@ async def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authenticated user not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # SECURITY (institutional-readiness audit, 2026-09): a deactivated
+        # user's already-issued access token used to keep authenticating on
+        # every endpoint gated by get_current_user()/require_permission()
+        # until token expiry (ACCESS_TOKEN_EXPIRE_MINUTES, default 30) —
+        # is_active was only checked at /auth/login/ and /auth/refresh/, not
+        # here. A TENANT_ADMIN deactivating a compromised or terminated
+        # account (toggle_user_status, users.py) had zero immediate effect:
+        # the deactivated user could keep reading/writing tenant data for up
+        # to the full token lifetime with no way to cut it off short of a
+        # separate logout-all call the deactivation path never makes.
+        if not user_db.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Compte désactivé",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 

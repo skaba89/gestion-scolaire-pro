@@ -19,6 +19,61 @@ class TestForgotPassword:
         if resp.status_code == 200:
             assert "réinitialisation" in resp.json()["message"]
 
+    def test_known_email_enqueues_arq_job_not_background_task(self):
+        """national audit Phase 5: a known email must go through the
+        persistent Arq queue (send_password_reset_email), not the old
+        in-process BackgroundTasks path, when enqueueing succeeds."""
+        import uuid
+        from app.core.database import SessionLocal
+        from app.models.user import User
+
+        email = f"reset-{uuid.uuid4().hex[:8]}@example.com"
+        with SessionLocal() as db:
+            db.add(User(
+                id=str(uuid.uuid4()), email=email, username=f"u{uuid.uuid4().hex[:8]}",
+                password_hash="x", first_name="Test", last_name="User", is_active=True,
+            ))
+            db.commit()
+
+        mock_enqueue = AsyncMock(return_value="arq-job-id-xyz")
+        with patch("app.core.jobs.enqueue_job", new=mock_enqueue):
+            resp = client.post("/api/v1/auth/forgot-password/", json={"email": email})
+
+        assert resp.status_code in (200, 429)
+        if resp.status_code == 200:
+            mock_enqueue.assert_awaited_once()
+            call = mock_enqueue.await_args
+            assert call.args[0] == "send_password_reset_email"
+            assert call.kwargs["email"] == email
+
+    def test_enqueue_failure_falls_back_to_background_task(self):
+        """If Redis is unreachable, enqueue_job fails open (returns None) —
+        the reset link must still be attempted via the old untracked path,
+        not silently dropped (this endpoint always returns 200, so a
+        silent drop would be unrecoverable for the user)."""
+        import uuid
+        from app.core.database import SessionLocal
+        from app.models.user import User
+
+        email = f"reset-fb-{uuid.uuid4().hex[:8]}@example.com"
+        with SessionLocal() as db:
+            db.add(User(
+                id=str(uuid.uuid4()), email=email, username=f"u{uuid.uuid4().hex[:8]}",
+                password_hash="x", first_name="Test", last_name="User", is_active=True,
+            ))
+            db.commit()
+
+        with patch("app.core.jobs.enqueue_job", new=AsyncMock(return_value=None)):
+            with patch(
+                "app.api.v1.endpoints.core.auth._deliver_reset_link_background"
+            ) as mock_deliver:
+                resp = client.post("/api/v1/auth/forgot-password/", json={"email": email})
+
+        assert resp.status_code in (200, 429)
+        if resp.status_code == 200:
+            mock_deliver.assert_called_once()
+            assert mock_deliver.call_args.kwargs["email"] == email
+
     @pytest.mark.asyncio
     async def test_background_delivery_swallows_delivery_errors(self):
         """Un échec SMTP/Redis en arrière-plan ne doit jamais lever d'exception."""

@@ -128,6 +128,21 @@ def delete_question(db: Session, db_obj: SurveyQuestion) -> None:
 # argument levait un TypeError systématique avant même d'atteindre
 # l'INSERT. Soumettre une réponse n'a donc jamais pu fonctionner.
 
+def has_existing_response(db: Session, survey_id: UUID, tenant_id: UUID, respondent_id: Optional[UUID]) -> bool:
+    """Whether respondent_id already submitted a response to this survey.
+
+    Only meaningful for non-anonymous surveys — an anonymous one never
+    stores respondent_id, so callers must skip this check for those.
+    """
+    if not respondent_id:
+        return False
+    return db.query(SurveyResponse).filter(
+        SurveyResponse.survey_id == survey_id,
+        SurveyResponse.tenant_id == tenant_id,
+        SurveyResponse.respondent_id == respondent_id,
+    ).first() is not None
+
+
 def add_survey_response(
     db: Session, survey: Survey, obj_in: SurveyResponseSubmit, tenant_id: UUID, respondent_id: Optional[UUID],
 ) -> SurveyResponse:

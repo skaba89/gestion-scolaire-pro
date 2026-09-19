@@ -150,12 +150,17 @@ def add_club_member(
         raise HTTPException(status_code=404, detail="Club not found")
     try:
         db_obj = crud_club.add_club_member(db, member, tenant_id)
+        if not db_obj:
+            raise HTTPException(status_code=404, detail="Student not found")
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="ADD_CLUB_MEMBER", resource_type="CLUB_MEMBERSHIP",
                   resource_id=str(db_obj.id))
         db.commit()
         db.refresh(db_obj)
         return db_obj
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error adding club member: %s", e, exc_info=True)

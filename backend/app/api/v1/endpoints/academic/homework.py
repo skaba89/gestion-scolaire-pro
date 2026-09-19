@@ -50,6 +50,25 @@ class GradeSubmission(BaseModel):
     feedback: Optional[str] = None
 
 
+def _validate_homework_fks(db: Session, *, tenant_id: str, class_id: Optional[str], subject_id: Optional[str]) -> None:
+    """FK injection guard (institutional-readiness audit, 2026-09):
+    class_id/subject_id were inserted/updated as-is from the client with
+    no check they belong to the caller's tenant — a TEACHER could attach a
+    homework to another establishment's class or subject."""
+    if class_id:
+        exists = db.execute(text(
+            "SELECT 1 FROM classes WHERE id = :id AND tenant_id = :tid"
+        ), {"id": class_id, "tid": tenant_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Classe introuvable dans cet établissement")
+    if subject_id:
+        exists = db.execute(text(
+            "SELECT 1 FROM subjects WHERE id = :id AND tenant_id = :tid"
+        ), {"id": subject_id, "tid": tenant_id}).first()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
+
+
 # ─── GET /homework ──────────────────────────────────────────────────────────
 
 @router.get("/")
@@ -186,8 +205,18 @@ def get_student_submissions(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
-    """Get homework submissions for a student."""
+    """Get homework submissions for a student.
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): homework:read is
+    granted to STUDENT/PARENT, but this endpoint took student_id straight
+    from the URL with no ownership check — any authenticated student could
+    read another student's submission content, grades and feedback by
+    swapping the id. Reuses _can_submit_for_student's same self/parent/
+    homework:write rule (that helper checks who may act ON BEHALF OF a
+    student, which is exactly who may also read that student's records)."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not _can_submit_for_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Vous n'avez pas accès aux soumissions de cet élève")
     where = ["hs.tenant_id = :tenant_id", "hs.student_id = :student_id"]
     params: dict = {"tenant_id": tenant_id, "student_id": student_id}
 
@@ -226,6 +255,7 @@ def create_homework(
     """Create new homework."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    _validate_homework_fks(db, tenant_id=tenant_id, class_id=body.class_id, subject_id=body.subject_id)
 
     try:
         result = db.execute(text("""
@@ -286,6 +316,11 @@ def update_homework(
     if "is_published" in updates:
         updates["status"] = "PUBLISHED" if updates.pop("is_published") else "DRAFT"
 
+    _validate_homework_fks(
+        db, tenant_id=tenant_id,
+        class_id=updates.get("classroom_id"), subject_id=updates.get("subject_id"),
+    )
+
     set_clause = ", ".join([f"{k} = :{k}" for k in updates])
     updates["id"] = homework_id
     updates["tenant_id"] = tenant_id
@@ -336,6 +371,30 @@ def delete_homework(
 
 # ─── POST /homework/{homework_id}/submit ────────────────────────────────────
 
+def _can_submit_for_student(db: Session, *, current_user: dict, student_id: str, tenant_id: str) -> bool:
+    """Whether current_user may submit homework as/for the given student."""
+    from app.core.security import user_has_permission
+    from app.models.student import Student
+    from app.models.parent_student import ParentStudent
+
+    if user_has_permission(current_user, "homework:write"):
+        return True
+
+    student = db.query(Student).filter(
+        Student.id == student_id, Student.tenant_id == tenant_id,
+    ).first()
+    if not student:
+        return False
+    user_id = current_user.get("id")
+    if student.user_id and str(student.user_id) == str(user_id):
+        return True
+    return db.query(ParentStudent).filter(
+        ParentStudent.tenant_id == tenant_id,
+        ParentStudent.parent_id == user_id,
+        ParentStudent.student_id == student.id,
+    ).first() is not None
+
+
 @router.post("/{homework_id}/submit/", status_code=status.HTTP_201_CREATED)
 def submit_homework(
     request: Request,
@@ -344,8 +403,21 @@ def submit_homework(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Submit homework (student)."""
+    """Submit homework (student).
+
+    SECURITY FIX (institutional-readiness audit, 2026-09): body.student_id
+    was taken directly from the client with no ownership check at all —
+    any authenticated user (including another STUDENT, or a TEACHER/STAFF
+    account) could POST a submission for an arbitrary student_id in the
+    tenant, forging someone else's homework submission. Now restricted to
+    the student themselves, a linked parent submitting for their own
+    child, or a homework:write holder (TEACHER) submitting on a student's
+    behalf — same "a submission always belongs to who it claims to belong
+    to" rule already applied to create_job_application() in alumni.py.
+    """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not _can_submit_for_student(db, current_user=current_user, student_id=body.student_id, tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas soumettre un devoir pour cet élève")
     try:
         result = db.execute(text("""
             INSERT INTO homework_submissions (tenant_id, homework_id, student_id, content, submitted_at)

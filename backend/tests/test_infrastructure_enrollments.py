@@ -129,3 +129,88 @@ class TestInfrastructureEnrollments:
         resp = client.get(URL, headers=_as(tenant_id))
         assert resp.status_code == 200, resp.text
         assert len(resp.json()) == 3
+
+    def test_unfiltered_query_is_capped(self, monkeypatch):
+        """Institutional-readiness audit (2026-09, Phase 3): the tenant-wide
+        (no class_id) call had no bound at all. Monkeypatch the safety limit
+        down to 2 instead of inserting thousands of rows to prove the cap
+        actually applies."""
+        import app.crud.academic as crud_academic
+
+        monkeypatch.setattr(crud_academic, "ENROLLMENTS_UNFILTERED_SAFETY_LIMIT", 2)
+        tenant_id, _, _, _ = _make_fixture()
+
+        resp = client.get(URL, headers=_as(tenant_id))
+        assert resp.status_code == 200, resp.text
+        assert len(resp.json()) == 2
+
+    def test_per_class_query_ignores_the_cap(self, monkeypatch):
+        """The cap only guards the unfiltered path — a real class roster
+        (naturally small) must never be truncated by it."""
+        import app.crud.academic as crud_academic
+
+        monkeypatch.setattr(crud_academic, "ENROLLMENTS_UNFILTERED_SAFETY_LIMIT", 1)
+        tenant_id, class_a_id, _, _ = _make_fixture()
+
+        resp = client.get(URL, params={"class_id": class_a_id}, headers=_as(tenant_id))
+        assert resp.status_code == 200, resp.text
+        assert len(resp.json()) == 2
+
+
+class TestDuplicateEnrollmentRejected:
+    """Institutional-readiness audit (2026-09), business-rules subagent:
+    nothing prevented enrolling the same student twice for the same
+    academic year — no unique constraint and no application check — so a
+    student could end up with two ACTIVE enrollments across different
+    classes in the same year, double-counting them in every roster/
+    attendance/reporting query that joins on enrollments."""
+
+    def test_second_active_enrollment_same_year_is_rejected(self):
+        tenant_id, class_a_id, class_b_id, student_active_id = _make_fixture()
+        ay_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(AcademicYear(
+                id=ay_id, tenant_id=tenant_id, name="2026-2027", code="2026-2027",
+                start_date=datetime.date(2026, 9, 1), end_date=datetime.date(2027, 7, 1),
+                is_current=False,
+            ))
+            db.commit()
+
+        resp = client.post(URL, headers=_as(tenant_id), json={
+            "student_id": student_active_id, "class_id": class_a_id,
+            "academic_year_id": ay_id, "status": "ACTIVE",
+        })
+        assert resp.status_code == 200, resp.text
+
+        duplicate = client.post(URL, headers=_as(tenant_id), json={
+            "student_id": student_active_id, "class_id": class_b_id,
+            "academic_year_id": ay_id, "status": "ACTIVE",
+        })
+        assert duplicate.status_code == 409, duplicate.text
+
+    def test_withdrawn_enrollment_does_not_block_a_new_active_one(self):
+        tenant_id, class_a_id, class_b_id, _ = _make_fixture()
+        ay_id = str(uuid.uuid4())
+        new_student_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(AcademicYear(
+                id=ay_id, tenant_id=tenant_id, name="2026-2027b", code="2026-2027b",
+                start_date=datetime.date(2026, 9, 1), end_date=datetime.date(2027, 7, 1),
+                is_current=False,
+            ))
+            db.add(Student(
+                id=new_student_id, tenant_id=tenant_id, first_name="Mamadou", last_name="Sow",
+                registration_number=f"REG-{uuid.uuid4().hex[:6]}", status=StudentStatus.ACTIVE,
+                date_of_birth=datetime.date(2013, 1, 1), gender=Gender.MALE,
+            ))
+            db.add(Enrollment(
+                id=str(uuid.uuid4()), tenant_id=tenant_id, student_id=new_student_id,
+                class_id=class_a_id, academic_year_id=ay_id, status="WITHDRAWN",
+            ))
+            db.commit()
+
+        resp = client.post(URL, headers=_as(tenant_id), json={
+            "student_id": new_student_id, "class_id": class_b_id,
+            "academic_year_id": ay_id, "status": "ACTIVE",
+        })
+        assert resp.status_code == 200, resp.text

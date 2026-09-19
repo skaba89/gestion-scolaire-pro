@@ -33,6 +33,36 @@ router = APIRouter()
 PASS_THRESHOLD = 10.0  # /20 — see module docstring
 
 
+def _can_view_transcript(db: Session, *, current_user: dict, student_id: str, tenant_id: str) -> bool:
+    """SECURITY FIX (institutional-readiness audit, 2026-09): this endpoint
+    had no ownership check at all — grades:read is held tenant-wide by
+    STUDENT and PARENT (app/core/security.py), so any student or parent
+    could read any other student's full transcript by guessing/enumerating
+    a UUID. Same restriction as grades.py's list_grades: STUDENT sees only
+    their own, PARENT only their own children's; everyone else with
+    grades:read (staff/teachers/admin) is unrestricted."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if privileged:
+        return True
+    user_id = current_user.get("id")
+    if "STUDENT" in roles:
+        row = db.execute(text(
+            "SELECT id FROM students WHERE id = :sid AND tenant_id = :tid "
+            "AND (user_id = :uid OR email = (SELECT email FROM users WHERE id = :uid))"
+        ), {"sid": student_id, "tid": tenant_id, "uid": user_id}).first()
+        if row:
+            return True
+    if "PARENT" in roles:
+        row = db.execute(text(
+            "SELECT 1 FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid AND student_id = :sid"
+        ), {"tid": tenant_id, "uid": user_id, "sid": student_id}).first()
+        if row:
+            return True
+    return False
+
+
 def _fetch_terms_for_year(db: Session, academic_year_id: str, tenant_id: str) -> list:
     return db.execute(text("""
         SELECT id, name, sequence_number
@@ -109,6 +139,8 @@ def get_student_transcript(
     """), {"sid": str(student_id), "tid": tenant_id}).mappings().first()
     if not student:
         raise HTTPException(status_code=404, detail="Élève/étudiant introuvable")
+    if not _can_view_transcript(db, current_user=current_user, student_id=str(student_id), tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé à ce relevé de notes")
 
     terms = _fetch_terms_for_year(db, str(academic_year_id), tenant_id)
     if not terms:

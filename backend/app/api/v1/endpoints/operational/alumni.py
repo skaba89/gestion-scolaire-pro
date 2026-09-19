@@ -462,6 +462,19 @@ def create_job_application(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
     try:
+        # SECURITY (institutional-readiness audit, 2026-09, 10e vague):
+        # job_applications.job_offer_id has a real FK to job_offers(id), but
+        # that FK is NOT tenant-scoped (job_offers(id) is a global unique
+        # key) — a caller could apply to a job_offer_id belonging to another
+        # tenant entirely, since nothing here ever checked it belonged to
+        # the caller's own tenant. Same class of cross-tenant FK injection
+        # already fixed on clubs/e-learning/payment-schedules elsewhere.
+        offer = db.execute(text(
+            "SELECT id FROM job_offers WHERE id = :jid AND tenant_id = :tid"
+        ), {"jid": body.get("job_offer_id"), "tid": tenant_id}).first()
+        if not offer:
+            raise HTTPException(status_code=404, detail="Offre d'emploi introuvable")
+
         new_id = str(_uuid.uuid4())
         db.execute(text("""
             INSERT INTO job_applications
@@ -481,6 +494,8 @@ def create_job_application(
         })
         db.commit()
         return {"id": new_id, **body, "status": "pending"}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error creating job application: %s", e)
@@ -702,10 +717,24 @@ def create_mentorship_request(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    """SECURITY FIX (institutional-readiness audit, 2026-09): payload.student_id
+    used to be inserted verbatim — any authenticated user could pass someone
+    else's student_id and create a mentorship request that appears to come
+    from that other student. Same class of bug as create_job_application()
+    a few lines above, missed in that same pass. A request always belongs
+    to its caller; mentor_id is also checked against the caller's own
+    tenant to avoid leaking cross-tenant mentor ids."""
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=400, detail="tenant_id required")
+        student_id = current_user.get("id")
+
+        mentor = db.execute(text(
+            "SELECT id FROM alumni_mentors WHERE id = :mid AND tenant_id = :tid"
+        ), {"mid": payload.mentor_id, "tid": tenant_id}).first()
+        if not mentor:
+            raise HTTPException(status_code=404, detail="Mentor introuvable")
 
         # Combine message and goals into the message field
         combined_message = payload.message or ""
@@ -722,13 +751,13 @@ def create_mentorship_request(
         """), {
             "id": new_id,
             "tenant_id": tenant_id,
-            "student_id": payload.student_id,
+            "student_id": student_id,
             "mentor_id": payload.mentor_id,
             "status": payload.status,
             "message": combined_message or None,
         })
         db.commit()
-        return {"id": new_id, "mentor_id": payload.mentor_id, "student_id": payload.student_id, "status": payload.status}
+        return {"id": new_id, "mentor_id": payload.mentor_id, "student_id": student_id, "status": payload.status}
     except HTTPException:
         raise
     except Exception as e:

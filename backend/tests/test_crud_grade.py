@@ -7,6 +7,7 @@ import uuid
 from datetime import date
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy import text
 from conftest import get_test_client
 
@@ -339,3 +340,48 @@ class TestCreateUpdateDeleteGrade:
         tenant_id = _make_tenant()
         with SessionLocal() as db:
             assert crud_grade.delete_grade(db, uuid.uuid4(), tenant_id) is False
+
+
+class TestScoreBoundedByMaxScore:
+    """Institutional-readiness audit (2026-09): score and max_score were
+    each bounded independently (score >= 0, max_score > 0) but never
+    against each other — a score of 95 with max_score=20 was silently
+    accepted, producing a >100% grade that corrupts every average/
+    transcript calculation downstream."""
+
+    def test_create_schema_rejects_score_above_max_score(self):
+        with pytest.raises(ValidationError):
+            GradeCreate(
+                student_id=uuid.uuid4(), score=95.0, max_score=20.0,
+            )
+
+    def test_create_schema_accepts_score_equal_to_max_score(self):
+        payload = GradeCreate(student_id=uuid.uuid4(), score=20.0, max_score=20.0)
+        assert payload.score == 20.0
+
+    def test_update_schema_rejects_score_above_max_score_when_both_given(self):
+        with pytest.raises(ValidationError):
+            GradeUpdate(score=95.0, max_score=20.0)
+
+    def test_update_schema_allows_lone_score_field(self):
+        # max_score isn't in this partial update — checked against the
+        # existing DB row by crud.update_grade() instead, see below.
+        update = GradeUpdate(score=19.0)
+        assert update.score == 19.0
+
+    def test_crud_update_rejects_lone_score_exceeding_existing_max_score(self):
+        tenant_id = _make_tenant()
+        ctx = _make_fixture(tenant_id)
+        with SessionLocal() as db:
+            grade = db.query(Grade).filter(Grade.assessment_id == ctx["assessment1_id"]).first()
+            assert grade.max_score == 20.0
+            with pytest.raises(ValueError):
+                crud_grade.update_grade(db, grade.id, GradeUpdate(score=95.0), tenant_id)
+
+    def test_crud_update_accepts_lone_score_within_existing_max_score(self):
+        tenant_id = _make_tenant()
+        ctx = _make_fixture(tenant_id)
+        with SessionLocal() as db:
+            grade = db.query(Grade).filter(Grade.assessment_id == ctx["assessment1_id"]).first()
+            updated = crud_grade.update_grade(db, grade.id, GradeUpdate(score=20.0), tenant_id)
+            assert updated.score == 20.0

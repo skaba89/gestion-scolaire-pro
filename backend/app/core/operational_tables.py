@@ -219,6 +219,15 @@ _DDL = [
         ON student_badges(tenant_id)""",
     """CREATE INDEX IF NOT EXISTS ix_student_badges_student_id
         ON student_badges(student_id)""",
+    # BUG FIX (institutional-readiness audit, 2026-09): aliases.py's
+    # create_student_badge/list_student_badges reference icon/classroom_id/
+    # awarded_at — none of which exist on this table as migrated. Every
+    # call raised UndefinedColumn on real Postgres, meaning awarding a
+    # badge has never worked at all. Added additively, same pattern as
+    # incidents.assigned_to / exams.name above.
+    """ALTER TABLE student_badges ADD COLUMN IF NOT EXISTS icon VARCHAR(50)""",
+    """ALTER TABLE student_badges ADD COLUMN IF NOT EXISTS classroom_id UUID REFERENCES classes(id) ON DELETE SET NULL""",
+    """ALTER TABLE student_badges ADD COLUMN IF NOT EXISTS awarded_at TIMESTAMPTZ DEFAULT NOW()""",
 
     """CREATE TABLE IF NOT EXISTS career_event_registrations (
         id UUID PRIMARY KEY,
@@ -867,6 +876,30 @@ _DDL = [
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolution TEXT""",
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS action_taken TEXT""",
     """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS notes TEXT""",
+    # BUG FIX (institutional-readiness audit, 2026-09): assigned_to was
+    # referenced by assign_incident() (operational/incidents.py) but never
+    # existed on this table at all — every call raised UndefinedColumn on
+    # real Postgres, meaning incident assignment has never worked.
+    """ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_to UUID""",
+    # BUG FIX (institutional-readiness audit, 2026-09): the department
+    # portal's create_exam/update_exam/list_department_exams
+    # (operational/departments.py) reference name/department_id/class_id/
+    # term_id/room_name/status/start_time/end_time/created_by — none of
+    # which exist on this table as migrated (it only has title/subject_id/
+    # classroom_id/academic_year_id/exam_date/max_score). Every call to
+    # the department exam CRUD raised UndefinedColumn on real Postgres,
+    # meaning it has never worked at all. Added additively, same pattern
+    # as incidents.assigned_to above.
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS name VARCHAR(500)""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS class_id UUID REFERENCES classes(id) ON DELETE SET NULL""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS term_id UUID REFERENCES terms(id) ON DELETE SET NULL""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS room_name VARCHAR(255)""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'scheduled'""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS start_time TIME""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS end_time TIME""",
+    """ALTER TABLE exams ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL""",
+    """CREATE INDEX IF NOT EXISTS ix_exams_department_id ON exams(department_id)""",
     # Composite (tenant_id, occurred_at) for list_incidents()'s
     # WHERE tenant_id = :tid ORDER BY occurred_at DESC LIMIT :limit — this
     # table only exists at runtime (created above, not by an Alembic

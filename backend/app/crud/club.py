@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.club import Club, ClubMembership
+from app.models.student import Student
 from app.schemas.club import ClubCreate, ClubUpdate, ClubMembershipCreate
 
 
@@ -60,7 +61,17 @@ def get_membership(db: Session, membership_id: UUID, tenant_id: UUID) -> Optiona
     )
 
 
-def add_club_member(db: Session, obj_in: ClubMembershipCreate, tenant_id: UUID) -> ClubMembership:
+def add_club_member(db: Session, obj_in: ClubMembershipCreate, tenant_id: UUID) -> Optional[ClubMembership]:
+    """Returns None if obj_in.student_id doesn't belong to tenant_id — the
+    caller must not create a membership row spanning two tenants (a client
+    could otherwise submit any student_id and get tenant_id=A/student_id=B,
+    breaking multi-tenant isolation and letting them probe student ids
+    across establishments)."""
+    student = db.query(Student.id).filter(
+        Student.id == obj_in.student_id, Student.tenant_id == tenant_id
+    ).first()
+    if not student:
+        return None
     db_obj = ClubMembership(
         tenant_id=tenant_id,
         club_id=obj_in.club_id,

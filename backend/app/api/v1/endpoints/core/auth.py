@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from slowapi import Limiter
-from sqlalchemy import or_, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from app.core.client_ip import get_client_ip
@@ -860,8 +860,17 @@ async def register(
     # 1. Validate password strength
     validate_password_strength(body.password)
 
+    # SECURITY FIX (institutional-readiness audit, 2026-09): this compared
+    # User.email == body.email with no case normalization, while
+    # /auth/forgot-password/, imports.py and users.py's invite/convert
+    # endpoints all normalize with func.lower(User.email). "Foo@Bar.com"
+    # and "foo@bar.com" could both self-register as two distinct,
+    # unrelated accounts for the same real mailbox, one of which
+    # forgot-password's lower-cased lookup could never reach.
+    body.email = body.email.strip().lower()
+
     # 2. Check if email already exists
-    existing = db.query(User).filter(User.email == body.email).first()
+    existing = db.query(User).filter(func.lower(User.email) == body.email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -1025,8 +1034,12 @@ async def register_school(
     from app.core.security import get_password_hash, create_access_token
     from app.models.tenant import Tenant
 
+    # SECURITY FIX (institutional-readiness audit, 2026-09): same
+    # case-sensitivity gap as /auth/register/ above.
+    body.email = body.email.strip().lower()
+
     # 1. Check email uniqueness
-    existing_user = db.query(User).filter(User.email == body.email).first()
+    existing_user = db.query(User).filter(func.lower(User.email) == body.email).first()
     if existing_user:
         raise HTTPException(status_code=409, detail="Un compte avec cet email existe déjà.")
 
@@ -1603,12 +1616,27 @@ async def forgot_password(
 
     if user:
         user_name = f"{user['first_name'] or ''} {user['last_name'] or ''}".strip() or user["email"]
-        background_tasks.add_task(
-            _deliver_reset_link_background,
+        # Persistent Arq/Redis queue (national audit Phase 5) — a reset
+        # email is security-sensitive to lose silently, since this endpoint
+        # always returns 200 (anti-enumeration) with no way for the caller
+        # to know delivery failed. Falls back to the old in-process
+        # BackgroundTasks path only if enqueueing itself fails, e.g. Redis
+        # unreachable — same pattern as send_welcome_email in this file.
+        from app.core.jobs import enqueue_job
+
+        job_id = await enqueue_job(
+            "send_password_reset_email",
             user_id=str(user["id"]),
             email=user["email"],
             user_name=user_name,
         )
+        if job_id is None:
+            background_tasks.add_task(
+                _deliver_reset_link_background,
+                user_id=str(user["id"]),
+                email=user["email"],
+                user_name=user_name,
+            )
 
     # Always return the same message to prevent email enumeration
     return {"message": "Si cette adresse email existe, un lien de réinitialisation a été envoyé."}

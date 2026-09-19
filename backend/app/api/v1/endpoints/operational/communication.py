@@ -901,7 +901,15 @@ def get_forum_post_counts(request: Request, db: Session = Depends(get_db), curre
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.post("/forums/")
-def create_forum(request: Request, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def create_forum(
+    request: Request, body: dict, db: Session = Depends(get_db),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): previously
+    # get_current_user() only, same class of bug already fixed for
+    # create_announcement() above — any authenticated user of any role
+    # could create/retitle/delete a tenant's student forums. Real caller
+    # is Forums.tsx, an admin-only page.
+    current_user: dict = Depends(require_permission("communications:write")),
+):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         user_id = current_user.get("id")
@@ -927,7 +935,7 @@ def create_forum(request: Request, body: dict, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.patch("/forums/{forum_id}/")
-def update_forum(request: Request, forum_id: UUID, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def update_forum(request: Request, forum_id: UUID, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("communications:write"))):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
@@ -952,7 +960,7 @@ def update_forum(request: Request, forum_id: UUID, body: dict, db: Session = Dep
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.delete("/forums/{forum_id}/")
-def delete_forum(request: Request, forum_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def delete_forum(request: Request, forum_id: UUID, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("communications:write"))):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:

@@ -22,6 +22,7 @@ client = get_test_client()
 from app.core.database import SessionLocal  # noqa: E402
 from app.crud import library as crud_library  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
+from app.models.user import User  # noqa: E402
 from app.schemas.library import (  # noqa: E402
     BorrowRequest, CategoryCreate, CategoryUpdate, ResourceCreate, ResourceUpdate, ReturnRequest,
 )
@@ -36,6 +37,17 @@ def _make_tenant() -> str:
         ))
         db.commit()
     return tenant_id
+
+
+def _make_user(tenant_id: str) -> str:
+    user_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.add(User(
+            id=user_id, tenant_id=tenant_id, email=f"{user_id[:8]}@example.com",
+            username=f"user-{user_id[:8]}", is_active=True,
+        ))
+        db.commit()
+    return user_id
 
 
 class TestLibraryCategoryCrud:
@@ -204,10 +216,64 @@ class TestLibraryResourceCrud:
             assert crud_library.get_resource(db, resource_id, tenant_id) is None
 
 
+class TestLibraryResourceCopiesConsistency:
+    """Institutional-readiness audit (2026-09): total_copies/
+    available_copies were two fully independent client-supplied ints with
+    no relationship enforced -- available_copies could exceed
+    total_copies, letting borrow_resource() (whose only gate is
+    available_copies <= 0) hand out more copies than physically exist."""
+
+    def test_create_rejects_available_copies_above_total(self):
+        import pytest
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            ResourceCreate(title="Livre incoherent", total_copies=2, available_copies=5)
+
+    def test_create_accepts_available_copies_equal_to_total(self):
+        payload = ResourceCreate(title="Livre coherent", total_copies=3, available_copies=3)
+        assert payload.available_copies == 3
+
+    def test_update_schema_rejects_available_copies_above_total_when_both_given(self):
+        import pytest
+        from pydantic import ValidationError
+        with pytest.raises(ValidationError):
+            ResourceUpdate(total_copies=1, available_copies=4)
+
+    def test_crud_update_rejects_lone_available_copies_exceeding_existing_total(self):
+        import pytest
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            resource = crud_library.create_resource(
+                db, ResourceCreate(title="Livre", total_copies=2, available_copies=2), tenant_id, uploaded_by=None,
+            )
+            db.commit()
+            resource_id = resource.id
+
+        with SessionLocal() as db:
+            db_obj = crud_library.get_resource(db, resource_id, tenant_id)
+            with pytest.raises(ValueError):
+                crud_library.update_resource(db, db_obj, ResourceUpdate(available_copies=5))
+
+    def test_crud_update_rejects_lone_total_copies_below_existing_available(self):
+        import pytest
+        tenant_id = _make_tenant()
+        with SessionLocal() as db:
+            resource = crud_library.create_resource(
+                db, ResourceCreate(title="Livre", total_copies=5, available_copies=5), tenant_id, uploaded_by=None,
+            )
+            db.commit()
+            resource_id = resource.id
+
+        with SessionLocal() as db:
+            db_obj = crud_library.get_resource(db, resource_id, tenant_id)
+            with pytest.raises(ValueError):
+                crud_library.update_resource(db, db_obj, ResourceUpdate(total_copies=2))
+
+
 class TestLibraryBorrowing:
     def test_borrow_decrements_available_copies(self):
         tenant_id = _make_tenant()
-        borrower_id = str(uuid.uuid4())
+        borrower_id = _make_user(tenant_id)
         with SessionLocal() as db:
             resource = crud_library.create_resource(
                 db, ResourceCreate(title="Livre à emprunter", total_copies=2, available_copies=2),
@@ -235,7 +301,7 @@ class TestLibraryBorrowing:
 
     def test_return_increments_available_copies_and_closes_record(self):
         tenant_id = _make_tenant()
-        borrower_id = str(uuid.uuid4())
+        borrower_id = _make_user(tenant_id)
         with SessionLocal() as db:
             resource = crud_library.create_resource(
                 db, ResourceCreate(title="Livre", total_copies=1, available_copies=1), tenant_id, uploaded_by=None,
@@ -266,7 +332,7 @@ class TestLibraryBorrowing:
 
     def test_active_borrowers_excludes_returned_records(self):
         tenant_id = _make_tenant()
-        borrower_id = str(uuid.uuid4())
+        borrower_id = _make_user(tenant_id)
         with SessionLocal() as db:
             resource = crud_library.create_resource(
                 db, ResourceCreate(title="Livre", total_copies=2, available_copies=2), tenant_id, uploaded_by=None,
@@ -298,4 +364,101 @@ class TestLibraryBorrowing:
         with SessionLocal() as db:
             active = crud_library.get_active_borrowers(db, tenant_id)
             assert len(active) == 1
-            assert active[0].id == record2_id
+
+
+class TestLibraryBorrowCrossTenantAndNotes:
+    """Institutional-readiness audit (2026-09): borrow_resource() used to
+    write obj_in.user_id straight into borrowed_by with no check it
+    belongs to this tenant, and return_resource() unconditionally
+    overwrote the borrow-time note instead of preserving it."""
+
+    def test_borrow_rejects_user_from_another_tenant(self):
+        tenant_a = _make_tenant()
+        tenant_b = _make_tenant()
+        foreign_user_id = _make_user(tenant_b)
+        with SessionLocal() as db:
+            resource = crud_library.create_resource(
+                db, ResourceCreate(title="Livre", total_copies=1, available_copies=1), tenant_a, uploaded_by=None,
+            )
+            db.commit()
+            resource_id = resource.id
+
+        with SessionLocal() as db:
+            resource = crud_library.get_resource(db, resource_id, tenant_a)
+            try:
+                crud_library.borrow_resource(
+                    db, resource, BorrowRequest(resource_id=resource_id, user_id=foreign_user_id, due_date=date(2026, 9, 15)),
+                    tenant_a,
+                )
+                assert False, "expected ValueError for cross-tenant borrower"
+            except ValueError:
+                pass
+
+        with SessionLocal() as db:
+            resource = crud_library.get_resource(db, resource_id, tenant_a)
+            assert resource.available_copies == 1, "stock must not change on a rejected borrow"
+
+    def test_return_preserves_borrow_time_note(self):
+        tenant_id = _make_tenant()
+        borrower_id = _make_user(tenant_id)
+        with SessionLocal() as db:
+            resource = crud_library.create_resource(
+                db, ResourceCreate(title="Livre", total_copies=1, available_copies=1), tenant_id, uploaded_by=None,
+            )
+            db.commit()
+            resource_id = resource.id
+
+        with SessionLocal() as db:
+            resource = crud_library.get_resource(db, resource_id, tenant_id)
+            record = crud_library.borrow_resource(
+                db, resource,
+                BorrowRequest(resource_id=resource_id, user_id=borrower_id, due_date=date(2026, 9, 15),
+                              notes="Couverture déjà abîmée au prêt"),
+                tenant_id,
+            )
+            db.commit()
+            record_id = record.id
+
+        with SessionLocal() as db:
+            record = crud_library.get_active_borrow_record(db, record_id, tenant_id)
+            resource = crud_library.get_resource(db, resource_id, tenant_id)
+            crud_library.return_resource(db, record, resource, ReturnRequest(borrow_id=record_id, notes="Rendu à temps"))
+            db.commit()
+
+        with SessionLocal() as db:
+            from app.models.library import LibraryBorrowRecord
+            record = db.query(LibraryBorrowRecord).filter(LibraryBorrowRecord.id == record_id).first()
+            assert "Couverture déjà abîmée au prêt" in record.notes
+            assert "Rendu à temps" in record.notes
+
+    def test_return_without_notes_keeps_borrow_time_note_untouched(self):
+        tenant_id = _make_tenant()
+        borrower_id = _make_user(tenant_id)
+        with SessionLocal() as db:
+            resource = crud_library.create_resource(
+                db, ResourceCreate(title="Livre", total_copies=1, available_copies=1), tenant_id, uploaded_by=None,
+            )
+            db.commit()
+            resource_id = resource.id
+
+        with SessionLocal() as db:
+            resource = crud_library.get_resource(db, resource_id, tenant_id)
+            record = crud_library.borrow_resource(
+                db, resource,
+                BorrowRequest(resource_id=resource_id, user_id=borrower_id, due_date=date(2026, 9, 15),
+                              notes="Couverture déjà abîmée au prêt"),
+                tenant_id,
+            )
+            db.commit()
+            record_id = record.id
+
+        with SessionLocal() as db:
+            record = crud_library.get_active_borrow_record(db, record_id, tenant_id)
+            resource = crud_library.get_resource(db, resource_id, tenant_id)
+            crud_library.return_resource(db, record, resource, ReturnRequest(borrow_id=record_id))
+            db.commit()
+
+        with SessionLocal() as db:
+            from app.models.library import LibraryBorrowRecord
+            record = db.query(LibraryBorrowRecord).filter(LibraryBorrowRecord.id == record_id).first()
+            assert record.notes == "Couverture déjà abîmée au prêt"

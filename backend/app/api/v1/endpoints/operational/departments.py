@@ -62,6 +62,34 @@ def _get_department_classroom_ids(db: Session, department_id: str, tenant_id: st
     return [str(r.class_id) for r in rows]
 
 
+def _validate_exam_fks(db: Session, *, tenant_id: str, department_id: str,
+                        class_id: Optional[str], subject_id: str, term_id: str) -> None:
+    """DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
+    create_exam/update_exam inserted class_id/subject_id/term_id verbatim
+    with no check they even belong to the caller's tenant, let alone (for
+    class_id) the caller's own department — any department head/member
+    could attach an exam to another department's classroom, or to a
+    stray/cross-tenant UUID. subject_id/term_id are tenant-wide dropdowns
+    in this portal (get_department_dashboard lists ALL tenant subjects/
+    terms, not department-scoped ones), so those two are only checked
+    against the tenant; class_id must be one of the department's own
+    classrooms (classroom_departments), matching this portal's own
+    dashboard/exam-list scoping.
+    """
+    if class_id and class_id not in _get_department_classroom_ids(db, department_id, tenant_id):
+        raise HTTPException(status_code=404, detail="Classe introuvable dans ce département")
+    subject = db.execute(text(
+        "SELECT id FROM subjects WHERE id = :id AND tenant_id = :tenant_id"
+    ), {"id": subject_id, "tenant_id": tenant_id}).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
+    term = db.execute(text(
+        "SELECT id FROM terms WHERE id = :id AND tenant_id = :tenant_id"
+    ), {"id": term_id, "tenant_id": tenant_id}).first()
+    if not term:
+        raise HTTPException(status_code=404, detail="Période introuvable dans cet établissement")
+
+
 # ─── My Department ────────────────────────────────────────────────────────────
 
 @router.get("/my-department/")
@@ -570,12 +598,18 @@ def create_exam(
         dept = _get_user_department(db, user_id, tenant_id)
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
+        _validate_exam_fks(db, tenant_id=tenant_id, department_id=dept["id"],
+                            class_id=body.class_id, subject_id=body.subject_id, term_id=body.term_id)
 
+        # `title` is a leftover NOT NULL column from exams' original
+        # migration — nothing in this router reads it, but the INSERT
+        # must still satisfy the constraint, so it mirrors `name` (the
+        # actual field this router's schema/SELECT/RETURNING use).
         exam_id = db.execute(text("""
-            INSERT INTO exams (tenant_id, department_id, name, description, exam_date,
+            INSERT INTO exams (tenant_id, department_id, name, title, description, exam_date,
                                start_time, end_time, room_name, max_score, status,
                                class_id, subject_id, term_id, created_by, created_at)
-            VALUES (:tenant_id, :dept_id, :name, :description, :exam_date,
+            VALUES (:tenant_id, :dept_id, :name, :name, :description, :exam_date,
                     :start_time, :end_time, :room_name, :max_score, :status,
                     :class_id, :subject_id, :term_id, :created_by, NOW())
             RETURNING id
@@ -617,6 +651,8 @@ def update_exam(
         dept = _get_user_department(db, user_id, tenant_id)
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
+        _validate_exam_fks(db, tenant_id=tenant_id, department_id=dept["id"],
+                            class_id=body.class_id, subject_id=body.subject_id, term_id=body.term_id)
 
         result = db.execute(text("""
             UPDATE exams SET

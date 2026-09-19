@@ -47,6 +47,7 @@ class StudentUpdate(BaseModel):
     parent_name: Optional[str] = Field(None, max_length=200)
     parent_phone: Optional[str] = Field(None, max_length=20)
     parent_email: Optional[EmailStr] = None
+    card_uid: Optional[str] = Field(None, max_length=64)
 
 
 # Schema for student in database (response)
@@ -55,6 +56,7 @@ class Student(StudentBase):
     tenant_id: UUID4
     registration_number: str
     status: StudentStatus
+    card_uid: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     

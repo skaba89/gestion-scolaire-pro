@@ -23,6 +23,8 @@ from app.models.student import Gender, Student, StudentStatus  # noqa: E402
 from app.models.subject import Subject  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.models.term import Term  # noqa: E402
+from app.models.user import User  # noqa: E402
+from app.models.parent_student import ParentStudent  # noqa: E402
 
 
 def _as(user: dict) -> dict:
@@ -179,3 +181,97 @@ class TestTranscriptContent:
             headers=headers,
         )
         assert resp.status_code == 404, resp.text
+
+
+class TestTranscriptOwnership:
+    """SECURITY FIX (institutional-readiness audit, 2026-09): this endpoint
+    had no ownership check at all — grades:read is held tenant-wide by
+    STUDENT and PARENT, so any student/parent could read any other
+    student's transcript by guessing a UUID."""
+    _needs_postgres = pytest.mark.skipif(
+        engine.dialect.name != "postgresql",
+        reason="raw SQL WHERE id=:param can't match SQLite's hex-no-dash GUID storage (see transcripts.py).",
+    )
+
+    @_needs_postgres
+    def test_student_cannot_view_another_students_transcript(self):
+        ctx = _build_transcript_fixture()
+        attacker_user_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(User(
+                id=attacker_user_id, tenant_id=ctx["tenant_id"], email=f"{attacker_user_id[:8]}@example.com",
+                username=f"attacker-{attacker_user_id[:8]}", is_active=True,
+            ))
+            db.commit()
+        headers = _as({"id": attacker_user_id, "roles": ["STUDENT"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=headers,
+        )
+        assert resp.status_code == 403, resp.text
+
+    @_needs_postgres
+    def test_student_can_view_own_transcript(self):
+        ctx = _build_transcript_fixture()
+        user_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(User(
+                id=user_id, tenant_id=ctx["tenant_id"], email=f"{user_id[:8]}@example.com",
+                username=f"student-{user_id[:8]}", is_active=True,
+            ))
+            db.commit()
+            student = db.query(Student).filter(Student.id == ctx["student_id"]).first()
+            student.user_id = user_id
+            db.commit()
+        headers = _as({"id": user_id, "roles": ["STUDENT"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+
+    @_needs_postgres
+    def test_unrelated_parent_cannot_view_transcript(self):
+        ctx = _build_transcript_fixture()
+        parent_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(User(
+                id=parent_id, tenant_id=ctx["tenant_id"], email=f"{parent_id[:8]}@example.com",
+                username=f"parent-{parent_id[:8]}", is_active=True,
+            ))
+            db.commit()
+        headers = _as({"id": parent_id, "roles": ["PARENT"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=headers,
+        )
+        assert resp.status_code == 403, resp.text
+
+    @_needs_postgres
+    def test_linked_parent_can_view_childs_transcript(self):
+        ctx = _build_transcript_fixture()
+        parent_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(User(
+                id=parent_id, tenant_id=ctx["tenant_id"], email=f"{parent_id[:8]}@example.com",
+                username=f"parent-{parent_id[:8]}", is_active=True,
+            ))
+            db.commit()
+            db.add(ParentStudent(
+                id=str(uuid.uuid4()), tenant_id=ctx["tenant_id"], parent_id=parent_id, student_id=ctx["student_id"],
+            ))
+            db.commit()
+        headers = _as({"id": parent_id, "roles": ["PARENT"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text

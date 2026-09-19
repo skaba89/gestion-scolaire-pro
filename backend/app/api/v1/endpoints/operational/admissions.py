@@ -971,15 +971,28 @@ def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
 
     # Verify student belongs to this tenant
     student = db.execute(text("""
-        SELECT s.id, s.first_name, s.last_name, s.registration_number,
-               u.email AS parent_email
+        SELECT s.id, s.first_name, s.last_name, s.registration_number
         FROM students s
-        LEFT JOIN users u ON u.id = s.parent_id
         WHERE s.id = :student_id AND s.tenant_id = :tenant_id
     """), {"student_id": payload.student_id, "tenant_id": payload.tenant_id}).mappings().first()
 
     if not student:
         raise HTTPException(status_code=404, detail="Étudiant introuvable.")
+
+    # admission_applications.parent_first_name/parent_last_name are NOT
+    # NULL, but ReEnrollPayload only collects the parent's email/phone (the
+    # student already exists, so there's no separate "parent registration"
+    # step here) — pull the name from a linked parent account when one
+    # exists, else fall back to a placeholder rather than crash the INSERT.
+    parent = db.execute(text("""
+        SELECT u.first_name, u.last_name
+        FROM parent_students ps
+        JOIN users u ON u.id = ps.parent_id
+        WHERE ps.student_id = :student_id AND ps.tenant_id = :tenant_id
+        LIMIT 1
+    """), {"student_id": payload.student_id, "tenant_id": payload.tenant_id}).mappings().first()
+    parent_first_name = (parent["first_name"] if parent else None) or "Parent"
+    parent_last_name = (parent["last_name"] if parent else None) or student["last_name"]
 
     # Check no duplicate in-progress request for this student + academic year
     existing = db.execute(text("""
@@ -1006,14 +1019,16 @@ def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
         INSERT INTO admission_applications (
             id, tenant_id, academic_year_id, level_id,
             student_first_name, student_last_name,
+            parent_first_name, parent_last_name,
             parent_email, parent_phone,
             status, notes, documents,
             submitted_at, created_at, updated_at
         ) VALUES (
             gen_random_uuid(), :tenant_id, :academic_year_id, :level_id,
             :first_name, :last_name,
+            :parent_first_name, :parent_last_name,
             :parent_email, :parent_phone,
-            'SUBMITTED', :notes, :documents::jsonb,
+            'SUBMITTED', :notes, :documents ::jsonb,
             NOW(), NOW(), NOW()
         ) RETURNING id, status, submitted_at
     """), {
@@ -1022,8 +1037,13 @@ def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
         "level_id": payload.level_id,
         "first_name": student["first_name"],
         "last_name": student["last_name"],
+        "parent_first_name": parent_first_name,
+        "parent_last_name": parent_last_name,
         "parent_email": payload.parent_email,
-        "parent_phone": payload.parent_phone,
+        # parent_phone is NOT NULL on admission_applications even though
+        # ReEnrollPayload treats it as optional (a parent may submit with
+        # only an email) — coalesce rather than let the INSERT crash.
+        "parent_phone": payload.parent_phone or "",
         "notes": f"[RÉINSCRIPTION] {payload.notes or ''}".strip(),
         "documents": _json.dumps({"type": "REINSCRIPTION", "student_id": payload.student_id}),
     }).mappings().first()

@@ -359,6 +359,9 @@ def create_classroom(db: Session, obj_in: ClassroomCreate, tenant_id: UUID) -> C
     return db_obj
 
 # --- Enrollment ---
+ENROLLMENTS_UNFILTERED_SAFETY_LIMIT = 5000
+
+
 def get_enrollments(
     db: Session,
     tenant_id: UUID,
@@ -374,9 +377,33 @@ def get_enrollments(
         # Enrollment.status is stored uppercase (e.g. "ACTIVE") but callers
         # (useAttendance.ts) send lowercase — compare case-insensitively.
         query = query.filter(func.upper(Enrollment.status) == status.upper())
+    if class_id is None:
+        # Institutional-readiness audit (2026-09, Phase 3): unlike the
+        # per-class call (naturally bounded to one classroom's size), the
+        # unfiltered tenant-wide call had no bound at all — every
+        # enrollment ever created, every year, loaded into memory on every
+        # call. Defensive cap only; a per-class query never hits it.
+        query = query.limit(ENROLLMENTS_UNFILTERED_SAFETY_LIMIT)
     return query.all()
 
 def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) -> Enrollment:
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): nothing
+    # prevented enrolling the same student twice for the same academic
+    # year — no unique constraint on the table and no check here — so a
+    # student could end up with two (or more) ACTIVE enrollments across
+    # different classes in the same year, double-counting them in every
+    # class roster/attendance/reporting query that joins on enrollments.
+    existing = db.query(Enrollment).filter(
+        Enrollment.tenant_id == tenant_id,
+        Enrollment.student_id == obj_in.student_id,
+        Enrollment.academic_year_id == obj_in.academic_year_id,
+        func.upper(Enrollment.status) == "ACTIVE",
+    ).first()
+    if existing:
+        raise ValueError(
+            "Cet élève est déjà inscrit activement pour cette année académique."
+        )
+
     db_obj = Enrollment(**obj_in.model_dump(), tenant_id=tenant_id)
     db.add(db_obj)
     db.commit()

@@ -329,6 +329,19 @@ def register_payment(
     if inv["status"] == "PAID":
         raise HTTPException(status_code=400, detail="Cette facture est déjà soldée")
 
+    # SECURITY/BUSINESS-RULE FIX (institutional-readiness audit, 2026-09):
+    # body.amount was only bounded 0 < amount <= 10_000_000 — never checked
+    # against the invoice's own remaining balance. A payment larger than
+    # what's owed silently produced paid_amount > total_amount while still
+    # marking the invoice PAID, corrupting every downstream balance/
+    # analytics calculation that assumes paid_amount <= total_amount.
+    remaining = float(inv["total_amount"]) - float(inv["paid_amount"] or 0)
+    if body.amount > remaining:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Le montant dépasse le solde restant dû ({remaining:.2f})",
+        )
+
     new_paid = float(inv["paid_amount"] or 0) + body.amount
     new_status = "PAID" if new_paid >= float(inv["total_amount"]) else ("PARTIAL" if new_paid > 0 else "PENDING")
     reference = body.reference or _next_payment_reference(db, tenant_id)
@@ -594,6 +607,31 @@ def update_invoice_endpoint(
     """Update an invoice."""
     import json
     tenant_id = _get_tenant_id(request, current_user, db)
+
+    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): editing
+    # total_amount (e.g. applying a discount, or correcting an amount)
+    # never recalculated status against the invoice's existing paid_amount
+    # — a PARTIAL invoice whose total was reduced below paid_amount stayed
+    # PARTIAL forever instead of becoming PAID, and vice versa. Same
+    # PENDING/PARTIAL/PAID logic as register_payment().
+    existing = db.execute(text("""
+        SELECT paid_amount FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
+    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+    # DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09): unlike
+    # create, this update never re-checked student_id against the
+    # caller's tenant — an existing, possibly-paid invoice could be
+    # re-pointed to an arbitrary/cross-tenant student, breaking that
+    # student's (or another tenant's) financial records.
+    student = db.execute(text(
+        "SELECT id FROM students WHERE id = :sid AND tenant_id = :tenant_id"
+    ), {"sid": body.student_id, "tenant_id": tenant_id}).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Élève introuvable dans cet établissement")
+    paid_amount = float(existing["paid_amount"] or 0)
+    new_status = "PAID" if paid_amount >= float(body.total_amount) else ("PARTIAL" if paid_amount > 0 else "PENDING")
+
     result = db.execute(text("""
         UPDATE invoices SET
             student_id = :student_id,
@@ -604,6 +642,7 @@ def update_invoice_endpoint(
             notes = :notes,
             has_payment_plan = :has_payment_plan,
             installments_count = :installments_count,
+            status = :status,
             updated_at = NOW()
         WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {
@@ -614,7 +653,8 @@ def update_invoice_endpoint(
         "due_date": body.due_date if body.due_date else None,
         "notes": body.notes,
         "has_payment_plan": body.has_payment_plan,
-        "installments_count": body.installments_count
+        "installments_count": body.installments_count,
+        "status": new_status,
     })
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Facture introuvable")
@@ -872,7 +912,14 @@ async def send_payment_reminders(
     db.commit()
 
     if deliveries:
-        background_tasks.add_task(_deliver_reminders_background, svc, deliveries)
+        # Persistent Arq/Redis queue (national audit Phase 5) so a restart
+        # or a second API replica doesn't lose an in-flight batch of
+        # push/email sends. Falls back to the old in-process BackgroundTasks
+        # path only if enqueueing itself fails (e.g. Redis unreachable) —
+        # same pattern as send_welcome_email's caller in auth.py.
+        job_id = await enqueue_job("deliver_payment_reminders", tenant_id=str(tenant_id), deliveries=deliveries)
+        if job_id is None:
+            background_tasks.add_task(_deliver_reminders_background, svc, deliveries)
 
     summary = (
         f"{count} rappel(s) — In-app: {results['in_app']}, "
