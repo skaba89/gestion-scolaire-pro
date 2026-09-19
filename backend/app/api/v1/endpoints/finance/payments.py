@@ -912,7 +912,14 @@ async def send_payment_reminders(
     db.commit()
 
     if deliveries:
-        background_tasks.add_task(_deliver_reminders_background, svc, deliveries)
+        # Persistent Arq/Redis queue (national audit Phase 5) so a restart
+        # or a second API replica doesn't lose an in-flight batch of
+        # push/email sends. Falls back to the old in-process BackgroundTasks
+        # path only if enqueueing itself fails (e.g. Redis unreachable) —
+        # same pattern as send_welcome_email's caller in auth.py.
+        job_id = await enqueue_job("deliver_payment_reminders", tenant_id=str(tenant_id), deliveries=deliveries)
+        if job_id is None:
+            background_tasks.add_task(_deliver_reminders_background, svc, deliveries)
 
     summary = (
         f"{count} rappel(s) — In-app: {results['in_app']}, "
