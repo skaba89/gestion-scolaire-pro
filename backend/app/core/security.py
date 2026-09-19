@@ -65,6 +65,21 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
         logger.info("JWT validation failed: %s", exc)
         raise credentials_exception
 
+    # SECURITY (national-readiness audit, 2026-09, P1-5 follow-up): a
+    # mfa_pending token (minted by /auth/login/ when the account has MFA
+    # enabled, see auth.py) proves only that the password was correct — it
+    # carries no roles/tenant_id and is meant to be exchanged for a real
+    # session exclusively via POST /mfa/login/verify/. Nothing else in this
+    # function's checks distinguishes a mfa_pending token from a full one:
+    # both are just a signed JWT with a valid `sub`, and get_current_user()
+    # below re-derives roles/tenant_id from the database using that `sub`
+    # alone. Without this check, anyone holding a mfa_pending token (e.g.
+    # captured from the login response before a code is ever entered) could
+    # use it directly as a full bearer token, skipping the second factor
+    # entirely — the exact bypass this whole gate exists to close.
+    if payload.get("mfa_pending"):
+        raise credentials_exception
+
     return payload
 
 
@@ -90,6 +105,19 @@ def verify_token_raw(token: str) -> dict:
             detail="Invalid or malformed token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # SECURITY (national-readiness audit, 2026-09, P1-5 follow-up): without
+    # this, POST /auth/refresh/ (the caller of this function) would happily
+    # exchange a mfa_pending token — which only proves password correctness,
+    # not a completed second factor — for a full, real access token, the
+    # same bypass closed on verify_token() above.
+    if payload.get("mfa_pending"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or malformed token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return payload
 
 

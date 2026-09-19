@@ -184,11 +184,67 @@ async def blacklist_all_user_tokens(user_id: str, except_jti: str = None) -> int
 
 
 class Token(BaseModel):
-    access_token: str
-    token_type: str
+    access_token: str = ""
+    token_type: str = "bearer"
     refresh_token: str | None = None
-    expires_in: int
+    expires_in: int = 0
     token_version: int | None = None
+    # Set instead of the fields above when MFA must be verified before a
+    # real session token can be issued — see _issue_full_session_token()
+    # and POST /mfa/login/verify/.
+    mfa_required: bool = False
+    mfa_token: str | None = None
+
+
+async def _issue_full_session_token(db: Session, user: "User", roles: list[str]) -> Token:
+    """Register the session and mint the real access token for a login that
+    has fully completed (password, and MFA code if the account requires
+    one). Shared by login() and POST /mfa/login/verify/ so both paths keep
+    identical session/token semantics (concurrent-session cap, jti, token
+    version)."""
+    token_version = 0
+    try:
+        from app.core.cache import redis_client
+        client = await redis_client.client
+        version_str = await client.get(f"sfp:user_token_version:{user.id}")
+        if version_str:
+            token_version = int(version_str)
+    except Exception:
+        pass
+
+    import hashlib
+    token_jti = hashlib.sha256(f"{user.id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
+
+    # SECURITY: Register this session and enforce the 5-concurrent-sessions
+    # cap at login time (previously only enforced on /auth/refresh/).
+    await register_active_session(str(user.id), token_jti)
+
+    try:
+        access_token = create_access_token(
+            {
+                "sub": str(user.id),
+                "email": user.email,
+                "preferred_username": user.username,
+                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+                "roles": roles,
+                "jti": token_jti,
+                "tv": token_version,
+            }
+        )
+    except Exception as tok_err:
+        logger.error("Token creation failed: %s", tok_err, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Token generation error. The server may be misconfigured (check SECRET_KEY).",
+        )
+
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        refresh_token=None,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        token_version=token_version,
+    )
 
 
 class UserInfo(BaseModel):
@@ -351,43 +407,11 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 
         roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
 
-        # Fetch current token version from Redis (for logout-all invalidation)
-        token_version = 0
-        try:
-            from app.core.cache import redis_client
-            client = await redis_client.client
-            version_str = await client.get(f"sfp:user_token_version:{user.id}")
-            if version_str:
-                token_version = int(version_str)
-        except Exception:
-            pass
-
-        import hashlib
-        token_jti = hashlib.sha256(f"{user.id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
-
-        # SECURITY: Register this session and enforce the 5-concurrent-sessions
-        # cap at login time (previously only enforced on /auth/refresh/).
-        await register_active_session(str(user.id), token_jti)
-
-        # Create access token (wrap in try/except to catch SECRET_KEY issues)
-        try:
-            access_token = create_access_token(
-                {
-                    "sub": str(user.id),
-                    "email": user.email,
-                    "preferred_username": user.username,
-                    "tenant_id": str(user.tenant_id) if user.tenant_id else None,
-                    "roles": roles,
-                    "jti": token_jti,
-                    "tv": token_version,
-                }
-            )
-        except Exception as tok_err:
-            logger.error("Token creation failed: %s", tok_err, exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Token generation error. The server may be misconfigured (check SECRET_KEY).",
-            )
+        # SECURITY: Clear failed login attempts as soon as the password is
+        # verified correct — lockout tracks password-guessing attempts, a
+        # separate concern from the MFA code checked below (rate-limited on
+        # its own endpoint).
+        await _reset_login_attempts(str(user.id))
 
         # SECURITY: Enforce MFA check for privileged roles before issuing token.
         # MINISTRY_ADMIN added here (institutional-readiness audit, 2026-09) —
@@ -410,38 +434,44 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
         }
         user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
+        mfa_enabled = getattr(user, "mfa_enabled", False)
 
-        if user_privileged_roles:
-            mfa_enabled = getattr(user, "mfa_enabled", False)
+        if user_privileged_roles and not mfa_enabled:
             enforce_mfa = settings.ENFORCE_MFA
+            if enforce_mfa:
+                logger.warning(
+                    "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled (ENFORCE_MFA=true)",
+                    user.email, user_privileged_roles
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
+                )
+            else:
+                logger.warning(
+                    "MFA not enabled for user '%s' with privileged roles %s. "
+                    "Set ENFORCE_MFA=true to require MFA for privileged accounts.",
+                    user.email, user_privileged_roles
+                )
 
-            if not mfa_enabled:
-                if enforce_mfa:
-                    logger.warning(
-                        "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled (ENFORCE_MFA=true)",
-                        user.email, user_privileged_roles
-                    )
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
-                    )
-                else:
-                    logger.warning(
-                        "MFA not enabled for user '%s' with privileged roles %s. "
-                        "Set ENFORCE_MFA=true to require MFA for privileged accounts.",
-                        user.email, user_privileged_roles
-                    )
+        # SECURITY (national-readiness audit, 2026-09, P1-5 follow-up): until
+        # this fix, `mfa_enabled=True` only gated whether login was allowed
+        # to proceed at all — the moment it was true, the code below issued
+        # a fully valid access token with no second factor ever verified.
+        # The SPA's own TwoFactorChallenge screen (ProtectedRoute.tsx) was
+        # the only thing standing in the way, and it doesn't protect a
+        # direct API caller holding that token. When MFA is enabled, issue
+        # a short-lived, roleless "pending" token instead — the real
+        # session token is only minted after /mfa/login/verify/ confirms a
+        # TOTP or backup code (see mfa.py).
+        if mfa_enabled:
+            mfa_pending_token = create_access_token(
+                {"sub": str(user.id), "mfa_pending": True},
+                expires_delta=timedelta(minutes=5),
+            )
+            return Token(mfa_required=True, mfa_token=mfa_pending_token)
 
-        # SECURITY: Clear failed login attempts on successful login
-        await _reset_login_attempts(str(user.id))
-
-        return Token(
-            access_token=access_token,
-            token_type="bearer",
-            refresh_token=None,
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            token_version=token_version,
-        )
+        return await _issue_full_session_token(db, user, roles)
 
     except HTTPException:
         raise

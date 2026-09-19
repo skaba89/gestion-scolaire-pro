@@ -34,6 +34,11 @@ class TenantMiddleware(BaseHTTPMiddleware):
             "/docs", "/openapi.json", "/health", "/health/", "/", "/auth/login",
             "/tenants/public", "/tenants/public/",
             "/auth/refresh", "/auth/logout", "/users/me", "/users/me/",
+            # --- MFA login step-2: identity here is proven by presenting a
+            # valid mfa_pending token in the body, not a Bearer header (the
+            # request legitimately carries none) — same pre-session shape as
+            # /auth/login above (national-readiness audit, 2026-09, P1-5).
+            "/mfa/login/verify", "/mfa/login/verify/",
             "/favicon.ico", "/favicon.png", "/redoc",
             # Prometheus scrape — the endpoint enforces its own METRICS_SECRET
             # in production (see app/main.py), no JWT/tenant context involved.
