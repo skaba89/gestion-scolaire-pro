@@ -112,40 +112,86 @@ export const useBackupCodes = () => {
     });
 };
 
-// Legacy alias for compatibility with existing components if needed
+/**
+ * TOTP (authenticator app) — genuine second factor, distinct from the
+ * email-OTP hooks above (used by SecuritySettings.tsx's own toggle flow).
+ *
+ * SECURITY (national-readiness audit, 2026-09, P1-5): these used to be
+ * aliases onto the email-OTP hooks (useEnrollMFA = useRequestOTP, etc.)
+ * under a TOTP-branded UI (QR code, "scan with your authenticator app" —
+ * see ProfileSettings.tsx). useRequestOTP()'s response never contained a
+ * `totp` field, so `enrollmentData.totp.uri` was always undefined and the
+ * enrollment dialog crashed for anyone who tried to turn 2FA on this way.
+ * They now call the real /mfa/totp/* endpoints.
+ */
+
+interface TOTPFactor {
+    id: string;
+    status: 'verified';
+    factor_type: 'totp';
+}
+
 export const useMFAFactors = () => {
-    const { data: status } = useMFAStatus();
-    return {
-        data: {
-            all: status?.enabled ? [{ factor_type: 'totp', status: 'verified', id: 'active' }] : []
+    const { user } = useAuth();
+    return useQuery({
+        queryKey: ["totp-status", user?.id],
+        queryFn: async () => {
+            const response = await apiClient.get<{ enabled: boolean }>("/mfa/totp/status/");
+            const totp: TOTPFactor[] = response.data.enabled
+                ? [{ id: 'active', status: 'verified', factor_type: 'totp' }]
+                : [];
+            return { totp, all: totp };
         },
-        isLoading: false
-    };
+        enabled: !!user?.id,
+    });
 };
 
-export const useEnrollMFA = () => useRequestOTP();
+export const useEnrollMFA = () => {
+    return useMutation({
+        mutationFn: async () => {
+            const response = await apiClient.post<{ secret: string; uri: string }>("/mfa/totp/enroll/");
+            return { id: 'pending', totp: response.data };
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || "Erreur lors de l'enrôlement");
+        },
+    });
+};
+
 export const useChallengeAndVerifyMFA = () => {
-    const verify = useVerifyOTP();
-    const toggle = useToggleMFA();
-    
-    return {
-        ...verify,
-        mutateAsync: async ({ code }: { code: string }) => {
-            const res = await verify.mutateAsync(code);
-            if (res.valid) {
-                await toggle.mutateAsync(true);
-            } else {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ code }: { factorId?: string; code: string }) => {
+            const response = await apiClient.post<{ valid: boolean }>("/mfa/totp/verify/", { code });
+            if (!response.data.valid) {
                 throw new Error("Code invalide");
             }
-            return res;
-        }
-    };
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["totp-status"] });
+            queryClient.invalidateQueries({ queryKey: ["mfa-status"] });
+            toast.success("Authentification à deux facteurs activée");
+        },
+        onError: () => {
+            toast.error("Code invalide");
+        },
+    });
 };
+
 export const useUnenrollMFA = () => {
-    const toggle = useToggleMFA();
-    return {
-        ...toggle,
-        mutateAsync: async () => toggle.mutateAsync(false)
-    };
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async () => {
+            const response = await apiClient.post("/mfa/totp/disable/");
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["totp-status"] });
+            queryClient.invalidateQueries({ queryKey: ["mfa-status"] });
+            toast.success("Authentification à deux facteurs désactivée");
+        },
+    });
 };
+
 export const useRegenerateBackupCodes = () => useGenerateBackupCodes();

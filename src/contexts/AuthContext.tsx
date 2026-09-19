@@ -20,7 +20,8 @@ type AuthContextType = {
   isLoading: boolean;
   mustChangePassword: boolean;
   isMfaVerified: boolean;
-  signIn: (email: string, password: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any }>;
+  signIn: (email: string, password: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any; mfaRequired?: boolean; mfaToken?: string }>;
+  completeMfaLogin: (mfaToken: string, code: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any }>;
   verifyMfa: (token: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string, metadata?: unknown) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -80,12 +81,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       || false;
     setMustChangePassword(!!needsPasswordChange);
 
-    // MFA verified state — defaults false, set true only after explicit verification
-    // The backend can signal MFA requirement via user.mfa_enabled
-    if (!data.user?.mfa_enabled) {
-      setIsMfaVerified(true); // No MFA required, so considered verified
-    }
-    // If MFA is enabled, isMfaVerified stays false until verifyMfa() is called
+    // SECURITY (national-readiness audit, 2026-09): a full profile is only
+    // ever loaded here after signIn()/completeMfaLogin() has obtained a
+    // real access token — and the backend now only issues that token once
+    // any required second factor has already been verified server-side
+    // (see /auth/login/ and /mfa/login/verify/). By the time applyProfileData
+    // runs, MFA (if required for this account) has already passed, so this
+    // flag is always true; it's kept only for ProtectedRoute's existing
+    // TwoFactorChallenge gate, which this flow makes structurally dead code
+    // rather than something a caller still needs to satisfy.
+    setIsMfaVerified(true);
 
     if (data.profile && data.user) {
       setProfile({
@@ -175,6 +180,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const response = await apiClient.post("/auth/login/", body, { headers });
+
+      // SECURITY (national-readiness audit, 2026-09): when the account has
+      // MFA enabled, /auth/login/ no longer returns a usable access token
+      // directly — it returns a short-lived mfa_token that must be
+      // exchanged for the real session via completeMfaLogin() once the
+      // caller has verified a TOTP/backup code. Nothing is stored yet.
+      if (response.data?.mfa_required) {
+        setIsLoading(false);
+        return { error: null, mfaRequired: true, mfaToken: response.data.mfa_token };
+      }
+
       const token = response.data?.access_token;
       if (!token) {
         throw new Error("No access token returned by API");
@@ -197,6 +213,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   }, [clearAuth, applyProfileData]);
+
+  const completeMfaLogin = useCallback(async (mfaToken: string, code: string, tenantId?: string | null) => {
+    try {
+      setIsLoading(true);
+      const response = await apiClient.post("/mfa/login/verify/", { mfa_token: mfaToken, code });
+
+      if (response.data?.valid === false) {
+        return { error: new Error("Code invalide") };
+      }
+
+      const token = response.data?.access_token;
+      if (!token) {
+        throw new Error("No access token returned by API");
+      }
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      const profileResponse = await apiClient.get("/users/me/", tenantId ? { headers: { "X-Tenant-ID": tenantId } } : undefined);
+      applyProfileData(profileResponse.data);
+      return { error: null, profileData: profileResponse.data };
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail || error?.response?.data?.message;
+      return { error: new Error(detail || "Code invalide ou expiré") };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [applyProfileData]);
 
   const signUp = useCallback(async (email: string, password: string, metadata?: unknown) => {
     try {
@@ -270,6 +311,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mustChangePassword,
       isMfaVerified,
       signIn,
+      completeMfaLogin,
       verifyMfa,
       signUp,
       signOut,
@@ -289,6 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mustChangePassword,
       isMfaVerified,
       signIn,
+      completeMfaLogin,
       verifyMfa,
       signUp,
       signOut,

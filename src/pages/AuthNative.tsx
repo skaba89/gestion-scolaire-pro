@@ -47,7 +47,7 @@ function getSafeReturnPath(value: unknown): string | null {
 }
 
 const AuthNative = () => {
-  const { signIn, isLoading, user } = useAuth();
+  const { signIn, completeMfaLogin, isLoading, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,6 +55,11 @@ const AuthNative = () => {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Set when /auth/login/ reports the account requires a second factor —
+  // the login form is replaced by a code prompt until completeMfaLogin()
+  // exchanges mfaToken + a TOTP/backup code for the real session.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
   // Set by apiClient's cold-start retry (src/api/client.ts) while a 503/
   // timeout on /auth/login/ is being silently retried in the background —
   // Render's free tier sleeps the backend after inactivity, and the first
@@ -101,7 +106,7 @@ const AuthNative = () => {
     setSubmitting(true);
     setColdStartAttempt(null);
     try {
-      const { error, profileData } = await signIn(email, password);
+      const { error, profileData, mfaRequired, mfaToken: token } = await signIn(email, password);
       if (error) {
         const msg = error.message || "Identifiants incorrects";
         let description = msg;
@@ -122,47 +127,78 @@ const AuthNative = () => {
         return;
       }
 
-      const returnPath = requestedPath || getSafeReturnPath(sessionStorage.getItem(RETURN_TO_STORAGE_KEY));
-      if (returnPath) {
-        sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
-        navigate(returnPath, { replace: true });
+      if (mfaRequired && token) {
+        setMfaToken(token);
         return;
       }
 
-      const userRoles: string[] = (profileData?.roles as string[]) || [];
-      const tenantSlug = (profileData?.tenant?.slug as string) || null;
-
-      if (userRoles.includes("SUPER_ADMIN")) {
-        navigate("/super-admin", { replace: true });
-        return;
-      }
-
-      if (!tenantSlug) {
-        toast({
-          title: "Erreur",
-          description: "Aucun établissement associé à votre compte. Contactez un administrateur.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const slug = tenantSlug;
-      if (userRoles.includes("TENANT_ADMIN") || userRoles.includes("DIRECTOR") || userRoles.includes("STAFF")) {
-        navigate(`/${slug}/admin`, { replace: true });
-      } else if (userRoles.includes("TEACHER")) {
-        navigate(`/${slug}/teacher`, { replace: true });
-      } else if (userRoles.includes("PARENT")) {
-        navigate(`/${slug}/parent`, { replace: true });
-      } else if (userRoles.includes("STUDENT")) {
-        navigate(`/${slug}/student`, { replace: true });
-      } else if (userRoles.includes("ALUMNI")) {
-        navigate(`/${slug}/alumni`, { replace: true });
-      } else {
-        navigate(`/${slug}/admin`, { replace: true });
-      }
+      redirectAfterLogin(profileData);
     } finally {
       setSubmitting(false);
       setColdStartAttempt(null);
+    }
+  };
+
+  const redirectAfterLogin = (profileData: any) => {
+    const returnPath = requestedPath || getSafeReturnPath(sessionStorage.getItem(RETURN_TO_STORAGE_KEY));
+    if (returnPath) {
+      sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+      navigate(returnPath, { replace: true });
+      return;
+    }
+
+    const userRoles: string[] = (profileData?.roles as string[]) || [];
+    const tenantSlug = (profileData?.tenant?.slug as string) || null;
+
+    if (userRoles.includes("SUPER_ADMIN")) {
+      navigate("/super-admin", { replace: true });
+      return;
+    }
+
+    if (!tenantSlug) {
+      toast({
+        title: "Erreur",
+        description: "Aucun établissement associé à votre compte. Contactez un administrateur.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const slug = tenantSlug;
+    if (userRoles.includes("TENANT_ADMIN") || userRoles.includes("DIRECTOR") || userRoles.includes("STAFF")) {
+      navigate(`/${slug}/admin`, { replace: true });
+    } else if (userRoles.includes("TEACHER")) {
+      navigate(`/${slug}/teacher`, { replace: true });
+    } else if (userRoles.includes("PARENT")) {
+      navigate(`/${slug}/parent`, { replace: true });
+    } else if (userRoles.includes("STUDENT")) {
+      navigate(`/${slug}/student`, { replace: true });
+    } else if (userRoles.includes("ALUMNI")) {
+      navigate(`/${slug}/alumni`, { replace: true });
+    } else {
+      navigate(`/${slug}/admin`, { replace: true });
+    }
+  };
+
+  const handleMfaSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!mfaToken || mfaCode.length !== 6) return;
+
+    setSubmitting(true);
+    try {
+      const { error, profileData } = await completeMfaLogin(mfaToken, mfaCode);
+      if (error) {
+        toast({
+          title: "Code invalide",
+          description: error.message || "Le code saisi est incorrect ou a expiré.",
+          variant: "destructive",
+        });
+        setMfaCode("");
+        return;
+      }
+      redirectAfterLogin(profileData);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -263,91 +299,153 @@ const AuthNative = () => {
             </div>
           </div>
 
-          {/* Welcome header */}
-          <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Connexion</h2>
-            <p className="text-sm text-slate-500 leading-relaxed">
-              Accédez à la plateforme Academy Guinéenne. Entrez vos identifiants pour continuer.
-            </p>
-          </div>
-
-          {/* Login Form */}
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-slate-700">
-                Adresse email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="admin@schoolflow.local"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoFocus
-                autoComplete="email"
-                className="h-12 pl-4 pr-4 rounded-xl border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm font-medium text-slate-700">
-                  Mot de passe
-                </Label>
-                <Link
-                  to="/forgot-password"
-                  className="text-xs font-medium text-indigo-600 hover:underline transition-colors"
-                >
-                  Mot de passe oublié ?
-                </Link>
+          {mfaToken ? (
+            <>
+              {/* MFA challenge header */}
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Vérification en deux étapes</h2>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Entrez le code à 6 chiffres de votre application d'authentification, ou l'un de vos codes de secours.
+                </p>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Votre mot de passe"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                  className="h-12 pl-4 pr-11 rounded-xl border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
-                />
-                <button
+
+              {/* MFA Form */}
+              <form className="space-y-5" onSubmit={handleMfaSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="mfa-code" className="text-sm font-medium text-slate-700">
+                    Code de vérification
+                  </Label>
+                  <Input
+                    id="mfa-code"
+                    inputMode="numeric"
+                    placeholder="000000"
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    autoFocus
+                    autoComplete="one-time-code"
+                    className="h-12 pl-4 pr-4 rounded-xl border-slate-200 bg-white text-slate-900 text-center text-2xl tracking-widest placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base font-semibold text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700"
+                  disabled={submitting || isLoading || mfaCode.length !== 6}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Vérification...
+                    </>
+                  ) : (
+                    <>
+                      Vérifier
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+                <Button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
-                  tabIndex={-1}
-                  aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setMfaToken(null);
+                    setMfaCode("");
+                  }}
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+                  Retour
+                </Button>
+              </form>
+            </>
+          ) : (
+            <>
+              {/* Welcome header */}
+              <div className="space-y-2">
+                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Connexion</h2>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Accédez à la plateforme Academy Guinéenne. Entrez vos identifiants pour continuer.
+                </p>
               </div>
-            </div>
 
-            <Button
-              type="submit"
-              className="w-full h-12 text-base font-semibold text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700"
-              disabled={submitting || isLoading}
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {coldStartAttempt ? "Réveil du serveur…" : "Connexion en cours..."}
-                </>
-              ) : (
-                <>
-                  Se connecter
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </Button>
-            {coldStartAttempt && (
-              <p className="text-center text-xs text-slate-500 -mt-2">
-                Le serveur était en veille, il se réveille — cela peut prendre jusqu'à 30 secondes.
-              </p>
-            )}
-          </form>
+              {/* Login Form */}
+              <form className="space-y-5" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-sm font-medium text-slate-700">
+                    Adresse email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="admin@schoolflow.local"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoFocus
+                    autoComplete="email"
+                    className="h-12 pl-4 pr-4 rounded-xl border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-sm font-medium text-slate-700">
+                      Mot de passe
+                    </Label>
+                    <Link
+                      to="/forgot-password"
+                      className="text-xs font-medium text-indigo-600 hover:underline transition-colors"
+                    >
+                      Mot de passe oublié ?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Votre mot de passe"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      autoComplete="current-password"
+                      className="h-12 pl-4 pr-11 rounded-xl border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                      tabIndex={-1}
+                      aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base font-semibold text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700"
+                  disabled={submitting || isLoading}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      {coldStartAttempt ? "Réveil du serveur…" : "Connexion en cours..."}
+                    </>
+                  ) : (
+                    <>
+                      Se connecter
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </Button>
+                {coldStartAttempt && (
+                  <p className="text-center text-xs text-slate-500 -mt-2">
+                    Le serveur était en veille, il se réveille — cela peut prendre jusqu'à 30 secondes.
+                  </p>
+                )}
+              </form>
+            </>
+          )}
 
           {/* Divider */}
           <div className="relative">

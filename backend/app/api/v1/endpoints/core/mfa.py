@@ -4,6 +4,9 @@ import hashlib
 import uuid
 import logging
 from datetime import datetime, timezone
+import jwt
+import pyotp
+from jwt.exceptions import InvalidTokenError as JWTError
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -11,13 +14,18 @@ from sqlalchemy import text
 from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.models.user import User
+from app.models.user_role import UserRole
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_client_ip)
+
+TOTP_ISSUER = "Academy Guinéenne"
 
 NUM_CODES = 10
 CODE_LENGTH = 8  # characters per segment (format: XXXX-XXXX)
@@ -94,7 +102,7 @@ def _ensure_mfa_tables(db: Session):
         # Ensure mfa_enabled column exists on users table
         col_check = db.execute(text("""
             SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns 
+                SELECT 1 FROM information_schema.columns
                 WHERE table_name = 'users' AND column_name = 'mfa_enabled'
             )
         """)).scalar()
@@ -103,6 +111,29 @@ def _ensure_mfa_tables(db: Session):
             logger.info("Adding mfa_enabled column to users table...")
             db.execute(text("ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE"))
             db.commit()
+
+        # Check if mfa_totp_secrets table exists
+        totp_table_check = db.execute(text("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'mfa_totp_secrets' AND table_schema = 'public'
+            )
+        """)).scalar()
+
+        if not totp_table_check:
+            logger.info("Creating mfa_totp_secrets table...")
+            db.execute(text("""
+                CREATE TABLE IF NOT EXISTS mfa_totp_secrets (
+                    id UUID PRIMARY KEY,
+                    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+                    secret VARCHAR(64) NOT NULL,
+                    verified BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+            """))
+            db.execute(text("CREATE INDEX IF NOT EXISTS ix_mfa_totp_secrets_user_id ON mfa_totp_secrets(user_id)"))
+            db.commit()
+            logger.info("mfa_totp_secrets table created")
 
     except Exception as e:
         logger.error("Failed to ensure MFA tables: %s", e)
@@ -430,6 +461,263 @@ def get_otp_remaining(
         return {"remaining": max(0, 3 - used)}
     except Exception:
         return {"remaining": 0}
+
+
+# ─── TOTP (authenticator app) ──────────────────────────────────────────────
+#
+# SECURITY (national-readiness audit, 2026-09, P1-5): this is a genuine
+# TOTP factor — the frontend's previous "2FA" enrollment screen
+# (ProfileSettings.tsx) called the email-OTP endpoints above under a
+# TOTP-branded UI (QR code, "scan with your authenticator app"), but those
+# endpoints never returned a `totp.uri`/`totp.secret`, so the enrollment
+# dialog crashed on `enrollmentData.totp.uri` for anyone who tried to turn
+# 2FA on. These endpoints are what that UI actually needs.
+#
+# The secret is stored in plaintext (must be re-readable to verify future
+# codes, unlike the hashed one-time backup codes/OTPs above) — this matches
+# the codebase's existing convention of relying on DB access control/RLS
+# rather than encryption-at-rest for stored secrets (see e.g. tenant
+# payment-gateway credentials); there is no KMS/Fernet-style utility in this
+# codebase yet to do better.
+
+class TOTPVerifyRequest(BaseModel):
+    code: str
+
+
+@router.post("/totp/enroll/")
+@limiter.limit("10/minute")
+def enroll_totp(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Start TOTP enrollment: generate a new secret and provisioning URI.
+    Not yet active — the user must prove possession via /totp/verify/
+    before it replaces any existing verified factor."""
+    try:
+        _ensure_mfa_tables(db)
+    except Exception as e:
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+    user_id = current_user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    try:
+        secret = pyotp.random_base32()
+        db.execute(
+            text("""
+                INSERT INTO mfa_totp_secrets (id, user_id, secret, verified, created_at)
+                VALUES (:id, :user_id, :secret, FALSE, :created_at)
+                ON CONFLICT (user_id) DO UPDATE
+                    SET secret = EXCLUDED.secret, verified = FALSE, created_at = EXCLUDED.created_at
+            """),
+            {
+                "id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "secret": secret,
+                "created_at": datetime.now(timezone.utc),
+            },
+        )
+        db.commit()
+
+        uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=TOTP_ISSUER)
+        return {"secret": secret, "uri": uri}
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to start TOTP enrollment: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.post("/totp/verify/")
+@limiter.limit("10/minute")  # SECURITY: rate limit to prevent brute-force
+def verify_totp(
+    request: Request,
+    body: TOTPVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Confirm TOTP enrollment: verify a code against the pending secret,
+    then mark it verified and enable MFA for the account."""
+    user_id = current_user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    try:
+        _ensure_mfa_tables(db)
+        row = db.execute(
+            text("SELECT secret FROM mfa_totp_secrets WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        ).fetchone()
+
+        if not row:
+            raise HTTPException(status_code=400, detail="Aucun enrôlement TOTP en cours. Démarrez l'enrôlement d'abord.")
+
+        if not pyotp.TOTP(row.secret).verify(body.code.strip(), valid_window=1):
+            return {"valid": False, "message": "Code invalide"}
+
+        db.execute(
+            text("UPDATE mfa_totp_secrets SET verified = TRUE WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        )
+        db.execute(
+            text("UPDATE users SET mfa_enabled = TRUE WHERE id = :user_id"),
+            {"user_id": user_id},
+        )
+        db.commit()
+        return {"valid": True, "message": "TOTP activé avec succès"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to verify TOTP enrollment: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.post("/totp/disable/")
+def disable_totp(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove the user's TOTP factor and disable MFA."""
+    user_id = current_user.get("id")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    try:
+        _ensure_mfa_tables(db)
+        db.execute(text("DELETE FROM mfa_totp_secrets WHERE user_id = :user_id"), {"user_id": user_id})
+        db.execute(text("UPDATE users SET mfa_enabled = FALSE WHERE id = :user_id"), {"user_id": user_id})
+        db.commit()
+        return {"success": True, "enabled": False}
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to disable TOTP: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.get("/totp/status/")
+def get_totp_status(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Whether the current user has a verified TOTP factor."""
+    user_id = current_user.get("id")
+    if not user_id:
+        return {"enabled": False}
+
+    try:
+        _ensure_mfa_tables(db)
+        row = db.execute(
+            text("SELECT verified FROM mfa_totp_secrets WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        ).fetchone()
+        return {"enabled": bool(row and row.verified)}
+    except Exception as e:
+        logger.error("Failed to get TOTP status: %s", e)
+        return {"enabled": False}
+
+
+# ─── Second-factor gate at login ────────────────────────────────────────────
+#
+# SECURITY (national-readiness audit, 2026-09, P1-5 follow-up): before this,
+# `mfa_enabled=True` was checked only at login to REJECT accounts that never
+# turned MFA on (see auth.py login()) — once it was true, the full access
+# token was issued immediately, with no code of any kind ever verified
+# server-side. The frontend's ProtectedRoute rendered a TwoFactorChallenge
+# screen gating the SPA's own routes, but the JWT itself was already fully
+# valid for the API — any direct caller holding that token (a stolen token,
+# a replayed request, curl) bypassed "MFA" entirely, since the backend never
+# checked a second factor. login() now issues a short-lived mfa_pending
+# token instead of a real one when mfa_enabled=True; this endpoint is what
+# exchanges that pending token plus a real code for the actual session.
+
+class MFALoginVerifyRequest(BaseModel):
+    mfa_token: str
+    code: str
+
+
+def _decode_mfa_pending_token(token: str) -> str:
+    """Return the user_id encoded in a valid, unexpired mfa_pending token."""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            audience="schoolflow-api",
+            issuer="schoolflow-pro",
+        )
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Session de vérification MFA invalide ou expirée. Reconnectez-vous.")
+
+    if not payload.get("mfa_pending"):
+        raise HTTPException(status_code=401, detail="Jeton invalide pour cette opération")
+
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(status_code=401, detail="Jeton invalide")
+    return sub
+
+
+@router.post("/login/verify/")
+@limiter.limit("10/minute")  # SECURITY: rate limit to prevent code brute-force
+async def verify_login_mfa(request: Request, body: MFALoginVerifyRequest, db: Session = Depends(get_db)):
+    """Complete a login that was gated by MFA: verify a TOTP or backup code
+    against the pending session, then issue the real access token."""
+    from app.api.v1.endpoints.core.auth import _issue_full_session_token
+
+    user_id = _decode_mfa_pending_token(body.mfa_token)
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="Compte introuvable ou désactivé")
+
+    try:
+        _ensure_mfa_tables(db)
+        code = body.code.strip()
+        code_ok = False
+
+        totp_row = db.execute(
+            text("SELECT secret FROM mfa_totp_secrets WHERE user_id = :user_id AND verified = TRUE"),
+            {"user_id": user_id},
+        ).fetchone()
+        if totp_row and pyotp.TOTP(totp_row.secret).verify(code, valid_window=1):
+            code_ok = True
+
+        if not code_ok:
+            code_hash = _hash_code(code)
+            backup_row = db.execute(
+                text("""
+                    SELECT id FROM mfa_backup_codes
+                    WHERE user_id = :user_id AND code_hash = :code_hash AND used = FALSE
+                    LIMIT 1
+                """),
+                {"user_id": user_id, "code_hash": code_hash},
+            ).fetchone()
+            if backup_row:
+                db.execute(
+                    text("UPDATE mfa_backup_codes SET used = TRUE, used_at = :used_at WHERE id = :id"),
+                    {"id": backup_row.id, "used_at": datetime.now(timezone.utc)},
+                )
+                db.commit()
+                code_ok = True
+
+        if not code_ok:
+            return {"valid": False, "message": "Code invalide"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to verify login MFA code: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+    roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
+    return await _issue_full_session_token(db, user, roles)
 
 
 @router.get("/status/")

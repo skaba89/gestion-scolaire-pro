@@ -41,6 +41,14 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Invalid token")
         return
 
+    # SECURITY (national-readiness audit, 2026-09, P1-5 follow-up): a
+    # mfa_pending token (see app/core/security.py verify_token()) proves
+    # only a correct password, not a completed second factor — it must
+    # never authenticate anything beyond POST /mfa/login/verify/.
+    if payload.get("mfa_pending"):
+        await websocket.close(code=4003, reason="MFA verification required")
+        return
+
     # 2. Verify the token belongs to the claimed user and tenant
     token_sub = payload.get("sub")
     token_tenant = payload.get("tenant_id")
