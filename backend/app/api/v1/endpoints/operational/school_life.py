@@ -1,6 +1,7 @@
 import logging
 import base64
 import html as html_mod
+import re
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -1958,6 +1959,127 @@ function downloadHtml() {{
 
 # ── Smart endpoint v2 ──────────────────────────────────────────────────────────
 
+def _authorize_report_card_access(current_user: dict, db: Session, tenant_id: str, student_id: str) -> None:
+    """Raises 403 unless the caller may see this student's report card.
+    Shared by the HTML (v2) and PDF endpoints so both enforce the exact
+    same ownership rule (institutional-readiness audit, 2026-09)."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if not privileged and roles & {"STUDENT", "PARENT"}:
+        # ORM queries (not raw text() SQL) so the GUID TypeDecorator handles
+        # the SQLite-hex-vs-Postgres-native-UUID storage difference
+        # transparently on both bind and result — a raw text() query
+        # bypasses that coercion entirely and silently never matches on
+        # SQLite, even for a legitimate owner.
+        user_id = current_user.get("id")
+        allowed_ids: set[str] = set()
+        if "STUDENT" in roles:
+            own_email = db.query(UserModel.email).filter(UserModel.id == user_id).scalar()
+            rows = db.query(StudentModel.id).filter(
+                StudentModel.tenant_id == tenant_id,
+                (StudentModel.user_id == user_id) | (StudentModel.email == own_email),
+            ).all()
+            allowed_ids.update(str(r[0]) for r in rows)
+        if "PARENT" in roles:
+            rows = db.query(ParentStudentModel.student_id).filter(
+                ParentStudentModel.tenant_id == tenant_id,
+                ParentStudentModel.parent_id == user_id,
+            ).all()
+            allowed_ids.update(str(r[0]) for r in rows)
+        if str(student_id) not in allowed_ids:
+            raise HTTPException(status_code=403, detail="Accès refusé à ce bulletin")
+
+
+def _build_report_card_html(db: Session, body: SmartReportCardRequest, tenant_id: str) -> tuple[str, dict]:
+    """Fetch all data and build the bulletin HTML for one student. Shared by
+    the HTML (v2) and PDF endpoints so a PDF is never anything other than
+    this exact same server-computed document rendered to a file, rather
+    than a second, divergent code path (institutional-readiness audit,
+    2026-09, P1-1 — server-side PDF generation for official documents).
+    Returns (html_content, meta) where meta = {student_name, average, rank,
+    class_total}."""
+    info = _fetch_student_data(db, body.student_id, tenant_id)
+    s = info["student"]
+    t = info["tenant"]
+    if not s:
+        raise HTTPException(status_code=404, detail="Élève introuvable")
+
+    # Classroom + level
+    cls_row = db.execute(text("""
+        SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
+        FROM classes c
+        LEFT JOIN levels l ON c.level_id = l.id
+        LEFT JOIN academic_years ay ON c.academic_year_id = ay.id
+        WHERE c.id = :cid AND c.tenant_id = :tid
+    """), {"cid": body.classroom_id, "tid": tenant_id}).mappings().first()
+
+    # Term
+    term_row = db.execute(text("""
+        SELECT name, start_date, end_date FROM terms
+        WHERE id = :tid_term AND tenant_id = :tid
+    """), {"tid_term": body.term_id, "tid": tenant_id}).mappings().first()
+
+    # Grades
+    grades = _fetch_grades_for_term(db, body.student_id, body.term_id, tenant_id)
+    general_avg = _compute_average(grades)
+
+    # Absences
+    absences = {"excused": 0, "absent": 0, "late": 0}
+    if term_row and term_row["start_date"] and term_row["end_date"]:
+        absences = _fetch_absences(
+            db, body.student_id,
+            term_row["start_date"], term_row["end_date"], tenant_id
+        )
+
+    # Class rank
+    rank, total = _compute_class_rank(db, body.classroom_id, body.term_id, tenant_id, body.student_id)
+
+    # Tenant settings (logo URL, show_guinea_header)
+    settings: dict = {}
+    if t and t.get("settings"):
+        raw = t["settings"]
+        settings = raw if isinstance(raw, dict) else {}
+
+    # Format DOB
+    dob = s.get("date_of_birth")
+    dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
+
+    html_content = _build_bulletin_v2(
+        school_name=t["name"] if t else "École",
+        school_address=t.get("address") or "" if t else "",
+        school_phone=t.get("phone") or "" if t else "",
+        school_email=t.get("email") or "" if t else "",
+        school_logo_url=settings.get("logoUrl", ""),
+        student_name=f"{s.get('first_name', '')} {s.get('last_name', '')}".strip(),
+        registration_number=s.get("registration_number") or "",
+        date_of_birth=dob_str,
+        gender=s.get("gender") or "",
+        classroom=cls_row["class_name"] if cls_row else "",
+        level=cls_row["level_name"] if cls_row else "",
+        academic_year=cls_row["year_name"] if cls_row else "",
+        term=term_row["name"] if term_row else "",
+        grades=grades,
+        general_average=general_avg,
+        class_rank=rank,
+        class_total=total,
+        absences_excused=absences["excused"],
+        absences_absent=absences["absent"],
+        absences_late=absences["late"],
+        director_comment=body.director_comment or "",
+        decision=body.decision or "",
+        show_guinea_header=body.show_guinea_header,
+    )
+
+    student_name = f"{s.get('first_name', '')} {s.get('last_name', '')}".strip()
+    return html_content, {
+        "student_name": student_name,
+        "average": f"{general_avg:.2f}" if general_avg >= 0 else None,
+        "rank": rank,
+        "class_total": total,
+    }
+
+
 @router.post("/generate-report-card/v2/")
 def generate_smart_report_card(
     request: Request,
@@ -1983,117 +2105,16 @@ def generate_smart_report_card(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
-    roles = set(current_user.get("roles", []))
-    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
-                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
-    if not privileged and roles & {"STUDENT", "PARENT"}:
-        # ORM queries (not raw text() SQL) so the GUID TypeDecorator handles
-        # the SQLite-hex-vs-Postgres-native-UUID storage difference
-        # transparently on both bind and result — a raw text() query
-        # bypasses that coercion entirely and silently never matches on
-        # SQLite, even for a legitimate owner.
-        user_id = current_user.get("id")
-        allowed_ids: set[str] = set()
-        if "STUDENT" in roles:
-            own_email = db.query(UserModel.email).filter(UserModel.id == user_id).scalar()
-            rows = db.query(StudentModel.id).filter(
-                StudentModel.tenant_id == tenant_id,
-                (StudentModel.user_id == user_id) | (StudentModel.email == own_email),
-            ).all()
-            allowed_ids.update(str(r[0]) for r in rows)
-        if "PARENT" in roles:
-            rows = db.query(ParentStudentModel.student_id).filter(
-                ParentStudentModel.tenant_id == tenant_id,
-                ParentStudentModel.parent_id == user_id,
-            ).all()
-            allowed_ids.update(str(r[0]) for r in rows)
-        if str(body.student_id) not in allowed_ids:
-            raise HTTPException(status_code=403, detail="Accès refusé à ce bulletin")
+    _authorize_report_card_access(current_user, db, tenant_id, body.student_id)
 
     try:
-        # ── Fetch base data ──────────────────────────────────────────────────
-        info = _fetch_student_data(db, body.student_id, tenant_id)
-        s = info["student"]
-        t = info["tenant"]
-        if not s:
-            raise HTTPException(status_code=404, detail="Élève introuvable")
-
-        # Classroom + level
-        cls_row = db.execute(text("""
-            SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
-            FROM classes c
-            LEFT JOIN levels l ON c.level_id = l.id
-            LEFT JOIN academic_years ay ON c.academic_year_id = ay.id
-            WHERE c.id = :cid AND c.tenant_id = :tid
-        """), {"cid": body.classroom_id, "tid": tenant_id}).mappings().first()
-
-        # Term
-        term_row = db.execute(text("""
-            SELECT name, start_date, end_date FROM terms
-            WHERE id = :tid_term AND tenant_id = :tid
-        """), {"tid_term": body.term_id, "tid": tenant_id}).mappings().first()
-
-        # Grades
-        grades = _fetch_grades_for_term(db, body.student_id, body.term_id, tenant_id)
-        general_avg = _compute_average(grades)
-
-        # Absences
-        absences = {"excused": 0, "absent": 0, "late": 0}
-        if term_row and term_row["start_date"] and term_row["end_date"]:
-            absences = _fetch_absences(
-                db, body.student_id,
-                term_row["start_date"], term_row["end_date"], tenant_id
-            )
-
-        # Class rank
-        rank, total = _compute_class_rank(db, body.classroom_id, body.term_id, tenant_id, body.student_id)
-
-        # Tenant settings (logo URL, show_guinea_header)
-        settings: dict = {}
-        if t and t.get("settings"):
-            raw = t["settings"]
-            settings = raw if isinstance(raw, dict) else {}
-
-        # Format DOB
-        dob = s.get("date_of_birth")
-        dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
-
-        html_content = _build_bulletin_v2(
-            school_name=t["name"] if t else "École",
-            school_address=t.get("address") or "" if t else "",
-            school_phone=t.get("phone") or "" if t else "",
-            school_email=t.get("email") or "" if t else "",
-            school_logo_url=settings.get("logoUrl", ""),
-            student_name=f"{s.get('first_name', '')} {s.get('last_name', '')}".strip(),
-            registration_number=s.get("registration_number") or "",
-            date_of_birth=dob_str,
-            gender=s.get("gender") or "",
-            classroom=cls_row["class_name"] if cls_row else "",
-            level=cls_row["level_name"] if cls_row else "",
-            academic_year=cls_row["year_name"] if cls_row else "",
-            term=term_row["name"] if term_row else "",
-            grades=grades,
-            general_average=general_avg,
-            class_rank=rank,
-            class_total=total,
-            absences_excused=absences["excused"],
-            absences_absent=absences["absent"],
-            absences_late=absences["late"],
-            director_comment=body.director_comment or "",
-            decision=body.decision or "",
-            show_guinea_header=body.show_guinea_header,
-        )
-
+        html_content, meta = _build_report_card_html(db, body, tenant_id)
         encoded = base64.b64encode(html_content.encode("utf-8")).decode("ascii")
-        student_name = f"{s.get('first_name', '')} {s.get('last_name', '')}".strip()
         return {
             "html": encoded,
             "format": "html",
             "count": 1,
-            "student_name": student_name,
-            "average": f"{general_avg:.2f}" if general_avg >= 0 else None,
-            "rank": rank,
-            "class_total": total,
+            **meta,
         }
 
     except HTTPException:
@@ -2101,6 +2122,54 @@ def generate_smart_report_card(
     except Exception as exc:
         logger.error("generate-report-card/v2 error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du bulletin")
+
+
+@router.post("/generate-report-card/pdf/")
+def generate_report_card_pdf(
+    request: Request,
+    body: SmartReportCardRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """
+    POST /school-life/generate-report-card/pdf/
+
+    SECURITY/COMPLIANCE (national-readiness audit, 2026-09, P1-1): the only
+    official-document path before this was generate-report-card/v2/, which
+    hands the browser HTML to print — a bulletin issued that way is never a
+    real file: nothing is produced that can be archived server-side, hashed,
+    or handed to a batch/export job unattended (no browser to drive). This
+    renders the EXACT SAME server-computed bulletin (_build_report_card_html,
+    shared with v2 — not a second, divergent template) to real PDF bytes via
+    WeasyPrint, so the document a school issues is something the platform
+    can actually keep a copy of.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+
+    _authorize_report_card_access(current_user, db, tenant_id, body.student_id)
+
+    try:
+        html_content, meta = _build_report_card_html(db, body, tenant_id)
+
+        from weasyprint import HTML
+        pdf_bytes = HTML(string=html_content).write_pdf()
+
+        safe_name = re.sub(r"[^\w\-]+", "_", meta["student_name"] or "bulletin")
+        filename = f"Bulletin_{safe_name}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("generate-report-card/pdf error: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF")
 
 
 @router.post("/generate-report-cards/batch/")

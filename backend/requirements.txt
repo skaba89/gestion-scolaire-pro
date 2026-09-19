@@ -33,6 +33,11 @@ slowapi>=0.1.9,<0.2.0
 # spoofable.
 python-magic>=0.4.27,<0.5.0
 
+# PDF generation (national-readiness audit, 2026-09, P1-1): server-side
+# rendering of official documents (bulletins) — see Dockerfile for the
+# system libs WeasyPrint needs at runtime (pango/cairo/gdk-pixbuf).
+weasyprint>=62.0,<71.0
+
 # Billing
 stripe>=8.0.0,<9.0.0
 
