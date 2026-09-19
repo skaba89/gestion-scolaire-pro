@@ -19,8 +19,18 @@ WORKDIR /app
 # validation in storage.py). Without it, python-magic's import fails and
 # that check silently degrades to trusting the client Content-Type header —
 # see requirements.txt for the matching python-magic dependency.
+#
+# libpango-1.0-0/libpangocairo-1.0-0/libcairo2/libgdk-pixbuf-2.0-0/
+# libffi8/shared-mime-info/fonts-liberation: WeasyPrint's runtime rendering
+# stack (national-readiness audit, 2026-09, P1-1 — server-side bulletin
+# PDFs, see requirements.txt). Without these, WeasyPrint's import fails at
+# request time (only exercised the first time a PDF is generated), not at
+# container startup — same silent-until-used-at-runtime risk the libmagic1
+# comment above already warns about.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    postgresql-client curl libmagic1 && \
+    postgresql-client curl libmagic1 \
+    libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 \
+    libffi8 shared-mime-info fonts-liberation && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local

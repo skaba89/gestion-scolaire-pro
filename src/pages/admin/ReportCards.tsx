@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import axios from "axios";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -262,6 +263,63 @@ const ReportCards = () => {
       toast({
         title: t("messages.reportCardGenerateError"),
         description: err.response?.data?.detail || t("messages.retryLater"),
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(null);
+    }
+  };
+
+  // ── Download real PDF (national-readiness audit, 2026-09, P1-1) ─────────────
+  // Unlike generateBulletin() above (server HTML → browser print), this hits
+  // the WeasyPrint-backed endpoint and gets back an actual PDF file — the
+  // document a school issues is something the platform can archive, not
+  // just render-and-print on demand.
+
+  const downloadBulletinPdf = async (studentId: string) => {
+    setGenerating(studentId);
+    try {
+      const response = await apiClient.post(
+        "/school-life/generate-report-card/pdf/",
+        {
+          student_id: studentId,
+          term_id: selectedTerm,
+          classroom_id: selectedClassroom,
+          director_comment: directorComment || undefined,
+          decision: decision || undefined,
+          show_guinea_header: showGuineaHeader,
+        },
+        { responseType: "blob" },
+      );
+      const student = students.find(s => s.id === studentId);
+      const term = terms.find(t => t.id === selectedTerm);
+      const name = `${student?.last_name}_${student?.first_name}`.replace(/\s+/g, "_");
+      const termName = (term?.name || "trimestre").replace(/\s+/g, "_");
+
+      const url = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Bulletin_${name}_${termName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      // responseType "blob" means an error response's body also arrives as
+      // a Blob (even though the server sent JSON) rather than being parsed
+      // for us — read it back out before falling back to a generic message.
+      let detail: string | undefined;
+      if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          detail = JSON.parse(text)?.detail;
+        } catch {
+          // Not JSON (or empty) — fall through to the generic message below.
+        }
+      }
+      toast({
+        title: t("messages.reportCardGenerateError"),
+        description: detail || t("messages.retryLater"),
         variant: "destructive",
       });
     } finally {
@@ -536,7 +594,7 @@ const ReportCards = () => {
                               <span className="text-muted-foreground text-sm">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right space-x-2">
                             <Button
                               variant="outline"
                               size="sm"
@@ -549,6 +607,22 @@ const ReportCards = () => {
                                 <>
                                   <Download className="w-3.5 h-3.5 mr-1.5" />
                                   Bulletin officiel
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadBulletinPdf(student.id)}
+                              disabled={!!generating}
+                              title="Télécharger un fichier PDF réel (archivable), plutôt que la version imprimable du navigateur"
+                            >
+                              {isGenerating ? (
+                                <span className="animate-pulse text-xs">Génération...</span>
+                              ) : (
+                                <>
+                                  <FileText className="w-3.5 h-3.5 mr-1.5" />
+                                  PDF
                                 </>
                               )}
                             </Button>
