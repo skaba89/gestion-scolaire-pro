@@ -1,5 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -74,6 +75,48 @@ def update_semester(
     if not semester:
         raise HTTPException(status_code=404, detail="Semester not found")
     return semester
+
+
+@router.get("/{semester_id}/progression/{student_id}/")
+def get_semester_progression_eligibility(
+    request: Request,
+    semester_id: UUID,
+    student_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """Can `student_id` enroll in `semester_id`'s subjects yet? Lets the
+    frontend show the credit-progression gate (app/services/progression.py)
+    BEFORE the student attempts registration, rather than only surfacing it
+    as a 422 from POST /student-subjects/.
+
+    Ownership check reuses transcripts.py's own rule verbatim (same data
+    sensitivity: a student's earned-credits detail) rather than duplicating
+    a second, potentially diverging definition of "may view this student's
+    academic standing".
+    """
+    from app.api.v1.endpoints.academic.transcripts import _can_view_transcript
+    from app.services.progression import check_semester_progression_eligibility
+
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Contexte établissement requis")
+
+    student = db.execute(text(
+        "SELECT id FROM students WHERE id = :sid AND tenant_id = :tid"
+    ), {"sid": str(student_id), "tid": tenant_id}).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Élève/étudiant introuvable")
+    if not _can_view_transcript(db, current_user=current_user, student_id=str(student_id), tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    semester = crud.get_semester(db, semester_id=semester_id, tenant_id=tenant_id)
+    if not semester:
+        raise HTTPException(status_code=404, detail="Semester not found")
+
+    return check_semester_progression_eligibility(
+        db, tenant_id=tenant_id, student_id=str(student_id), target_semester_id=str(semester_id),
+    )
 
 
 @router.delete("/{semester_id}/", status_code=status.HTTP_204_NO_CONTENT)

@@ -15,7 +15,12 @@ class Subject(Base, UUIDMixin, TimestampMixin, TenantMixin):
     td_hours = Column(Integer, default=0)
     tp_hours = Column(Integer, default=0)
     description = Column(Text, nullable=True)
-    
+    # Semester-progression build-out: a UE optionally belongs to one
+    # Semester (LMD structure) — nullable, so a school-type tenant's
+    # subjects (never assigned to a semester) are entirely unaffected.
+    semester_id = Column(GUID(), ForeignKey("semesters.id", ondelete="SET NULL"), nullable=True)
+
     # Relationships
     departments = relationship("Department", secondary="subject_departments", back_populates="subjects")
     levels = relationship("Level", secondary="subject_levels")
+    semester = relationship("Semester", foreign_keys=[semester_id])

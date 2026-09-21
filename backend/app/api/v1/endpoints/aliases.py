@@ -666,6 +666,46 @@ def _check_prerequisites_or_raise(
         )
 
 
+def _check_semester_progression_or_raise(
+    db: Session, *, tenant_id: str, student_id: UUID, subject_ids: list[UUID],
+) -> None:
+    """Blocks registration (422) into a subject tied to a semester whose
+    predecessor semester has a credit threshold the student hasn't met yet
+    — see app/services/progression.py. A subject with no semester_id (the
+    overwhelming majority — school-type tenants and any university tenant
+    that hasn't opted into per-semester subjects) is entirely unaffected."""
+    if not subject_ids:
+        return
+    from app.services.progression import check_semester_progression_eligibility
+
+    stmt = text(
+        "SELECT id, semester_id FROM subjects WHERE tenant_id = :tid AND id IN :ids AND semester_id IS NOT NULL"
+    ).bindparams(bindparam("ids", expanding=True))
+    rows = db.execute(stmt, {"tid": tenant_id, "ids": [str(s) for s in subject_ids]}).mappings().all()
+    if not rows:
+        return
+
+    blocked: dict[str, dict] = {}
+    checked_semesters: dict[str, dict] = {}
+    for row in rows:
+        semester_id = str(row["semester_id"])
+        if semester_id not in checked_semesters:
+            checked_semesters[semester_id] = check_semester_progression_eligibility(
+                db, tenant_id=tenant_id, student_id=str(student_id), target_semester_id=semester_id,
+            )
+        result = checked_semesters[semester_id]
+        if not result["eligible"]:
+            blocked[str(row["id"])] = result
+    if blocked:
+        from app.core.exceptions import api_error, ErrorCode
+        raise api_error(
+            422,
+            "Progression au semestre suivant non autorisée (crédits insuffisants)",
+            ErrorCode.VALIDATION_ERROR,
+            details={"blocked_by_semester_progression": blocked},
+        )
+
+
 @student_subjects_router.get("/")
 def list_student_subjects(
     request: Request,
@@ -710,6 +750,9 @@ def assign_subjects_to_student(
         db, tenant_id=tenant_id, student_id=body.student_id, subject_ids=body.subject_ids,
     )
     _check_prerequisites_or_raise(
+        db, tenant_id=tenant_id, student_id=body.student_id, subject_ids=body.subject_ids,
+    )
+    _check_semester_progression_or_raise(
         db, tenant_id=tenant_id, student_id=body.student_id, subject_ids=body.subject_ids,
     )
     try:
