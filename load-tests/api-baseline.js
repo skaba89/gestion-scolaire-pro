@@ -16,6 +16,15 @@ import { check, sleep } from 'k6';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 const API = `${BASE_URL}/api/v1`;
+// national-readiness audit, 2026-09: this script's 25-50 VU plateau
+// stages generate well over 100 req/minute from one source IP —
+// app.main's app-wide default limiter (100/minute per IP) throttles
+// students/invoices/analytics/notifications reads below unless a
+// LOAD_TEST_TOKEN matching the target's LOAD_TEST_BYPASS_SECRET is set
+// (inert unless a deployment operator deliberately configured it — see
+// docs/runbooks/load-testing.md). Discovered by actually running
+// load-tests/smoke.js against a live instance for the first time.
+const LOAD_TEST_TOKEN = __ENV.LOAD_TEST_TOKEN || '';
 
 export const options = {
   stages: [
@@ -49,6 +58,7 @@ export function setup() {
 
 export default function (data) {
   const headers = { Authorization: `Bearer ${data.token}` };
+  if (LOAD_TEST_TOKEN) headers['X-Load-Test-Token'] = LOAD_TEST_TOKEN;
 
   const students = http.get(`${API}/students/?page=1&page_size=25`, { headers });
   check(students, { 'students list is 200': (r) => r.status === 200 });

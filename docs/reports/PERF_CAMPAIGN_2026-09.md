@@ -1,13 +1,13 @@
 # Campagne de tests de performance — pré-déploiement multi-établissement → national (2026-09)
 
-> **Statut des résultats : NON VÉRIFIÉ.** Ce document livre l'**outillage
-> reproductible** (scripts k6, capture d'infra, injection de pannes,
-> synthèse) et la **méthode**. Les chiffres de charge (RPS, p95, point de
-> saturation) doivent être produits en exécutant la campagne sur un
-> environnement **dimensionné comme la production** — pas sur un poste de dev
-> (les mesures y seraient bornées par la machine, pas par l'application).
-> `k6` n'est pas installé dans l'environnement d'édition et aucune stack
-> n'y tournait : **aucun run n'a été exécuté ici.**
+> **Statut des résultats aux paliers 250/500/1000/2500 VU : toujours NON
+> VÉRIFIÉ** — voir §11 pour ce qui a changé depuis la version précédente
+> de cette note. Ce document livre l'**outillage reproductible** (scripts
+> k6, capture d'infra, injection de pannes, synthèse) et la **méthode**.
+> Les chiffres de charge (RPS, p95, point de saturation) à ces paliers
+> doivent être produits en exécutant la campagne sur un environnement
+> **dimensionné comme la production** — pas sur un poste de dev (les
+> mesures y seraient bornées par la machine, pas par l'application).
 
 ## 1. Objectif
 Mesurer objectivement la capacité de la plateforme et **identifier le
@@ -144,3 +144,73 @@ Pistes classiques à confirmer : pooling externe (PgBouncer), index ciblés,
 cache court sur KPIs, taille de pool `SQLALCHEMY` alignée sur
 `max_connections`, réglage du nombre de workers Arq, réplicas API derrière
 le LB. **Chaque piste devra citer la mesure qui la justifie.**
+
+## 11. Premier run réel (2026-09-21) — ce qui a changé
+
+Pour la première fois depuis l'écriture de ce document, `k6` a été
+installé et un run réel a été exécuté contre une instance vivante
+(backend local, PostgreSQL + Redis réels, migrations à jour — pas Docker
+Compose, indisponible dans cet environnement, mais une pile fonctionnelle
+équivalente pour ce qui est mesuré ici).
+
+**Ce qui A été vérifié** : `load-tests/smoke.js` (5 VU, ~1 min, aucune
+authentification) contre l'instance vivante.
+
+**Ce qui n'a PAS été vérifié** : les paliers 250/500/1000/2500 VU de
+`campaign.js`/`saturation.js`/`resilience.js`. Une seule machine
+générant tout le trafic depuis une seule IP source n'est de toute façon
+pas une simulation crédible d'une charge nationale réelle (traffic
+distribué, sources multiples) — les valider correctement demande une
+exécution distribuée (k6 Cloud, plusieurs runners) contre un
+environnement dimensionné comme la production, pas ce sandbox.
+
+### Constat n°1 (bloquant, désormais corrigé) : le run révèle son propre goulot d'étranglement, pas celui de l'app
+
+Premier run de `smoke.js` : **49% des requêtes en échec (HTTP 429)**, dès
+5 VU / ~11 req/s — bien avant toute charge réelle. Cause : le limiteur de
+débit global par défaut de `app/main.py` (`100/minute` par IP,
+`app/core/client_ip.py`) s'applique à **toute** requête sans limiteur
+dédié, y compris `/health/ready` et `/health/live`. Un run k6, où toutes
+les requêtes proviennent d'une seule IP source, épuise ce quota en
+quelques secondes.
+
+Confirmé par test contrôlé : `k6` avec `console.log(r.status)` sur
+`/health/ready`, 5 VU/20 s sans `sleep()` → 7475 `429` contre 68 `200`.
+
+**Correction appliquée** (`app/core/client_ip.py::get_client_ip_or_load_test_bypass`,
+`app/main.py`) : le bypass `X-Load-Test-Token` déjà audité pour le
+limiteur de connexion (`auth.py`, voir `LOAD_TEST_BYPASS_SECRET` dans
+`app/core/config.py`) est étendu au limiteur global de l'application —
+inerte par défaut, comparaison à temps constant, expiration obligatoire
+(`LOAD_TEST_BYPASS_EXPIRES_AT`), sans nouveau mécanisme de sécurité à
+auditer séparément. Re-run de `smoke.js` avec le jeton : **0% d'échec,
+916/916 checks réussis**.
+
+### Constat n°2 (bloquant, désormais corrigé) : le bypass n'était câblé que sur le login
+
+En examinant `lib/scenarios.js`, `full-journey.js`, `api-baseline.js` à
+la lumière du constat n°1 : `X-Load-Test-Token` n'était attaché **qu'à
+la requête de connexion** dans `campaign.js`/`saturation.js`/
+`resilience.js`/`full-journey.js` — jamais aux appels métier réels qui
+suivent (tableau de bord, élèves, notes, présences, factures...). Sans
+correctif, n'importe quel run réel de ces scripts aux paliers 250-2500 VU
+aurait immédiatement buté sur le même 429 massif que le constat n°1, sur
+des endpoints n'ayant rien à voir avec le login — invisible sans avoir
+réellement exécuté k6 une fois contre une instance vivante.
+
+**Correction appliquée** : `lib/scenarios.js::authHeaders()` (utilisée
+par tous les flux métier de `campaign.js`/`saturation.js`/
+`resilience.js`) et les fonctions équivalentes de `full-journey.js` et
+`api-baseline.js` attachent désormais `X-Load-Test-Token` à **chaque**
+requête, pas seulement au login.
+
+### Ce que ça change pour la suite
+
+Les paliers 250/500/1000/2500 VU restent à exécuter pour de vrai — mais
+avant ce correctif, ils auraient produit des résultats **entièrement
+faux** (un mur de 429 dès les premières secondes, quel que soit le palier
+visé), rendant toute mesure de saturation applicative impossible à
+distinguer du bruit de ce garde-fou. C'était un prérequis bloquant non
+identifié avant ce run, pas une optimisation — sans lui, "Test national
+1000+" ne pouvait tout simplement pas être mesuré avec l'outillage
+existant, quelle que soit la puissance de la machine cible.

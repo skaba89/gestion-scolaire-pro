@@ -61,8 +61,27 @@ export function login(tenant, extraHeaders = {}) {
   return res.status === 200 ? res.json('access_token') : null;
 }
 
+// national-readiness audit, 2026-09: campaign.js/saturation.js/
+// resilience.js/full-journey.js already attached X-Load-Test-Token to the
+// LOGIN request only — every subsequent business call (dashboard,
+// students, grades, attendance, ...) built from THIS function's headers
+// carried no bypass at all. A real k6 run generates every request from
+// one source IP, and app.main's app-wide default limiter (100/minute per
+// IP — see app/core/client_ip.py) applies to those endpoints exactly like
+// it applies to login — discovered by actually running load-tests/smoke.js
+// against a live instance (see docs/reports/PERF_CAMPAIGN_2026-09.md's
+// "NON VÉRIFIÉ" note: no run had ever been executed before). Without this,
+// every VU beyond the first ~100 requests/minute total (not per VU — total,
+// across the whole campaign) would 429 on ordinary reads/writes, long
+// before any real capacity signal. LOAD_TEST_TOKEN read directly here
+// (not threaded through every call site) since every scenario function
+// already takes `headers` from this one place.
+const LOAD_TEST_TOKEN = __ENV.LOAD_TEST_TOKEN || '';
+
 export function authHeaders(token, tenant) {
-  return { Authorization: `Bearer ${token}`, 'X-Tenant-ID': tenant.slug };
+  const headers = { Authorization: `Bearer ${token}`, 'X-Tenant-ID': tenant.slug };
+  if (LOAD_TEST_TOKEN) headers['X-Load-Test-Token'] = LOAD_TEST_TOKEN;
+  return headers;
 }
 
 // ─── Read flows ──────────────────────────────────────────────────────────────

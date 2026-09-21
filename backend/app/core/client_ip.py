@@ -22,9 +22,15 @@ traffic (or the app's own cold-start retry logic) could 429 every
 visitor at once, not just an abusive one.
 """
 import ipaddress
+import logging
+import secrets
+import uuid
+from datetime import datetime, timezone
 
 from fastapi import Request
 from slowapi.util import get_remote_address
+
+logger = logging.getLogger(__name__)
 
 # Render/Cloudflare proxy IPs — only trust X-Forwarded-For from these.
 # These are CIDR *networks*, not literal address prefixes — a direct
@@ -65,3 +71,73 @@ def get_client_ip(request: Request) -> str:
             if forwarded:
                 return forwarded.split(",")[0].strip()
     return get_remote_address(request)
+
+
+def is_load_test_bypass_active() -> bool:
+    """True only when settings.LOAD_TEST_BYPASS_EXPIRES_AT is a valid ISO
+    8601 timestamp strictly in the future. Logs a warning (not silence)
+    on every rejection reason so a stale campaign secret left configured
+    in production is visible rather than just quietly doing nothing.
+
+    Shared by every rate-limit key function that honours the
+    X-Load-Test-Token bypass (originally auth.py's login limiter only —
+    see get_client_ip_or_load_test_bypass below for why this is now also
+    the app-wide default limiter's key function)."""
+    from app.core.config import settings
+
+    expires_raw = settings.LOAD_TEST_BYPASS_EXPIRES_AT
+    if not expires_raw:
+        logger.warning(
+            "LOAD_TEST_BYPASS_SECRET is configured but LOAD_TEST_BYPASS_EXPIRES_AT is not — "
+            "bypass treated as expired/inert. Set both, or neither."
+        )
+        return False
+    try:
+        expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+    except ValueError:
+        logger.warning(
+            "LOAD_TEST_BYPASS_EXPIRES_AT=%r is not a valid ISO 8601 timestamp — "
+            "bypass treated as expired/inert.", expires_raw,
+        )
+        return False
+    if datetime.now(timezone.utc) >= expires_at:
+        logger.warning(
+            "LOAD_TEST_BYPASS_SECRET expired at %s (still configured!) — bypass inert. "
+            "Unset LOAD_TEST_BYPASS_SECRET/LOAD_TEST_BYPASS_EXPIRES_AT now.", expires_raw,
+        )
+        return False
+    return True
+
+
+def get_client_ip_or_load_test_bypass(request: Request) -> str:
+    """get_client_ip(), except a request carrying header X-Load-Test-Token
+    equal to settings.LOAD_TEST_BYPASS_SECRET (while is_load_test_bypass_
+    active()) is instead keyed on a fresh uuid4 per call, so it can never
+    accumulate against anyone's real quota.
+
+    national-readiness audit, 2026-09: a real k6 campaign run (see
+    load-tests/campaign.js, docs/reports/PERF_CAMPAIGN_2026-09.md)
+    generates every request from ONE source IP. app/main.py's app-wide
+    default limiter (100/minute per IP) was already exempting nothing —
+    a 5-VU smoke run alone produced ~49% 429s within a minute, drowning
+    every other metric in rate-limit noise before the app's real capacity
+    was ever tested. Extracted here (was auth.py-only, login endpoints
+    only) so the SAME already-audited, already-expiring, constant-time-
+    compared bypass now also covers the app-wide limiter — not a new,
+    second bypass mechanism to independently secure and expire.
+
+    Inert by default: LOAD_TEST_BYPASS_SECRET is empty unless a
+    deployment operator deliberately sets it, and the comparison is
+    constant-time (secrets.compare_digest) specifically so an unset/
+    mismatched header can't be used to probe for the real value.
+    """
+    from app.core.config import settings
+
+    if settings.LOAD_TEST_BYPASS_SECRET and is_load_test_bypass_active():
+        presented = request.headers.get("X-Load-Test-Token", "")
+        if presented and secrets.compare_digest(presented, settings.LOAD_TEST_BYPASS_SECRET):
+            logger.info("Rate limit bypassed via X-Load-Test-Token (authorized load test)")
+            return f"load-test-exempt-{uuid.uuid4()}"
+    return get_client_ip(request)
