@@ -98,7 +98,7 @@ class TestLoginRateLimitBypass:
 class TestLoadTestBypassExpiry:
     """Audit finding (round 2, Low): the secret alone had no automated
     expiry — see LOAD_TEST_BYPASS_EXPIRES_AT in app/core/config.py and
-    _load_test_bypass_is_active() in auth.py."""
+    is_load_test_bypass_active() in app/core/client_ip.py."""
 
     def test_secret_configured_without_expiry_is_inert(self, monkeypatch):
         from app.api.v1.endpoints.core.auth import limiter as auth_limiter

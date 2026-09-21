@@ -74,9 +74,11 @@ class TestDirectLimitersUseGetClientIp:
         from app.api.v1.endpoints.core.public_pages import public_browsing_limiter
         assert public_browsing_limiter._key_func is get_client_ip
 
-    def test_main_app_wide_limiter(self):
-        from app.main import limiter
-        assert limiter._key_func is get_client_ip
+    # test_main_app_wide_limiter moved to
+    # TestWrapperKeyFunctionsDelegateToGetClientIp below (national-
+    # readiness audit, 2026-09): app.main's limiter now takes
+    # get_client_ip_or_load_test_bypass, a wrapper — not testable by
+    # identity against get_client_ip anymore, same as the login limiter.
 
 
 class TestWrapperKeyFunctionsDelegateToGetClientIp:
@@ -97,6 +99,20 @@ class TestWrapperKeyFunctionsDelegateToGetClientIp:
             headers={"X-Forwarded-For": "203.0.113.7"},
         )
         assert _login_rate_limit_key(request) == "203.0.113.7"
+
+    def test_main_app_wide_limiter_resolves_the_real_client_ip_behind_render(self):
+        """app.main's limiter (national-readiness audit, 2026-09) now
+        takes get_client_ip_or_load_test_bypass, shared with the login
+        limiter — same proxy-aware resolution, not a regression back to
+        get_remote_address."""
+        from types import SimpleNamespace
+        from app.main import limiter
+
+        request = SimpleNamespace(
+            client=SimpleNamespace(host="10.0.4.23"),
+            headers={"X-Forwarded-For": "203.0.113.7"},
+        )
+        assert limiter._key_func(request) == "203.0.113.7"
 
     def test_submit_form_rate_key_resolves_the_real_client_ip_behind_render(self):
         """public_pages.py::_submit_form_rate_key — le formulaire de

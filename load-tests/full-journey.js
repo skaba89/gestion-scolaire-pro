@@ -159,6 +159,14 @@ export default function (data) {
   const tenant = pickTenant();
   const token = data.tokensBySlug[tenant.slug];
   const headers = { Authorization: `Bearer ${token}`, 'X-Tenant-ID': tenant.slug };
+  // national-readiness audit, 2026-09: this used to carry the
+  // X-Load-Test-Token bypass on the setup() login only — every business
+  // call below (kpis, students, notifications, invoices, ...) hit
+  // app.main's app-wide 100/minute-per-IP default limiter unexempted,
+  // discovered by actually running load-tests/smoke.js against a live
+  // instance for the first time (see lib/scenarios.js::authHeaders for
+  // the same fix applied to campaign.js/saturation.js/resilience.js).
+  if (LOAD_TEST_TOKEN) headers['X-Load-Test-Token'] = LOAD_TEST_TOKEN;
 
   group('dashboard', function () {
     // /analytics/overview/ (used by load-tests/api-baseline.js) does not

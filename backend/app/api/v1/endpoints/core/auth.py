@@ -23,75 +23,17 @@ router = APIRouter()
 def _login_rate_limit_key(request: Request) -> str:
     """Rate-limit key for this module's `limiter` — shared by every
     @limiter.limit(...) route below (login, refresh, logout, change-
-    password, register, register-school, bootstrap, forgot/reset-password),
-    normally just the client IP (via get_client_ip — proxy-aware since
-    2026-08-28; the raw slowapi get_remote_address used here before that
-    resolved to Render's shared edge connection for every visitor,
-    collapsing every real client's login attempts onto one rate-limit
-    bucket — a single attacker spamming failed logins could throttle
-    every OTHER visitor's login too, not just their own; see
-    app/core/client_ip.py). A request carrying header X-Load-Test-Token
-    equal to settings.LOAD_TEST_BYPASS_SECRET is instead keyed on a fresh
-    uuid4 per call, so it can never accumulate against anyone's real
-    quota — this is how an authorized load campaign logs in 10, 100 or
-    1000 simulated tenant admins without needing 13s of spacing per login
-    (see docs/runbooks/load-testing.md).
+    password, register, register-school, bootstrap, forgot/reset-password).
 
-    Inert by default: LOAD_TEST_BYPASS_SECRET is empty unless a deployment
-    operator deliberately sets it, and the comparison is constant-time
-    (secrets.compare_digest) specifically so an unset/mismatched header
-    can't be used to probe for the real value.
-
-    Audit finding (round 2, Low): the secret alone had no automated
-    expiry — forgetting to unset it after a campaign left the bypass live
-    indefinitely. LOAD_TEST_BYPASS_EXPIRES_AT (ISO 8601) is now also
-    required and must be in the future; missing, unparseable, or past it,
-    the bypass is treated as expired (same as the secret being empty) and
-    logged loudly so a forgotten campaign secret is visible in production
-    logs rather than silently active forever.
-    """
-    from app.core.config import settings
-    if settings.LOAD_TEST_BYPASS_SECRET and _load_test_bypass_is_active():
-        import secrets
-        import uuid
-        presented = request.headers.get("X-Load-Test-Token", "")
-        if presented and secrets.compare_digest(presented, settings.LOAD_TEST_BYPASS_SECRET):
-            logger.info("Login rate limit bypassed via X-Load-Test-Token (authorized load test)")
-            return f"load-test-exempt-{uuid.uuid4()}"
-    return get_client_ip(request)
-
-
-def _load_test_bypass_is_active() -> bool:
-    """True only when LOAD_TEST_BYPASS_EXPIRES_AT is a valid ISO 8601
-    timestamp strictly in the future. Logs a warning (not silence) on
-    every rejection reason so a stale campaign secret left configured in
-    production is visible rather than just quietly doing nothing."""
-    from app.core.config import settings
-
-    expires_raw = settings.LOAD_TEST_BYPASS_EXPIRES_AT
-    if not expires_raw:
-        logger.warning(
-            "LOAD_TEST_BYPASS_SECRET is configured but LOAD_TEST_BYPASS_EXPIRES_AT is not — "
-            "bypass treated as expired/inert. Set both, or neither."
-        )
-        return False
-    try:
-        expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00"))
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-    except ValueError:
-        logger.warning(
-            "LOAD_TEST_BYPASS_EXPIRES_AT=%r is not a valid ISO 8601 timestamp — "
-            "bypass treated as expired/inert.", expires_raw,
-        )
-        return False
-    if datetime.now(timezone.utc) >= expires_at:
-        logger.warning(
-            "LOAD_TEST_BYPASS_SECRET expired at %s (still configured!) — bypass inert. "
-            "Unset LOAD_TEST_BYPASS_SECRET/LOAD_TEST_BYPASS_EXPIRES_AT now.", expires_raw,
-        )
-        return False
-    return True
+    Delegates to app.core.client_ip.get_client_ip_or_load_test_bypass
+    (national-readiness audit, 2026-09 — extracted from here so the
+    app-wide default limiter in app/main.py can share the exact same,
+    already-audited X-Load-Test-Token bypass instead of each limiter
+    needing its own copy; see that function's docstring for the full
+    rationale and docs/runbooks/load-testing.md for how a campaign uses
+    it)."""
+    from app.core.client_ip import get_client_ip_or_load_test_bypass
+    return get_client_ip_or_load_test_bypass(request)
 
 
 limiter = Limiter(key_func=_login_rate_limit_key)

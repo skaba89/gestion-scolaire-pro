@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
-from app.core.client_ip import get_client_ip
+from app.core.client_ip import get_client_ip, get_client_ip_or_load_test_bypass
 
 # ─── Sentry — initialisation avant tout le reste ─────────────────────────────
 def _init_sentry() -> None:
@@ -87,7 +87,16 @@ logger = logging.getLogger(__name__)
 _get_client_ip = get_client_ip
 
 limiter = Limiter(
-    key_func=_get_client_ip,
+    # national-readiness audit, 2026-09: was _get_client_ip (plain IP,
+    # kept above unchanged for test_client_ip_trust.py) — a real k6 load
+    # campaign (load-tests/campaign.js) generates every request from ONE
+    # source IP, so this 100/minute default alone drowned a 5-VU smoke
+    # run in ~49% 429s before the app's actual capacity was ever
+    # exercised. get_client_ip_or_load_test_bypass shares the exact same
+    # X-Load-Test-Token bypass already audited for the login limiter in
+    # auth.py (inert unless LOAD_TEST_BYPASS_SECRET is deliberately set
+    # and not expired) — see app/core/client_ip.py for the full rationale.
+    key_func=get_client_ip_or_load_test_bypass,
     default_limits=["100/minute"],
     headers_enabled=True,
 )
