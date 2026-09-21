@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise, ministry, whatsapp_webhook
-from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework, transcripts
+from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework, transcripts, faculties, semesters
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys, kiosk
 from app.api.v1.endpoints.operational import departments as dept_portal
@@ -88,7 +88,9 @@ api_router.include_router(campuses.router, prefix="/campuses", tags=["Campuses"]
 api_router.include_router(levels.router, prefix="/levels", tags=["Levels"])
 api_router.include_router(subjects.router, prefix="/subjects", tags=["Subjects"])
 api_router.include_router(departments.router, prefix="/departments", tags=["Departments"])
+api_router.include_router(faculties.router, prefix="/faculties", tags=["Faculties"])
 api_router.include_router(terms.router, prefix="/terms", tags=["Terms"])
+api_router.include_router(semesters.router, prefix="/semesters", tags=["Semesters"])
 api_router.include_router(assessments.router, prefix="/assessments", tags=["Assessments"])
 api_router.include_router(teachers.router, prefix="/teachers", tags=["Teachers"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])
