@@ -55,7 +55,15 @@ const Semesters = () => {
     }
   };
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (formData: {
+    name: string;
+    number: number;
+    start_date: string;
+    end_date: string;
+    is_active: boolean;
+    academic_year_id: string;
+    credits_required_to_advance: number | null;
+  }) => {
     if (!tenant) return;
 
     try {
@@ -73,7 +81,7 @@ const Semesters = () => {
       }
       setDialogOpen(false);
       setEditingSemester(null);
-    } catch (error) {
+    } catch {
       // Error handled by mutation
     }
   };

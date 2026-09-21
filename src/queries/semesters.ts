@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
 import { apiClient } from "@/api/client";
 import { useToast } from "@/hooks/use-toast";
+
+// Same pattern as src/hooks/queries/use2FA.ts — avoids `any` on the
+// mutation's onError handler while still reading FastAPI's `detail` field.
+const getErrorDetail = (error: unknown): string | undefined =>
+    axios.isAxiosError<{ detail?: string }>(error) ? error.response?.data?.detail : undefined;
 
 export interface Semester {
     id: string;
@@ -67,10 +73,10 @@ export const useCreateSemester = () => {
             queryClient.invalidateQueries({ queryKey: ["semesters", data.tenant_id] });
             toast({ title: "Succès", description: "Semestre créé avec succès" });
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
             toast({
                 title: "Erreur",
-                description: error.response?.data?.detail || "Erreur lors de la création du semestre",
+                description: getErrorDetail(error) || "Erreur lors de la création du semestre",
                 variant: "destructive",
             });
         },
@@ -90,10 +96,10 @@ export const useUpdateSemester = () => {
             queryClient.invalidateQueries({ queryKey: ["semesters", data.tenant_id] });
             toast({ title: "Succès", description: "Semestre mis à jour avec succès" });
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
             toast({
                 title: "Erreur",
-                description: error.response?.data?.detail || "Erreur lors de la mise à jour du semestre",
+                description: getErrorDetail(error) || "Erreur lors de la mise à jour du semestre",
                 variant: "destructive",
             });
         },
@@ -105,17 +111,17 @@ export const useDeleteSemester = () => {
     const { toast } = useToast();
 
     return useMutation({
-        mutationFn: async ({ id, tenantId }: { id: string; tenantId: string }) => {
+        mutationFn: async ({ id }: { id: string; tenantId: string }) => {
             await apiClient.delete(`/semesters/${id}/`);
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["semesters", variables.tenantId] });
             toast({ title: "Succès", description: "Semestre supprimé avec succès" });
         },
-        onError: (error: any) => {
+        onError: (error: unknown) => {
             toast({
                 title: "Erreur",
-                description: error.response?.data?.detail || "Erreur lors de la suppression du semestre",
+                description: getErrorDetail(error) || "Erreur lors de la suppression du semestre",
                 variant: "destructive",
             });
         },

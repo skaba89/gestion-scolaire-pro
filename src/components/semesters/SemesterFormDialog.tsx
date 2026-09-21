@@ -21,12 +21,22 @@ import {
 import { Loader2 } from "lucide-react";
 import { Semester } from "@/queries/semesters";
 
+interface SemesterFormValues {
+    name: string;
+    number: number;
+    start_date: string;
+    end_date: string;
+    is_active: boolean;
+    academic_year_id: string;
+    credits_required_to_advance: number | null;
+}
+
 interface SemesterFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     editingSemester: Semester | null;
     academicYears: { id: string; name: string }[];
-    onSubmit: (formData: any) => void;
+    onSubmit: (formData: SemesterFormValues) => void;
     isPending: boolean;
 }
 

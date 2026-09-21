@@ -14,11 +14,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Faculty } from "@/queries/faculties";
 
+interface FacultyFormValues {
+    name: string;
+    code: string;
+    description: string;
+}
+
 interface FacultyFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     editingFaculty: Faculty | null;
-    onSubmit: (formData: any) => void;
+    onSubmit: (formData: FacultyFormValues) => void;
     isPending: boolean;
 }
 

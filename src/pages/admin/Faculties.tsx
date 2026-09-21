@@ -73,12 +73,12 @@ const Faculties = () => {
       toast.success(`${selectedIds.length} faculté(s) supprimée(s)`);
       setSelectedIds([]);
       setShowBulkDeleteConfirm(false);
-    } catch (error) {
+    } catch {
       // Error handled by mutation
     }
   };
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (formData: { name: string; code: string; description: string }) => {
     if (!tenant?.id) return;
 
     const payload = {
@@ -102,7 +102,7 @@ const Faculties = () => {
       }
       setIsDialogOpen(false);
       setEditingFaculty(null);
-    } catch (error) {
+    } catch {
       // Error handled by mutation
     }
   };
