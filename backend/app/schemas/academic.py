@@ -118,6 +118,7 @@ class SubjectBase(BaseModel):
     td_hours: int = 0
     tp_hours: int = 0
     description: Optional[str] = None
+    semester_id: Optional[UUID] = None
 
 class SubjectCreate(SubjectBase):
     department_ids: Optional[List[UUID]] = None
@@ -133,6 +134,7 @@ class SubjectUpdate(BaseModel):
     td_hours: Optional[int] = None
     tp_hours: Optional[int] = None
     description: Optional[str] = None
+    semester_id: Optional[UUID] = None
     department_ids: Optional[List[UUID]] = None
     level_ids: Optional[List[UUID]] = None
     prerequisite_subject_ids: Optional[List[UUID]] = None
@@ -203,6 +205,7 @@ class SemesterBase(BaseModel):
     start_date: date
     end_date: date
     is_active: bool = False
+    credits_required_to_advance: Optional[float] = None
 
 class SemesterCreate(SemesterBase):
     pass
@@ -213,6 +216,7 @@ class SemesterUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_active: Optional[bool] = None
+    credits_required_to_advance: Optional[float] = None
 
 class Semester(SemesterBase):
     id: UUID

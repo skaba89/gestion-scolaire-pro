@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Date, ForeignKey, Boolean
+from sqlalchemy import Column, String, Integer, Float, Date, ForeignKey, Boolean
 
 from app.models.base import Base, GUID, UUIDMixin, TimestampMixin, TenantMixin
 
@@ -19,3 +19,11 @@ class Semester(Base, UUIDMixin, TimestampMixin, TenantMixin):
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     is_active = Column(Boolean, default=False)
+    # Semester-progression rule (LMD build-out, follow-up to faculties/
+    # semesters/prerequisites): ECTS credits a student must have earned
+    # from THIS semester's subjects before enrolling in the NEXT semester's
+    # subjects (same academic year, number + 1). NULL by default — a
+    # semester with no threshold configured never blocks progression, so
+    # existing tenants (and any semester created before this field existed)
+    # are unaffected until an admin opts in.
+    credits_required_to_advance = Column(Float, nullable=True)
