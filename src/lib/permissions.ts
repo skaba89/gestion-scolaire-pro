@@ -99,6 +99,9 @@ export type Permission =
   | "departments:manage"
   | "department:own"
 
+  // Faculties (LMD module)
+  | "faculties:manage"
+
   // Exams
   | "exams:read"
   | "exams:manage"
@@ -143,7 +146,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "admissions:read", "admissions:manage", "admissions:convert",
     "settings:read", "settings:manage", "tenant:manage",
     "teachers:read", "teachers:manage", "teacher_assignments:manage", "teacher_progress:read",
-    "departments:read", "departments:manage",
+    "departments:read", "departments:manage", "faculties:manage",
     "exams:read", "exams:manage",
     "certificates:read", "certificates:generate",
     "rooms:read", "rooms:manage",
@@ -167,7 +170,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "admissions:read", "admissions:manage", "admissions:convert",
     "settings:read", "settings:manage", "tenant:manage",
     "teachers:read", "teachers:manage", "teacher_assignments:manage", "teacher_progress:read",
-    "departments:read", "departments:manage",
+    "departments:read", "departments:manage", "faculties:manage",
     "exams:read", "exams:manage",
     "certificates:read", "certificates:generate",
     "rooms:read", "rooms:manage",
@@ -191,7 +194,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "admissions:read", "admissions:manage", "admissions:convert",
     "settings:read",
     "teachers:read", "teachers:manage", "teacher_assignments:manage", "teacher_progress:read",
-    "departments:read", "departments:manage",
+    "departments:read", "departments:manage", "faculties:manage",
     "exams:read", "exams:manage",
     "certificates:read", "certificates:generate",
     "rooms:read", "rooms:manage",
