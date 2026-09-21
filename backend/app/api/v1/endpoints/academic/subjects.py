@@ -131,6 +131,30 @@ def get_subject_departments(
     )).fetchall()
     return [str(r.department_id) for r in rows]
 
+@router.get("/{subject_id}/prerequisites/")
+def get_subject_prerequisites(
+    request: Request,
+    subject_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:read")),
+):
+    """Get prerequisite subject ids for a subject/UE (module université).
+
+    Same shape/pattern as get_subject_departments/get_subject_levels above —
+    subject_prerequisites is a self-referential M2M (app/models/
+    associations.py), never exposed on the Subject read schema itself, so a
+    frontend editing prerequisites (Subjects.tsx) needs this dedicated
+    lookup exactly like it already needs one for departments/levels.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        return []
+    from app.models.associations import subject_prerequisites
+    rows = db.execute(subject_prerequisites.select().where(
+        (subject_prerequisites.c.subject_id == subject_id) & (subject_prerequisites.c.tenant_id == tenant_id)
+    )).fetchall()
+    return [str(r.prerequisite_subject_id) for r in rows]
+
 @router.post("/{subject_id}/levels/{level_id}/")
 def assign_subject_to_level(
     request: Request,

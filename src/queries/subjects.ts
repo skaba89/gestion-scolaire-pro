@@ -14,6 +14,11 @@ export interface Subject {
     td_hours?: number | null;
     tp_hours?: number | null;
     description?: string | null;
+    // LMD module — nullable: a subject never assigned a semester/prerequisite
+    // (the overwhelming majority, incl. every school-type tenant) is
+    // entirely unaffected (see backend/app/services/progression.py and
+    // aliases.py::_check_prerequisites_or_raise).
+    semester_id?: string | null;
 }
 
 export interface SubjectLevel {
@@ -86,16 +91,19 @@ export const useCreateSubject = () => {
         mutationFn: async ({
             subject,
             departmentIds,
-            levelIds
+            levelIds,
+            prerequisiteSubjectIds
         }: {
             subject: Omit<Subject, "id"> & { tenant_id: string },
             departmentIds?: string[],
-            levelIds?: string[]
+            levelIds?: string[],
+            prerequisiteSubjectIds?: string[]
         }) => {
             const response = await apiClient.post<Subject>("/subjects/", {
                 ...subject,
                 department_ids: departmentIds,
-                level_ids: levelIds
+                level_ids: levelIds,
+                prerequisite_subject_ids: prerequisiteSubjectIds
             });
             return response.data;
         },
@@ -122,17 +130,20 @@ export const useUpdateSubject = () => {
             id,
             updates,
             departmentIds,
-            levelIds
+            levelIds,
+            prerequisiteSubjectIds
         }: {
             id: string,
             updates: Partial<Subject>,
             departmentIds?: string[],
-            levelIds?: string[]
+            levelIds?: string[],
+            prerequisiteSubjectIds?: string[]
         }) => {
             const response = await apiClient.put<Subject>(`/subjects/${id}/`, {
                 ...updates,
                 department_ids: departmentIds,
-                level_ids: levelIds
+                level_ids: levelIds,
+                prerequisite_subject_ids: prerequisiteSubjectIds
             });
             return response.data;
         },
@@ -216,6 +227,18 @@ export const useSubjectsByLevel = (levelId?: string) => {
             return response.data;
         },
         enabled: !!levelId,
+    });
+};
+
+export const useSubjectPrerequisites = (subjectId?: string, tenantId?: string) => {
+    return useQuery({
+        queryKey: ["subject-prerequisites", subjectId],
+        queryFn: async () => {
+            if (!subjectId || !tenantId) return [];
+            const response = await apiClient.get<string[]>(`/subjects/${subjectId}/prerequisites/`);
+            return response.data;
+        },
+        enabled: !!subjectId && !!tenantId,
     });
 };
 
