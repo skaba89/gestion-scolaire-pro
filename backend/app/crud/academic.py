@@ -7,8 +7,9 @@ from datetime import datetime
 from app.models import (
     AcademicYear, Term, Campus, Level, Subject,
     Department, Room, Program, Classroom, Enrollment,
-    SubjectPreferredRoom,
-    subject_levels, subject_departments, classroom_departments, class_subjects
+    SubjectPreferredRoom, Faculty, Semester,
+    subject_levels, subject_departments, classroom_departments, class_subjects,
+    subject_prerequisites,
 )
 from app.schemas.academic import (
     AcademicYearCreate, AcademicYearUpdate,
@@ -21,7 +22,9 @@ from app.schemas.academic import (
     ProgramCreate, ProgramUpdate,
     ClassroomCreate, ClassroomUpdate,
     EnrollmentCreate, EnrollmentUpdate,
-    SubjectPreferredRoomCreate
+    SubjectPreferredRoomCreate,
+    FacultyCreate, FacultyUpdate,
+    SemesterCreate, SemesterUpdate,
 )
 
 # --- Academic Year ---
@@ -199,12 +202,12 @@ def get_subject(db: Session, subject_id: UUID, tenant_id: UUID) -> Optional[Subj
     return db.query(Subject).filter(Subject.id == subject_id, Subject.tenant_id == tenant_id).first()
 
 def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subject:
-    data = obj_in.model_dump(exclude={"department_ids", "level_ids"})
+    data = obj_in.model_dump(exclude={"department_ids", "level_ids", "prerequisite_subject_ids"})
     db_obj = Subject(**data, tenant_id=tenant_id)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
-    
+
     # Handle associations
     if obj_in.department_ids:
         for dept_id in obj_in.department_ids:
@@ -213,7 +216,7 @@ def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subje
                 subject_id=db_obj.id,
                 department_id=dept_id
             ))
-    
+
     if obj_in.level_ids:
         for level_id in obj_in.level_ids:
             db.execute(subject_levels.insert().values(
@@ -221,37 +224,53 @@ def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subje
                 subject_id=db_obj.id,
                 level_id=level_id
             ))
-    
-    if obj_in.department_ids or obj_in.level_ids:
+
+    if obj_in.prerequisite_subject_ids:
+        for prereq_id in obj_in.prerequisite_subject_ids:
+            db.execute(subject_prerequisites.insert().values(
+                tenant_id=tenant_id,
+                subject_id=db_obj.id,
+                prerequisite_subject_id=prereq_id,
+            ))
+
+    if obj_in.department_ids or obj_in.level_ids or obj_in.prerequisite_subject_ids:
         db.commit()
         db.refresh(db_obj)
-        
+
     return db_obj
 
 def update_subject(db: Session, subject_id: UUID, obj_in: SubjectUpdate, tenant_id: UUID) -> Optional[Subject]:
     db_obj = get_subject(db, subject_id, tenant_id)
     if not db_obj:
         return None
-    
+
     update_data = obj_in.model_dump(exclude_unset=True)
     dept_ids = update_data.pop("department_ids", None)
     level_ids = update_data.pop("level_ids", None)
-    
+    prereq_ids = update_data.pop("prerequisite_subject_ids", None)
+
     for field, value in update_data.items():
         setattr(db_obj, field, value)
-    
+
     db.add(db_obj)
-    
+
     if dept_ids is not None:
         db.execute(subject_departments.delete().where(subject_departments.c.subject_id == subject_id))
         for d_id in dept_ids:
             db.execute(subject_departments.insert().values(tenant_id=tenant_id, subject_id=subject_id, department_id=d_id))
-            
+
     if level_ids is not None:
         db.execute(subject_levels.delete().where(subject_levels.c.subject_id == subject_id))
         for l_id in level_ids:
             db.execute(subject_levels.insert().values(tenant_id=tenant_id, subject_id=subject_id, level_id=l_id))
-            
+
+    if prereq_ids is not None:
+        db.execute(subject_prerequisites.delete().where(subject_prerequisites.c.subject_id == subject_id))
+        for p_id in prereq_ids:
+            if str(p_id) == str(subject_id):
+                continue
+            db.execute(subject_prerequisites.insert().values(tenant_id=tenant_id, subject_id=subject_id, prerequisite_subject_id=p_id))
+
     db.commit()
     db.refresh(db_obj)
     return db_obj
@@ -290,6 +309,68 @@ def update_department(db: Session, dept_id: UUID, obj_in: DepartmentUpdate, tena
 
 def delete_department(db: Session, dept_id: UUID, tenant_id: UUID) -> bool:
     db_obj = get_department(db, dept_id, tenant_id)
+    if not db_obj: return False
+    db.delete(db_obj)
+    db.commit()
+    return True
+
+# --- Faculty ---
+def get_faculties(db: Session, tenant_id: UUID) -> List[Faculty]:
+    return db.query(Faculty).filter(Faculty.tenant_id == tenant_id).order_by(Faculty.name.asc()).all()
+
+def get_faculty(db: Session, faculty_id: UUID, tenant_id: UUID) -> Optional[Faculty]:
+    return db.query(Faculty).filter(Faculty.id == faculty_id, Faculty.tenant_id == tenant_id).first()
+
+def create_faculty(db: Session, obj_in: FacultyCreate, tenant_id: UUID) -> Faculty:
+    db_obj = Faculty(**obj_in.model_dump(), tenant_id=tenant_id)
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def update_faculty(db: Session, faculty_id: UUID, obj_in: FacultyUpdate, tenant_id: UUID) -> Optional[Faculty]:
+    db_obj = get_faculty(db, faculty_id, tenant_id)
+    if not db_obj: return None
+    for field, value in obj_in.model_dump(exclude_unset=True).items():
+        setattr(db_obj, field, value)
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def delete_faculty(db: Session, faculty_id: UUID, tenant_id: UUID) -> bool:
+    db_obj = get_faculty(db, faculty_id, tenant_id)
+    if not db_obj: return False
+    db.delete(db_obj)
+    db.commit()
+    return True
+
+# --- Semester ---
+def get_semesters(db: Session, tenant_id: UUID) -> List[Semester]:
+    return db.query(Semester).filter(Semester.tenant_id == tenant_id).order_by(Semester.number.asc()).all()
+
+def get_semester(db: Session, semester_id: UUID, tenant_id: UUID) -> Optional[Semester]:
+    return db.query(Semester).filter(Semester.id == semester_id, Semester.tenant_id == tenant_id).first()
+
+def create_semester(db: Session, obj_in: SemesterCreate, tenant_id: UUID) -> Semester:
+    db_obj = Semester(**obj_in.model_dump(), tenant_id=tenant_id)
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def update_semester(db: Session, semester_id: UUID, obj_in: SemesterUpdate, tenant_id: UUID) -> Optional[Semester]:
+    db_obj = get_semester(db, semester_id, tenant_id)
+    if not db_obj: return None
+    for field, value in obj_in.model_dump(exclude_unset=True).items():
+        setattr(db_obj, field, value)
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def delete_semester(db: Session, semester_id: UUID, tenant_id: UUID) -> bool:
+    db_obj = get_semester(db, semester_id, tenant_id)
     if not db_obj: return False
     db.delete(db_obj)
     db.commit()

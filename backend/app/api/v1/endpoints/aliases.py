@@ -593,6 +593,79 @@ def _validate_student_and_subjects_in_tenant(
             raise HTTPException(status_code=404, detail=f"Cours introuvable(s): {', '.join(missing)}")
 
 
+# Prerequisite enforcement (module université, 2026-09): blocking, not just
+# a warning — an unmet prerequisite raises 422 rather than letting the
+# registration through. "Validated" mirrors the exact threshold already
+# used by transcripts.py (PASS_THRESHOLD = 10/20, average of a student's
+# own grades in that subject across all terms) so a course counted as
+# "acquired" on the transcript is the same course that satisfies a
+# prerequisite here — no second, silently-diverging definition of "passed".
+_PREREQUISITE_PASS_THRESHOLD = 10.0
+
+
+def _fetch_prerequisites_by_subject(
+    db: Session, *, tenant_id: str, subject_ids: list[UUID],
+) -> dict[str, list[dict]]:
+    if not subject_ids:
+        return {}
+    stmt = text("""
+        SELECT sp.subject_id, ps.id AS prereq_id, ps.name AS prereq_name
+        FROM subject_prerequisites sp
+        JOIN subjects ps ON ps.id = sp.prerequisite_subject_id
+        WHERE sp.tenant_id = :tid AND sp.subject_id IN :ids
+    """).bindparams(bindparam("ids", expanding=True))
+    rows = db.execute(stmt, {"tid": tenant_id, "ids": [str(s) for s in subject_ids]}).mappings().all()
+    result: dict[str, list[dict]] = {}
+    for r in rows:
+        result.setdefault(str(r["subject_id"]), []).append(
+            {"id": str(r["prereq_id"]), "name": r["prereq_name"]}
+        )
+    return result
+
+
+def _has_student_validated_subject(db: Session, *, tenant_id: str, student_id: UUID, subject_id: str) -> bool:
+    rows = db.execute(text("""
+        SELECT g.score, g.max_score
+        FROM grades g
+        JOIN assessments a ON g.assessment_id = a.id
+        WHERE g.student_id = :sid AND g.tenant_id = :tid AND a.subject_id = :subid
+          AND g.score IS NOT NULL
+    """), {"sid": str(student_id), "tid": tenant_id, "subid": subject_id}).fetchall()
+    if not rows:
+        return False
+    scores = [float(r.score) / float(r.max_score or 20) * 20 for r in rows]
+    return (sum(scores) / len(scores)) >= _PREREQUISITE_PASS_THRESHOLD
+
+
+def _check_prerequisites_or_raise(
+    db: Session, *, tenant_id: str, student_id: UUID, subject_ids: list[UUID],
+) -> None:
+    prereqs_by_subject = _fetch_prerequisites_by_subject(db, tenant_id=tenant_id, subject_ids=subject_ids)
+    if not prereqs_by_subject:
+        return
+    unmet: dict[str, list[str]] = {}
+    for subject_id in subject_ids:
+        prereqs = prereqs_by_subject.get(str(subject_id), [])
+        missing = [
+            p["name"] for p in prereqs
+            if not _has_student_validated_subject(db, tenant_id=tenant_id, student_id=student_id, subject_id=p["id"])
+        ]
+        if missing:
+            unmet[str(subject_id)] = missing
+    if unmet:
+        # api_error(), not a bare HTTPException(detail=dict(...)): the global
+        # http_exception_handler (app/core/exceptions.py) only forwards a
+        # dict detail's "details" key as-is — anything else in the dict is
+        # silently flattened away to just its "message" string.
+        from app.core.exceptions import api_error, ErrorCode
+        raise api_error(
+            422,
+            "Prérequis non validés pour cette inscription",
+            ErrorCode.VALIDATION_ERROR,
+            details={"unmet_prerequisites": unmet},
+        )
+
+
 @student_subjects_router.get("/")
 def list_student_subjects(
     request: Request,
@@ -634,6 +707,9 @@ def assign_subjects_to_student(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     _validate_student_and_subjects_in_tenant(
+        db, tenant_id=tenant_id, student_id=body.student_id, subject_ids=body.subject_ids,
+    )
+    _check_prerequisites_or_raise(
         db, tenant_id=tenant_id, student_id=body.student_id, subject_ids=body.subject_ids,
     )
     try:

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Boolean, Float, Table, UniqueConstraint
+from sqlalchemy import Column, DateTime, ForeignKey, Boolean, Float, Table, UniqueConstraint, CheckConstraint
 from app.core.database import Base
 
 from app.models.base import GUID
@@ -64,4 +64,21 @@ student_subjects = Table(
     Column("student_id", GUID(), ForeignKey("students.id", ondelete="CASCADE"), primary_key=True),
     Column("subject_id", GUID(), ForeignKey("subjects.id", ondelete="CASCADE"), primary_key=True),
     Column("created_at", DateTime, default=lambda: datetime.now(timezone.utc), nullable=False),
+)
+
+# Course prerequisites — self-referential on Subject/UE (institutional
+# "module université" build-out, 2026-09): a subject may require another
+# subject to be validated first. Directional (subject_id requires
+# prerequisite_subject_id), enforced at enrollment time by
+# aliases.py::assign_subjects_to_student (blocks with 422 if the student
+# hasn't validated the prerequisite — see app/services/grading.py for the
+# validation threshold shared with transcripts).
+subject_prerequisites = Table(
+    "subject_prerequisites",
+    Base.metadata,
+    Column("tenant_id", GUID(), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
+    Column("subject_id", GUID(), ForeignKey("subjects.id", ondelete="CASCADE"), primary_key=True),
+    Column("prerequisite_subject_id", GUID(), ForeignKey("subjects.id", ondelete="CASCADE"), primary_key=True),
+    UniqueConstraint('subject_id', 'prerequisite_subject_id', name='uix_subject_prerequisite'),
+    CheckConstraint('subject_id != prerequisite_subject_id', name='ck_subject_prerequisite_not_self'),
 )

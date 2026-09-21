@@ -16,6 +16,8 @@ from app.models.push_subscription import PushSubscription
 from app.models.term import Term
 from app.models.notification import Notification
 from app.models.department import Department
+from app.models.faculty import Faculty
+from app.models.semester import Semester
 from app.models.room import Room
 from app.models.program import Program
 from app.models.classroom import Classroom
@@ -32,7 +34,7 @@ from app.models.student_check_in import StudentCheckIn
 from app.models.parent_student import ParentStudent
 from app.models.admission import AdmissionApplication, AdmissionStatus
 from app.models.schedule import ScheduleSlot
-from app.models.associations import subject_levels, subject_departments, classroom_departments, class_subjects, student_subjects
+from app.models.associations import subject_levels, subject_departments, classroom_departments, class_subjects, student_subjects, subject_prerequisites
 from app.models.public_page import PublicPage
 from app.models.public_form_submission import PublicFormSubmission
 from app.models.saas import (

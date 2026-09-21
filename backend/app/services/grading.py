@@ -61,3 +61,50 @@ def compute_weighted_average(grade_rows: list[dict]) -> Optional[float]:
     if total_coeff == 0:
         return None
     return total_weighted / total_coeff
+
+
+def compute_ects_weighted_average(grade_rows: list[dict]) -> Optional[float]:
+    """Moyenne pondérée /20, groupée par matière puis pondérée par crédits
+    ECTS (convention LMD internationale) plutôt que par coefficient.
+
+    Module université (2026-09) : l'audit institutionnel avait relevé que
+    le seul calcul lié à l'ECTS existant (transcripts.py) comptait des
+    crédits acquis/non-acquis (binaire, seuil 10/20) mais ne produisait
+    aucune moyenne pondérée par crédits — contrairement à
+    `compute_weighted_average` ci-dessus, qui reste pondéré par
+    coefficient de matière et sert de référence pour les bulletins
+    scolaires classiques. Les deux coexistent délibérément : un
+    établissement université utilise celui-ci pour son relevé de notes
+    (transcripts.py), un établissement scolaire classique continue
+    d'utiliser `compute_weighted_average` pour ses bulletins.
+
+    `grade_rows` : même forme que `compute_weighted_average`, plus une clé
+    `ects` par ligne (voir transcripts.py:_fetch_grades_for_term_with_ects).
+    Une matière avec ects=0 (ou absent) n'entre pas dans le calcul — elle
+    ne doit pas fausser la moyenne d'un cursus LMD où chaque UE porte un
+    poids en crédits, pas en coefficient.
+    """
+    by_subject: dict[str, dict] = {}
+    for g in grade_rows:
+        name = g.get("subject_name") or "Matière inconnue"
+        score = g.get("score")
+        max_s = float(g.get("max_score") or 20)
+        ects = float(g.get("ects") or 0)
+        if name not in by_subject:
+            by_subject[name] = {"scores": [], "ects": ects}
+        if score is not None:
+            by_subject[name]["scores"].append((float(score), max_s))
+
+    total_weighted = 0.0
+    total_ects = 0.0
+    for data in by_subject.values():
+        scores = data["scores"]
+        ects = data["ects"]
+        if scores and ects > 0:
+            subject_average = sum(s / m * 20 for s, m in scores) / len(scores)
+            total_weighted += subject_average * ects
+            total_ects += ects
+
+    if total_ects == 0:
+        return None
+    return total_weighted / total_ects

@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.services.grading import compute_ects_weighted_average
 
 router = APIRouter()
 
@@ -150,6 +151,7 @@ def get_student_transcript(
     total_ects_earned = 0.0
     total_ects_possible = 0.0
     term_averages = []
+    term_averages_ects = []
 
     for term in terms:
         grades = _fetch_grades_for_term_with_ects(db, str(student_id), str(term["id"]), tenant_id)
@@ -168,11 +170,22 @@ def get_student_transcript(
         if term_average is not None:
             term_averages.append(term_average)
 
+        # Module université (2026-09) : moyenne pondérée par crédits ECTS,
+        # distincte de term_average (pondérée par coefficient) — voir
+        # app/services/grading.py::compute_ects_weighted_average. Calculée
+        # sur les mêmes lignes de notes brutes (grades), pas sur le résumé
+        # `subjects` qui a déjà perdu le détail par note individuelle.
+        term_average_ects_raw = compute_ects_weighted_average(grades)
+        term_average_ects = round(term_average_ects_raw, 2) if term_average_ects_raw is not None else None
+        if term_average_ects is not None:
+            term_averages_ects.append(term_average_ects)
+
         periods.append({
             "term_id": str(term["id"]),
             "term_name": term["name"],
             "subjects": subjects,
             "term_average": term_average,
+            "term_average_ects_weighted": term_average_ects,
         })
 
     return {
@@ -185,6 +198,9 @@ def get_student_transcript(
         "academic_year_id": str(academic_year_id),
         "periods": periods,
         "annual_average": round(sum(term_averages) / len(term_averages), 2) if term_averages else None,
+        "annual_average_ects_weighted": (
+            round(sum(term_averages_ects) / len(term_averages_ects), 2) if term_averages_ects else None
+        ),
         "ects_earned": total_ects_earned,
         "ects_possible": total_ects_possible,
     }

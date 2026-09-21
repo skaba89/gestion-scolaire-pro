@@ -488,6 +488,10 @@ ROLE_PERMISSIONS: dict = {
         "levels:read", "levels:write",
         "subjects:read", "subjects:write",
         "departments:read", "departments:write",
+        # Institutional "module université" build-out (2026-09): Faculty
+        # sits above Department (LMD hierarchy) — same read/write split as
+        # departments:*.
+        "faculties:read", "faculties:write",
         "campuses:read", "campuses:write",
         "classrooms:read", "classrooms:write",
         # Institutional-readiness audit (2026-09): infrastructure.py's
@@ -548,6 +552,7 @@ ROLE_PERMISSIONS: dict = {
         # gated on the wrong permission (settings:write) instead of this
         # one; both fixed together (see that file).
         "departments:read", "departments:write",
+        "faculties:read", "faculties:write",
         # Institutional-readiness audit (2026-09): frontend already shows
         # DIRECTOR "rooms:manage" (src/lib/permissions.ts) and infrastructure.py
         # had no permission check at all on room/program writes (see that
@@ -595,6 +600,7 @@ ROLE_PERMISSIONS: dict = {
         # allows a departments:read holder to edit only the department
         # they head (Department.head_id), see that endpoint's own comment.
         "departments:read",
+        "faculties:read",
     ],
     "TEACHER": [
         "users:read",

@@ -141,6 +141,32 @@ class TestTranscriptContent:
         assert data["student"]["registration_number"].startswith("REG-")
 
     @_needs_postgres
+    def test_transcript_reports_ects_weighted_average(self):
+        """Module université (2026-09): annual_average/term_average stay
+        coefficient-weighted (Maths coeff 3, Français coeff 2) — this new
+        field is weighted by ECTS credits instead (Maths 6 ECTS, Français 4
+        ECTS), and the two must be able to disagree."""
+        # Coefficient ratio (fixed by the fixture) is Maths:Français = 3:2.
+        # ECTS here is deliberately NOT proportional (8:2 = 4:1) so the two
+        # weighted averages are provably different, not coincidentally equal.
+        ctx = _build_transcript_fixture(ects_math=8.0, ects_french=2.0)
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+
+        resp = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+
+        # Coefficient-weighted (existing field): (15*3 + 6*2) / 5 = 11.4
+        assert data["annual_average"] == 11.4
+        # ECTS-weighted (new field): (15*8 + 6*2) / 10 = 13.2
+        assert data["annual_average_ects_weighted"] == 13.2
+        assert data["periods"][0]["term_average_ects_weighted"] == 13.2
+
+    @_needs_postgres
     def test_transcript_reports_per_subject_pass_status(self):
         ctx = _build_transcript_fixture()
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})

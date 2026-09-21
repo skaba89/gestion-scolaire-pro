@@ -11,7 +11,9 @@ class Department(Base, UUIDMixin, TimestampMixin, TenantMixin):
     code = Column(String(50))
     description = Column(String(500))
     head_id = Column(GUID(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    
+    faculty_id = Column(GUID(), ForeignKey("faculties.id", ondelete="SET NULL"), nullable=True)
+
     # Relationships
     head = relationship("User", foreign_keys=[head_id])
     subjects = relationship("Subject", secondary="subject_departments", back_populates="departments")
+    faculty = relationship("Faculty", back_populates="departments", foreign_keys=[faculty_id])

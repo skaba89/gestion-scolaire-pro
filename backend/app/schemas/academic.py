@@ -122,6 +122,7 @@ class SubjectBase(BaseModel):
 class SubjectCreate(SubjectBase):
     department_ids: Optional[List[UUID]] = None
     level_ids: Optional[List[UUID]] = None
+    prerequisite_subject_ids: Optional[List[UUID]] = None
 
 class SubjectUpdate(BaseModel):
     name: Optional[str] = None
@@ -134,8 +135,33 @@ class SubjectUpdate(BaseModel):
     description: Optional[str] = None
     department_ids: Optional[List[UUID]] = None
     level_ids: Optional[List[UUID]] = None
+    prerequisite_subject_ids: Optional[List[UUID]] = None
 
 class Subject(SubjectBase):
+    id: UUID
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Faculty ---
+class FacultyBase(BaseModel):
+    name: str
+    code: Optional[str] = None
+    description: Optional[str] = None
+    dean_id: Optional[UUID] = None
+
+class FacultyCreate(FacultyBase):
+    pass
+
+class FacultyUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+    dean_id: Optional[UUID] = None
+
+class Faculty(FacultyBase):
     id: UUID
     tenant_id: UUID
     created_at: datetime
@@ -149,6 +175,7 @@ class DepartmentBase(BaseModel):
     code: Optional[str] = None
     description: Optional[str] = None
     head_id: Optional[UUID] = None
+    faculty_id: Optional[UUID] = None
 
 class DepartmentCreate(DepartmentBase):
     pass
@@ -158,8 +185,36 @@ class DepartmentUpdate(BaseModel):
     code: Optional[str] = None
     description: Optional[str] = None
     head_id: Optional[UUID] = None
+    faculty_id: Optional[UUID] = None
 
 class Department(DepartmentBase):
+    id: UUID
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Semester ---
+class SemesterBase(BaseModel):
+    academic_year_id: UUID
+    name: str
+    number: int = 1
+    start_date: date
+    end_date: date
+    is_active: bool = False
+
+class SemesterCreate(SemesterBase):
+    pass
+
+class SemesterUpdate(BaseModel):
+    name: Optional[str] = None
+    number: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: Optional[bool] = None
+
+class Semester(SemesterBase):
     id: UUID
     tenant_id: UUID
     created_at: datetime
