@@ -10,8 +10,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { Subject } from "@/queries/subjects";
+
+export interface SubjectFormValues {
+    name: string;
+    code: string;
+    coefficient: string;
+    ects: string;
+    cm_hours: string;
+    td_hours: string;
+    tp_hours: string;
+    description: string;
+    semester_id: string;
+}
 
 interface SubjectFormDialogProps {
     open: boolean;
@@ -20,7 +39,13 @@ interface SubjectFormDialogProps {
     departments: any[];
     tenantId: string;
     initialDeptIds?: string[];
-    onSubmit: (formData: any, deptIds: string[]) => Promise<void>;
+    // LMD module: semester assignment (optional — a subject with no
+    // semester behaves exactly as before) and course prerequisites
+    // (self-referential, so `subjects` excludes the subject being edited).
+    semesters?: { id: string; name: string }[];
+    subjects?: Subject[];
+    initialPrerequisiteIds?: string[];
+    onSubmit: (formData: SubjectFormValues, deptIds: string[], prerequisiteIds: string[]) => Promise<void>;
     isPending: boolean;
 }
 
@@ -31,10 +56,13 @@ export const SubjectFormDialog = ({
     departments,
     tenantId,
     initialDeptIds = [],
+    semesters = [],
+    subjects = [],
+    initialPrerequisiteIds = [],
     onSubmit,
     isPending
 }: SubjectFormDialogProps) => {
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<SubjectFormValues>({
         name: "",
         code: "",
         coefficient: "1",
@@ -43,8 +71,10 @@ export const SubjectFormDialog = ({
         td_hours: "0",
         tp_hours: "0",
         description: "",
+        semester_id: "",
     });
     const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
+    const [selectedPrerequisiteIds, setSelectedPrerequisiteIds] = useState<string[]>([]);
 
     useEffect(() => {
         if (editingSubject) {
@@ -57,8 +87,10 @@ export const SubjectFormDialog = ({
                 td_hours: editingSubject.td_hours?.toString() || "0",
                 tp_hours: editingSubject.tp_hours?.toString() || "0",
                 description: editingSubject.description || "",
+                semester_id: editingSubject.semester_id || "",
             });
             setSelectedDeptIds(initialDeptIds);
+            setSelectedPrerequisiteIds(initialPrerequisiteIds);
         } else {
             setFormData({
                 name: "",
@@ -69,14 +101,18 @@ export const SubjectFormDialog = ({
                 td_hours: "0",
                 tp_hours: "0",
                 description: "",
+                semester_id: "",
             });
             setSelectedDeptIds([]);
+            setSelectedPrerequisiteIds([]);
         }
-    }, [editingSubject, initialDeptIds, open]);
+    }, [editingSubject, initialDeptIds, initialPrerequisiteIds, open]);
 
     const handleSubmit = async () => {
-        await onSubmit(formData, selectedDeptIds);
+        await onSubmit(formData, selectedDeptIds, selectedPrerequisiteIds);
     };
+
+    const otherSubjects = subjects.filter((s) => s.id !== editingSubject?.id);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,6 +165,33 @@ export const SubjectFormDialog = ({
                                 )}
                             </div>
                         </div>
+
+                        {semesters.length > 0 && (
+                            <div className="space-y-2">
+                                <Label>Semestre (LMD — optionnel)</Label>
+                                <Select
+                                    value={formData.semester_id || "none"}
+                                    onValueChange={(v) => setFormData({ ...formData, semester_id: v === "none" ? "" : v })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Aucun semestre" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Aucun semestre</SelectItem>
+                                        {semesters.map((semester) => (
+                                            <SelectItem key={semester.id} value={semester.id}>
+                                                {semester.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    Rattacher cette UE à un semestre permet d'appliquer le seuil de crédits ECTS
+                                    de progression (voir la gestion des Semestres).
+                                </p>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>ECTS</Label>
@@ -181,6 +244,36 @@ export const SubjectFormDialog = ({
                                 />
                             </div>
                         </div>
+
+                        {editingSubject && otherSubjects.length > 0 && (
+                            <div className="space-y-2">
+                                <Label>Prérequis (LMD — optionnel)</Label>
+                                <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+                                    {otherSubjects.map((s) => (
+                                        <div key={s.id} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`prereq-${s.id}`}
+                                                checked={selectedPrerequisiteIds.includes(s.id)}
+                                                onCheckedChange={(checked) => {
+                                                    if (checked) {
+                                                        setSelectedPrerequisiteIds([...selectedPrerequisiteIds, s.id]);
+                                                    } else {
+                                                        setSelectedPrerequisiteIds(selectedPrerequisiteIds.filter(id => id !== s.id));
+                                                    }
+                                                }}
+                                            />
+                                            <label htmlFor={`prereq-${s.id}`} className="text-sm cursor-pointer">
+                                                {s.code ? `[${s.code}] ` : ""}{s.name}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Un étudiant n'ayant pas validé (moyenne ≥ 10/20) les matières cochées ici sera
+                                    bloqué (erreur 422) lors de son inscription à cette matière.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label>Description</Label>

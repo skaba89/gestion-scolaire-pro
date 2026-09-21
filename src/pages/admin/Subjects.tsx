@@ -26,8 +26,10 @@ import {
   useClassroomDepartments,
   useClassSubjects,
   useSubjectDepartmentAssociations,
+  useSubjectPrerequisites,
   Subject
 } from "@/queries/subjects";
+import { useSemesters } from "@/queries/semesters";
 import { hasPermission } from "@/lib/permissions";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 
@@ -35,7 +37,7 @@ import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { SubjectHeader } from "@/components/subjects/SubjectHeader";
 import { SubjectFilters } from "@/components/subjects/SubjectFilters";
 import { SubjectTable } from "@/components/subjects/SubjectTable";
-import { SubjectFormDialog } from "@/components/subjects/SubjectFormDialog";
+import { SubjectFormDialog, SubjectFormValues } from "@/components/subjects/SubjectFormDialog";
 
 const Subjects = () => {
   const { t } = useTranslation();
@@ -87,6 +89,8 @@ const Subjects = () => {
   const { data: classSubjectIds = [] } = useClassSubjects(selectedClass);
   const { data: selectedLevelIds = [] } = useSubjectLevels(selectedSubject?.id);
   const { data: editingSubjectDeptIds = [] } = useSubjectDepartmentAssociations(editingSubject?.id, tenant?.id);
+  const { data: editingSubjectPrerequisiteIds = [] } = useSubjectPrerequisites(editingSubject?.id, tenant?.id);
+  const { data: semesters = [] } = useSemesters(tenant?.id);
 
   // Mutations
   const createMutation = useCreateSubject();
@@ -111,7 +115,7 @@ const Subjects = () => {
     }
   };
 
-  const handleSubmit = async (formData: any, deptIds: string[]) => {
+  const handleSubmit = async (formData: SubjectFormValues, deptIds: string[], prerequisiteIds: string[]) => {
     if (!tenant) return;
 
     const payload = {
@@ -123,6 +127,7 @@ const Subjects = () => {
       td_hours: parseInt(formData.td_hours) || 0,
       tp_hours: parseInt(formData.tp_hours) || 0,
       description: formData.description || null,
+      semester_id: formData.semester_id || null,
     };
 
     try {
@@ -131,11 +136,13 @@ const Subjects = () => {
           id: editingSubject.id,
           updates: payload,
           departmentIds: deptIds,
+          prerequisiteSubjectIds: prerequisiteIds,
         });
       } else {
         await createMutation.mutateAsync({
           subject: { ...payload, tenant_id: tenant.id },
           departmentIds: deptIds,
+          prerequisiteSubjectIds: prerequisiteIds,
         });
       }
       setFormDialogOpen(false);
@@ -273,6 +280,9 @@ const Subjects = () => {
         departments={departments}
         tenantId={tenant?.id || ""}
         initialDeptIds={editingSubjectDeptIds}
+        semesters={semesters}
+        subjects={subjects}
+        initialPrerequisiteIds={editingSubjectPrerequisiteIds}
         onSubmit={handleSubmit}
         isPending={createMutation.isPending || updateMutation.isPending}
       />
