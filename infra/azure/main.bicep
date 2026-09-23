@@ -17,11 +17,18 @@
 //     --template-file infra/azure/main.bicep \
 //     --parameters infra/azure/parameters/dev.bicepparam
 //
-// Secrets referenced by the Container Apps (database-url, redis-url,
-// jwt-secret-key, resend-api-key) are NOT set by this template — seed
-// them into the created Key Vault once, out of band, the same way any
-// other production credential is handled:
+// Secrets referenced by the Container Apps (database-url,
+// database-url-sync, redis-url, secret-key, bootstrap-secret,
+// resend-api-key) are NOT set by this template — seed them into the
+// created Key Vault once, out of band, the same way any other
+// production credential is handled:
 //   az keyvault secret set --vault-name kv-schoolflow-dev --name database-url --value "postgresql://..."
+//
+// secret-key and bootstrap-secret are both read by app.core.config at
+// process startup (api AND worker) and the process os._exit(1)s
+// immediately if either is missing or under 32 chars outside DEBUG mode
+// (see infra/azure/modules/container-apps.bicep) — generate real values
+// with e.g. `openssl rand -hex 32`, never leave them unset.
 targetScope = 'resourceGroup'
 
 @description('Environment name — drives resource naming and sizing (see parameters/*.bicepparam). One resource group per environment, never shared.')
