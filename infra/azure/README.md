@@ -70,9 +70,16 @@ not recreated).
      --value "postgresql+psycopg://schoolflow_admin:<password>@<postgres-fqdn>/schoolflow"
    az keyvault secret set --vault-name kv-schoolflow-dev --name redis-url \
      --value "rediss://:<redis-primary-key>@<redis-hostname>:6380"
-   az keyvault secret set --vault-name kv-schoolflow-dev --name jwt-secret-key --value "<generate a real random secret>"
+   az keyvault secret set --vault-name kv-schoolflow-dev --name secret-key --value "$(openssl rand -hex 32)"
+   az keyvault secret set --vault-name kv-schoolflow-dev --name bootstrap-secret --value "$(openssl rand -hex 32)"
    az keyvault secret set --vault-name kv-schoolflow-dev --name resend-api-key --value "<your Resend API key>"
    ```
+   `secret-key` and `bootstrap-secret` are read by `app.core.config` at
+   process startup, for both the api and worker containers — leave either
+   unset (or under 32 chars) and the container `os._exit(1)`s immediately
+   outside DEBUG mode (confirmed while fixing this template: the worker
+   had neither wired up at all and would have crash-looped in every
+   environment on first deploy).
    Then restart the Container Apps revision so it picks up the new
    secret values (`az containerapp revision restart`).
 

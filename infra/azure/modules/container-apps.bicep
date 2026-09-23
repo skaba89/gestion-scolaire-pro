@@ -72,9 +72,26 @@ var commonSecrets = [
   { name: 'database-url', keyVaultUrl: '${keyVaultUri}secrets/database-url', identity: identityResourceId }
   { name: 'database-url-sync', keyVaultUrl: '${keyVaultUri}secrets/database-url-sync', identity: identityResourceId }
   { name: 'redis-url', keyVaultUrl: '${keyVaultUri}secrets/redis-url', identity: identityResourceId }
-  { name: 'jwt-secret-key', keyVaultUrl: '${keyVaultUri}secrets/jwt-secret-key', identity: identityResourceId }
+  { name: 'secret-key', keyVaultUrl: '${keyVaultUri}secrets/secret-key', identity: identityResourceId }
+  { name: 'bootstrap-secret', keyVaultUrl: '${keyVaultUri}secrets/bootstrap-secret', identity: identityResourceId }
   { name: 'resend-api-key', keyVaultUrl: '${keyVaultUri}secrets/resend-api-key', identity: identityResourceId }
 ]
+
+// api/worker both import app.core.config at process startup, which
+// os._exit(1)s immediately if SECRET_KEY (or BOOTSTRAP_SECRET, in a
+// non-DEBUG process) is missing or too short — confirmed by actually
+// running `python3 -c "import app.core.config"` with the env this
+// template used to set (no DEBUG, no SECRET_KEY) before this fix: it
+// printed "SECRET_KEY not set or too short. Refusing to start." and
+// exited. Both containers need DEBUG, SECRET_KEY and BOOTSTRAP_SECRET
+// wired for exactly this reason (worker previously had none of the
+// three — it would have crash-looped in every environment, not just prod).
+var debugEnvValue = envName == 'prod' ? 'false' : 'true'
+// Sets the ENVIRONMENT var config.py's SECRET_KEY validator also checks
+// (`env in ("production","prod","staging")` forces the strict branch even
+// if DEBUG were ever misconfigured back to 'true' for rec/prod) — defense
+// in depth alongside DEBUG, not a replacement for it.
+var environmentEnvValue = envName == 'prod' ? 'production' : (envName == 'rec' ? 'staging' : 'development')
 
 resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
   name: 'ca-schoolflow-api-${envName}'
@@ -114,10 +131,27 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'DATABASE_URL_SYNC', secretRef: 'database-url-sync' }
             { name: 'REDIS_URL', secretRef: 'redis-url' }
-            { name: 'JWT_SECRET_KEY', secretRef: 'jwt-secret-key' }
+            // Was 'JWT_SECRET_KEY' — a name app/core/config.py never reads
+            // (it reads SECRET_KEY). Confirmed: SECRET_KEY would have been
+            // empty at runtime, either crash-looping the container (prod:
+            // DEBUG=false) or silently regenerating a random key on every
+            // restart (dev/rec: DEBUG=true), invalidating every issued JWT
+            // on each scale event or redeploy.
+            { name: 'SECRET_KEY', secretRef: 'secret-key' }
+            { name: 'BOOTSTRAP_SECRET', secretRef: 'bootstrap-secret' }
             { name: 'RESEND_API_KEY', secretRef: 'resend-api-key' }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
-            { name: 'DEBUG', value: envName == 'prod' ? 'false' : 'true' }
+            { name: 'DEBUG', value: debugEnvValue }
+            { name: 'ENVIRONMENT', value: environmentEnvValue }
+            // main.py:430 — os._exit(1)s in prod (DEBUG=false) if this is
+            // empty; falls back to a hardcoded localhost list otherwise,
+            // which would silently CORS-block every request from the real
+            // deployed frontend in dev/rec too. Points at the frontend
+            // Container App's own FQDN (same deployment, resolved via
+            // Bicep's implicit resource dependency graph — frontendApp is
+            // declared below but that's collection order, not evaluation
+            // order).
+            { name: 'BACKEND_CORS_ORIGINS', value: 'https://${frontendApp.properties.configuration.ingress.fqdn}' }
           ]
         }
       ]
@@ -169,8 +203,22 @@ resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'DATABASE_URL_SYNC', secretRef: 'database-url-sync' }
             { name: 'REDIS_URL', secretRef: 'redis-url' }
+            // The worker imports app.core.config on startup too (arq
+            // WorkerSettings pulls in the same app package as the API) —
+            // without DEBUG/SECRET_KEY it hit the exact same fatal
+            // "SECRET_KEY not set or too short. Refusing to start." exit,
+            // in every environment (DEBUG defaults to unset/false when
+            // absent, which is the strict, non-DEBUG validation branch —
+            // confirmed by reproducing it locally with the worker's
+            // previous env). BOOTSTRAP_SECRET is unused by the worker
+            // itself but the same config module also os._exit(1)s on it
+            // when empty and DEBUG is false, so it needs it too.
+            { name: 'SECRET_KEY', secretRef: 'secret-key' }
+            { name: 'BOOTSTRAP_SECRET', secretRef: 'bootstrap-secret' }
             { name: 'RESEND_API_KEY', secretRef: 'resend-api-key' }
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
+            { name: 'DEBUG', value: debugEnvValue }
+            { name: 'ENVIRONMENT', value: environmentEnvValue }
           ]
         }
       ]
