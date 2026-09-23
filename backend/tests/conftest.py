@@ -15,6 +15,14 @@ import sys
 import os
 os.environ.setdefault("DEBUG", "True")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only-32chars")
+# Centralisé ici plutôt que dans chaque fichier qui en a besoin
+# (test_account_lockout.py, test_bootstrap.py, test_mfa_enforcement.py,
+# test_token_lifecycle.py) : app.core.config.Settings (Pydantic) ne relit
+# l'environnement qu'une seule fois pour tout le process pytest, donc un
+# os.environ.setdefault() dans un fichier de test individuel n'a d'effet
+# que si CE fichier est le premier de la session à importer app.core.config
+# — sinon /auth/bootstrap/ renvoie 403 pour tous, selon l'ordre de collection.
+os.environ.setdefault("BOOTSTRAP_SECRET", "test-bootstrap-secret-key-for-ci-32chars")
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
 # IMPORTANT : le moteur SQLAlchemy est construit depuis DATABASE_URL_SYNC
 # (voir app/core/database.py). On force les trois URLs pour que les tests
