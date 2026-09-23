@@ -19,10 +19,10 @@ One resource group (`rg-schoolflow-dev` / `-rec` / `-prod`), each with:
   `worker` runs `python -m arq app.workers.tasks.WorkerSettings`, same
   entrypoint as the Docker Compose `worker` service, no ingress.
 - **Key Vault** — every secret (`DATABASE_URL`, `REDIS_URL`,
-  `JWT_SECRET_KEY`, `RESEND_API_KEY`) is a Key Vault reference the
-  Container Apps resolve via their own user-assigned managed identity.
-  No secret is ever a plain Container App environment variable or a
-  value in this repo.
+  `SECRET_KEY`, `BOOTSTRAP_SECRET`, `RESEND_API_KEY`) is a Key Vault
+  reference the Container Apps resolve via their own user-assigned
+  managed identity. No secret is ever a plain Container App environment
+  variable or a value in this repo.
 - **Log Analytics workspace + Application Insights** — one per
   environment, wired into the Container Apps Environment's own platform
   logs as well as `APPLICATIONINSIGHTS_CONNECTION_STRING` on each app.

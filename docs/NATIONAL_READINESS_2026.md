@@ -112,3 +112,21 @@ En reprenant la suite de l'audit, même schéma que P1-3 : le "reste" documenté
 - Reste effectivement synchrone : `GET /analytics/ministry-export/csv/`, mais c'est un export mono-tenant (les propres effectifs d'un établissement pour son propre usage), pas un calcul à l'échelle nationale — pas le même ordre de grandeur que les imports/bulletins déjà migrés, et sans demande produit dessus à ce jour. Pas une régression du constat, juste un fait resté vrai.
 
 **Conclusion** : P0-2 passe à ✅ pleinement (les deux items encore listés comme "reste" étaient soit déjà faits, soit hors du périmètre réel du risque d'origine).
+
+---
+
+## 9. Infra Azure — premier `az deployment group what-if` réel (2026-09-23)
+
+Après les 5 corrections de câblage trouvées et corrigées en revue de code (§8 implicite via #226/#227 — SECRET_KEY mal nommé, worker sans DEBUG/SECRET_KEY/BOOTSTRAP_SECRET, BACKEND_CORS_ORIGINS jamais fixé, image frontend jamais construite, frontend sans moyen d'atteindre l'api), le porteur du projet a lancé, depuis sa machine avec un vrai accès Azure, la première validation réelle jamais faite sur ce template :
+
+```bash
+az group create --name rg-schoolflow-dev --location francecentral
+az deployment group what-if \
+  --resource-group rg-schoolflow-dev \
+  --template-file infra/azure/main.bicep \
+  --parameters infra/azure/parameters/dev.bicepparam
+```
+
+**Résultat : `Resource changes: 13 to create, 1 unsupported.` Aucune erreur.** Les 13 ressources attendues (Container Apps Environment + 3 apps, Key Vault, Postgres Flexible Server + base + règle de pare-feu, Redis, Log Analytics, Application Insights, identité managée, attribution de rôle ACR) sont bien planifiées, avec les valeurs corrigées visibles dans la sortie : `SECRET_KEY`/`BOOTSTRAP_SECRET` présents sur `api` ET `worker`, `BACKEND_CORS_ORIGINS` et `SCHOOLFLOW_API_URL` correctement résolus vers les FQDN calculés (sans dépendance circulaire). Le seul item "Unsupported" est une limite connue et bénigne de l'outil what-if (une attribution de rôle Key Vault dont l'ID dépend d'un `guid()` résolu à l'exécution) — pas un défaut du template.
+
+**Ce que ça prouve** : le template compile, ses paramètres se résolvent, et son graphe de ressources est cohérent contre un vrai abonnement Azure — la première fois que cette infrastructure passe une validation réelle depuis sa création (#215). **Ce que ça ne prouve pas encore** : qu'un `az deployment group create` réussirait de bout en bout (le `what-if` ne construit ni ne pousse `schoolflow-frontend` vers ACR — il faut lancer `build-push-acr.yml` en `workflow_dispatch` avant, maintenant que #227 lui a ajouté ce job), ni que les 3 conteneurs démarreraient et fonctionneraient réellement une fois les secrets seedés dans Key Vault (`secret-key`, `bootstrap-secret`, `database-url`, etc. — voir `infra/azure/README.md`). Le déploiement réel (`create`, pas `what-if`) reste une décision du porteur du projet, avec un coût réel dès qu'il est lancé (voir `infra/azure/README.md` §Cost).
