@@ -537,6 +537,15 @@ ROLE_PERMISSIONS: dict = {
         "grades:read", "grades:write",
         "attendance:read", "attendance:write",
         "settings:read", "settings:write",
+        # Permissions audit (2026-09), same sweep as the finance fix above:
+        # frontend shows DIRECTOR "/admin/schedule" (schedule:read) — GET
+        # /schedule/ is gated on schedule:read/write, which this role never
+        # had, despite already managing levels/subjects/classrooms/rooms.
+        # Also "/admin/elearning" (homework:read) — GET
+        # /analytics/elearning/courses/ and .../enrollments/ are gated on
+        # homework:read, also missing. Both 403'd on their own sidebar link.
+        "schedule:read", "schedule:write",
+        "homework:read",
         # Academic structure — frontend already shows DIRECTOR these as
         # levels:manage/subjects:manage/academic_years:manage/terms:manage/
         # classrooms:manage (src/lib/permissions.ts); backend previously had
@@ -598,6 +607,15 @@ ROLE_PERMISSIONS: dict = {
         "settings:read",
         "schedule:read", "schedule:write",
         "admissions:read",
+        # Permissions audit (2026-09), continuing the DIRECTOR/finance fix:
+        # frontend shows DEPARTMENT_HEAD the "/admin/elearning" nav item
+        # (homework:read) — GET /analytics/elearning/courses/ and
+        # .../enrollments/ are gated on homework:read, which this role
+        # never had. Also shows "/admin/enrollments" (enrollments:read) —
+        # GET /enrollments/ (aliases.py) is gated on enrollments:read,
+        # also missing. Both 403'd on their own sidebar link.
+        "homework:read",
+        "enrollments:read",
         # Institutional-readiness audit (2026-09): frontend already
         # describes this role as "Gestion complète du département"
         # (src/lib/permissions.ts, "department:own") but academic/
@@ -629,6 +647,15 @@ ROLE_PERMISSIONS: dict = {
     "STAFF": ["users:read", "students:read", "students:write", "attendance:read",
               "settings:read",
               "admissions:read", "admissions:write", "inventory:read", "inventory:write",
+              # Permissions audit (2026-09), same sweep as the finance fix
+              # above: frontend shows STAFF "/admin/enrollments"
+              # (enrollments:read) — GET /enrollments/ (aliases.py) is
+              # gated on enrollments:read — and frontend also grants STAFF
+              # enrollments:create/update/manage (src/lib/permissions.ts),
+              # implying the UI exposes write actions on that same page,
+              # so enrollments:write is granted too rather than leaving a
+              # second, subtler 403 on save.
+              "enrollments:read", "enrollments:write",
               # Institutional-readiness audit (2026-09): STAFF already has
               # route-level access to /admin/hr (src/App.tsx AdminLayout
               # allowedRoles) but no matching backend permission — added
