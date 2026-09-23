@@ -562,6 +562,16 @@ ROLE_PERMISSIONS: dict = {
         "rooms:read", "rooms:write",
         "programs:read", "programs:write",
         "analytics:read", "reports:read", "finance:read",
+        # Permissions audit (2026-09): frontend shows DIRECTOR the
+        # /admin/finances nav item (fees:read) and read-only invoices/
+        # payment_status — but every finance endpoint (payments.py,
+        # aliases.py's /invoices/ mirror) is actually gated on
+        # "payments:read"/"payments:write", never "finance:read" (dead
+        # permission, checked nowhere in the backend). Without this,
+        # DIRECTOR 403s on their own Finances page. Read-only, matching
+        # what the frontend grants (no fees:manage/invoices:create/
+        # payments:create for this role).
+        "payments:read",
         "audit:read", "audit:write",
         "rgpd:read", "rgpd:write",
         "admissions:read", "admissions:write",

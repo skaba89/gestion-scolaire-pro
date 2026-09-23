@@ -166,12 +166,34 @@ ci-dessous. Vraies failles trouvées et corrigées :
   cassant silencieusement la liste des demandes de mentorat).
 
 Modules vérifiés sains (déjà correctement gatés `require_permission`,
-aucun changement nécessaire) : **Finance**, **Paiements**, **Factures**,
-**Journaux d'audit** (`audit.py`), **Imports/Exports** (`imports.py` —
-templates de téléchargement délibérément ouverts, preview/confirm gatés
-sur `students:write`/`users:write`), **departments.py** (auto-scopé par
-appartenance au département, pas de `require_permission` mais pas de
-fuite non plus).
+aucun changement nécessaire) : **Journaux d'audit** (`audit.py`),
+**Imports/Exports** (`imports.py` — templates de téléchargement
+délibérément ouverts, preview/confirm gatés sur `students:write`/
+`users:write`), **departments.py** (auto-scopé par appartenance au
+département, pas de `require_permission` mais pas de fuite non plus).
+
+> ⚠️ **Faux positif corrigé (2026-09), même défaut méthodologique que pour
+> `subjects`/DEPARTMENT_HEAD ci-dessus** : **Finance/Paiements/Factures**
+> avaient été marqués "sains" ici en vérifiant que chaque endpoint avait
+> bien un `require_permission(...)`, sans vérifier lequel exactement ni si
+> les rôles que le frontend expose s'alignaient dessus. En réalité :
+> `AdminLayout.tsx` affiche à **DIRECTOR** le lien "Finances" (permission
+> frontend `fees:read`, bien accordée), qui appelle `useFees` →
+> `GET /payments/fees/` → gardé côté backend par `payments:read`
+> (`payments.py::list_fees`) — que DIRECTOR n'a jamais eu dans
+> `ROLE_PERMISSIONS` (seulement `finance:read`, une chaîne **jamais
+> vérifiée nulle part** dans le backend : `grep -rn 'require_permission("finance'
+> backend/app/` ne renvoie rien). Un DIRECTOR qui clique sur son propre
+> lien "Finances" obtenait un 403. **Corrigé** en ajoutant `payments:read`
+> (lecture seule, comme le frontend) au rôle DIRECTOR dans
+> `backend/app/core/security.py`. Testé : `test_director_can_list_fees` /
+> `test_director_cannot_create_fee`
+> (`backend/tests/test_director_finance_read_access.py`), le second
+> confirmant qu'aucun droit d'écriture n'a été accordé en trop.
+> ACCOUNTANT (déjà `payments:read`/`write` mais pas `invoices:*`/`fees:*`
+> explicitement) reste correct dans les faits : ces deux permissions ne
+> sont vérifiées nulle part non plus, `payments:*` couvre déjà tous les
+> endpoints réels de factures/frais (`aliases.py`, `payments.py`).
 
 Méthodologie retenue pour la suite : ne jamais se fier à la seule présence
 de `require_permission(...)` — vérifier aussi (1) que le jeu de rôles
