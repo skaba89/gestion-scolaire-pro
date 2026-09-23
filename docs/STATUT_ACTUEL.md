@@ -36,9 +36,13 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
 - **Scalabilité nationale** (charge testée, monitoring par tenant) :
   `docs/NATIONAL_SCALE_READINESS.md`
 - **P0/P1/P2 de mise en production** : `docs/reports/FINAL_PRODUCTION_READINESS_AUDIT.md`
-- **Cohérence permissions backend/frontend** (modules non encore audités :
-  finance, paiements, factures, RH, messages, journaux d'audit, imports/
-  exports, bulletins, parents, enseignants, élèves) : `docs/PERMISSIONS_MATRIX.md`
+- **Cohérence permissions backend/frontend** : tous les modules listés ici
+  auparavant comme "non encore audités" l'ont en fait déjà été (RH,
+  messages, bulletins, parents, enseignants, élèves, finance, paiements,
+  factures, journaux d'audit, imports/exports) — voir
+  `docs/PERMISSIONS_MATRIX.md`, dont la section "Audit institutionnel
+  2026-09" couvre chacun avec preuve de code. Cette ligne était elle-même
+  périmée par rapport au reste du document qu'elle citait.
 
 ## Documents à considérer avec prudence
 
