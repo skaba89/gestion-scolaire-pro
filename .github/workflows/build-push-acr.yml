@@ -1,4 +1,12 @@
-name: Build and push API image to ACR
+name: Build and push images to ACR
+
+# infra/azure/modules/container-apps.bicep deploys 3 Container Apps — api,
+# worker (both from schoolflow-api, same image, different command) and
+# frontend (schoolflow-frontend). Until this fix, only schoolflow-api was
+# ever built and pushed here — the frontend Container App referenced an
+# image that had never once been pushed to ACR, which would fail to pull
+# on first deploy (confirmed: `grep -rl schoolflow-frontend
+# .github/workflows/` returned nothing before this change).
 
 on:
   workflow_dispatch:
@@ -10,7 +18,7 @@ on:
       - .github/workflows/build-push-acr.yml
 
 jobs:
-  build-and-push:
+  build-and-push-api:
     name: Build and push schoolflow-api
     runs-on: ubuntu-latest
 
@@ -35,5 +43,46 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: academyguineenneacr.azurecr.io/schoolflow-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-and-push-frontend:
+    name: Build and push schoolflow-frontend
+    runs-on: ubuntu-latest
+    # This job only runs on workflow_dispatch or the paths this workflow
+    # already listens to — a frontend-only change (src/**, public/**)
+    # currently does NOT trigger this workflow at all (the `push.paths`
+    # filter above is backend-only). Left as-is rather than widened here:
+    # broadening the trigger is a separate decision from fixing the
+    # missing job, and workflow_dispatch already lets anyone push a
+    # frontend image on demand today.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: academyguineenneacr.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # VITE_API_URL left at the Dockerfile's own default ('/api') —
+          # irrelevant for the Azure target anyway, since
+          # container-apps.bicep's SCHOOLFLOW_API_URL env var overrides it
+          # at container start via docker-entrypoint.sh, before this
+          # build-time value is ever read (see client.ts's runtime-config
+          # priority). Kept as a plain default so this same image still
+          # works unmodified for docker-compose's own frontend service.
+          tags: academyguineenneacr.azurecr.io/schoolflow-frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

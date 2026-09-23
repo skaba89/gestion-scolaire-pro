@@ -64,6 +64,20 @@ resource containerAppsEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview'
   }
 }
 
+// api and frontend each need the other's public URL (api for CORS,
+// frontend to reach the backend — see their env blocks below). Referencing
+// `apiApp.properties.configuration.ingress.fqdn` from frontendApp AND
+// `frontendApp...fqdn` from apiApp would be a circular resource
+// dependency, which ARM rejects outright. A Container App's ingress FQDN
+// is deterministic (app name + its environment's default domain, itself
+// known as soon as containerAppsEnv exists — before either app is
+// deployed), so both are computed here from that instead, breaking the
+// cycle without needing a two-pass deployment.
+var apiAppName = 'ca-schoolflow-api-${envName}'
+var frontendAppName = 'ca-schoolflow-frontend-${envName}'
+var apiFqdn = '${apiAppName}.${containerAppsEnv.properties.defaultDomain}'
+var frontendFqdn = '${frontendAppName}.${containerAppsEnv.properties.defaultDomain}'
+
 // Every secret an app needs is a Key Vault reference resolved at
 // runtime by the app's managed identity — the vault access policy this
 // relies on is granted in modules/keyvault.bicep by passing this
@@ -94,7 +108,7 @@ var debugEnvValue = envName == 'prod' ? 'false' : 'true'
 var environmentEnvValue = envName == 'prod' ? 'production' : (envName == 'rec' ? 'staging' : 'development')
 
 resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
-  name: 'ca-schoolflow-api-${envName}'
+  name: apiAppName
   location: location
   identity: {
     type: 'UserAssigned'
@@ -147,11 +161,12 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             // empty; falls back to a hardcoded localhost list otherwise,
             // which would silently CORS-block every request from the real
             // deployed frontend in dev/rec too. Points at the frontend
-            // Container App's own FQDN (same deployment, resolved via
-            // Bicep's implicit resource dependency graph — frontendApp is
-            // declared below but that's collection order, not evaluation
-            // order).
-            { name: 'BACKEND_CORS_ORIGINS', value: 'https://${frontendApp.properties.configuration.ingress.fqdn}' }
+            // Container App's own FQDN, computed above from the shared
+            // environment's default domain (not a direct reference to the
+            // frontendApp resource — that would make this resource depend
+            // on frontendApp, which depends back on apiApp for
+            // SCHOOLFLOW_API_URL below: a circular dependency ARM rejects).
+            { name: 'BACKEND_CORS_ORIGINS', value: 'https://${frontendFqdn}' }
           ]
         }
       ]
@@ -234,7 +249,7 @@ resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
 }
 
 resource frontendApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
-  name: 'ca-schoolflow-frontend-${envName}'
+  name: frontendAppName
   location: location
   identity: {
     type: 'UserAssigned'
@@ -268,6 +283,18 @@ resource frontendApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           }
           env: [
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
+            // docker/nginx.conf's /api/ and /api-proxy/ locations both
+            // proxy_pass to the literal hostname "api" — a Docker Compose
+            // service name that does not resolve inside a Container Apps
+            // environment. docker-entrypoint.sh writes this into
+            // dist/config.js as window.__SCHOOLFLOW_CONFIG__.API_URL at
+            // container start (no rebuild needed), which src/api/client.ts
+            // reads BEFORE the build-time '/api' default that would
+            // otherwise route through the broken nginx proxy — so this is
+            // the only way this image can reach the backend once deployed
+            // here. Points straight at the api Container App's own public
+            // FQDN, bypassing nginx's proxy entirely.
+            { name: 'SCHOOLFLOW_API_URL', value: 'https://${apiFqdn}' }
           ]
         }
       ]
