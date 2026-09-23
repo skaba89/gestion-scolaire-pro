@@ -18,10 +18,24 @@ from conftest import get_test_client
 
 client = get_test_client()
 
-from app.core.database import SessionLocal  # noqa: E402
+from app.core.database import SessionLocal, engine  # noqa: E402
 from app.core.security import get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
+
+# fees is a raw-SQL operational table (DDL only in
+# app/core/operational_tables.py, no ORM model, never created by
+# Base.metadata.create_all()) — Postgres-only, same pattern as
+# test_inventory_business_rules.py.
+pytestmark = pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="fees is a raw-SQL operational table whose DDL is "
+           "Postgres-specific and never created on SQLite test runs.",
+)
+
+if engine.dialect.name == "postgresql":
+    from app.core.operational_tables import ensure_operational_tables
+    ensure_operational_tables(engine)
 
 HEADERS = {"Authorization": "Bearer mock-token"}
 BASE = "/api/v1/payments"
