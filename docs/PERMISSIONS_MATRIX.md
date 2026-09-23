@@ -204,3 +204,58 @@ participation quand le rôle appelant n'est pas un rôle "staff" à accès
 large. Écrire les tests de régression contre PostgreSQL réel (pas
 seulement SQLite, où plusieurs tables opérationnelles n'existent même
 pas) — c'est ce qui a révélé les deux bugs fonctionnels d'alumni.py.
+
+## Balayage complet de la navigation admin (2026-09) — 3 bugs de plus, même famille
+
+Suite directe de la correction Finance/DIRECTOR ci-dessus : chaque élément
+de `AdminLayout.tsx` tracé jusqu'à son endpoint backend réel (pas juste
+comparaison de noms), avec un focus sur les rôles à permissions étroites
+(DIRECTOR, DEPARTMENT_HEAD, STAFF, SECRETARY, ACCOUNTANT, TEACHER — les
+rôles où ce genre de trou apparaît, SUPER_ADMIN/TENANT_ADMIN ayant
+quasiment tout). 3 nouveaux 403-sur-son-propre-lien confirmés et corrigés :
+
+- **DIRECTOR** sur `/admin/schedule` (`schedule:read` frontend accordé,
+  mais `GET /schedule/` exige `schedule:read` côté backend — absent) et
+  sur `/admin/elearning` (`homework:read` frontend accordé, mais
+  `GET /analytics/elearning/courses/`+`.../enrollments/` exigent
+  `homework:read` côté backend — absent).
+- **DEPARTMENT_HEAD** sur `/admin/enrollments` (`enrollments:read`
+  frontend, `GET /enrollments/` exige `enrollments:read` backend —
+  absent) et sur `/admin/elearning` (même bug que DIRECTOR ci-dessus).
+- **STAFF** sur `/admin/enrollments` (même bug que DEPARTMENT_HEAD ;
+  `enrollments:write` ajouté aussi car le frontend accorde à STAFF
+  `enrollments:create/update/manage`, impliquant des actions d'écriture
+  sur cette même page).
+
+**Corrigé** : `schedule:read`/`write` + `homework:read` ajoutés à DIRECTOR ;
+`homework:read` + `enrollments:read` ajoutés à DEPARTMENT_HEAD ;
+`enrollments:read`/`write` ajoutés à STAFF (`backend/app/core/security.py`).
+Testé : `backend/tests/test_permissions_sweep_2026_09.py` (5 tests,
+chacun confirmé 403 avant le fix / 200 après en repassant temporairement
+sur l'état pré-correctif).
+
+**Reste du balayage, confirmé sain** : `admissions:read`, le groupe
+`students:read` (élèves/listes de classe/gamification/carrières),
+`teachers:read` (en réalité `users:read`), `grades:read`/`report_cards:read`,
+`academic_years:manage`/`terms:manage`/`faculties:manage`/`departments:read`/
+`rooms:read` côté DIRECTOR, `users:read` (alumni/utilisateurs),
+`users:update` sur `/admin/hr` (en réalité `hr:read`/`write`) —
+tous cohérents de bout en bout entre les deux vocabulaires.
+
+**Une trouvaille corrigée dans le même correctif, hors de la famille
+403 ci-dessus** : `/admin/data-import` était gaté sur
+`permission: "students:write"` dans `AdminLayout.tsx`, une valeur qui
+**n'existe dans aucun rôle** de `src/lib/permissions.ts` (probable faute
+de frappe pour `students:import`, la valeur réellement accordée à
+SUPER_ADMIN/TENANT_ADMIN/DIRECTOR/STAFF) — ce lien était donc invisible
+pour **tous les rôles**, y compris TENANT_ADMIN/SUPER_ADMIN. Pas un 403
+(personne ne pouvait même cliquer dessus), mais un lien mort. Corrigé en
+remplaçant par `students:import`.
+
+**Une trouvaille hors périmètre de cet audit (pas un bug de permission —
+signalée, non corrigée ici)** :
+- `/admin/teacher-hours` (`GET /hr/teacher-work-hours/`) et
+  `/admin/bookings` (`GET /school-life/bookable-resources/`,
+  `.../bookings/`) appellent des routes qui **n'existent nulle part**
+  dans le backend — un 404 pour tous les rôles, pas une divergence de
+  permission. À traiter séparément.

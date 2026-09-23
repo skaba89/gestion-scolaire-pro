@@ -292,7 +292,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/hr"), label: t("nav.hr", "Ressources Humaines"), icon: Briefcase, permission: "users:update" }, // HR requires restricted access
         { href: getTenantUrl("/admin/security"), label: t("nav.security", "Sécurité"), icon: Shield, permission: "tenant:manage" },
         { href: getTenantUrl("/admin/exports"), label: t("nav.exports"), icon: Download, permission: "students:export" },
-        { href: getTenantUrl("/admin/data-import"), label: "Import de données", icon: Upload, permission: "students:write" },
+        { href: getTenantUrl("/admin/data-import"), label: "Import de données", icon: Upload, permission: "students:import" },
         { href: getTenantUrl("/admin/audit-logs"), label: t("nav.auditLogs"), icon: Activity, permission: "tenant:manage" },
         { href: getTenantUrl("/admin/data-quality"), label: "Qualité des Données", icon: Activity, permission: "settings:manage" },
         { href: getTenantUrl("/admin/public-pages"), label: "Pages publiques", icon: Globe, permission: "settings:manage" },
