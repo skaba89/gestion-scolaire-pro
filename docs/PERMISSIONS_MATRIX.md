@@ -270,8 +270,13 @@ DEPARTMENT_HEAD l'accès aux fiches de paie et contrats de tout le
 personnel, hors de son périmètre). Testé :
 `backend/tests/test_teacher_work_hours.py` (8 tests, Postgres réel).
 
-**`/admin/bookings` reste hors périmètre (pas un bug de permission —
-signalée, non corrigée ici)** : `GET /school-life/bookable-resources/` et
-`.../bookings/` appellent des routes qui **n'existent nulle part** dans le
-backend — même famille de 404 que teacher-hours ci-dessus, mais pas
-encore traitée. À traiter séparément.
+**`/admin/bookings` traité séparément (2026-09-24)** : `GET`/`POST
+/school-life/bookable-resources/` et `.../bookings/` — même famille de 404
+que teacher-hours ci-dessus. Corrigé : tables `bookable_resources`/
+`bookings` ajoutées (RLS automatique via le sweep générique), endpoints
+CRUD + vérification d'anti-chevauchement ajoutés (`school_life.py`), gatés
+sur `school_life:read`/`write` — déjà accordé à TENANT_ADMIN/TEACHER, mais
+manquant à DIRECTOR/DEPARTMENT_HEAD/SECRETARY alors que le frontend leur
+accorde déjà `rooms:read` pour ce même nav item (`src/lib/permissions.ts`).
+Testé : `backend/tests/test_bookings.py` (12 tests, Postgres réel,
+incluant le rejet 409 d'un créneau déjà réservé).

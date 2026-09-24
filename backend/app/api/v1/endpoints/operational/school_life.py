@@ -705,6 +705,335 @@ def delete_appointment_slot(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
+# --- Bookable Resources & Bookings (src/pages/admin/Bookings.tsx) ---
+# No SQLAlchemy ORM model (raw-SQL operational tables, see
+# app/core/operational_tables.py), same pattern as appointment-slots above.
+# Gated on school_life:read/write, matching the frontend nav item's own
+# "rooms:read" permission (src/lib/permissions.ts grants it to
+# TENANT_ADMIN/DIRECTOR/DEPARTMENT_HEAD/TEACHER/SECRETARY — same set now
+# granted school_life:read/write in backend/app/core/security.py).
+
+class BookableResourceIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+    resource_type: str = "room"
+    location: Optional[str] = None
+    capacity: Optional[int] = None
+    requires_approval: bool = False
+    available_start_time: str = "08:00"
+    available_end_time: str = "18:00"
+    min_duration_minutes: int = 30
+    max_duration_minutes: int = 480
+
+
+class BookableResourcePatch(BaseModel):
+    is_active: Optional[bool] = None
+
+
+class BookingIn(BaseModel):
+    resource_id: UUID
+    title: str
+    description: Optional[str] = None
+    start_time: datetime
+    end_time: datetime
+
+
+class BookingStatusUpdate(BaseModel):
+    status: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+
+
+def _serialize_resource(row) -> dict:
+    return {
+        "id": str(row.id), "tenant_id": str(row.tenant_id), "name": row.name,
+        "description": row.description, "resource_type": row.resource_type,
+        "location": row.location, "capacity": row.capacity,
+        "requires_approval": row.requires_approval, "is_active": row.is_active,
+        "available_days": list(row.available_days) if row.available_days else [],
+        "available_start_time": str(row.available_start_time)[:5],
+        "available_end_time": str(row.available_end_time)[:5],
+        "min_duration_minutes": row.min_duration_minutes,
+        "max_duration_minutes": row.max_duration_minutes,
+    }
+
+
+@router.get("/bookable-resources/")
+def list_bookable_resources(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:read")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    rows = db.execute(text("""
+        SELECT * FROM bookable_resources WHERE tenant_id = :tid AND is_active = true
+        ORDER BY name
+    """), {"tid": tenant_id}).fetchall()
+    return [_serialize_resource(r) for r in rows]
+
+
+@router.post("/bookable-resources/", status_code=201)
+def create_bookable_resource(
+    resource: BookableResourceIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    try:
+        row = db.execute(text("""
+            INSERT INTO bookable_resources
+                (tenant_id, name, description, resource_type, location, capacity,
+                 requires_approval, available_start_time, available_end_time,
+                 min_duration_minutes, max_duration_minutes)
+            VALUES (:tid, :name, :description, :rtype, :location, :capacity,
+                    :requires_approval, :start_time, :end_time, :min_dur, :max_dur)
+            RETURNING *
+        """), {
+            "tid": tenant_id, "name": resource.name, "description": resource.description,
+            "rtype": resource.resource_type, "location": resource.location,
+            "capacity": resource.capacity, "requires_approval": resource.requires_approval,
+            "start_time": resource.available_start_time, "end_time": resource.available_end_time,
+            "min_dur": resource.min_duration_minutes, "max_dur": resource.max_duration_minutes,
+        }).first()
+        log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                  action="CREATE_BOOKABLE_RESOURCE", resource_type="BOOKABLE_RESOURCE",
+                  resource_id=str(row.id))
+        db.commit()
+        return _serialize_resource(row)
+    except Exception as e:
+        db.rollback()
+        logger.error("Error creating bookable resource: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
+
+
+@router.put("/bookable-resources/{resource_id}/")
+def update_bookable_resource(
+    resource_id: UUID,
+    resource: BookableResourceIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    row = db.execute(text("""
+        UPDATE bookable_resources SET name=:name, description=:description,
+            resource_type=:rtype, location=:location, capacity=:capacity,
+            requires_approval=:requires_approval, available_start_time=:start_time,
+            available_end_time=:end_time, min_duration_minutes=:min_dur,
+            max_duration_minutes=:max_dur, updated_at=NOW()
+        WHERE id=:id AND tenant_id=:tid
+        RETURNING *
+    """), {
+        "id": str(resource_id), "tid": tenant_id, "name": resource.name,
+        "description": resource.description, "rtype": resource.resource_type,
+        "location": resource.location, "capacity": resource.capacity,
+        "requires_approval": resource.requires_approval,
+        "start_time": resource.available_start_time, "end_time": resource.available_end_time,
+        "min_dur": resource.min_duration_minutes, "max_dur": resource.max_duration_minutes,
+    }).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    db.commit()
+    return _serialize_resource(row)
+
+
+@router.patch("/bookable-resources/{resource_id}/")
+def patch_bookable_resource(
+    resource_id: UUID,
+    patch: BookableResourcePatch,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """Used by the frontend as a soft-delete (is_active=false)."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    if patch.is_active is None:
+        raise HTTPException(status_code=422, detail="No updatable fields provided")
+    row = db.execute(text("""
+        UPDATE bookable_resources SET is_active=:is_active, updated_at=NOW()
+        WHERE id=:id AND tenant_id=:tid
+        RETURNING *
+    """), {"id": str(resource_id), "tid": tenant_id, "is_active": patch.is_active}).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    db.commit()
+    return _serialize_resource(row)
+
+
+def _serialize_booking(row) -> dict:
+    return {
+        "id": str(row.id), "tenant_id": str(row.tenant_id), "resource_id": str(row.resource_id),
+        "user_id": str(row.user_id), "title": row.title, "description": row.description,
+        "start_time": row.start_time.isoformat(), "end_time": row.end_time.isoformat(),
+        "status": row.status,
+        "approved_by": str(row.approved_by) if row.approved_by else None,
+        "approved_at": row.approved_at.isoformat() if row.approved_at else None,
+        "rejection_reason": row.rejection_reason,
+        "resource": {"id": str(row.resource_id), "name": row.resource_name} if row.resource_name else None,
+        "user": {
+            "first_name": row.user_first_name, "last_name": row.user_last_name, "email": row.user_email,
+        } if row.user_first_name is not None else None,
+    }
+
+
+_BOOKING_SELECT = """
+    SELECT b.*, r.name AS resource_name,
+           u.first_name AS user_first_name, u.last_name AS user_last_name, u.email AS user_email
+    FROM bookings b
+    LEFT JOIN bookable_resources r ON r.id = b.resource_id
+    LEFT JOIN users u ON u.id = b.user_id
+"""
+
+# Bookings with these statuses hold a slot; a cancelled/rejected one doesn't
+# block a new booking for the same time range.
+_ACTIVE_BOOKING_STATUSES = ("pending", "approved")
+
+
+@router.get("/bookings/")
+def list_bookings(
+    request: Request,
+    resource_id: Optional[UUID] = None,
+    status: Optional[str] = None,
+    start_after: Optional[datetime] = None,
+    start_before: Optional[datetime] = None,
+    end_after: Optional[datetime] = None,
+    check_conflicts: Optional[bool] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:read")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    filters = ["b.tenant_id = :tid"]
+    params: Dict[str, Any] = {"tid": tenant_id}
+    if resource_id:
+        filters.append("b.resource_id = :resource_id")
+        params["resource_id"] = str(resource_id)
+    if status:
+        filters.append("b.status = :status")
+        params["status"] = status
+    if start_after:
+        filters.append("b.start_time >= :start_after")
+        params["start_after"] = start_after
+    if start_before:
+        filters.append("b.start_time < :start_before")
+        params["start_before"] = start_before
+    if end_after:
+        filters.append("b.end_time > :end_after")
+        params["end_after"] = end_after
+
+    if check_conflicts:
+        # The frontend pre-checks for an overlap before booking (start_before
+        # = the candidate slot's end, end_after = the candidate slot's
+        # start) and expects a 409 when one already exists. This is
+        # advisory only — create_booking() re-checks authoritatively so a
+        # client that skips this call can never bypass the conflict rule.
+        filters.append("b.status = ANY(:active_statuses)")
+        params["active_statuses"] = list(_ACTIVE_BOOKING_STATUSES)
+        conflict = db.execute(text(f"SELECT 1 FROM bookings b WHERE {' AND '.join(filters)} LIMIT 1"), params).first()
+        if conflict:
+            raise HTTPException(status_code=409, detail="This time slot is already booked")
+        return []
+
+    rows = db.execute(text(f"{_BOOKING_SELECT} WHERE {' AND '.join(filters)} ORDER BY b.start_time"), params).fetchall()
+    return [_serialize_booking(r) for r in rows]
+
+
+@router.post("/bookings/", status_code=201)
+def create_booking(
+    booking: BookingIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    if booking.end_time <= booking.start_time:
+        raise HTTPException(status_code=422, detail="end_time must be after start_time")
+
+    resource = db.execute(text(
+        "SELECT id, requires_approval FROM bookable_resources WHERE id = :id AND tenant_id = :tid AND is_active = true"
+    ), {"id": str(booking.resource_id), "tid": tenant_id}).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+
+    # Authoritative conflict check — never trust the client's own
+    # check_conflicts pre-check above.
+    conflict = db.execute(text("""
+        SELECT 1 FROM bookings
+        WHERE resource_id = :resource_id AND tenant_id = :tid
+          AND status = ANY(:active_statuses)
+          AND start_time < :end_time AND end_time > :start_time
+        LIMIT 1
+    """), {
+        "resource_id": str(booking.resource_id), "tid": tenant_id,
+        "active_statuses": list(_ACTIVE_BOOKING_STATUSES),
+        "start_time": booking.start_time, "end_time": booking.end_time,
+    }).first()
+    if conflict:
+        raise HTTPException(status_code=409, detail="This time slot is already booked")
+
+    try:
+        status = "pending" if resource.requires_approval else "approved"
+        inserted = db.execute(text("""
+            INSERT INTO bookings
+                (tenant_id, resource_id, user_id, title, description, start_time, end_time, status)
+            VALUES (:tid, :resource_id, :user_id, :title, :description, :start_time, :end_time, :status)
+            RETURNING id
+        """), {
+            "tid": tenant_id, "resource_id": str(booking.resource_id),
+            "user_id": current_user.get("id"), "title": booking.title,
+            "description": booking.description, "start_time": booking.start_time,
+            "end_time": booking.end_time, "status": status,
+        }).mappings().first()
+        log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                  action="CREATE_BOOKING", resource_type="BOOKING", resource_id=str(inserted["id"]))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Error creating booking: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
+
+    row = db.execute(text(f"{_BOOKING_SELECT} WHERE b.id = :id"), {"id": str(inserted["id"])}).first()
+    return _serialize_booking(row)
+
+
+@router.put("/bookings/{booking_id}/")
+def update_booking_status(
+    booking_id: UUID,
+    update: BookingStatusUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    fields = update.model_dump(exclude_unset=True)
+    if not fields:
+        raise HTTPException(status_code=422, detail="No updatable fields provided")
+    set_clause = ", ".join(f"{col}=:{col}" for col in fields)
+    row = db.execute(text(f"""
+        UPDATE bookings SET {set_clause}, updated_at=NOW()
+        WHERE id=:id AND tenant_id=:tid
+        RETURNING id
+    """), {**fields, "id": str(booking_id), "tid": tenant_id}).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="UPDATE_BOOKING_STATUS", resource_type="BOOKING", resource_id=str(booking_id))
+    db.commit()
+    result = db.execute(text(f"{_BOOKING_SELECT} WHERE b.id = :id"), {"id": str(booking_id)}).first()
+    return _serialize_booking(result)
+
+
 # --- Check-Ins ---
 
 class CheckInSessionCreate(BaseModel):

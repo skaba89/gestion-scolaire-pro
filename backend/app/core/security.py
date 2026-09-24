@@ -598,6 +598,12 @@ ROLE_PERMISSIONS: dict = {
         # /admin/teacher-hours, but the backend permission and the
         # /hr/teacher-work-hours/ endpoints themselves didn't exist.
         "teacher_progress:read", "teacher_progress:write",
+        # Permissions audit (2026-09): frontend grants DIRECTOR "rooms:read"
+        # for /admin/bookings, but GET/POST /school-life/bookable-resources/
+        # and /school-life/bookings/ are gated on school_life:read/write,
+        # which only TENANT_ADMIN and TEACHER had — a 404 for DIRECTOR
+        # (the endpoints themselves didn't exist at all until this fix).
+        "school_life:read", "school_life:write",
         # Institutional-readiness audit (2026-09): DIRECTOR already has
         # route-level access to /admin/announcements (src/App.tsx,
         # AdminLayout allowedRoles) — added while closing the
@@ -646,6 +652,11 @@ ROLE_PERMISSIONS: dict = {
         # for /admin/teacher-hours, but neither the backend permission nor
         # the /hr/teacher-work-hours/ endpoints existed at all.
         "teacher_progress:read", "teacher_progress:write",
+        # Permissions audit (2026-09), same gap as TENANT_ADMIN/DIRECTOR
+        # above: frontend grants DEPARTMENT_HEAD "rooms:read" for
+        # /admin/bookings, but school_life:read/write (what those endpoints
+        # are actually gated on) was missing.
+        "school_life:read", "school_life:write",
     ],
     "TEACHER": [
         "users:read",
@@ -709,6 +720,11 @@ ROLE_PERMISSIONS: dict = {
                   "inventory:read", "inventory:write",
                   "hr:read", "hr:write",
                   "teacher_progress:read", "teacher_progress:write",  # same fix as STAFF above
+                  # Permissions audit (2026-09): frontend grants SECRETARY
+                  # "rooms:read" for /admin/bookings, but school_life:read/
+                  # write (what those endpoints are actually gated on) was
+                  # missing — same gap as DIRECTOR/DEPARTMENT_HEAD above.
+                  "school_life:read", "school_life:write",
                   "communications:read", "communications:write",  # same fix as STAFF above
                   "parents:read",  # same fix as STAFF above
                   "departments:read"],  # same student-form fix as STAFF above
