@@ -252,10 +252,26 @@ pour **tous les rôles**, y compris TENANT_ADMIN/SUPER_ADMIN. Pas un 403
 (personne ne pouvait même cliquer dessus), mais un lien mort. Corrigé en
 remplaçant par `students:import`.
 
-**Une trouvaille hors périmètre de cet audit (pas un bug de permission —
-signalée, non corrigée ici)** :
-- `/admin/teacher-hours` (`GET /hr/teacher-work-hours/`) et
-  `/admin/bookings` (`GET /school-life/bookable-resources/`,
-  `.../bookings/`) appellent des routes qui **n'existent nulle part**
-  dans le backend — un 404 pour tous les rôles, pas une divergence de
-  permission. À traiter séparément.
+**`/admin/teacher-hours` traité séparément (2026-09-24)** : `GET`/`POST
+/hr/teacher-work-hours/` n'existaient nulle part dans le backend — un 404
+pour tous les rôles, pas une divergence de permission — et la table
+`teacher_work_hours` elle-même n'existait pas non plus :
+`academic/departments.py::department_teachers` la référence déjà en SQL
+brut pour un total d'heures mensuel et aurait 500 dès sa première exécution
+réelle, et `analytics.py` mockait `total_teacher_hours`/`active_teachers`
+à 0 avec un commentaire explicite notant l'absence de la table. Corrigé :
+table ajoutée (`app/core/operational_tables.py`, RLS automatique via le
+sweep générique), endpoints `GET`/`POST /hr/teacher-work-hours/` ajoutés
+(`hr.py`), gatés sur un nouveau couple `teacher_progress:read`/`write`
+plutôt que sur `hr:read`/`write` (le frontend accorde déjà
+`teacher_progress:read` à TENANT_ADMIN/DIRECTOR/DEPARTMENT_HEAD/STAFF/
+SECRETARY pour ce nav item — réutiliser `hr:read` aurait aussi donné à
+DEPARTMENT_HEAD l'accès aux fiches de paie et contrats de tout le
+personnel, hors de son périmètre). Testé :
+`backend/tests/test_teacher_work_hours.py` (8 tests, Postgres réel).
+
+**`/admin/bookings` reste hors périmètre (pas un bug de permission —
+signalée, non corrigée ici)** : `GET /school-life/bookable-resources/` et
+`.../bookings/` appellent des routes qui **n'existent nulle part** dans le
+backend — même famille de 404 que teacher-hours ci-dessus, mais pas
+encore traitée. À traiter séparément.

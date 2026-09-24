@@ -259,6 +259,138 @@ def read_last_employee_number(
     return crud_hr.get_last_employee_number(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 
+# --- Teacher Work Hours (src/pages/admin/TeacherHours.tsx) ---
+# No SQLAlchemy ORM model (raw-SQL operational table, see
+# app/core/operational_tables.py), same text()-based pattern as job-offers
+# below. Gated on the new teacher_progress:read/write permissions (see
+# backend/app/core/security.py) rather than hr:read/write, since
+# DEPARTMENT_HEAD is meant to see/log its own department's teaching hours
+# but must not gain the much broader hr:read (payslips, contracts of every
+# employee in the tenant).
+
+class TeacherWorkHourIn(BaseModel):
+    teacher_id: str
+    subject_id: Optional[str] = None
+    class_id: Optional[str] = None
+    work_date: str
+    hours_worked: float
+    description: Optional[str] = None
+
+
+def _serialize_work_hour(row) -> dict:
+    return {
+        "id": str(row.id),
+        "teacher_id": str(row.teacher_id),
+        "subject_id": str(row.subject_id) if row.subject_id else None,
+        "class_id": str(row.class_id) if row.class_id else None,
+        "work_date": row.work_date.isoformat(),
+        "hours_worked": float(row.hours_worked),
+        "description": row.description,
+        "teacher": {
+            "id": str(row.teacher_id),
+            "first_name": row.teacher_first_name,
+            "last_name": row.teacher_last_name,
+            "email": row.teacher_email,
+        },
+        "subject": {"id": str(row.subject_id), "name": row.subject_name} if row.subject_id else None,
+        "classroom": {"id": str(row.class_id), "name": row.classroom_name} if row.class_id else None,
+    }
+
+
+@router.get("/teacher-work-hours/")
+def list_teacher_work_hours(
+    request: Request,
+    teacher_id: Optional[UUID] = None,
+    work_date_after: Optional[str] = None,
+    work_date_before: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("teacher_progress:read")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    filters = ["twh.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
+    if teacher_id:
+        filters.append("twh.teacher_id = :teacher_id")
+        params["teacher_id"] = str(teacher_id)
+    if work_date_after:
+        filters.append("twh.work_date >= :date_after")
+        params["date_after"] = work_date_after
+    if work_date_before:
+        filters.append("twh.work_date <= :date_before")
+        params["date_before"] = work_date_before
+
+    rows = db.execute(text(f"""
+        SELECT twh.id, twh.teacher_id, twh.subject_id, twh.class_id, twh.work_date,
+               twh.hours_worked, twh.description,
+               u.first_name AS teacher_first_name, u.last_name AS teacher_last_name, u.email AS teacher_email,
+               s.name AS subject_name, c.name AS classroom_name
+        FROM teacher_work_hours twh
+        JOIN users u ON u.id = twh.teacher_id
+        LEFT JOIN subjects s ON s.id = twh.subject_id
+        LEFT JOIN classrooms c ON c.id = twh.class_id
+        WHERE {" AND ".join(filters)}
+        ORDER BY twh.work_date DESC, twh.created_at DESC
+    """), params).fetchall()
+    return [_serialize_work_hour(row) for row in rows]
+
+
+@router.post("/teacher-work-hours/", status_code=201)
+def create_teacher_work_hour(
+    work_hour: TeacherWorkHourIn,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("teacher_progress:write")),
+):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    if work_hour.hours_worked <= 0 or work_hour.hours_worked > 24:
+        raise HTTPException(status_code=422, detail="hours_worked must be between 0 and 24")
+
+    teacher = db.execute(text(
+        "SELECT 1 FROM users u JOIN user_roles ur ON ur.user_id = u.id "
+        "WHERE u.id = :tid AND ur.tenant_id = :tenant_id"
+    ), {"tid": work_hour.teacher_id, "tenant_id": tenant_id}).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    try:
+        inserted = db.execute(text("""
+            INSERT INTO teacher_work_hours
+                (id, tenant_id, teacher_id, subject_id, class_id, work_date, hours_worked,
+                 description, recorded_by, created_at, updated_at)
+            VALUES (gen_random_uuid(), :tid, :teacher_id, :subject_id, :class_id, :work_date,
+                    :hours, :description, :recorded_by, NOW(), NOW())
+            RETURNING id
+        """), {
+            "tid": tenant_id, "teacher_id": work_hour.teacher_id,
+            "subject_id": work_hour.subject_id, "class_id": work_hour.class_id,
+            "work_date": work_hour.work_date, "hours": work_hour.hours_worked,
+            "description": work_hour.description, "recorded_by": current_user.get("id"),
+        }).mappings().first()
+        log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                  action="CREATE_TEACHER_WORK_HOUR", resource_type="TEACHER_WORK_HOUR",
+                  resource_id=str(inserted["id"]))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Error creating teacher work hour: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
+
+    row = db.execute(text("""
+        SELECT twh.id, twh.teacher_id, twh.subject_id, twh.class_id, twh.work_date,
+               twh.hours_worked, twh.description,
+               u.first_name AS teacher_first_name, u.last_name AS teacher_last_name, u.email AS teacher_email,
+               s.name AS subject_name, c.name AS classroom_name
+        FROM teacher_work_hours twh
+        JOIN users u ON u.id = twh.teacher_id
+        LEFT JOIN subjects s ON s.id = twh.subject_id
+        LEFT JOIN classrooms c ON c.id = twh.class_id
+        WHERE twh.id = :id
+    """), {"id": str(inserted["id"])}).first()
+    return _serialize_work_hour(row)
+
+
 # --- Job Offers (Careers module) ---
 # job_offers/career_events/alumni_mentors have no SQLAlchemy ORM model
 # (raw-SQL operational tables, see app/core/operational_tables.py), so these
