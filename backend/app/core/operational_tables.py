@@ -328,6 +328,39 @@ _DDL = [
     """CREATE INDEX IF NOT EXISTS ix_career_events_tenant_id
         ON career_events(tenant_id)""",
 
+    # /admin/teacher-hours (src/pages/admin/TeacherHours.tsx) called
+    # GET/POST /hr/teacher-work-hours/ since the page was built, but neither
+    # this table nor those endpoints ever existed — a 404 for every role.
+    # departments.py's department_teachers endpoint also queries this table
+    # directly for a "hours this month" figure and would 500 if it ever ran
+    # against a real database; analytics.py's national-scale summary
+    # mocks total_teacher_hours/active_teachers to 0 with a comment noting
+    # the table doesn't exist. See docs/PERMISSIONS_MATRIX.md.
+    """CREATE TABLE IF NOT EXISTS teacher_work_hours (
+        id UUID PRIMARY KEY,
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        teacher_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL,
+        -- "classrooms" is a compatibility VIEW over "classes" (see the
+        -- CREATE VIEW below) — a FOREIGN KEY cannot reference a view, so
+        -- this points at the real table.
+        class_id UUID REFERENCES classes(id) ON DELETE SET NULL,
+        work_date DATE NOT NULL,
+        hours_worked NUMERIC(5,2) NOT NULL,
+        description TEXT,
+        -- No FK to users(id): matches audit_logs.user_id's own convention
+        -- (plain, unconstrained) so this never blocks on an actor whose
+        -- identity comes from the JWT rather than a guaranteed-current
+        -- users row.
+        recorded_by UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_teacher_work_hours_tenant_id
+        ON teacher_work_hours(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_teacher_work_hours_teacher_id
+        ON teacher_work_hours(teacher_id)""",
+
     """CREATE TABLE IF NOT EXISTS mentorship_requests (
         id UUID PRIMARY KEY,
         tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

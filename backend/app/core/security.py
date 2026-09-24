@@ -510,6 +510,13 @@ ROLE_PERMISSIONS: dict = {
         "schedule:read", "schedule:write",
         # Operational
         "hr:read", "hr:write",
+        # Permissions audit (2026-09): frontend already grants
+        # "teacher_progress:read" to this role (src/lib/permissions.ts) for
+        # the /admin/teacher-hours nav item, but no backend permission of
+        # that name existed at all — nor did the GET/POST
+        # /hr/teacher-work-hours/ endpoints themselves, a 404 for every
+        # role. See hr.py's teacher-work-hours section.
+        "teacher_progress:read", "teacher_progress:write",
         "school_life:read", "school_life:write",
         "communications:read", "communications:write",
         "notifications:read", "notifications:write",
@@ -586,6 +593,11 @@ ROLE_PERMISSIONS: dict = {
         "admissions:read", "admissions:write",
         "inventory:read", "inventory:write",
         "hr:read", "hr:write",
+        # Permissions audit (2026-09), same gap as TENANT_ADMIN above:
+        # frontend grants DIRECTOR "teacher_progress:read" for
+        # /admin/teacher-hours, but the backend permission and the
+        # /hr/teacher-work-hours/ endpoints themselves didn't exist.
+        "teacher_progress:read", "teacher_progress:write",
         # Institutional-readiness audit (2026-09): DIRECTOR already has
         # route-level access to /admin/announcements (src/App.tsx,
         # AdminLayout allowedRoles) — added while closing the
@@ -629,6 +641,11 @@ ROLE_PERMISSIONS: dict = {
         # they head (Department.head_id), see that endpoint's own comment.
         "departments:read",
         "faculties:read",
+        # Permissions audit (2026-09), same gap as TENANT_ADMIN/DIRECTOR
+        # above: frontend grants DEPARTMENT_HEAD "teacher_progress:read"
+        # for /admin/teacher-hours, but neither the backend permission nor
+        # the /hr/teacher-work-hours/ endpoints existed at all.
+        "teacher_progress:read", "teacher_progress:write",
     ],
     "TEACHER": [
         "users:read",
@@ -663,6 +680,12 @@ ROLE_PERMISSIONS: dict = {
               # that file's module docstring) rather than removing access
               # this role's UI already exposes.
               "hr:read", "hr:write",
+              # Permissions audit (2026-09), same gap as TENANT_ADMIN/
+              # DIRECTOR/DEPARTMENT_HEAD above: frontend grants STAFF
+              # "teacher_progress:read" for /admin/teacher-hours, but
+              # neither the backend permission nor the
+              # /hr/teacher-work-hours/ endpoints existed at all.
+              "teacher_progress:read", "teacher_progress:write",
               "communications:read", "communications:write",  # announcements fix, see communication.py
               "parents:read",  # links parents to students, see parents.py::list_parents fix
               # Institutional-readiness audit (2026-09): the student
@@ -685,6 +708,7 @@ ROLE_PERMISSIONS: dict = {
                   "certificates:read", "certificates:write",
                   "inventory:read", "inventory:write",
                   "hr:read", "hr:write",
+                  "teacher_progress:read", "teacher_progress:write",  # same fix as STAFF above
                   "communications:read", "communications:write",  # same fix as STAFF above
                   "parents:read",  # same fix as STAFF above
                   "departments:read"],  # same student-form fix as STAFF above
