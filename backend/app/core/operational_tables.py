@@ -590,6 +590,56 @@ _DDL = [
     # here rather than in the 20260724_0001 migration.
     """CREATE INDEX IF NOT EXISTS ix_appointments_tenant_date ON appointments (tenant_id, appointment_date)""",
 
+    # ── Bookable Resources & Bookings (/admin/bookings) ─────────────────────
+    # src/pages/admin/Bookings.tsx (rooms/equipment/appointment-slot
+    # reservation calendar) called GET/POST /school-life/bookable-resources/
+    # and /school-life/bookings/ since it was built, but neither the
+    # endpoints nor these tables ever existed — a 404 for every role. Same
+    # bug class and same fix pattern as teacher_work_hours above. class_id
+    # in teacher_work_hours had to reference the real "classes" table rather
+    # than the "classrooms" compatibility view (a FOREIGN KEY cannot target
+    # a view) — not applicable here since a booking's location is free text,
+    # not a classroom reference.
+    """CREATE TABLE IF NOT EXISTS bookable_resources (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        resource_type VARCHAR(50) NOT NULL DEFAULT 'room',
+        location VARCHAR(255),
+        capacity INTEGER,
+        requires_approval BOOLEAN NOT NULL DEFAULT false,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        available_days INTEGER[],
+        available_start_time TIME NOT NULL DEFAULT '08:00',
+        available_end_time TIME NOT NULL DEFAULT '18:00',
+        min_duration_minutes INTEGER NOT NULL DEFAULT 30,
+        max_duration_minutes INTEGER NOT NULL DEFAULT 480,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_bookable_resources_tenant_id ON bookable_resources(tenant_id)""",
+
+    """CREATE TABLE IF NOT EXISTS bookings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        resource_id UUID NOT NULL REFERENCES bookable_resources(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title VARCHAR(500) NOT NULL,
+        description TEXT,
+        start_time TIMESTAMPTZ NOT NULL,
+        end_time TIMESTAMPTZ NOT NULL,
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        approved_by UUID,
+        approved_at TIMESTAMPTZ,
+        rejection_reason TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_bookings_tenant_id ON bookings(tenant_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_bookings_resource_id ON bookings(resource_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_bookings_resource_time ON bookings(resource_id, start_time, end_time)""",
+
     # ── Check-In Sessions ──────────────────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS check_in_sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
