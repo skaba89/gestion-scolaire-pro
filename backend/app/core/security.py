@@ -707,11 +707,35 @@ ROLE_PERMISSIONS: dict = {
               # which STAFF also holds; switching that endpoint to the
               # dedicated departments:read permission would have silently
               # broken this form for STAFF without this grant.
-              "departments:read"],
+              "departments:read",
+              # Permissions audit (2026-09): frontend grants STAFF
+              # "schedule:read" for /admin/schedule (AdminLayout.tsx), but
+              # schedule.py's GET/PUT routes are gated on schedule:read/
+              # write, neither of which STAFF held — a 403 on the STAFF's
+              # own visible nav link.
+              "schedule:read", "schedule:write",
+              # Permissions audit (2026-09): frontend grants STAFF
+              # "attendance:read" for /admin/scan (QR check-in scanning),
+              # but the actual POST /school-life/check-ins/ the page
+              # submits to is gated on school_life:write via
+              # _can_access_checkin_for_student() — STAFF held neither
+              # school_life:read nor school_life:write, so every scan
+              # 403'd despite the nav link and page being visible.
+              "school_life:read", "school_life:write",
+              # Permissions audit (2026-09): frontend grants STAFF
+              # "dashboard:admin" for /admin/analytics, /admin/decision-
+              # support and /admin/ministry-reporting, but every KPI call
+              # those pages make is gated on analytics:read, which STAFF
+              # never held.
+              "analytics:read"],
     "ACCOUNTANT": ["finance:read", "finance:write", "students:read", "payments:read", "payments:write",
                     "inventory:read", "settings:read",
                     "hr:read", "hr:write",
-                    "communications:read", "communications:write"],  # same fix as STAFF above
+                    "communications:read", "communications:write",  # same fix as STAFF above
+                    # Permissions audit (2026-09): frontend grants
+                    # ACCOUNTANT "dashboard:admin" for the same analytics
+                    # pages as STAFF above; same missing analytics:read gap.
+                    "analytics:read"],
     "SECRETARY": ["users:read", "students:read", "students:write", "attendance:read", "attendance:write",
                   "grades:read", "settings:read",
                   "admissions:read", "admissions:write",
@@ -727,7 +751,12 @@ ROLE_PERMISSIONS: dict = {
                   "school_life:read", "school_life:write",
                   "communications:read", "communications:write",  # same fix as STAFF above
                   "parents:read",  # same fix as STAFF above
-                  "departments:read"],  # same student-form fix as STAFF above
+                  "departments:read",  # same student-form fix as STAFF above
+                  # Permissions audit (2026-09): frontend grants SECRETARY
+                  # "schedule:read" for /admin/schedule and "dashboard:admin"
+                  # for /admin/analytics etc. — same two gaps as STAFF above.
+                  "schedule:read", "schedule:write",
+                  "analytics:read"],
     # National audit Phase 2 — first institutional role above TENANT_ADMIN.
     # Deliberately narrow: a single permission for cross-tenant AGGREGATE
     # counts only (app/api/v1/endpoints/core/ministry.py). MINISTRY_ADMIN

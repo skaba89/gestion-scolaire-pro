@@ -280,3 +280,43 @@ manquant à DIRECTOR/DEPARTMENT_HEAD/SECRETARY alors que le frontend leur
 accorde déjà `rooms:read` pour ce même nav item (`src/lib/permissions.ts`).
 Testé : `backend/tests/test_bookings.py` (12 tests, Postgres réel,
 incluant le rejet 409 d'un créneau déjà réservé).
+
+**Nouveau balayage complet d'AdminLayout.tsx (2026-09-25)**, même méthode,
+limité aux 6 rôles qui atteignent réellement ce layout
+(`src/App.tsx` : SUPER_ADMIN/TENANT_ADMIN/DIRECTOR/STAFF/ACCOUNTANT/
+SECRETARY) — 3 nouvelles instances trouvées, DIRECTOR ayant déjà été
+corrigé pour schedule dans `test_permissions_sweep_2026_09.py` mais pas
+STAFF/SECRETARY qui ont pourtant le même droit frontend :
+
+- **STAFF, SECRETARY** sur `/admin/schedule` (frontend `schedule:read`) :
+  `GET /schedule/` exige `schedule:read` côté backend, absent des deux
+  rôles. Corrigé (`schedule:read`/`write` ajoutés aux deux).
+- **STAFF** sur `/admin/scan` (scanner QR de présence, frontend
+  `attendance:read`) : la vraie action de la page, `POST
+  /school-life/check-ins/`, est gardée par `school_life:write`
+  (`_can_access_checkin_for_student()`, `school_life.py`) — STAFF n'avait
+  ni `school_life:read` ni `school_life:write`, donc chaque scan échouait
+  en 403 malgré la page visible. Corrigé (`school_life:read`/`write`
+  ajoutés à STAFF).
+- **STAFF, ACCOUNTANT, SECRETARY** sur `/admin/analytics`,
+  `/admin/decision-support`, `/admin/ministry-reporting` (frontend
+  `dashboard:admin`) : tous les appels KPI (`analytics.py`) exigent
+  `analytics:read`, qu'aucun des trois rôles n'avait. La page
+  `/admin` (tableau de bord standard) utilise le même `dashboard:admin`
+  mais dégrade silencieusement (fallback à 0 dans `src/queries/
+  dashboard.ts`) — symptôme plus discret du même trou, mentionné pour
+  mémoire mais non bloquant. Corrigé (`analytics:read` ajouté aux trois
+  rôles).
+
+Balayage exhaustif du reste des nav items d'AdminLayout (Levels,
+AcademicYears, Terms, Campuses, Classrooms, Programs, Faculties,
+Semesters, Departments, Certificates, Finances/AccountingExports,
+Inventory/Orders, Announcements, Security/AuditLogs, AdvancedExports,
+DataImport, HumanResources, Users/Teachers, AlumniMentors/Requests,
+Bookings, Events/Clubs/Badges, Messages, KioskDevices/PublicPages/
+DataQuality) confirmé sain pour ces 6 rôles — aucune autre divergence
+frontend/backend trouvée, et aucun permission frontend orpheline (repeat
+du bug `students:write`/`students:import`). Testé :
+`backend/tests/test_permissions_sweep_2026_09_25.py` (6 tests, Postgres
+réel, chacun confirmé 403 avant le fix / 200 après en repassant
+temporairement sur l'état pré-correctif).
