@@ -129,6 +129,7 @@ class StudentCheckInBase(BaseModel):
     direction: str = "IN"
     source: Optional[str] = None
     student_id: UUID
+    session_id: Optional[UUID] = None
 
 class StudentCheckInCreate(BaseModel):
     # checked_at est horodaté par le serveur si absent : le scan QR n'a pas à
@@ -137,6 +138,10 @@ class StudentCheckInCreate(BaseModel):
     checked_at: Optional[datetime] = None
     direction: str = "IN"
     source: Optional[str] = None
+    # Permissions audit (2026-09): ClassSessionAttendance.tsx has always
+    # sent this so the scanner can show "present for THIS session", not
+    # every check-in ever recorded for the student.
+    session_id: Optional[UUID] = None
 
 class StudentCheckIn(StudentCheckInBase):
     id: UUID
