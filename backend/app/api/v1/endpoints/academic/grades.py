@@ -46,6 +46,40 @@ def _validate_grade_fks(db: Session, *, tenant_id: str, student_id=None, subject
             raise HTTPException(status_code=404, detail="Évaluation introuvable dans cet établissement")
 
 
+def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_id: str) -> Optional[set]:
+    """Ownership scoping (institutional-readiness audit, 2026-09): STUDENT
+    sees only their own grades, PARENT only their children's, ALUMNI only
+    their own historical record (same `students` row, status GRADUATED —
+    the frontend grants ALUMNI grades:read for exactly this, their own
+    report card, never the tenant's current students). Without this, any
+    holder of grades:read who wasn't a "staff" role saw every student's
+    grades in the tenant. Returns None for a privileged caller (no
+    restriction), or the set of student ids the caller may see (possibly
+    empty). NOTE: ALUMNI was previously excluded from both the privileged
+    bypass and this scoping — it fell through to the unfiltered query at
+    the bottom of list_grades, giving alumni tenant-wide grade access;
+    fixed by folding it into the STUDENT-style lookup here."""
+    roles = set(current_user.get("roles", []))
+    user_id = current_user.get("id")
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if privileged or not (roles & {"STUDENT", "PARENT", "ALUMNI"}):
+        return None
+    allowed_ids = set()
+    if roles & {"STUDENT", "ALUMNI"}:
+        rows = db.execute(text(
+            "SELECT id FROM students WHERE tenant_id = :tid AND (user_id = :uid "
+            "OR email = (SELECT email FROM users WHERE id = :uid))"
+        ), {"tid": tenant_id, "uid": user_id}).fetchall()
+        allowed_ids.update(str(r[0]) for r in rows)
+    if "PARENT" in roles:
+        rows = db.execute(text(
+            "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
+        ), {"tid": tenant_id, "uid": user_id}).fetchall()
+        allowed_ids.update(str(r[0]) for r in rows)
+    return allowed_ids
+
+
 @router.get("/", response_model=GradeList)
 def list_grades(
     request: Request,
@@ -76,26 +110,10 @@ def list_grades(
 
     # ── Règle métier / confidentialité ────────────────────────────────────
     # STUDENT ne voit que ses propres notes ; PARENT uniquement celles de
-    # ses enfants. Sans ce filtre, tout porteur de grades:read voyait les
-    # notes de TOUT l'établissement.
-    from sqlalchemy import text as sa_text
-    roles = set(current_user.get("roles", []))
-    user_id = current_user.get("id")
-    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
-                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
-    if not privileged and roles & {"STUDENT", "PARENT"}:
-        allowed_ids = set()
-        if "STUDENT" in roles:
-            rows = db.execute(sa_text(
-                "SELECT id FROM students WHERE tenant_id = :tid AND (user_id = :uid "
-                "OR email = (SELECT email FROM users WHERE id = :uid))"
-            ), {"tid": tenant_id, "uid": user_id}).fetchall()
-            allowed_ids.update(str(r[0]) for r in rows)
-        if "PARENT" in roles:
-            rows = db.execute(sa_text(
-                "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
-            ), {"tid": tenant_id, "uid": user_id}).fetchall()
-            allowed_ids.update(str(r[0]) for r in rows)
+    # ses enfants ; ALUMNI uniquement les siennes. Sans ce filtre, tout
+    # porteur de grades:read voyait les notes de TOUT l'établissement.
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None:
         if student_id is not None:
             if str(student_id) not in allowed_ids:
                 return GradeList(items=[], total=0, page=page, page_size=page_size, pages=1)
@@ -154,13 +172,17 @@ def get_student_average(
 ):
     """
     Get student's average grades
-    
+
     Permissions: grades:read
     """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None and str(student_id) not in allowed_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
     return crud_grade.get_student_average(
         db=db,
         student_id=student_id,
-        tenant_id=resolve_current_tenant_id(request, current_user, db),
+        tenant_id=tenant_id,
         academic_year=academic_year,
         semester=semester,
     )
@@ -175,7 +197,7 @@ def get_grade(
 ):
     """
     Get grade by ID
-    
+
     Permissions: grades:read
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -187,6 +209,9 @@ def get_grade(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Grade not found"
         )
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None and str(grade.student_id) not in allowed_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade not found")
     return grade
 
 

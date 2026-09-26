@@ -176,12 +176,45 @@ def get_homework(
     if isinstance(result.get("created_at"), datetime):
         result["created_at"] = result["created_at"].isoformat()
 
+    # SECURITY FIX (institutional-readiness audit, 2026-09): this endpoint
+    # returned EVERY student's submission (content, grade, feedback) for
+    # this homework regardless of caller — homework:read is held by
+    # STUDENT/PARENT, so any student or parent who knew/guessed a
+    # homework_id could read every classmate's answers and grades. Scope
+    # to the caller's own (or, for PARENT, their child's) submission,
+    # reusing the same ownership pattern as _can_submit_for_student below.
+    from app.core.security import user_has_permission
+    submission_filter = ""
+    submission_params = {"homework_id": homework_id, "tenant_id": tenant_id}
+    if not user_has_permission(current_user, "homework:write"):
+        from app.models.student import Student
+        from app.models.parent_student import ParentStudent
+        roles = set(current_user.get("roles", []))
+        user_id = current_user.get("id")
+        allowed_ids = set()
+        if "STUDENT" in roles:
+            student = db.query(Student).filter(
+                Student.tenant_id == tenant_id, Student.user_id == user_id,
+            ).first()
+            if student:
+                allowed_ids.add(str(student.id))
+        if "PARENT" in roles:
+            rows = db.query(ParentStudent).filter(
+                ParentStudent.tenant_id == tenant_id, ParentStudent.parent_id == user_id,
+            ).all()
+            allowed_ids.update(str(r.student_id) for r in rows)
+        if not allowed_ids:
+            result["submissions"] = []
+            return result
+        submission_filter = " AND student_id = ANY(:allowed_ids)"
+        submission_params["allowed_ids"] = list(allowed_ids)
+
     # Fetch submissions
-    submissions = db.execute(text("""
+    submissions = db.execute(text(f"""
         SELECT * FROM homework_submissions
-        WHERE homework_id = :homework_id AND tenant_id = :tenant_id
+        WHERE homework_id = :homework_id AND tenant_id = :tenant_id{submission_filter}
         ORDER BY submitted_at DESC
-    """), {"homework_id": homework_id, "tenant_id": tenant_id}).mappings().all()
+    """), submission_params).mappings().all()
 
     result["submissions"] = []
     for sub in submissions:
