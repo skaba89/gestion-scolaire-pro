@@ -180,4 +180,31 @@ describe("studentsService", () => {
       });
     });
   });
+
+  describe("getMyMentorshipRequests", () => {
+    it("calls the self-scoped endpoint, not the admin one (permissions audit 2026-09)", async () => {
+      // Regression guard: this used to call /alumni/admin/mentorship-requests/
+      // (gated on users:read, which STUDENT never holds) with a client-supplied
+      // student_id — a 403 on the student's own Careers page. The correct
+      // endpoint ignores student_id and scopes to the caller automatically.
+      const requests = [{ id: "req-1", mentor_id: "mentor-1" }];
+      mocks.get.mockResolvedValue({ data: requests });
+
+      const result = await studentsService.getMyMentorshipRequests("student-1");
+
+      expect(result).toEqual(requests);
+      expect(mocks.get).toHaveBeenCalledWith("/alumni/mentorship-requests/");
+      expect(mocks.get).not.toHaveBeenCalledWith(
+        expect.stringContaining("/admin/"),
+        expect.anything()
+      );
+    });
+
+    it("returns an empty array without calling the API when no student id is given", async () => {
+      const result = await studentsService.getMyMentorshipRequests("");
+
+      expect(result).toEqual([]);
+      expect(mocks.get).not.toHaveBeenCalled();
+    });
+  });
 });

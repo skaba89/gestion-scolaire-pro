@@ -320,3 +320,77 @@ du bug `students:write`/`students:import`). Testé :
 `backend/tests/test_permissions_sweep_2026_09_25.py` (6 tests, Postgres
 réel, chacun confirmé 403 avant le fix / 200 après en repassant
 temporairement sur l'état pré-correctif).
+
+## Balayage des interfaces TEACHER/STUDENT/PARENT/ALUMNI (2026-09-26)
+
+Suite directe du balayage d'AdminLayout ci-dessus : ces 5 interfaces
+(`DepartmentLayout`, `TeacherLayout`, `StudentLayout`, `ParentLayout`,
+`AlumniLayout`, plus un contrôle de `SuperAdminLayout`) ne gatent pas
+leurs liens sur une chaîne de permission frontend comme AdminLayout —
+l'accès à la page est purement basé sur le rôle (`ProtectedRoute
+allowedRoles=[...]`, `src/App.tsx`). Le bug de cette famille prend donc
+une forme différente : la page, visible pour le rôle, appelle un
+endpoint backend qui soit n'existe pas du tout (404), soit manque une
+vérification de propriété. 4 bugs confirmés et corrigés :
+
+- **TEACHER** sur `/teacher/session-attendance` ("Badges", le scanner QR
+  de présence) : `POST .../check-ins/sessions/start/`, `PATCH
+  .../sessions/{id}/end/` et `GET .../check-ins/badges/?qr_code_data=...`
+  n'existaient nulle part — la fonctionnalité entière (démarrer une
+  session, scanner un badge, la terminer) était un 404 à chaque étape.
+  Corrigé : les deux endpoints de cycle de vie de session ajoutés
+  (`school_life.py`), colonnes `subject_id`/`start_time`/`end_time`
+  ajoutées à `check_in_sessions` (`operational_tables.py`, migration
+  additive), et un nouvel endpoint de résolution de badge ajouté — à ne
+  pas confondre avec `GET /school-life/badges/`, qui liste des badges de
+  gamification sans rapport ; le vrai identifiant scannable est
+  `students.card_uid` (déjà utilisé par le flux kiosque,
+  `kiosk.py::kiosk_scan`).
+- **STUDENT** sur `/student/careers` (onglet Mentors) : le frontend
+  appelait `GET /alumni/admin/mentorship-requests/` — l'endpoint
+  **admin**, gardé sur `users:read`, que STUDENT n'a jamais — pour
+  afficher ses propres demandes de mentorat. 403 sur sa propre page.
+  Corrigé côté frontend uniquement (`studentsService.ts`) : appel du
+  point d'entrée self-scopé existant `GET /alumni/mentorship-requests/`,
+  qui ignore déjà tout `student_id` fourni par le client et se limite à
+  l'appelant.
+- **PARENT** sur `/parent/messages` et `/parent/appointments` : les deux
+  pages appelaient chacune un endpoint différent (`/parents/children-
+  teachers/` et `/parents/teachers/` respectivement) — aucun des deux
+  n'existait. Sur Messages, l'échec était silencieux (avalé par un
+  try/catch retournant `[]`) : un parent ne pouvait jamais voir un seul
+  enseignant à qui écrire. Sur Appointments, le sélecteur d'enseignant
+  restait vide. Corrigé par un unique nouvel endpoint `GET /parents/
+  children-teachers/` (scopé aux enseignants des classes des propres
+  enfants de l'appelant, via `teacher_assignments` joint sur les
+  inscriptions actives — même schéma de jointure que
+  `departments.py::department_teachers`), et les deux pages pointées
+  dessus.
+- **ALUMNI** (faille de sécurité) sur `GET /alumni/document-requests/
+  {id}/history/` : la vérification de propriété acceptait `tenant_id =
+  :tenant_id` comme alternative à la possession de la demande — ce qui
+  admet N'IMPORTE QUEL utilisateur authentifié du tenant (un autre
+  ALUMNI, un STUDENT, un PARENT...), pas seulement le personnel, malgré
+  le commentaire du code affirmant l'inverse. Un utilisateur curieux
+  pouvait lire l'historique d'actions (changements de statut, notes de
+  validation) de la demande de document d'un autre alumnus. Corrigé :
+  la vérification alternative est maintenant `user_has_permission(...,
+  "users:read")`, la permission que le commentaire décrivait réellement.
+
+Testé : `backend/tests/test_teacher_student_parent_alumni_2026_09_26.py`
+(10 tests, Postgres réel, chacun confirmé en échec avant le fix — sauf
+les 3 cas déjà sains par construction — puis en succès après) et
+`src/features/students/services/__tests__/studentsService.test.ts`
+(2 nouveaux tests couvrant le bon point d'entrée appelé).
+
+**Hors périmètre de ce correctif, mis en tâche de suivi séparée** :
+`/department/reports`, `/department/alerts-history` et une partie de
+`/department/calendar` (DEPARTMENT_HEAD) appellent des endpoints
+`/department-portal/members/`, `/department-portal/reports/stats/` et
+`/department-portal/alerts/*` qui n'existent nulle part — une
+fonctionnalité d'alertes entière à concevoir, pas un simple ajout de
+permission. Également en tâche de suivi séparée : les check-ins scannés
+via le scanner QR ne sont pas rattachés à leur `session_id` (colonne
+absente de `student_check_ins`, un vrai modèle ORM nécessitant une
+migration Alembic, pas une simple table opérationnelle), donc le compteur
+de présents affiché peut inclure des scans d'une session précédente.

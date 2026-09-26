@@ -302,6 +302,49 @@ def read_parent_children(
     """Retrieve all children associated with the current parent user."""
     return crud_parents.get_parent_children(db, parent_id=current_user.get("id"), tenant_id=resolve_current_tenant_id(request, current_user, db))
 
+
+@router.get("/children-teachers/")
+def read_children_teachers(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Teachers assigned to the current parent's own children's classrooms —
+    the recipient list for the "Messages" nav item and the "Appointments"
+    booking form.
+
+    Permissions audit (2026-09): parentsService.getChildrenTeachers() and
+    Appointments.tsx both called endpoints (/parents/children-teachers/,
+    /parents/teachers/) that never existed anywhere in the backend — every
+    call 404'd, silently in the Messages case (caught and swallowed into an
+    empty array) so a PARENT could never see a recipient to message or a
+    teacher to book an appointment with. This single endpoint replaces both
+    dead call sites, scoped to the caller's own children only (never all of
+    the tenant's teachers) via teacher_assignments joined on the children's
+    current enrollments, same join pattern as
+    departments.py::department_teachers.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    parent_id = current_user.get("id")
+    if not tenant_id or not parent_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    rows = db.execute(text("""
+        SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, u.avatar_url
+        FROM parent_students ps
+        JOIN enrollments e ON e.student_id = ps.student_id AND e.status = 'ACTIVE'
+        JOIN teacher_assignments ta ON ta.classroom_id = e.class_id AND ta.tenant_id = :tenant_id
+        JOIN users u ON u.id = ta.user_id
+        WHERE ps.parent_id = :parent_id AND ps.tenant_id = :tenant_id
+        ORDER BY u.last_name
+    """), {"parent_id": parent_id, "tenant_id": tenant_id}).fetchall()
+
+    return [{
+        "id": str(r.id), "first_name": r.first_name, "last_name": r.last_name,
+        "email": r.email, "avatar_url": r.avatar_url,
+    } for r in rows]
+
+
 # SECURITY (institutional-readiness audit, 2026-09): took an arbitrary
 # student_id with no permission check and no ownership check — any
 # authenticated user (e.g. a STUDENT) could pass a classmate's student_id

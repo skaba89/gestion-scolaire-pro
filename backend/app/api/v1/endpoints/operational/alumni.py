@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import datetime
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
@@ -256,19 +256,36 @@ def get_request_history(
     try:
         """Get the action history for a specific document request.
 
-        Accessible by the alumnus who owns the request, or by any staff
-        member of the same tenant (this endpoint is reused by the admin
-        request-management page, not just the alumni self-service one).
+        Accessible by the alumnus who owns the request, or by staff holding
+        users:read (this endpoint is reused by the admin request-management
+        page, not just the alumni self-service one).
+
+        SECURITY FIX (permissions audit, 2026-09): the ownership check used
+        to accept `tenant_id = :tenant_id` as an alternative to owning the
+        request, which admits ANY authenticated user of the tenant (any
+        ALUMNI, STUDENT, PARENT, TEACHER...), not just staff — despite the
+        docstring's own claim of "any staff member". Any tenant user who
+        could see or guess another alumnus's request id (ids are returned
+        to any users:read holder by GET /alumni/admin/document-requests/)
+        could read that alumnus's request action history. Narrowed to the
+        actual staff permission the docstring describes.
         """
         user_id = current_user.get("id")
-        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not user_id:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
         check = db.execute(text("""
             SELECT id FROM alumni_document_requests
-            WHERE id = :id AND (alumni_id = :user_id OR tenant_id = :tenant_id)
-        """), {"id": request_id, "user_id": user_id, "tenant_id": tenant_id}).fetchone()
+            WHERE id = :id AND alumni_id = :user_id
+        """), {"id": request_id, "user_id": user_id}).fetchone()
+        if not check and not user_has_permission(current_user, "users:read"):
+            raise HTTPException(status_code=404, detail="Demande introuvable")
+        if not check:
+            tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+            check = db.execute(text("""
+                SELECT id FROM alumni_document_requests
+                WHERE id = :id AND tenant_id = :tenant_id
+            """), {"id": request_id, "tenant_id": tenant_id}).fetchone()
         if not check:
             raise HTTPException(status_code=404, detail="Demande introuvable")
 

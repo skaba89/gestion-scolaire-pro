@@ -204,9 +204,12 @@ export const studentsService = {
 
   async getMyMentorshipRequests(studentId: string) {
     if (!studentId) return [];
-    const { data } = await apiClient.get<any[]>("/alumni/admin/mentorship-requests/", {
-      params: { student_id: studentId },
-    });
+    // Was calling the admin-only /alumni/admin/mentorship-requests/ (gated
+    // on users:read, which STUDENT never holds) for the student's own
+    // Careers page — a 403 on their own visible data. The self-scoped
+    // /alumni/mentorship-requests/ endpoint already ignores any client-
+    // supplied student_id and returns only the caller's own requests.
+    const { data } = await apiClient.get<any[]>("/alumni/mentorship-requests/");
     return data || [];
   },
 
