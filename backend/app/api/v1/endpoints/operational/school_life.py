@@ -1386,6 +1386,7 @@ def _can_access_checkin_for_student(db: Session, *, current_user: dict, student_
 def read_check_ins(
     request: Request,
     student_ids: List[UUID] = Query(None),
+    session_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -1398,7 +1399,7 @@ def read_check_ins(
             for sid in student_ids:
                 if not _can_access_checkin_for_student(db, current_user=current_user, student_id=sid, tenant_id=tenant_id, write=False):
                     raise HTTPException(status_code=403, detail="Not authorized to view this student's check-ins.")
-        return crud_sl.get_check_ins(db, tenant_id=tenant_id, student_ids=student_ids)
+        return crud_sl.get_check_ins(db, tenant_id=tenant_id, student_ids=student_ids, session_id=session_id)
     except HTTPException:
         raise
     except Exception as e:

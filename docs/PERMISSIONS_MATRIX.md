@@ -389,8 +389,29 @@ les 3 cas déjà sains par construction — puis en succès après) et
 `/department-portal/members/`, `/department-portal/reports/stats/` et
 `/department-portal/alerts/*` qui n'existent nulle part — une
 fonctionnalité d'alertes entière à concevoir, pas un simple ajout de
-permission. Également en tâche de suivi séparée : les check-ins scannés
-via le scanner QR ne sont pas rattachés à leur `session_id` (colonne
-absente de `student_check_ins`, un vrai modèle ORM nécessitant une
-migration Alembic, pas une simple table opérationnelle), donc le compteur
-de présents affiché peut inclure des scans d'une session précédente.
+permission (toujours en attente).
+
+## Rattachement des check-ins QR à leur session (2026-09-26)
+
+Suite du correctif TEACHER/STUDENT/PARENT/ALUMNI ci-dessus (PR #236) :
+le scanner QR (`ClassSessionAttendance.tsx`) envoyait et lisait déjà un
+`session_id` sur chaque check-in, mais `student_check_ins` (un vrai
+modèle ORM, contrairement à `check_in_sessions` qui est une table
+opérationnelle en SQL brut) n'avait pas cette colonne — Pydantic
+ignorait silencieusement le champ à l'écriture, et la requête de lecture
+l'ignorait aussi. Chaque check-in était donc enregistré sans lien avec
+sa session, et le compteur "présents" affiché pour une session en cours
+incluait en réalité tous les check-ins jamais faits pour le tenant.
+
+Corrigé par une migration Alembic additive (`20260926_0001`, colonne
+nullable, sans contrainte de clé étrangère vers `check_in_sessions` — ce
+tableau opérationnel est créé au démarrage de l'application, pas par
+Alembic, donc une FK au niveau base de données créerait un risque
+d'ordre d'exécution ; la relation reste appliquée au niveau applicatif
+uniquement), le modèle/schéma/CRUD/endpoint mis à jour en conséquence.
+Aucun changement frontend nécessaire (le scanner envoyait déjà le bon
+champ). Testé :
+`backend/tests/test_check_in_session_scoping_2026_09_26.py` (2 tests,
+PostgreSQL réel, confirmés en échec avant le correctif puis en succès
+après ; migration testée dans les deux sens — upgrade et downgrade —
+sur une base entièrement neuve).

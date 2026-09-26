@@ -132,10 +132,18 @@ def delete_event(db: Session, event_id: UUID, tenant_id: UUID) -> bool:
     return True
 
 # --- Student Check-In ---
-def get_check_ins(db: Session, tenant_id: UUID, student_ids: Optional[List[UUID]] = None) -> List[StudentCheckIn]:
+def get_check_ins(
+    db: Session, tenant_id: UUID, student_ids: Optional[List[UUID]] = None,
+    session_id: Optional[UUID] = None,
+) -> List[StudentCheckIn]:
     query = db.query(StudentCheckIn).filter(StudentCheckIn.tenant_id == tenant_id)
     if student_ids:
         query = query.filter(StudentCheckIn.student_id.in_(student_ids))
+    if session_id:
+        # Permissions audit (2026-09): the TEACHER QR scanner's "present for
+        # this session" count — without this filter it silently returned
+        # every check-in ever made for the tenant/student.
+        query = query.filter(StudentCheckIn.session_id == session_id)
     return query.order_by(StudentCheckIn.checked_at.desc()).all()
 
 def create_check_in(db: Session, obj_in: StudentCheckInCreate, tenant_id: UUID) -> StudentCheckIn:
