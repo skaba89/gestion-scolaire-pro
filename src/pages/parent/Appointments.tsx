@@ -66,13 +66,13 @@ export default function Appointments() {
     enabled: !!user?.id,
   });
 
-  // Fetch teachers
+  // Fetch teachers. Was calling /parents/teachers/, which never existed
+  // backend-side (404, permissions audit 2026-09) — /parents/children-
+  // teachers/ is the real endpoint, scoped to this parent's own children.
   const { data: teachers } = useQuery({
     queryKey: ["teachers-for-appointments", tenant?.id],
     queryFn: async () => {
-      const { data } = await apiClient.get('/parents/teachers/', {
-        params: { tenant_id: tenant?.id },
-      });
+      const { data } = await apiClient.get('/parents/children-teachers/');
       return Array.isArray(data) ? data : [];
     },
     enabled: !!tenant?.id,

@@ -1041,11 +1041,24 @@ class CheckInSessionCreate(BaseModel):
     notes: Optional[str] = None
 
 
+# Permissions audit (2026-09): the TEACHER "Badges" QR check-in page
+# (ClassSessionAttendance.tsx) filters/reads sessions by `class_id`, but the
+# table column is `classroom_id` — aliased in every SELECT below so the
+# response shape matches what the frontend has always expected.
+_SESSION_SELECT_COLUMNS = (
+    "id, tenant_id, teacher_id, classroom_id AS class_id, subject_id, "
+    "session_date, start_time, end_time, status, notes, created_at, updated_at"
+)
+
+
 @router.get("/check-ins/sessions/")
 def list_check_in_sessions(
     request: Request,
     teacher_id: Optional[str] = None,
+    class_id: Optional[str] = None,
+    subject_id: Optional[str] = None,
     session_date: Optional[str] = None,
+    status: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
@@ -1063,9 +1076,18 @@ def list_check_in_sessions(
         if teacher_id:
             conditions.append("teacher_id = :teacher_id")
             params["teacher_id"] = teacher_id
+        if class_id:
+            conditions.append("classroom_id = :class_id")
+            params["class_id"] = class_id
+        if subject_id:
+            conditions.append("subject_id = :subject_id")
+            params["subject_id"] = subject_id
         if session_date:
             conditions.append("session_date = :session_date")
             params["session_date"] = session_date
+        if status:
+            conditions.append("UPPER(status) = UPPER(:status)")
+            params["status"] = status
 
         where = " AND ".join(conditions)
         offset = (page - 1) * page_size
@@ -1075,7 +1097,7 @@ def list_check_in_sessions(
         ).scalar()
 
         rows = db.execute(
-            text(f"SELECT * FROM check_in_sessions WHERE {where} ORDER BY session_date DESC, created_at DESC LIMIT :lim OFFSET :off"),
+            text(f"SELECT {_SESSION_SELECT_COLUMNS} FROM check_in_sessions WHERE {where} ORDER BY session_date DESC, created_at DESC LIMIT :lim OFFSET :off"),
             {**params, "lim": page_size, "off": offset},
         ).fetchall()
 
@@ -1128,12 +1150,118 @@ def create_check_in_session(
         )
         db.commit()
         row = db.execute(
-            text("SELECT * FROM check_in_sessions WHERE id = :id"), {"id": session_id}
+            text(f"SELECT {_SESSION_SELECT_COLUMNS} FROM check_in_sessions WHERE id = :id"), {"id": session_id}
         ).first()
         return dict(row._mapping) if row else {"id": session_id}
     except Exception as e:
         db.rollback()
         logger.error("Error creating check-in session: %s", e)
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+class CheckInSessionStart(BaseModel):
+    class_id: UUID
+    subject_id: Optional[UUID] = None
+    session_date: Optional[date] = None
+    start_time: Optional[time] = None
+
+
+@router.post("/check-ins/sessions/start/")
+def start_check_in_session(
+    *,
+    request: Request,
+    db: Session = Depends(get_db),
+    obj_in: CheckInSessionStart,
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """Start a live QR check-in session for a class/subject — the TEACHER
+    "Badges" page's real entry point (permissions audit, 2026-09: this
+    route never existed, so every session start 404'd). `teacher_id` is
+    always the caller, never a client-supplied value."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    try:
+        session_id = str(uuid4())
+        db.execute(
+            text("""
+                INSERT INTO check_in_sessions
+                    (id, tenant_id, teacher_id, classroom_id, subject_id, session_date, start_time, status)
+                VALUES (:id, :tid, :teacher_id, :class_id, :subject_id, :session_date, :start_time, 'ACTIVE')
+            """),
+            {
+                "id": session_id,
+                "tid": tenant_id,
+                "teacher_id": current_user.get("id"),
+                "class_id": str(obj_in.class_id),
+                "subject_id": str(obj_in.subject_id) if obj_in.subject_id else None,
+                "session_date": obj_in.session_date or date.today(),
+                "start_time": obj_in.start_time or datetime.now().time(),
+            },
+        )
+        log_audit(
+            db, user_id=current_user.get("id"), tenant_id=tenant_id,
+            action="START_CHECK_IN_SESSION", resource_type="CHECK_IN_SESSION",
+            resource_id=session_id,
+        )
+        db.commit()
+        row = db.execute(
+            text(f"SELECT {_SESSION_SELECT_COLUMNS} FROM check_in_sessions WHERE id = :id"), {"id": session_id}
+        ).first()
+        return dict(row._mapping) if row else {"id": session_id}
+    except Exception as e:
+        db.rollback()
+        logger.error("Error starting check-in session: %s", e)
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+class CheckInSessionEnd(BaseModel):
+    end_time: Optional[time] = None
+
+
+@router.patch("/check-ins/sessions/{session_id}/end/")
+def end_check_in_session(
+    *,
+    request: Request,
+    session_id: UUID,
+    db: Session = Depends(get_db),
+    obj_in: CheckInSessionEnd = CheckInSessionEnd(),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """End a live QR check-in session (permissions audit, 2026-09: this
+    route never existed either, so a started session could never be
+    closed)."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    try:
+        result = db.execute(
+            text("""
+                UPDATE check_in_sessions
+                SET status = 'COMPLETED', end_time = :end_time, updated_at = now()
+                WHERE id = :id AND tenant_id = :tid
+            """),
+            {"id": str(session_id), "tid": tenant_id, "end_time": obj_in.end_time or datetime.now().time()},
+        )
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Session introuvable")
+        log_audit(
+            db, user_id=current_user.get("id"), tenant_id=tenant_id,
+            action="END_CHECK_IN_SESSION", resource_type="CHECK_IN_SESSION",
+            resource_id=str(session_id),
+        )
+        db.commit()
+        row = db.execute(
+            text(f"SELECT {_SESSION_SELECT_COLUMNS} FROM check_in_sessions WHERE id = :id"), {"id": str(session_id)}
+        ).first()
+        return dict(row._mapping) if row else {"id": str(session_id)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Error ending check-in session: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
@@ -1299,6 +1427,43 @@ def create_check_in(
         logger.error("Error creating check-in: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.get("/check-ins/badges/")
+def lookup_check_in_badge(
+    request: Request,
+    qr_code_data: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """Resolve a scanned QR/NFC card to the student it identifies, for the
+    TEACHER "Badges" live check-in scanner.
+
+    Permissions audit (2026-09): ClassSessionAttendance.tsx has always
+    called this exact path, but it never existed — GET /school-life/badges/
+    (below) is a different, unrelated endpoint listing gamification
+    achievement badges, not a card/QR lookup. The student's actual scannable
+    identifier is `students.card_uid` (see kiosk.py::kiosk_scan, which reads
+    the same field for the kiosk device flow this page duplicates for
+    teacher-run sessions). Returns null (200) rather than 404 on no match,
+    since the frontend distinguishes "invalid QR" from a request error.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="No tenant context")
+    student = db.query(StudentModel).filter(
+        StudentModel.tenant_id == tenant_id,
+        StudentModel.card_uid == qr_code_data,
+    ).first()
+    if not student:
+        return None
+    return {
+        "student_id": str(student.id),
+        "first_name": student.first_name,
+        "last_name": student.last_name,
+        "registration_number": student.registration_number,
+    }
+
 
 # --- Badges ---
 

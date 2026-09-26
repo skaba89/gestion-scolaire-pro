@@ -655,6 +655,14 @@ _DDL = [
     """CREATE INDEX IF NOT EXISTS ix_check_in_sessions_tenant_id ON check_in_sessions(tenant_id)""",
     """CREATE INDEX IF NOT EXISTS ix_check_in_sessions_teacher_id ON check_in_sessions(teacher_id)""",
 
+    # Permissions audit (2026-09): ClassSessionAttendance.tsx (the TEACHER
+    # "Badges" QR check-in page) has always posted/expected subject_id,
+    # start_time and end_time on a session — those columns never existed,
+    # so every start_session/end_session call 404'd/500'd from day one.
+    """ALTER TABLE check_in_sessions ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL""",
+    """ALTER TABLE check_in_sessions ADD COLUMN IF NOT EXISTS start_time TIME""",
+    """ALTER TABLE check_in_sessions ADD COLUMN IF NOT EXISTS end_time TIME""",
+
     # ── Check-In Assignments ───────────────────────────────────────────────
     """CREATE TABLE IF NOT EXISTS check_in_assignments (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
