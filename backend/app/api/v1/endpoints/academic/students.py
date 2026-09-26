@@ -16,6 +16,25 @@ from app.models.student import StudentStatus
 router = APIRouter()
 
 
+def _parent_child_ids(db: Session, *, current_user: dict, tenant_id: str) -> Optional[list]:
+    """Ownership scoping (institutional-readiness audit, 2026-09): students:read
+    is held by PARENT and every "staff" role (STAFF/SECRETARY/TEACHER/...) —
+    without this, a PARENT could list or fetch by id ANY student in the
+    tenant, not just their own children. Returns None for a non-PARENT-only
+    caller (no restriction), or the list of the calling parent's own
+    children's ids (possibly empty)."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if privileged or "PARENT" not in roles:
+        return None
+    from sqlalchemy import text
+    rows = db.execute(text(
+        "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
+    ), {"tid": tenant_id, "uid": current_user.get("id")}).fetchall()
+    return [str(r[0]) for r in rows]
+
+
 @router.get("/", response_model=StudentList)
 def list_students(
     request: Request,
@@ -34,6 +53,9 @@ def list_students(
     Permissions: students:read
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    student_ids = _parent_child_ids(db, current_user=current_user, tenant_id=tenant_id)
+    if student_ids is not None and not student_ids:
+        return StudentList(items=[], total=0, page=page, page_size=page_size, pages=1)
 
     skip = (page - 1) * page_size
     students, total = crud_student.get_students(
@@ -45,8 +67,9 @@ def list_students(
         status=status,
         level=level,
         class_name=class_name,
+        student_ids=student_ids,
     )
-    
+
     pages = math.ceil(total / page_size) if total > 0 else 1
     
     return StudentList(
@@ -238,6 +261,9 @@ def get_student(
     Permissions: students:read
     """
     tenant_id = resolve_current_tenant_id(request, current_user, db)
+    allowed_ids = _parent_child_ids(db, current_user=current_user, tenant_id=str(tenant_id))
+    if allowed_ids is not None and str(student_id) not in allowed_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
     student = crud_student.get_student(db, student_id, tenant_id)
     if not student:
         raise HTTPException(

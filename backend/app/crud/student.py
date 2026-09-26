@@ -39,10 +39,17 @@ def get_students(
     status: Optional[StudentStatus] = None,
     level: Optional[str] = None,
     class_name: Optional[str] = None,
+    student_ids: Optional[list] = None,
 ) -> tuple[list[Student], int]:
-    """Get students with pagination and filters"""
+    """Get students with pagination and filters.
+
+    student_ids (institutional-readiness audit, 2026-09): ownership scoping
+    for PARENT — restricts the result set to the caller's own children.
+    None means no restriction (every other caller)."""
     query = db.query(Student).filter(Student.tenant_id == tenant_id)
-    
+    if student_ids is not None:
+        query = query.filter(Student.id.in_(student_ids))
+
     # Apply filters
     if search:
         search = search.replace('%', r'\%').replace('_', r'\_')

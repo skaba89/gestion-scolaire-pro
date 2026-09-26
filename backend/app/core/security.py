@@ -671,7 +671,17 @@ ROLE_PERMISSIONS: dict = {
                 "homework:read"],
     "PARENT": ["me:read", "students:read", "grades:read", "attendance:read", "settings:read",
                "payments:read", "homework:read"],
-    "ALUMNI": ["students:read", "grades:read", "attendance:read", "schedule:read", "subjects:read"],
+    # SECURITY FIX (institutional-readiness audit, 2026-09): "students:read"
+    # and "attendance:read" removed — neither was ever granted to ALUMNI on
+    # the frontend (src/lib/permissions.ts), no legitimate ALUMNI workflow
+    # calls GET /students/, /students/{id}/ or any attendance:read-gated
+    # route, and without any ownership scoping on those endpoints they let
+    # any alumnus enumerate every current student's profile, or every
+    # attendance record, tenant-wide via a direct API call. grades:read is
+    # kept (the frontend does grant it, for the alumnus's own historical
+    # grades/report card) but is now scoped to the caller's own student
+    # record, like STUDENT — see _allowed_student_ids_for_caller callers.
+    "ALUMNI": ["grades:read", "schedule:read", "subjects:read"],
     "STAFF": ["users:read", "students:read", "students:write", "attendance:read",
               "settings:read",
               "admissions:read", "admissions:write", "inventory:read", "inventory:write",
