@@ -274,7 +274,7 @@ def get_payment_receipt(
     tenant_id = _get_tenant_id(request, current_user, db)
 
     row = db.execute(text("""
-        SELECT p.reference, p.amount, p.currency, p.payment_date, p.payment_method, p.status, p.notes,
+        SELECT p.student_id, p.reference, p.amount, p.currency, p.payment_date, p.payment_method, p.status, p.notes,
                s.first_name, s.last_name, s.registration_number,
                t.name AS tenant_name
         FROM payments p
@@ -285,6 +285,22 @@ def get_payment_receipt(
 
     if not row:
         raise HTTPException(status_code=404, detail="Paiement introuvable")
+
+    # SECURITY FIX (institutional-readiness audit, 2026-09): fetched by id +
+    # tenant_id only — a PARENT (payments:read) could pull another family's
+    # receipt (amount, method, reference) by guessing/enumerating a payment
+    # id. The sibling invoices-list endpoint already applies this exact
+    # "un PARENT ne voit que les factures de SES enfants" rule; this
+    # single-record route never got it.
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT",
+                          "SECRETARY", "STAFF"}
+    if "PARENT" in roles and not privileged:
+        is_own_child = db.execute(text(
+            "SELECT 1 FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid AND student_id = :sid"
+        ), {"tid": tenant_id, "uid": current_user.get("id"), "sid": str(row["student_id"])}).first()
+        if not is_own_child:
+            raise HTTPException(status_code=404, detail="Paiement introuvable")
 
     html_content = _receipt_html(
         tenant_name=row["tenant_name"] or "",

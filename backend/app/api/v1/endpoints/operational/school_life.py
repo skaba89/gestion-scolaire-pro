@@ -112,15 +112,71 @@ def delete_assessment(
 
 # --- Grades ---
 
+def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_id: str) -> Optional[set]:
+    """Ownership scoping (institutional-readiness audit, 2026-09): mirrors
+    the filter academic/grades.py::list_grades and academic/attendance.py's
+    own helper of the same name already apply. Without this, a STUDENT,
+    PARENT or ALUMNI calling this school-life-scoped mirror route with no
+    student_id filter got every grade/attendance record in the tenant.
+    ALUMNI is included alongside STUDENT (an alumnus's historical record
+    stays in the same `students` row, status GRADUATED — see StudentStatus
+    — matched the same way via user_id/email) since the frontend grants
+    ALUMNI grades:read for their own report card, never for the tenant's
+    current students. Returns None for a privileged caller (no
+    restriction), or the set of student ids the caller may see (possibly
+    empty)."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if privileged or not (roles & {"STUDENT", "PARENT", "ALUMNI"}):
+        return None
+    user_id = current_user.get("id")
+    allowed_ids = set()
+    if roles & {"STUDENT", "ALUMNI"}:
+        rows = db.execute(text(
+            "SELECT id FROM students WHERE tenant_id = :tid AND (user_id = :uid "
+            "OR email = (SELECT email FROM users WHERE id = :uid))"
+        ), {"tid": tenant_id, "uid": user_id}).fetchall()
+        allowed_ids.update(str(r[0]) for r in rows)
+    if "PARENT" in roles:
+        rows = db.execute(text(
+            "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
+        ), {"tid": tenant_id, "uid": user_id}).fetchall()
+        allowed_ids.update(str(r[0]) for r in rows)
+    return allowed_ids
+
+
 @router.get("/grades/", response_model=List[Grade])
 def read_grades(
     request: Request,
     student_id: Optional[UUID] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): this endpoint
+    # had NO permission check at all (get_current_user only) — any
+    # authenticated user of any role could omit student_id and receive
+    # every grade in the tenant. grades:read matches this file's own
+    # create/update/delete handlers' grades:write convention and academic/
+    # grades.py's canonical route.
+    current_user: dict = Depends(require_permission("grades:read")),
 ):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None:
+        if student_id is not None:
+            if str(student_id) not in allowed_ids:
+                return []
+        elif len(allowed_ids) == 1:
+            student_id = UUID(next(iter(allowed_ids)))
+        elif not allowed_ids:
+            return []
+        else:
+            # PARENT of several children with no explicit filter: aggregate.
+            results = []
+            for sid in allowed_ids:
+                results.extend(crud_sl.get_grades(db, tenant_id=tenant_id, student_id=UUID(sid)))
+            return results
     try:
-        return crud_sl.get_grades(db, tenant_id=resolve_current_tenant_id(request, current_user, db), student_id=student_id)
+        return crud_sl.get_grades(db, tenant_id=tenant_id, student_id=student_id)
     except Exception as e:
         db.rollback()
         logger.error("Error reading grades: %s", e, exc_info=True)
@@ -197,10 +253,25 @@ def read_attendance(
     request: Request,
     student_ids: List[UUID] = Query(None),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): this endpoint
+    # had NO permission check at all (get_current_user only) — any
+    # authenticated user of any role could omit student_ids and receive
+    # every attendance record (including absence reasons) in the tenant.
+    current_user: dict = Depends(require_permission("attendance:read")),
 ):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None:
+        if student_ids:
+            requested = {str(sid) for sid in student_ids}
+            if not requested <= allowed_ids:
+                return []
+        elif not allowed_ids:
+            return []
+        else:
+            student_ids = [UUID(sid) for sid in allowed_ids]
     try:
-        return crud_sl.get_attendance(db, tenant_id=resolve_current_tenant_id(request, current_user, db), student_ids=student_ids)
+        return crud_sl.get_attendance(db, tenant_id=tenant_id, student_ids=student_ids)
     except Exception as e:
         db.rollback()
         logger.error("Error reading attendance: %s", e, exc_info=True)

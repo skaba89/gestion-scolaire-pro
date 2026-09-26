@@ -242,13 +242,29 @@ def get_payment_schedule(
     row = db.execute(text("""
         SELECT ps.id, ps.tenant_id, ps.invoice_id, ps.installment_number,
                ps.amount, ps.due_date, ps.paid_date, ps.status, ps.notes,
-               ps.created_at, ps.updated_at
+               ps.created_at, ps.updated_at, i.student_id
         FROM payment_schedules ps
+        JOIN invoices i ON i.id = ps.invoice_id
         WHERE ps.id = :schedule_id AND ps.tenant_id = :tenant_id
     """), {"schedule_id": schedule_id, "tenant_id": tenant_id}).first()
 
     if not row:
         raise HTTPException(status_code=404, detail="Échéancier introuvable")
+
+    # SECURITY FIX (institutional-readiness audit, 2026-09): fetched by id +
+    # tenant_id only — a PARENT (payments:read) could pull another family's
+    # installment amounts/due dates/status by guessing/enumerating a
+    # schedule id. Same "un PARENT ne voit que SES enfants" rule already
+    # applied on the invoices-list endpoint.
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT",
+                          "SECRETARY", "STAFF"}
+    if "PARENT" in roles and not privileged:
+        is_own_child = db.execute(text(
+            "SELECT 1 FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid AND student_id = :sid"
+        ), {"tid": tenant_id, "uid": current_user.get("id"), "sid": str(row.student_id)}).first()
+        if not is_own_child:
+            raise HTTPException(status_code=404, detail="Échéancier introuvable")
 
     return _row_to_dict(row)
 
