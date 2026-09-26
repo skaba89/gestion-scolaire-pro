@@ -513,19 +513,19 @@ def department_attendance(
         }
 
         if classroom_id:
-            class_filter = "AND a.class_id = :classroom_id"
+            class_filter = "AND a.classroom_id = :classroom_id"
             params["classroom_id"] = classroom_id
         else:
-            class_filter = "AND a.class_id = ANY(:class_ids)"
+            class_filter = "AND a.classroom_id = ANY(:class_ids)"
             params["class_ids"] = class_ids
 
         rows = db.execute(text(f"""
-            SELECT a.id, a.date, a.status, a.notes,
+            SELECT a.id, a.date, a.status, a.reason,
                    s.id AS student_id, s.first_name, s.last_name, s.registration_number,
                    c.id AS class_id, c.name AS class_name
             FROM attendance a
             JOIN students s ON s.id = a.student_id
-            JOIN classrooms c ON c.id = a.class_id
+            JOIN classrooms c ON c.id = a.classroom_id
             WHERE a.tenant_id = :tenant_id
             AND a.date BETWEEN :start AND :end
             {class_filter}
@@ -535,7 +535,7 @@ def department_attendance(
 
         records = [{
             "id": str(r.id), "date": r.date.isoformat() if r.date else None,
-            "status": r.status, "notes": r.notes,
+            "status": r.status, "notes": r.reason,
             "students": {"first_name": r.first_name, "last_name": r.last_name, "registration_number": r.registration_number},
             "classrooms": {"name": r.class_name},
         } for r in rows]

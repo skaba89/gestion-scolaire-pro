@@ -465,3 +465,24 @@ Testé :
 (7 tests, PostgreSQL réel, isolation entre départements vérifiée
 explicitement pour les statistiques et l'historique d'alertes ; chacun
 confirmé en échec avant le correctif puis en succès après).
+
+## Correction de `GET /department-portal/attendance/` (2026-09-26)
+
+Bug trouvé au passage lors de la construction du backend Rapports/Alertes
+ci-dessus, corrigé séparément comme annoncé : cet endpoint (page "Suivi
+des présences" du chef de département, déjà existante) interrogeait la
+table `attendance` réelle avec des noms de colonnes (`a.class_id`,
+`a.notes`) qui n'existent pas dessus — les vraies colonnes sont
+`classroom_id` et `reason` (`app/models/attendance.py`). Chaque appel
+levait `UndefinedColumn` et renvoyait un 500 sur PostgreSQL réel ; ce
+défaut ne se voyait pas sur la suite de tests SQLite par défaut, d'où son
+passage inaperçu. Corrigé en alignant les deux occurrences de `class_id`
+sur `classroom_id` et `notes` sur `reason`, en conservant `notes` comme
+nom de champ dans la réponse JSON (c'est ce que `DeptAttendanceRecord`/
+`DepartmentAttendance.tsx` attendent déjà côté frontend — aucun
+changement frontend nécessaire).
+
+Testé :
+`backend/tests/test_department_attendance_column_fix_2026_09_26.py`
+(2 tests, PostgreSQL réel, confirmés en échec — 500 — avant le correctif
+puis en succès après, y compris avec le filtre `classroom_id`).
