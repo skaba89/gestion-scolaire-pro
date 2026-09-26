@@ -1148,6 +1148,24 @@ _DDL = [
             USING (COALESCE(current_setting('app.is_superadmin', true), 'false') = 'true');
     EXCEPTION WHEN OTHERS THEN NULL;
     END $$""",
+
+    # ── Department Alerts ────────────────────────────────────────────────────
+    # DEPARTMENT_HEAD's "Historique Alertes" page (department-portal audit,
+    # 2026-09): a persisted record of each low-attendance email alert a
+    # department head has sent themselves from the Reports page.
+    """CREATE TABLE IF NOT EXISTS department_alerts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+        sent_by UUID REFERENCES users(id) ON DELETE SET NULL,
+        alert_type VARCHAR(50) NOT NULL DEFAULT 'manual',
+        period_label VARCHAR(200),
+        alerts_data JSONB,
+        email_sent BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )""",
+    """CREATE INDEX IF NOT EXISTS ix_department_alerts_department_id ON department_alerts(department_id)""",
+    """CREATE INDEX IF NOT EXISTS ix_department_alerts_tenant_id ON department_alerts(tenant_id)""",
 ]
 # fmt: on
 

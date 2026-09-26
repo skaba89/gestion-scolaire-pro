@@ -415,3 +415,53 @@ champ). Testé :
 PostgreSQL réel, confirmés en échec avant le correctif puis en succès
 après ; migration testée dans les deux sens — upgrade et downgrade —
 sur une base entièrement neuve).
+
+## Construction du backend Rapports/Alertes du chef de département (2026-09-26)
+
+Dernier point laissé en suspens par le balayage TEACHER/STUDENT/PARENT/
+ALUMNI (PR #236) : les pages "Rapports & Statistiques" et "Historique
+des Alertes" de DEPARTMENT_HEAD (`/department/reports`,
+`/department/alerts-history`, et une partie de `/department/calendar`)
+appelaient des endpoints qui n'existaient nulle part — `GET
+/department-portal/members/`, `GET .../reports/stats/`, `POST
+.../alerts/send/`, `POST .../alerts/` et `GET .../alerts/`. Contrairement
+au reste de l'audit, ce n'était pas un simple oubli de permission mais
+une fonctionnalité jamais construite côté serveur.
+
+Construit à partir des données déjà exposées par ce routeur
+(`teacher_assignments`, `enrollments`, `attendance`, `grades`, `exams`,
+`classroom_departments`) plutôt qu'un nouveau système :
+
+- `GET /members/` : résout le département de l'appelant, dans la forme
+  `[{department_id, departments: {...}}]` que les 3 pages attendent
+  depuis toujours — tout `user_id`/`tenant_id` fourni par le client est
+  ignoré, comme sur chaque endpoint de ce routeur.
+- `GET /reports/stats/` : agrège effectifs, présences (globales et par
+  classe), moyenne des notes, examens et enseignants pour la période et
+  les classes demandées — les `class_ids` fournis par le client sont
+  croisés avec les classes réelles du département de l'appelant
+  (`_get_department_classroom_ids`), jamais utilisés tels quels.
+- `POST /alerts/send/` : envoie l'alerte par email **au chef de
+  département appelant lui-même** via `EmailSender` (le service déjà
+  utilisé pour les alertes de plateforme et les rappels de paiement) —
+  `departmentId`/`tenantId` envoyés par le frontend sont ignorés,
+  re-dérivés de la session authentifiée ; répond `email_sent: false`
+  sans erreur si aucun fournisseur d'email n'est configuré (même
+  convention que l'alerte de santé plateforme existante).
+- `POST /alerts/` / `GET /alerts/` : persistent et listent l'historique
+  dans une nouvelle table opérationnelle `department_alerts`, strictement
+  scopée au département de l'appelant.
+
+**Bug préexistant découvert au passage, hors périmètre de ce correctif
+(tâche de suivi séparée)** : `GET /department-portal/attendance/`
+(page "Présences" du chef de département, déjà existante) interroge la
+table `attendance` avec des noms de colonnes (`class_id`, `notes`) qui
+n'existent pas sur la table réelle (`classroom_id`, `reason`) — cet
+endpoint plante très probablement en 500 sur PostgreSQL réel. Non corrigé
+ici pour ne pas élargir le périmètre de ce correctif.
+
+Testé :
+`backend/tests/test_department_alerts_and_reports_2026_09_26.py`
+(7 tests, PostgreSQL réel, isolation entre départements vérifiée
+explicitement pour les statistiques et l'historique d'alertes ; chacun
+confirmé en échec avant le correctif puis en succès après).
