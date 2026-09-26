@@ -10,6 +10,8 @@ import datetime
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.config import settings
+from app.services.notifications import EmailSender
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,6 +31,30 @@ class ExamCreate(BaseModel):
     class_id: Optional[str] = None
     subject_id: str
     term_id: str
+
+
+class ClassAttendanceAlert(BaseModel):
+    classroomName: str
+    rate: Any
+    absent: Optional[int] = None
+    total: Optional[int] = None
+
+
+class DepartmentAlertSend(BaseModel):
+    alerts: list[ClassAttendanceAlert]
+    periodLabel: str = ""
+    # departmentId/departmentName/tenantId/tenantName are accepted for
+    # forward-compatibility with the frontend's existing payload but
+    # ignored — the department and its own head's email are always
+    # re-derived from the authenticated caller, never trusted from the
+    # client (same principle as every ownership check in this router).
+
+
+class DepartmentAlertCreate(BaseModel):
+    alert_type: str = "manual"
+    period_label: str = ""
+    alerts_data: list[ClassAttendanceAlert] = []
+    email_sent: bool = False
 
 
 # ─── Helper: resolve department for current user ──────────────────────────────
@@ -115,6 +141,40 @@ def get_my_department(
         logger.error("Error getting my department: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.get("/members/")
+def get_department_membership(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """The current user's own department membership, shaped as a
+    join-row array (`department_id` + nested `departments`) — the shape
+    DepartmentReports.tsx/DepartmentAlertHistory.tsx/
+    DepartmentExamCalendar.tsx have always expected from this exact path.
+
+    Permissions/completeness audit (2026-09): this endpoint never existed
+    at all, so all three pages 404'd on their very first query. Any
+    `user_id`/`tenant_id` query params the frontend sends are ignored —
+    same as every other endpoint in this router, scoped to the caller via
+    get_current_user()/resolve_current_tenant_id(), never a client-
+    supplied id.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    user_id = current_user.get("id")
+    if not tenant_id or not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    dept = _get_user_department(db, user_id, tenant_id)
+    if not dept:
+        return []
+    return [{
+        "department_id": str(dept["id"]),
+        "departments": {
+            "id": str(dept["id"]), "name": dept["name"],
+            "code": dept["code"], "description": dept["description"],
+        },
+    }]
 
 
 # ─── Department Dashboard ─────────────────────────────────────────────────────
@@ -842,3 +902,275 @@ def department_grades_report(
         logger.error("Error getting department grades report: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.get("/reports/stats/")
+def department_report_stats(
+    request: Request,
+    class_ids: str = Query(""),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Aggregate statistics for DepartmentReports.tsx: student/teacher
+    counts, attendance (overall and per class), average grade, exams and
+    export data for the selected period — scoped to the department's own
+    classrooms.
+
+    Permissions/completeness audit (2026-09): this endpoint never existed,
+    so the Reports page's every query 404'd from the moment a classroom
+    was selected. `class_ids` from the client is intersected with the
+    department's own classroom ids (`_get_department_classroom_ids`) —
+    never trusted outright, same as every ownership check elsewhere in
+    this router.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    user_id = current_user.get("id")
+    if not tenant_id or not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        dept = _get_user_department(db, user_id, tenant_id)
+        if not dept:
+            raise HTTPException(status_code=404, detail="Aucun département assigné")
+
+        dept_class_ids = set(_get_department_classroom_ids(db, dept["id"], tenant_id))
+        requested_ids = [c for c in class_ids.split(",") if c]
+        scoped_class_ids = [c for c in requested_ids if c in dept_class_ids] or list(dept_class_ids)
+        if not scoped_class_ids:
+            return {
+                "department": dept, "studentCount": 0, "teacherCount": 0,
+                "attendance": {"present": 0, "absent": 0, "late": 0, "total": 0, "rate": 0},
+                "attendancePerClass": {}, "averageGrade": 0, "studentsPerClass": [],
+                "teachers": [], "exams": [], "academicYear": None,
+            }
+
+        start = start_date or "1900-01-01"
+        end = end_date or "2999-12-31"
+
+        academic_year = db.execute(text(
+            "SELECT name FROM academic_years WHERE tenant_id = :tid AND is_current = true LIMIT 1"
+        ), {"tid": tenant_id}).scalar()
+
+        student_count = db.execute(text("""
+            SELECT COUNT(DISTINCT e.student_id) FROM enrollments e
+            WHERE e.tenant_id = :tid AND e.status = 'active' AND e.class_id = ANY(:cids)
+        """), {"tid": tenant_id, "cids": scoped_class_ids}).scalar() or 0
+
+        teacher_rows = db.execute(text("""
+            SELECT DISTINCT u.id, u.first_name, u.last_name
+            FROM teacher_assignments ta
+            JOIN users u ON u.id = ta.user_id
+            WHERE ta.tenant_id = :tid AND ta.classroom_id = ANY(:cids)
+        """), {"tid": tenant_id, "cids": scoped_class_ids}).fetchall()
+
+        students_per_class_rows = db.execute(text("""
+            SELECT c.id AS class_id, c.name, COUNT(e.student_id) AS count
+            FROM classrooms c
+            LEFT JOIN enrollments e ON e.class_id = c.id AND e.status = 'active' AND e.tenant_id = :tid
+            WHERE c.id = ANY(:cids)
+            GROUP BY c.id, c.name
+            ORDER BY c.name
+        """), {"tid": tenant_id, "cids": scoped_class_ids}).fetchall()
+
+        attendance_rows = db.execute(text("""
+            SELECT a.classroom_id, a.status, COUNT(*) AS cnt
+            FROM attendance a
+            WHERE a.tenant_id = :tid AND a.classroom_id = ANY(:cids)
+              AND a.date BETWEEN :start AND :end
+            GROUP BY a.classroom_id, a.status
+        """), {"tid": tenant_id, "cids": scoped_class_ids, "start": start, "end": end}).fetchall()
+
+        attendance_per_class: dict = {}
+        total_present = total_absent = total_late = 0
+        for row in attendance_rows:
+            cid = str(row.classroom_id)
+            bucket = attendance_per_class.setdefault(cid, {"present": 0, "late": 0, "total": 0})
+            bucket["total"] += row.cnt
+            if row.status == "PRESENT":
+                bucket["present"] += row.cnt
+                total_present += row.cnt
+            elif row.status == "LATE":
+                bucket["late"] += row.cnt
+                total_late += row.cnt
+            elif row.status == "ABSENT":
+                total_absent += row.cnt
+        total_attendance = sum(b["total"] for b in attendance_per_class.values())
+
+        avg_grade = db.execute(text("""
+            SELECT AVG(g.score) FROM grades g
+            JOIN enrollments e ON e.student_id = g.student_id AND e.status = 'active'
+            WHERE g.tenant_id = :tid AND e.class_id = ANY(:cids)
+        """), {"tid": tenant_id, "cids": scoped_class_ids}).scalar()
+
+        exam_rows = db.execute(text("""
+            SELECT e.id, e.name, e.exam_date, e.status, sub.name AS subject_name
+            FROM exams e
+            LEFT JOIN subjects sub ON sub.id = e.subject_id
+            WHERE e.tenant_id = :tid AND e.class_id = ANY(:cids)
+              AND e.exam_date BETWEEN :start AND :end
+            ORDER BY e.exam_date ASC
+        """), {"tid": tenant_id, "cids": scoped_class_ids, "start": start, "end": end}).fetchall()
+
+        return {
+            "department": dept,
+            "studentCount": student_count,
+            "teacherCount": len(teacher_rows),
+            "attendance": {
+                "present": total_present, "absent": total_absent, "late": total_late,
+                "total": total_attendance,
+                "rate": round(((total_present + total_late) / total_attendance) * 100, 1) if total_attendance else 0,
+            },
+            "attendancePerClass": attendance_per_class,
+            "averageGrade": round(float(avg_grade), 2) if avg_grade else 0,
+            "studentsPerClass": [{"name": r.name, "count": r.count} for r in students_per_class_rows],
+            "teachers": [{"first_name": r.first_name, "last_name": r.last_name} for r in teacher_rows],
+            "exams": [{
+                "id": str(r.id), "name": r.name,
+                "exam_date": r.exam_date.isoformat() if r.exam_date else None,
+                "status": r.status, "subjects": {"name": r.subject_name},
+            } for r in exam_rows],
+            "academicYear": academic_year,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Error getting department report stats: %s", e)
+        logger.error("Operation failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+# ─── Department Alerts ─────────────────────────────────────────────────────────
+
+@router.post("/alerts/send/")
+def send_department_alert_email(
+    request: Request,
+    payload: DepartmentAlertSend,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Email the low-attendance alert to the department head who triggered
+    it (DepartmentReports.tsx's "Envoyer alerte par email").
+
+    Permissions/completeness audit (2026-09): this route never existed, so
+    the button always failed. Sends to the caller's own email — the
+    frontend's departmentId/tenantId/tenantName fields are accepted but
+    ignored, re-derived from the authenticated session instead, so a
+    department head can never be tricked (or trick themselves) into
+    emailing another department's alert to someone else. No-ops (still
+    200) if the caller has no email on file or no mail provider is
+    configured, same fallback convention as the existing platform-health
+    alert email (see parents.py's own ALERT_EMAIL no-op).
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    user_id = current_user.get("id")
+    if not tenant_id or not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    dept = _get_user_department(db, user_id, tenant_id)
+    if not dept:
+        raise HTTPException(status_code=404, detail="Aucun département assigné")
+
+    recipient = db.execute(text(
+        "SELECT email, first_name FROM users WHERE id = :id AND tenant_id = :tid"
+    ), {"id": user_id, "tid": tenant_id}).mappings().first()
+
+    email_sent = False
+    if recipient and recipient["email"] and (settings.RESEND_API_KEY or settings.SMTP_HOST):
+        rows_html = "".join(
+            f"<tr><td>{a.classroomName}</td><td>{a.rate}%</td>"
+            f"<td>{a.absent if a.absent is not None else '-'} / {a.total if a.total is not None else '-'}</td></tr>"
+            for a in payload.alerts
+        )
+        html = (
+            f"<p>Bonjour {recipient['first_name'] or ''},</p>"
+            f"<p>Le taux de présence est passé sous le seuil d'alerte pour les classes "
+            f"suivantes de votre département <strong>{dept['name']}</strong> "
+            f"({payload.periodLabel}) :</p>"
+            f"<table border='1' cellpadding='6' style='border-collapse:collapse'>"
+            f"<tr><th>Classe</th><th>Taux</th><th>Absences / Total</th></tr>{rows_html}</table>"
+        )
+        try:
+            sender = EmailSender(
+                resend_api_key=settings.RESEND_API_KEY, smtp_host=settings.SMTP_HOST,
+                smtp_port=settings.SMTP_PORT, smtp_user=settings.SMTP_USER,
+                smtp_pass=settings.SMTP_PASS, from_email=settings.FROM_EMAIL,
+                from_name=settings.FROM_NAME,
+            )
+            email_sent = sender.send(
+                recipient["email"], f"Alerte de présence — {dept['name']}", html,
+            )
+        except Exception as e:
+            logger.warning("Department alert email failed: %s", e)
+
+    return {"email_sent": email_sent}
+
+
+@router.post("/alerts/", status_code=status.HTTP_201_CREATED)
+def create_department_alert(
+    request: Request,
+    payload: DepartmentAlertCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Persist a sent alert to the department's history
+    (DepartmentAlertHistory.tsx). `sent_by` is always the caller — never a
+    client-supplied user id."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    user_id = current_user.get("id")
+    if not tenant_id or not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    dept = _get_user_department(db, user_id, tenant_id)
+    if not dept:
+        raise HTTPException(status_code=404, detail="Aucun département assigné")
+
+    import json as _json
+    row = db.execute(text("""
+        INSERT INTO department_alerts
+            (tenant_id, department_id, sent_by, alert_type, period_label, alerts_data, email_sent)
+        VALUES (:tid, :dept_id, :sent_by, :alert_type, :period_label, cast(:alerts_data AS jsonb), :email_sent)
+        RETURNING id, tenant_id, department_id, sent_by, alert_type, period_label, alerts_data, email_sent, created_at
+    """), {
+        "tid": tenant_id, "dept_id": dept["id"], "sent_by": user_id,
+        "alert_type": payload.alert_type, "period_label": payload.period_label,
+        "alerts_data": _json.dumps([a.model_dump() for a in payload.alerts_data]),
+        "email_sent": payload.email_sent,
+    }).mappings().first()
+    db.commit()
+    return dict(row)
+
+
+@router.get("/alerts/")
+def list_department_alerts(
+    request: Request,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """The department's alert history — any client-supplied
+    `department_id` is ignored, always scoped to the caller's own
+    department."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    user_id = current_user.get("id")
+    if not tenant_id or not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    dept = _get_user_department(db, user_id, tenant_id)
+    if not dept:
+        return []
+
+    rows = db.execute(text("""
+        SELECT da.id, da.alert_type, da.period_label, da.alerts_data, da.email_sent, da.created_at,
+               u.first_name, u.last_name
+        FROM department_alerts da
+        LEFT JOIN users u ON u.id = da.sent_by
+        WHERE da.tenant_id = :tid AND da.department_id = :dept_id
+        ORDER BY da.created_at DESC
+        LIMIT :limit
+    """), {"tid": tenant_id, "dept_id": dept["id"], "limit": limit}).fetchall()
+
+    return [{
+        "id": str(r.id), "alert_type": r.alert_type, "period_label": r.period_label,
+        "alerts_data": r.alerts_data, "email_sent": r.email_sent,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "sent_to_profile": {"first_name": r.first_name, "last_name": r.last_name} if r.first_name else None,
+    } for r in rows]
