@@ -13,7 +13,21 @@ index strategy isn't meaningfully portable between engines here.
 import pytest
 from sqlalchemy import text
 
-from app.core.database import SessionLocal, engine
+from conftest import get_test_client
+
+# This file's own claim below is to be self-sufficient regardless of what ran
+# before it in the same session. That requires the ORM schema (tenants,
+# departments, users, ... — every FK target in operational_tables.py's raw
+# DDL) to exist first: get_test_client() runs Base.metadata.create_all() for
+# that. Without it, every ensure_operational_tables() statement fails on
+# "relation \"tenants\" does not exist" and every index in EXPECTED_INDEXES
+# is reported missing — not because the feature is broken, but because this
+# file forgot to build its own prerequisites (caught by running this file in
+# isolation: it previously relied entirely on an earlier test file in the
+# same run having already created the schema).
+client = get_test_client()
+
+from app.core.database import SessionLocal, engine  # noqa: E402
 
 
 pytestmark = pytest.mark.skipif(
@@ -27,11 +41,8 @@ if engine.dialect.name == "postgresql":
     # pagination.py for the full explanation. get_test_client()'s no-op
     # lifespan skips this at app startup, so tests in this file trigger it
     # directly to be self-sufficient regardless of what ran before them.
-    try:
-        from app.core.operational_tables import ensure_operational_tables
-        ensure_operational_tables(engine)
-    except Exception:
-        pass
+    from app.core.operational_tables import ensure_operational_tables
+    ensure_operational_tables(engine)
 
 EXPECTED_INDEXES = [
     "ix_incidents_tenant_occurred",
