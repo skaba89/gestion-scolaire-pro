@@ -345,7 +345,15 @@ def list_borrowers(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): had NO
+    # permission check at all (get_current_user only), while borrow_resource/
+    # return_resource above require library:write — any authenticated
+    # tenant user could list every active borrower's full name and email,
+    # tenant-wide, with no ownership scoping. library:read is currently
+    # only held by TENANT_ADMIN (see ROLE_PERMISSIONS) — no legitimate
+    # STUDENT/PARENT/TEACHER workflow needs this PII list, unlike
+    # list_resources() above (catalog browsing, no PII), which stays open.
+    current_user: dict = Depends(require_permission("library:read")),
 ):
     """List current borrowers (active borrow records)."""
     tenant_id = resolve_current_tenant_id(request, current_user, db)
