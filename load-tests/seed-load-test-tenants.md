@@ -16,6 +16,7 @@ Tableau JSON d'objets (voir `load-tests/tenants.sample.json`) :
 |---|---|---|
 | `slug` | ✅ | résolution tenant (`X-Tenant-ID`) |
 | `email` / `password` | ✅ | login (une fois par tenant dans `setup()`) |
+| `totp_secret` | requis si le compte a le MFA obligatoire | complète automatiquement `/mfa/login/verify/` (voir `lib/totp.js`) — `TENANT_ADMIN` et les autres rôles privilégiés l'exigent dès que la cible applique `ENFORCE_MFA=true` (défaut hors `DEBUG`) ; voir `docs/reports/PERF_CAMPAIGN_2026-09.md` §12 |
 | `student_id` | pour les écritures | présences, notes, résultats, resync offline |
 | `subject_id` | optionnel | rattache note/présence à une matière |
 | `classroom_id` | optionnel | rattache la présence à une classe |
