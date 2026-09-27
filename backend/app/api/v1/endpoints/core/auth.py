@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.client_ip import get_client_ip
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
+from app.core.security import PRIVILEGED_ROLES, create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
 from app.models.user import User
 from app.models.user_role import UserRole
 
@@ -356,31 +356,22 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         await _reset_login_attempts(str(user.id))
 
         # SECURITY: Enforce MFA check for privileged roles before issuing token.
-        # MINISTRY_ADMIN added here (institutional-readiness audit, 2026-09) —
-        # docs/CADRE_INSTITUTIONNEL.md §4.1 lists it alongside SUPER_ADMIN/
-        # TENANT_ADMIN/DIRECTOR as requiring mandatory MFA, since it's the
-        # role that reads aggregated data across every establishment in the
-        # country (see app/api/v1/endpoints/core/ministry.py) — it was
-        # missing from this set despite being in the documented gate.
         #
-        # REGIONAL_DIRECTOR/PREFECTURE_ADMIN/COMMUNE_ADMIN added the same
-        # audit pass, one level further (2026-09): same class of gap — each
-        # holds "ministry:read" (app/core/security.py ROLE_PERMISSIONS) and
-        # sits in PRIVILEGED_ROLES (fail-closed token revocation, same file)
-        # alongside MINISTRY_ADMIN, but docs/INSTITUTIONAL_ROLES.md wrongly
-        # claimed these roles "don't exist yet in ROLE_PERMISSIONS" — that
-        # stale claim is why they were never added here despite being real,
-        # institutional-tier, ministry-scoped roles like MINISTRY_ADMIN.
-        #
-        # NATIONAL_INSPECTOR added when the role itself was introduced
-        # (national-readiness audit, 2026-09) — added in the same change
-        # this time, not as a follow-up fix, precisely to avoid repeating
-        # the "documented as not existing yet" gap above.
-        PRIVILEGED_ROLES_REQUIRING_MFA = {
-            "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT", "MINISTRY_ADMIN",
-            "NATIONAL_INSPECTOR", "REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN",
-        }
-        user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES_REQUIRING_MFA]
+        # This used to be its own locally-defined set, maintained by hand in
+        # parallel with app/core/security.py::PRIVILEGED_ROLES (used for
+        # fail-closed token revocation) — the exact same set of roles for a
+        # closely related security purpose, kept in two places. That
+        # duplication caused three real, separate gaps over time
+        # (institutional-readiness / national-readiness audits, 2026-09):
+        # MINISTRY_ADMIN, then REGIONAL_DIRECTOR/PREFECTURE_ADMIN/
+        # COMMUNE_ADMIN, were each added to PRIVILEGED_ROLES and granted
+        # "ministry:read" without anyone remembering to add them here too,
+        # so each held privileged, ministry-scoped access with no MFA
+        # requirement until the gap was found and patched by hand. Importing
+        # the same set directly removes the possibility of it happening a
+        # fourth time — the next privileged role only needs to be added
+        # once, in app/core/security.py.
+        user_privileged_roles = [r for r in roles if r in PRIVILEGED_ROLES]
         mfa_enabled = getattr(user, "mfa_enabled", False)
 
         if user_privileged_roles and not mfa_enabled:
