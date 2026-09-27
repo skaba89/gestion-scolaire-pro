@@ -63,6 +63,29 @@ qui l'implémente.
   isolation systématique dans chaque nouveau module ajouté (ex. transcripts,
   teachers, payment receipts — jamais de fuite inter-tenant même avec un
   identifiant deviné, confirmé par des tests explicites "cross-tenant 404").
+- **Angle mort découvert et corrigé (2026-09, préparation mise en
+  production nationale)** : chaque balayage RLS précédent (`659b47b029bd`,
+  `c4d5e6f7a8b9`, `b5e71cce8a7a`) découvre les tables à protéger via
+  `EXISTS (... attname = 'tenant_id')` — juste pour une table qui porte sa
+  propre colonne `tenant_id`, mais structurellement aveugle à une table
+  fille qui n'en a aucune (elle ne sera JAMAIS retrouvée, même en
+  relançant le balayage indéfiniment). Cinq tables de ce type avaient RLS
+  entièrement désactivé : `alumni_request_history`,
+  `conversation_participants`, `email_otps`, `order_items`,
+  `user_message_status`. Corrigé par la migration `20260927_0001`, qui
+  scope chacune à sa table parente propriétaire du tenant via sa propre
+  FK (ex. `conversation_id IN (SELECT id FROM conversations WHERE
+  tenant_id::text = ...)`). Validé avec un rôle PostgreSQL réellement
+  restreint (`NOSUPERUSER NOBYPASSRLS`, créé et détruit dans le test
+  lui-même) plutôt qu'avec le rôle superutilisateur habituel de la suite
+  de tests — sans quoi la vérification n'aurait rien prouvé (voir point
+  ci-dessus). Le check de disponibilité (`app/main.py::_check_rls_status`,
+  exposé par `/health/ready`) a le même angle mort de conception que les
+  migrations catch-all qu'il reflète : il continuera de rapporter
+  `"rls": "active"` sans jamais voir ce type de table. Non corrigé ici
+  (nécessiterait de maintenir la même liste de tables parentes que cette
+  migration, plutôt qu'une découverte générique) — suivi documenté, pas
+  élargi dans ce correctif.
 
 ## 4. Rôles et permissions (RBAC)
 
