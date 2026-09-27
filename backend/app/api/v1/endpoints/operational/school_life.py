@@ -248,6 +248,24 @@ def delete_grade(
 
 # --- Attendance ---
 
+def _teacher_may_modify(db: Session, *, current_user: dict, tenant_id: str, classroom_id: Optional[str]) -> bool:
+    """Ownership scoping (institutional-readiness audit, 2026-09): mirrors
+    academic/attendance.py's helper of the same name — see there for the
+    full rationale. Duplicated per-file per this codebase's existing
+    convention (e.g. _allowed_student_ids_for_caller above)."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if privileged or "TEACHER" not in roles:
+        return True
+    if not classroom_id:
+        return True
+    row = db.execute(text(
+        "SELECT 1 FROM schedule WHERE tenant_id = :tid AND class_id = :cid AND teacher_id = :uid"
+    ), {"tid": tenant_id, "cid": classroom_id, "uid": current_user.get("id")}).first()
+    return row is not None
+
+
 @router.get("/attendance/", response_model=List[Attendance])
 def read_attendance(
     request: Request,
@@ -321,6 +339,15 @@ def update_attendance(
         ).first()
         if not att:
             raise HTTPException(status_code=404, detail="Attendance record not found")
+        # SECURITY FIX (institutional-readiness audit, 2026-09): mirrors
+        # academic/attendance.py::_teacher_may_modify — a TEACHER holds
+        # attendance:write tenant-wide, so without this any teacher could
+        # edit another teacher's class's attendance via this route too.
+        if not _teacher_may_modify(
+            db, current_user=current_user, tenant_id=tenant_id,
+            classroom_id=str(att.classroom_id) if att.classroom_id else None,
+        ):
+            raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
         update_data = obj_in.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(att, field, value)

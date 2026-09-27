@@ -486,3 +486,110 @@ Testé :
 `backend/tests/test_department_attendance_column_fix_2026_09_26.py`
 (2 tests, PostgreSQL réel, confirmés en échec — 500 — avant le correctif
 puis en succès après, y compris avec le filtre `classroom_id`).
+
+## Fiabilisation de `test_operational_indexes.py` en isolation (PR #240, 2026-09-27)
+
+En creusant les "18 échecs PostgreSQL préexistants" mentionnés dans
+plusieurs correctifs précédents de cette même piste d'audit, il s'est
+avéré qu'ils n'ont jamais été réels : le workflow CI
+(`.github/workflows/ci.yml`, job "Backend Tests (PostgreSQL)") exécute
+`alembic upgrade head` avant `pytest`, ce que la reproduction locale
+utilisée jusqu'ici omettait — elle ne faisait que
+`Base.metadata.create_all()`. Avec `alembic upgrade head` réellement
+appliqué, la suite complète passe à 0 échec (1628 passed / 18 skipped
+avant ce correctif). L'historique CI confirme 5 exécutions vertes
+consécutives sur les 5 derniers merges.
+
+Un seul bug réel de fragilité de test (inoffensif en CI, seulement visible
+en exécution isolée/locale) a été trouvé et corrigé au passage :
+`test_operational_indexes.py` appelait `ensure_operational_tables(engine)`
+enveloppé dans un `try/except Exception: pass` qui masquait un échec de
+setup réel quand ce fichier tournait seul ou en premier dans une session
+(le schéma ORM, dont dépendent les FK du DDL brut, n'existait pas encore).
+Corrigé en appelant `get_test_client()` avant d'importer `engine`
+(garantit `Base.metadata.create_all()`), et en retirant le `try/except`
+qui n'avait plus lieu d'être.
+
+Testé : suite complète (1628 passed / 18 skipped / 0 failed, `alembic
+upgrade head` appliqué) avant et après le correctif ; suite SQLite par
+défaut (1183 passed) inchangée.
+
+## Audit ID-paramètre : 9 fuites par absence de contrôle de propriété (PR #241, 2026-09-27)
+
+Reprise de la méthodologie d'audit établie (chercher, pour chaque
+endpoint accessible à un rôle restreint/auto-scopé — STUDENT, PARENT,
+ALUMNI, ou TEACHER pour ses propres élèves —, si la ressource identifiée
+par un paramètre d'URL est bien vérifiée comme appartenant à l'appelant,
+au-delà du simple `tenant_id`). 9 failles réelles trouvées et corrigées,
+avec suite de régression PostgreSQL réel dédiée (14 tests, chacun confirmé
+en échec avant le correctif correspondant puis en succès après) :
+
+- `operational/school_life.py::read_grades` et `::read_attendance`
+  n'avaient **aucun** contrôle de permission (`Depends(get_current_user)`
+  seul) — n'importe quel utilisateur authentifié, de n'importe quel rôle,
+  pouvait omettre le filtre `student_id` et recevoir toutes les notes/
+  présences du tenant. Corrigé avec `grades:read`/`attendance:read` et un
+  scoping identique à celui d'`academic/grades.py::list_grades`.
+- `academic/students.py::list_students` et `::get_student` n'avaient
+  aucun scoping — un PARENT (`students:read`) pouvait lister/lire
+  n'importe quel élève du tenant, pas seulement ses propres enfants.
+  ALUMNI détenait aussi `students:read` sans aucun usage légitime
+  (jamais consommé côté frontend) — retiré entièrement de
+  `ROLE_PERMISSIONS["ALUMNI"]`, avec `attendance:read` (même raison).
+- `academic/grades.py::list_grades` scopait déjà STUDENT/PARENT, mais un
+  trou préexistant laissait ALUMNI (détient `grades:read` pour son propre
+  bulletin) tomber dans la branche non filtrée — corrigé en intégrant
+  ALUMNI au même helper de scoping. `::get_grade` et
+  `::get_student_average` (routes par id) n'avaient aucun scoping du
+  tout.
+- `academic/homework.py::get_homework` renvoyait la soumission de
+  **tous** les élèves (contenu, note, feedback) pour un id de devoir,
+  quel que soit l'appelant.
+- `finance/payments.py::get_payment_receipt` et
+  `finance/payment_schedules.py::get_payment_schedule` récupéraient par
+  id + tenant_id uniquement — un PARENT pouvait lire le reçu ou
+  l'échéancier d'une autre famille en devinant/énumérant un id, alors que
+  la liste des factures voisine scopait déjà PARENT à ses propres
+  enfants.
+
+Laissé délibérément hors périmètre, documenté dans la PR comme suivi de
+sévérité moindre (pas une fuite vers un rôle non autorisé, mais un
+dépassement de périmètre) : un TEACHER, disposant d'`attendance:write`
+sur tout le tenant, pouvait modifier/supprimer la présence d'une classe
+qui n'est pas la sienne (`PATCH`/`DELETE /attendance/{id}/` et le
+`PUT /school-life/attendance/{id}/` miroir) — corrigé séparément
+ci-dessous.
+
+Testé : `backend/tests/test_ownership_scoping_2026_09_26.py` (14 tests,
+PostgreSQL réel) ; suite complète (1642 passed / 18 skipped / 0 failed,
+`alembic upgrade head` appliqué) et suite SQLite par défaut inchangées.
+
+## Durcissement du périmètre TEACHER sur les présences (2026-09-27)
+
+Suivi direct du point laissé en suspens dans le correctif ci-dessus : un
+TEACHER détient `attendance:write` sur tout le tenant, donc sans ce
+correctif n'importe quel enseignant pouvait modifier ou supprimer la
+présence d'une classe qu'il n'enseigne pas — `PATCH`/
+`DELETE /attendance/{id}/` (`academic/attendance.py`) et le
+`PUT /school-life/attendance/{id}/` miroir
+(`operational/school_life.py`). Pas une fuite vers un rôle non autorisé
+(un enseignant peut déjà lire/écrire des présences en général), mais un
+élargissement du périmètre au-delà du "mes propres classes" que
+présente l'interface. Le `DELETE /school-life/attendance/{id}/` miroir
+exige déjà `settings:write`, qu'un TEACHER ne détient jamais — non
+concerné, aucun changement nécessaire.
+
+Corrigé en réutilisant la table `schedule` (déjà utilisée pour la même
+vérification par `operational/schedule.py::_can_view_roster` —
+`schedule.teacher_id == appelant`) : un nouvel helper
+`_teacher_may_modify` (dupliqué par fichier, même convention que
+`_allowed_student_ids_for_caller`) vérifie qu'une ligne `schedule`
+prouve que l'appelant enseigne bien la classe (`classroom_id`) de
+l'enregistrement de présence visé. Les rôles privilégiés et les
+enregistrements sans `classroom_id` (propriété indéterminable — données
+anciennes) restent sans restriction, pour ne rien casser d'existant.
+
+Testé : `backend/tests/test_teacher_attendance_scope_2026_09_27.py`
+(7 tests, PostgreSQL réel, les 3 tests négatifs confirmés en échec avant
+le correctif puis en succès après) ; suite complète (`alembic upgrade
+head` appliqué) et suite SQLite par défaut inchangées, aucune régression.

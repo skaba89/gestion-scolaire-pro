@@ -73,6 +73,31 @@ def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_i
     return allowed_ids
 
 
+def _teacher_may_modify(db: Session, *, current_user: dict, tenant_id: str, classroom_id: Optional[str]) -> bool:
+    """Ownership scoping (institutional-readiness audit, 2026-09): a TEACHER
+    holds attendance:write tenant-wide, so without this check any teacher
+    could PATCH/DELETE any other teacher's class's attendance record —
+    not a leak to an unauthorized role, but a scope-widening gap versus
+    the "own classes only" workflow the UI presents. Mirrors the
+    established teacher-ownership pattern in operational/schedule.py's
+    `_can_view_roster` (schedule.teacher_id == caller). Returns True for
+    any privileged role (unrestricted) or a caller who isn't a
+    (non-privileged) TEACHER. A record with no classroom_id predates this
+    check or was entered without one — permissive fallback since ownership
+    can't be determined, matching prior behavior for that case."""
+    roles = set(current_user.get("roles", []))
+    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR",
+                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
+    if privileged or "TEACHER" not in roles:
+        return True
+    if not classroom_id:
+        return True
+    row = db.execute(text(
+        "SELECT 1 FROM schedule WHERE tenant_id = :tid AND class_id = :cid AND teacher_id = :uid"
+    ), {"tid": tenant_id, "cid": classroom_id, "uid": current_user.get("id")}).first()
+    return row is not None
+
+
 def _validate_attendance_fks(db: Session, *, tenant_id: str, student_id: str,
                               subject_id: Optional[str], classroom_id: Optional[str]) -> None:
     """FK injection guard (institutional-readiness audit, 2026-09):
@@ -447,6 +472,15 @@ def update_attendance(
         if cached is not None:
             return cached[0]
 
+    existing = db.execute(text(
+        "SELECT classroom_id FROM attendance WHERE id = :id AND tenant_id = :tenant_id"
+    ), {"id": str(attendance_id), "tenant_id": tenant_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    if not _teacher_may_modify(db, current_user=current_user, tenant_id=tenant_id,
+                                classroom_id=str(existing["classroom_id"]) if existing["classroom_id"] else None):
+        raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
+
     result = db.execute(text("""
         UPDATE attendance
         SET status = :status, reason = :reason, updated_at = NOW()
@@ -486,6 +520,16 @@ def delete_attendance(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+
+    existing = db.execute(text(
+        "SELECT classroom_id FROM attendance WHERE id = :id AND tenant_id = :tenant_id"
+    ), {"id": str(attendance_id), "tenant_id": tenant_id}).mappings().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    if not _teacher_may_modify(db, current_user=current_user, tenant_id=tenant_id,
+                                classroom_id=str(existing["classroom_id"]) if existing["classroom_id"] else None):
+        raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
+
     result = db.execute(text("""
         DELETE FROM attendance WHERE id = :id AND tenant_id = :tenant_id RETURNING id
     """), {"id": str(attendance_id), "tenant_id": tenant_id})
