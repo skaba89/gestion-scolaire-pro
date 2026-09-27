@@ -7,12 +7,18 @@
 //     --env BASE_URL=http://localhost:8000 \
 //     --env LOGIN_EMAIL=admin@school.test \
 //     --env LOGIN_PASSWORD=... \
+//     --env LOGIN_TOTP_SECRET=... \
 //     load-tests/api-baseline.js
+//
+// LOGIN_TOTP_SECRET (base32) is only required if the account has TOTP MFA
+// enrolled — mandatory for privileged roles like TENANT_ADMIN once the
+// target enforces ENFORCE_MFA=true (the default outside DEBUG).
 //
 // The login endpoint is rate-limited (5/minute): the token is fetched once
 // in setup() and shared by every virtual user.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { generateTotp } from './lib/totp.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 const API = `${BASE_URL}/api/v1`;
@@ -43,6 +49,7 @@ export const options = {
 export function setup() {
   const email = __ENV.LOGIN_EMAIL;
   const password = __ENV.LOGIN_PASSWORD;
+  const totpSecret = __ENV.LOGIN_TOTP_SECRET || '';
   if (!email || !password) {
     throw new Error('LOGIN_EMAIL and LOGIN_PASSWORD are required');
   }
@@ -52,6 +59,28 @@ export function setup() {
   });
   if (res.status !== 200) {
     throw new Error(`login failed: ${res.status} ${res.body}`);
+  }
+  // SECURITY (national-readiness audit, 2026-09) made MFA mandatory for
+  // privileged roles (TENANT_ADMIN among them) after this script was
+  // first built — a login account with MFA enrolled now returns
+  // {mfa_required: true, mfa_token: ...} here instead of a usable
+  // access_token (see lib/scenarios.js::login() for the same fix applied
+  // to campaign.js/saturation.js/resilience.js). Discovered by actually
+  // running this script's tooling against a live instance for the first
+  // time. Pass --env LOGIN_TOTP_SECRET=<base32 secret> for an account
+  // enrolled in TOTP MFA.
+  if (res.json('mfa_required')) {
+    if (!totpSecret) {
+      throw new Error('login requires MFA but LOGIN_TOTP_SECRET was not provided');
+    }
+    const verifyRes = http.post(`${API}/mfa/login/verify/`, JSON.stringify({
+      mfa_token: res.json('mfa_token'),
+      code: generateTotp(totpSecret),
+    }), { headers: { 'Content-Type': 'application/json' } });
+    if (verifyRes.status !== 200) {
+      throw new Error(`MFA verify failed: ${verifyRes.status} ${verifyRes.body}`);
+    }
+    return { token: verifyRes.json('access_token') };
   }
   return { token: res.json('access_token') };
 }

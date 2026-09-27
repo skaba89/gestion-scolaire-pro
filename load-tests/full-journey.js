@@ -45,6 +45,7 @@ import http from 'k6/http';
 import { check, group, sleep } from 'k6';
 import { SharedArray } from 'k6/data';
 import { Trend } from 'k6/metrics';
+import { generateTotp } from './lib/totp.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 const API = `${BASE_URL}/api/v1`;
@@ -149,6 +150,28 @@ export function setup() {
     }, { headers });
     if (res.status !== 200) {
       throw new Error(`login failed for tenant ${t.slug}: ${res.status} ${res.body}`);
+    }
+    // SECURITY (national-readiness audit, 2026-09) made MFA mandatory for
+    // privileged roles (TENANT_ADMIN among them) after this script was
+    // first built — a seeded admin with MFA enrolled now returns
+    // {mfa_required: true, mfa_token: ...} here instead of a usable
+    // access_token (see lib/scenarios.js::login() for the same fix
+    // applied to campaign.js/saturation.js/resilience.js). Discovered by
+    // actually running this script's tooling against a live instance for
+    // the first time.
+    if (res.json('mfa_required')) {
+      if (!t.totp_secret) {
+        throw new Error(`login for tenant ${t.slug} requires MFA but no totp_secret was provided`);
+      }
+      const verifyRes = http.post(`${API}/mfa/login/verify/`, JSON.stringify({
+        mfa_token: res.json('mfa_token'),
+        code: generateTotp(t.totp_secret),
+      }), { headers: { ...headers, 'Content-Type': 'application/json' } });
+      if (verifyRes.status !== 200) {
+        throw new Error(`MFA verify failed for tenant ${t.slug}: ${verifyRes.status} ${verifyRes.body}`);
+      }
+      tokensBySlug[t.slug] = verifyRes.json('access_token');
+      return;
     }
     tokensBySlug[t.slug] = res.json('access_token');
   });

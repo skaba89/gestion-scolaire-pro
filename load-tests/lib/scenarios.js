@@ -11,6 +11,7 @@
 import http from 'k6/http';
 import { check, group } from 'k6';
 import { Trend, Counter } from 'k6/metrics';
+import { generateTotp } from './totp.js';
 
 export const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 export const API = `${BASE_URL}/api/v1`;
@@ -56,9 +57,38 @@ export function login(tenant, extraHeaders = {}) {
     username: tenant.email,
     password: tenant.password,
   }, { headers: extraHeaders, tags: { flow: 'login' } }));
-  trends.login.add(Date.now() - start);
   check(res, { 'login 200': (r) => r.status === 200 });
-  return res.status === 200 ? res.json('access_token') : null;
+  if (res.status !== 200) {
+    trends.login.add(Date.now() - start);
+    return null;
+  }
+
+  // SECURITY (national-readiness audit, 2026-09) made MFA mandatory for
+  // privileged roles (TENANT_ADMIN among them — see
+  // PRIVILEGED_ROLES_REQUIRING_MFA, auth.py) after this campaign was first
+  // built: a seeded tenant admin with MFA enrolled now gets
+  // {mfa_required: true, mfa_token: ...} here instead of a usable
+  // access_token, and must complete /mfa/login/verify/ with a TOTP code
+  // before the login flow's own latency (flow_login_ms) is actually done.
+  // Discovered by actually running this campaign's tooling against a live
+  // instance for the first time (see docs/reports/PERF_CAMPAIGN_2026-09.md).
+  if (res.json('mfa_required')) {
+    if (!tenant.totp_secret) {
+      trends.login.add(Date.now() - start);
+      return null;
+    }
+    const code = generateTotp(tenant.totp_secret);
+    const verifyRes = track(http.post(`${API}/mfa/login/verify/`, JSON.stringify({
+      mfa_token: res.json('mfa_token'),
+      code,
+    }), { headers: { ...extraHeaders, 'Content-Type': 'application/json' }, tags: { flow: 'login' } }));
+    trends.login.add(Date.now() - start);
+    check(verifyRes, { 'mfa verify 200': (r) => r.status === 200 });
+    return verifyRes.status === 200 ? verifyRes.json('access_token') : null;
+  }
+
+  trends.login.add(Date.now() - start);
+  return res.json('access_token');
 }
 
 // national-readiness audit, 2026-09: campaign.js/saturation.js/

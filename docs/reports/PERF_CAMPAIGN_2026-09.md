@@ -1,8 +1,9 @@
 # Campagne de tests de performance — pré-déploiement multi-établissement → national (2026-09)
 
 > **Statut des résultats aux paliers 250/500/1000/2500 VU : toujours NON
-> VÉRIFIÉ** — voir §11 pour ce qui a changé depuis la version précédente
-> de cette note. Ce document livre l'**outillage reproductible** (scripts
+> VÉRIFIÉ** — voir §11 et §12 pour ce qui a changé depuis la version
+> précédente de cette note (§12 : validation d'outillage uniquement,
+> 2026-09-27, toujours pas de mesure de capacité). Ce document livre l'**outillage reproductible** (scripts
 > k6, capture d'infra, injection de pannes, synthèse) et la **méthode**.
 > Les chiffres de charge (RPS, p95, point de saturation) à ces paliers
 > doivent être produits en exécutant la campagne sur un environnement
@@ -214,3 +215,92 @@ distinguer du bruit de ce garde-fou. C'était un prérequis bloquant non
 identifié avant ce run, pas une optimisation — sans lui, "Test national
 1000+" ne pouvait tout simplement pas être mesuré avec l'outillage
 existant, quelle que soit la puissance de la machine cible.
+
+## 12. Second passage réel (2026-09-27) — validation d'outillage uniquement
+
+**Ce qui A été vérifié** : `smoke.js`, `api-baseline.js`, `full-journey.js`
+(palier `TIER=10`) et l'ensemble des flux partagés de `lib/scenarios.js`
+(`readMix`, `attendanceWrite`, `gradesWrite`, `offlineResyncBurst`, via le
+nouveau `load-tests/tooling-smoke-check.js`), contre une instance vivante
+locale (PostgreSQL + Redis réels, migrations à jour). Objectif unique :
+confirmer que l'outillage n'a pas dérivé depuis le premier passage
+(2026-09-21) et depuis les nombreux correctifs de sécurité fusionnés
+depuis (MFA obligatoire, RLS, contrôles de propriété — voir
+`docs/SECURITY_MODEL.md`).
+
+**Ce qui n'a PAS été vérifié, toujours** : les paliers 250/500/1000/2500
+VU — même limite que le §11 (une seule machine sandbox mono-conteneur
+n'est de toute façon pas représentative, et cette session n'a pas accès à
+un environnement dimensionné comme la production ni à Azure réel).
+
+### Constat n°3 (bloquant, désormais corrigé) : le MFA obligatoire cassait tout login de la campagne
+
+Le premier run de `api-baseline.js` a échoué dès `setup()` : `403 "L'authentification
+multi-facteurs (MFA) est obligatoire pour ce compte"`. Cause : un
+durcissement de sécurité fusionné après l'écriture initiale de cette
+campagne (2026-09-13) rend le MFA obligatoire pour les rôles privilégiés,
+dont `TENANT_ADMIN` — le rôle que provisionne
+`backend/scripts/provision_load_test_tenants.py` (voir
+`PRIVILEGED_ROLES_REQUIRING_MFA`, `auth.py`). Un compte de campagne sans
+MFA enrôlé ne peut simplement plus se connecter dès que la cible applique
+`ENFORCE_MFA=true` (le défaut hors `DEBUG`, donc le cas représentatif
+d'une cible de type production).
+
+**Correction appliquée** :
+- `provision_load_test_tenants.py` enrôle désormais un secret TOTP réel
+  (`pyotp`, `verified=TRUE` directement en base — même convention que le
+  script contourne déjà le chemin HTTP rate-limité) et l'expose dans le
+  JSON de sortie (`totp_secret`).
+- `load-tests/lib/totp.js` (nouveau) réimplémente RFC 6238 en JS pur pour
+  k6 (aucune lib TOTP native) — **validé octet par octet contre `pyotp`**
+  pour 4 secrets/horodatages avant toute utilisation
+  (`load-tests/lib/totp_selftest.js`). Piège trouvé et corrigé pendant
+  cette validation : `k6/crypto`'s `hmac()` mal-encode tout octet ≥ 0x80
+  quand la clé/donnée est une chaîne JS classique — confirmé en comparant
+  à `hmac` Python pour une clé à octets hauts fixe ; corrigé en passant
+  des `Uint8Array` plutôt que des chaînes hexadécimales.
+- `lib/scenarios.js::login()`, `full-journey.js` et `api-baseline.js`
+  complètent désormais automatiquement `/mfa/login/verify/` avec le code
+  TOTP calculé quand la réponse de login porte `mfa_required: true`.
+
+### Constat n°4 (non bloquant pour la sécurité, bloquant pour la campagne, désormais corrigé) : plan d'abonnement 'starter' insuffisant
+
+`full-journey.js`'s `import preview` échouait à 100% (`402 Payment
+Required` : "nécessite le plan 'pro' ou supérieur"). Cause : un contrôle
+`require_plan()` fusionné après l'écriture initiale de cette campagne
+gate `POST /import/students/preview/` (et probablement d'autres flux) au
+plan `'pro'`+, alors que `provision_load_test_tenants.py` créait les
+tenants avec le plan par défaut `'starter'`.
+
+**Correction appliquée** : le script provisionne désormais
+`subscription_plan='enterprise'`, `subscription_status='active'` — le
+plan le plus élevé, pour que tout flux gaté par plan s'exécute plutôt que
+de renvoyer 402 de façon systématique et invisible dans les métriques
+métier (un 402 n'est pas un signal de saturation, juste un artefact de
+provisionnement).
+
+### Résultat après ces deux correctifs
+
+`smoke.js` (0% échec), `api-baseline.js` (100% checks, 0% échec, p95
+54ms/p99 93ms à 50 VU), `tooling-smoke-check.js` (100% checks, tous les
+flux partagés) : verts. `full-journey.js` TIER=10 : 100% des `check()`
+réussissent (11245/11245) ; le seuil `http_req_failed<0.02` global reste
+franchi (~5%) mais **par conception** — plusieurs flux acceptent
+explicitement des réponses non-2xx comme succès (429 de rate-limit sur le
+formulaire de contact, gestion d'erreur webhook/resync "not 5xx" plutôt
+que 2xx strict) que la métrique `http_req_failed` de k6 ne distingue pas
+d'un vrai échec ; non un défaut d'outillage.
+
+**Angle mort documenté, non corrigé ici** (voir aussi
+`docs/SECURITY_MODEL.md`) : le check santé `/health/ready`
+(`app/main.py::_check_rls_status`) et les migrations RLS catch-all ne
+voient jamais une table fille sans sa propre colonne `tenant_id` — cinq
+tables concernées, corrigées séparément (voir historique Git,
+"add missing RLS on child tables without their own tenant_id").
+
+Les paliers 250/500/1000/2500 VU restent, comme au §11, à exécuter pour
+de vrai sur un environnement dimensionné comme la production — mais
+avant ce passage, ils auraient échoué dès `setup()` (MFA) ou produit des
+métriques faussées par des 402 systématiques sur les flux gatés par plan,
+un deuxième prérequis bloquant non identifié avant d'avoir réellement
+exécuté l'outillage contre une instance vivante.
