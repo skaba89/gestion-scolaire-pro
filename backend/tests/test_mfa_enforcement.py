@@ -108,6 +108,35 @@ def _fresh_ministry_admin() -> str:
     return email
 
 
+def _fresh_platform_role(role: str) -> str:
+    """Generic platform-level (tenant_id = NULL) user with an arbitrary
+    role string — used to prove auth.py's MFA gate reads live from
+    app.core.security.PRIVILEGED_ROLES rather than a separate,
+    hand-maintained copy (see TestPrivilegedRolesSingleSourceOfTruth)."""
+    import uuid
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.user import User
+    from app.models.user_role import UserRole
+
+    user_id = str(uuid.uuid4())
+    email = f"{role.lower()}.{uuid.uuid4().hex[:8]}@education.gov.gn"
+    db = SessionLocal()
+    try:
+        db.add(User(
+            id=user_id, tenant_id=None, email=email, username=email,
+            first_name="Test", last_name=role,
+            password_hash=get_password_hash(STRONG_PASSWORD),
+            is_active=True, is_verified=True,
+        ))
+        db.add(UserRole(user_id=user_id, tenant_id=None, role=role))
+        db.commit()
+    finally:
+        db.close()
+    return email
+
+
 def _fresh_national_inspector() -> str:
     """NATIONAL_INSPECTOR is platform-level (no tenant_id), same shape as
     MINISTRY_ADMIN — added directly to PRIVILEGED_ROLES_REQUIRING_MFA when
@@ -293,6 +322,71 @@ class TestMFAEnforcementForPrivilegedRoles:
 
         email = _fresh_institutional_role(role)
         _set_mfa_enabled(email, True)
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 200, resp.text
+
+
+class TestPrivilegedRolesSingleSourceOfTruth:
+    """auth.py's login handler used to keep its own hand-maintained copy of
+    the privileged-role set (PRIVILEGED_ROLES_REQUIRING_MFA), duplicating
+    app.core.security.PRIVILEGED_ROLES (used for fail-closed token
+    revocation). That duplication silently fell out of sync three separate
+    times — MINISTRY_ADMIN, then REGIONAL_DIRECTOR/PREFECTURE_ADMIN/
+    COMMUNE_ADMIN, were each added to PRIVILEGED_ROLES without the login
+    gate's own copy being updated, leaving each with privileged access and
+    no MFA requirement until the gap was found (see the tests above,
+    unchanged, still passing with the deduplicated set)."""
+
+    def test_auth_module_imports_the_same_set_object_as_security(self):
+        """The direct regression guard: auth.py imports PRIVILEGED_ROLES
+        with `from app.core.security import PRIVILEGED_ROLES`, which binds
+        the exact same set object into auth.py's namespace (not a copy of
+        its current contents at import time). `is` — not `==` — is the
+        right check here: a future change that reintroduces a
+        separately-defined literal in auth.py, even one that happens to
+        list the same roles today, would still be a different object and
+        would drift the moment either one is edited without the other —
+        exactly the bug this dedup fixes. `==` would not catch that until
+        the two sets actually disagreed."""
+        from app.api.v1.endpoints.core import auth as auth_module
+        from app.core.security import PRIVILEGED_ROLES
+
+        assert auth_module.PRIVILEGED_ROLES is PRIVILEGED_ROLES
+
+    def test_arbitrary_role_added_to_privileged_roles_requires_mfa(self, monkeypatch):
+        """Behavioral confirmation: whatever set auth.py's login handler
+        checks membership against, adding a role to it makes that role
+        MFA-gated with no other code change. Patches the name as bound in
+        auth.py's own module namespace (import copies the reference, so
+        patching app.core.security.PRIVILEGED_ROLES after the fact would
+        not be seen here) — combined with the identity test above, this
+        confirms both that it's the same object AND that membership in it
+        is what actually gates login."""
+        from app.api.v1.endpoints.core import auth as auth_module
+
+        synthetic_role = "TEST_SYNTHETIC_PRIVILEGED_ROLE"
+        monkeypatch.setattr(
+            auth_module, "PRIVILEGED_ROLES",
+            auth_module.PRIVILEGED_ROLES | {synthetic_role},
+        )
+        from app.core.config import settings as app_settings
+
+        email = _fresh_platform_role(synthetic_role)
+        monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
+
+        resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert resp.status_code == 403, resp.text
+        assert "MFA" in resp.json()["detail"]
+
+    def test_role_not_in_privileged_roles_does_not_require_mfa(self, monkeypatch):
+        """Control case: a role that was never added to PRIVILEGED_ROLES
+        must not be gated — proves the previous test's 403 comes from the
+        set membership, not from every unknown role being blocked."""
+        from app.core.config import settings as app_settings
+
+        email = _fresh_platform_role("TEST_NON_PRIVILEGED_ROLE")
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})

@@ -153,17 +153,25 @@ async def _get_token_version_from_redis(user_id: str) -> int:
 #
 # DIRECTOR/ACCOUNTANT added (institutional-readiness audit, 2026-09): both
 # are already documented as privileged, MFA-mandatory roles alongside
-# SUPER_ADMIN/TENANT_ADMIN (see PRIVILEGED_ROLES_REQUIRING_MFA, auth.py) —
-# their absence here meant a DIRECTOR or ACCOUNTANT whose token was
-# blacklisted (logout, password change, logout-all) was fail-OPEN during a
-# Redis outage, the exact class of bypass this differentiated-revocation
-# policy exists to close for every other privileged role.
+# SUPER_ADMIN/TENANT_ADMIN (this same set is also what auth.py's login
+# handler checks against to require MFA — see the note below) — their
+# absence here meant a DIRECTOR or ACCOUNTANT whose token was blacklisted
+# (logout, password change, logout-all) was fail-OPEN during a Redis
+# outage, the exact class of bypass this differentiated-revocation policy
+# exists to close for every other privileged role.
 #
 # NATIONAL_INSPECTOR added (national-readiness audit, 2026-09): platform-
 # level like MINISTRY_ADMIN (tenant_id NULL), same class of institutional
 # role — docs/INSTITUTIONAL_ROLES.md listed it as "not implemented yet"
 # until now; added with the same rigor called for there (dedicated
 # permission, scoped endpoint, MFA, tests, doc update in the same change).
+#
+# auth.py's login handler imports this exact set to gate mandatory MFA —
+# it used to keep its own hand-maintained copy (PRIVILEGED_ROLES_REQUIRING_MFA),
+# which silently fell out of sync with this one three separate times
+# (MINISTRY_ADMIN, then REGIONAL_DIRECTOR/PREFECTURE_ADMIN/COMMUNE_ADMIN,
+# were each added here without the other copy being updated). Deduplicated
+# (2026-09) so a new privileged role only needs to be added once, here.
 PRIVILEGED_ROLES: set[str] = {
     "SUPER_ADMIN",
     "TENANT_ADMIN",
