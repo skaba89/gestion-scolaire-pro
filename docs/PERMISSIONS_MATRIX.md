@@ -593,3 +593,34 @@ Testé : `backend/tests/test_teacher_attendance_scope_2026_09_27.py`
 (7 tests, PostgreSQL réel, les 3 tests négatifs confirmés en échec avant
 le correctif puis en succès après) ; suite complète (`alembic upgrade
 head` appliqué) et suite SQLite par défaut inchangées, aucune régression.
+
+## Endpoints de listage sans aucun contrôle de permission (2026-09-27)
+
+Nouveau passage d'audit ciblant des modules jamais couverts jusqu'ici
+(bibliothèque, clubs, inventaire/POS). Même classe de bug que les
+correctifs précédents de cette piste : un endpoint `GET` de listage
+n'avait **aucune** dépendance de permission (`Depends(get_current_user)`
+seul), alors que les endpoints d'écriture sur la même ressource exigent
+une vraie permission — 3 fichiers concernés :
+
+- `operational/library.py::list_borrowers` (`GET /library/borrowers/`) :
+  n'importe quel utilisateur authentifié du tenant pouvait lister tous
+  les emprunteurs actifs (nom complet + email), sans lien avec ses
+  propres emprunts. Corrigé avec `library:read` (actuellement détenu
+  uniquement par `TENANT_ADMIN`) — `list_resources` (catalogue, sans
+  PII) reste volontairement ouvert.
+- `operational/clubs.py::list_memberships` (`GET /clubs/memberships/`) :
+  même trou, renvoyait chaque adhésion (élève + club + rôle) sur tout le
+  tenant. Corrigé avec `clubs:read` (`TENANT_ADMIN` uniquement) —
+  `list_clubs` (catalogue des clubs) reste ouvert.
+- `operational/inventory.py::list_categories`/`list_items`/
+  `list_transactions`/`list_orders` : même trou sur les 4 — `list_orders`
+  renvoyait en plus l'historique d'achats de chaque élève (nom, matricule,
+  montant) sur tout le tenant. Corrigé avec `inventory:read` (détenu par
+  `TENANT_ADMIN`/`DIRECTOR`/`STAFF`/`ACCOUNTANT`/`SECRETARY` — aucun rôle
+  restreint STUDENT/PARENT/TEACHER/ALUMNI ne le détient).
+
+Testé : `backend/tests/test_no_permission_listing_endpoints_2026_09_27.py`
+(9 tests — 6 négatifs confirmés en échec avant le correctif, en succès
+après, via `git stash`) ; suite complète (`alembic upgrade head`
+appliqué) et suite SQLite par défaut inchangées, aucune régression.

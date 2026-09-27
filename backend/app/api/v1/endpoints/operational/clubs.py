@@ -121,7 +121,16 @@ def list_memberships(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): had NO
+    # permission check at all (get_current_user only), while
+    # add_club_member/remove_club_member below require settings:write —
+    # any authenticated tenant user could list every membership
+    # (student_id + club_id + role) tenant-wide, with no ownership
+    # scoping. clubs:read is currently only held by TENANT_ADMIN (see
+    # ROLE_PERMISSIONS) — no legitimate STUDENT/PARENT/TEACHER workflow
+    # needs the full roster, unlike list_clubs() above (catalog of clubs,
+    # no per-student data), which stays open.
+    current_user: dict = Depends(require_permission("clubs:read")),
 ):
     tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:

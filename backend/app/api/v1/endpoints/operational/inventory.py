@@ -45,7 +45,7 @@ class OrderCreateBody(BaseModel):
 # --- Endpoints ---
 
 @router.get("/categories/")
-def list_categories(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def list_categories(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("inventory:read"))):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
@@ -77,7 +77,7 @@ def list_items(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("inventory:read")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
@@ -166,7 +166,7 @@ def list_transactions(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("inventory:read")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
@@ -226,7 +226,19 @@ def list_orders(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): list_categories/
+    # list_items/list_transactions/list_orders had NO permission check at
+    # all (get_current_user only), while every write on the same resources
+    # (create_item/update_item/delete_item/adjust_stock/create_order)
+    # requires inventory:write — any authenticated tenant user could read
+    # the full stock catalogue, movement log, and (list_orders) every
+    # student's purchase history (name + registration number + amount),
+    # tenant-wide, with no ownership scoping. inventory:read is held by
+    # TENANT_ADMIN/DIRECTOR/STAFF/ACCOUNTANT/SECRETARY (see
+    # ROLE_PERMISSIONS) — no narrow role (STUDENT/PARENT/TEACHER/ALUMNI)
+    # holds it, so this closes the gap with no legitimate workflow
+    # depending on the old open access.
+    current_user: dict = Depends(require_permission("inventory:read")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
