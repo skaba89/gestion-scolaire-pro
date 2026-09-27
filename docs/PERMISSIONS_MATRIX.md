@@ -672,3 +672,48 @@ partie `incidents` (table opérationnelle SQL brute), les 6 tests
 négatifs confirmés en échec avant le correctif puis en succès après) ;
 suite complète (`alembic upgrade head` appliqué) et suite SQLite par
 défaut, aucune régression.
+
+## Fuite de secrets tenant via `GET /tenants/INFOS/` — 4e balayage (2026-09-27)
+
+Trouvé par un 4e balayage systématique des fichiers d'endpoints jamais
+encore couverts par les 3 précédents. Bug différent des sections
+ci-dessus (pas une absence de permission sur une route de listage, mais
+une seconde route qui re-expose un champ déjà identifié comme sensible
+et déjà protégé ailleurs) mais avec le même niveau de gravité.
+
+`tenant.settings` est un blob JSON plat partagé par tous les écrans de
+paramétrage — il contient aussi de vrais secrets tiers (clés API
+CinetPay/PayTech, mot de passe SMTP, jetons WhatsApp Cloud API, clé
+Resend), lus directement par `app/services/payment_gateways.py`,
+`app/services/notifications.py` et `operational/parents.py`.
+`GET /tenants/settings/` avait déjà été corrigé pour retirer ces clés du
+retour à quiconque ne détient pas `settings:write`
+(`_TENANT_SETTINGS_SECRET_KEYS`, voir plus haut dans ce document). Mais
+`GET /tenants/INFOS/` (`core/tenants.py::get_tenant_infos`) est une
+seconde route, apparemment oubliée lors de ce premier correctif, qui
+renvoie le même `tenant.settings` **sans aucune redaction ni aucun
+contrôle de permission** (`Depends(get_current_user)` seul) — n'importe
+quel utilisateur authentifié du tenant (STUDENT, PARENT, TEACHER…)
+pouvait donc lire ces secrets en clair via cette route alternative.
+
+Corrigé en appliquant exactement la même redaction que
+`get_tenant_settings` : `_TENANT_SETTINGS_SECRET_KEYS` a été déplacé
+avant les deux fonctions (au lieu d'être défini juste avant
+`get_tenant_settings` seul) et est maintenant réutilisé par
+`get_tenant_infos`, qui retire les clés secrètes du sous-objet
+`settings` pour tout appelant qui ne détient pas `settings:write`. Pas
+de nouveau contrôle `require_permission` ajouté (le frontend appelle
+cette route pour tout utilisateur authentifié afin de lire des métadonnées
+non sensibles comme le nom du tenant, la devise, etc. — `QuickEnrollmentDialog`
+et d'autres composants), exactement la même approche que le correctif
+précédent sur `/tenants/settings/`.
+
+Testé : `backend/tests/test_tenant_settings_secret_redaction.py` étendu
+avec une nouvelle classe `TestTenantInfosSecretRedaction` (12 tests au
+total dans le fichier après extension) — mêmes rôles/scénarios que la
+classe existante pour `/tenants/settings/`, adaptés à la structure
+imbriquée (`body["settings"]`) de `/tenants/INFOS/` ; les 4 tests
+négatifs confirmés en échec avant le correctif (`git stash` du
+correctif) puis en succès après. Suite complète exécutée sur PostgreSQL
+16 réel (`alembic upgrade head` appliqué) : 1701 passed/18 skipped ;
+suite SQLite par défaut : 1218 passed/501 skipped ; aucune régression.

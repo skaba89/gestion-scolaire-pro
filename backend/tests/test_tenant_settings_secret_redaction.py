@@ -29,6 +29,7 @@ from app.main import app  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 
 SETTINGS_URL = "/api/v1/tenants/settings/"
+INFOS_URL = "/api/v1/tenants/INFOS/"
 
 _PLACEHOLDER_PREFIX = "notarealcredential-fixture-value-"
 
@@ -135,3 +136,61 @@ class TestTenantSettingsSecretRedaction:
 
         assert resp.status_code == 200, resp.text
         assert resp.json() == {"logoUrl": "https://cdn.example.com/x.png"}
+
+
+class TestTenantInfosSecretRedaction:
+    """GET /tenants/INFOS/ — a second, apparently-forgotten route returning
+    the same tenant.settings blob (nested under the "settings" key this
+    time), found by a 4th audit sweep after the /tenants/settings/ leak
+    above was already fixed. Same bug, same fix: redact the known secret
+    keys for anyone who isn't a settings:write holder."""
+
+    @pytest.mark.parametrize("role", ["STUDENT", "PARENT", "TEACHER", "SECRETARY"])
+    def test_non_privileged_roles_never_see_secrets(self, role):
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id})
+
+        resp = client.get(INFOS_URL, headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()["settings"]
+        for key in _SECRETS:
+            assert key not in body, f"{key} leaked to role {role}"
+
+    @pytest.mark.parametrize("role", ["STUDENT", "PARENT", "TEACHER", "SECRETARY"])
+    def test_non_privileged_roles_still_see_non_secret_settings(self, role):
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id})
+
+        resp = client.get(INFOS_URL, headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()["settings"]
+        assert body["logoUrl"] == _NON_SECRETS["logoUrl"]
+        assert body["cinetPaySiteId"] == _NON_SECRETS["cinetPaySiteId"]
+
+    @pytest.mark.parametrize("role", ["TENANT_ADMIN", "DIRECTOR", "SUPER_ADMIN"])
+    def test_settings_write_holders_still_see_real_secret_values(self, role):
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id})
+
+        resp = client.get(INFOS_URL, headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()["settings"]
+        for key, value in _SECRETS.items():
+            assert body.get(key) == value
+
+    def test_non_settings_tenant_fields_are_unaffected(self):
+        """The redaction must only touch the settings blob — ordinary
+        tenant fields (name, slug, contact info) must pass through as
+        before."""
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": tenant_id})
+
+        resp = client.get(INFOS_URL, headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["id"] == tenant_id
+        assert body["name"] == "École Secrets Test"

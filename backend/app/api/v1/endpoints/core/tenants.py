@@ -319,6 +319,26 @@ async def list_tenants(
     offset = (page - 1) * page_size
     return query.offset(offset).limit(page_size).all()
 
+# SECURITY (institutional-readiness audit, 2026-09): tenant.settings is a
+# single flat JSON blob shared by every settings screen — it also holds
+# real third-party credentials (payment gateway API keys, SMTP password,
+# WhatsApp Cloud API tokens...), read directly from it by
+# app/services/payment_gateways.py, app/services/notifications.py, and
+# app/api/v1/endpoints/operational/parents.py. GET /tenants/INFOS/ below
+# had no permission check at all (only get_current_user) and returned
+# tenant.settings completely unfiltered, so ANY authenticated user of the
+# tenant — STUDENT, PARENT, TEACHER — could read those secrets back
+# verbatim. Moved here (was originally defined further down, next to its
+# sole prior user get_tenant_settings) and reused by both endpoints so
+# every route returning tenant.settings applies the same redaction.
+_TENANT_SETTINGS_SECRET_KEYS = {
+    "cinetPayApiKey", "paytechApiKey", "paytechSecretKey",
+    "smtpPass", "resendApiKey",
+    "whatsappAccessToken", "whatsappVerifyToken", "whatsappAppSecret",
+    "oneSignalApiKey", "androidSmsGatewayToken", "africastalkingApiKey",
+}
+
+
 @router.get("/INFOS/", response_model=dict)
 async def get_tenant_infos(
     request: Request,
@@ -333,6 +353,11 @@ async def get_tenant_infos(
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
 
+    tenant_settings = dict(tenant.settings or {})
+    if not user_has_permission(current_user, "settings:write"):
+        for key in _TENANT_SETTINGS_SECRET_KEYS:
+            tenant_settings.pop(key, None)
+
     return {
         "id": str(tenant.id),
         "name": tenant.name,
@@ -345,7 +370,7 @@ async def get_tenant_infos(
         "country": tenant.country,
         "currency": tenant.currency,
         "is_active": tenant.is_active,
-        "settings": tenant.settings or {},
+        "settings": tenant_settings,
         "created_at": tenant.created_at.isoformat() if tenant.created_at else None,
         "updated_at": tenant.updated_at.isoformat() if tenant.updated_at else None,
     }
@@ -369,32 +394,6 @@ async def get_tenant_by_slug(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return _build_public_response(tenant, db)
-
-# SECURITY (institutional-readiness audit, 2026-09): tenant.settings is a
-# single flat JSON blob shared by every settings screen — it also holds
-# real third-party credentials (payment gateway API keys, SMTP password,
-# WhatsApp Cloud API tokens...), read directly from it by
-# app/services/payment_gateways.py, app/services/notifications.py, and
-# app/api/v1/endpoints/operational/parents.py. This endpoint had no
-# permission check at all (only get_current_user), so ANY authenticated
-# user of the tenant — STUDENT, PARENT, TEACHER — could read those secrets
-# back verbatim. Every OTHER settings-secret endpoint in this codebase
-# (GET /notifications/settings/, GET /platform/email/health/) already
-# follows the opposite convention: never return a secret value, only
-# whether it's configured. This list mirrors that convention here instead
-# of 403ing the whole endpoint, because the frontend's SettingsProvider
-# calls this for every authenticated user to read ordinary, non-sensitive
-# settings (branding, quotas, feature flags) — only settings:write holders
-# (who can also see them via FinanceSettings.tsx/NotificationSettings.tsx,
-# both gated on settings:write) get the real values back, needed there to
-# prefill the edit form with the existing key.
-_TENANT_SETTINGS_SECRET_KEYS = {
-    "cinetPayApiKey", "paytechApiKey", "paytechSecretKey",
-    "smtpPass", "resendApiKey",
-    "whatsappAccessToken", "whatsappVerifyToken", "whatsappAppSecret",
-    "oneSignalApiKey", "androidSmsGatewayToken", "africastalkingApiKey",
-}
-
 
 @router.get("/settings/")
 async def get_tenant_settings(
