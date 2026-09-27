@@ -8,7 +8,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
@@ -58,7 +58,15 @@ def list_incidents(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): had NO
+    # permission check at all (get_current_user only), while
+    # create_incident/update_incident/resolve_incident/assign_incident below
+    # all require settings:write — any authenticated tenant user could read
+    # every incident's raw fields (title, description, notes, student_ids,
+    # location, occurred_at, reporter/resolver identity) tenant-wide. Gated
+    # on the same permission as its siblings; DIRECTOR already holds
+    # settings:write, so this doesn't regress existing DIRECTOR access.
+    current_user: dict = Depends(require_permission("settings:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:

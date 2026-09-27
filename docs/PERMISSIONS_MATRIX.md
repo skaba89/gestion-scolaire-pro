@@ -593,3 +593,51 @@ Testé : `backend/tests/test_teacher_attendance_scope_2026_09_27.py`
 (7 tests, PostgreSQL réel, les 3 tests négatifs confirmés en échec avant
 le correctif puis en succès après) ; suite complète (`alembic upgrade
 head` appliqué) et suite SQLite par défaut inchangées, aucune régression.
+
+## Endpoints de listage sans aucun contrôle de permission — 3e balayage (2026-09-27)
+
+Même famille de bug que la section "Balayage complet de la navigation
+admin" ci-dessus et que la section homonyme déjà présente dans une PR
+sœur ouverte le même jour (`fix/no-permission-listing-endpoints`) : un
+`GET` de listage n'avait *aucune* dépendance de permission
+(`Depends(get_current_user)` seul), alors que des routes sœurs sur la
+même ressource exigent une vraie permission. Trouvé par un 3e balayage
+systématique ciblant les fichiers d'endpoints jamais encore audités
+cette session.
+
+- `operational/incidents.py::list_incidents` (`GET /incidents/`) —
+  aucun contrôle, alors que `create_incident`/`update_incident`/
+  `resolve_incident`/`assign_incident` sur le même routeur exigent tous
+  `settings:write`. N'importe quel utilisateur authentifié du tenant
+  pouvait lire tout l'historique d'incidents en clair (titre,
+  description, notes, `student_ids`, localisation, identité du
+  rapporteur/résolveur), tenant-wide, paginé mais sans aucune
+  restriction. Corrigé en alignant sur `settings:write`, exactement
+  comme ses routes sœurs — `DIRECTOR` détient déjà `settings:write`
+  (`backend/app/core/security.py`), donc aucune régression pour ce rôle.
+- `operational/infrastructure.py::read_enrollments`
+  (`GET /infrastructure/enrollments/`) — aucun contrôle, alors que sa
+  propre route alias `aliases.py::list_enrollments_alias`
+  (`GET /enrollments/`, qui sert les mêmes données) exige déjà
+  `enrollments:read`. Corrigé en alignant sur `enrollments:read`, pour
+  faire correspondre les deux chemins d'accès à la même ressource.
+- `operational/communication.py::get_messaging_users`
+  (`GET /communication/messaging/users/`) — aucun contrôle. N'importe
+  quel utilisateur authentifié (STUDENT/PARENT/ALUMNI compris) pouvait
+  énumérer id/nom/email/rôles de tous les utilisateurs du tenant. Le
+  frontend n'appelle cette route que depuis des composants de
+  composition de message réservés à l'admin
+  (`AdminMessageComposer`/`ExternalMessageComposer`, rendus uniquement
+  sur `/admin/messages` et `/admin/users`) ; corrigé en exigeant
+  `users:read`, qui correspond à la sémantique réelle de la route
+  ("lister tous les utilisateurs") et aux rôles déjà censés y accéder
+  (`TEACHER` le détient déjà, par exemple).
+
+Testé :
+`backend/tests/test_incidents_enrollments_messaging_permissions_2026_09_27.py`
+(10 tests — STUDENT/PARENT refusés sur les 3 routes, DIRECTOR/TEACHER
+acceptés selon leurs permissions existantes ; PostgreSQL réel pour la
+partie `incidents` (table opérationnelle SQL brute), les 6 tests
+négatifs confirmés en échec avant le correctif puis en succès après) ;
+suite complète (`alembic upgrade head` appliqué) et suite SQLite par
+défaut, aucune régression.

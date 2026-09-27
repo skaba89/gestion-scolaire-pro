@@ -118,7 +118,13 @@ def read_enrollments(
     class_id: Optional[UUID] = Query(None),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # SECURITY FIX (institutional-readiness audit, 2026-09): had NO
+    # permission check at all (get_current_user only), unlike its own
+    # alias route GET /enrollments/ (aliases.py::list_enrollments_alias,
+    # serving the same data) which already requires enrollments:read — any
+    # authenticated tenant user could list every student's enrollment
+    # (class_id/status) tenant-wide via this path. Gated to match the alias.
+    current_user: dict = Depends(require_permission("enrollments:read")),
 ):
     return crud.get_enrollments(
         db,
