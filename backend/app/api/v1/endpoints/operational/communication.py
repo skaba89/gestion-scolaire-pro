@@ -152,7 +152,15 @@ def get_messaging_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # SECURITY FIX (institutional-readiness audit, 2026-09): had NO
+    # permission check at all (get_current_user only) — any authenticated
+    # tenant user (STUDENT/PARENT/ALUMNI included) could enumerate every
+    # user's id/name/email/roles tenant-wide. Frontend only calls this from
+    # admin composer components (AdminMessageComposer/ExternalMessageComposer,
+    # both rendered exclusively on /admin/messages and /admin/users), so
+    # gating on users:read matches its real "list all users" semantics and
+    # the roles already meant to reach it.
+    current_user: dict = Depends(require_permission("users:read"))
 ):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
