@@ -705,18 +705,28 @@ def list_parent_payment_schedules(
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
-    # If no specific student_id, scope to parent's children
-    if not student_id and user_id:
-        children = db.execute(text(
-            "SELECT student_id FROM parent_students WHERE parent_id = :uid AND tenant_id = :tid"
-        ), {"uid": user_id, "tid": tenant_id}).fetchall()
-        if not children:
+    # SECURITY FIX (institutional-readiness audit, 2026-09): this ownership
+    # check previously only ran in the `if not student_id` branch below —
+    # passing an explicit ?student_id= for any student in the tenant
+    # skipped it entirely and returned that family's payment schedule
+    # (amounts, due dates, status) regardless of caller, mirroring the
+    # `parent_students` ownership check every other endpoint in this file
+    # (e.g. create_parent_payment above) already applies before touching a
+    # student_id.
+    own_children = db.execute(text(
+        "SELECT student_id FROM parent_students WHERE parent_id = :uid AND tenant_id = :tid"
+    ), {"uid": user_id, "tid": tenant_id}).fetchall() if user_id else []
+    own_child_ids = [str(c.student_id) for c in own_children]
+
+    if student_id:
+        if student_id not in own_child_ids:
             return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
-        child_ids = [str(c.student_id) for c in children]
-        params["child_ids"] = child_ids
+        child_ids = [student_id]
     else:
-        child_ids = [student_id] if student_id else []
-        params["child_ids"] = child_ids
+        if not own_child_ids:
+            return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
+        child_ids = own_child_ids
+    params["child_ids"] = child_ids
 
     extra_where = ""
     if params["child_ids"]:
