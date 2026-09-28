@@ -19,6 +19,7 @@ from app.models.user import User as UserModel
 from app.core.database import get_db
 from app.core.jobs import enqueue_job
 from app.core.security import get_current_user, require_permission
+from app.core.ssrf_protection import get_weasyprint_safe_url_fetcher
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.school_life import (
     Assessment, AssessmentCreate, AssessmentUpdate,
@@ -2759,7 +2760,13 @@ def generate_report_card_pdf(
         html_content, meta = _build_report_card_html(db, body, tenant_id)
 
         from weasyprint import HTML
-        pdf_bytes = HTML(string=html_content).write_pdf()
+        # SECURITY (10th audit sweep, 2026-09-28): the HTML embeds
+        # tenant-admin-controlled logoUrl (settings JSON) as an <img src>.
+        # WeasyPrint fetches it server-side during rendering — without
+        # url_fetcher, a malicious logoUrl (e.g. pointing at cloud metadata
+        # or an internal service) would be a blind SSRF. See
+        # ssrf_protection.py for the full writeup.
+        pdf_bytes = HTML(string=html_content, url_fetcher=get_weasyprint_safe_url_fetcher()).write_pdf()
 
         safe_name = re.sub(r"[^\w\-]+", "_", meta["student_name"] or "bulletin")
         filename = f"Bulletin_{safe_name}.pdf"
@@ -3015,7 +3022,11 @@ def generate_certificate_pdf(
         )
 
         from weasyprint import HTML
-        pdf_bytes = HTML(string=html_content).write_pdf()
+        # SECURITY (10th audit sweep, 2026-09-28): same SSRF concern as
+        # generate-report-card/pdf/ above — logoUrl AND the two signature
+        # URLs here are all tenant-admin-controlled and embedded as <img
+        # src>. See ssrf_protection.py.
+        pdf_bytes = HTML(string=html_content, url_fetcher=get_weasyprint_safe_url_fetcher()).write_pdf()
 
         safe_name = re.sub(r"[^\w\-]+", "_", student_name or "attestation")
         filename = f"Attestation_{safe_name}.pdf"
