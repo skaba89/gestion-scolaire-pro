@@ -390,22 +390,56 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # In Starlette, the first middleware added is the outermost — it processes
 # every request before any other middleware can interfere.  CORS *must*
 # handle OPTIONS preflight requests at the outermost layer.
-origins = []
-if settings.BACKEND_CORS_ORIGINS:
-    if isinstance(settings.BACKEND_CORS_ORIGINS, str):
-        origins = [o.strip() for o in settings.BACKEND_CORS_ORIGINS.split(",") if o.strip()]
-    else:
-        origins = [str(o) for o in settings.BACKEND_CORS_ORIGINS]
+def _normalize_cors_origins(raw_origins) -> list[str]:
+    """Split/coerce BACKEND_CORS_ORIGINS into a clean origin list.
 
-    # FIX: Normalize origins — ensure https:// prefix is present.
-    # Render's fromService.host returns bare hostnames (e.g. "site.onrender.com")
-    # but the browser sends "Origin: https://site.onrender.com".
-    _normalized = []
+    FIX: ensures https:// prefix is present — Render's fromService.host
+    returns bare hostnames (e.g. "site.onrender.com") but the browser
+    sends "Origin: https://site.onrender.com".
+    """
+    if isinstance(raw_origins, str):
+        origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    else:
+        origins = [str(o) for o in raw_origins]
+
+    normalized = []
     for o in origins:
         if o and not o.startswith(("http://", "https://", "*")):
             o = f"https://{o}"
-        _normalized.append(o)
-    origins = _normalized
+        normalized.append(o)
+    return normalized
+
+
+def _reject_wildcard_origin(origins: list[str]) -> None:
+    """SECURITY FIX (institutional-readiness audit, 2026-09, 8th sweep):
+    "*" used to be exempted from the https:// coercion above but never
+    actually rejected — BACKEND_CORS_ORIGINS=* (a plausible operator
+    misconfiguration) reached CORSMiddleware as origins=["*"] with
+    allow_credentials=True still forced True below. Starlette special-
+    cases that exact combination by reflecting the caller's own Origin
+    header with Access-Control-Allow-Credentials: true — i.e. "any
+    origin, with credentials" for every request, the opposite of what a
+    since-corrected comment here previously (wrongly) claimed was
+    "impossible". Bearer-token-only auth (no cookies, confirmed: no
+    set_cookie() anywhere in this codebase) limits today's
+    exploitability, but this closes the gap outright rather than relying
+    on that as the only safety net."""
+    if "*" in origins:
+        raise ValueError(
+            "BACKEND_CORS_ORIGINS must not contain a wildcard \"*\" — "
+            "list explicit origins instead. Refusing to start with a "
+            "wildcard origin combined with allow_credentials=True."
+        )
+
+
+origins = []
+if settings.BACKEND_CORS_ORIGINS:
+    origins = _normalize_cors_origins(settings.BACKEND_CORS_ORIGINS)
+    try:
+        _reject_wildcard_origin(origins)
+    except ValueError as exc:
+        logger.critical("CORS: %s", exc)
+        raise SystemExit(1)
 
 # Si aucune origine configurée : defaults sécurisés (jamais "*")
 if not origins:

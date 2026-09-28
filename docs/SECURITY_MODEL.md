@@ -43,6 +43,34 @@ qui l'implémente.
   toute l'API sur une panne Redis transitoire) — cohérent avec le reste des
   fonctionnalités optionnelles basées sur Redis dans ce projet (verrouillage
   de compte, historique de mots de passe, sessions actives).
+- `GET /realtime/ws/{tenant_id}/{user_id}` (endpoint WebSocket) contournait
+  entièrement ce qui précède (institutional-readiness audit, 2026-09, 8e
+  balayage) : il décodait le JWT lui-même et faisait confiance à ses
+  claims `roles`/`tenant_id` brutes, sans passer par `get_current_user()`
+  — ni blacklist, ni version de logout-all, ni `is_active` re-vérifié en
+  base. Un token encore valide d'un compte désactivé, d'une session
+  déconnectée via logout-all, ou d'un rôle `SUPER_ADMIN` depuis révoqué en
+  base continuait à authentifier ce canal pour toute la durée de vie du
+  token. Corrigé en réutilisant `_evaluate_revocation()` (même fonction
+  que `get_current_user()`) et en relisant `is_active`/les rôles depuis la
+  base plutôt que depuis le token. Impact réel limité au moment du
+  correctif : aucun publisher n'écrit sur le canal Redis
+  (`tenant:{tenant_id}`) que cet endpoint écoute, donc la brèche était
+  réelle mais inerte. Testé dans
+  `test_realtime_websocket_revocation_2026_09_28.py`.
+- **CORS** (`app/main.py`) : `BACKEND_CORS_ORIGINS="*"` était exempté de la
+  coercition `https://` mais jamais réellement rejeté (institutional-
+  readiness audit, 2026-09, 8e balayage) — `CORSMiddleware(allow_origins=
+  ["*"], allow_credentials=True)` fait réfléchir par Starlette l'en-tête
+  `Origin` réel de l'appelant avec `Access-Control-Allow-Credentials:
+  true`, soit "n'importe quelle origine, avec les identifiants" pour
+  chaque requête — l'inverse de ce qu'un commentaire (depuis corrigé)
+  affirmait à tort être "impossible". L'authentification 100% Bearer (pas
+  de cookie nulle part dans ce code) limitait l'exploitabilité réelle
+  aujourd'hui, mais le démarrage refuse désormais explicitement tout
+  `BACKEND_CORS_ORIGINS` contenant `*` (`SystemExit(1)`) plutôt que de
+  compter sur cette seule architecture comme filet de sécurité. Testé
+  dans `test_cors_wildcard_rejected_2026_09_28.py`.
 
 ## 3. Multi-tenant et isolation
 
