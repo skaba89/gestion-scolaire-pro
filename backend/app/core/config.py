@@ -147,6 +147,21 @@ class Settings(BaseSettings):
     DATABASE_URL: str = _BASE_DATABASE_URL
     DATABASE_URL_ASYNC: str = get_secret("DATABASE_URL_ASYNC", _BASE_DATABASE_URL)
     DATABASE_URL_SYNC: str = get_secret("DATABASE_URL_SYNC", _BASE_DATABASE_URL)
+    # SECURITY (Postgres non-superuser app role pass): DATABASE_URL_SYNC/
+    # DATABASE_URL_ASYNC above are what the APP connects with at runtime —
+    # since the SECURITY_MODEL.md P1 risk this closes, that connection
+    # must NOT be the Flexible Server admin login (which bypasses RLS
+    # entirely, rolsuper or rolbypassrls — see main.py::
+    # _check_rls_bypass_role). Alembic migrations (DDL: CREATE/ALTER
+    # TABLE) still need the admin login, since the restricted app role
+    # deliberately has no schema-altering privileges — see
+    # infra/azure/sql/create_app_role.sql. DATABASE_URL_MIGRATIONS carries
+    # that admin connection string for alembic/env.py specifically; left
+    # unset (the default for local dev, tests, and any deployment that
+    # hasn't run the role-creation script yet), migrations fall back to
+    # DATABASE_URL_SYNC — see effective_migrations_url below — so nothing
+    # breaks until an operator deliberately sets this.
+    DATABASE_URL_MIGRATIONS: str = get_secret("DATABASE_URL_MIGRATIONS", "")
     # Pool DB : la formule qui compte est
     #   (DATABASE_POOL_SIZE + DATABASE_MAX_OVERFLOW) × WORKERS × dynos
     #   ≤ limite de connexions du plan PostgreSQL managé.
@@ -163,7 +178,7 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = parse_int_env("DATABASE_POOL_SIZE", 5)
     DATABASE_MAX_OVERFLOW: int = parse_int_env("DATABASE_MAX_OVERFLOW", 10)
 
-    @field_validator("DATABASE_URL_ASYNC", "DATABASE_URL_SYNC", mode="before")
+    @field_validator("DATABASE_URL_ASYNC", "DATABASE_URL_SYNC", "DATABASE_URL_MIGRATIONS", mode="before")
     @classmethod
     def _normalize_db_url(cls, v: str, info) -> str:
         """Always normalize database URLs to use the correct driver prefix.
@@ -384,6 +399,16 @@ class Settings(BaseSettings):
     def is_sqlite(self) -> bool:
         """Return True if the configured database is SQLite."""
         return is_sqlite_url(self.DATABASE_URL_SYNC)
+
+    @property
+    def effective_migrations_url(self) -> str:
+        """The connection string alembic/env.py actually runs DDL with.
+
+        DATABASE_URL_MIGRATIONS when an operator has set it (the admin
+        login, needed for CREATE/ALTER TABLE — see
+        infra/azure/sql/create_app_role.sql), else DATABASE_URL_SYNC
+        (today's behavior, and what local dev/tests/CI still use)."""
+        return self.DATABASE_URL_MIGRATIONS or self.DATABASE_URL_SYNC
 
     model_config = SettingsConfigDict(
         case_sensitive=True,

@@ -22,7 +22,13 @@ if config.config_file_name is not None:
 # what a real Azure Flexible Server-generated password looks like — this
 # broke `alembic upgrade head` for any reserved-character password, found
 # while validating start.sh's own DATABASE_URL_SYNC parsing end-to-end.
-db_url = settings.DATABASE_URL_SYNC
+# SECURITY (Postgres non-superuser app role pass): migrations need the
+# admin login (DDL — CREATE/ALTER TABLE) while the app itself now runs as
+# a restricted role with no schema-altering privileges (see
+# infra/azure/sql/create_app_role.sql). effective_migrations_url is
+# DATABASE_URL_MIGRATIONS when set, else DATABASE_URL_SYNC unchanged —
+# so this is a no-op for local dev/tests/CI, which don't set it.
+db_url = settings.effective_migrations_url
 
 target_metadata = Base.metadata
 

@@ -143,10 +143,24 @@ async def lifespan(app: FastAPI):
         except Exception as create_err:
             logger.error("SQLite table creation failed: %s", create_err)
 
-    # Ensure operational tables that have NO SQLAlchemy models
+    # Ensure operational tables that have NO SQLAlchemy models. This is DDL
+    # (CREATE TABLE IF NOT EXISTS ...) — SECURITY (Postgres non-superuser
+    # app role pass): once DATABASE_URL_SYNC is the restricted app role
+    # (see infra/azure/sql/create_app_role.sql), `engine` (bound to it)
+    # cannot run DDL at all, so this must go through the same
+    # admin-privileged connection alembic/env.py uses
+    # (effective_migrations_url), not the app's own runtime engine.
     try:
         from app.core.operational_tables import ensure_operational_tables
-        ensure_operational_tables(engine)
+        if settings.is_sqlite or settings.effective_migrations_url == settings.DATABASE_URL_SYNC:
+            ensure_operational_tables(engine)
+        else:
+            from sqlalchemy import create_engine as _create_engine
+            migrations_engine = _create_engine(settings.effective_migrations_url)
+            try:
+                ensure_operational_tables(migrations_engine)
+            finally:
+                migrations_engine.dispose()
         logger.info("Operational tables ensured via raw SQL")
     except Exception as op_err:
         logger.warning("Operational table creation failed: %s", op_err)

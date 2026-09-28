@@ -41,6 +41,9 @@ backups/
 *.sql.gz
 !tests/*.sql
 !tests/**/*.sql
+# Source (not a data dump): the one-time role-provisioning script an operator
+# runs by hand against a real environment — see docs/POSTGRES_APP_ROLE.md.
+!infra/azure/sql/*.sql
 *.csv
 *.xlsx
 *.dump
