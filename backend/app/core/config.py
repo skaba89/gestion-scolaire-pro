@@ -43,6 +43,17 @@ def is_sqlite_url(url: str) -> bool:
     return url.startswith("sqlite:") if url else False
 
 
+def is_strict_environment() -> bool:
+    """True in REC/PROD (ENVIRONMENT=staging/production, per
+    infra/azure/modules/container-apps.bicep's envName->ENVIRONMENT
+    mapping) — the same "production or staging" test SECRET_KEY
+    validation already applies below, reused here so storage.py's
+    fail-closed check (Azure Blob required, no silent local/MinIO
+    fallback) uses one single definition of "strict" rather than a second
+    copy of this tuple drifting out of sync."""
+    return os.getenv("ENVIRONMENT", "").lower() in ("production", "prod", "staging")
+
+
 def normalize_async_database_url(url: str) -> str:
     """Normalize a database URL for async connections.
 
@@ -189,6 +200,24 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = True  # SECURITY: Default to HTTPS for MinIO connections
     MINIO_BUCKET: str = get_secret("MINIO_BUCKET", "schoolflow")
 
+    # Azure Blob Storage — durable document storage for Azure DEV/REC/PROD
+    # (see app/core/storage.py::AzureBlobStorageClient and
+    # docs/STORAGE_ARCHITECTURE.md). AZURE_STORAGE_ACCOUNT_URL
+    # (e.g. "https://stschoolflowprod.blob.core.windows.net") selects
+    # Managed Identity auth (azure.identity.DefaultAzureCredential) — the
+    # production path, no key ever held by the app.
+    # AZURE_STORAGE_CONNECTION_STRING is ONLY for local/dev testing against
+    # an Azurite emulator or a throwaway dev storage account; never set
+    # both, and never set the connection string in a REC/PROD environment
+    # (storage.py's startup check does not special-case which one is set —
+    # either is accepted as "configured" — but the connection string
+    # necessarily embeds an account key, so Managed Identity is the only
+    # form that keeps the "no Storage key in Git/config/secrets" property
+    # this was built for).
+    AZURE_STORAGE_ACCOUNT_URL: str = get_secret("AZURE_STORAGE_ACCOUNT_URL", "")
+    AZURE_STORAGE_CONNECTION_STRING: str = get_secret("AZURE_STORAGE_CONNECTION_STRING", "")
+    AZURE_STORAGE_CONTAINER: str = get_secret("AZURE_STORAGE_CONTAINER", "schoolflow-documents")
+
     REDIS_URL: str = get_secret("REDIS_URL", "redis://localhost:6379/0")
 
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
@@ -242,7 +271,7 @@ class Settings(BaseSettings):
         is_debug = os.getenv("DEBUG", "False").lower() == "true"
         env = os.getenv("ENVIRONMENT", "").lower()
         # SECURITY: Even if DEBUG=true, refuse to start in production/staging environments
-        is_prod = env in ("production", "prod", "staging")
+        is_prod = is_strict_environment()
         if is_prod:
             if not v or len(v) < 32:
                 logger.critical(

@@ -30,14 +30,20 @@ One resource group (`rg-schoolflow-dev` / `-rec` / `-prod`), each with:
   for Redis** — managed replacements for the `postgres`/`redis`
   containers in `docker-compose.yml`. Sizing (SKU, HA) differs per
   environment — see `parameters/*.bicepparam`.
+- **Azure Storage Account + Blob container** (`modules/storage.bicep`) —
+  durable replacement for the `minio` object-storage container. The
+  `api`/`worker` Container Apps' shared managed identity gets exactly
+  "Storage Blob Data Contributor" + "Storage Blob Delegator" on it, no
+  account key ever exists — see `../../docs/STORAGE_ARCHITECTURE.md` for
+  the full read/write/SAS flow and the REC/PROD fail-closed contract in
+  `app/core/storage.py`.
 
 Not created here (deliberately out of scope for this pass): a VNet /
-private endpoints for Postgres and Redis (currently reachable over their
-public endpoint with Azure-service firewall rules only — see
-`modules/postgres.bicep`'s comment), a managed replacement for the
-`minio` object-storage container, and the Azure Container Registry
-itself (`academyguineenneacr.azurecr.io` already exists and is reused,
-not recreated).
+private endpoints for Postgres, Redis, and the storage account
+(currently reachable over their public endpoint with Azure-service
+firewall rules only — see `modules/postgres.bicep`'s comment), and the
+Azure Container Registry itself (`academyguineenneacr.azurecr.io`
+already exists and is reused, not recreated).
 
 ## One-time setup before this can ever run for real
 

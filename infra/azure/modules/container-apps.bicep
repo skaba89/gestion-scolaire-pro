@@ -12,6 +12,10 @@ param acrLoginServer string
 param keyVaultUri string
 param appInsightsConnectionString string
 
+@description('Azure Blob Storage endpoint and container — see modules/storage.bicep. Not a secret (no key/SAS embedded): the api/worker containers authenticate to it via their own managed identity (DefaultAzureCredential), which is why this is a plain env var, not a Key Vault reference like commonSecrets below.')
+param azureStorageAccountUrl string
+param azureStorageContainer string
+
 @description('Resource ID and principal ID of the shared user-assigned identity created by modules/identity.bicep — passed in rather than created here so Key Vault access can be granted to it before these apps exist (breaks a circular module dependency).')
 param identityResourceId string
 param identityPrincipalId string
@@ -157,6 +161,17 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
             { name: 'DEBUG', value: debugEnvValue }
             { name: 'ENVIRONMENT', value: environmentEnvValue }
+            // app/core/storage.py::StorageClient os._exit(1)s at startup
+            // in rec/prod (ENVIRONMENT=staging/production) if this is
+            // unset — Azure Blob is required there, no silent MinIO/local
+            // fallback. Auth is via this container's own managed identity
+            // (DefaultAzureCredential), granted exactly "Storage Blob Data
+            // Contributor" + "Storage Blob Delegator" on the storage
+            // account in modules/storage.bicep — never a key or
+            // connection string, so this is a plain value, not a
+            // Key Vault secretRef.
+            { name: 'AZURE_STORAGE_ACCOUNT_URL', value: azureStorageAccountUrl }
+            { name: 'AZURE_STORAGE_CONTAINER', value: azureStorageContainer }
             // main.py:430 — os._exit(1)s in prod (DEBUG=false) if this is
             // empty; falls back to a hardcoded localhost list otherwise,
             // which would silently CORS-block every request from the real
@@ -234,6 +249,13 @@ resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
             { name: 'DEBUG', value: debugEnvValue }
             { name: 'ENVIRONMENT', value: environmentEnvValue }
+            // Same reasoning as the api container above: app.core.storage
+            // is a module-level singleton that any import chain touching
+            // it (batch PDF/report generation, CSV import/export jobs)
+            // pulls in, and it os._exit(1)s in rec/prod without this set.
+            // Same managed-identity auth, same "not a secret" status.
+            { name: 'AZURE_STORAGE_ACCOUNT_URL', value: azureStorageAccountUrl }
+            { name: 'AZURE_STORAGE_CONTAINER', value: azureStorageContainer }
           ]
         }
       ]

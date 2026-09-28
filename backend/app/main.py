@@ -704,13 +704,26 @@ async def _check_cache_readiness() -> str:
 
 
 async def _check_storage_readiness() -> str:
-    """MinIO readiness — reports "disabled" (not a failure) when the app is
-    deliberately running on the local-disk fallback (see app/core/storage.py),
-    so a dev/staging environment without MinIO configured doesn't report
-    unhealthy for a component it isn't even using.
+    """Durable-storage readiness. Checks whichever backend
+    storage_client actually selected (Azure Blob > MinIO > local — see
+    app/core/storage.py::StorageClient), reporting "disabled" (not a
+    failure) only when the active backend is the local-disk fallback,
+    which needs no reachability check. In a strict environment
+    (ENVIRONMENT=staging/production) storage_client already refused to
+    start at all if Azure Blob wasn't configured, so reaching this
+    function on that path means Azure Blob WAS configured — "unreachable"
+    here means the credential/container stopped working at runtime
+    (network blip, RBAC revoked, container deleted), not a config gap.
     """
+    from app.core.storage import storage_client
+
     try:
-        from app.core.storage import storage_client
+        if storage_client._azure.enabled:
+            reachable = await asyncio.wait_for(
+                asyncio.to_thread(storage_client._azure.check_reachable),
+                timeout=2.0,
+            )
+            return "connected" if reachable else "unreachable"
 
         minio = storage_client._minio
         if not minio.enabled:
@@ -720,7 +733,9 @@ async def _check_storage_readiness() -> str:
             timeout=2.0,
         ) and "connected" or "unreachable"
     except Exception as exc:
-        logger.warning("Readiness MinIO check failed: %s", exc)
+        # SECURITY: log only the exception type — an Azure SDK auth error
+        # can otherwise embed a SAS token or connection string in str(exc).
+        logger.warning("Readiness storage check failed (%s): %s", storage_client.backend_name, type(exc).__name__)
         return "unreachable"
 
 
@@ -754,6 +769,8 @@ async def liveness_check():
 @app.get("/health/ready", tags=["Health"], summary="Readiness probe")
 async def readiness_check():
     """Require every production-critical dependency before receiving traffic."""
+    from app.core.storage import storage_client
+
     db_status, rls_status = await asyncio.to_thread(_check_database_and_rls)
     redis_status = await _check_cache_readiness()
     storage_status = await _check_storage_readiness()
@@ -776,6 +793,7 @@ async def readiness_check():
                 "cache": redis_status,
                 "rls": rls_status,
                 "storage": storage_status,
+                "storage_backend": storage_client.backend_name,
             },
         },
     )
@@ -988,6 +1006,8 @@ async def deep_health_check(request: Request):
                 headers=_cors_headers_for(request) if hasattr(request.app.state, '_cors_allowed_origins') else {},
             )
 
+    from app.core.storage import storage_client
+
     db_status, rls_status = await asyncio.to_thread(_check_database_and_rls)
     rls_bypass = await asyncio.to_thread(_check_rls_bypass_role)
     redis_status = await _check_cache_readiness()
@@ -1008,6 +1028,7 @@ async def deep_health_check(request: Request):
                 "rls_bypass_role": rls_bypass,
                 "cache": redis_status,
                 "storage": storage_status,
+                "storage_backend": storage_client.backend_name,
             },
             "disk": disk,
             "db_pool": db_pool,

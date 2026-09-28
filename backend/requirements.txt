@@ -14,6 +14,12 @@ python-multipart>=0.0.6,<0.1.0
 httpx>=0.28.0,<0.29.0
 requests>=2.31.0,<3.0.0
 minio>=7.2.0,<8.0.0
+# Azure Blob Storage — durable document storage for Azure DEV/REC/PROD
+# (see app/core/storage.py::AzureBlobStorageClient). azure-identity provides
+# DefaultAzureCredential (Managed Identity in Azure, `az login` locally) —
+# no Storage account key is ever held by the app in that mode.
+azure-storage-blob>=12.19.0,<13.0.0
+azure-identity>=1.15.0,<2.0.0
 redis>=5.0.0,<6.0.0
 arq>=0.26.0,<1.0.0
 # National audit Phase 6 quick-win: app/middlewares/metrics.py already codes

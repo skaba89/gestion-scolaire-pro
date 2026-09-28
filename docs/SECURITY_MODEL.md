@@ -258,6 +258,35 @@ consentements. Suppression de compte : demande tracée
   attachment` forcé sur tout ce qui n'est pas une image/police) était
   déjà solide.
 
+## 10. Stockage documentaire (Azure Blob)
+
+- Détail complet dans `docs/STORAGE_ARCHITECTURE.md` — résumé ici pour ce
+  que ça change au modèle de sécurité :
+  - **Aucune clé de compte de stockage** n'existe dans le code, les
+    secrets, ou Git — authentification par identité managée
+    (`azure.identity.DefaultAzureCredential`) + deux rôles RBAC minimaux
+    (Storage Blob Data Contributor + Storage Blob Delegator), scopés au
+    seul compte de stockage de l'environnement.
+  - Le conteneur Blob n'autorise aucun accès public — tout téléchargement
+    passe par une URL SAS à délégation utilisateur, signée à la demande et
+    à durée de vie limitée, jamais un accès anonyme permanent.
+  - En REC/PROD, une configuration Azure Blob absente ou invalide fait
+    échouer le démarrage du process (`os._exit(1)`) plutôt que de
+    retomber silencieusement sur un stockage local non durable — même
+    contrat que `SECRET_KEY`/`BOOTSTRAP_SECRET`.
+  - `/health/ready` et `/health/deep` exposent l'état du stockage
+    (`connected`/`unreachable`/`disabled` + le backend actif) mais jamais
+    de clé, jeton SAS ou chaîne de connexion — les gestionnaires d'erreur
+    de `AzureBlobStorageClient` et des sondes de santé ne journalisent que
+    le type d'exception, jamais son message (qui pourrait embarquer un
+    identifiant sensible).
+  - Testé dans `test_storage_provider_selection_2026_09_28.py` (sélection
+    de backend, fail-closed REC/PROD, non-fuite de secret),
+    `test_azure_blob_storage_operations_2026_09_28.py` (upload/download/
+    exists/delete, génération SAS), et
+    `test_storage_local_operations_2026_09_28.py` (traversée de chemin,
+    isolation des clés entre tenants).
+
 ## Risques connus (non résolus, hors périmètre de cette session)
 
 - **P1** : vérifier le rôle PostgreSQL de production n'est pas
