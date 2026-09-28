@@ -202,6 +202,62 @@ consentements. Suppression de compte : demande tracée
   XSS non corrigée, il permettrait le vol de session, d'où l'importance
   des deux règles ci-dessus.
 
+## 9. SSRF (requêtes sortantes construites depuis une entrée tenant)
+
+- Toute URL fournie par un tenant que le backend va lui-même chercher
+  (webhook, image intégrée à un PDF généré côté serveur, etc.) doit
+  passer par `assert_safe_external_url()`
+  (`backend/app/core/ssrf_protection.py`) avant d'être utilisée : schéma
+  `http(s)://` uniquement, résolution DNS de l'hôte puis rejet si UNE
+  seule des adresses IP résolues tombe dans une plage privée/loopback/
+  link-local/multicast/réservée (résoudre avant de vérifier — et non un
+  filtrage textuel sur le nom d'hôte — ferme le contournement par un nom
+  DNS qui pointe vers une IP interne).
+- **Faille corrigée (institutional-readiness audit, 2026-09, 10e
+  balayage)** : deux points d'entrée laissaient le backend effectuer une
+  requête HTTP sortante vers une URL entièrement contrôlée par un
+  TENANT_ADMIN (pas seulement SUPER_ADMIN), sans aucune validation de
+  l'hôte cible :
+  1. `POST /webhooks/` et `PATCH /webhooks/{id}/`
+     (`api/v1/endpoints/core/webhooks.py`) — `WebhookCreate.url`/
+     `WebhookUpdate.url` étaient typés `HttpUrl`, qui vérifie seulement
+     que la chaîne est une URL http(s) bien formée, jamais l'hôte
+     résolu. Combiné à `POST /webhooks/{id}/test/` (déclenchement
+     immédiat) et à la livraison automatique sur chaque événement
+     métier souscrit, un admin de tenant pouvait pointer un webhook vers
+     `http://169.254.169.254/...` (métadonnées cloud) ou un service
+     interne, et lire le booléen de succès de livraison comme un oracle
+     SSRF aveugle et répétable.
+  2. `POST /school-life/generate-report-card/pdf/` et
+     `/generate-certificate/pdf/` (`api/v1/endpoints/operational/
+     school_life.py`) — le logo (`Tenant.settings["logoUrl"]`) et les
+     deux URLs de signature (`Tenant.director_signature_url`,
+     `secretary_signature_url`), toutes modifiables par un TENANT_ADMIN,
+     étaient injectées telles quelles dans un `<img src="...">` que
+     WeasyPrint va chercher côté serveur au moment du rendu PDF.
+  Corrigé par un garde-fou unique (`ssrf_protection.py`) appliqué aux
+  deux points : validation à l'écriture ET à la livraison pour les
+  webhooks (défense en profondeur contre une résolution DNS différente
+  entre-temps, redirections HTTP désactivées), et un `url_fetcher`
+  WeasyPrint dédié (sous-classe de `weasyprint.urls.URLFetcher`, elle
+  aussi sans redirections) pour la génération de PDF — WeasyPrint
+  absorbe une erreur de fetch par ressource et continue le rendu sans
+  l'image plutôt que de planter, donc l'échec est silencieux côté
+  utilisateur mais la requête interne n'est jamais émise. Testé dans
+  `test_ssrf_protection_2026_09_28.py` (le garde-fou lui-même, y compris
+  bout-en-bout via WeasyPrint réel), `test_webhook_ssrf_2026_09_28.py`
+  (points d'entrée webhook), et `test_pdf_generation_ssrf_2026_09_28.py`
+  (points d'entrée PDF, par espionnage de `assert_safe_external_url`
+  pour prouver que le rendu réel invoque bien le garde-fou).
+  Open redirect et upload de fichiers non restreint ont aussi été
+  audités dans ce 10e balayage sans nouvelle découverte : aucune
+  redirection serveur ne dépend d'une entrée utilisateur dans ce
+  backend (API JSON pure), et la gestion d'upload (allow-list
+  d'extensions, sniffing du type MIME par magic bytes, noms de fichiers
+  UUID, confinement anti-traversée de chemin, `Content-Disposition:
+  attachment` forcé sur tout ce qui n'est pas une image/police) était
+  déjà solide.
+
 ## Risques connus (non résolus, hors périmètre de cette session)
 
 - **P1** : vérifier le rôle PostgreSQL de production n'est pas

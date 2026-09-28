@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.events import DomainEvent, EventType, subscribe_all
 from app.core.security import get_current_user, require_permission
+from app.core.ssrf_protection import UnsafeUrlError, assert_safe_external_url
 from app.core.tenant_resolution import resolve_current_tenant_id
 
 logger = logging.getLogger(__name__)
@@ -38,12 +39,32 @@ router = APIRouter()
 
 # ─── Schemas ──────────────────────────────────────────────────────────────────
 
+def _validate_webhook_url(v: HttpUrl) -> HttpUrl:
+    """SECURITY (10th audit sweep, 2026-09-28): ``HttpUrl`` only checks the
+    string is well-formed — it never restricts the resolved host, so a
+    TENANT_ADMIN could otherwise point a webhook at an internal service or
+    the cloud metadata endpoint (see ssrf_protection.py for the full
+    exploit writeup). Re-checked again at delivery time in
+    _deliver_webhook, since a hostname can resolve to a different address
+    by the time a webhook actually fires."""
+    try:
+        assert_safe_external_url(str(v))
+    except UnsafeUrlError as exc:
+        raise ValueError(str(exc)) from exc
+    return v
+
+
 class WebhookCreate(BaseModel):
     url: HttpUrl
     events: List[str]
     description: Optional[str] = None
     is_active: bool = True
     secret: Optional[str] = None
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: HttpUrl) -> HttpUrl:
+        return _validate_webhook_url(v)
 
     @field_validator("events")
     @classmethod
@@ -67,6 +88,13 @@ class WebhookUpdate(BaseModel):
     events: Optional[List[str]] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("url")
+    @classmethod
+    def _validate_url(cls, v: Optional[HttpUrl]) -> Optional[HttpUrl]:
+        if v is None:
+            return v
+        return _validate_webhook_url(v)
 
     @field_validator("events")
     @classmethod
@@ -111,6 +139,12 @@ async def _deliver_webhook(url: str, payload: dict, secret: Optional[str] = None
     """
     import httpx
 
+    try:
+        assert_safe_external_url(url)
+    except UnsafeUrlError as exc:
+        logger.error("Refused to deliver webhook to unsafe URL %s: %s", url, exc)
+        return False
+
     body = json.dumps(payload, ensure_ascii=False, default=str)
     headers = {
         "Content-Type": "application/json",
@@ -123,6 +157,9 @@ async def _deliver_webhook(url: str, payload: dict, secret: Optional[str] = None
         headers["X-SchoolFlow-Signature"] = f"sha256={sig}"
 
     try:
+        # follow_redirects defaults to False in httpx — kept implicit/unset
+        # here deliberately so a redirect to an internal address is never
+        # followed silently.
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, content=body, headers=headers)
             if response.status_code >= 400:
