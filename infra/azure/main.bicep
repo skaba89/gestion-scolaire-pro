@@ -111,6 +111,15 @@ module redis 'modules/redis.bicep' = {
   }
 }
 
+module storage 'modules/storage.bicep' = {
+  name: 'storage-${envName}'
+  params: {
+    location: location
+    envName: envName
+    identityPrincipalId: identity.outputs.principalId
+  }
+}
+
 module containerApps 'modules/container-apps.bicep' = {
   name: 'container-apps-${envName}'
   params: {
@@ -128,6 +137,8 @@ module containerApps 'modules/container-apps.bicep' = {
     frontendImageTag: frontendImageTag
     apiMinReplicas: apiMinReplicas
     apiMaxReplicas: apiMaxReplicas
+    azureStorageAccountUrl: storage.outputs.blobEndpoint
+    azureStorageContainer: storage.outputs.containerName
   }
 }
 
@@ -136,3 +147,4 @@ output frontendUrl string = 'https://${containerApps.outputs.frontendFqdn}'
 output keyVaultName string = keyVault.outputs.keyVaultName
 output postgresServerFqdn string = postgres.outputs.serverFqdn
 output redisHostName string = redis.outputs.hostName
+output storageAccountName string = storage.outputs.storageAccountName
