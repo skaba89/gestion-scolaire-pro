@@ -109,6 +109,25 @@ var commonSecrets = [
   { name: 'resend-api-key', keyVaultUrl: '${keyVaultUri}secrets/resend-api-key', identity: identityResourceId }
 ]
 
+// api-only: the worker never runs `alembic upgrade head` (no ingress, no
+// start.sh — its command is the arq worker directly), so it never needs
+// the admin/migrations login. SECURITY (Postgres non-superuser app role
+// pass): like every other secret in commonSecrets above, this one must be
+// seeded into Key Vault after the first deploy (see infra/azure/README.md
+// step 4 and docs/POSTGRES_APP_ROLE.md) — the value is the Flexible
+// Server admin connection string, used only for this one DDL step at
+// container startup. At the application layer, its absence degrades
+// gracefully rather than crash-looping: app.core.config's
+// effective_migrations_url falls back to DATABASE_URL_SYNC when
+// DATABASE_URL_MIGRATIONS is unset, matching local dev/tests/CI — but
+// once infra/azure/sql/create_app_role.sql has actually been run against
+// an environment (making DATABASE_URL_SYNC a restricted, non-DDL role),
+// this secret becomes required for THAT environment's migrations to
+// keep working.
+var apiOnlySecrets = [
+  { name: 'database-url-migrations', keyVaultUrl: '${keyVaultUri}secrets/database-url-migrations', identity: identityResourceId }
+]
+
 // api/worker both import app.core.config at process startup, which
 // os._exit(1)s immediately if SECRET_KEY (or BOOTSTRAP_SECRET, in a
 // non-DEBUG process) is missing or too short — confirmed by actually
@@ -148,7 +167,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           identity: identityResourceId
         }
       ]
-      secrets: commonSecrets
+      secrets: concat(commonSecrets, apiOnlySecrets)
     }
     template: {
       containers: [
@@ -162,6 +181,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           env: [
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'DATABASE_URL_SYNC', secretRef: 'database-url-sync' }
+            { name: 'DATABASE_URL_MIGRATIONS', secretRef: 'database-url-migrations' }
             { name: 'REDIS_URL', secretRef: 'redis-url' }
             // Was 'JWT_SECRET_KEY' — a name app/core/config.py never reads
             // (it reads SECRET_KEY). Confirmed: SECRET_KEY would have been

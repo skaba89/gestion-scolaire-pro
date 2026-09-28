@@ -310,3 +310,73 @@ def test_uvicorn_invoked_in_debug_mode(start_environment):
     uvicorn_log = Path(start_environment["FAKE_UVICORN_LOG"]).read_text()
     assert "--reload" in uvicorn_log
     assert not Path(start_environment["FAKE_GUNICORN_LOG"]).exists()
+
+
+# Postgres non-superuser app role pass: DATABASE_URL_SYNC/DATABASE_URL may
+# now be the restricted app role (see infra/azure/sql/create_app_role.sql),
+# which lacks the ALTER TABLE privilege the alembic_version column-size
+# fixup step needs. DATABASE_URL_MIGRATIONS (unset by default — see
+# app.core.config.effective_migrations_url) carries the admin login for
+# that one DDL step instead.
+
+def test_migrations_url_credentials_used_for_schema_fixup_step_when_set(start_environment):
+    start_environment["DATABASE_URL_SYNC"] = (
+        "postgresql+psycopg://approle:approlepass@localhost:5432/schoolflow_prod"
+    )
+    start_environment["DATABASE_URL_MIGRATIONS"] = (
+        "postgresql+psycopg://adminrole:adminpass@localhost:5432/schoolflow_prod"
+    )
+
+    result = _run_start(start_environment)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Using DATABASE_URL_MIGRATIONS (admin role) for the schema-fixup step" in result.stdout
+
+    psql_log = Path(start_environment["FAKE_PSQL_LOG"]).read_text()
+    assert "-U adminrole" in psql_log
+    assert "-U approle" not in psql_log
+
+    pgpassword = Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).read_text()
+    assert pgpassword == "adminpass"
+
+    # pg_isready still waits using the app role — that's the connection
+    # the rest of the app (and every later query) actually uses.
+    pg_isready_log = Path(start_environment["FAKE_PG_ISREADY_LOG"]).read_text()
+    assert "-U approle" in pg_isready_log
+
+    assert "adminpass" not in result.stdout
+    assert "adminpass" not in result.stderr
+    assert "approlepass" not in result.stdout
+    assert "approlepass" not in result.stderr
+
+
+def test_falls_back_to_sync_credentials_when_migrations_url_unset(start_environment):
+    """Today's behavior (no DATABASE_URL_MIGRATIONS set anywhere yet) must
+    be completely unchanged: the same role/password used for
+    connectivity is also used for the schema-fixup step."""
+    start_environment["DATABASE_URL_SYNC"] = (
+        "postgresql+psycopg://azureuser:azurepass@localhost:5432/schoolflow_prod"
+    )
+
+    result = _run_start(start_environment)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Using DATABASE_URL_MIGRATIONS" not in result.stdout
+
+    psql_log = Path(start_environment["FAKE_PSQL_LOG"]).read_text()
+    assert "-U azureuser" in psql_log
+
+    pgpassword = Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).read_text()
+    assert pgpassword == "azurepass"
+
+
+def test_malformed_migrations_url_fails_cleanly(start_environment):
+    start_environment["DATABASE_URL_SYNC"] = (
+        "postgresql+psycopg://azureuser:azurepass@localhost:5432/schoolflow_prod"
+    )
+    start_environment["DATABASE_URL_MIGRATIONS"] = "not-a-valid-url"
+
+    result = _run_start(start_environment)
+
+    assert result.returncode != 0
+    assert not Path(start_environment["FAKE_ALEMBIC_LOG"]).exists()

@@ -97,6 +97,12 @@ qui l'implémente.
   lire le résultat — cette session n'a pas cet accès. Requête manuelle
   équivalente si besoin : `SELECT rolname, rolsuper, rolbypassrls FROM
   pg_roles WHERE rolname = '<rôle prod>';`
+  **Outillage livré depuis 2026-09** pour permettre à un opérateur de
+  corriger ce point : `infra/azure/sql/create_app_role.sql` crée un rôle
+  applicatif `NOSUPERUSER NOBYPASSRLS` sans privilège DDL — voir
+  `docs/POSTGRES_APP_ROLE.md` pour la procédure complète et, surtout,
+  pour les deux problèmes non résolus qui rendent son activation encore
+  prématurée (section « Risques connus » ci-dessous).
 - Isolation vérifiée par tests dédiés : `test_tenant_isolation.py`, et par
   isolation systématique dans chaque nouveau module ajouté (ex. transcripts,
   teachers, payment receipts — jamais de fuite inter-tenant même avec un
@@ -312,8 +318,37 @@ consentements. Suppression de compte : demande tracée
 
 ## Risques connus (non résolus, hors périmètre de cette session)
 
-- **P1** : vérifier le rôle PostgreSQL de production n'est pas
-  superutilisateur (sinon RLS est un théâtre de sécurité en prod aussi).
+- **P1 (outillage livré, activation NON recommandée)** : le rôle
+  PostgreSQL de production ne doit pas être superutilisateur, sinon RLS
+  est un théâtre de sécurité en prod aussi. `infra/azure/sql/create_app_role.sql`
+  fournit désormais un rôle applicatif restreint (`NOSUPERUSER
+  NOBYPASSRLS`, aucun privilège DDL) et `DATABASE_URL_MIGRATIONS`/
+  `effective_migrations_url` permettent à Alembic de continuer à
+  fonctionner une fois ce rôle activé — voir `docs/POSTGRES_APP_ROLE.md`.
+  **Ce risque n'est pas fermé** : des tests exhaustifs contre un vrai
+  PostgreSQL, avec la connexion applicative effectivement pointée sur ce
+  rôle restreint, ont révélé deux problèmes réels et non résolus qui
+  rendent l'activation encore prématurée — voir les deux points
+  ci-dessous, détaillés dans `docs/POSTGRES_APP_ROLE.md` (section
+  « Ne pas encore activer en production »).
+- **P1 (nouveau, découvert pendant les tests du point ci-dessus)** :
+  `app/workers/tasks.py` (jobs ARQ d'arrière-plan — synchronisation
+  WhatsApp, rappels de paiement, imports CSV, bulletins) utilise
+  `SessionLocal()` directement sur une vingtaine de sites d'appel, sans
+  jamais fixer le contexte RLS (`set_config('app.current_tenant_id',
+  ...)`/`tenant_context.set(...)`). Ces jobs ne préservent l'isolation
+  multi-tenant aujourd'hui que parce que la connexion actuelle bypass RLS
+  — un vrai risque si le rôle applicatif est un jour restreint sans
+  corriger ce point en premier.
+- **P2 (nouveau, découvert pendant les tests du point ci-dessus)** :
+  poisoning apparent du pool de connexions sous le rôle restreint —
+  la suite backend complète produit un nombre d'échecs très supérieur à
+  ce que les causes connues expliquent, avec des signes de transactions
+  avortées (« current transaction is aborted ») qui contaminent des
+  requêtes suivantes sans rapport. Pointe vers un chemin d'erreur de
+  permission quelque part (probablement `app/core/database.py::get_db()`
+  ou un appelant) qui n'appelle pas systématiquement `rollback()`. Non
+  investigué plus avant dans cette session.
 - **P2** : monitoring non ventilé par tenant — un tenant compromis ou
   abusif n'est pas isolable finement à ce jour.
 - **P2** : pas de throttling par tenant (seulement par IP) — un tenant à

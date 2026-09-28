@@ -111,6 +111,49 @@ else
   exit 1
 fi
 
+# SECURITY (Postgres non-superuser app role pass): DATABASE_URL_SYNC/
+# DATABASE_URL above is the APP's restricted, RLS-respecting role once an
+# operator has run infra/azure/sql/create_app_role.sql — it deliberately
+# lacks CREATE/ALTER TABLE privileges, so it can't run the schema-fixup
+# psql command a few lines down. DATABASE_URL_MIGRATIONS (unset by
+# default — a no-op everywhere until an operator deliberately sets it,
+# same as alembic/env.py's effective_migrations_url) carries the admin
+# login for that one DDL statement instead. Falls back to DB_USER/
+# DB_PASSWORD (today's behavior) when unset.
+MIGRATIONS_DB_USER="$DB_USER"
+MIGRATIONS_DB_PASSWORD="$DB_PASSWORD"
+if [ -n "${DATABASE_URL_MIGRATIONS:-}" ]; then
+  if ! _migrations_db_output="$(python - <<'PY'
+import os
+import sys
+
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
+try:
+    parsed = make_url(os.environ["DATABASE_URL_MIGRATIONS"])
+except ArgumentError as exc:
+    sys.stderr.write(f"ERROR: could not parse DATABASE_URL_MIGRATIONS: {exc}\n")
+    sys.exit(1)
+
+if not parsed.username:
+    sys.stderr.write("ERROR: DATABASE_URL_MIGRATIONS is missing a username\n")
+    sys.exit(1)
+
+print(parsed.username)
+print(parsed.password or "")
+PY
+  )"; then
+    echo "ERROR: failed to parse DATABASE_URL_MIGRATIONS — see above" >&2
+    exit 1
+  fi
+  mapfile -t _migrations_db_fields <<< "$_migrations_db_output"
+  MIGRATIONS_DB_USER="${_migrations_db_fields[0]}"
+  MIGRATIONS_DB_PASSWORD="${_migrations_db_fields[1]}"
+  unset _migrations_db_output _migrations_db_fields
+  echo "==> Using DATABASE_URL_MIGRATIONS (admin role) for the schema-fixup step below"
+fi
+
 export PGPASSWORD="$DB_PASSWORD"
 
 echo "==> Waiting for PostgreSQL DNS and connection (${DB_HOST}:${DB_PORT}/${DB_NAME})..."
@@ -144,8 +187,10 @@ echo "==> Fixing alembic_version column size (if table exists)..."
 # alembic_version defaults to VARCHAR(32), but some revision IDs exceed 32 chars.
 # We enlarge it to VARCHAR(256) once; this is a no-op if already large enough.
 # Use discrete connection arguments instead of a URI so passwords containing
-# reserved URL characters do not break psql parsing.
-psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+# reserved URL characters do not break psql parsing. ALTER TABLE is DDL, so
+# this runs as MIGRATIONS_DB_USER (the admin role when DATABASE_URL_MIGRATIONS
+# is set, else the same role as everything else above — see comment there).
+PGPASSWORD="$MIGRATIONS_DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$MIGRATIONS_DB_USER" -d "$DB_NAME" \
   -c "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(256);" \
   2>/dev/null && echo "   -> column enlarged" || echo "   -> skipped (table may not exist yet — ok on first run)"
 
