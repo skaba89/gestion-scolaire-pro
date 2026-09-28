@@ -1,9 +1,11 @@
 import logging
 import jwt
+from fastapi import HTTPException
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.core.cache import redis_client
 from app.core.config import settings
+from app.core.security import _evaluate_revocation
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,15 +54,42 @@ async def websocket_endpoint(
     # 2. Verify the token belongs to the claimed user and tenant
     token_sub = payload.get("sub")
     token_tenant = payload.get("tenant_id")
-    token_roles = payload.get("roles", [])
 
     if token_sub != user_id:
         logger.warning("WebSocket auth failed: token sub=%s != path user_id=%s", token_sub, user_id)
         await websocket.close(code=4003, reason="Token does not match user")
         return
 
-    # For SUPER_ADMIN, allow cross-tenant access via X-Tenant-ID logic
-    if token_tenant != tenant_id and "SUPER_ADMIN" not in token_roles:
+    # SECURITY (institutional-readiness audit, 2026-09, 8th sweep): this
+    # endpoint used to trust the JWT's own "roles" claim and skip every
+    # revocation check get_current_user() enforces on every REST route
+    # (blacklist, logout-all token-version, is_active, and re-reading
+    # roles from the DB rather than the token — see the matching comments
+    # in core/security.py::get_current_user for why each of those exists).
+    # A still-unexpired token from a deactivated account, a logged-out
+    # session, or a role since revoked in the DB kept authenticating here
+    # with none of those checks applied.
+    try:
+        await _evaluate_revocation(token_sub, payload.get("jti"), payload.get("tv", 0))
+    except HTTPException:
+        await websocket.close(code=4001, reason="Token has been revoked")
+        return
+
+    from app.core.database import SessionLocal
+    from app.models.user import User
+    from app.models.user_role import UserRole
+
+    with SessionLocal() as db:
+        user_db = db.query(User).filter(User.id == token_sub).first()
+        if not user_db or not user_db.is_active:
+            await websocket.close(code=4001, reason="Account inactive")
+            return
+        db_roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user_db.id).all()]
+
+    # For SUPER_ADMIN, allow cross-tenant access via X-Tenant-ID logic.
+    # db_roles (not the token's roles claim) so a revoked SUPER_ADMIN role
+    # loses cross-tenant access on the very next connection attempt.
+    if token_tenant != tenant_id and "SUPER_ADMIN" not in db_roles:
         logger.warning("WebSocket auth failed: token tenant=%s != path tenant_id=%s", token_tenant, tenant_id)
         await websocket.close(code=4003, reason="Token does not match tenant")
         return
