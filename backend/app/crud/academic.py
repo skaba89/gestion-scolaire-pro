@@ -402,6 +402,13 @@ def get_semester(db: Session, semester_id: UUID, tenant_id: UUID) -> Optional[Se
     return db.query(Semester).filter(Semester.id == semester_id, Semester.tenant_id == tenant_id).first()
 
 def create_semester(db: Session, obj_in: SemesterCreate, tenant_id: UUID) -> Semester:
+    # SECURITY FIX (institutional-readiness audit, 2026-09, 6th sweep):
+    # academic_year_id came straight from the request body with no
+    # ownership check — same bug class as _validate_classroom_fks above
+    # (academic_years.id is a globally unique primary key).
+    if not db.query(AcademicYear.id).filter(
+            AcademicYear.id == obj_in.academic_year_id, AcademicYear.tenant_id == tenant_id).first():
+        raise ValueError("Année académique introuvable dans cet établissement")
     db_obj = Semester(**obj_in.model_dump(), tenant_id=tenant_id)
     db.add(db_obj)
     db.commit()
@@ -474,7 +481,45 @@ def get_classrooms(db: Session, tenant_id: UUID) -> List[Classroom]:
 def get_classroom(db: Session, class_id: UUID, tenant_id: UUID) -> Optional[Classroom]:
     return db.query(Classroom).filter(Classroom.id == class_id, Classroom.tenant_id == tenant_id).first()
 
+# SECURITY FIX (institutional-readiness audit, 2026-09, 6th sweep):
+# create_classroom inserted level_id/campus_id/program_id/
+# academic_year_id/main_room_id/department_ids verbatim with no check
+# they belong to the caller's tenant — same bug class as
+# _validate_subject_association_fks above (levels.id/campuses.id/
+# programs.id/academic_years.id/rooms.id/departments.id are globally
+# unique primary keys, not tenant-scoped composite keys), missed when
+# that class was fixed on subjects/teacher-assignments/student-subjects.
+def _validate_classroom_fks(
+    db: Session, *, tenant_id: UUID,
+    level_id=None, campus_id=None, program_id=None,
+    academic_year_id=None, main_room_id=None, department_ids: Optional[List] = None,
+) -> None:
+    if level_id and not db.query(Level.id).filter(Level.id == level_id, Level.tenant_id == tenant_id).first():
+        raise ValueError("Niveau introuvable dans cet établissement")
+    if campus_id and not db.query(Campus.id).filter(Campus.id == campus_id, Campus.tenant_id == tenant_id).first():
+        raise ValueError("Campus introuvable dans cet établissement")
+    if program_id and not db.query(Program.id).filter(Program.id == program_id, Program.tenant_id == tenant_id).first():
+        raise ValueError("Programme introuvable dans cet établissement")
+    if academic_year_id and not db.query(AcademicYear.id).filter(
+            AcademicYear.id == academic_year_id, AcademicYear.tenant_id == tenant_id).first():
+        raise ValueError("Année académique introuvable dans cet établissement")
+    if main_room_id and not db.query(Room.id).filter(Room.id == main_room_id, Room.tenant_id == tenant_id).first():
+        raise ValueError("Salle introuvable dans cet établissement")
+    if department_ids:
+        found = {row.id for row in db.query(Department.id).filter(
+            Department.tenant_id == tenant_id, Department.id.in_(department_ids)).all()}
+        missing = [str(d) for d in department_ids if d not in found]
+        if missing:
+            raise ValueError(f"Département(s) introuvable(s) dans cet établissement: {', '.join(missing)}")
+
+
 def create_classroom(db: Session, obj_in: ClassroomCreate, tenant_id: UUID) -> Classroom:
+    _validate_classroom_fks(
+        db, tenant_id=tenant_id,
+        level_id=obj_in.level_id, campus_id=obj_in.campus_id, program_id=obj_in.program_id,
+        academic_year_id=obj_in.academic_year_id, main_room_id=obj_in.main_room_id,
+        department_ids=obj_in.department_ids,
+    )
     data = obj_in.model_dump(exclude={"department_ids"})
     db_obj = Classroom(**data, tenant_id=tenant_id)
     db.add(db_obj)
@@ -554,6 +599,14 @@ def get_subject_preferred_rooms(
 def create_subject_preferred_room(
     db: Session, obj_in: SubjectPreferredRoomCreate, tenant_id: UUID
 ) -> SubjectPreferredRoom:
+    # SECURITY FIX (institutional-readiness audit, 2026-09, 6th sweep):
+    # subject_id/room_id came straight from the request body with no
+    # ownership check — same bug class as _validate_classroom_fks above
+    # (subjects.id/rooms.id are globally unique primary keys).
+    if not db.query(Subject.id).filter(Subject.id == obj_in.subject_id, Subject.tenant_id == tenant_id).first():
+        raise ValueError("Matière introuvable dans cet établissement")
+    if not db.query(Room.id).filter(Room.id == obj_in.room_id, Room.tenant_id == tenant_id).first():
+        raise ValueError("Salle introuvable dans cet établissement")
     existing = db.query(SubjectPreferredRoom).filter(
         SubjectPreferredRoom.tenant_id == tenant_id,
         SubjectPreferredRoom.subject_id == obj_in.subject_id,

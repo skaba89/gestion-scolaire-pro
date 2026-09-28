@@ -770,3 +770,54 @@ le correctif puis en succès après, via `git stash`). Suite complète
 exécutée sur PostgreSQL 16 réel (`alembic upgrade head` appliqué) : 1727
 passed/1 skipped ; suite SQLite par défaut : 1244 passed/484 skipped ;
 aucune régression.
+
+## Injection de FK inter-tenant sur classes/semestres/salles préférées — 6e balayage (2026-09-28)
+
+Suite directe de la section précédente : un 6e balayage systématique a
+cherché la même classe de bug (identifiant fourni par l'appelant, référençant
+une table à clé primaire globalement unique, utilisé comme clé étrangère
+sans vérifier qu'il appartient au tenant de l'appelant) dans les zones
+d'association/FK non encore couvertes. 4 nouvelles instances trouvées,
+toutes dans `crud/academic.py` et ses endpoints :
+
+- `create_classroom` (`POST /infrastructure/classrooms/`) — insérait
+  `level_id`/`campus_id`/`program_id`/`academic_year_id`/`main_room_id`
+  (tous des `TenantMixin` à PK globalement unique) et `department_ids`
+  tels quels, sans aucune vérification. Corrigé avec un nouveau helper
+  `_validate_classroom_fks` (même convention que
+  `_validate_subject_association_fks`), appelé en tout début de
+  `create_classroom`.
+- `assign_subject_to_classroom`
+  (`POST /infrastructure/classrooms/{class_id}/subjects/{subject_id}/`) —
+  insérait `class_id`/`subject_id` (paramètres d'URL) sans aucune
+  vérification. Corrigé avec des vérifications directes
+  (`crud.get_classroom`/`crud.get_subject`) avant l'insertion, même
+  pattern que le correctif de `assign_subject_to_level` (section
+  précédente).
+- `create_subject_preferred_room` (`POST /subject-preferred-rooms/`) —
+  insérait `subject_id`/`room_id` tels quels. Corrigé par une
+  vérification d'appartenance au tenant avant l'insertion/la
+  déduplication.
+- `create_semester` (`POST /semesters/`) — insérait `academic_year_id`
+  tel quel. Corrigé par une vérification d'appartenance au tenant avant
+  la création. `update_semester` n'est pas concerné : `SemesterUpdate` ne
+  permet pas de modifier `academic_year_id`.
+
+Dans chaque cas, une `ValueError` levée côté `crud/academic.py` est
+convertie en 404 par l'endpoint, exactement comme pour le correctif
+précédent sur les associations de matières.
+
+Testé :
+`backend/tests/test_classroom_semester_preferred_room_fk_validation_2026_09_28.py`
+(15 tests — FK d'un autre tenant refusées sur les 4 endpoints, plus les
+cas positifs (associations valides dans le même tenant acceptées) ; les
+11 tests négatifs confirmés en échec avant le correctif puis en succès
+après, via `git stash`). Suite complète exécutée sur PostgreSQL 16 réel
+(`alembic upgrade head` appliqué) : 1742 passed/1 skipped ; suite SQLite
+par défaut : 1259 passed/484 skipped ; aucune régression.
+
+Non retenu comme correctif séparé (signalé pour information seulement) :
+`create_faculty`/`update_faculty` acceptent aussi un `dean_id`
+(`users.id`) non vérifié, mais l'impact se limite à une référence
+d'affichage orpheline (nom du doyen), pas à une pollution structurelle
+des données — laissé pour un futur balayage si jugé prioritaire.
