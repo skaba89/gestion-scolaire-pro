@@ -12,6 +12,9 @@ param acrLoginServer string
 param keyVaultUri string
 param appInsightsConnectionString string
 
+@description('Delegated subnet (Microsoft.App/environments) from modules/network.bicep — lets this environment reach the VNet-integrated Postgres server and the Redis Private Endpoint. External ingress on api/frontend is unaffected: a VNet-integrated Consumption environment still gets a platform-managed public IP for external:true apps.')
+param infraSubnetId string
+
 @description('Azure Blob Storage endpoint and container — see modules/storage.bicep. Not a secret (no key/SAS embedded): the api/worker containers authenticate to it via their own managed identity (DefaultAzureCredential), which is why this is a plain env var, not a Key Vault reference like commonSecrets below.')
 param azureStorageAccountUrl string
 param azureStorageContainer string
@@ -64,6 +67,17 @@ resource containerAppsEnv 'Microsoft.App/managedEnvironments@2023-11-02-preview'
         customerId: logAnalyticsCustomerId
         sharedKey: logAnalyticsSharedKey
       }
+    }
+    // SECURITY (private networking pass): VNet integration so this
+    // environment can reach the VNet-integrated Postgres server and the
+    // Redis Private Endpoint (modules/postgres.bicep, modules/redis.bicep)
+    // — neither has a public endpoint left to fall back to.
+    // internal is deliberately omitted (defaults to false): api/frontend
+    // keep their external:true ingress and platform-managed public IP,
+    // unaffected by this — only outbound reachability to Postgres/Redis
+    // changes, not inbound.
+    vnetConfiguration: {
+      infrastructureSubnetId: infraSubnetId
     }
   }
 }
