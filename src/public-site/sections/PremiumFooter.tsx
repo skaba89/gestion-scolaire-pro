@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Facebook, Linkedin, Twitter } from "lucide-react";
 import { resolveUploadUrl } from "@/utils/url";
+import { sanitizeUrl } from "@/lib/sanitize";
 import type { DesignTokens } from "../theme/tokens";
 import type { NavLink } from "./PremiumNavbar";
 
@@ -39,17 +40,17 @@ export function PremiumFooter({ tenantName, logoUrl, navLinks, facebookUrl, twit
             {hasSocial && (
               <div className="flex gap-2 mt-4">
                 {facebookUrl && (
-                  <a href={facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors">
+                  <a href={sanitizeUrl(facebookUrl)} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors">
                     <Facebook className="w-4 h-4" />
                   </a>
                 )}
                 {twitterUrl && (
-                  <a href={twitterUrl} target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors">
+                  <a href={sanitizeUrl(twitterUrl)} target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors">
                     <Twitter className="w-4 h-4" />
                   </a>
                 )}
                 {linkedinUrl && (
-                  <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors">
+                  <a href={sanitizeUrl(linkedinUrl)} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/10 hover:bg-white/20 transition-colors">
                     <Linkedin className="w-4 h-4" />
                   </a>
                 )}

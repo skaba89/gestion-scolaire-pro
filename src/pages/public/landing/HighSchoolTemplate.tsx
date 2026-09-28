@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { sanitizeUrl } from '@/lib/sanitize';
 import {
   Building2,
   LogIn,
@@ -696,7 +697,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                     <div className="flex gap-3 flex-wrap">
                       {settings.facebook && (
                         <a
-                          href={settings.facebook}
+                          href={sanitizeUrl(settings.facebook)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-lg flex items-center justify-center bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
@@ -706,7 +707,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                       )}
                       {settings.instagram && (
                         <a
-                          href={settings.instagram}
+                          href={sanitizeUrl(settings.instagram)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-lg flex items-center justify-center bg-pink-50 text-pink-600 hover:bg-pink-100 transition-colors"
@@ -716,7 +717,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                       )}
                       {settings.twitter && (
                         <a
-                          href={settings.twitter}
+                          href={sanitizeUrl(settings.twitter)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-lg flex items-center justify-center bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors"
@@ -726,7 +727,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                       )}
                       {settings.youtube && (
                         <a
-                          href={settings.youtube}
+                          href={sanitizeUrl(settings.youtube)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-lg flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
@@ -736,7 +737,7 @@ export const HighSchoolTemplate = ({ tenant, settings }: LandingTemplateProps) =
                       )}
                       {settings.linkedin_url && (
                         <a
-                          href={settings.linkedin_url}
+                          href={sanitizeUrl(settings.linkedin_url)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="w-9 h-9 rounded-lg flex items-center justify-center bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"

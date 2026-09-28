@@ -425,6 +425,24 @@ async def update_tenant_settings(
     current_user: dict = Depends(require_permission("settings:write"))
 ):
     """Update settings for the current tenant."""
+    # SECURITY FIX (institutional-readiness audit, 2026-09, 9th sweep):
+    # this endpoint accepts an arbitrary Dict[str, Any] and merges it into
+    # tenant.settings with zero validation — TenantLandingSettings's own
+    # protocol check on facebook/instagram/twitter/youtube/*_url (schemas/
+    # tenants.py) only ever runs on the READ side (_build_public_response
+    # rebuilds TenantLandingSettings(**landing_raw)), so a malicious
+    # "javascript:..." value written here was never rejected at the actual
+    # point of entry. Validate the landing sub-object's social links here
+    # too, so the write itself is rejected (422) rather than silently
+    # storing the payload and only catching it — by blanking the whole
+    # landing object — the next time it's read back.
+    landing_update = settings_update.get("landing")
+    if isinstance(landing_update, dict):
+        try:
+            TenantLandingSettings(**landing_update)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant_id = str(tid_uuid)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()

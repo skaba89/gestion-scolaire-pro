@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { sanitizeHtml } from '@/lib/sanitize';
+import { sanitizeHtml, sanitizeUrl } from '@/lib/sanitize';
 import { apiClient } from '@/api/client';
 import {
   Menu,
@@ -272,7 +272,7 @@ function PublicNavbar({
 }
 
 // ─── Footer Component ───────────────────────────────────────────────────
-function PublicFooter({
+export function PublicFooter({
   tenantName,
   tenantSlug,
   primaryColor,
@@ -424,7 +424,7 @@ function PublicFooter({
             <div className="flex gap-3 flex-wrap">
               {settings.facebook && (
                 <a
-                  href={settings.facebook}
+                  href={sanitizeUrl(settings.facebook)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -434,7 +434,7 @@ function PublicFooter({
               )}
               {settings.instagram && (
                 <a
-                  href={settings.instagram}
+                  href={sanitizeUrl(settings.instagram)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -444,7 +444,7 @@ function PublicFooter({
               )}
               {settings.twitter && (
                 <a
-                  href={settings.twitter}
+                  href={sanitizeUrl(settings.twitter)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -454,7 +454,7 @@ function PublicFooter({
               )}
               {settings.youtube && (
                 <a
-                  href={settings.youtube}
+                  href={sanitizeUrl(settings.youtube)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -464,7 +464,7 @@ function PublicFooter({
               )}
               {settings.linkedin_url && (
                 <a
-                  href={settings.linkedin_url}
+                  href={sanitizeUrl(settings.linkedin_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors"
