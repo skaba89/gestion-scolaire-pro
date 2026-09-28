@@ -97,40 +97,86 @@ Cette PR livre l'outillage (le script de création de rôle, le câblage
 étapes 1 à 4 ci-dessus ne sont pas exécutées manuellement. C'est
 délibéré : des tests exhaustifs contre un vrai PostgreSQL 16, avec la
 connexion applicative réellement pointée sur le rôle restreint, ont mis
-en évidence **deux problèmes réels et non résolus** qui rendent la
-bascule effective encore risquée :
+en évidence des problèmes réels — deux corrigés dans une PR de suivi
+(migration `20260928_0001`), un troisième qui reste un vrai risque non
+résolu :
 
-1. **`app/workers/tasks.py` ne fixe jamais le contexte RLS.** Les jobs
-   ARQ en arrière-plan (synchronisation WhatsApp, rappels de paiement,
-   imports CSV, génération de bulletins) utilisent `SessionLocal()`
-   directement, environ 20 sites d'appel, sans jamais appeler
-   `set_config('app.current_tenant_id', ...)` ni
+1. **(CORRIGÉ, migration `20260928_0001`) Le cast `::uuid` de chaque
+   politique RLS plantait sur toute requête sans tenant.**
+   `set_config('app.current_tenant_id', NULL, false)` — ce que
+   `get_db()` exécute à chaque requête pour repartir d'un état propre —
+   ne remet PAS le GUC personnalisé à `NULL` : il le redéfinit à une
+   chaîne vide `''` (confirmé directement contre un PostgreSQL 16 réel,
+   sans ORM). Chaque politique RLS créée par
+   `20260224_0730_fdb89a2e3b4d_enable_rls.py` faisait
+   `tenant_id = (current_setting('app.current_tenant_id', true))::uuid`
+   — `(''::uuid)` lève `invalid input syntax for type uuid: ""` pour
+   tout le balayage de lignes, sur `/auth/bootstrap/` ou toute requête
+   SUPER_ADMIN par exemple. Invisible jusqu'ici car le rôle admin actuel
+   est superutilisateur et bypass RLS entièrement, donc ce cast n'a
+   jamais été réellement évalué en production ni dans la suite de
+   tests existante.
+2. **(CORRIGÉ, même migration) Une fois le cast corrigé, l'égalité
+   simple rejetait encore les lignes sans tenant (comptes SUPER_ADMIN,
+   `tenant_id IS NULL`).** En SQL, `NULL = NULL` vaut `NULL`, pas
+   `TRUE` — donc même avec le cast corrigé, l'INSERT du compte
+   SUPER_ADMIN lui-même (créé par `/auth/bootstrap/` avec
+   `tenant_id=NULL`) était rejeté par sa propre politique
+   `WITH CHECK`. Remplacé `=` par `IS NOT DISTINCT FROM` (égalité
+   NULL-safe de PostgreSQL), qui vaut `TRUE` pour NULL vs NULL tout en
+   restant strictement équivalent à `=` pour deux valeurs non-nulles —
+   vérifié que l'isolation inter-tenant reste intacte (un tenant réel
+   ne voit toujours pas les lignes `tenant_id IS NULL`, et
+   réciproquement).
+3. **(NON RÉSOLU) `app/workers/tasks.py` ne fixe jamais le contexte
+   RLS.** Les jobs ARQ en arrière-plan (synchronisation WhatsApp,
+   rappels de paiement, imports CSV, génération de bulletins) utilisent
+   `SessionLocal()` directement, environ 20 sites d'appel, sans jamais
+   appeler `set_config('app.current_tenant_id', ...)` ni
    `tenant_context.set(...)`. Aujourd'hui ces jobs ne fonctionnent
    correctement (au sens : ne mélangent pas les données de plusieurs
    tenants) que **parce que** le rôle de connexion actuel bypass RLS.
    Faire tourner le worker avec `schoolflow_app` casserait silencieusement
    l'isolation multi-tenant de tous ces jobs, ou les ferait échouer selon
    les politiques RLS exactes.
-2. **Poisoning apparent du pool de connexions sous le rôle restreint.**
-   La suite backend complète, exécutée avec la connexion applicative sur
-   `schoolflow_app`, produit un nombre d'échecs largement supérieur (de
-   l'ordre de 900+ tests) à ce que les deux causes connues (point 1 et le
-   bug `ensure_operational_tables` déjà corrigé) expliquent à elles
-   seules. Un test représentatif
-   (`test_kiosk.py::TestDeviceManagementAccessControl::test_admin_can_create`)
-   échoue dans la suite complète (`InvalidRequestError: Could not refresh
-   instance`) mais passe proprement en isolation — combiné à des dizaines
-   d'occurrences de « current transaction is aborted » dans les logs,
-   cela pointe vers des erreurs de permission non suivies d'un
-   `rollback()` quelque part dans le cycle de vie d'une requête
-   (`app/core/database.py::get_db()` ou ailleurs), qui empoisonnent la
-   connexion pour la requête suivante utilisant le même pool.
 
-**Tant que ces deux points ne sont pas résolus séparément**, exécuter les
-étapes 2-4 ci-dessus sur un environnement réel romprait le
-fonctionnement des jobs d'arrière-plan et/ou provoquerait des erreurs
-5xx sporadiques et difficiles à diagnostiquer sur l'API elle-même. Le
-scope volontairement restreint de cette PR est donc :
+**Précision importante, après investigation plus poussée** : la suite
+backend complète, exécutée avec la connexion applicative sur
+`schoolflow_app` (rôle restreint), produit encore un nombre d'échecs
+important (de l'ordre de 900 tests) même après les deux corrections
+ci-dessus. Une PR de suivi précédente décrivait cela comme un
+« poisoning apparent du pool de connexions » supposant un `rollback()`
+manquant quelque part — **ce diagnostic était imprécis**. La cause
+réelle, confirmée en traçant un échec représentatif jusqu'au bout
+(`tests/test_admission_timeline.py` et des dizaines de fichiers
+similaires) : ces tests créent leurs données via
+`with SessionLocal() as db: db.add(User(..., tenant_id=tenant_id))`,
+c'est-à-dire **directement via l'ORM, en dehors de tout cycle de
+requête HTTP**, sans jamais appeler `set_config`. Sous le rôle admin
+(superutilisateur), RLS étant bypass, cela n'a jamais eu d'importance.
+Sous le rôle restreint, une telle insertion échoue nécessairement — la
+connexion réutilisée du pool ne porte pas le bon tenant, ou aucun —
+comme la politique le prévoit correctement.
+
+Ce n'est **pas un bug du code de production** : toute vraie requête
+HTTP passe par `app/core/database.py::get_db()`, qui positionne
+correctement le contexte tenant à chaque requête, sans exception. C'est
+une limite du **harnais de tests** de ce dépôt — des dizaines de
+fichiers créent des données de test en contournant délibérément l'API
+pour aller plus vite, un choix raisonnable tant que RLS n'est jamais
+réellement évaluée par la suite de tests, mais qui empêche de faire
+tourner cette même suite contre le rôle restreint sans une refonte
+significative des fixtures concernées (hors périmètre ici — risque de
+régression bien plus large qu'une correction RLS ciblée).
+
+Le point 3 (`app/workers/tasks.py`) reste, lui, un authentique risque de
+**production**, puisque les jobs ARQ tournent réellement en dehors de
+tout cycle de requête HTTP, contrairement aux tests.
+
+**Tant que le point 3 n'est pas résolu**, exécuter les étapes 2-4
+ci-dessus sur un environnement réel casserait silencieusement
+l'isolation multi-tenant des jobs d'arrière-plan. Le scope volontairement
+restreint des PR de ce chantier est donc :
 
 - Le script de création de rôle (`create_app_role.sql`), validé de façon
   approfondie contre un vrai PostgreSQL 16 (création idempotente,
@@ -141,10 +187,17 @@ scope volontairement restreint de cette PR est donc :
 - La correction du bug `ensure_operational_tables` (DDL via le mauvais
   engine), un vrai problème indépendant de l'activation du rôle
   restreint.
+- Les deux corrections RLS ci-dessus (migration `20260928_0001`), des
+  bugs de production réels et indépendants de l'activation du rôle
+  restreint (n'importe quel futur rôle non-superutilisateur, ou même un
+  défaut de configuration futur, les aurait déclenchés).
 
 La fermeture complète du risque P1 (rôle non-superutilisateur
 **effectivement utilisé** en production) reste un travail de suivi,
-conditionné à la résolution des deux points ci-dessus.
+conditionné à la résolution du point 3 ci-dessus — et, séparément, à
+une revue des fixtures de test qui contournent `get_db()` si l'on
+souhaite un jour faire tourner la suite de tests elle-même contre le
+rôle restreint.
 
 ## Validation effectuée
 
@@ -160,12 +213,19 @@ conditionné à la résolution des deux points ci-dessus.
   de fixup de schéma quand `DATABASE_URL_MIGRATIONS` est définie, aucune
   fuite de mot de passe dans les logs).
 - Suite backend complète contre PostgreSQL réel avec le rôle **admin**
-  inchangé (comportement actuellement déployé) : 0 régression introduite
-  par le code de cette PR.
+  inchangé (comportement actuellement déployé), migration `20260928_0001`
+  appliquée : **1857 passed, 1 skipped, 0 failed** — 0 régression.
+- Suite backend complète (SQLite) : **1359 passed, 499 skipped, 0 failed**
+  — 0 régression.
+- Vérification manuelle directe (`psycopg`, sans ORM) sur une base
+  portant le rôle restreint : l'INSERT du compte SUPER_ADMIN
+  (`tenant_id=NULL`) réussit désormais, et un contexte tenant différent
+  ne voit toujours pas cette ligne — l'isolation inter-tenant reste
+  intacte après le passage à `IS NOT DISTINCT FROM`.
 - Suite backend complète contre PostgreSQL réel avec la connexion
   applicative pointée sur le rôle **restreint** (`schoolflow_app`,
-  expérimentation de due diligence, jamais activée par défaut) : a
-  révélé les deux problèmes non résolus documentés ci-dessus — ce
-  résultat est la preuve que cette PR ne prétend pas résoudre le risque
-  P1 en entier, seulement poser l'outillage vérifié pour le faire plus
-  tard en toute sécurité.
+  expérimentation de due diligence, jamais activée par défaut) : passée
+  de ~935 à ~877 échecs après les deux corrections RLS — la baisse est
+  réelle mais plus faible qu'espéré, car la majorité des échecs
+  restants viennent des fixtures de test contournant `get_db()`
+  (voir ci-dessus), pas d'un bug de code applicatif supplémentaire.

@@ -327,28 +327,45 @@ consentements. Suppression de compte : demande tracée
   fonctionner une fois ce rôle activé — voir `docs/POSTGRES_APP_ROLE.md`.
   **Ce risque n'est pas fermé** : des tests exhaustifs contre un vrai
   PostgreSQL, avec la connexion applicative effectivement pointée sur ce
-  rôle restreint, ont révélé deux problèmes réels et non résolus qui
-  rendent l'activation encore prématurée — voir les deux points
-  ci-dessous, détaillés dans `docs/POSTGRES_APP_ROLE.md` (section
-  « Ne pas encore activer en production »).
-- **P1 (nouveau, découvert pendant les tests du point ci-dessus)** :
-  `app/workers/tasks.py` (jobs ARQ d'arrière-plan — synchronisation
-  WhatsApp, rappels de paiement, imports CSV, bulletins) utilise
-  `SessionLocal()` directement sur une vingtaine de sites d'appel, sans
-  jamais fixer le contexte RLS (`set_config('app.current_tenant_id',
-  ...)`/`tenant_context.set(...)`). Ces jobs ne préservent l'isolation
-  multi-tenant aujourd'hui que parce que la connexion actuelle bypass RLS
-  — un vrai risque si le rôle applicatif est un jour restreint sans
-  corriger ce point en premier.
-- **P2 (nouveau, découvert pendant les tests du point ci-dessus)** :
-  poisoning apparent du pool de connexions sous le rôle restreint —
-  la suite backend complète produit un nombre d'échecs très supérieur à
-  ce que les causes connues expliquent, avec des signes de transactions
-  avortées (« current transaction is aborted ») qui contaminent des
-  requêtes suivantes sans rapport. Pointe vers un chemin d'erreur de
-  permission quelque part (probablement `app/core/database.py::get_db()`
-  ou un appelant) qui n'appelle pas systématiquement `rollback()`. Non
-  investigué plus avant dans cette session.
+  rôle restreint, ont révélé plusieurs problèmes réels, détaillés dans
+  `docs/POSTGRES_APP_ROLE.md` (section « Ne pas encore activer en
+  production ») — deux corrigés (voir ci-dessous), un troisième qui
+  reste non résolu et bloque l'activation.
+- **CORRIGÉ (migration `20260928_0001`)** : chaque politique RLS créée
+  par `20260224_0730_fdb89a2e3b4d_enable_rls.py` faisait
+  `tenant_id = (current_setting('app.current_tenant_id', true))::uuid`
+  en supposant que `set_config(..., NULL, false)` remet le réglage à
+  NULL — confirmé faux contre un vrai PostgreSQL 16 (il le redéfinit à
+  une chaîne vide `''`), ce qui faisait planter le cast sur toute
+  requête sans tenant (SUPER_ADMIN, `/auth/bootstrap/`, ...). Invisible
+  jusqu'ici car le rôle actuel bypass RLS entièrement (superutilisateur).
+  Corrigé avec `NULLIF(..., '')`, puis avec `IS NOT DISTINCT FROM` à la
+  place de `=` (sinon `NULL = NULL` reste faux et rejette les comptes
+  SUPER_ADMIN eux-mêmes, dont `tenant_id IS NULL`). Isolation
+  inter-tenant revérifiée intacte après ce changement.
+- **P1 (non résolu)** : `app/workers/tasks.py` (jobs ARQ d'arrière-plan —
+  synchronisation WhatsApp, rappels de paiement, imports CSV, bulletins)
+  utilise `SessionLocal()` directement sur une vingtaine de sites
+  d'appel, sans jamais fixer le contexte RLS
+  (`set_config('app.current_tenant_id', ...)`/`tenant_context.set(...)`).
+  Ces jobs ne préservent l'isolation multi-tenant aujourd'hui que parce
+  que la connexion actuelle bypass RLS — un vrai risque de PRODUCTION si
+  le rôle applicatif est un jour restreint sans corriger ce point en
+  premier. C'est le seul point qui bloque encore l'activation du rôle
+  restreint (le point suivant est une limite du harnais de tests, pas un
+  risque de production).
+- **Précision (pas un risque de production)** : une hypothèse précédente
+  de « poisoning du pool de connexions » sous le rôle restreint (la
+  suite de tests produisant ~900 échecs même après les corrections
+  ci-dessus) était imprécise. La cause réelle, tracée jusqu'au bout :
+  des dizaines de fichiers de test créent leurs données directement via
+  l'ORM (`with SessionLocal() as db: db.add(User(...))`), en dehors de
+  tout cycle de requête HTTP, sans jamais appeler `set_config` — un
+  choix de fixture raisonnable tant que RLS n'est jamais réellement
+  évaluée, mais qui échoue nécessairement sous un rôle qui la respecte.
+  Toute vraie requête HTTP passe par `get_db()`, qui positionne
+  correctement le contexte à chaque fois. Détails dans
+  `docs/POSTGRES_APP_ROLE.md`.
 - **P2** : monitoring non ventilé par tenant — un tenant compromis ou
   abusif n'est pas isolable finement à ce jour.
 - **P2** : pas de throttling par tenant (seulement par IP) — un tenant à
