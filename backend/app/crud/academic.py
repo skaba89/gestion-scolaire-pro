@@ -201,7 +201,51 @@ def get_subjects(db: Session, tenant_id: UUID) -> List[Subject]:
 def get_subject(db: Session, subject_id: UUID, tenant_id: UUID) -> Optional[Subject]:
     return db.query(Subject).filter(Subject.id == subject_id, Subject.tenant_id == tenant_id).first()
 
+# SECURITY FIX (institutional-readiness audit, 2026-09, 5th sweep):
+# create_subject/update_subject inserted department_ids/level_ids/
+# prerequisite_subject_ids verbatim into subject_departments/
+# subject_levels/subject_prerequisites with no check they belong to the
+# caller's tenant. departments.id/levels.id/subjects.id are globally
+# unique primary keys (not tenant-scoped composite keys), so any
+# TENANT_ADMIN/DEPARTMENT_HEAD holding subjects:write in their own tenant
+# could pass another tenant's department/level/subject UUID and create a
+# persistent cross-tenant association row — the same bug class already
+# fixed on teacher assignments (_validate_assignment_fks in
+# academic/teachers.py) and student subject registration
+# (_validate_student_and_subjects_in_tenant in aliases.py), missed here.
+def _validate_subject_association_fks(
+    db: Session, *, tenant_id: UUID,
+    department_ids: Optional[List] = None,
+    level_ids: Optional[List] = None,
+    prerequisite_subject_ids: Optional[List] = None,
+) -> None:
+    if department_ids:
+        found = {row.id for row in db.query(Department.id).filter(
+            Department.tenant_id == tenant_id, Department.id.in_(department_ids)).all()}
+        missing = [str(d) for d in department_ids if d not in found]
+        if missing:
+            raise ValueError(f"Département(s) introuvable(s) dans cet établissement: {', '.join(missing)}")
+    if level_ids:
+        found = {row.id for row in db.query(Level.id).filter(
+            Level.tenant_id == tenant_id, Level.id.in_(level_ids)).all()}
+        missing = [str(l) for l in level_ids if l not in found]
+        if missing:
+            raise ValueError(f"Niveau(x) introuvable(s) dans cet établissement: {', '.join(missing)}")
+    if prerequisite_subject_ids:
+        found = {row.id for row in db.query(Subject.id).filter(
+            Subject.tenant_id == tenant_id, Subject.id.in_(prerequisite_subject_ids)).all()}
+        missing = [str(p) for p in prerequisite_subject_ids if p not in found]
+        if missing:
+            raise ValueError(f"Matière(s) prérequise(s) introuvable(s) dans cet établissement: {', '.join(missing)}")
+
+
 def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subject:
+    _validate_subject_association_fks(
+        db, tenant_id=tenant_id,
+        department_ids=obj_in.department_ids,
+        level_ids=obj_in.level_ids,
+        prerequisite_subject_ids=obj_in.prerequisite_subject_ids,
+    )
     data = obj_in.model_dump(exclude={"department_ids", "level_ids", "prerequisite_subject_ids"})
     db_obj = Subject(**data, tenant_id=tenant_id)
     db.add(db_obj)
@@ -248,6 +292,11 @@ def update_subject(db: Session, subject_id: UUID, obj_in: SubjectUpdate, tenant_
     dept_ids = update_data.pop("department_ids", None)
     level_ids = update_data.pop("level_ids", None)
     prereq_ids = update_data.pop("prerequisite_subject_ids", None)
+
+    _validate_subject_association_fks(
+        db, tenant_id=tenant_id,
+        department_ids=dept_ids, level_ids=level_ids, prerequisite_subject_ids=prereq_ids,
+    )
 
     for field, value in update_data.items():
         setattr(db_obj, field, value)
