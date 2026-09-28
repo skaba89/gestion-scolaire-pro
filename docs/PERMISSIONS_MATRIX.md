@@ -717,3 +717,56 @@ négatifs confirmés en échec avant le correctif (`git stash` du
 correctif) puis en succès après. Suite complète exécutée sur PostgreSQL
 16 réel (`alembic upgrade head` appliqué) : 1701 passed/18 skipped ;
 suite SQLite par défaut : 1218 passed/501 skipped ; aucune régression.
+
+## Injection de FK inter-tenant sur les associations matière↔niveau/département/prérequis — 5e balayage (2026-09-28)
+
+Trouvé par un 5e balayage systématique combinant recherche de fuites de
+secrets (rien de nouveau trouvé — `billing.py`, `mfa.py`, `webhooks.py`,
+`saas_enterprise.py`, `imports.py`, `kiosk.py` sont déjà correctement
+scopés) et recherche d'IDOR/BOLA sur les endpoints à paramètre `{id}`
+non encore couverts. Bug différent des sections précédentes : pas une
+absence de permission ni une fuite de secret, mais l'absence de
+vérification qu'un identifiant fourni par l'appelant appartient bien à
+son propre tenant avant de l'utiliser comme clé étrangère.
+
+`crud/academic.py::create_subject`/`update_subject` inséraient
+`department_ids`/`level_ids`/`prerequisite_subject_ids` (fournis dans le
+corps de la requête) tels quels dans les tables d'association
+`subject_departments`/`subject_levels`/`subject_prerequisites`, et
+`academic/subjects.py::assign_subject_to_level` insérait `subject_id`/
+`level_id` (paramètres d'URL) de la même façon — sans aucune vérification
+qu'ils appartiennent au tenant de l'appelant. `departments.id`/
+`levels.id`/`subjects.id` sont des clés primaires globalement uniques
+(pas des clés composites scopées par tenant), donc n'importe quel
+TENANT_ADMIN/DEPARTMENT_HEAD détenant `subjects:write` dans son propre
+tenant pouvait fournir l'UUID d'un département/niveau/matière d'un
+**autre** tenant et créer une ligne d'association inter-tenant
+persistante — exactement la même classe de bug déjà corrigée sur les
+affectations d'enseignants (`_validate_assignment_fks` dans
+`academic/teachers.py`) et l'inscription aux matières
+(`_validate_student_and_subjects_in_tenant` dans `aliases.py`), mais
+manquée ici.
+
+Corrigé en ajoutant `crud/academic.py::_validate_subject_association_fks`
+(même convention que `_validate_assignment_fks`) appelée en tout début de
+`create_subject`/`update_subject`, levant une `ValueError` (convertie en
+404 par les endpoints) si un `department_id`/`level_id`/
+`prerequisite_subject_id` n'existe pas dans le tenant de l'appelant ; et
+en ajoutant une vérification directe (requêtes ORM sur `Subject`/`Level`
+filtrées par `tenant_id`) dans `assign_subject_to_level` avant l'insertion.
+Impact réel limité à la pollution d'intégrité inter-tenant et à un oracle
+d'existence faible (succès/échec de l'insertion) — les endpoints de
+lecture (`get_subject_levels`, etc.) filtrent déjà correctement sur le
+vrai `tenant_id` de la ligne d'association, donc ce bug ne permettait pas
+en lui-même de lire le contenu d'un autre tenant.
+
+Testé :
+`backend/tests/test_subject_association_fk_validation_2026_09_28.py`
+(9 tests — département/niveau/matière-prérequise d'un autre tenant
+refusés sur `create_subject`, niveau d'un autre tenant refusé sur
+`update_subject`, matière/niveau d'un autre tenant refusés sur
+`assign_subject_to_level` ; les 6 tests négatifs confirmés en échec avant
+le correctif puis en succès après, via `git stash`). Suite complète
+exécutée sur PostgreSQL 16 réel (`alembic upgrade head` appliqué) : 1727
+passed/1 skipped ; suite SQLite par défaut : 1244 passed/484 skipped ;
+aucune régression.

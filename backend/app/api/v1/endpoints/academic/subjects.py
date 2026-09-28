@@ -62,7 +62,10 @@ def create_subject(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
-    return crud_academic.create_subject(db, subject_in, tenant_id=tenant_id)
+    try:
+        return crud_academic.create_subject(db, subject_in, tenant_id=tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 @router.put("/{subject_id}/", response_model=Subject)
 def update_subject(
@@ -76,7 +79,10 @@ def update_subject(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
-    subject = crud_academic.update_subject(db, subject_id, subject_in, tenant_id=tenant_id)
+    try:
+        subject = crud_academic.update_subject(db, subject_id, subject_in, tenant_id=tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     if not subject:
         raise HTTPException(status_code=404, detail="Subject not found")
     return subject
@@ -167,6 +173,18 @@ def assign_subject_to_level(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    # SECURITY FIX (institutional-readiness audit, 2026-09, 5th sweep):
+    # inserted subject_id/level_id verbatim with no check they belong to
+    # the caller's tenant — departments.id/levels.id/subjects.id are
+    # globally unique primary keys, so a cross-tenant UUID could be used
+    # to create a persistent cross-tenant association row (same bug class
+    # as create_subject/update_subject above, see crud/academic.py's
+    # _validate_subject_association_fks).
+    if not crud_academic.get_subject(db, subject_id, tenant_id):
+        raise HTTPException(status_code=404, detail="Subject not found")
+    from app.models import Level
+    if not db.query(Level.id).filter(Level.id == level_id, Level.tenant_id == tenant_id).first():
+        raise HTTPException(status_code=404, detail="Level not found")
     from app.models.associations import subject_levels
     db.execute(subject_levels.insert().values(
         tenant_id=tenant_id,
