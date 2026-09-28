@@ -16,7 +16,7 @@ from app.core.client_ip import get_client_ip
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, verify_password
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.user import User
 from app.models.user_role import UserRole
@@ -33,6 +33,24 @@ CODE_LENGTH = 8  # characters per segment (format: XXXX-XXXX)
 
 class VerifyCodeRequest(BaseModel):
     code: str
+
+
+class DisableMfaRequest(BaseModel):
+    current_password: str
+
+
+def _require_current_password(db: Session, user_id: str, current_password: str) -> None:
+    # SECURITY FIX (institutional-readiness audit, 2026-09, 7th sweep):
+    # disable_totp/toggle_mfa(enabled=False) required nothing but a valid
+    # access token — no password, current TOTP code, or backup code — to
+    # permanently strip MFA from an account. Anyone who obtains a live
+    # bearer token by any means (XSS, a leaked/logged token, an
+    # unattended device) could disable MFA in a single request with no
+    # step-up check at all, mirroring the current_password re-check
+    # already required by POST /auth/change-password/.
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not verify_password(current_password, getattr(user, "password_hash", None)):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
 
 
 def _generate_raw_code() -> str:
@@ -581,6 +599,7 @@ def verify_totp(
 
 @router.post("/totp/disable/")
 def disable_totp(
+    body: DisableMfaRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -588,6 +607,7 @@ def disable_totp(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    _require_current_password(db, user_id, body.current_password)
 
     try:
         _ensure_mfa_tables(db)
@@ -745,6 +765,7 @@ def get_mfa_status(
 
 class MFAToggleRequest(BaseModel):
     enabled: bool
+    current_password: str | None = None
 
 
 @router.post("/toggle/")
@@ -761,6 +782,12 @@ def toggle_mfa(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     enabled = body.enabled
+    if not enabled:
+        # Only disabling needs step-up: turning MFA ON has no downside to
+        # skip-checking. See _require_current_password's comment above.
+        if not body.current_password:
+            raise HTTPException(status_code=400, detail="Current password is required to disable MFA")
+        _require_current_password(db, user_id, body.current_password)
 
     try:
         _ensure_mfa_tables(db)

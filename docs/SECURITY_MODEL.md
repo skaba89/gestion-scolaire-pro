@@ -10,6 +10,16 @@ qui l'implémente.
   `backend/app/core/security.py`.
 - MFA disponible (`backend/app/api/v1/endpoints/core/mfa.py`,
   `mfa_enabled` sur `User`), testé dans `test_mfa_enforcement.py`.
+- Désactiver le MFA (`POST /mfa/totp/disable/`, `POST /mfa/toggle/` avec
+  `enabled: false`) exige désormais le mot de passe actuel de l'appelant
+  (institutional-readiness audit, 2026-09, 7e balayage) : avant ce
+  correctif, un jeton d'accès valide seul (obtenu par XSS, fuite/log d'un
+  jeton, un appareil sans surveillance...) suffisait à retirer
+  définitivement le MFA d'un compte en une seule requête, sans mot de
+  passe ni code TOTP/de secours. Même convention que le contrôle déjà
+  existant sur `POST /auth/change-password/`. Activer le MFA ne demande
+  toujours rien (aucun risque à protéger un compte davantage). Testé dans
+  `test_totp_mfa_login.py::TestDisableTotpRequiresCurrentPassword`.
 - Verrouillage de compte après tentatives échouées
   (`test_account_lockout.py`).
 - Rate limiting sur les endpoints d'authentification (slowapi) :

@@ -165,11 +165,116 @@ class TestTOTPEnrollment:
             headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
         )
 
-        resp = client.post("/api/v1/mfa/totp/disable/", headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
+        # SECURITY FIX (institutional-readiness audit, 2026-09, 7th sweep):
+        # disable_totp now requires the caller's current password as a
+        # step-up re-auth — see TestDisableTotpRequiresCurrentPassword
+        # below for the negative-guard tests.
+        resp = client.post(
+            "/api/v1/mfa/totp/disable/", json={"current_password": STRONG_PASSWORD},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
         assert resp.status_code == 200, resp.text
 
         status_resp = client.get("/api/v1/mfa/totp/status/", headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
         assert status_resp.json()["enabled"] is False
+
+
+class TestDisableTotpRequiresCurrentPassword:
+    """POST /mfa/totp/disable/ and POST /mfa/toggle/ (enabled=False) had no
+    step-up re-authentication at all — a live access token alone (however
+    obtained: XSS, a leaked/logged bearer token, an unattended device) was
+    enough to permanently strip MFA from an account in a single request.
+    Fixed by requiring the caller's current password, mirroring the
+    existing current_password re-check on POST /auth/change-password/."""
+
+    def test_disable_totp_without_password_is_rejected(self):
+        user_id, email, tenant_id = _fresh_user()
+        enroll = client.post("/api/v1/mfa/totp/enroll/", headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
+        secret = enroll.json()["secret"]
+        client.post(
+            "/api/v1/mfa/totp/verify/", json={"code": pyotp.TOTP(secret).now()},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+
+        resp = client.post("/api/v1/mfa/totp/disable/", json={}, headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
+        assert resp.status_code == 422, resp.text
+
+        status_resp = client.get("/api/v1/mfa/totp/status/", headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
+        assert status_resp.json()["enabled"] is True
+
+    def test_disable_totp_with_wrong_password_is_rejected(self):
+        user_id, email, tenant_id = _fresh_user()
+        enroll = client.post("/api/v1/mfa/totp/enroll/", headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
+        secret = enroll.json()["secret"]
+        client.post(
+            "/api/v1/mfa/totp/verify/", json={"code": pyotp.TOTP(secret).now()},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+
+        resp = client.post(
+            "/api/v1/mfa/totp/disable/", json={"current_password": "totally-wrong-password"},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+        assert resp.status_code == 401, resp.text
+
+        status_resp = client.get("/api/v1/mfa/totp/status/", headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
+        assert status_resp.json()["enabled"] is True
+
+    def test_toggle_disable_without_password_is_rejected(self):
+        user_id, email, tenant_id = _fresh_user()
+        enroll = client.post("/api/v1/mfa/totp/enroll/", headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}))
+        secret = enroll.json()["secret"]
+        client.post(
+            "/api/v1/mfa/totp/verify/", json={"code": pyotp.TOTP(secret).now()},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+
+        resp = client.post(
+            "/api/v1/mfa/toggle/", json={"enabled": False},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+        assert resp.status_code == 400, resp.text
+
+        from app.core.database import SessionLocal
+        from app.models.user import User
+        with SessionLocal() as db:
+            assert db.query(User).filter(User.id == user_id).first().mfa_enabled is True
+
+    def test_toggle_disable_with_wrong_password_is_rejected(self):
+        user_id, email, tenant_id = _fresh_user(mfa_enabled=True)
+
+        resp = client.post(
+            "/api/v1/mfa/toggle/", json={"enabled": False, "current_password": "totally-wrong-password"},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+        assert resp.status_code == 401, resp.text
+
+        from app.core.database import SessionLocal
+        from app.models.user import User
+        with SessionLocal() as db:
+            assert db.query(User).filter(User.id == user_id).first().mfa_enabled is True
+
+    def test_toggle_disable_with_correct_password_succeeds(self):
+        user_id, email, tenant_id = _fresh_user(mfa_enabled=True)
+
+        resp = client.post(
+            "/api/v1/mfa/toggle/", json={"enabled": False, "current_password": STRONG_PASSWORD},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["enabled"] is False
+
+    def test_toggle_enable_does_not_require_a_password(self):
+        """Turning MFA ON has no downside to skip-checking — only
+        disabling needs the step-up password."""
+        user_id, email, tenant_id = _fresh_user()
+
+        resp = client.post(
+            "/api/v1/mfa/toggle/", json={"enabled": True},
+            headers=_auth_headers({"id": user_id, "email": email, "tenant_id": tenant_id}),
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["enabled"] is True
 
 
 class TestLoginWithheldUntilSecondFactorVerified:
