@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Shield, Smartphone, Copy, Check, Trash2, Mail, RefreshCw, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTenant } from '@/contexts/TenantContext';
@@ -33,6 +34,8 @@ export const SecuritySettings: React.FC = () => {
     const [verificationCode, setVerificationCode] = useState('');
     const [showBackupCodes, setShowBackupCodes] = useState(false);
     const [lastGeneratedCodes, setLastGeneratedCodes] = useState<string[]>([]);
+    const [isDisableConfirmOpen, setIsDisableConfirmOpen] = useState(false);
+    const [disablePassword, setDisablePassword] = useState('');
 
     const handleStartSetup = async () => {
         try {
@@ -47,7 +50,7 @@ export const SecuritySettings: React.FC = () => {
         try {
             const res = await verifyOtp.mutateAsync(verificationCode);
             if (res.valid) {
-                await toggleMfa.mutateAsync(true);
+                await toggleMfa.mutateAsync({ enabled: true });
                 setIsSetupOpen(false);
                 setVerificationCode('');
                 // Offer to generate backup codes
@@ -60,11 +63,12 @@ export const SecuritySettings: React.FC = () => {
         }
     };
 
-    const handleDisableMFA = async () => {
-        if (!confirm("Voulez-vous vraiment désactiver la double authentification ? Cela rendra votre compte moins sécurisé.")) return;
+    const handleConfirmDisableMFA = async () => {
         try {
-            await toggleMfa.mutateAsync(false);
+            await toggleMfa.mutateAsync({ enabled: false, currentPassword: disablePassword });
             setShowBackupCodes(false);
+            setIsDisableConfirmOpen(false);
+            setDisablePassword('');
         } catch (error) {
             // Error handled by mutation
         }
@@ -90,7 +94,7 @@ export const SecuritySettings: React.FC = () => {
                             checked={mfaStatus?.enabled || false}
                             onCheckedChange={(checked) => {
                                 if (checked) handleStartSetup();
-                                else handleDisableMFA();
+                                else setIsDisableConfirmOpen(true);
                             }}
                             disabled={isLoadingStatus || toggleMfa.isPending}
                         />
@@ -214,6 +218,37 @@ export const SecuritySettings: React.FC = () => {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog open={isDisableConfirmOpen} onOpenChange={(open) => { setIsDisableConfirmOpen(open); if (!open) setDisablePassword(''); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Désactiver la double authentification ?</DialogTitle>
+                        <DialogDescription>
+                            Cela rendra votre compte moins sécurisé. Confirmez avec votre mot de passe actuel.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="disable-mfa-password">Mot de passe actuel</Label>
+                        <Input
+                            id="disable-mfa-password"
+                            type="password"
+                            value={disablePassword}
+                            onChange={(e) => setDisablePassword(e.target.value)}
+                            autoFocus
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDisableConfirmOpen(false)}>Annuler</Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleConfirmDisableMFA}
+                            disabled={!disablePassword || toggleMfa.isPending}
+                        >
+                            Désactiver
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

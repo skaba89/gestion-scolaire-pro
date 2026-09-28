@@ -32,8 +32,14 @@ export const useToggleMFA = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (enabled: boolean) => {
-            const response = await apiClient.post("/mfa/toggle/", { enabled });
+        // currentPassword: required by the backend when disabling
+        // (enabled: false) — see mfa.py's toggle_mfa step-up check
+        // (institutional-readiness audit, 2026-09). Not needed to enable.
+        mutationFn: async ({ enabled, currentPassword }: { enabled: boolean; currentPassword?: string }) => {
+            const response = await apiClient.post("/mfa/toggle/", {
+                enabled,
+                ...(currentPassword ? { current_password: currentPassword } : {}),
+            });
             return response.data;
         },
         onSuccess: (data) => {
@@ -184,8 +190,14 @@ export const useChallengeAndVerifyMFA = () => {
 export const useUnenrollMFA = () => {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async () => {
-            const response = await apiClient.post("/mfa/totp/disable/");
+        // currentPassword: backend now requires step-up re-authentication
+        // before disabling MFA (institutional-readiness audit, 2026-09) —
+        // a stolen/leaked access token alone can no longer strip MFA from
+        // an account. disable_totp never took a factor id (it always
+        // resolves the factor from the caller's own token), so this
+        // replaces that unused positional argument rather than adding one.
+        mutationFn: async (currentPassword: string) => {
+            const response = await apiClient.post("/mfa/totp/disable/", { current_password: currentPassword });
             return response.data;
         },
         onSuccess: () => {

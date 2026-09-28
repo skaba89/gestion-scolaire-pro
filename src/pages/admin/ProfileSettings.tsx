@@ -54,6 +54,8 @@ export default function ProfileSettings() {
     const [verificationCode, setVerificationCode] = useState("");
     const [backupCodes, setBackupCodes] = useState<string[]>([]);
     const [showBackupCodes, setShowBackupCodes] = useState(false);
+    const [isDisableConfirmOpen, setIsDisableConfirmOpen] = useState(false);
+    const [disablePassword, setDisablePassword] = useState("");
 
     // Check if TOTP is enabled (verified factor)
     const totpFactor = mfaFactors?.totp?.find((f: any) => f.status === 'verified');
@@ -71,13 +73,22 @@ export default function ProfileSettings() {
                 // Error handled in hook
             }
         } else {
-            // Disable MFA
+            // Disable MFA — confirmed with a step-up password prompt below
+            // rather than a bare window.confirm, since the backend now
+            // requires re-authentication before disabling MFA.
             if (totpFactor) {
-                if (window.confirm(t("profileSettings.disable2FAConfirm"))) {
-                    unenrollMFA.mutate(totpFactor.id);
-                }
+                setIsDisableConfirmOpen(true);
             }
         }
+    };
+
+    const handleConfirmDisable2FA = () => {
+        unenrollMFA.mutate(disablePassword, {
+            onSuccess: () => {
+                setIsDisableConfirmOpen(false);
+                setDisablePassword("");
+            },
+        });
     };
 
     const handleVerifyCode = async () => {
@@ -373,6 +384,38 @@ export default function ProfileSettings() {
                         <Button onClick={handleVerifyCode} disabled={!verificationCode || verifyMFA.isPending}>
                             {verifyMFA.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {t("profileSettings.verifyAndActivate")}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isDisableConfirmOpen} onOpenChange={(open) => { setIsDisableConfirmOpen(open); if (!open) setDisablePassword(""); }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>{t("profileSettings.disable2FAConfirm")}</DialogTitle>
+                        <DialogDescription>
+                            {t("profileSettings.twoFADesc")}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="disable-2fa-password">{t("profileSettings.currentPassword", "Mot de passe actuel")}</Label>
+                        <Input
+                            id="disable-2fa-password"
+                            type="password"
+                            value={disablePassword}
+                            onChange={(e) => setDisablePassword(e.target.value)}
+                            autoFocus
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDisableConfirmOpen(false)}>{t("profileSettings.cancel")}</Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleConfirmDisable2FA}
+                            disabled={!disablePassword || unenrollMFA.isPending}
+                        >
+                            {unenrollMFA.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {t("profileSettings.disable", "Désactiver")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
