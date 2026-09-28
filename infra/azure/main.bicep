@@ -60,6 +60,14 @@ param frontendImageTag string = 'latest'
 param apiMinReplicas int = envName == 'prod' ? 2 : 1
 param apiMaxReplicas int = envName == 'prod' ? 10 : 3
 
+module network 'modules/network.bicep' = {
+  name: 'network-${envName}'
+  params: {
+    location: location
+    envName: envName
+  }
+}
+
 module identity 'modules/identity.bicep' = {
   name: 'identity-${envName}'
   params: {
@@ -98,6 +106,8 @@ module postgres 'modules/postgres.bicep' = {
     skuName: postgresSkuName
     skuTier: postgresSkuTier
     highAvailability: postgresHighAvailability
+    delegatedSubnetId: network.outputs.postgresSubnetId
+    privateDnsZoneId: network.outputs.postgresPrivateDnsZoneId
   }
 }
 
@@ -108,6 +118,8 @@ module redis 'modules/redis.bicep' = {
     envName: envName
     skuName: redisSkuName
     skuCapacity: redisSkuCapacity
+    privateEndpointSubnetId: network.outputs.privateEndpointSubnetId
+    privateDnsZoneId: network.outputs.redisPrivateDnsZoneId
   }
 }
 
@@ -139,6 +151,7 @@ module containerApps 'modules/container-apps.bicep' = {
     apiMaxReplicas: apiMaxReplicas
     azureStorageAccountUrl: storage.outputs.blobEndpoint
     azureStorageContainer: storage.outputs.containerName
+    infraSubnetId: network.outputs.infraSubnetId
   }
 }
 
@@ -148,3 +161,4 @@ output keyVaultName string = keyVault.outputs.keyVaultName
 output postgresServerFqdn string = postgres.outputs.serverFqdn
 output redisHostName string = redis.outputs.hostName
 output storageAccountName string = storage.outputs.storageAccountName
+output vnetId string = network.outputs.vnetId

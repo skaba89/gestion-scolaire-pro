@@ -37,13 +37,21 @@ One resource group (`rg-schoolflow-dev` / `-rec` / `-prod`), each with:
   account key ever exists — see `../../docs/STORAGE_ARCHITECTURE.md` for
   the full read/write/SAS flow and the REC/PROD fail-closed contract in
   `app/core/storage.py`.
+- **VNet + private DNS** (`modules/network.bicep`) — Postgres and Redis
+  have no public endpoint anymore: Postgres uses Flexible Server's own
+  VNet-integration mode (delegated subnet, no separate Private Endpoint
+  resource), Redis (Basic/Standard tier, no Premium VNet injection) sits
+  behind a Private Endpoint into the same VNet. The Container Apps
+  environment is VNet-integrated onto this same network so it can still
+  reach both — `api`/`frontend` keep their public ingress unchanged,
+  only their path to Postgres/Redis moved off the public internet.
 
-Not created here (deliberately out of scope for this pass): a VNet /
-private endpoints for Postgres, Redis, and the storage account
-(currently reachable over their public endpoint with Azure-service
-firewall rules only — see `modules/postgres.bicep`'s comment), and the
-Azure Container Registry itself (`academyguineenneacr.azurecr.io`
-already exists and is reused, not recreated).
+Not created here (deliberately out of scope for this pass): a Private
+Endpoint for the storage account above (it still has a public endpoint,
+just with anonymous/key-based access disabled — see
+`../../docs/STORAGE_ARCHITECTURE.md`), and the Azure Container Registry
+itself (`academyguineenneacr.azurecr.io` already exists and is reused,
+not recreated).
 
 ## One-time setup before this can ever run for real
 
@@ -113,7 +121,11 @@ None of this is free. A `dev` environment at the SKUs in
 `parameters/dev.bicepparam` (Postgres `Standard_B1ms` Burstable, Redis
 `Basic C0`, Container Apps at 1 replica each) is the cheapest
 configuration this template supports and still incurs real, ongoing
-Azure charges the moment it's deployed — estimate with the
+Azure charges the moment it's deployed — this now also includes a VNet
+(free by itself), a Private Endpoint for Redis (small hourly charge +
+data processing), and two Private DNS zones (small monthly charge +
+per-query charge), on top of the compute/database/cache/storage costs
+already listed above. Estimate with the
 [Azure pricing calculator](https://azure.microsoft.com/pricing/calculator/)
 for your target region before running this against a real subscription.
 `prod`'s parameters (zone-redundant HA Postgres, `Standard` tier Redis,

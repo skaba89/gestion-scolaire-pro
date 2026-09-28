@@ -287,6 +287,29 @@ consentements. Suppression de compte : demande tracée
     `test_storage_local_operations_2026_09_28.py` (traversée de chemin,
     isolation des clés entre tenants).
 
+## 11. Réseau privé Azure (PostgreSQL et Redis)
+
+- Détail complet dans `docs/AZURE_PRIVATE_NETWORKING.md`. Résumé
+  sécurité : PostgreSQL Flexible Server (`infra/azure/modules/
+  postgres.bicep`) est VNet-intégré (sous-réseau délégué) et n'a **plus
+  aucun point de terminaison public** — l'ancienne règle de pare-feu
+  `AllowAllAzureServices` (0.0.0.0-0.0.0.0, autorisant tout service Azure
+  y compris d'autres abonnements) est supprimée entièrement, pas
+  seulement resserrée. Redis (`modules/redis.bicep`) a
+  `publicNetworkAccess: Disabled` et n'est joignable que via un Private
+  Endpoint dans le même VNet — Basic/Standard ne supportant pas
+  l'injection VNet directe (réservée au tier Premium), Private Link est
+  le mécanisme de connectivité privée utilisé.
+- L'authentification (mot de passe PostgreSQL, clé Redis) reste
+  inchangée et continue d'être requise — ceci ajoute une couche
+  d'isolation réseau en plus, pas un remplacement.
+- L'ingress public des Container Apps `api`/`frontend` n'est pas affecté
+  — seul le chemin sortant vers PostgreSQL/Redis a changé.
+- Le compte de stockage Azure Blob (section 10) garde volontairement son
+  point de terminaison public pour l'instant — Managed Identity + absence
+  de clé de compte restent ses contrôles ; un Private Endpoint pour ce
+  compte est une amélioration future possible, hors périmètre ici.
+
 ## Risques connus (non résolus, hors périmètre de cette session)
 
 - **P1** : vérifier le rôle PostgreSQL de production n'est pas
