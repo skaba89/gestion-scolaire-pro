@@ -109,7 +109,10 @@ def create_classroom(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("classrooms:write")),
 ):
-    return crud.create_classroom(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    try:
+        return crud.create_classroom(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 # --- Enrollments ---
 @router.get("/enrollments/", response_model=List[Enrollment])
@@ -230,6 +233,14 @@ def assign_subject_to_classroom(
     current_user: dict = Depends(require_permission("classrooms:write")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # SECURITY FIX (institutional-readiness audit, 2026-09, 6th sweep):
+    # inserted class_id/subject_id verbatim with no check they belong to
+    # the caller's tenant — same bug class as create_classroom above
+    # (classes.id/subjects.id are globally unique primary keys).
+    if not crud.get_classroom(db, class_id, tenant_id):
+        raise HTTPException(status_code=404, detail="Classroom not found")
+    if not crud.get_subject(db, subject_id, tenant_id):
+        raise HTTPException(status_code=404, detail="Subject not found")
     db.execute(class_subjects.insert().values(
         tenant_id=tenant_id,
         class_id=class_id,

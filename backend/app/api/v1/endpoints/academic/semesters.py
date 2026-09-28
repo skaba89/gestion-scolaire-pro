@@ -38,7 +38,10 @@ def create_semester(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
-    return crud.create_semester(db, obj_in=obj_in, tenant_id=tenant_id)
+    try:
+        return crud.create_semester(db, obj_in=obj_in, tenant_id=tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.get("/{semester_id}/", response_model=Semester)

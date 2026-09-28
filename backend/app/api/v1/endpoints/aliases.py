@@ -2693,7 +2693,10 @@ def create_subject_preferred_room(
         subject_id=obj_in["subject_id"],
         room_id=obj_in["room_id"],
     )
-    result = crud.create_subject_preferred_room(db, obj_in=payload, tenant_id=tenant_id)
+    try:
+        result = crud.create_subject_preferred_room(db, obj_in=payload, tenant_id=tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     return SubjectPreferredRoomSchema.model_validate(result).model_dump(mode="json")
 
 
