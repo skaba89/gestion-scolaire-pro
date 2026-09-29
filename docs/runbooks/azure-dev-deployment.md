@@ -50,17 +50,24 @@ qu'on donne à l'étape 3.
 
 ```bash
 export POSTGRES_ADMIN_PASSWORD_DEV="<générer un mot de passe fort>"
+# backendImage/frontendImage/releaseSha sont lus par dev.bicepparam via
+# readEnvironmentVariable(), PAS via --parameters sur cette ligne — un
+# paramètre requis (sans défaut) doit être satisfait DANS le fichier
+# .bicepparam lui-même ; Bicep valide sa complétude indépendamment de
+# tout --parameters key=value passé à côté (bug réel trouvé et corrigé
+# dans #264 — voir docs/IMMUTABLE_RELEASES.md).
+export BACKEND_IMAGE="academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest de la release>"
+export FRONTEND_IMAGE="academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest de la release>"
+export RELEASE_SHA="<full git sha de la release>"
 az deployment group what-if \
   --resource-group rg-schoolflow-dev \
   --template-file infra/azure/main.bicep \
-  --parameters infra/azure/parameters/dev.bicepparam \
-  --parameters backendImage=academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest de la release> \
-  --parameters frontendImage=academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest de la release>
+  --parameters infra/azure/parameters/dev.bicepparam
 ```
-Les deux digests viennent de `release-manifest.json` (champs
-`backend.digest`/`frontend.digest`) — téléchargeable depuis la Release
-GitHub de l'étape 1, ou avec `gh release download release-<sha> --pattern
-release-manifest.json`.
+Les deux digests et le SHA viennent de `release-manifest.json` (champs
+`backend.digest`/`frontend.digest`/`release.git_sha`) — téléchargeable
+depuis la Release GitHub de l'étape 1, ou avec `gh release download
+release-<sha> --pattern release-manifest.json`.
 
 Attendu : `Resource changes: 13 to create, 1 unsupported.` — le `1 unsupported`
 est une limite connue et bénigne du what-if (attribution de rôle Key Vault
@@ -74,14 +81,13 @@ dev`, `release_tag: release-<sha>` de l'étape 1. Il retélécharge et
 revalide lui-même le manifeste (fail-closed si le digest est absent ou
 malformé) avant de déployer — jamais de rebuild.
 
-**Manuel équivalent** (mêmes digests que l'étape 2) :
+**Manuel équivalent** (mêmes `BACKEND_IMAGE`/`FRONTEND_IMAGE`/`RELEASE_SHA`
+exportés qu'à l'étape 2) :
 ```bash
 az deployment group create \
   --resource-group rg-schoolflow-dev \
   --template-file infra/azure/main.bicep \
   --parameters infra/azure/parameters/dev.bicepparam \
-  --parameters backendImage=academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest de la release> \
-  --parameters frontendImage=academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest de la release> \
   --query "properties.outputs"
 ```
 
@@ -150,6 +156,54 @@ secret Key Vault mal nommé ou absent (revoir l'étape 4) — le message dans le
 logs est explicite (`"SECRET_KEY not set or too short. Refusing to start."` ou
 équivalent pour `BOOTSTRAP_SECRET`/`BACKEND_CORS_ORIGINS`, voir
 `backend/app/core/config.py` et `backend/app/main.py`).
+
+## 6bis. Checklist observabilité (docs/AZURE_OBSERVABILITY.md)
+
+Avant de considérer le déploiement DEV réussi, vérifier chaque signal
+explicitement — ne pas se contenter d'un simple "ça répond" :
+
+```bash
+RG=rg-schoolflow-dev
+API=ca-schoolflow-api-dev
+WORKER=ca-schoolflow-worker-dev
+JOB=caj-schoolflow-migrate-dev
+
+# 1. Migration job -> SUCCESS
+az containerapp job execution list --name "$JOB" --resource-group "$RG" \
+  --query "[0].{status:properties.status}" -o table
+
+# 2. API startup -> PASS (le Startup probe a laissé passer Liveness/Readiness)
+az containerapp revision list --name "$API" --resource-group "$RG" \
+  --query "[0].{active:properties.active, healthState:properties.healthState}" -o table
+
+# 3. API live -> 200
+curl -sS -o /dev/null -w "%{http_code}\n" https://<apiUrl>/health/live
+
+# 4. API ready -> 200
+curl -sS -o /dev/null -w "%{http_code}\n" https://<apiUrl>/health/ready
+
+# 5. Worker heartbeat -> ACTIVE (via /health/deep — nécessite HEALTH_DEEP_SECRET,
+#    ou DEBUG=true, jamais un accès non protégé — voir docs/AZURE_OBSERVABILITY.md)
+curl -sS "https://<apiUrl>/health/deep?secret=$HEALTH_DEEP_SECRET" | jq '.workers'
+# attendu : au moins une entrée avec "status": "running"
+
+# 6. Frontend -> HEALTHY
+curl -sS -o /dev/null -w "%{http_code}\n" https://<frontendUrl>/
+
+# 7. release SHA -> celui attendu (comparer au release-manifest.json de #264)
+curl -sS https://<apiUrl>/health/live | jq -r '.release_sha'
+curl -sS "https://<apiUrl>/health/deep?secret=$HEALTH_DEEP_SECRET" | jq -r '.workers[0].release_sha'
+
+# 8. backend/frontend digest -> ceux attendus (comparer au release-manifest.json)
+az containerapp show --name "$API" --resource-group "$RG" \
+  --query "properties.template.containers[0].image" -o tsv
+az containerapp show --name ca-schoolflow-frontend-dev --resource-group "$RG" \
+  --query "properties.template.containers[0].image" -o tsv
+```
+
+Si l'une de ces vérifications échoue, se référer à
+`docs/AZURE_OBSERVABILITY.md`'s "Diagnosing 'why doesn't Azure DEV
+start?'" table avant d'aller plus loin.
 
 ## 7. Créer le premier compte admin (bootstrap)
 

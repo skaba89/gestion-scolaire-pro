@@ -27,6 +27,9 @@ param identityPrincipalId string
 param backendImage string
 param frontendImage string
 
+@description('OBSERVABILITY (docs/AZURE_OBSERVABILITY.md): the full Git SHA this release was built from — release-manifest.json\'s release.git_sha (#264). Not a secret; set as a plain env var (RELEASE_SHA) on the migration Job, api and worker so "which commit is actually running" is answerable from logs/health endpoints without cross-referencing a deploy ticket. Required, no default, for the same reason backendImage/frontendImage have none: an unnamed release must never silently deploy as an unidentifiable one.')
+param releaseSha string
+
 @description('One-shot migrations (docs/AZURE_ONE_SHOT_MIGRATIONS.md): api/worker/frontend must be deployed only AFTER the migrationJob below has run "alembic upgrade head" successfully against DATABASE_URL_MIGRATIONS. Deploying this module with deployApps=false updates only containerAppsEnv + migrationJob (safe to run before the schema is migrated); the workflow then starts the job, waits for it to succeed, and re-deploys with deployApps=true to actually roll out api/worker/frontend. migrationJob itself is unconditional — it must exist before it can be started.')
 param deployApps bool = true
 
@@ -178,7 +181,12 @@ resource migrationJob 'Microsoft.App/jobs@2023-11-02-preview' = {
         {
           name: 'migrate'
           image: backendImage
-          command: [ 'alembic', 'upgrade', 'head' ]
+          // OBSERVABILITY (docs/AZURE_OBSERVABILITY.md): wraps `alembic
+          // upgrade head` with readable started/current-revision/target-
+          // revision/succeeded-or-failed log lines (backend/scripts/
+          // run_migration.py) — same exit-code contract (0/non-zero),
+          // same START -> EXIT, never a long-running process.
+          command: [ 'python', 'scripts/run_migration.py' ]
           resources: {
             cpu: json(apiCpu)
             memory: apiMemory
@@ -197,6 +205,7 @@ resource migrationJob 'Microsoft.App/jobs@2023-11-02-preview' = {
             { name: 'BOOTSTRAP_SECRET', secretRef: 'bootstrap-secret' }
             { name: 'DEBUG', value: debugEnvValue }
             { name: 'ENVIRONMENT', value: environmentEnvValue }
+            { name: 'RELEASE_SHA', value: releaseSha }
           ]
         }
       ]
@@ -237,23 +246,63 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deployApp
         {
           name: 'api'
           image: backendImage
-          // SECURITY (one-shot migrations, P0): platform-native readiness
-          // gate on GET /health/ready, which fails closed on an
-          // out-of-date or unverifiable schema revision (_check_alembic_
-          // revision — app/main.py). A new revision whose schema hasn't
-          // been migrated yet never receives traffic — Container Apps
-          // itself withholds it instead of this template inventing its
-          // own orchestration, per the "reuse existing platform
-          // mechanisms" principle in docs/AZURE_ONE_SHOT_MIGRATIONS.md.
+          // PROBES (docs/AZURE_OBSERVABILITY.md#api-probes): three distinct
+          // checks against two distinct endpoints, matching what each one
+          // actually means:
+          //
+          // - Startup: same URL as readiness (/health/ready) but with a
+          //   long failureThreshold*periodSeconds budget (12*10s = 120s)
+          //   before Container Apps gives up and restarts the container —
+          //   gunicorn + FastAPI import + first DB/Redis connection can
+          //   legitimately take longer than a steady-state readiness
+          //   check's own budget on a cold start. While the startup probe
+          //   is still failing, Container Apps does not run liveness or
+          //   readiness at all (platform behavior), so this alone governs
+          //   "how long is a slow cold start tolerated before restart".
+          // - Liveness: /health/live only — process-alive, never checks
+          //   Postgres/Redis/storage (see app/main.py's liveness_check
+          //   docstring) — a momentary dependency outage must never look
+          //   like a crashed process and trigger a pointless restart.
+          // - Readiness: /health/ready — fails closed on an out-of-date
+          //   or unverifiable schema revision (_check_alembic_revision),
+          //   Postgres, Redis, or storage. A new revision whose schema
+          //   hasn't been migrated yet never receives traffic — Container
+          //   Apps itself withholds it instead of this template inventing
+          //   its own orchestration, per docs/AZURE_ONE_SHOT_MIGRATIONS.md.
+          //   periodSeconds/failureThreshold (10s*3=30s to mark not-ready)
+          //   chosen to ride out a single slow request without flapping,
+          //   while still reacting inside the ~1min an operator would
+          //   expect during an incident.
           probes: [
             {
-              type: 'Readiness'
+              type: 'Startup'
               httpGet: {
                 path: '/health/ready'
                 port: 8000
               }
               initialDelaySeconds: 5
               periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 12
+            }
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/health/live'
+                port: 8000
+              }
+              periodSeconds: 15
+              timeoutSeconds: 5
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/health/ready'
+                port: 8000
+              }
+              periodSeconds: 10
+              timeoutSeconds: 5
               failureThreshold: 3
             }
           ]
@@ -288,6 +337,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deployApp
             // Key Vault secretRef.
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: azureStorageAccountUrl }
             { name: 'AZURE_STORAGE_CONTAINER', value: azureStorageContainer }
+            { name: 'RELEASE_SHA', value: releaseSha }
             // main.py:430 — os._exit(1)s in prod (DEBUG=false) if this is
             // empty; falls back to a hardcoded localhost list otherwise,
             // which would silently CORS-block every request from the real
@@ -372,6 +422,7 @@ resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deploy
             // Same managed-identity auth, same "not a secret" status.
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: azureStorageAccountUrl }
             { name: 'AZURE_STORAGE_CONTAINER', value: azureStorageContainer }
+            { name: 'RELEASE_SHA', value: releaseSha }
           ]
         }
       ]
@@ -415,6 +466,37 @@ resource frontendApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (depl
         {
           name: 'frontend'
           image: frontendImage
+          // PROBES (docs/AZURE_OBSERVABILITY.md#frontend-probe): the
+          // frontend is static Nginx + SPA — "does the server respond"
+          // (a plain GET / , same target the Dockerfile's own HEALTHCHECK
+          // already uses) is the whole question. Deliberately NOT calling
+          // any backend endpoint from here (item 8's own explicit rule):
+          // a slow/unreachable API must show up as the API's own
+          // readiness going non-ready, never as the static file server
+          // being torn down and restarted for a dependency it doesn't
+          // actually need to serve its own files.
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/'
+                port: 80
+              }
+              periodSeconds: 15
+              timeoutSeconds: 5
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/'
+                port: 80
+              }
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            }
+          ]
           resources: {
             cpu: json(frontendCpu)
             memory: frontendMemory

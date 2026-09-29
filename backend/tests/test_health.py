@@ -418,3 +418,157 @@ def test_deep_health_not_in_openapi_schema():
 
     schema = fastapi_app.openapi()
     assert "/health/deep" not in schema.get("paths", {})
+
+
+# ─── Azure probes / observability (release SHA, worker heartbeat, queue) ────
+
+def test_liveness_reports_release_sha():
+    """#264 (immutable images): /health/live must answer 'which commit is
+    this process running' without touching any dependency."""
+    response = client.get("/health/live")
+    assert response.status_code == 200
+    assert "release_sha" in response.json()
+
+
+def test_readiness_reports_release_sha():
+    response = client.get("/health/ready")
+    assert "release_sha" in response.json()
+
+
+def test_release_sha_defaults_to_unknown_when_unset():
+    """No RELEASE_SHA env var (local dev/tests) must degrade to a visible
+    placeholder, never crash or silently report an empty string that could
+    be mistaken for 'no release deployed at all'."""
+    from app.main import settings
+
+    assert settings.RELEASE_SHA  # never empty
+    if "RELEASE_SHA" not in __import__("os").environ:
+        assert settings.RELEASE_SHA == "unknown"
+
+
+def test_deep_health_reports_release_sha():
+    response = client.get("/health/deep")
+    assert response.json()["release_sha"] == __import__("app.main", fromlist=["settings"]).settings.RELEASE_SHA
+
+
+def test_deep_health_has_workers_and_queue_sections():
+    """Worker/queue visibility (item 10-12 of the observability spec) must
+    appear on /health/deep without ever raising, even with no Redis reachable
+    in this test environment — _check_worker_observability degrades to a
+    reported-unknown state rather than 500ing the whole endpoint."""
+    response = client.get("/health/deep")
+    assert response.status_code == 200
+    data = response.json()
+    assert "workers" in data
+    assert "queue" in data
+
+
+class TestWorkerHeartbeat:
+    """Unit tests for app/workers/heartbeat.py — no real Redis required,
+    the module's own redis_client is patched at the point of use."""
+
+    @pytest.mark.asyncio
+    async def test_worker_id_uses_replica_name_env_var(self, monkeypatch):
+        from app.workers import heartbeat
+
+        monkeypatch.setenv("CONTAINER_APP_REPLICA_NAME", "ca-schoolflow-worker-dev--abc123")
+        assert heartbeat.worker_id() == "ca-schoolflow-worker-dev--abc123"
+
+    @pytest.mark.asyncio
+    async def test_worker_id_falls_back_to_hostname(self, monkeypatch):
+        import socket
+        from app.workers import heartbeat
+
+        monkeypatch.delenv("CONTAINER_APP_REPLICA_NAME", raising=False)
+        assert heartbeat.worker_id() == socket.gethostname()
+
+    @pytest.mark.asyncio
+    async def test_write_heartbeat_never_logs_secrets(self, monkeypatch):
+        """The heartbeat payload must contain only worker_id/timestamp/
+        release_sha — never a connection string, password, or token."""
+        from app.workers import heartbeat
+
+        mock_client = AsyncMock()
+
+        async def _client_property():
+            return mock_client
+
+        with patch.object(type(heartbeat.redis_client), "client", property(lambda self: _client_property())):
+            await heartbeat.write_heartbeat()
+
+        assert mock_client.setex.await_count == 1
+        _key, _ttl, payload = mock_client.setex.await_args.args
+        assert "password" not in payload.lower()
+        assert "postgres://" not in payload.lower()
+        assert "postgresql://" not in payload.lower()
+        assert "redis://" not in payload.lower()
+        assert "secret" not in payload.lower()
+
+    @pytest.mark.asyncio
+    async def test_read_all_heartbeats_reports_missing_after_expiry(self):
+        """A worker id still listed in the index set but whose heartbeat
+        key has expired (crashed, or never wrote one) must read as
+        'missing' — never silently omitted or reported as running."""
+        from app.workers import heartbeat
+
+        mock_client = AsyncMock()
+        mock_client.smembers.return_value = {"dead-worker"}
+        mock_client.get.return_value = None
+
+        async def _client_property():
+            return mock_client
+
+        with patch.object(type(heartbeat.redis_client), "client", property(lambda self: _client_property())):
+            result = await heartbeat.read_all_heartbeats()
+
+        assert result == [{"worker_id": "dead-worker", "status": "missing"}]
+
+    @pytest.mark.asyncio
+    async def test_read_all_heartbeats_reports_running_when_fresh(self):
+        import json
+        import time
+        from app.workers import heartbeat
+
+        mock_client = AsyncMock()
+        mock_client.smembers.return_value = {"worker-1"}
+        mock_client.get.return_value = json.dumps({
+            "worker_id": "worker-1",
+            "timestamp": time.time(),
+            "release_sha": "abc123",
+        })
+
+        async def _client_property():
+            return mock_client
+
+        with patch.object(type(heartbeat.redis_client), "client", property(lambda self: _client_property())):
+            result = await heartbeat.read_all_heartbeats()
+
+        assert len(result) == 1
+        assert result[0]["worker_id"] == "worker-1"
+        assert result[0]["status"] == "running"
+        assert result[0]["release_sha"] == "abc123"
+
+    @pytest.mark.asyncio
+    async def test_read_all_heartbeats_reports_stale_when_old(self):
+        import json
+        import time
+        from app.workers import heartbeat
+
+        mock_client = AsyncMock()
+        mock_client.smembers.return_value = {"worker-1"}
+        # Older than _STALE_AFTER_SECONDS but the key itself hasn't
+        # expired yet (still within HEARTBEAT_TTL_SECONDS in a real Redis).
+        stale_ts = time.time() - (heartbeat._STALE_AFTER_SECONDS + 5)
+        mock_client.get.return_value = json.dumps({
+            "worker_id": "worker-1",
+            "timestamp": stale_ts,
+            "release_sha": "abc123",
+        })
+
+        async def _client_property():
+            return mock_client
+
+        with patch.object(type(heartbeat.redis_client), "client", property(lambda self: _client_property())):
+            result = await heartbeat.read_all_heartbeats()
+
+        assert result[0]["status"] == "stale"

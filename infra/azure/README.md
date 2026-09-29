@@ -118,17 +118,22 @@ promoted to `dev`, then `rec`, then `prod` deploys byte-for-byte the same
 images everywhere; there is no rebuild step to introduce drift.
 
 Manual (from a machine already `az login`-ed to the right subscription —
-note `backendImage`/`frontendImage` are required, full digest references,
-no default):
+note `backendImage`/`frontendImage`/`releaseSha` are required, no default,
+and read by the `.bicepparam` file itself via `readEnvironmentVariable()`
+— not a `--parameters key=value` on this command line; a `.bicepparam`
+file's own completeness is validated independently of any same-line
+override, so this is the only reliable way to satisfy a required
+parameter — see docs/IMMUTABLE_RELEASES.md and docs/AZURE_OBSERVABILITY.md):
 
 ```bash
 export POSTGRES_ADMIN_PASSWORD_DEV="<a strong password>"
+export BACKEND_IMAGE="academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest>"
+export FRONTEND_IMAGE="academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest>"
+export RELEASE_SHA="<full git sha of the release>"
 az deployment group create \
   --resource-group rg-schoolflow-dev \
   --template-file infra/azure/main.bicep \
-  --parameters infra/azure/parameters/dev.bicepparam \
-  --parameters backendImage=academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest> \
-  --parameters frontendImage=academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest>
+  --parameters infra/azure/parameters/dev.bicepparam
 ```
 
 ## Cost
