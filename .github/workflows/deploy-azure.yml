@@ -18,6 +18,16 @@ name: Deploy to Azure (Container Apps)
 # environment, every run of this workflow fails at the "Azure login"
 # step — that's the intended fail-safe, not a bug to silence.
 
+# BUILD ONCE, PROMOTE MANY (docs/IMMUTABLE_RELEASES.md): this workflow no
+# longer takes a raw image tag. It takes the tag of a GitHub Release
+# published by .github/workflows/build-images.yml (format
+# "release-<full Git SHA>"), downloads that release's release-manifest.json,
+# and deploys EXACTLY the backend/frontend OCI digests it names — the same
+# digests regardless of which environment this run targets. There is no
+# `docker build`/`docker push` anywhere in this file: promoting REC or PROD
+# never rebuilds anything, so DEV, REC and PROD that reference the same
+# release are running byte-for-byte the same images.
+
 on:
   workflow_dispatch:
     inputs:
@@ -29,14 +39,13 @@ on:
           - dev
           - rec
           - prod
-      image_tag:
-        description: "Image tag to deploy (api/worker share this tag; frontend uses the same tag if it shares a build)"
+      release_tag:
+        description: 'Release to deploy — a GitHub Release tag published by "Build images" (format: release-<full git sha>). No default: an unnamed release must never silently resolve to "latest".'
         required: true
-        default: "latest"
 
 permissions:
   id-token: write # required for OIDC federated login (azure/login@v2)
-  contents: read
+  contents: read # to download the release manifest (gh release download)
 
 # ONE-SHOT MIGRATIONS (P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md): two
 # workflow_dispatch runs targeting the same environment must never apply
@@ -61,6 +70,60 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # FAIL CLOSED (docs/IMMUTABLE_RELEASES.md): a missing release, a
+      # missing manifest asset, or a digest that doesn't match
+      # "sha256:<64 hex chars>" all stop the deploy here — never a
+      # fallback to a mutable tag or a "latest"-equivalent guess.
+      - name: Resolve release manifest
+        id: manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${{ inputs.release_tag }}"
+
+          if ! gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "::error::Release '$RELEASE_TAG' does not exist. It must be published by the 'Build images' workflow (.github/workflows/build-images.yml) before it can be deployed. Refusing to deploy without a real release."
+            exit 1
+          fi
+
+          rm -f release-manifest.json
+          gh release download "$RELEASE_TAG" --repo "${{ github.repository }}" \
+            --pattern release-manifest.json --output release-manifest.json --clobber
+
+          if [ ! -s release-manifest.json ]; then
+            echo "::error::Release '$RELEASE_TAG' exists but has no release-manifest.json asset. Refusing to deploy."
+            exit 1
+          fi
+
+          BACKEND_REPOSITORY=$(jq -r '.backend.repository' release-manifest.json)
+          BACKEND_DIGEST=$(jq -r '.backend.digest' release-manifest.json)
+          BACKEND_TAG=$(jq -r '.backend.tag' release-manifest.json)
+          FRONTEND_REPOSITORY=$(jq -r '.frontend.repository' release-manifest.json)
+          FRONTEND_DIGEST=$(jq -r '.frontend.digest' release-manifest.json)
+          FRONTEND_TAG=$(jq -r '.frontend.tag' release-manifest.json)
+          GIT_SHA=$(jq -r '.release.git_sha' release-manifest.json)
+
+          DIGEST_RE='^sha256:[0-9a-f]{64}$'
+          if [ -z "$BACKEND_REPOSITORY" ] || [ "$BACKEND_REPOSITORY" = "null" ] || ! [[ "$BACKEND_DIGEST" =~ $DIGEST_RE ]]; then
+            echo "::error::release-manifest.json's backend digest is missing or malformed ('$BACKEND_DIGEST'). Refusing to deploy."
+            exit 1
+          fi
+          if [ -z "$FRONTEND_REPOSITORY" ] || [ "$FRONTEND_REPOSITORY" = "null" ] || ! [[ "$FRONTEND_DIGEST" =~ $DIGEST_RE ]]; then
+            echo "::error::release-manifest.json's frontend digest is missing or malformed ('$FRONTEND_DIGEST'). Refusing to deploy."
+            exit 1
+          fi
+
+          echo "==> Promoting release $RELEASE_TAG (commit $GIT_SHA) to ${{ inputs.environment }}"
+          echo "    backend:  $BACKEND_REPOSITORY@$BACKEND_DIGEST (built from $BACKEND_TAG)"
+          echo "    frontend: $FRONTEND_REPOSITORY@$FRONTEND_DIGEST (built from $FRONTEND_TAG)"
+
+          {
+            echo "backend_image=${BACKEND_REPOSITORY}@${BACKEND_DIGEST}"
+            echo "frontend_image=${FRONTEND_REPOSITORY}@${FRONTEND_DIGEST}"
+            echo "git_sha=${GIT_SHA}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Azure login (OIDC — no client secret stored anywhere)
         uses: azure/login@v2
         with:
@@ -79,12 +142,19 @@ jobs:
           POSTGRES_ADMIN_PASSWORD_DEV: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_ADMIN_PASSWORD_REC: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          # Read by the .bicepparam file itself (readEnvironmentVariable) —
+          # not passed as a separate --parameters override. A .bicepparam
+          # file's own completeness is validated independently of any
+          # same-command-line --parameters key=value, so a required
+          # (no-default) parameter like this one must be satisfied inside
+          # the file, exactly like postgresAdminPassword already is.
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
         run: |
           az deployment group what-if \
             --resource-group "rg-schoolflow-${{ inputs.environment }}" \
             --template-file infra/azure/main.bicep \
-            --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam \
-            --parameters apiImageTag=${{ inputs.image_tag }} workerImageTag=${{ inputs.image_tag }} frontendImageTag=${{ inputs.image_tag }}
+            --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam
 
       # The `environment:` protection rule above already required a human
       # reviewer to approve this run before reaching this step — that
@@ -105,12 +175,13 @@ jobs:
           POSTGRES_ADMIN_PASSWORD_DEV: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_ADMIN_PASSWORD_REC: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
         run: |
           az deployment group create \
             --resource-group "rg-schoolflow-${{ inputs.environment }}" \
             --template-file infra/azure/main.bicep \
             --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam \
-            --parameters apiImageTag=${{ inputs.image_tag }} workerImageTag=${{ inputs.image_tag }} frontendImageTag=${{ inputs.image_tag }} \
             --parameters deployApps=false \
             --query "properties.outputs"
 
@@ -168,11 +239,12 @@ jobs:
           POSTGRES_ADMIN_PASSWORD_DEV: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_ADMIN_PASSWORD_REC: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
         run: |
           az deployment group create \
             --resource-group "rg-schoolflow-${{ inputs.environment }}" \
             --template-file infra/azure/main.bicep \
             --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam \
-            --parameters apiImageTag=${{ inputs.image_tag }} workerImageTag=${{ inputs.image_tag }} frontendImageTag=${{ inputs.image_tag }} \
             --parameters deployApps=true \
             --query "properties.outputs"

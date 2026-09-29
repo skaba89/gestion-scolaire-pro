@@ -21,32 +21,30 @@ grandeur avant de lancer quoi que ce soit.
 - Accès push à `academyguineenneacr.azurecr.io` (ACR déjà existant, pas créé
   par ce template).
 
-## 1. Construire et pousser les 2 images
+## 1. Construire les images ET publier une release (BUILD ONCE)
 
-Le workflow **Build and push images to ACR**
-(`.github/workflows/build-push-acr.yml`) construit maintenant `schoolflow-api`
-ET `schoolflow-frontend` (corrigé le 2026-09-23 — avant cette date, l'image
-frontend n'avait jamais été poussée).
+Depuis `docs/IMMUTABLE_RELEASES.md` (remplace l'ancien
+`build-push-acr.yml`, qui poussait un unique tag mutable `:latest`) : le
+workflow **Build images** (`.github/workflows/build-images.yml`) construit
+`schoolflow-api` et/ou `schoolflow-frontend` selon les fichiers modifiés,
+les pousse tagués par le **Git SHA complet** (jamais `:latest`), puis
+publie une **GitHub Release** (`release-<sha>`) contenant
+`release-manifest.json` — les deux digests OCI réels à déployer.
 
-**Option A — via GitHub Actions (recommandé)** : onglet Actions → "Build and
-push images to ACR" → *Run workflow* sur `main`.
+**Via GitHub Actions (seule méthode supportée)** : onglet Actions →
+"Build images" → *Run workflow* sur `main` (ou laisser un push sur `main`
+le déclencher automatiquement selon les chemins modifiés). Cocher
+`force_backend`/`force_frontend` pour forcer une image même sans
+changement de code (ex. patch de sécurité de l'image de base).
 
-**Option B — en local :**
-```bash
-az acr login --name academyguineenneacr
+Il n'y a plus d'"Option B en local" avec `docker build`/`docker push`
+manuel : ce serait exactement le rebuild que ce document a pour but
+d'éliminer (une image construite à la main ne serait tracée par aucune
+release, et ne pourrait pas être promue par le workflow de déploiement).
 
-docker build -t academyguineenneacr.azurecr.io/schoolflow-api:latest -f backend/Dockerfile backend/
-docker push academyguineenneacr.azurecr.io/schoolflow-api:latest
-
-docker build -t academyguineenneacr.azurecr.io/schoolflow-frontend:latest -f Dockerfile .
-docker push academyguineenneacr.azurecr.io/schoolflow-frontend:latest
-```
-
-Vérifier que les deux images existent avant de continuer :
-```bash
-az acr repository show-tags --name academyguineenneacr --repository schoolflow-api
-az acr repository show-tags --name academyguineenneacr --repository schoolflow-frontend
-```
+Noter le tag de la release publiée (`release-<sha>`, visible dans les logs
+du job `release-manifest` ou sur la page Releases du dépôt) — c'est ce
+qu'on donne à l'étape 3.
 
 ## 2. Revalider avec what-if (recommandé, gratuit, avant le vrai create)
 
@@ -55,19 +53,35 @@ export POSTGRES_ADMIN_PASSWORD_DEV="<générer un mot de passe fort>"
 az deployment group what-if \
   --resource-group rg-schoolflow-dev \
   --template-file infra/azure/main.bicep \
-  --parameters infra/azure/parameters/dev.bicepparam
+  --parameters infra/azure/parameters/dev.bicepparam \
+  --parameters backendImage=academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest de la release> \
+  --parameters frontendImage=academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest de la release>
 ```
+Les deux digests viennent de `release-manifest.json` (champs
+`backend.digest`/`frontend.digest`) — téléchargeable depuis la Release
+GitHub de l'étape 1, ou avec `gh release download release-<sha> --pattern
+release-manifest.json`.
+
 Attendu : `Resource changes: 13 to create, 1 unsupported.` — le `1 unsupported`
 est une limite connue et bénigne du what-if (attribution de rôle Key Vault
 dont l'ID dépend d'un `guid()` résolu à l'exécution), pas une erreur.
 
 ## 3. Le vrai déploiement — POINT DE NON-RETOUR FINANCIER
 
+**Préféré** : workflow **Deploy to Azure (Container Apps)**
+(`.github/workflows/deploy-azure.yml`) → *Run workflow* → `environment:
+dev`, `release_tag: release-<sha>` de l'étape 1. Il retélécharge et
+revalide lui-même le manifeste (fail-closed si le digest est absent ou
+malformé) avant de déployer — jamais de rebuild.
+
+**Manuel équivalent** (mêmes digests que l'étape 2) :
 ```bash
 az deployment group create \
   --resource-group rg-schoolflow-dev \
   --template-file infra/azure/main.bicep \
   --parameters infra/azure/parameters/dev.bicepparam \
+  --parameters backendImage=academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest de la release> \
+  --parameters frontendImage=academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest de la release> \
   --query "properties.outputs"
 ```
 

@@ -99,20 +99,36 @@ not recreated).
 
 ## Deploying
 
-Preferred: trigger **Deploy to Azure (Container Apps)** from the Actions
-tab, choose an environment and image tag. It runs `az deployment group
-what-if` first (shown in the job log, no changes applied), then the real
-`az deployment group create` — gated by the GitHub Environment's required
-reviewers from step 3 above.
+BUILD ONCE, PROMOTE MANY — see `docs/IMMUTABLE_RELEASES.md` for the full
+picture. Images are built exactly once by **Build images**
+(`.github/workflows/build-images.yml`), which publishes a GitHub Release
+(tag `release-<full git sha>`) naming the exact OCI digests it pushed.
+Deploying/promoting never rebuilds anything — it only ever reads a
+release's digests.
 
-Manual (from a machine already `az login`-ed to the right subscription):
+Preferred: trigger **Deploy to Azure (Container Apps)** from the Actions
+tab, choose an environment and the release tag to promote (e.g.
+`release-abc1234...`, from the Releases page or the "Build images" run
+that produced it). It resolves that release's manifest, fails closed if
+the release or its digests are missing/malformed, then runs
+`az deployment group what-if` (shown in the job log, no changes applied)
+followed by the real `az deployment group create` — gated by the GitHub
+Environment's required reviewers from step 3 above. The same release tag
+promoted to `dev`, then `rec`, then `prod` deploys byte-for-byte the same
+images everywhere; there is no rebuild step to introduce drift.
+
+Manual (from a machine already `az login`-ed to the right subscription —
+note `backendImage`/`frontendImage` are required, full digest references,
+no default):
 
 ```bash
 export POSTGRES_ADMIN_PASSWORD_DEV="<a strong password>"
 az deployment group create \
   --resource-group rg-schoolflow-dev \
   --template-file infra/azure/main.bicep \
-  --parameters infra/azure/parameters/dev.bicepparam
+  --parameters infra/azure/parameters/dev.bicepparam \
+  --parameters backendImage=academyguineenneacr.azurecr.io/schoolflow-api@sha256:<digest> \
+  --parameters frontendImage=academyguineenneacr.azurecr.io/schoolflow-frontend@sha256:<digest>
 ```
 
 ## Cost

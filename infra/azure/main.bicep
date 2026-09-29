@@ -2,8 +2,10 @@
 //
 // national-readiness audit, 2026-09: the CI/CD gap this closes is "no
 // Container Apps, no Key Vault, no Application Insights, no separate
-// DEV/REC/PROD environments" — the current pipeline (build-push-acr.yml)
-// only builds and pushes an image; nothing here has ever been deployed.
+// DEV/REC/PROD environments" — the build pipeline at the time
+// (build-push-acr.yml, since replaced by .github/workflows/build-images.yml
+// — see docs/IMMUTABLE_RELEASES.md) only built and pushed an image;
+// nothing here has ever been deployed.
 // This file is infrastructure-as-code, reviewed and versioned like any
 // other change, but NOT applied by any automated workflow in this repo —
 // see .github/workflows/deploy-azure.yml, which is workflow_dispatch-only
@@ -53,9 +55,9 @@ param postgresHighAvailability bool = envName == 'prod'
 param redisSkuName string = envName == 'prod' ? 'Standard' : 'Basic'
 param redisSkuCapacity int = envName == 'prod' ? 1 : 0
 
-param apiImageTag string = 'latest'
-param workerImageTag string = 'latest'
-param frontendImageTag string = 'latest'
+@description('BUILD ONCE, PROMOTE MANY (docs/IMMUTABLE_RELEASES.md): full, digest-pinned references produced by .github/workflows/build-images.yml and read from a release manifest by the promote step in deploy-azure.yml — "registry/repository@sha256:<digest>", never a mutable tag. No default: a deployment that cannot name a real digest must fail, not silently fall back to "latest".')
+param backendImage string
+param frontendImage string
 
 param apiMinReplicas int = envName == 'prod' ? 2 : 1
 param apiMaxReplicas int = envName == 'prod' ? 10 : 3
@@ -147,9 +149,8 @@ module containerApps 'modules/container-apps.bicep' = {
     acrLoginServer: acrLoginServer
     keyVaultUri: keyVault.outputs.keyVaultUri
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
-    apiImageTag: apiImageTag
-    workerImageTag: workerImageTag
-    frontendImageTag: frontendImageTag
+    backendImage: backendImage
+    frontendImage: frontendImage
     apiMinReplicas: apiMinReplicas
     apiMaxReplicas: apiMaxReplicas
     azureStorageAccountUrl: storage.outputs.blobEndpoint

@@ -1,0 +1,507 @@
+name: Build images (BUILD ONCE — see docs/IMMUTABLE_RELEASES.md)
+
+# BUILD ONCE, PROMOTE MANY. This workflow is the ONLY place that runs
+# `docker build`/`docker push` for schoolflow-api or schoolflow-frontend.
+# It replaces build-push-acr.yml, which built both images as a single
+# mutable ":latest" tag on every push, and which .github/workflows/
+# deploy-azure.yml then deployed by that same floating tag to every
+# environment — meaning "latest" could point at a different image by the
+# time REC or PROD deployed it than what DEV had actually run. There is
+# no equivalent tag here: every image this workflow produces is tagged
+# with the full 40-character Git SHA of the commit that produced it, and
+# the digest that push returns is what downstream deployment actually
+# pins to (see the release-manifest job below and deploy-azure.yml's
+# "promote" step) — never the tag alone.
+#
+# api, worker and the one-shot migration Job (#263 —
+# docs/AZURE_ONE_SHOT_MIGRATIONS.md) all run the exact same
+# backend/Dockerfile image, just with a different command
+# (infra/azure/modules/container-apps.bicep passes the same backendImage
+# value to all three) — so there is exactly one backend build here, never
+# three. The frontend is a genuinely separate image (root Dockerfile,
+# Node/Nginx, not Python) and is built independently.
+#
+# Path filtering (dorny/paths-filter) means a change to only one side
+# does not force a rebuild of the other — see "coherent release" below.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "Dockerfile"
+      - "docker/**"
+      - "vite.config.ts"
+      - "tsconfig*.json"
+      - "tailwind.config.ts"
+      - "index.html"
+      - "components.json"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+    inputs:
+      force_backend:
+        description: "Build schoolflow-api even if backend/** did not change (e.g. base image security patch)"
+        type: boolean
+        default: false
+      force_frontend:
+        description: "Build schoolflow-frontend even if frontend paths did not change"
+        type: boolean
+        default: false
+
+# One build run per ref at a time. cancel-in-progress is safe here (unlike
+# deploy-azure.yml's per-environment groups): a build that gets superseded
+# by a newer commit on the same ref has produced nothing anyone has
+# promoted yet, so cancelling it loses no in-flight deployment.
+concurrency:
+  group: build-images-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: academyguineenneacr.azurecr.io
+  BACKEND_REPO: schoolflow-api
+  FRONTEND_REPO: schoolflow-frontend
+
+permissions:
+  contents: write # to publish the release manifest (gh release create)
+  security-events: write # to upload Trivy SARIF results to code scanning
+
+jobs:
+  # Path filtering only runs meaningfully on `push` (a diff against the
+  # previous commit). workflow_dispatch has no such diff, so it is driven
+  # entirely by the explicit force_backend/force_frontend inputs instead —
+  # see the `if:` conditions on build-backend/build-frontend below.
+  changes:
+    name: Detect changed paths
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            frontend:
+              - 'src/**'
+              - 'public/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'Dockerfile'
+              - 'docker/**'
+              - 'vite.config.ts'
+              - 'tsconfig*.json'
+              - 'tailwind.config.ts'
+              - 'index.html'
+              - 'components.json'
+
+  build-backend:
+    name: Build schoolflow-api (backend + worker + migration job)
+    needs: [changes]
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.changes.outputs.backend == 'true') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.force_backend == 'true')
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tag: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Record build timestamp
+        id: meta
+        run: echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      # Tagged ONLY by the full Git SHA — never :latest, never a short SHA
+      # as the primary identity (the task's own tag format requirement).
+      # `push: true` + `outputs.digest` is what makes this reproducible:
+      # the digest, not the tag, is what every downstream step and every
+      # environment ultimately pins to.
+      - name: Build and push (tag = full Git SHA)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.BACKEND_REPO }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Print resolved digest
+        run: echo "backend digest = ${{ steps.build.outputs.digest }}"
+
+      # SECURITY (task item 19): single scanner, on the exact image that
+      # will be promoted (by digest, not by tag). Non-blocking by design
+      # for this PR — see docs/IMMUTABLE_RELEASES.md#security — findings
+      # are still surfaced (SARIF -> GitHub code scanning), never silently
+      # dropped, but a HIGH/CRITICAL finding in a pre-existing base-image
+      # package does not fail every future build of unrelated app code.
+      - name: Scan image for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "${{ env.REGISTRY }}/${{ env.BACKEND_REPO }}@${{ steps.build.outputs.digest }}"
+          format: "sarif"
+          output: "trivy-backend.sarif"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+        env:
+          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Upload Trivy results to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-backend.sarif
+          category: trivy-backend
+
+      # SBOM (task item 20): generated straight from the pushed digest, so
+      # it describes exactly what will be promoted — not a local re-build.
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: "${{ env.REGISTRY }}/${{ env.BACKEND_REPO }}@${{ steps.build.outputs.digest }}"
+          format: spdx-json
+          output-file: backend-sbom.spdx.json
+
+      - name: Upload backend SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-sbom
+          path: backend-sbom.spdx.json
+          retention-days: 90
+
+  build-frontend:
+    name: Build schoolflow-frontend
+    needs: [changes]
+    if: |
+      always() && (
+        (github.event_name == 'push' && needs.changes.outputs.frontend == 'true') ||
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.force_frontend == 'true')
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tag: ${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Record build timestamp
+        id: meta
+        run: echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push (tag = full Git SHA)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # VITE_API_URL left at the Dockerfile's own default ('/api') —
+          # container-apps.bicep's SCHOOLFLOW_API_URL env var overrides it
+          # at container start via docker-entrypoint.sh, before this
+          # build-time value is ever read. See build-push-acr.yml's
+          # history for the fuller explanation this replaces.
+          tags: ${{ env.REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Print resolved digest
+        run: echo "frontend digest = ${{ steps.build.outputs.digest }}"
+
+      - name: Scan image for vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "${{ env.REGISTRY }}/${{ env.FRONTEND_REPO }}@${{ steps.build.outputs.digest }}"
+          format: "sarif"
+          output: "trivy-frontend.sarif"
+          severity: "HIGH,CRITICAL"
+          exit-code: "0"
+        env:
+          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Upload Trivy results to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: trivy-frontend
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: "${{ env.REGISTRY }}/${{ env.FRONTEND_REPO }}@${{ steps.build.outputs.digest }}"
+          format: spdx-json
+          output-file: frontend-sbom.spdx.json
+
+      - name: Upload frontend SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-sbom
+          path: frontend-sbom.spdx.json
+          retention-days: 90
+
+  # COHERENT RELEASE (task item 15): if only the frontend changed,
+  # build-backend above never runs — there is no reason to rebuild
+  # identical backend code. This job instead looks up the digest of the
+  # most recently built backend image already sitting in ACR (a real,
+  # previously-scanned artifact, found by its full-Git-SHA tag — never a
+  # ":latest" or "most recent by wall-clock across arbitrary tags" guess)
+  # and uses THAT in the release manifest. Symmetric for backend-only
+  # changes and the frontend side. If a side was neither rebuilt nor
+  # resolvable (e.g. the very first run, before any image has ever been
+  # pushed), this job fails — there is no fallback tag, per the fail-closed
+  # rule in docs/IMMUTABLE_RELEASES.md.
+  resolve-backend:
+    name: Resolve existing backend digest (no rebuild)
+    needs: [build-backend]
+    if: always() && needs.build-backend.result == 'skipped'
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.resolve.outputs.digest }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Find latest full-SHA-tagged backend image in ACR
+        id: resolve
+        run: |
+          set -euo pipefail
+          TAG=$(az acr repository show-tags \
+            --name "${REGISTRY%%.*}" \
+            --repository "$BACKEND_REPO" \
+            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
+            --orderby time_desc --top 100 -o tsv \
+            | grep -E '^[0-9a-f]{40}$' | head -n1 || true)
+
+          if [ -z "$TAG" ]; then
+            echo "::error::No existing full-Git-SHA-tagged $BACKEND_REPO image found in ACR — nothing to promote and backend/** did not change this run. A backend image must be built at least once (workflow_dispatch with force_backend=true) before a frontend-only release can be coherent."
+            exit 1
+          fi
+
+          DIGEST=$(az acr repository show \
+            --name "${REGISTRY%%.*}" \
+            --image "${BACKEND_REPO}:${TAG}" \
+            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
+            --query digest -o tsv)
+
+          if [ -z "$DIGEST" ]; then
+            echo "::error::Found tag $TAG but could not resolve its digest."
+            exit 1
+          fi
+
+          echo "Resolved existing backend image: tag=$TAG digest=$DIGEST"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+
+  resolve-frontend:
+    name: Resolve existing frontend digest (no rebuild)
+    needs: [build-frontend]
+    if: always() && needs.build-frontend.result == 'skipped'
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.resolve.outputs.digest }}
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - name: Find latest full-SHA-tagged frontend image in ACR
+        id: resolve
+        run: |
+          set -euo pipefail
+          TAG=$(az acr repository show-tags \
+            --name "${REGISTRY%%.*}" \
+            --repository "$FRONTEND_REPO" \
+            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
+            --orderby time_desc --top 100 -o tsv \
+            | grep -E '^[0-9a-f]{40}$' | head -n1 || true)
+
+          if [ -z "$TAG" ]; then
+            echo "::error::No existing full-Git-SHA-tagged $FRONTEND_REPO image found in ACR — nothing to promote and no frontend path changed this run. A frontend image must be built at least once (workflow_dispatch with force_frontend=true) before a backend-only release can be coherent."
+            exit 1
+          fi
+
+          DIGEST=$(az acr repository show \
+            --name "${REGISTRY%%.*}" \
+            --image "${FRONTEND_REPO}:${TAG}" \
+            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
+            --query digest -o tsv)
+
+          if [ -z "$DIGEST" ]; then
+            echo "::error::Found tag $TAG but could not resolve its digest."
+            exit 1
+          fi
+
+          echo "Resolved existing frontend image: tag=$TAG digest=$DIGEST"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+        env:
+          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
+
+  release-manifest:
+    name: Generate release manifest
+    needs: [build-backend, build-frontend, resolve-backend, resolve-frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assemble and validate digests (fail closed)
+        id: assemble
+        run: |
+          set -euo pipefail
+
+          BACKEND_DIGEST="${{ needs.build-backend.outputs.digest }}"
+          BACKEND_TAG="${{ needs.build-backend.outputs.tag }}"
+          if [ -z "$BACKEND_DIGEST" ]; then
+            BACKEND_DIGEST="${{ needs.resolve-backend.outputs.digest }}"
+            BACKEND_TAG="${{ needs.resolve-backend.outputs.tag }}"
+          fi
+
+          FRONTEND_DIGEST="${{ needs.build-frontend.outputs.digest }}"
+          FRONTEND_TAG="${{ needs.build-frontend.outputs.tag }}"
+          if [ -z "$FRONTEND_DIGEST" ]; then
+            FRONTEND_DIGEST="${{ needs.resolve-frontend.outputs.digest }}"
+            FRONTEND_TAG="${{ needs.resolve-frontend.outputs.tag }}"
+          fi
+
+          # FAIL CLOSED (task item 12): no digest, no manifest, no release.
+          # Never fall back to "latest" or an empty/placeholder value.
+          DIGEST_RE='^sha256:[0-9a-f]{64}$'
+          if [ -z "$BACKEND_DIGEST" ] || ! [[ "$BACKEND_DIGEST" =~ $DIGEST_RE ]]; then
+            echo "::error::No valid backend digest available (build skipped and resolve-backend did not run or failed). Refusing to publish a release manifest."
+            exit 1
+          fi
+          if [ -z "$FRONTEND_DIGEST" ] || ! [[ "$FRONTEND_DIGEST" =~ $DIGEST_RE ]]; then
+            echo "::error::No valid frontend digest available (build skipped and resolve-frontend did not run or failed). Refusing to publish a release manifest."
+            exit 1
+          fi
+
+          echo "backend_digest=$BACKEND_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "backend_tag=$BACKEND_TAG" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$FRONTEND_DIGEST" >> "$GITHUB_OUTPUT"
+          echo "frontend_tag=$FRONTEND_TAG" >> "$GITHUB_OUTPUT"
+
+      # No secrets anywhere in this document (task item 9 / TEST 6):
+      # registry hostnames, repository names, tags (Git SHAs, not
+      # sensitive) and digests only. Never a connection string, password,
+      # or credential.
+      - name: Write release manifest
+        # Built with `jq -n --arg` (not a heredoc) for two reasons: every
+        # value is correctly JSON-escaped regardless of content, and there
+        # is no heredoc terminator to accidentally indent under GitHub
+        # Actions' YAML block-scalar `run: |` (a plain `<<EOF` requires the
+        # terminator at column 0 — indented by the step's own YAML nesting,
+        # as a naive heredoc here would be, it never matches and the step
+        # fails at runtime).
+        run: |
+          jq -n \
+            --arg git_sha "${{ github.sha }}" \
+            --arg created_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --arg run_id "${{ github.run_id }}" \
+            --arg backend_repo "${{ env.REGISTRY }}/${{ env.BACKEND_REPO }}" \
+            --arg backend_tag "${{ steps.assemble.outputs.backend_tag }}" \
+            --arg backend_digest "${{ steps.assemble.outputs.backend_digest }}" \
+            --arg frontend_repo "${{ env.REGISTRY }}/${{ env.FRONTEND_REPO }}" \
+            --arg frontend_tag "${{ steps.assemble.outputs.frontend_tag }}" \
+            --arg frontend_digest "${{ steps.assemble.outputs.frontend_digest }}" \
+            '{
+              release: { git_sha: $git_sha, created_at: $created_at, workflow_run_id: $run_id },
+              backend: { repository: $backend_repo, tag: $backend_tag, digest: $backend_digest },
+              frontend: { repository: $frontend_repo, tag: $frontend_tag, digest: $frontend_digest },
+              components: { api: "backend", worker: "backend", migration: "backend", frontend: "frontend" }
+            }' > release-manifest.json
+          cat release-manifest.json
+
+      - name: Upload manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 90
+
+      - name: Download SBOMs (if produced this run)
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: "*-sbom"
+          merge-multiple: true
+
+      # A GitHub Release, tagged release-<full Git SHA>, is the durable,
+      # fetchable-by-name store the promote step in deploy-azure.yml reads
+      # from (`gh release download`). This is what lets DEV/REC/PROD all
+      # reference "the same release" unambiguously, and what makes
+      # rollback just "promote an older release tag" — no rebuild, no
+      # separate artifact registry needed beyond what GitHub already gives
+      # every repository for free.
+      - name: Publish release manifest as a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          TAG="release-${{ github.sha }}"
+          ASSETS=(release-manifest.json)
+          [ -f backend-sbom.spdx.json ] && ASSETS+=(backend-sbom.spdx.json)
+          [ -f frontend-sbom.spdx.json ] && ASSETS+=(frontend-sbom.spdx.json)
+
+          # --repo is required on every call below: this job never runs
+          # actions/checkout, so there is no local git remote for gh to
+          # infer the repository from.
+          #
+          # Idempotent: a workflow_dispatch re-run against the same commit
+          # (e.g. force-rebuilding just the frontend after the backend was
+          # already released for this SHA) must not crash on "tag already
+          # exists" — replace the prior release for this exact commit
+          # rather than leaving a stale, possibly-inconsistent manifest.
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — replacing it."
+            gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag
+          fi
+
+          gh release create "$TAG" \
+            --repo "$REPO" \
+            --title "Release $TAG" \
+            --notes "Backend: ${{ steps.assemble.outputs.backend_digest }} (tag ${{ steps.assemble.outputs.backend_tag }})
+          Frontend: ${{ steps.assemble.outputs.frontend_digest }} (tag ${{ steps.assemble.outputs.frontend_tag }})" \
+            --target "${{ github.sha }}" \
+            "${ASSETS[@]}"

@@ -9,6 +9,12 @@ param acrLoginServer = 'academyguineenneacr.azurecr.io'
 // Environment secret, Key Vault reference in the pipeline, etc.), never
 // from a value typed into a terminal that ends up in shell history.
 
+// BUILD ONCE, PROMOTE MANY (docs/IMMUTABLE_RELEASES.md) — see dev.bicepparam's
+// comment. The same release digests promoted to dev/rec must be what
+// reaches prod here — never a different build.
+param backendImage = readEnvironmentVariable('BACKEND_IMAGE')
+param frontendImage = readEnvironmentVariable('FRONTEND_IMAGE')
+
 param postgresSkuName = 'Standard_D2ds_v4'
 param postgresSkuTier = 'GeneralPurpose'
 param postgresHighAvailability = true

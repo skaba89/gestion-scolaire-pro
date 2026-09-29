@@ -63,8 +63,10 @@ workaround for a failing deployment — see `infra/azure/sql/create_app_role.sql
 `infra/azure/modules/container-apps.bicep` defines `migrationJob`
 (`caj-schoolflow-migrate-<env>`, `Microsoft.App/jobs`):
 
-- Same image as the `api` Container App (`schoolflow-api:<apiImageTag>`) —
-  no separate migration-only image to build or version.
+- Same image as the `api`/`worker` Container Apps (`backendImage`, a
+  digest-pinned reference — see `docs/IMMUTABLE_RELEASES.md`) — no
+  separate migration-only image to build or version, and no risk of the
+  migration running different code than the API/worker it's migrating for.
 - `command: ["alembic", "upgrade", "head"]` — nothing else; it never starts
   Gunicorn/uvicorn or the arq worker.
 - `triggerType: Manual`, `replicaRetryLimit: 0` — the deploy workflow starts
@@ -225,11 +227,12 @@ deployment to either has been attempted.
 
 ## Rollback
 
-**Application rollback (redeploying a previous image tag) never runs
+**Application rollback (redeploying a previous release) never runs
 `alembic downgrade` automatically**, and nothing in this change adds such a
 step. If the previous application version is compatible with the current
 (already-migrated) schema, redeploying it via the same workflow (with the
-older `image_tag`) is enough — the migration job re-running `alembic upgrade
+older `release_tag` — see `docs/IMMUTABLE_RELEASES.md#rollback` for the
+full procedure) is enough — the migration job re-running `alembic upgrade
 head` against an already-current schema is a no-op (see idempotence, below).
 
 If a migration itself needs to be reverted:
