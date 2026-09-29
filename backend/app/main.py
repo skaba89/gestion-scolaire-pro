@@ -106,68 +106,65 @@ async def lifespan(app: FastAPI):
     # ── STARTUP ──
     logger.info("Academy Guinéenne API starting up...")
 
-    # Auto-run pending Alembic migrations — SKIPPED when start.sh already ran
-    # them (SCHOOLFLOW_MIGRATIONS_DONE=true). Without this guard, every
-    # gunicorn worker re-runs "alembic upgrade head" concurrently at boot.
+    # ARCHITECTURE (Azure one-shot migrations, P0): the API/worker used to
+    # run Alembic itself at every startup (guarded by
+    # SCHOOLFLOW_MIGRATIONS_DONE so gunicorn's workers wouldn't race each
+    # other), PLUS two separate raw-DDL fallbacks below this comment
+    # (ensure_operational_tables(), and mfa.py's now-removed
+    # _ensure_mfa_tables()). All of that ran under whatever role
+    # DATABASE_URL_SYNC pointed at — harmless under a superuser, a hard
+    # requirement violation under a restricted role with no DDL grants at
+    # all (schoolflow_app, NOSUPERUSER NOBYPASSRLS — see
+    # infra/azure/sql/create_app_role.sql, docs/POSTGRES_APP_ROLE.md).
+    #
+    # Schema changes are now applied EXCLUSIVELY by a dedicated, one-shot
+    # migration step (Azure Container Apps Job in production; `alembic
+    # upgrade head` run by hand for local dev — see
+    # docs/AZURE_ONE_SHOT_MIGRATIONS.md) using DATABASE_URL_MIGRATIONS
+    # (the admin/migrator role), BEFORE the API or worker are ever started
+    # with the new code. The API/worker never run Alembic and never
+    # execute DDL of any kind at startup — they only verify, via
+    # _check_alembic_revision() below (also surfaced on /health/ready),
+    # that the schema they're about to serve is the one they expect, and
+    # refuse to report ready if it is not. They never try to fix it
+    # themselves.
+    #
+    # create_all() is the ONE exception, unchanged: SQLite is dev/test-only
+    # (docker-compose/CI never point Alembic's admin/app roles at
+    # different SQLite files — there is only one role, one file, no DDL
+    # permission boundary to protect), and every SQLite-backed test suite
+    # in this repo already relies on create_all() populating a fresh
+    # in-memory/temp-file DB per run rather than running the full Alembic
+    # chain — switching that now would be a much larger, unrelated change.
     from app.core.database import Base, engine
     import app.models  # noqa: F401 — ensure all models are registered
 
-    if os.getenv("SCHOOLFLOW_MIGRATIONS_DONE", "").lower() == "true":
-        logger.info("Alembic migrations already applied by start.sh — skipping lifespan migration")
-    else:
-        try:
-            from alembic.config import Config
-            from alembic import command
-
-            backend_dir = os.path.dirname(os.path.dirname(__file__))
-            alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
-            alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
-            alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
-            command.upgrade(alembic_cfg, "head")
-            logger.info("Alembic auto-migration: upgrade head succeeded")
-        except Exception as alembic_err:
-            logger.critical(
-                "Alembic migration FAILED: %s — refusing to start. "
-                "Fix the migration and retry. Do NOT use create_all as a fallback "
-                "as it may create an incomplete or inconsistent schema.",
-                alembic_err,
-            )
-            raise SystemExit(1)
-
-    # create_all uniquement en mode SQLite/développement local sans Alembic
-    # En production PostgreSQL, Alembic est l'unique source de vérité.
     if settings.is_sqlite:
         try:
             Base.metadata.create_all(bind=engine)
             logger.info("SQLite dev mode: Base.metadata.create_all succeeded")
         except Exception as create_err:
             logger.error("SQLite table creation failed: %s", create_err)
-
-    # Ensure operational tables that have NO SQLAlchemy models. This is DDL
-    # (CREATE TABLE IF NOT EXISTS ...) — SECURITY (Postgres non-superuser
-    # app role pass): once DATABASE_URL_SYNC is the restricted app role
-    # (see infra/azure/sql/create_app_role.sql), `engine` (bound to it)
-    # cannot run DDL at all, so this must go through the same
-    # admin-privileged connection alembic/env.py uses
-    # (effective_migrations_url), not the app's own runtime engine.
-    try:
-        from app.core.operational_tables import ensure_operational_tables
-        if settings.is_sqlite or settings.effective_migrations_url == settings.DATABASE_URL_SYNC:
-            ensure_operational_tables(engine)
+    else:
+        revision_status = _check_alembic_revision()
+        if revision_status.get("status") == "outdated":
+            logger.critical(
+                "Database schema is BEHIND the code being started (db=%s, expected=%s). "
+                "Refusing to start. Run the one-shot migration job "
+                "(`alembic upgrade head` against DATABASE_URL_MIGRATIONS) before "
+                "redeploying — see docs/AZURE_ONE_SHOT_MIGRATIONS.md. "
+                "This process will NEVER run migrations or DDL itself.",
+                revision_status.get("db_revision"), revision_status.get("head_revision"),
+            )
+            raise SystemExit(1)
+        elif revision_status.get("status") == "unknown":
+            logger.warning(
+                "Could not verify the DB schema revision at startup (%s) — "
+                "proceeding, but /health/ready will keep reporting this.",
+                revision_status.get("detail"),
+            )
         else:
-            from sqlalchemy import create_engine as _create_engine
-            migrations_engine = _create_engine(settings.effective_migrations_url)
-            try:
-                ensure_operational_tables(migrations_engine)
-            finally:
-                migrations_engine.dispose()
-        logger.info("Operational tables ensured via raw SQL")
-    except Exception as op_err:
-        logger.warning("Operational table creation failed: %s", op_err)
-
-    # NOTE: Column backfills previously done here are now managed by
-    # Alembic migration 20260424_0003_ensure_core_table_columns.py
-    # which runs automatically via `alembic upgrade head` at startup above.
+            logger.info("Database schema revision verified up to date (%s)", revision_status.get("db_revision"))
 
     # Auto-create super admin if no admin exists
     try:
@@ -759,6 +756,7 @@ def _readiness_is_healthy(
     cache: str,
     rls: str,
     storage: str,
+    schema: str,
     is_sqlite: bool,
 ) -> bool:
     if database != "connected":
@@ -766,6 +764,21 @@ def _readiness_is_healthy(
     if is_sqlite:
         return True
     if storage == "unreachable":
+        return False
+    # ARCHITECTURE (Azure one-shot migrations, P0): the API/worker never
+    # run Alembic themselves any more (see the lifespan comment above) —
+    # this is the enforcement point instead. "outdated" (a confirmed,
+    # known-wrong revision) fails readiness outright, matching "a
+    # non-migrated DB must lead to /health/ready -> non-ready, never to
+    # the API silently fixing the schema itself". "unknown" (transient
+    # connectivity blip, or the alembic_version table itself missing on a
+    # genuinely fresh/never-migrated DB) is treated the same as
+    # "outdated" here — readiness is the one place this repo has decided
+    # to fail closed on an unverifiable schema state, unlike the lifespan
+    # startup check above, which only hard-exits on a CONFIRMED mismatch
+    # and merely warns on "unknown" so a transient blip at container boot
+    # doesn't crash-loop the whole process.
+    if schema not in ("up_to_date", "skipped"):
         return False
     return cache == "connected" and rls == "active"
 
@@ -788,11 +801,16 @@ async def readiness_check():
     db_status, rls_status = await asyncio.to_thread(_check_database_and_rls)
     redis_status = await _check_cache_readiness()
     storage_status = await _check_storage_readiness()
+    if settings.is_sqlite:
+        schema_status = {"status": "skipped"}
+    else:
+        schema_status = await asyncio.to_thread(_check_alembic_revision)
     healthy = _readiness_is_healthy(
         database=db_status,
         cache=redis_status,
         rls=rls_status,
         storage=storage_status,
+        schema=schema_status.get("status", "unknown"),
         is_sqlite=settings.is_sqlite,
     )
 
@@ -808,6 +826,10 @@ async def readiness_check():
                 "rls": rls_status,
                 "storage": storage_status,
                 "storage_backend": storage_client.backend_name,
+                # SECURITY: only the coarse status + revision ids, never a
+                # connection string or any credential — same "no secret in
+                # a health response" bar as every other component here.
+                "schema": schema_status.get("status", "unknown"),
             },
         },
     )

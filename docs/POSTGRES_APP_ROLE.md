@@ -177,7 +177,7 @@ cron, WebSocket, health/security checks) :
 | WebSocket `app/api/v1/endpoints/core/realtime.py::websocket_endpoint` | `SessionLocal()` indépendante | WebSocket, tenant-scoped | claim `tenant_id` du JWT (`token_tenant`) | aucun reset du tout (pire : hérite de l'état laissé par une connexion précédente du pool) | `resolve_authenticated_user_row(db, token_sub, token_tenant)` | `test_websocket_tenant_a_connects_successfully`, `test_websocket_tenant_a_token_denied_for_tenant_b_path` |
 | `app/scripts/expire_subscriptions.py` / `expire_overdue_subscriptions()` | `SessionLocal()` indépendante (script) et `get_db()` (endpoint `POST /billing/maintenance/expire/`) | Cron + HTTP, platform-scoped (balaie tous les tenants) | aucun | une seule requête globale sur `tenant_subscriptions` (politique RLS stricte, sans bypass) → 0 ligne visible | `platform_db_session()` (script) + boucle par tenant avec `switch_tenant_context()`/`reset_tenant_context()` (fonction elle-même, pour couvrir aussi l'appel HTTP) | `test_expire_overdue_subscriptions_works_across_tenants_under_restricted_role` |
 | `require_plan()`, `app/main.py` (bootstrap admin, health/security checks), `app/scripts/seed_saas_plans.py`, `app/api/v1/endpoints/core/webhooks.py::_dispatch_webhooks` | `SessionLocal()` indépendante | Platform-scoped (tables racines sans `tenant_id`/RLS : `tenants`, `subscription_plans`, catalogues système `pg_roles`/`pg_class`) ou code mort (`webhooks` : aucune migration, aucun modèle) | — | — | Aucune correction nécessaire — confirmé sans risque RLS | Audit manuel, inchangé depuis la PR ARQ workers |
-| `mfa_totp_secrets`/`mfa_backup_codes` créées à la volée par `_ensure_mfa_tables()` (DDL brut via la session applicative) | `db` de la requête (`get_db()`) | DDL, pas RLS | — | — | Aucune correction : sur une base réellement migrée (`alembic upgrade head` via `DATABASE_URL_MIGRATIONS`), `CREATE TABLE IF NOT EXISTS` ne s'exécute jamais (la vérification `information_schema.tables` réussit avant) — chemin de repli mort en usage normal. Signalé ici pour mémoire : ce chemin échouerait avec une erreur de permission si jamais exécuté sous `schoolflow_app` (aucun privilège DDL) sur une base non migrée. | — |
+| ~~`mfa_totp_secrets`/`mfa_backup_codes` créées à la volée par `_ensure_mfa_tables()`~~ | — | — | — | — | **CORRIGÉ (one-shot migrations P0)** : `_ensure_mfa_tables()` supprimée entièrement, `mfa_totp_secrets` migrée dans `20260930_0001_adopt_operational_tables_into_alembic.py`. Voir `docs/AZURE_ONE_SHOT_MIGRATIONS.md`. | `tests/test_totp_mfa_login.py`, `tests/test_mfa_enforcement.py` |
 
 ### Architecture cible (identique à la cible ARQ workers, étendue à l'authentification)
 
@@ -683,17 +683,23 @@ nécessairement avant un premier essai encadré sur Azure DEV) :
    `app/scripts/seed_saas_plans.py` reste confirmé sans risque (table
    racine `subscription_plans`, sans RLS), mais aucun autre script CLI du
    dépôt n'a été inventorié au-delà de `expire_subscriptions.py`.
-3. **`_ensure_mfa_tables()`** (`app/api/v1/endpoints/core/mfa.py`) exécute
-   du DDL brut (`CREATE TABLE IF NOT EXISTS`) via la session applicative
-   si les tables `mfa_backup_codes`/`mfa_totp_secrets`/`email_otps`
-   n'existent pas encore. Sans risque sur une base réellement migrée
-   (`alembic upgrade head`) — chemin mort en usage normal — mais
-   échouerait avec une erreur de permission sous `schoolflow_app` (aucun
-   privilège DDL) sur une base non migrée. **Recommandation** : retirer
-   ce filet de sécurité obsolète maintenant que la migration
-   `20260406_add_mfa_and_perf_indexes.py` existe, ou le router
-   explicitement vers `DATABASE_URL_MIGRATIONS` comme
-   `ensure_operational_tables()` (PR #259).
+3. **(CORRIGÉ, one-shot migrations P0 — `docs/AZURE_ONE_SHOT_MIGRATIONS.md`)**
+   `_ensure_mfa_tables()` (`app/api/v1/endpoints/core/mfa.py`) exécutait du
+   DDL brut (`CREATE TABLE IF NOT EXISTS`) via la session applicative sur
+   14 endpoints. Supprimé entièrement : `mfa_backup_codes`/`email_otps`
+   étaient déjà migrées (`20260406_add_mfa_and_perf_indexes.py`) ;
+   `mfa_totp_secrets` (seule table sans migration ni modèle ORM) est
+   désormais couverte par
+   `alembic/versions/20260930_0001_adopt_operational_tables_into_alembic.py`
+   et par `app/models/mfa.py` (pour SQLite, qui ne joue jamais Alembic).
+   `ensure_operational_tables()` a subi le même traitement dans la même
+   passe : `app/main.py` ne l'appelle plus au démarrage (les ~58
+   instructions DDL qu'elle contenait sont désormais dans la même
+   migration `20260930_0001`, importées telles quelles depuis
+   `app.core.operational_tables._DDL` pour garantir zéro dérive) ; le
+   module lui-même reste présent car plusieurs tests l'appellent
+   directement dans leur propre setup Postgres, indépendamment du
+   démarrage applicatif.
 4. **Suite de tests contre le rôle restreint** : comme documenté dans la
    PR ARQ workers, la suite backend complète exécutée avec la connexion
    applicative réellement pointée sur `schoolflow_app` continue de
