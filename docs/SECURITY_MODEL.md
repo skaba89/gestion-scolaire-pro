@@ -343,17 +343,39 @@ consentements. Suppression de compte : demande tracée
   place de `=` (sinon `NULL = NULL` reste faux et rejette les comptes
   SUPER_ADMIN eux-mêmes, dont `tenant_id IS NULL`). Isolation
   inter-tenant revérifiée intacte après ce changement.
-- **P1 (non résolu)** : `app/workers/tasks.py` (jobs ARQ d'arrière-plan —
+- **CORRIGÉ (PR `fix(security): propagate tenant RLS context through ARQ
+  workers`)** : `app/workers/tasks.py` (jobs ARQ d'arrière-plan —
   synchronisation WhatsApp, rappels de paiement, imports CSV, bulletins)
-  utilise `SessionLocal()` directement sur une vingtaine de sites
-  d'appel, sans jamais fixer le contexte RLS
-  (`set_config('app.current_tenant_id', ...)`/`tenant_context.set(...)`).
-  Ces jobs ne préservent l'isolation multi-tenant aujourd'hui que parce
-  que la connexion actuelle bypass RLS — un vrai risque de PRODUCTION si
-  le rôle applicatif est un jour restreint sans corriger ce point en
-  premier. C'est le seul point qui bloque encore l'activation du rôle
-  restreint (le point suivant est une limite du harnais de tests, pas un
-  risque de production).
+  utilisait `SessionLocal()` directement sur une vingtaine de sites
+  d'appel, sans jamais fixer le contexte RLS. Remplacé par une
+  abstraction centrale fail-closed (`worker_db_session(tenant_id)` /
+  `platform_db_session()` / `switch_tenant_context()` dans
+  `app/core/database.py`) sur tous les sites identifiés, plus deux bugs
+  connexes trouvés par le même audit (`app/middlewares/quota.py`,
+  `app/api/v1/endpoints/core/whatsapp_webhook.py`) et un troisième bug
+  RLS indépendant (migration `20260929_0001` — un bypass RLS
+  platform-wide cassé silencieusement par tout reset de contexte à
+  NULL). Détails complets, preuve de non-contamination du pool de
+  connexions et résultats de tests dans `docs/POSTGRES_APP_ROLE.md`.
+- **P1 (NOUVEAU, non résolu — bloque désormais seul l'activation du rôle
+  restreint)** : `app/core/security.py::get_current_user()`, le
+  dependency FastAPI utilisé sur la quasi-totalité des routes HTTP
+  protégées, ouvre sa propre session indépendante de `get_db()` et y
+  exécute un reset du contexte RLS à NULL juste avant de chercher
+  l'utilisateur authentifié par id. Le même piège NULL-vs-chaîne-vide
+  que ci-dessous s'applique : sous le rôle restreint, la politique RLS
+  stricte de `users` (`IS NOT DISTINCT FROM`) rend alors introuvable tout
+  utilisateur tenant-scopé cherchant à s'authentifier — confirmé
+  empiriquement contre un rôle restreint jetable. Ce risque est
+  strictement plus grave que celui ci-dessus (il casse l'authentification
+  HTTP, pas seulement les jobs d'arrière-plan) et **bloque à lui seul**
+  toute activation de `schoolflow_app`, y compris sur un environnement
+  Azure DEV isolé. Deux follow-ups de la même famille, également non
+  résolus : `app/api/v1/endpoints/core/realtime.py` (authentification
+  WebSocket) et `app/scripts/expire_subscriptions.py` (script cron
+  externe qui boucle sur plusieurs tenants sans le mécanisme de
+  `switch_tenant_context` introduit pour `check_inactive_tenants`).
+  Détails dans `docs/POSTGRES_APP_ROLE.md`.
 - **Précision (pas un risque de production)** : une hypothèse précédente
   de « poisoning du pool de connexions » sous le rôle restreint (la
   suite de tests produisant ~900 échecs même après les corrections

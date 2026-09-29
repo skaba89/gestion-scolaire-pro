@@ -1,9 +1,15 @@
+import logging
 import os
+import uuid
+from contextlib import contextmanager
 from contextvars import ContextVar
+from typing import Optional
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Global context for tenant_id to be used in database sessions
 tenant_context: ContextVar[str] = ContextVar("tenant_id", default=None)
@@ -135,3 +141,220 @@ def get_db():
         raise
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Worker/background-job DB sessions — RLS tenant context outside the HTTP
+# request cycle (security audit 2026-09, follow-up to PR #259/#260:
+# docs/POSTGRES_APP_ROLE.md, docs/SECURITY_MODEL.md).
+#
+# The HTTP path gets its tenant context "for free": TenantMiddleware
+# extracts tenant_id from the JWT and calls tenant_context.set(tenant_id)
+# before the request handler runs, and every get_db() call above then reads
+# that ContextVar and positions app.current_tenant_id accordingly. An ARQ
+# worker job has no HTTP request, no middleware, and no ContextVar set by
+# anyone — it only has whatever arguments were passed to enqueue_job(). Every
+# job in app/workers/tasks.py that used to open `with SessionLocal() as db:`
+# directly therefore ran with NO tenant context at all: under the current
+# superuser database role this was invisible (superuser bypasses RLS
+# unconditionally), but it is a real, silent multi-tenant isolation gap the
+# moment the application connects as a restricted, non-superuser role
+# (schoolflow_app, see infra/azure/sql/create_app_role.sql).
+#
+# These two context managers are the ONLY sanctioned way for worker code to
+# open a database session — see docs/POSTGRES_APP_ROLE.md for the full
+# worker architecture and the reasoning behind every choice below.
+# ---------------------------------------------------------------------------
+
+
+class TenantContextError(ValueError):
+    """Raised by worker_db_session() when a tenant-scoped job cannot safely
+    determine which tenant it is acting for. Never caught silently by this
+    module — a job that cannot prove its own tenant scope must fail loudly
+    (fail-closed) rather than run with no context (which would let it read/
+    write across every tenant under a role that bypasses RLS, or silently
+    see/change nothing under a role that enforces it — neither is an
+    acceptable substitute for "refuse the job")."""
+
+
+def _resolve_tenant_context(db: Session, tenant_id: str) -> str:
+    """Validate tenant_id is a syntactically valid UUID AND that a tenant
+    with that id actually exists, before ever touching a tenant-scoped
+    table. `tenants` itself carries no RLS policy (it is the root of the
+    tenant hierarchy, not a tenant-scoped table - see
+    20260224_0730_fdb89a2e3b4d_enable_rls.py), so this lookup is safe
+    regardless of what app.current_tenant_id is currently set to."""
+    try:
+        normalized = str(uuid.UUID(str(tenant_id)))
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise TenantContextError(f"Invalid tenant_id (not a UUID): {tenant_id!r}") from exc
+
+    from app.models.tenant import Tenant  # local import: avoids a circular import at module load
+
+    exists = db.query(Tenant.id).filter(Tenant.id == normalized).first() is not None
+    if not exists:
+        # Fail closed rather than silently running the job with no
+        # isolation guarantee for a tenant that no longer exists (e.g. a
+        # job enqueued just before the tenant was deleted).
+        raise TenantContextError(f"Tenant does not exist: {normalized}")
+    return normalized
+
+
+def _set_rls_context(db: Session, tenant_id: Optional[str]) -> None:
+    """Position app.current_tenant_id on this connection. Session-scoped
+    (`set_config(..., false)`, i.e. NOT `SET LOCAL`) — the same choice
+    get_db() makes above, for the same reason: a single job (like a single
+    HTTP request) may issue more than one db.commit() before its session
+    closes (e.g. check_inactive_tenants commits once per flagged tenant in
+    some call patterns), and `SET LOCAL` reverts at the END of the CURRENT
+    transaction — a second transaction on the same Session, after an
+    earlier commit, would silently lose the context that `SET LOCAL` would
+    have given it. Session-scoped survives every commit until this
+    connection is explicitly reset again or returned to the pool.
+
+    This is why worker_db_session()/platform_db_session() below are the
+    ONLY entry points that may call this: every single one of them
+    re-asserts the tenant context as the FIRST statement on a freshly
+    checked-out connection, so a pooled connection's leftover state from
+    whatever ran on it before is always overwritten before any business
+    query runs - never inherited, never assumed clean.
+
+    IMPORTANT (confirmed against a real PostgreSQL 16 instance while
+    building this): `set_config('app.current_tenant_id', NULL, false)`
+    does NOT clear a custom ("placeholder") GUC to SQL NULL - it resets it
+    to an empty string. `current_setting(..., true) IS NULL` then reads as
+    FALSE on any connection this has ever run on, permanently defeating
+    the `OR current_setting(...) IS NULL` bypass that several RLS policies
+    rely on for platform-scoped access (jobs, notification_events,
+    idempotency_keys, and others - see migration 20260929_0001, this same
+    PR). That migration guards every such policy with NULLIF so this
+    reset is safe; without it, platform_db_session() below would silently
+    stop seeing any row on a connection previously used by a tenant-scoped
+    job.
+    """
+    if settings.is_sqlite:
+        return
+    db.execute(
+        text("SELECT set_config('app.current_tenant_id', :tid, false)"),
+        {"tid": str(tenant_id) if tenant_id else None},
+    )
+
+
+@contextmanager
+def worker_db_session(tenant_id: Optional[str]):
+    """The ONLY sanctioned way for a tenant-scoped background job (ARQ task,
+    cron job, webhook handler acting on behalf of one resolved tenant...) to
+    open a database session outside the HTTP request cycle.
+
+    Fail-closed by construction - there is no code path in this function
+    that runs a business query without first proving a real, existing
+    tenant:
+      - tenant_id is None/empty      -> TenantContextError, no session ever
+                                         used for a query.
+      - tenant_id is not a valid UUID -> TenantContextError.
+      - tenant_id does not exist      -> TenantContextError.
+      - Never falls back to "run without context" or "pick the first
+        tenant" - there is no default tenant, ever.
+
+    Lifecycle (mirrors get_db() above): opens a session, validates and
+    positions the tenant context, yields the session for the caller's
+    business logic, commits on success / rolls back on any exception,
+    then always closes the session - returning the connection to the pool
+    only after rollback/commit has run, so the pool never receives a
+    connection sitting mid-transaction.
+
+    Usage::
+
+        with worker_db_session(tenant_id) as db:
+            run_student_import(db, tenant_id, ...)
+            db.commit()  # jobs that need an intermediate commit still can;
+                         # the final implicit commit below is a no-op on an
+                         # already-clean session either way.
+    """
+    if not tenant_id:
+        raise TenantContextError(
+            "worker_db_session() requires a tenant_id - a tenant-scoped job "
+            "must never run with no tenant context. Use platform_db_session() "
+            "for a job that is deliberately platform-wide."
+        )
+
+    db = SessionLocal()
+    try:
+        normalized = _resolve_tenant_context(db, tenant_id)
+        _set_rls_context(db, normalized)
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+@contextmanager
+def platform_db_session():
+    """The ONLY sanctioned way for a genuinely platform-scoped background
+    job (no single tenant: it acts across every tenant, or on
+    platform-level data that carries no tenant_id at all - e.g.
+    purge_expired_idempotency_keys, check_inactive_tenants) to open a
+    database session outside the HTTP request cycle.
+
+    Deliberately a SEPARATE function from worker_db_session() rather than
+    "worker_db_session(None)" - a platform-scoped job must say so
+    explicitly by calling this one, so a future caller can never end up
+    here by accident (e.g. a bug that leaves tenant_id unset falls into
+    worker_db_session()'s TenantContextError instead of silently running
+    platform-wide).
+
+    Resets app.current_tenant_id to "no tenant" (see _set_rls_context's
+    docstring for exactly what that means under the hood, and why
+    migration 20260929_0001 is required for the RLS policies that grant
+    platform-scoped visibility to actually honour it). A job that needs to
+    read/write ONE tenant's data at a time inside a platform-wide sweep
+    (check_inactive_tenants iterating every tenant, retry_failed_notifications
+    processing events across tenants) must call `_set_rls_context(db,
+    tenant_id)` itself for each tenant in its own loop, then reset back to
+    None before moving to the next one - see those functions in
+    app/workers/tasks.py for the pattern.
+    """
+    db = SessionLocal()
+    try:
+        _set_rls_context(db, None)
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def switch_tenant_context(db: Session, tenant_id: str) -> str:
+    """For a platform-scoped job (opened via platform_db_session()) that
+    processes several tenants' data one at a time on the SAME session - the
+    only correct way to move from one tenant to the next without ever
+    reading/writing under a stale tenant's context.
+
+    Same fail-closed validation as worker_db_session() (valid UUID, tenant
+    must exist) - a platform sweep must never silently skip validating one
+    of the tenants it iterates just because it already validated a
+    DIFFERENT one earlier in the loop. Returns the normalized tenant_id so
+    callers can use the canonical string form afterward.
+
+    Callers MUST call `reset_tenant_context(db)` (or otherwise leave this
+    session) before this connection could be reused for anything else -
+    see check_inactive_tenants and retry_failed_notifications in
+    app/workers/tasks.py for the pattern this is meant for.
+    """
+    normalized = _resolve_tenant_context(db, tenant_id)
+    _set_rls_context(db, normalized)
+    return normalized
+
+
+def reset_tenant_context(db: Session) -> None:
+    """Companion to switch_tenant_context() - clears the per-tenant context
+    on a platform-scoped session after finishing that tenant's work, before
+    moving to the next one (or before the session closes). See
+    platform_db_session()'s docstring for what "reset" actually means at
+    the PostgreSQL level and why it's safe (migration 20260929_0001)."""
+    _set_rls_context(db, None)
