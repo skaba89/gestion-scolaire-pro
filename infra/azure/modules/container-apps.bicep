@@ -23,10 +23,9 @@ param azureStorageContainer string
 param identityResourceId string
 param identityPrincipalId string
 
-@description('Image tags to deploy — set by the CI/CD workflow, defaults to "latest" for a first manual deploy.')
-param apiImageTag string = 'latest'
-param workerImageTag string = 'latest'
-param frontendImageTag string = 'latest'
+@description('BUILD ONCE, PROMOTE MANY (docs/IMMUTABLE_RELEASES.md): full, digest-pinned image references — "registry/repository@sha256:<64 hex chars>" — never a mutable tag, never "latest", and no default: every deployment must name an image explicitly. The migration Job, the api Container App and the worker Container App all take the SAME backendImage value, because they run identical code (docs/AZURE_ONE_SHOT_MIGRATIONS.md — only the command differs), so pinning a single value here is what actually guarantees migration/API/worker come from the same artifact, not three independent tags that happen to match today.')
+param backendImage string
+param frontendImage string
 
 @description('One-shot migrations (docs/AZURE_ONE_SHOT_MIGRATIONS.md): api/worker/frontend must be deployed only AFTER the migrationJob below has run "alembic upgrade head" successfully against DATABASE_URL_MIGRATIONS. Deploying this module with deployApps=false updates only containerAppsEnv + migrationJob (safe to run before the schema is migrated); the workflow then starts the job, waits for it to succeed, and re-deploys with deployApps=true to actually roll out api/worker/frontend. migrationJob itself is unconditional — it must exist before it can be started.')
 param deployApps bool = true
@@ -131,8 +130,9 @@ var environmentEnvValue = envName == 'prod' ? 'production' : (envName == 'rec' ?
 // ONE-SHOT MIGRATIONS (P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md): the only
 // thing in this stack allowed to run `alembic upgrade head` against
 // DATABASE_URL_MIGRATIONS (the schoolflow_migrator admin/DDL role — see
-// infra/azure/sql/create_app_role.sql). Same immutable image as the api
-// container (apiImageTag), just a different command and secret set — it
+// infra/azure/sql/create_app_role.sql). Same immutable image (backendImage,
+// the exact same digest as api/worker — docs/IMMUTABLE_RELEASES.md), just a
+// different command and secret set — it
 // never starts Gunicorn/uvicorn, never starts the arq worker, and has no
 // ingress. triggerType Manual + replicaRetryLimit 0: the deploy workflow
 // starts it explicitly (`az containerapp job start`) and polls its own
@@ -177,7 +177,7 @@ resource migrationJob 'Microsoft.App/jobs@2023-11-02-preview' = {
       containers: [
         {
           name: 'migrate'
-          image: '${acrLoginServer}/schoolflow-api:${apiImageTag}'
+          image: backendImage
           command: [ 'alembic', 'upgrade', 'head' ]
           resources: {
             cpu: json(apiCpu)
@@ -236,7 +236,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deployApp
       containers: [
         {
           name: 'api'
-          image: '${acrLoginServer}/schoolflow-api:${apiImageTag}'
+          image: backendImage
           // SECURITY (one-shot migrations, P0): platform-native readiness
           // gate on GET /health/ready, which fails closed on an
           // out-of-date or unverifiable schema revision (_check_alembic_
@@ -339,7 +339,7 @@ resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deploy
       containers: [
         {
           name: 'worker'
-          image: '${acrLoginServer}/schoolflow-api:${workerImageTag}'
+          image: backendImage
           command: [ 'python', '-m', 'arq', 'app.workers.tasks.WorkerSettings' ]
           resources: {
             cpu: json(workerCpu)
@@ -414,7 +414,7 @@ resource frontendApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (depl
       containers: [
         {
           name: 'frontend'
-          image: '${acrLoginServer}/schoolflow-frontend:${frontendImageTag}'
+          image: frontendImage
           resources: {
             cpu: json(frontendCpu)
             memory: frontendMemory
