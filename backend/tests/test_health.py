@@ -114,6 +114,7 @@ def test_production_readiness_accepts_all_critical_dependencies():
         patch.object(type(settings), "is_sqlite", new_callable=PropertyMock, return_value=False),
         patch("app.main._check_database_and_rls", return_value=("connected", "active")),
         patch("app.main._check_cache_readiness", new=AsyncMock(return_value="connected")),
+        patch("app.main._check_alembic_revision", return_value={"status": "up_to_date"}),
     ):
         response = client.get("/health/ready")
 
@@ -140,6 +141,7 @@ def test_readiness_accepts_storage_disabled():
         patch("app.main._check_database_and_rls", return_value=("connected", "active")),
         patch("app.main._check_cache_readiness", new=AsyncMock(return_value="connected")),
         patch("app.main._check_storage_readiness", new=AsyncMock(return_value="disabled")),
+        patch("app.main._check_alembic_revision", return_value={"status": "up_to_date"}),
     ):
         response = client.get("/health/ready")
 

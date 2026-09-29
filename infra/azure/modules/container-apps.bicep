@@ -28,6 +28,9 @@ param apiImageTag string = 'latest'
 param workerImageTag string = 'latest'
 param frontendImageTag string = 'latest'
 
+@description('One-shot migrations (docs/AZURE_ONE_SHOT_MIGRATIONS.md): api/worker/frontend must be deployed only AFTER the migrationJob below has run "alembic upgrade head" successfully against DATABASE_URL_MIGRATIONS. Deploying this module with deployApps=false updates only containerAppsEnv + migrationJob (safe to run before the schema is migrated); the workflow then starts the job, waits for it to succeed, and re-deploys with deployApps=true to actually roll out api/worker/frontend. migrationJob itself is unconditional — it must exist before it can be started.')
+param deployApps bool = true
+
 @description('Replica/scale settings — deliberately small for dev/rec, raised for prod via the environment-specific .bicepparam file, never hardcoded per-service here.')
 param apiMinReplicas int = 1
 param apiMaxReplicas int = 3
@@ -109,25 +112,6 @@ var commonSecrets = [
   { name: 'resend-api-key', keyVaultUrl: '${keyVaultUri}secrets/resend-api-key', identity: identityResourceId }
 ]
 
-// api-only: the worker never runs `alembic upgrade head` (no ingress, no
-// start.sh — its command is the arq worker directly), so it never needs
-// the admin/migrations login. SECURITY (Postgres non-superuser app role
-// pass): like every other secret in commonSecrets above, this one must be
-// seeded into Key Vault after the first deploy (see infra/azure/README.md
-// step 4 and docs/POSTGRES_APP_ROLE.md) — the value is the Flexible
-// Server admin connection string, used only for this one DDL step at
-// container startup. At the application layer, its absence degrades
-// gracefully rather than crash-looping: app.core.config's
-// effective_migrations_url falls back to DATABASE_URL_SYNC when
-// DATABASE_URL_MIGRATIONS is unset, matching local dev/tests/CI — but
-// once infra/azure/sql/create_app_role.sql has actually been run against
-// an environment (making DATABASE_URL_SYNC a restricted, non-DDL role),
-// this secret becomes required for THAT environment's migrations to
-// keep working.
-var apiOnlySecrets = [
-  { name: 'database-url-migrations', keyVaultUrl: '${keyVaultUri}secrets/database-url-migrations', identity: identityResourceId }
-]
-
 // api/worker both import app.core.config at process startup, which
 // os._exit(1)s immediately if SECRET_KEY (or BOOTSTRAP_SECRET, in a
 // non-DEBUG process) is missing or too short — confirmed by actually
@@ -144,7 +128,86 @@ var debugEnvValue = envName == 'prod' ? 'false' : 'true'
 // in depth alongside DEBUG, not a replacement for it.
 var environmentEnvValue = envName == 'prod' ? 'production' : (envName == 'rec' ? 'staging' : 'development')
 
-resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
+// ONE-SHOT MIGRATIONS (P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md): the only
+// thing in this stack allowed to run `alembic upgrade head` against
+// DATABASE_URL_MIGRATIONS (the schoolflow_migrator admin/DDL role — see
+// infra/azure/sql/create_app_role.sql). Same immutable image as the api
+// container (apiImageTag), just a different command and secret set — it
+// never starts Gunicorn/uvicorn, never starts the arq worker, and has no
+// ingress. triggerType Manual + replicaRetryLimit 0: the deploy workflow
+// starts it explicitly (`az containerapp job start`) and polls its own
+// execution status rather than relying on Container Apps' retry/schedule
+// machinery to define "success" — one attempt, one exit code, the workflow
+// decides what to do with it (see .github/workflows/deploy-azure.yml).
+var migrationJobSecrets = [
+  { name: 'database-url-migrations', keyVaultUrl: '${keyVaultUri}secrets/database-url-migrations', identity: identityResourceId }
+  { name: 'database-url-sync', keyVaultUrl: '${keyVaultUri}secrets/database-url-sync', identity: identityResourceId }
+  { name: 'secret-key', keyVaultUrl: '${keyVaultUri}secrets/secret-key', identity: identityResourceId }
+  { name: 'bootstrap-secret', keyVaultUrl: '${keyVaultUri}secrets/bootstrap-secret', identity: identityResourceId }
+]
+
+resource migrationJob 'Microsoft.App/jobs@2023-11-02-preview' = {
+  name: 'caj-schoolflow-migrate-${envName}'
+  location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${identityResourceId}': {}
+    }
+  }
+  properties: {
+    environmentId: containerAppsEnv.id
+    configuration: {
+      triggerType: 'Manual'
+      replicaTimeout: 900
+      replicaRetryLimit: 0
+      manualTriggerConfig: {
+        replicaCompletionCount: 1
+        parallelism: 1
+      }
+      registries: [
+        {
+          server: acrLoginServer
+          identity: identityResourceId
+        }
+      ]
+      secrets: migrationJobSecrets
+    }
+    template: {
+      containers: [
+        {
+          name: 'migrate'
+          image: '${acrLoginServer}/schoolflow-api:${apiImageTag}'
+          command: [ 'alembic', 'upgrade', 'head' ]
+          resources: {
+            cpu: json(apiCpu)
+            memory: apiMemory
+          }
+          env: [
+            // effective_migrations_url (app/core/config.py) reads this
+            // first, falling back to DATABASE_URL_SYNC only if it is
+            // unset — kept here purely so a not-yet-seeded
+            // database-url-migrations secret degrades to "migrate with
+            // the app role" (loud Alembic permission-denied errors, job
+            // exits non-zero) instead of the container crash-looping on
+            // a missing env var before Alembic even runs.
+            { name: 'DATABASE_URL_MIGRATIONS', secretRef: 'database-url-migrations' }
+            { name: 'DATABASE_URL_SYNC', secretRef: 'database-url-sync' }
+            { name: 'SECRET_KEY', secretRef: 'secret-key' }
+            { name: 'BOOTSTRAP_SECRET', secretRef: 'bootstrap-secret' }
+            { name: 'DEBUG', value: debugEnvValue }
+            { name: 'ENVIRONMENT', value: environmentEnvValue }
+          ]
+        }
+      ]
+    }
+  }
+  dependsOn: [
+    acrPullAssignment
+  ]
+}
+
+resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deployApps) {
   name: apiAppName
   location: location
   identity: {
@@ -167,13 +230,33 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           identity: identityResourceId
         }
       ]
-      secrets: concat(commonSecrets, apiOnlySecrets)
+      secrets: commonSecrets
     }
     template: {
       containers: [
         {
           name: 'api'
           image: '${acrLoginServer}/schoolflow-api:${apiImageTag}'
+          // SECURITY (one-shot migrations, P0): platform-native readiness
+          // gate on GET /health/ready, which fails closed on an
+          // out-of-date or unverifiable schema revision (_check_alembic_
+          // revision — app/main.py). A new revision whose schema hasn't
+          // been migrated yet never receives traffic — Container Apps
+          // itself withholds it instead of this template inventing its
+          // own orchestration, per the "reuse existing platform
+          // mechanisms" principle in docs/AZURE_ONE_SHOT_MIGRATIONS.md.
+          probes: [
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/health/ready'
+                port: 8000
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              failureThreshold: 3
+            }
+          ]
           resources: {
             cpu: json(apiCpu)
             memory: apiMemory
@@ -181,7 +264,6 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           env: [
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'DATABASE_URL_SYNC', secretRef: 'database-url-sync' }
-            { name: 'DATABASE_URL_MIGRATIONS', secretRef: 'database-url-migrations' }
             { name: 'REDIS_URL', secretRef: 'redis-url' }
             // Was 'JWT_SECRET_KEY' — a name app/core/config.py never reads
             // (it reads SECRET_KEY). Confirmed: SECRET_KEY would have been
@@ -230,7 +312,7 @@ resource apiApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
   ]
 }
 
-resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
+resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deployApps) {
   name: 'ca-schoolflow-worker-${envName}'
   location: location
   identity: {
@@ -304,7 +386,7 @@ resource workerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
   ]
 }
 
-resource frontendApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
+resource frontendApp 'Microsoft.App/containerApps@2023-11-02-preview' = if (deployApps) {
   name: frontendAppName
   location: location
   identity: {
@@ -365,5 +447,11 @@ resource frontendApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
   ]
 }
 
-output apiFqdn string = apiApp.properties.configuration.ingress.fqdn
-output frontendFqdn string = frontendApp.properties.configuration.ingress.fqdn
+// Deterministic vars (defined above, before apiApp/frontendApp), not a
+// property read off the conditional resources themselves — those return
+// null on a deployApps=false deployment (the "migrate first" pass), which
+// would break this output during exactly the deployment phase that most
+// needs it to still resolve.
+output apiFqdn string = apiFqdn
+output frontendFqdn string = frontendFqdn
+output migrationJobName string = migrationJob.name

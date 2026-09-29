@@ -65,97 +65,16 @@ def _hash_code(code: str) -> str:
     return hashlib.sha256(normalized.encode()).hexdigest()
 
 
-def _ensure_mfa_tables(db: Session):
-    """Ensure MFA-related tables exist. Safe to call multiple times."""
-    try:
-        # Check if mfa_backup_codes table exists
-        table_check = db.execute(text("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables 
-                WHERE table_name = 'mfa_backup_codes' AND table_schema = 'public'
-            )
-        """)).scalar()
-
-        if not table_check:
-            logger.info("Creating mfa_backup_codes table...")
-            db.execute(text("""
-                CREATE TABLE IF NOT EXISTS mfa_backup_codes (
-                    id UUID PRIMARY KEY,
-                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    tenant_id UUID,
-                    code_hash VARCHAR(255) NOT NULL,
-                    used BOOLEAN NOT NULL DEFAULT FALSE,
-                    used_at TIMESTAMP,
-                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                )
-            """))
-            db.execute(text("CREATE INDEX IF NOT EXISTS ix_mfa_backup_codes_user_id ON mfa_backup_codes(user_id)"))
-            db.commit()
-            logger.info("mfa_backup_codes table created")
-
-        # Check if email_otps table exists
-        otp_table_check = db.execute(text("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables 
-                WHERE table_name = 'email_otps' AND table_schema = 'public'
-            )
-        """)).scalar()
-
-        if not otp_table_check:
-            logger.info("Creating email_otps table...")
-            db.execute(text("""
-                CREATE TABLE IF NOT EXISTS email_otps (
-                    id UUID PRIMARY KEY,
-                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                    code_hash VARCHAR(255) NOT NULL,
-                    expires_at TIMESTAMP NOT NULL,
-                    is_valid BOOLEAN NOT NULL DEFAULT TRUE,
-                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                )
-            """))
-            db.execute(text("CREATE INDEX IF NOT EXISTS ix_email_otps_user_id ON email_otps(user_id)"))
-            db.commit()
-            logger.info("email_otps table created")
-
-        # Ensure mfa_enabled column exists on users table
-        col_check = db.execute(text("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'users' AND column_name = 'mfa_enabled'
-            )
-        """)).scalar()
-
-        if not col_check:
-            logger.info("Adding mfa_enabled column to users table...")
-            db.execute(text("ALTER TABLE users ADD COLUMN mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE"))
-            db.commit()
-
-        # Check if mfa_totp_secrets table exists
-        totp_table_check = db.execute(text("""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables
-                WHERE table_name = 'mfa_totp_secrets' AND table_schema = 'public'
-            )
-        """)).scalar()
-
-        if not totp_table_check:
-            logger.info("Creating mfa_totp_secrets table...")
-            db.execute(text("""
-                CREATE TABLE IF NOT EXISTS mfa_totp_secrets (
-                    id UUID PRIMARY KEY,
-                    user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-                    secret VARCHAR(64) NOT NULL,
-                    verified BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
-                )
-            """))
-            db.execute(text("CREATE INDEX IF NOT EXISTS ix_mfa_totp_secrets_user_id ON mfa_totp_secrets(user_id)"))
-            db.commit()
-            logger.info("mfa_totp_secrets table created")
-
-    except Exception as e:
-        logger.error("Failed to ensure MFA tables: %s", e)
-        db.rollback()
+# ARCHITECTURE (Azure one-shot migrations, P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md):
+# mfa_backup_codes/email_otps/mfa_totp_secrets/users.mfa_enabled used to be
+# lazily CREATE TABLE IF NOT EXISTS'd here on first use via a now-removed
+# _ensure_mfa_tables(db) call at the top of every route below. That is DDL,
+# and schoolflow_app (the role the API connects as) has no DDL privileges at
+# all. All four are now adopted into Alembic migration
+# 20260930_0001_adopt_operational_tables_into_alembic.py (mfa_backup_codes/
+# email_otps/mfa_enabled were already covered by
+# 20260406_add_mfa_and_perf_indexes.py) — this file must never create tables
+# at request time again.
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -171,12 +90,6 @@ def generate_backup_codes(
     Invalidates all existing codes first.
     Returns the plain-text codes (only shown once).
     """
-    try:
-        _ensure_mfa_tables(db)
-    except Exception as e:
-        logger.error("Operation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
-
     user_id = current_user.get("id")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not user_id:
@@ -231,7 +144,6 @@ def verify_backup_code(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
-        _ensure_mfa_tables(db)
         code_hash = _hash_code(body.code)
 
         row = db.execute(
@@ -275,7 +187,6 @@ def list_backup_codes(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
-        _ensure_mfa_tables(db)
         rows = db.execute(
             text("""
                 SELECT id, used, created_at, used_at
@@ -311,7 +222,6 @@ def count_backup_codes(
         return {"count": 0}
 
     try:
-        _ensure_mfa_tables(db)
         row = db.execute(
             text("""
                 SELECT COUNT(*) AS remaining
@@ -347,12 +257,6 @@ def request_otp(
     Generate and store an email OTP for the authenticated user.
     Rate limited to 3 per hour.
     """
-    try:
-        _ensure_mfa_tables(db)
-    except Exception as e:
-        logger.error("Operation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
-
     # SECURITY FIX: Use cryptographically secure secrets module instead of random for OTP generation
     import string  # secrets is already imported at module level
     from datetime import timedelta
@@ -426,7 +330,6 @@ def verify_otp(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
-        _ensure_mfa_tables(db)
         code_hash = _hash_code(body.code.strip())
 
         row = db.execute(
@@ -466,7 +369,6 @@ def get_otp_remaining(
         return {"remaining": 0}
 
     try:
-        _ensure_mfa_tables(db)
         count_row = db.execute(
             text("""
                 SELECT COUNT(*) AS cnt FROM email_otps
@@ -512,12 +414,6 @@ def enroll_totp(
     """Start TOTP enrollment: generate a new secret and provisioning URI.
     Not yet active — the user must prove possession via /totp/verify/
     before it replaces any existing verified factor."""
-    try:
-        _ensure_mfa_tables(db)
-    except Exception as e:
-        logger.error("Operation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
-
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -567,7 +463,6 @@ def verify_totp(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     try:
-        _ensure_mfa_tables(db)
         row = db.execute(
             text("SELECT secret FROM mfa_totp_secrets WHERE user_id = :user_id"),
             {"user_id": user_id},
@@ -610,7 +505,6 @@ def disable_totp(
     _require_current_password(db, user_id, body.current_password)
 
     try:
-        _ensure_mfa_tables(db)
         db.execute(text("DELETE FROM mfa_totp_secrets WHERE user_id = :user_id"), {"user_id": user_id})
         db.execute(text("UPDATE users SET mfa_enabled = FALSE WHERE id = :user_id"), {"user_id": user_id})
         db.commit()
@@ -632,7 +526,6 @@ def get_totp_status(
         return {"enabled": False}
 
     try:
-        _ensure_mfa_tables(db)
         row = db.execute(
             text("SELECT verified FROM mfa_totp_secrets WHERE user_id = :user_id"),
             {"user_id": user_id},
@@ -708,7 +601,6 @@ async def verify_login_mfa(request: Request, body: MFALoginVerifyRequest, db: Se
         switch_tenant_context(db, str(user.tenant_id))
 
     try:
-        _ensure_mfa_tables(db)
         code = body.code.strip()
         code_ok = False
 
@@ -759,7 +651,6 @@ def get_mfa_status(
     user_id = current_user.get("id")
 
     try:
-        _ensure_mfa_tables(db)
         if not user_id:
             return {"enabled": False}
 
@@ -800,7 +691,6 @@ def toggle_mfa(
         _require_current_password(db, user_id, body.current_password)
 
     try:
-        _ensure_mfa_tables(db)
         db.execute(
             text("UPDATE users SET mfa_enabled = :enabled WHERE id = :user_id"),
             {"enabled": enabled, "user_id": user_id}

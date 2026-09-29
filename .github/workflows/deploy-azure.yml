@@ -38,6 +38,20 @@ permissions:
   id-token: write # required for OIDC federated login (azure/login@v2)
   contents: read
 
+# ONE-SHOT MIGRATIONS (P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md): two
+# workflow_dispatch runs targeting the same environment must never apply
+# Bicep or start the migration Job concurrently — both could try to
+# migrate the same database at once, or one run's "wait for the job" step
+# could observe the other run's execution. cancel-in-progress stays false:
+# a deploy that's already reached "Deploy application (api/worker/
+# frontend)" must be allowed to finish rather than being cut off
+# mid-rollout; the second run simply queues behind it. This is GitHub's
+# own concurrency mechanism, not a bespoke lock, per this document's
+# stated preference for reusing existing platform guarantees.
+concurrency:
+  group: deploy-azure-${{ inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy ${{ inputs.environment }}
@@ -75,7 +89,18 @@ jobs:
       # The `environment:` protection rule above already required a human
       # reviewer to approve this run before reaching this step — that
       # approval IS the deploy confirmation, no further prompt here.
-      - name: Deploy Bicep template
+      #
+      # ONE-SHOT MIGRATIONS (P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md): this
+      # used to be a single `az deployment group create` that rolled out
+      # infra AND api/worker/frontend together, with Alembic running inside
+      # the api container at startup. schoolflow_app (the role api/worker
+      # connect as) now has no DDL privileges at all, so migrations must
+      # complete, successfully, BEFORE api/worker/frontend are touched.
+      # Step 1 below deploys with deployApps=false — infra/container-apps.
+      # bicep's `if (deployApps)` condition skips api/worker/frontend
+      # entirely on this pass, so only containerAppsEnv and the new
+      # migrationJob resource are created/updated (both unconditional).
+      - name: Deploy infrastructure + migration job (deployApps=false)
         env:
           POSTGRES_ADMIN_PASSWORD_DEV: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           POSTGRES_ADMIN_PASSWORD_REC: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
@@ -86,4 +111,68 @@ jobs:
             --template-file infra/azure/main.bicep \
             --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam \
             --parameters apiImageTag=${{ inputs.image_tag }} workerImageTag=${{ inputs.image_tag }} frontendImageTag=${{ inputs.image_tag }} \
+            --parameters deployApps=false \
+            --query "properties.outputs"
+
+      # Runs `alembic upgrade head` as schoolflow_migrator (DATABASE_URL_
+      # MIGRATIONS) — see infra/azure/modules/container-apps.bicep's
+      # migrationJob resource. `az containerapp job start` only enqueues
+      # the execution; it does not block on the container's exit code, so
+      # this step polls the execution's own status instead of trusting the
+      # CLI call's own (always-success) exit code.
+      - name: Run database migration job
+        id: migrate
+        run: |
+          set -euo pipefail
+          JOB_NAME="caj-schoolflow-migrate-${{ inputs.environment }}"
+          RG="rg-schoolflow-${{ inputs.environment }}"
+
+          echo "==> Starting $JOB_NAME"
+          EXECUTION_NAME=$(az containerapp job start \
+            --name "$JOB_NAME" \
+            --resource-group "$RG" \
+            --query "name" -o tsv)
+          echo "Execution: $EXECUTION_NAME"
+
+          echo "==> Waiting for migration job to finish (timeout 600s)"
+          STATUS="Running"
+          ELAPSED=0
+          while [ "$STATUS" = "Running" ] && [ "$ELAPSED" -lt 600 ]; do
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+            STATUS=$(az containerapp job execution show \
+              --name "$JOB_NAME" \
+              --resource-group "$RG" \
+              --job-execution-name "$EXECUTION_NAME" \
+              --query "properties.status" -o tsv)
+            echo "   -> status=$STATUS (${ELAPSED}s elapsed)"
+          done
+
+          if [ "$STATUS" != "Succeeded" ]; then
+            echo "::error::Migration job did not succeed (status=$STATUS)."
+            echo "         Inspect its logs before retrying:"
+            echo "         az containerapp job logs show --name $JOB_NAME --resource-group $RG"
+            echo "         See docs/AZURE_ONE_SHOT_MIGRATIONS.md#troubleshooting."
+            exit 1
+          fi
+          echo "==> Migration job succeeded"
+
+      # This step — and therefore api/worker/frontend rollout — is only
+      # reached when the previous step exited 0. A failed "Run database
+      # migration job" step stops the workflow here: GitHub Actions does
+      # not run subsequent steps in the same job after one fails (no
+      # `continue-on-error` is set anywhere above), so a broken migration
+      # can never reach a running application deployment.
+      - name: Deploy application (api/worker/frontend, deployApps=true)
+        env:
+          POSTGRES_ADMIN_PASSWORD_DEV: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_ADMIN_PASSWORD_REC: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+          POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+        run: |
+          az deployment group create \
+            --resource-group "rg-schoolflow-${{ inputs.environment }}" \
+            --template-file infra/azure/main.bicep \
+            --parameters infra/azure/parameters/${{ inputs.environment }}.bicepparam \
+            --parameters apiImageTag=${{ inputs.image_tag }} workerImageTag=${{ inputs.image_tag }} frontendImageTag=${{ inputs.image_tag }} \
+            --parameters deployApps=true \
             --query "properties.outputs"

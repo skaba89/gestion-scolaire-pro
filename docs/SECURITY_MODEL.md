@@ -334,6 +334,23 @@ consentements. Suppression de compte : demande tracée
   restent ouverts (détaillés dans `docs/POSTGRES_APP_ROLE.md`, section
   « Verdict final ») — le verdict actuel est activable sur un
   environnement Azure DEV isolé, pas en production.
+- **CORRIGÉ (one-shot migrations P0 — `docs/AZURE_ONE_SHOT_MIGRATIONS.md`)** :
+  même sous `schoolflow_app`, l'API et le worker exécutaient encore du DDL
+  à chaque démarrage (`start.sh` : `alembic upgrade head` ;
+  `app/main.py` : `ensure_operational_tables()` ; `mfa.py` :
+  `_ensure_mfa_tables()`, 14 sites d'appel) — un vrai déploiement Azure
+  DEV avec `schoolflow_app` (`NOSUPERUSER NOBYPASSRLS`, aucun privilège
+  DDL) aurait donc échoué au premier démarrage. Migration, démarrage API
+  et démarrage worker sont désormais trois étapes indépendantes : un
+  Container Apps Job dédié (`caj-schoolflow-migrate-<env>`) exécute
+  `alembic upgrade head` avec `DATABASE_URL_MIGRATIONS`
+  (`schoolflow_migrator`) avant que l'API/le worker ne démarrent ; ces
+  derniers ne font plus jamais de DDL et se contentent de vérifier la
+  révision de schéma (`_check_alembic_revision()`, déjà existant,
+  maintenant câblé aussi dans `GET /health/ready` et le démarrage) sans
+  jamais la corriger eux-mêmes. Le pipeline de déploiement
+  (`.github/workflows/deploy-azure.yml`) bloque le déploiement
+  applicatif si le job de migration échoue.
 - **CORRIGÉ (migration `20260928_0001`)** : chaque politique RLS créée
   par `20260224_0730_fdb89a2e3b4d_enable_rls.py` faisait
   `tenant_id = (current_setting('app.current_tenant_id', true))::uuid`

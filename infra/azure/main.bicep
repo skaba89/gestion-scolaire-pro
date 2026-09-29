@@ -60,6 +60,9 @@ param frontendImageTag string = 'latest'
 param apiMinReplicas int = envName == 'prod' ? 2 : 1
 param apiMaxReplicas int = envName == 'prod' ? 10 : 3
 
+@description('One-shot migrations (docs/AZURE_ONE_SHOT_MIGRATIONS.md): the deploy workflow applies this template twice per run — once with deployApps=false (creates/updates the migration Job and its environment only), then starts and waits on that Job, then a second time with deployApps=true (rolls out api/worker/frontend). Left true by default so a one-off az deployment group create without this param still deploys everything, matching the manual-usage docs above.')
+param deployApps bool = true
+
 module network 'modules/network.bicep' = {
   name: 'network-${envName}'
   params: {
@@ -152,12 +155,14 @@ module containerApps 'modules/container-apps.bicep' = {
     azureStorageAccountUrl: storage.outputs.blobEndpoint
     azureStorageContainer: storage.outputs.containerName
     infraSubnetId: network.outputs.infraSubnetId
+    deployApps: deployApps
   }
 }
 
 output apiUrl string = 'https://${containerApps.outputs.apiFqdn}'
 output frontendUrl string = 'https://${containerApps.outputs.frontendFqdn}'
 output keyVaultName string = keyVault.outputs.keyVaultName
+output migrationJobName string = containerApps.outputs.migrationJobName
 output postgresServerFqdn string = postgres.outputs.serverFqdn
 output redisHostName string = redis.outputs.hostName
 output storageAccountName string = storage.outputs.storageAccountName

@@ -54,6 +54,9 @@ set -euo pipefail
 if [[ -n "${FAKE_PG_ISREADY_LOG:-}" ]]; then
   printf '%s\\n' "$*" >> "$FAKE_PG_ISREADY_LOG"
 fi
+if [[ -n "${FAKE_PG_ISREADY_PGPASSWORD_FILE:-}" ]]; then
+  printf '%s' "${PGPASSWORD:-}" > "$FAKE_PG_ISREADY_PGPASSWORD_FILE"
+fi
 [[ "${FAKE_PG_ISREADY_FAIL:-false}" != "true" ]]
 """,
     )
@@ -107,6 +110,7 @@ echo "fake uvicorn started"
         "DEBUG": "false",
         "DB_WAIT_TIMEOUT": "5",
         "FAKE_PG_ISREADY_LOG": str(tmp_path / "pg_isready.log"),
+        "FAKE_PG_ISREADY_PGPASSWORD_FILE": str(tmp_path / "pg_isready_pgpassword"),
         "FAKE_PSQL_LOG": str(tmp_path / "psql.log"),
         "FAKE_PSQL_PGPASSWORD_FILE": str(tmp_path / "psql_pgpassword"),
         "FAKE_ALEMBIC_LOG": str(tmp_path / "alembic.log"),
@@ -145,11 +149,13 @@ def test_docker_compose_mode_uses_postgres_star_vars(start_environment):
     assert "-U schoolflow" in pg_isready_log
     assert "-d schoolflow" in pg_isready_log
 
-    pgpassword = Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).read_text()
-    assert pgpassword == "compose-local-password"
-
-    alembic_log = Path(start_environment["FAKE_ALEMBIC_LOG"]).read_text()
-    assert "upgrade head" in alembic_log
+    # ONE-SHOT MIGRATIONS (P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md): start.sh
+    # no longer runs Alembic or psql at all — that used to happen here via
+    # a schema-fixup step now retired to a separate Container Apps Job.
+    # PGPASSWORD is still exported (harmless — nothing left reads it), but
+    # neither the fake psql nor the fake alembic stub is ever invoked.
+    assert not Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).exists()
+    assert not Path(start_environment["FAKE_ALEMBIC_LOG"]).exists()
 
     assert "compose-local-password" not in result.stdout
     assert "compose-local-password" not in result.stderr
@@ -173,8 +179,9 @@ def test_azure_mode_uses_database_url_sync_only(start_environment):
     assert "-U azureuser" in pg_isready_log
     assert "-d schoolflow_prod" in pg_isready_log
 
-    pgpassword = Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).read_text()
-    assert pgpassword == "azurepass123"
+    # start.sh no longer runs psql (see comment in the docker-compose-mode
+    # test above) — pg_isready above is the only external DB tool it calls.
+    assert not Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).exists()
 
     assert "azurepass123" not in result.stdout
     assert "azurepass123" not in result.stderr
@@ -195,7 +202,9 @@ def test_password_with_reserved_url_characters_is_decoded_correctly(start_enviro
 
     assert result.returncode == 0, result.stdout + result.stderr
 
-    pgpassword = Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).read_text()
+    # start.sh's own DATABASE_URL_SYNC parser (used for pg_isready) must
+    # still decode this correctly even though psql itself is no longer run.
+    pgpassword = Path(start_environment["FAKE_PG_ISREADY_PGPASSWORD_FILE"]).read_text()
     assert pgpassword == raw_password
 
     assert raw_password not in result.stdout
@@ -312,65 +321,23 @@ def test_uvicorn_invoked_in_debug_mode(start_environment):
     assert not Path(start_environment["FAKE_GUNICORN_LOG"]).exists()
 
 
-# Postgres non-superuser app role pass: DATABASE_URL_SYNC/DATABASE_URL may
-# now be the restricted app role (see infra/azure/sql/create_app_role.sql),
-# which lacks the ALTER TABLE privilege the alembic_version column-size
-# fixup step needs. DATABASE_URL_MIGRATIONS (unset by default — see
-# app.core.config.effective_migrations_url) carries the admin login for
-# that one DDL step instead.
-
-def test_migrations_url_credentials_used_for_schema_fixup_step_when_set(start_environment):
-    start_environment["DATABASE_URL_SYNC"] = (
-        "postgresql+psycopg://approle:approlepass@localhost:5432/schoolflow_prod"
-    )
-    start_environment["DATABASE_URL_MIGRATIONS"] = (
-        "postgresql+psycopg://adminrole:adminpass@localhost:5432/schoolflow_prod"
-    )
-
-    result = _run_start(start_environment)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "Using DATABASE_URL_MIGRATIONS (admin role) for the schema-fixup step" in result.stdout
-
-    psql_log = Path(start_environment["FAKE_PSQL_LOG"]).read_text()
-    assert "-U adminrole" in psql_log
-    assert "-U approle" not in psql_log
-
-    pgpassword = Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).read_text()
-    assert pgpassword == "adminpass"
-
-    # pg_isready still waits using the app role — that's the connection
-    # the rest of the app (and every later query) actually uses.
-    pg_isready_log = Path(start_environment["FAKE_PG_ISREADY_LOG"]).read_text()
-    assert "-U approle" in pg_isready_log
-
-    assert "adminpass" not in result.stdout
-    assert "adminpass" not in result.stderr
-    assert "approlepass" not in result.stdout
-    assert "approlepass" not in result.stderr
+# ONE-SHOT MIGRATIONS (P0 — docs/AZURE_ONE_SHOT_MIGRATIONS.md): start.sh
+# used to run a psql-based alembic_version column-size fixup here, using
+# DATABASE_URL_MIGRATIONS (the admin/migrator role) when set, falling back
+# to DATABASE_URL_SYNC otherwise. That whole step — and the three tests
+# that covered it (test_migrations_url_credentials_used_for_schema_fixup_
+# step_when_set, test_falls_back_to_sync_credentials_when_migrations_url_
+# unset, test_malformed_migrations_url_fails_cleanly) — is gone: the fixup
+# itself was superseded by migration 20260406_add_term_is_active.py, and
+# schema changes now happen exclusively in the separate migration Job
+# (infra/azure/modules/container-apps.bicep's migrationJob), never in
+# start.sh. DATABASE_URL_MIGRATIONS is no longer read by start.sh at all.
 
 
-def test_falls_back_to_sync_credentials_when_migrations_url_unset(start_environment):
-    """Today's behavior (no DATABASE_URL_MIGRATIONS set anywhere yet) must
-    be completely unchanged: the same role/password used for
-    connectivity is also used for the schema-fixup step."""
-    start_environment["DATABASE_URL_SYNC"] = (
-        "postgresql+psycopg://azureuser:azurepass@localhost:5432/schoolflow_prod"
-    )
-
-    result = _run_start(start_environment)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "Using DATABASE_URL_MIGRATIONS" not in result.stdout
-
-    psql_log = Path(start_environment["FAKE_PSQL_LOG"]).read_text()
-    assert "-U azureuser" in psql_log
-
-    pgpassword = Path(start_environment["FAKE_PSQL_PGPASSWORD_FILE"]).read_text()
-    assert pgpassword == "azurepass"
-
-
-def test_malformed_migrations_url_fails_cleanly(start_environment):
+def test_database_url_migrations_is_never_read_by_start_sh(start_environment):
+    """start.sh must not even look at DATABASE_URL_MIGRATIONS any more —
+    it has nothing left to do with it. A malformed value here must not
+    affect startup at all, unlike DATABASE_URL_SYNC itself."""
     start_environment["DATABASE_URL_SYNC"] = (
         "postgresql+psycopg://azureuser:azurepass@localhost:5432/schoolflow_prod"
     )
@@ -378,5 +345,6 @@ def test_malformed_migrations_url_fails_cleanly(start_environment):
 
     result = _run_start(start_environment)
 
-    assert result.returncode != 0
+    assert result.returncode == 0, result.stdout + result.stderr
     assert not Path(start_environment["FAKE_ALEMBIC_LOG"]).exists()
+    assert not Path(start_environment["FAKE_PSQL_LOG"]).exists()
