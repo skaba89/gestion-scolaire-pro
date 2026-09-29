@@ -325,12 +325,15 @@ consentements. Suppression de compte : demande tracée
   NOBYPASSRLS`, aucun privilège DDL) et `DATABASE_URL_MIGRATIONS`/
   `effective_migrations_url` permettent à Alembic de continuer à
   fonctionner une fois ce rôle activé — voir `docs/POSTGRES_APP_ROLE.md`.
-  **Ce risque n'est pas fermé** : des tests exhaustifs contre un vrai
-  PostgreSQL, avec la connexion applicative effectivement pointée sur ce
-  rôle restreint, ont révélé plusieurs problèmes réels, détaillés dans
-  `docs/POSTGRES_APP_ROLE.md` (section « Ne pas encore activer en
-  production ») — deux corrigés (voir ci-dessous), un troisième qui
-  reste non résolu et bloque l'activation.
+  Des tests exhaustifs contre un vrai PostgreSQL, avec la connexion
+  applicative effectivement pointée sur ce rôle restreint, ont révélé
+  plusieurs problèmes réels au fil de trois PR successives, tous corrigés
+  (voir ci-dessous) — le scénario d'authentification/RLS principal est
+  désormais prouvé de bout en bout sous `schoolflow_app`. **Toujours pas
+  recommandé en production** : quelques risques résiduels bien délimités
+  restent ouverts (détaillés dans `docs/POSTGRES_APP_ROLE.md`, section
+  « Verdict final ») — le verdict actuel est activable sur un
+  environnement Azure DEV isolé, pas en production.
 - **CORRIGÉ (migration `20260928_0001`)** : chaque politique RLS créée
   par `20260224_0730_fdb89a2e3b4d_enable_rls.py` faisait
   `tenant_id = (current_setting('app.current_tenant_id', true))::uuid`
@@ -357,25 +360,36 @@ consentements. Suppression de compte : demande tracée
   platform-wide cassé silencieusement par tout reset de contexte à
   NULL). Détails complets, preuve de non-contamination du pool de
   connexions et résultats de tests dans `docs/POSTGRES_APP_ROLE.md`.
-- **P1 (NOUVEAU, non résolu — bloque désormais seul l'activation du rôle
-  restreint)** : `app/core/security.py::get_current_user()`, le
-  dependency FastAPI utilisé sur la quasi-totalité des routes HTTP
-  protégées, ouvre sa propre session indépendante de `get_db()` et y
-  exécute un reset du contexte RLS à NULL juste avant de chercher
-  l'utilisateur authentifié par id. Le même piège NULL-vs-chaîne-vide
-  que ci-dessous s'applique : sous le rôle restreint, la politique RLS
-  stricte de `users` (`IS NOT DISTINCT FROM`) rend alors introuvable tout
-  utilisateur tenant-scopé cherchant à s'authentifier — confirmé
-  empiriquement contre un rôle restreint jetable. Ce risque est
-  strictement plus grave que celui ci-dessus (il casse l'authentification
-  HTTP, pas seulement les jobs d'arrière-plan) et **bloque à lui seul**
-  toute activation de `schoolflow_app`, y compris sur un environnement
-  Azure DEV isolé. Deux follow-ups de la même famille, également non
-  résolus : `app/api/v1/endpoints/core/realtime.py` (authentification
-  WebSocket) et `app/scripts/expire_subscriptions.py` (script cron
-  externe qui boucle sur plusieurs tenants sans le mécanisme de
-  `switch_tenant_context` introduit pour `check_inactive_tenants`).
-  Détails dans `docs/POSTGRES_APP_ROLE.md`.
+- **CORRIGÉ (PR `fix(security): make authentication RLS-safe under
+  restricted DB role`)** : `app/core/security.py::get_current_user()`
+  ouvrait sa propre session indépendante de `get_db()` et y exécutait un
+  reset du contexte RLS à NULL juste avant de chercher l'utilisateur
+  authentifié par id — sous le rôle restreint, la politique RLS stricte de
+  `users` (`IS NOT DISTINCT FROM`) rendait alors introuvable tout
+  utilisateur tenant-scopé cherchant à s'authentifier. Corrigé en
+  positionnant d'abord le contexte au `tenant_id` du claim JWT (signé,
+  dérivé côté serveur à l'émission du token) plutôt qu'à NULL
+  inconditionnellement, avec repli sur NULL uniquement pour un compte
+  réellement platform-level (`resolve_authenticated_user_row()` dans
+  `app/core/database.py`). L'audit exhaustif que ce correctif a demandé a
+  mis au jour la même famille de bug sur `/auth/login/`, `/auth/refresh/`,
+  `/mfa/login/verify/`, `/auth/change-password/`,
+  `/auth/reset-forced-password/`, les vérifications d'unicité d'email à
+  l'inscription, le lien de réinitialisation de mot de passe, `/users/me/`
+  et l'authentification WebSocket de `realtime.py` — tous corrigés dans la
+  même PR — ainsi qu'un bug distinct dans
+  `app/scripts/expire_subscriptions.py` (une requête globale sur
+  `tenant_subscriptions`, une table à politique RLS stricte sans bypass,
+  retournait silencieusement zéro ligne ; corrigé par une boucle par
+  tenant réutilisant `switch_tenant_context()`/`reset_tenant_context()`,
+  le même mécanisme que `check_inactive_tenants`). Scénario de bout en
+  bout prouvé contre un rôle `NOSUPERUSER NOBYPASSRLS` réel : login →
+  JWT → route protégée → RLS tenant A → 200, et token A refusé sur les
+  données du tenant B. Détails complets, matrice d'audit et risques
+  résiduels (quelques routes de la même famille non individuellement
+  auditées, un chemin de DDL de repli obsolète dans `mfa.py`, les
+  fixtures de test qui contournent encore `get_db()`) dans
+  `docs/POSTGRES_APP_ROLE.md`.
 - **Précision (pas un risque de production)** : une hypothèse précédente
   de « poisoning du pool de connexions » sous le rôle restreint (la
   suite de tests produisant ~900 échecs même après les corrections

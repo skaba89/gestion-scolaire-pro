@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.core.client_ip import get_client_ip
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import (
+    find_user_across_all_tenants,
+    get_db,
+    resolve_authenticated_user_row,
+    switch_tenant_context,
+)
 from app.core.security import PRIVILEGED_ROLES, create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
 from app.models.user import User
 from app.models.user_role import UserRole
@@ -265,10 +270,21 @@ async def _reset_login_attempts(user_id: str) -> None:
 @limiter.limit("5/minute")
 async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     try:
-        user = (
-            db.query(User)
+        # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+        # /auth/login/ is pre-authentication - no tenant is known yet, and
+        # `users.email`/`users.username` are globally unique (one account
+        # per identity, not per tenant), so this lookup is inherently a
+        # search across every tenant. A plain query here found NOTHING for
+        # a tenant-scoped user under a role that actually enforces RLS
+        # (NOSUPERUSER NOBYPASSRLS) - confirmed empirically - since `users`
+        # deliberately carries no platform-wide RLS bypass. See
+        # find_user_across_all_tenants()'s docstring for the full
+        # reasoning and why this is not a bypass added to the RLS policy.
+        user = find_user_across_all_tenants(
+            db,
+            lambda _db: _db.query(User)
             .filter(or_(User.email == form_data.username, User.username == form_data.username))
-            .first()
+            .first(),
         )
 
         if not user:
@@ -335,6 +351,16 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+        # find_user_across_all_tenants() above always leaves this session's
+        # RLS context reset to "no tenant" once it returns (see its
+        # docstring) - correct for the search itself, but every query below
+        # this point (user_roles, and anything a future change adds) is
+        # this now-identified user's OWN tenant-scoped data, so the context
+        # must be repositioned to their tenant before any of it runs.
+        if not settings.is_sqlite and user.tenant_id:
+            switch_tenant_context(db, str(user.tenant_id))
 
         # Verify the user's tenant is active (if they belong to one)
         if user.tenant_id:
@@ -477,8 +503,14 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
     await validate_token_version(user_id, payload.get("tv", 0))
 
     # 3. Verify user still exists and is active
-    from app.models.user import User
-    user_db = db.query(User).filter(User.id == user_id).first()
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # /auth/refresh/ is a TenantMiddleware-exempt public path (no tenant
+    # context set from THIS request), so a plain query here has the exact
+    # same bug get_current_user() had - see resolve_authenticated_user_row()'s
+    # docstring. The expired-but-still-signature-valid token being refreshed
+    # already carries its own tenant_id claim (set at login from the DB),
+    # which is what we use to position the RLS context for this lookup.
+    user_db = resolve_authenticated_user_row(db, user_id, payload.get("tenant_id"))
     if not user_db or not user_db.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -624,7 +656,12 @@ async def change_password(
     from app.core.security import verify_password, get_password_hash
 
     user_id = current_user.get("id")
-    user = db.query(User).filter(User.id == user_id).first()
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # /auth/change-password/ is under the TenantMiddleware-exempt "/auth/"
+    # prefix, so get_db()'s session here carries no tenant context at all -
+    # same self-lookup bug as get_current_user() had, fixed the same way,
+    # using the tenant_id get_current_user() already resolved.
+    user = resolve_authenticated_user_row(db, user_id, current_user.get("tenant_id"))
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -748,7 +785,10 @@ async def reset_forced_password(
     from app.core.security import get_password_hash
 
     user_id = current_user.get("id")
-    user = db.query(User).filter(User.id == user_id).first()
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # same "/auth/" TenantMiddleware-exempt self-lookup bug as
+    # /auth/change-password/ above.
+    user = resolve_authenticated_user_row(db, user_id, current_user.get("tenant_id"))
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
@@ -838,7 +878,14 @@ async def register(
     body.email = body.email.strip().lower()
 
     # 2. Check if email already exists
-    existing = db.query(User).filter(func.lower(User.email) == body.email).first()
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # /auth/register/ is pre-authentication (no tenant context), and
+    # `users.email` is globally unique across every tenant - see
+    # find_user_across_all_tenants()'s docstring (same reasoning as the
+    # /auth/login/ fix above).
+    existing = find_user_across_all_tenants(
+        db, lambda _db: _db.query(User).filter(func.lower(User.email) == body.email).first()
+    )
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -1007,7 +1054,14 @@ async def register_school(
     body.email = body.email.strip().lower()
 
     # 1. Check email uniqueness
-    existing_user = db.query(User).filter(func.lower(User.email) == body.email).first()
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # same cross-tenant search as /auth/register/ above - this endpoint
+    # creates a brand-new tenant, so there is no tenant context to check
+    # this email against even conceptually; it must search every EXISTING
+    # tenant for a conflict.
+    existing_user = find_user_across_all_tenants(
+        db, lambda _db: _db.query(User).filter(func.lower(User.email) == body.email).first()
+    )
     if existing_user:
         raise HTTPException(status_code=409, detail="Un compte avec cet email existe déjà.")
 
@@ -1638,9 +1692,19 @@ async def reset_password(
             detail="Ce lien de réinitialisation est invalide ou a expiré. Veuillez faire une nouvelle demande."
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # this user_id comes from a Redis-stored password-setup token with no
+    # tenant hint at all (same shape as the mfa_pending token) - see
+    # find_user_across_all_tenants()'s docstring. The context must then be
+    # repositioned to this user's own tenant before the UPDATE further
+    # down: `users`' RLS WITH CHECK applies to UPDATE too, so committing
+    # user.password_hash under the "no tenant" context this search leaves
+    # behind would silently affect zero rows for a tenant-scoped user.
+    user = find_user_across_all_tenants(db, lambda _db: _db.query(User).filter(User.id == user_id).first())
     if not user or not user.is_active:
         raise HTTPException(status_code=404, detail="Compte introuvable.")
+    if not settings.is_sqlite and user.tenant_id:
+        switch_tenant_context(db, str(user.tenant_id))
 
     # Validate password strength (reuse existing function)
     validate_password_strength(body.new_password)

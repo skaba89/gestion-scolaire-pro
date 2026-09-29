@@ -136,56 +136,154 @@ résolu :
    seule à rendre `schoolflow_app` activable — un quatrième problème, plus
    grave, a été découvert pendant ce travail et casse l'authentification
    HTTP elle-même sous le rôle restreint (point 4 ci-dessous).
-4. **(NOUVEAU, NON RÉSOLU — bloquant, plus grave que le point 3)
-   `app/core/security.py::get_current_user()` casse l'authentification de
-   tout utilisateur tenant-scopé sous le rôle restreint.** Cette fonction
-   est le dependency FastAPI utilisé sur pratiquement toutes les routes
-   HTTP protégées. Elle ouvre sa propre session indépendante de celle de
-   `get_db()` et exécute, juste avant de chercher l'utilisateur par id :
+4. **(CORRIGÉ, PR `fix(security): make authentication RLS-safe under
+   restricted DB role`) `app/core/security.py::get_current_user()` cassait
+   l'authentification de tout utilisateur tenant-scopé sous le rôle
+   restreint.** Voir la section « Authentification RLS-safe sous le rôle
+   restreint » ci-dessous pour l'architecture complète, l'audit exhaustif
+   des sessions DB indépendantes qui l'accompagnait, et le détail de
+   chaque correction (`get_current_user`, `/auth/login/`, `/auth/refresh/`,
+   `/mfa/login/verify/`, `/auth/change-password/`,
+   `/auth/reset-forced-password/`, les vérifications d'unicité d'email à
+   l'inscription, `/users/me/`, et l'authentification WebSocket de
+   `realtime.py`).
 
-   ```python
-   with SessionLocal() as db:
-       if not settings.is_sqlite:
-           try:
-               db.execute(text(
-                   "SELECT set_config('app.current_tenant_id', NULL::text, false)"
-               ))
-           except Exception:
-               pass
-       user_db = db.query(User).filter(User.id == user_id).first()
-   ```
+## Authentification RLS-safe sous le rôle restreint (PR `fix(security): make authentication RLS-safe under restricted DB role`)
 
-   Intention apparente : repartir d'un contexte propre sur cette session
-   indépendante avant de chercher l'utilisateur par id. Mais
-   `set_config(..., NULL, false)` ne remet **pas** le GUC à `NULL` — il le
-   redéfinit à une chaîne vide `''` (même piège que les points 1 et 2
-   ci-dessus). Or `users` utilise désormais la politique RLS stricte
-   `tenant_id IS NOT DISTINCT FROM current_setting(...)::uuid` (migration
-   `20260928_0001`, sans aucun bypass platform-wide) : avec le contexte à
-   `''`, la ligne de l'utilisateur authentifié devient invisible pour sa
-   propre requête. **Confirmé empiriquement** (connexion `psycopg`
-   directe, rôle restreint jetable, sans ORM) : un utilisateur
-   tenant-scopé réel devient introuvable (`None`) exactement via ce
-   chemin de requête, alors que le même utilisateur est trouvable via une
-   session dont le contexte est correctement positionné à son propre
-   `tenant_id`.
+**Contexte.** La PR précédente (ARQ workers) avait découvert mais délibérément
+laissé hors périmètre un bug plus grave : `get_current_user()` — le
+dependency FastAPI utilisé sur la quasi-totalité des routes HTTP protégées
+— cassait l'authentification de tout utilisateur tenant-scopé sous le rôle
+restreint. Cette PR ferme ce bug, et l'audit exhaustif qu'il a demandé a
+mis au jour toute une famille de bugs de la même nature ailleurs dans la
+base de code.
 
-   **Ce bug est hors périmètre de la PR ARQ workers** (portée strictement
-   limitée aux jobs d'arrière-plan, voir ci-dessous) et n'a délibérément
-   pas été corrigé ici — le corriger correctement demande de revoir
-   pourquoi cette fonction utilise une session indépendante de `get_db()`
-   plutôt que de la réutiliser, ce qui dépasse le risque qu'une
-   correction ponctuelle et non revue pourrait introduire. Il est
-   documenté ici en toute transparence parce qu'il **bloque à lui seul**
-   l'activation de `schoolflow_app`, indépendamment du sort du point 3.
-   Deux follow-ups de la même famille, également hors périmètre :
-   `app/api/v1/endpoints/core/realtime.py` (authentification WebSocket,
-   même schéma de session indépendante) et
-   `app/scripts/expire_subscriptions.py` (script cron externe, pas un job
-   ARQ, mais avec le même besoin de balayer plusieurs tenants qu'a
-   `check_inactive_tenants` dans `tasks.py` — voir plus bas).
+### Audit exhaustif des sessions DB indépendantes
 
-## Propagation du contexte RLS dans les workers ARQ (ce PR)
+Recherche de toute création de session DB pouvant contourner `get_db()`
+(`SessionLocal()`, `sessionmaker`, `AsyncSession`, middlewares, scripts,
+cron, WebSocket, health/security checks) :
+
+| Chemin / fonction | Source de session | Scope | Source du tenant | Contexte RLS avant | Correction | Test |
+|---|---|---|---|---|---|---|
+| `get_current_user()` | `SessionLocal()` indépendante | HTTP, tenant-scoped | claim `tenant_id` du JWT | reset inconditionnel à NULL (bug) | `resolve_authenticated_user_row(db, user_id, token.get("tenant_id"))` | `test_login_tenant_a_then_protected_route_returns_200` |
+| `POST /auth/login/` | `get_db()` (mais `/auth/*` est exempté de `TenantMiddleware`) | HTTP, platform-scoped par nécessité (`email`/`username` uniques globalement) | aucun (pré-auth) | aucun contexte positionné | `find_user_across_all_tenants()` puis `switch_tenant_context()` vers le tenant trouvé | `test_login_*`, `test_second_tenants_user_can_also_log_in` |
+| `POST /auth/refresh/` | `get_db()` (`/auth/refresh` exempté) | HTTP, tenant-scoped | claim `tenant_id` du token expiré | aucun contexte positionné | `resolve_authenticated_user_row(db, user_id, payload.get("tenant_id"))` | tests existants `test_token_lifecycle.py` (non-régression) |
+| `POST /mfa/login/verify/` | `get_db()` (`/mfa/login/verify` exempté) | HTTP, tenant-scoped | aucun (le token `mfa_pending` ne porte pas `tenant_id`) | aucun contexte positionné | `find_user_across_all_tenants()` puis `switch_tenant_context()` | tests existants `test_totp_mfa_login.py` (non-régression) |
+| `POST /auth/change-password/`, `POST /auth/reset-forced-password/` | `get_db()` (`/auth/*` exempté) | HTTP, tenant-scoped (self-lookup) | `current_user["tenant_id"]` (déjà résolu) | aucun contexte positionné | `resolve_authenticated_user_row(db, user_id, current_user.get("tenant_id"))` | tests existants (non-régression) |
+| Vérification d'unicité d'email — `POST /auth/register/`, `POST /auth/create-with-admin/` | `get_db()` (`/auth/*` exempté) | HTTP, platform-scoped par nécessité | aucun (pré-auth) | aucun contexte positionné | `find_user_across_all_tenants()` | tests existants d'inscription (non-régression) |
+| `POST /auth/reset-password/` (lien de réinitialisation) | `get_db()` (`/auth/*` exempté) | HTTP, tenant-scoped | aucun (`user_id` stocké dans Redis, sans tenant) | aucun contexte positionné | `find_user_across_all_tenants()` puis `switch_tenant_context()` (nécessaire aussi pour que l'`UPDATE` du mot de passe ne soit pas silencieusement filtré par `WITH CHECK`) | `test_account_provisioning.py` (mock mis à jour) |
+| `GET /users/me/` | `get_db()` (`/users/me` est dans la liste `public_paths` de `TenantMiddleware` — "résout son propre tenant, pas via le contexte RLS") | HTTP, tenant-scoped (self-lookup, SQL brut) | `current_user["tenant_id"]` (déjà résolu) | aucun contexte positionné | `switch_tenant_context(db, current_user["tenant_id"])` / `reset_tenant_context(db)` avant les requêtes SQL brutes | `test_login_tenant_a_then_protected_route_returns_200`, `test_token_a_cannot_use_x_tenant_id_header_to_reach_tenant_b` |
+| WebSocket `app/api/v1/endpoints/core/realtime.py::websocket_endpoint` | `SessionLocal()` indépendante | WebSocket, tenant-scoped | claim `tenant_id` du JWT (`token_tenant`) | aucun reset du tout (pire : hérite de l'état laissé par une connexion précédente du pool) | `resolve_authenticated_user_row(db, token_sub, token_tenant)` | `test_websocket_tenant_a_connects_successfully`, `test_websocket_tenant_a_token_denied_for_tenant_b_path` |
+| `app/scripts/expire_subscriptions.py` / `expire_overdue_subscriptions()` | `SessionLocal()` indépendante (script) et `get_db()` (endpoint `POST /billing/maintenance/expire/`) | Cron + HTTP, platform-scoped (balaie tous les tenants) | aucun | une seule requête globale sur `tenant_subscriptions` (politique RLS stricte, sans bypass) → 0 ligne visible | `platform_db_session()` (script) + boucle par tenant avec `switch_tenant_context()`/`reset_tenant_context()` (fonction elle-même, pour couvrir aussi l'appel HTTP) | `test_expire_overdue_subscriptions_works_across_tenants_under_restricted_role` |
+| `require_plan()`, `app/main.py` (bootstrap admin, health/security checks), `app/scripts/seed_saas_plans.py`, `app/api/v1/endpoints/core/webhooks.py::_dispatch_webhooks` | `SessionLocal()` indépendante | Platform-scoped (tables racines sans `tenant_id`/RLS : `tenants`, `subscription_plans`, catalogues système `pg_roles`/`pg_class`) ou code mort (`webhooks` : aucune migration, aucun modèle) | — | — | Aucune correction nécessaire — confirmé sans risque RLS | Audit manuel, inchangé depuis la PR ARQ workers |
+| `mfa_totp_secrets`/`mfa_backup_codes` créées à la volée par `_ensure_mfa_tables()` (DDL brut via la session applicative) | `db` de la requête (`get_db()`) | DDL, pas RLS | — | — | Aucune correction : sur une base réellement migrée (`alembic upgrade head` via `DATABASE_URL_MIGRATIONS`), `CREATE TABLE IF NOT EXISTS` ne s'exécute jamais (la vérification `information_schema.tables` réussit avant) — chemin de repli mort en usage normal. Signalé ici pour mémoire : ce chemin échouerait avec une erreur de permission si jamais exécuté sous `schoolflow_app` (aucun privilège DDL) sur une base non migrée. | — |
+
+### Architecture cible (identique à la cible ARQ workers, étendue à l'authentification)
+
+```
+HTTP (route normale)   : Requête -> TenantMiddleware (JWT.tenant_id) -> tenant_context -> get_db() -> set_config -> get_current_user() (session partagée) -> RLS
+HTTP (/auth/*, exempté): Requête -> aucun tenant_context -> get_db() (contexte vide) -> find_user_across_all_tenants() ou resolve_authenticated_user_row() -> switch_tenant_context() -> RLS
+WEBSOCKET               : Connexion -> JWT.tenant_id -> SessionLocal() indépendante (TenantMiddleware ne s'exécute jamais pour un WebSocket) -> resolve_authenticated_user_row() -> RLS
+CRON / HTTP admin       : platform_db_session()/get_db() -> liste des tenants (table racine, sans RLS) -> switch_tenant_context() par tenant -> RLS -> reset_tenant_context()
+```
+
+### Deux nouvelles abstractions dans `app/core/database.py`, réutilisant celles de la PR ARQ workers
+
+- **`resolve_authenticated_user_row(db, user_id, tenant_id)`** — pour un
+  utilisateur dont on connaît déjà l'identité (`user_id`) ET le tenant
+  probable (`tenant_id`, typiquement le claim JWT ou
+  `current_user["tenant_id"]`). Essaie ce contexte en premier (le cas
+  normal — trouve immédiatement un utilisateur tenant-scopé), puis
+  retombe sur `NULL` uniquement si ça échoue (le seul cas légitime : un
+  compte platform-scoped — `SUPER_ADMIN`, ... — dont la ligne
+  `tenant_id IS NULL` est invisible sous n'importe quel autre contexte,
+  par exemple pendant une impersonation via `X-Tenant-ID`). Restaure le
+  contexte à `tenant_id` avant de retourner, pour que le reste de la
+  session partagée (`get_db()`) continue de voir le bon tenant.
+- **`find_user_across_all_tenants(db, query_fn)`** — pour un utilisateur
+  dont on ne connaît ni le tenant, ni même s'il en a un (login par email,
+  vérification d'unicité à l'inscription, token de réinitialisation de
+  mot de passe stocké dans Redis sans tenant). `users.email` et
+  `users.username` sont **globalement uniques** (un compte par identité,
+  pas par tenant — voir `app/models/user.py`), donc cette recherche est
+  intrinsèquement transverse à tous les tenants. Plutôt que d'ajouter un
+  bypass RLS général sur `users` (ce qui affaiblirait réellement RLS —
+  `users` porte des identifiants/PII et n'a délibérément aucun bypass
+  platform-wide, contrairement à `jobs`/`notification_events`), cette
+  fonction cherche **explicitement**, un tenant à la fois, en réutilisant
+  `switch_tenant_context()`/`reset_tenant_context()` — exactement le même
+  mécanisme que `check_inactive_tenants`/`expire_overdue_subscriptions`.
+  Essaie d'abord le contexte `NULL` (cas courant et bon marché : un
+  compte platform-scoped), puis boucle sur chaque tenant jusqu'au premier
+  match (`email`/`username` étant uniques, il ne peut jamais y en avoir
+  plus d'un sur toute la plateforme). `O(n)` dans le nombre de tenants au
+  pire cas — acceptable pour des endpoints déjà limités en débit
+  (bcrypt, rate limiting), à ne jamais réutiliser sur un chemin chaud.
+
+### Pourquoi ne pas juste faire de `get_current_user()` une dépendance de `get_db()`
+
+Tentative initiale, abandonnée : cela cassait ~26 tests existants
+(`tests/test_auth_revocation_fail_closed.py`,
+`tests/test_auth_roles_db_source_of_truth.py`) qui appellent
+`get_current_user()` directement comme une coroutine ordinaire
+(`await get_current_user(request=..., token=...)`), en dehors du système
+d'injection de dépendances de FastAPI — un paramètre
+`db: Session = Depends(get_db)` y reçoit littéralement l'objet sentinelle
+`Depends(...)`, pas une vraie session. `get_current_user()` garde donc sa
+propre session indépendante, mais positionnée correctement dès le départ
+via le claim `tenant_id` du JWT plutôt que remise à `NULL`
+inconditionnellement.
+
+### Non-contamination du pool de connexions
+
+Même garantie et même méthode de preuve que la PR ARQ workers : chaque
+point d'entrée repositionne explicitement le contexte comme première
+opération, sans jamais supposer d'état hérité. Testé explicitement (voir
+`tests/test_auth_rls_restricted_role.py`) en forçant deux `POST
+/auth/login/` consécutifs (tenant A puis tenant B) à réutiliser la même
+connexion physique (`StaticPool`), puis en vérifiant que chaque token
+donne bien accès au bon tenant sur `GET /users/me/` — aucune fuite dans
+les deux sens.
+
+### `X-Tenant-ID` et confiance dans le tenant du token
+
+Le claim `tenant_id` du JWT est signé et dérivé côté serveur, depuis
+`user_db.tenant_id`, à l'émission du token (`/auth/login/`,
+`/mfa/login/verify/`) — jamais fourni ou modifiable par le client.
+`TenantMiddleware` privilégie toujours ce claim ; le header `X-Tenant-ID`
+n'est pris en compte QUE pour un `SUPER_ADMIN` sans `tenant_id` propre
+(impersonation explicite d'un tenant par un compte platform-level), et
+uniquement après vérification de l'existence du tenant ciblé. Testé
+explicitement : un utilisateur normal (tenant A) qui envoie un header
+`X-Tenant-ID` pointant vers le tenant B continue de voir uniquement le
+tenant A (`test_token_a_cannot_use_x_tenant_id_header_to_reach_tenant_b`).
+
+### WebSocket (`app/api/v1/endpoints/core/realtime.py`)
+
+`TenantMiddleware` (un `BaseHTTPMiddleware`) ne s'exécute jamais pour une
+connexion WebSocket — rien ne positionne `app.current_tenant_id` par ce
+biais. L'ancien code n'appelait même pas `_set_rls_context` du tout,
+héritant silencieusement de l'état laissé par une connexion précédente du
+pool. Corrigé avec `resolve_authenticated_user_row(db, token_sub,
+token_tenant)`, `token_tenant` étant le claim `tenant_id` du JWT fourni en
+query param. Les protections de PR #254 (blacklist/révocation,
+logout-all, `is_active`, rôles relus depuis la DB plutôt que depuis le
+token) sont préservées à l'identique — aucune régression, `test_realtime_
+websocket_revocation_2026_09_28.py` repasse sans modification.
+
+### Cas SUPER_ADMIN / platform
+
+Aucun bypass général n'a été créé pour `SUPER_ADMIN` ou tout autre rôle
+platform-level. Ces comptes (`tenant_id IS NULL` en base) restent
+visibles à leur propre requête d'authentification exactement comme avant
+(contexte `NULL`), sans traitement de faveur au niveau RLS — la seule
+différence est que `resolve_authenticated_user_row()`/
+`find_user_across_all_tenants()` essaient maintenant le **bon** contexte
+en premier pour un utilisateur tenant-scopé, au lieu de forcer `NULL`
+pour tout le monde.
+
+## Propagation du contexte RLS dans les workers ARQ (PR précédente : `fix(security): propagate tenant RLS context through ARQ workers`)
 
 **Problème.** Une requête HTTP passe systématiquement par `get_db()`, qui
 positionne le contexte RLS (`set_config('app.current_tenant_id', ...)`) à
@@ -400,7 +498,7 @@ rôle restreint.
   restants viennent des fixtures de test contournant `get_db()`
   (voir ci-dessus), pas d'un bug de code applicatif supplémentaire.
 
-## Validation de la PR « propagate tenant RLS context through ARQ workers »
+## Validation de la PR précédente « propagate tenant RLS context through ARQ workers »
 
 - `tests/test_worker_rls_tenant_context.py` (18 tests, rôle jetable
   `NOSUPERUSER NOBYPASSRLS`, `SessionLocal` d'`app.core.database`
@@ -465,20 +563,153 @@ rôle restreint.
   existant) — **0 résultat dans un fichier modifié ou ajouté par cette
   PR**.
 
+### Verdict de la PR précédente (dépassé, voir plus bas pour le verdict actuel)
+
+Au terme de cette PR seule, l'authentification HTTP restait cassée sous
+le rôle restreint (`get_current_user()`, point 4) — voir la section
+« Authentification RLS-safe sous le rôle restreint » ci-dessus pour la
+correction complète, et le verdict à jour juste en dessous.
+
+## Validation de la PR « make authentication RLS-safe under restricted DB role »
+
+- `tests/test_auth_rls_restricted_role.py` (nouveau, 14 tests, rôle
+  jetable `NOSUPERUSER NOBYPASSRLS`, `SessionLocal` d'`app.core.database`
+  monkeypatché sur ce rôle et exercé à travers le **vrai** `TestClient`
+  FastAPI — `POST /auth/login/`, `GET /users/me/`, le WebSocket
+  `/realtime/ws/...` — pas une réimplémentation) :
+  - Rôle confirmé non-superutilisateur/`NOBYPASSRLS`, DDL refusé
+    (`CREATE`/`ALTER`/`DROP TABLE`).
+  - **Scénario complet** : `POST /auth/login/` pour un utilisateur
+    tenant-scopé réel → `200` avec un token JWT ; `GET /users/me/` avec ce
+    token → `200`, tenant correctement résolu (pas `tenant: null`) ; un
+    second utilisateur d'un second tenant peut aussi se connecter (pas un
+    artefact du premier tenant créé) ; mauvais mot de passe → `401` ;
+    email inconnu → `401`.
+  - **Isolation inter-tenant** : un `X-Tenant-ID` usurpé vers le tenant B
+    n'affecte jamais le contexte d'un utilisateur normal du tenant A
+    (`test_token_a_cannot_use_x_tenant_id_header_to_reach_tenant_b`) ;
+    `resolve_authenticated_user_row()` ne retrouve jamais l'utilisateur du
+    tenant B sous le contexte du tenant A, et vice-versa.
+  - **WebSocket** : connexion réussie pour le tenant A avec son propre
+    token ; refusée (exception à la connexion, avant tout `accept()`)
+    quand ce même token cible l'URL du tenant B.
+  - **Non-contamination du pool** : `POST /auth/login/` pour tenant A puis
+    tenant B forcés sur la même connexion physique (`StaticPool`) — chaque
+    token continue de résoudre son propre tenant après coup, sans fuite
+    dans un sens ni dans l'autre.
+  - **Cron** : `expire_overdue_subscriptions()` appelée sous le rôle
+    restreint expire bien l'abonnement en retard du tenant A sans toucher
+    l'abonnement encore actif du tenant B (boucle par tenant avec
+    `switch_tenant_context`/`reset_tenant_context`, plus de requête
+    globale sur `tenant_subscriptions` qui retournait silencieusement 0
+    ligne).
+  - **18/18** au total (14 dans cette classe + comptage) — voir le fichier
+    pour le détail : **14/14 passed**.
+- `tests/test_account_provisioning.py` (préexistant) : un mock de test
+  (`SimpleNamespace`) ne portait pas l'attribut `tenant_id` qu'un vrai
+  `User` porte toujours ; corrigé dans le test (ajout de `tenant_id=None`
+  au mock), pas d'affaiblissement d'assertion — **non-régression
+  confirmée**.
+- Suites non-régression exécutées explicitement : `tests/
+  test_auth_revocation_fail_closed.py` + `tests/
+  test_auth_roles_db_source_of_truth.py` (les deux fichiers qui appellent
+  `get_current_user()` directement comme coroutine, hors FastAPI —
+  **26/26 passed**, confirmant que garder une session indépendante plutôt
+  que `Depends(get_db)` était le bon choix) ; `tests/
+  test_realtime_websocket_revocation_2026_09_28.py` (protections PR #254
+  intactes — **5/5 passed**) ; `tests/test_subscription_expiry.py`
+  (**5/5 passed**) ; `tests/test_worker_rls_tenant_context.py` + `tests/
+  test_rls_platform_bypass_migration.py` + `tests/
+  test_rls_current_tenant_uuid_cast_migration.py` + `tests/
+  test_worker_tasks.py` (PR précédente, toujours vertes — **84/84
+  passed** en tout, tous fichiers directement liés confondus) ; suite
+  élargie `-k "auth or mfa or login or security or password or token"`
+  (**413/413 passed, 1 skipped**, base fraîche).
+- Suite backend PostgreSQL complète sur cette branche, base **fraîche**
+  (recréée, `alembic upgrade head`, rôle admin) : **1899 passed, 1
+  skipped, 1 failed** — le seul échec est
+  `test_subscription_plans_seed.py::test_all_expected_slugs_present_in_db`,
+  le même échec préexistant, sans lien avec `tenant_id`/RLS/l'auth,
+  reproduit identiquement sur `main` (voir la PR précédente pour la
+  preuve empirique) — **0 nouvel échec introduit par cette PR**.
+- Suite backend complète (SQLite), base fraîche (`test.db` recréé) :
+  **1363 passed, 538 skipped, 0 failed** — le delta de skips (+14) est
+  exactement le nombre de tests de `test_auth_rls_restricted_role.py`,
+  marqués `skipif` sur SQLite (RLS est spécifique à PostgreSQL) — 0
+  régression.
+- `gitleaks detect` (8.21.2) sur l'arbre de travail complet : mêmes 124
+  résultats préexistants qu'à la PR précédente, tous dans des fichiers
+  que cette PR ne touche pas — **0 résultat dans un fichier modifié ou
+  ajouté par cette PR**.
+
 ### Verdict final : `schoolflow_app` est-il activable sur Azure DEV ?
 
-**Non, pas encore.** Cette PR ferme complètement le risque qu'elle
-ciblait (le point 3 : workers ARQ sans contexte RLS) et corrige au
-passage deux bugs de production connexes découverts par le même audit
-(`quota.py`, `whatsapp_webhook.py`) ainsi qu'un troisième bug RLS
-indépendant (migration `20260929_0001`, bypass platform-wide cassé par
-un reset à NULL). Mais le point 4 découvert pendant ce même travail —
-`app/core/security.py::get_current_user()` qui rend tout utilisateur
-tenant-scopé introuvable sous le rôle restreint — **bloque à lui seul**
-l'activation : il casserait l'authentification HTTP de la quasi-totalité
-des routes protégées, un risque strictement plus large et plus grave que
-celui que corrige cette PR. Activer `schoolflow_app` en l'état ferait
-échouer la connexion de tout utilisateur non-`SUPER_ADMIN`. Ce point,
-et ses deux follow-ups (`realtime.py`, `expire_subscriptions.py`),
-doivent être traités par une PR de suivi dédiée avant toute activation,
-même sur un environnement Azure DEV isolé.
+**`schoolflow_app` = ACTIVABLE ON AZURE DEV** (environnement de test
+encadré, non exposé à des utilisateurs réels — **pas** un feu vert pour
+la production ; voir les risques résiduels ci-dessous, qui doivent être
+fermés avant toute activation en production).
+
+Cette PR ferme le blocage qui empêchait toute activation
+(`get_current_user()` rendant chaque utilisateur tenant-scopé introuvable
+à sa propre authentification), plus toute une famille de bugs de la même
+nature découverts par l'audit exhaustif qu'il a demandé (login,
+rafraîchissement de token, vérification MFA, changement de mot de passe,
+réinitialisation forcée, unicité d'email à l'inscription, lien de
+réinitialisation de mot de passe, `/users/me/`, authentification
+WebSocket, et le cron d'expiration d'abonnements). Le scénario complet
+`LOGIN TENANT A → JWT → GET PROTECTED ROUTE → get_current_user → RLS
+TENANT A → 200` ainsi que `TOKEN A → TENANT B → DENIED` sont prouvés,
+avec la connexion applicative réellement positionnée sur `schoolflow_app`
+(`NOSUPERUSER NOBYPASSRLS`), contre un vrai PostgreSQL 16.
+
+**Risques résiduels, identifiés mais explicitement hors périmètre de
+cette PR** (à traiter avant une activation en production, pas
+nécessairement avant un premier essai encadré sur Azure DEV) :
+
+1. **`/tenants/settings`, `/tenants/security-settings`,
+   `/tenants/onboarding/*`, `/storage/upload`** — fichier
+   `app/middlewares/tenant.py`, section `public_paths` : ces routes sont,
+   comme `/users/me/` (corrigé ici), explicitement exemptées de
+   `TenantMiddleware` avec le commentaire "résout son propre tenant, pas
+   via le contexte RLS" — mais n'ont pas été individuellement auditées
+   pour confirmer qu'elles positionnent réellement leur contexte RLS
+   avant toute requête tenant-scopée, comme `/users/me/` ne le faisait
+   pas. **Risque** : une requête tenant-scopée sur l'une de ces routes
+   pourrait échouer silencieusement (RLS masque la ligne) sous le rôle
+   restreint, exactement comme `/users/me/` avant ce correctif.
+   **Correction nécessaire** : même audit ligne par ligne que celui fait
+   ici sur `/auth/*`, appliqué à chacune de ces routes.
+2. **Scripts/CLI hors HTTP non auditès dans cette passe** :
+   `app/scripts/seed_saas_plans.py` reste confirmé sans risque (table
+   racine `subscription_plans`, sans RLS), mais aucun autre script CLI du
+   dépôt n'a été inventorié au-delà de `expire_subscriptions.py`.
+3. **`_ensure_mfa_tables()`** (`app/api/v1/endpoints/core/mfa.py`) exécute
+   du DDL brut (`CREATE TABLE IF NOT EXISTS`) via la session applicative
+   si les tables `mfa_backup_codes`/`mfa_totp_secrets`/`email_otps`
+   n'existent pas encore. Sans risque sur une base réellement migrée
+   (`alembic upgrade head`) — chemin mort en usage normal — mais
+   échouerait avec une erreur de permission sous `schoolflow_app` (aucun
+   privilège DDL) sur une base non migrée. **Recommandation** : retirer
+   ce filet de sécurité obsolète maintenant que la migration
+   `20260406_add_mfa_and_perf_indexes.py` existe, ou le router
+   explicitement vers `DATABASE_URL_MIGRATIONS` comme
+   `ensure_operational_tables()` (PR #259).
+4. **Suite de tests contre le rôle restreint** : comme documenté dans la
+   PR ARQ workers, la suite backend complète exécutée avec la connexion
+   applicative réellement pointée sur `schoolflow_app` continue de
+   produire un nombre significatif d'échecs dus aux fixtures de test qui
+   contournent `get_db()`/l'API pour créer leurs données directement via
+   l'ORM — une limite du harnais de tests, pas un bug de production (voir
+   la section « Ne pas encore activer en production » ci-dessus pour le
+   détail), toujours non résolue et hors périmètre de cette PR.
+
+Aucun de ces quatre points ne concerne le scénario d'authentification
+principal validé par cette PR ; ils représentent des zones non
+explicitement vérifiées plutôt que des bugs confirmés (à l'exception du
+point 3, confirmé mais sans impact en usage normal). Une activation sur
+un environnement Azure **DEV isolé**, pour validation encadrée et non
+exposée à des utilisateurs réels, est raisonnable une fois ces quatre
+points au moins revus rapidement ; une activation en **production**
+demande de les fermer, plus la revue des fixtures de test (point 4) si
+l'on souhaite un jour faire tourner la suite de tests elle-même contre le
+rôle restreint.

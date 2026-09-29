@@ -3,7 +3,7 @@ import os
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Optional
+from typing import Callable, Optional, TypeVar
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
@@ -358,3 +358,127 @@ def reset_tenant_context(db: Session) -> None:
     platform_db_session()'s docstring for what "reset" actually means at
     the PostgreSQL level and why it's safe (migration 20260929_0001)."""
     _set_rls_context(db, None)
+
+
+def resolve_authenticated_user_row(db: Session, user_id: str, tenant_id: Optional[str]):
+    """Look up the authenticated caller's own row by id, safely under a
+    NOSUPERUSER NOBYPASSRLS role - the shared fix for a bug found while
+    auditing HTTP auth (app/core/security.py::get_current_user()) and
+    WebSocket auth (app/api/v1/endpoints/core/realtime.py) for RLS-safety.
+
+    Both call sites need the exact same two-step lookup, so it lives here
+    rather than being duplicated:
+
+    1. Position the RLS context to `tenant_id` (the value already
+       established for this request/connection - the JWT's own tenant_id
+       claim for a tenant-scoped user, or None for one with no tenant) and
+       look the user up. This is correct and sufficient for the ordinary
+       case: a tenant-scoped user's own row has that exact tenant_id, so
+       `users`' RLS policy (`tenant_id IS NOT DISTINCT FROM
+       current_setting(...)::uuid`, no platform-wide bypass) matches it.
+    2. If step 1 finds nothing, retry under "no tenant" context. This is
+       the ONE legitimate fallback: a platform-level account (tenant_id IS
+       NULL in the DB - SUPER_ADMIN, MINISTRY_ADMIN, ...) is invisible
+       under any OTHER tenant's context, which happens whenever such an
+       account is impersonating/viewing a specific tenant (SUPER_ADMIN's
+       X-Tenant-ID header) - its own row only ever matches a NULL context.
+       This can never be used to see a DIFFERENT tenant's user: `users`
+       has no bypass clause, so a real tenant-scoped row stays invisible
+       under a NULL context exactly as it would under any other tenant's.
+
+    The previous, buggy version of this lookup (in get_current_user())
+    unconditionally reset to NULL context first, which is step 2's
+    behaviour applied unconditionally - correct for a platform-level
+    account, but it made every ORDINARY tenant-scoped user invisible to
+    their own authentication query under a role that actually enforces
+    RLS (confirmed empirically against a real NOSUPERUSER NOBYPASSRLS
+    role). This function tries the correct context FIRST and only falls
+    back to NULL when that fails, closing that bug without weakening RLS
+    (no policy changed, no bypass added, no default tenant).
+
+    The session's context is restored to `tenant_id` before returning
+    (whichever step found the row) so that later queries on this same
+    session - `get_db()`'s session is shared with the rest of the HTTP
+    request via FastAPI's dependency caching - keep seeing the tenant this
+    request was actually resolved for, not "no tenant" left over from
+    step 2's probe.
+    """
+    from app.models.user import User
+
+    if settings.is_sqlite:
+        return db.query(User).filter(User.id == user_id).first()
+
+    _set_rls_context(db, tenant_id)
+    user_db = db.query(User).filter(User.id == user_id).first()
+    if user_db is not None:
+        return user_db
+
+    _set_rls_context(db, None)
+    user_db = db.query(User).filter(User.id == user_id).first()
+    _set_rls_context(db, tenant_id)
+    return user_db
+
+
+_T = TypeVar("_T")
+
+
+def find_user_across_all_tenants(db: Session, query_fn: Callable[[Session], Optional[_T]]) -> Optional[_T]:
+    """Find a user matching `query_fn` (e.g. by email, by a password-reset
+    token's user_id) when NO tenant is known yet - the login/registration/
+    password-reset family of endpoints, all pre-authentication by design
+    (TenantMiddleware exempts every /auth/* path so no JWT/tenant context
+    exists for them at all).
+
+    ARCHITECTURE (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    `users.email` and `users.username` are GLOBALLY unique (one account per
+    identity, not per tenant - see app/models/user.py), so a login-by-email
+    lookup is inherently a search across every tenant, not a single
+    tenant's own data. Under a role that actually enforces RLS
+    (NOSUPERUSER NOBYPASSRLS), a query with no context positioned finds
+    NOTHING for a tenant-scoped user - confirmed empirically: `users`' RLS
+    policy (`tenant_id IS NOT DISTINCT FROM current_setting(...)::uuid`)
+    deliberately carries NO platform-wide bypass clause (unlike e.g. `jobs`
+    or `notification_events`), by design from the PR that introduced it
+    (#260) - `users` holds credentials/PII and a broad "no context = see
+    everyone" bypass on it would be a real weakening of RLS, not a fix.
+
+    Rather than add such a bypass, this searches EXPLICITLY, one tenant at
+    a time, using the exact same switch_tenant_context()/
+    reset_tenant_context() every other platform-scoped sweep in this
+    codebase uses (check_inactive_tenants, expire_overdue_subscriptions) -
+    `tenants` itself carries no RLS policy, so listing every tenant id is
+    always safe. Tries "no tenant" FIRST (covers a platform-level account
+    - SUPER_ADMIN, MINISTRY_ADMIN, ... - with a single cheap query, the
+    common case for admin-diagnostic call sites), then every tenant in
+    turn, stopping at the first match (`email`/`username` are unique
+    constraints, so at most one row can ever match across the whole
+    platform). O(n) in the number of tenants in the worst case (no match
+    anywhere, or the match is the last tenant tried) - acceptable for
+    endpoints that already do a bcrypt hash and are rate-limited
+    (login, register, forgot-password), not for anything performance
+    sensitive; do not reuse this for a hot path.
+
+    Always leaves the session's RLS context reset to "no tenant" - safe
+    for every current caller (all pre-auth, nothing tenant-scoped runs on
+    this same session afterward), and never leaves it pointed at whichever
+    tenant this search happened to try last.
+    """
+    if settings.is_sqlite:
+        return query_fn(db)
+
+    _set_rls_context(db, None)
+    found = query_fn(db)
+    if found is not None:
+        return found
+
+    from app.models.tenant import Tenant  # local import: avoids a circular import at module load
+
+    for (tenant_id,) in db.query(Tenant.id).all():
+        switch_tenant_context(db, str(tenant_id))
+        found = query_fn(db)
+        if found is not None:
+            reset_tenant_context(db)
+            return found
+
+    reset_tenant_context(db)
+    return None

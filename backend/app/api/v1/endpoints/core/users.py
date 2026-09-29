@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 import math
 
-from app.core.database import get_db
+from app.core.database import get_db, reset_tenant_context, switch_tenant_context
 from app.core.security import get_current_user, require_permission, ROLE_PERMISSIONS
 from app.core.config import settings
 from app.utils.audit import log_audit
@@ -69,7 +69,24 @@ def read_users_me(
 ):
     """Return the currently authenticated user's profile with full context from DB."""
     user_id = current_user.get("id")
-    
+
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # /users/me/ is in TenantMiddleware's own public_paths list ("resolves
+    # its own tenant, not via RLS context from this middleware") - meaning
+    # get_db()'s session here carries NO tenant context at all. The raw SQL
+    # below queries `users`/`user_roles` by user_id with no tenant filter,
+    # trusting RLS alone for correctness - under a role that actually
+    # enforces it (NOSUPERUSER NOBYPASSRLS), a tenant-scoped user's own row
+    # was invisible to their own profile lookup, silently falling back to
+    # JWT-only data (tenant: null) instead of a real error. get_current_user()
+    # has already resolved this user's real tenant_id; use it here.
+    if not settings.is_sqlite:
+        tenant_id = current_user.get("tenant_id")
+        if tenant_id:
+            switch_tenant_context(db, tenant_id)
+        else:
+            reset_tenant_context(db)
+
     # 1. Fetch user data from DB (lenient on tenant_id for first login)
     # NOTE: must_change_password may not exist yet (pending Alembic migration).
     # Try full query first; fall back to query without that column.

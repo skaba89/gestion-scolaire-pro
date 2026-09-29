@@ -15,7 +15,7 @@ from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import find_user_across_all_tenants, get_db, switch_tenant_context
 from app.core.security import get_current_user, verify_password
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.user import User
@@ -693,9 +693,19 @@ async def verify_login_mfa(request: Request, body: MFALoginVerifyRequest, db: Se
 
     user_id = _decode_mfa_pending_token(body.mfa_token)
 
-    user = db.query(User).filter(User.id == user_id).first()
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # /mfa/login/verify/ is pre-authentication (TenantMiddleware-exempt, no
+    # tenant context) and the mfa_pending token itself carries no tenant_id
+    # (see get_current_user()'s docstring) - only `sub`. Same cross-tenant
+    # search as /auth/login/'s fix; see find_user_across_all_tenants()'s
+    # docstring. The session's context must then be repositioned to this
+    # user's own tenant before the tenant-scoped mfa_totp_secrets/
+    # mfa_backup_codes queries below run.
+    user = find_user_across_all_tenants(db, lambda _db: _db.query(User).filter(User.id == user_id).first())
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Compte introuvable ou désactivé")
+    if not settings.is_sqlite and user.tenant_id:
+        switch_tenant_context(db, str(user.tenant_id))
 
     try:
         _ensure_mfa_tables(db)

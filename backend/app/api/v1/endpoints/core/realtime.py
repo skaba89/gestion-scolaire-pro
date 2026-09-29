@@ -75,12 +75,24 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Token has been revoked")
         return
 
-    from app.core.database import SessionLocal
-    from app.models.user import User
+    from app.core.database import SessionLocal, resolve_authenticated_user_row
     from app.models.user_role import UserRole
 
+    # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    # TenantMiddleware (BaseHTTPMiddleware) never runs for a WebSocket
+    # connection, so nothing positions app.current_tenant_id here the way
+    # it does for an HTTP request — this session's RLS context must be set
+    # explicitly. Previously this ran with whatever context happened to be
+    # left on the pooled connection from a prior request/connection (never
+    # reset at all), which under a role that actually enforces RLS
+    # (NOSUPERUSER NOBYPASSRLS) could make this lookup fail unpredictably
+    # depending on pool state. resolve_authenticated_user_row() positions
+    # it explicitly from token_tenant (this token's own tenant_id claim,
+    # signed and set at login from the DB - never client-suppliable) and
+    # falls back to "no tenant" only for a genuinely platform-level account
+    # (e.g. SUPER_ADMIN, tenant_id IS NULL) - see its docstring.
     with SessionLocal() as db:
-        user_db = db.query(User).filter(User.id == token_sub).first()
+        user_db = resolve_authenticated_user_row(db, token_sub, token_tenant)
         if not user_db or not user_db.is_active:
             await websocket.close(code=4001, reason="Account inactive")
             return
