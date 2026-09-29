@@ -14,6 +14,7 @@ param acrLoginServer = 'academyguineenneacr.azurecr.io'
 // reaches prod here — never a different build.
 param backendImage = readEnvironmentVariable('BACKEND_IMAGE')
 param frontendImage = readEnvironmentVariable('FRONTEND_IMAGE')
+param releaseSha = readEnvironmentVariable('RELEASE_SHA')
 
 param postgresSkuName = 'Standard_D2ds_v4'
 param postgresSkuTier = 'GeneralPurpose'

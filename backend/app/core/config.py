@@ -239,6 +239,19 @@ class Settings(BaseSettings):
     APP_NAME: str = "Academy Guinéenne API"
     APP_VERSION: str = "1.0.0"
 
+    # OBSERVABILITY (Azure probes pass — docs/AZURE_OBSERVABILITY.md): the
+    # exact full Git SHA this process was built from, per #264's release
+    # manifest (release.git_sha). Not a secret — set as a plain container
+    # env var by infra/azure/modules/container-apps.bicep (RELEASE_SHA),
+    # sourced from the same manifest that already pins backendImage/
+    # frontendImage. Defaults to "unknown" for local dev/tests, where no
+    # release manifest exists. Surfaced on /health/live, /health/ready,
+    # /health/deep and in startup log lines so "which commit is actually
+    # running" is answerable without SSHing in or trusting a deploy
+    # ticket — the same question #264's docs "HOW TO PROVE DEV == REC ==
+    # PROD" answers for images, this answers for a running process.
+    RELEASE_SHA: str = os.getenv("RELEASE_SHA", "unknown")
+
     ADMIN_DEFAULT_EMAIL: str = get_secret("ADMIN_DEFAULT_EMAIL", "admin@schoolflow.local")
     ADMIN_DEFAULT_PASSWORD: str = get_secret("ADMIN_DEFAULT_PASSWORD", "")
     BOOTSTRAP_SECRET: str = get_secret("BOOTSTRAP_SECRET", "")

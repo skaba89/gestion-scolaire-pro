@@ -59,6 +59,9 @@ param redisSkuCapacity int = envName == 'prod' ? 1 : 0
 param backendImage string
 param frontendImage string
 
+@description('OBSERVABILITY (docs/AZURE_OBSERVABILITY.md): the full Git SHA the deployed release was built from (release-manifest.json\'s release.git_sha). No default, same reasoning as backendImage/frontendImage.')
+param releaseSha string
+
 param apiMinReplicas int = envName == 'prod' ? 2 : 1
 param apiMaxReplicas int = envName == 'prod' ? 10 : 3
 
@@ -151,6 +154,7 @@ module containerApps 'modules/container-apps.bicep' = {
     appInsightsConnectionString: monitoring.outputs.appInsightsConnectionString
     backendImage: backendImage
     frontendImage: frontendImage
+    releaseSha: releaseSha
     apiMinReplicas: apiMinReplicas
     apiMaxReplicas: apiMaxReplicas
     azureStorageAccountUrl: storage.outputs.blobEndpoint

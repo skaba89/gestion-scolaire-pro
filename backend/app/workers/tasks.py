@@ -10,6 +10,7 @@ To add a new task type: write the async function here, register it in
 WorkerSettings.functions below, and call enqueue_job("function_name", ...)
 from the endpoint. See docs/ASYNC_JOBS_GUIDE.md for the full walkthrough.
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -28,6 +29,11 @@ from app.core.database import (
 from app.core.jobs import get_redis_settings
 from app.models.job import Job
 from app.models.notification import Notification
+from app.workers.heartbeat import (
+    HEARTBEAT_INTERVAL_SECONDS,
+    clear_heartbeat,
+    write_heartbeat,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1110,9 +1116,53 @@ async def purge_old_public_form_submissions(ctx: dict, *, retention_days: Option
     return {"deleted": deleted, "retention_days": days}
 
 
+async def _heartbeat_loop() -> None:
+    """Background loop started by on_startup, cancelled by on_shutdown —
+    see app/workers/heartbeat.py's module docstring for why this writes to
+    Redis instead of exposing an HTTP endpoint."""
+    while True:
+        try:
+            await write_heartbeat()
+        except Exception as exc:
+            # Fail open: a Redis blip must not crash the worker process
+            # over a diagnostic side-effect — the next loop iteration
+            # retries, and a genuinely down Redis will already show up as
+            # "missing" on the reading side once the TTL lapses.
+            logger.warning("Worker heartbeat write failed: %s", exc)
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+
+
+async def on_startup(ctx: dict) -> None:
+    """ARQ startup hook — see docs/AZURE_OBSERVABILITY.md#worker-heartbeat."""
+    from app.core.config import settings
+
+    logger.info("Worker starting: release_sha=%s", settings.RELEASE_SHA)
+    ctx["heartbeat_task"] = asyncio.create_task(_heartbeat_loop())
+
+
+async def on_shutdown(ctx: dict) -> None:
+    """ARQ shutdown hook — cancels the heartbeat loop and removes this
+    replica from the index immediately (a clean shutdown must not linger
+    as a false MISSING entry for an operator to chase)."""
+    task = ctx.get("heartbeat_task")
+    if task is not None:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    try:
+        await clear_heartbeat()
+    except Exception as exc:
+        logger.warning("Worker heartbeat cleanup failed: %s", exc)
+
+
 class WorkerSettings:
     """Entry point for the Arq worker process: `arq app.workers.tasks.WorkerSettings`
     (see the `worker` service in docker-compose.yml)."""
+
+    on_startup = on_startup
+    on_shutdown = on_shutdown
 
     functions = [
         send_welcome_email,
@@ -1152,3 +1202,12 @@ class WorkerSettings:
     max_jobs = 10
     job_timeout = 300  # 5 minutes — generous enough for slow SMTP providers
     max_tries = 3  # retry transient failures (e.g. SMTP timeout) automatically
+    # ARQ's own built-in health-check key (distinct from our per-replica
+    # heartbeat above — this one is shared across every replica by design,
+    # since it's keyed by queue_name, and carries queue/job-count stats
+    # ARQ already computes for free: j_complete/j_failed/j_retried/queued).
+    # Left at ARQ's default queue-scoped key; only the interval is tuned
+    # down from ARQ's 1-hour default so "is any worker at all consuming
+    # this queue" is answerable within ~30s of a total outage rather than
+    # up to an hour later.
+    health_check_interval = HEARTBEAT_INTERVAL_SECONDS

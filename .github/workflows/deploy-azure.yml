@@ -150,6 +150,7 @@ jobs:
           # the file, exactly like postgresAdminPassword already is.
           BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
           FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
+          RELEASE_SHA: ${{ steps.manifest.outputs.git_sha }}
         run: |
           az deployment group what-if \
             --resource-group "rg-schoolflow-${{ inputs.environment }}" \
@@ -177,6 +178,7 @@ jobs:
           POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
           FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
+          RELEASE_SHA: ${{ steps.manifest.outputs.git_sha }}
         run: |
           az deployment group create \
             --resource-group "rg-schoolflow-${{ inputs.environment }}" \
@@ -241,6 +243,7 @@ jobs:
           POSTGRES_ADMIN_PASSWORD_PROD: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
           FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
+          RELEASE_SHA: ${{ steps.manifest.outputs.git_sha }}
         run: |
           az deployment group create \
             --resource-group "rg-schoolflow-${{ inputs.environment }}" \

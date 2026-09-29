@@ -23,6 +23,11 @@ param acrLoginServer = 'academyguineenneacr.azurecr.io'
 param backendImage = readEnvironmentVariable('BACKEND_IMAGE')
 param frontendImage = readEnvironmentVariable('FRONTEND_IMAGE')
 
+// OBSERVABILITY (docs/AZURE_OBSERVABILITY.md): same mechanism, same
+// reason — the deploy workflow sets RELEASE_SHA from the same release
+// manifest it read BACKEND_IMAGE/FRONTEND_IMAGE from.
+param releaseSha = readEnvironmentVariable('RELEASE_SHA')
+
 param postgresSkuName = 'Standard_B1ms'
 param postgresSkuTier = 'Burstable'
 param postgresHighAvailability = false

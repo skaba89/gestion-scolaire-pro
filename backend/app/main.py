@@ -104,7 +104,7 @@ limiter = Limiter(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # ── STARTUP ──
-    logger.info("Academy Guinéenne API starting up...")
+    logger.info("Academy Guinéenne API starting up: release_sha=%s environment=%s", settings.RELEASE_SHA, settings.SENTRY_ENVIRONMENT)
 
     # ARCHITECTURE (Azure one-shot migrations, P0): the API/worker used to
     # run Alembic itself at every startup (guarded by
@@ -789,7 +789,7 @@ async def liveness_check():
     return JSONResponse(
         status_code=200,
         headers={"Cache-Control": "no-store"},
-        content={"status": "alive", "version": settings.APP_VERSION},
+        content={"status": "alive", "version": settings.APP_VERSION, "release_sha": settings.RELEASE_SHA},
     )
 
 
@@ -820,6 +820,7 @@ async def readiness_check():
         content={
             "status": "healthy" if healthy else "unhealthy",
             "version": settings.APP_VERSION,
+            "release_sha": settings.RELEASE_SHA,
             "components": {
                 "database": db_status,
                 "cache": redis_status,
@@ -953,6 +954,55 @@ def _check_alembic_revision() -> dict:
         return {"status": "unknown", "detail": str(exc)}
 
 
+async def _check_worker_observability() -> dict:
+    """Worker/queue diagnostics for /health/deep — see
+    app/workers/heartbeat.py's module docstring for why this reads Redis
+    directly instead of calling an HTTP endpoint on the worker (it has
+    none, deliberately). Two independent signals:
+
+    - `workers`: per-replica heartbeats (our own mechanism — worker
+      identity + release SHA + RUNNING/STALE/MISSING).
+    - `queue`: ARQ's own queue ZSET, read directly (zcard for depth,
+      oldest score for backlog age) — no ARQ-internal API needed, and
+      cheap enough for an operator-only, infrequently-polled endpoint.
+
+    Never raises: any failure here must not break the rest of /health/deep
+    (worker/queue visibility is a bonus on this endpoint, not something
+    /health/ready or startup depend on).
+    """
+    import time as _time
+    from arq.constants import default_queue_name, health_check_key_suffix
+    from app.core.cache import redis_client
+    from app.workers.heartbeat import read_all_heartbeats
+
+    result: dict = {"workers": [], "queue": {"status": "unknown"}, "arq_health_check": None}
+    try:
+        result["workers"] = await read_all_heartbeats()
+    except Exception as exc:
+        logger.warning("Deep health check: worker heartbeat read failed: %s", exc)
+        result["workers"] = {"status": "unknown", "detail": str(exc)}
+
+    try:
+        client = await redis_client.client
+        depth = await client.zcard(default_queue_name)
+        oldest_age_seconds = None
+        if depth:
+            oldest = await client.zrange(default_queue_name, 0, 0, withscores=True)
+            if oldest:
+                _job_id, score_ms = oldest[0]
+                oldest_age_seconds = round(_time.time() - (float(score_ms) / 1000), 1)
+        result["queue"] = {"status": "ok", "depth": depth, "oldest_pending_age_seconds": oldest_age_seconds}
+
+        arq_key = default_queue_name + health_check_key_suffix
+        raw = await client.get(arq_key)
+        result["arq_health_check"] = raw if raw else None
+    except Exception as exc:
+        logger.warning("Deep health check: queue depth check failed: %s", exc)
+        result["queue"] = {"status": "unknown", "detail": str(exc)}
+
+    return result
+
+
 def _cors_headers_for(request: Request) -> dict:
     """Lightweight CORS header generator for error responses in main.py.
 
@@ -1051,12 +1101,14 @@ async def deep_health_check(request: Request):
     disk = await asyncio.to_thread(_check_disk_space)
     db_pool = await asyncio.to_thread(_check_db_pool)
     alembic_status = await asyncio.to_thread(_check_alembic_revision) if not settings.is_sqlite else {"status": "skipped", "detail": "SQLite (dev) — alembic_version check is PostgreSQL-only"}
+    worker_status = await _check_worker_observability()
 
     return JSONResponse(
         status_code=200,
         headers={"Cache-Control": "no-store"},
         content={
             "version": settings.APP_VERSION,
+            "release_sha": settings.RELEASE_SHA,
             "environment": settings.SENTRY_ENVIRONMENT,
             "components": {
                 "database": db_status,
@@ -1069,6 +1121,8 @@ async def deep_health_check(request: Request):
             "disk": disk,
             "db_pool": db_pool,
             "alembic": alembic_status,
+            "workers": worker_status["workers"],
+            "queue": worker_status["queue"],
         },
     )
 

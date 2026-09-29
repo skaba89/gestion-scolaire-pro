@@ -9,6 +9,7 @@ param acrLoginServer = 'academyguineenneacr.azurecr.io'
 // BUILD ONCE, PROMOTE MANY (docs/IMMUTABLE_RELEASES.md) — see dev.bicepparam's comment.
 param backendImage = readEnvironmentVariable('BACKEND_IMAGE')
 param frontendImage = readEnvironmentVariable('FRONTEND_IMAGE')
+param releaseSha = readEnvironmentVariable('RELEASE_SHA')
 
 param postgresSkuName = 'Standard_B1ms'
 param postgresSkuTier = 'Burstable'
