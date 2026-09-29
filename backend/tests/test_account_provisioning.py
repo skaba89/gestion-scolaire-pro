@@ -239,6 +239,7 @@ async def test_reset_token_clears_forced_password_flag():
         password_hash=None,
         must_change_password=True,
         updated_at=None,
+        tenant_id=None,
     )
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = user

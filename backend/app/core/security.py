@@ -7,7 +7,6 @@ from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
-from sqlalchemy import text
 
 from app.core.config import settings
 
@@ -291,9 +290,33 @@ async def get_current_user(
     or a password change. Previously the blacklist was only checked in
     /auth/refresh/, so a logged-out token stayed valid on every other
     authenticated route until it naturally expired.
+
+    ARCHITECTURE (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
+    this opens its own session independent of get_db() — deliberately kept
+    that way rather than switching to Depends(get_db), because a large
+    number of existing tests (tests/test_auth_revocation_fail_closed.py,
+    tests/test_auth_roles_db_source_of_truth.py) call this function
+    directly as a plain coroutine (`await get_current_user(request=...,
+    token=...)`), bypassing FastAPI's dependency-injection machinery
+    entirely — a `db: Session = Depends(get_db)` parameter would receive
+    the literal `Depends(...)` sentinel object in that call pattern, not a
+    real session, breaking every one of those tests. It used to
+    unconditionally reset this independent session's RLS context to NULL
+    before looking the user up by id — under a role that actually enforces
+    RLS (NOSUPERUSER NOBYPASSRLS, schoolflow_app), that made every
+    tenant-scoped user invisible to their own authentication query (users'
+    RLS policy has no platform-wide bypass; a NULL context only ever
+    matches a platform-level account's tenant_id IS NULL row). Fixed by
+    using resolve_authenticated_user_row() with the JWT's OWN tenant_id
+    claim (set at login from this same user's user_db.tenant_id — see
+    auth.py, and never client-suppliable since the JWT is signed) as the
+    first context to try, falling back to NULL only when that fails —
+    correct for both a tenant-scoped user (found immediately, under their
+    own tenant) and a platform-level one (JWT tenant_id claim is already
+    None, so the first attempt IS the NULL attempt) — see that function's
+    docstring for the full reasoning.
     """
-    from app.core.database import SessionLocal
-    from app.models.user import User
+    from app.core.database import SessionLocal, resolve_authenticated_user_row
     from app.models.user_role import UserRole
 
     user_id = token.get("sub")
@@ -316,17 +339,7 @@ async def get_current_user(
     )
 
     with SessionLocal() as db:
-        # SECURITY: Reset RLS context on this independent session to prevent
-        # connection pool leaks. Without this, the query could be filtered by
-        # a stale tenant_id from a previous request on the same connection.
-        if not settings.is_sqlite:
-            try:
-                # FIX: Use NULL instead of '' to avoid ''::uuid cast error in strict RLS
-                db.execute(text("SELECT set_config('app.current_tenant_id', NULL::text, false)"))
-            except Exception:
-                pass  # RLS not configured yet — connection still usable
-
-        user_db = db.query(User).filter(User.id == user_id).first()
+        user_db = resolve_authenticated_user_row(db, user_id, token.get("tenant_id"))
         if not user_db:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
