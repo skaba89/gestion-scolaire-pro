@@ -19,16 +19,38 @@ from sqlalchemy import text
 from arq.connections import RedisSettings
 from arq.cron import cron
 
-from app.core.database import SessionLocal
+from app.core.database import (
+    platform_db_session,
+    reset_tenant_context,
+    switch_tenant_context,
+    worker_db_session,
+)
 from app.core.jobs import get_redis_settings
 from app.models.job import Job
 from app.models.notification import Notification
 
 logger = logging.getLogger(__name__)
 
+# SECURITY (worker RLS tenant-context propagation, docs/POSTGRES_APP_ROLE.md):
+# every DB session opened in this file goes through worker_db_session()/
+# platform_db_session() (app/core/database.py) instead of SessionLocal()
+# directly. The HTTP request cycle gets its RLS tenant context "for free"
+# from TenantMiddleware + get_db(); an ARQ job has neither, so it must
+# always state explicitly which tenant it is acting for (worker_db_session)
+# or that it is deliberately platform-wide (platform_db_session) - there is
+# no third, implicit option, and never a default tenant.
+
 
 def _job_started(job_type: str, tenant_id: Optional[str], payload: dict) -> str:
-    with SessionLocal() as db:
+    """`jobs` grants platform-wide visibility with no tenant context (see
+    migration 20260929_0001), so a platform-scoped job (tenant_id=None,
+    e.g. send_password_reset_email, check_inactive_tenants) can insert its
+    own row with tenant_id=NULL from platform_db_session() - but a
+    tenant-scoped job must still prove its tenant is real before writing
+    anything, hence worker_db_session() (fail-closed) for the tenant_id
+    branch."""
+    session_cm = worker_db_session(tenant_id) if tenant_id else platform_db_session()
+    with session_cm as db:
         job = Job(
             tenant_id=tenant_id,
             job_type=job_type,
@@ -43,7 +65,12 @@ def _job_started(job_type: str, tenant_id: Optional[str], payload: dict) -> str:
 
 
 def _job_finished(job_id: str, *, success: bool, result: Optional[dict] = None, error: Optional[str] = None) -> None:
-    with SessionLocal() as db:
+    """Deliberately always platform_db_session(), never worker_db_session():
+    this looks a job up by its own id alone, with no tenant_id parameter to
+    validate against - the `jobs` RLS policy's platform-wide bypass (fixed
+    by migration 20260929_0001 to actually work on a reused connection) is
+    what lets this find and update a row that belongs to a real tenant."""
+    with platform_db_session() as db:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
             return
@@ -133,7 +160,7 @@ async def deliver_payment_reminders(ctx: dict, *, tenant_id: str, deliveries: li
 
     job_id = _job_started("deliver_payment_reminders", tenant_id, {"count": len(deliveries)})
     try:
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             svc = build_service_from_db(db, tenant_id)
         if svc is None:
             _job_finished(job_id, success=False, error="No notification service configured for tenant")
@@ -203,7 +230,7 @@ async def import_students_job(
     from app.services.student_import import run_student_import
     from app.utils.audit import log_audit
 
-    with SessionLocal() as db:
+    with worker_db_session(tenant_id) as db:
         try:
             outcome = run_student_import(
                 db, tenant_id, headers, rows,
@@ -252,7 +279,7 @@ async def import_parents_job(
     from app.services.parent_import import run_parent_import
     from app.utils.audit import log_audit
 
-    with SessionLocal() as db:
+    with worker_db_session(tenant_id) as db:
         try:
             outcome = run_parent_import(db, tenant_id, headers, rows, skip_errors=skip_errors)
             log_audit(
@@ -303,7 +330,7 @@ async def import_teachers_job(
     from app.services.teacher_import import run_teacher_import
     from app.utils.audit import log_audit
 
-    with SessionLocal() as db:
+    with worker_db_session(tenant_id) as db:
         try:
             outcome = run_teacher_import(db, tenant_id, headers, rows, skip_errors=skip_errors)
             log_audit(
@@ -346,7 +373,7 @@ async def generate_report_cards_batch_job(
     for polling."""
     from app.api.v1.endpoints.operational.school_life import _generate_batch_report_cards
 
-    with SessionLocal() as db:
+    with worker_db_session(tenant_id) as db:
         try:
             result = _generate_batch_report_cards(
                 db, tenant_id,
@@ -409,7 +436,7 @@ async def send_whatsapp_notification(
     try:
         from app.services.whatsapp_service import send_whatsapp_template
 
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             tenant_settings = _fetch_tenant_settings(db, tenant_id)
             event = send_whatsapp_template(
                 db, tenant_id=tenant_id, tenant_settings=tenant_settings, to_phone=to_phone,
@@ -443,7 +470,7 @@ async def send_bulk_whatsapp_notifications(ctx: dict, *, tenant_id: str, notific
     try:
         from app.services.whatsapp_service import send_whatsapp_template
 
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             tenant_settings = _fetch_tenant_settings(db, tenant_id)
             for item in notifications:
                 try:
@@ -492,7 +519,7 @@ async def send_absence_alert_whatsapp_job(
     try:
         from app.services.whatsapp_service import send_absence_alert_whatsapp
 
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             tenant_settings = _fetch_tenant_settings(db, tenant_id)
             school_name = _fetch_tenant_school_name(db, tenant_id)
             event = send_absence_alert_whatsapp(
@@ -524,7 +551,7 @@ async def send_grade_alert_whatsapp_job(
     try:
         from app.services.whatsapp_service import send_grade_alert_whatsapp
 
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             tenant_settings = _fetch_tenant_settings(db, tenant_id)
             school_name = _fetch_tenant_school_name(db, tenant_id)
             event = send_grade_alert_whatsapp(
@@ -556,7 +583,7 @@ async def send_bulletin_ready_whatsapp_job(
     try:
         from app.services.whatsapp_service import send_bulletin_ready_whatsapp
 
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             tenant_settings = _fetch_tenant_settings(db, tenant_id)
             school_name = _fetch_tenant_school_name(db, tenant_id)
             event = send_bulletin_ready_whatsapp(
@@ -586,7 +613,7 @@ async def send_whatsapp_reply_job(ctx: dict, *, tenant_id: str, message_item_id:
     try:
         from app.services.whatsapp_service import send_whatsapp_reply
 
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             tenant_settings = _fetch_tenant_settings(db, tenant_id)
             send_whatsapp_reply(db, tenant_id=tenant_id, tenant_settings=tenant_settings, message_item_id=message_item_id)
         _job_finished(job_id, success=True, result={"message_item_id": message_item_id})
@@ -625,7 +652,7 @@ async def send_public_form_submission_alert(ctx: dict, *, tenant_id: str, submis
     notified_in_app = 0
     email_sent = False
     try:
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             submission = db.query(PublicFormSubmission).filter(
                 PublicFormSubmission.id == submission_id,
                 PublicFormSubmission.tenant_id == tenant_id,
@@ -763,7 +790,17 @@ async def retry_failed_notifications(ctx: dict, *, tenant_id: Optional[str] = No
     skipped = 0
     job_id = _job_started("retry_failed_notifications", tenant_id, {"max_retry_count": max_retry_count})
     try:
-        with SessionLocal() as db:
+        # tenant_id given -> a single tenant's own retry sweep, tenant-scoped
+        # like every other job in this file. tenant_id=None -> a genuinely
+        # platform-wide sweep across every tenant's FAILED events - the
+        # SELECT below relies on notification_events' RLS platform bypass
+        # (migration 20260929_0001) to see rows across tenants, but each
+        # event's own tenant context is still switched into explicitly
+        # before send_whatsapp_template() writes a new NotificationEvent
+        # for it below - never relying on that same bypass to cover writes
+        # it happens to also permit.
+        session_cm = worker_db_session(tenant_id) if tenant_id else platform_db_session()
+        with session_cm as db:
             query = db.query(NotificationEvent).filter(
                 NotificationEvent.channel == "whatsapp",
                 NotificationEvent.status == "FAILED",
@@ -778,23 +815,30 @@ async def retry_failed_notifications(ctx: dict, *, tenant_id: Optional[str] = No
                 if not recipient_user_id:
                     skipped += 1
                     continue
-                user = db.query(User).filter(User.id == recipient_user_id).first()
-                if not user or not user.phone:
-                    skipped += 1
-                    continue
-                template_key = next(
-                    (k for k, v in WhatsAppSender.TEMPLATES.items() if v == event.template_name), None
-                )
-                if not template_key:
-                    skipped += 1
-                    continue
-                tenant_settings = _fetch_tenant_settings(db, str(event.tenant_id))
-                body_vars = (event.payload_json or {}).get("body_vars", [])
-                new_event = send_whatsapp_template(
-                    db, tenant_id=str(event.tenant_id), tenant_settings=tenant_settings, to_phone=user.phone,
-                    template_key=template_key, event_type=event.event_type, body_vars=body_vars,
-                    fallback_text="", user_id=event.user_id, student_id=event.student_id, parent_id=event.parent_id,
-                )
+                event_tenant_id = str(event.tenant_id)
+                if not tenant_id:
+                    switch_tenant_context(db, event_tenant_id)
+                try:
+                    user = db.query(User).filter(User.id == recipient_user_id).first()
+                    if not user or not user.phone:
+                        skipped += 1
+                        continue
+                    template_key = next(
+                        (k for k, v in WhatsAppSender.TEMPLATES.items() if v == event.template_name), None
+                    )
+                    if not template_key:
+                        skipped += 1
+                        continue
+                    tenant_settings = _fetch_tenant_settings(db, event_tenant_id)
+                    body_vars = (event.payload_json or {}).get("body_vars", [])
+                    new_event = send_whatsapp_template(
+                        db, tenant_id=event_tenant_id, tenant_settings=tenant_settings, to_phone=user.phone,
+                        template_key=template_key, event_type=event.event_type, body_vars=body_vars,
+                        fallback_text="", user_id=event.user_id, student_id=event.student_id, parent_id=event.parent_id,
+                    )
+                finally:
+                    if not tenant_id:
+                        reset_tenant_context(db)
                 if new_event.status == "SENT":
                     retried += 1
         _job_finished(job_id, success=True, result={"retried": retried, "skipped": skipped})
@@ -817,7 +861,8 @@ async def sync_whatsapp_statuses(ctx: dict, *, tenant_id: Optional[str] = None, 
     from app.models.notification_event import NotificationEvent
 
     cutoff = datetime.now(timezone.utc) - timedelta(hours=stale_after_hours)
-    with SessionLocal() as db:
+    session_cm = worker_db_session(tenant_id) if tenant_id else platform_db_session()
+    with session_cm as db:
         query = db.query(NotificationEvent).filter(
             NotificationEvent.channel == "whatsapp",
             NotificationEvent.status.in_(["SENT", "QUEUED"]),
@@ -839,7 +884,11 @@ async def purge_expired_idempotency_keys(ctx: dict) -> dict:
     now() is naturally idempotent, no locking needed beyond what Postgres
     already does for a plain DELETE.
     """
-    with SessionLocal() as db:
+    # Platform-scoped by design (see docstring: purges by age across every
+    # tenant) - idempotency_keys' RLS platform bypass (migration
+    # 20260929_0001) is what lets this DELETE actually reach rows across
+    # tenants from platform_db_session()'s "no tenant" context.
+    with platform_db_session() as db:
         result = db.execute(
             text("DELETE FROM idempotency_keys WHERE expires_at < :now"),
             {"now": datetime.now(timezone.utc)},
@@ -870,7 +919,7 @@ async def send_tenant_5xx_alert(
             _job_finished(job_id, success=True, result={"skipped": "no_alert_email_configured"})
             return {"job_id": job_id, "skipped": "no_alert_email_configured"}
 
-        with SessionLocal() as db:
+        with worker_db_session(tenant_id) as db:
             tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
             tenant_name = tenant.name if tenant else tenant_id
 
@@ -929,19 +978,32 @@ async def check_inactive_tenants(ctx: dict, *, inactivity_days: int = 14, realer
     cutoff = now - timedelta(days=inactivity_days)
     flagged = []
     try:
-        with SessionLocal() as db:
+        # Platform-scoped: iterates every active tenant (tenants carries no
+        # RLS - it's the root of the tenant hierarchy, not tenant-scoped).
+        # audit_logs, though, uses the STRICT tenant policy (no platform
+        # bypass, see migration 20260928_0001) - reading one tenant's
+        # activity history requires explicitly switching into that
+        # tenant's own context for the duration of that one query, then
+        # resetting before moving to the next tenant. Never trust the
+        # platform bypass to cover this: audit_logs deliberately has none.
+        with platform_db_session() as db:
             candidates = (
                 db.query(Tenant)
                 .filter(Tenant.is_active == True, Tenant.subscription_status == "active")  # noqa: E712
                 .all()
             )
             for tenant in candidates:
-                last_activity_row = (
-                    db.query(AuditLog.created_at)
-                    .filter(AuditLog.tenant_id == tenant.id)
-                    .order_by(AuditLog.created_at.desc())
-                    .first()
-                )
+                tenant_id_str = str(tenant.id)
+                switch_tenant_context(db, tenant_id_str)
+                try:
+                    last_activity_row = (
+                        db.query(AuditLog.created_at)
+                        .filter(AuditLog.tenant_id == tenant.id)
+                        .order_by(AuditLog.created_at.desc())
+                        .first()
+                    )
+                finally:
+                    reset_tenant_context(db)
                 last_activity_at = last_activity_row[0] if last_activity_row else tenant.created_at
                 if not last_activity_at:
                     continue
@@ -1036,7 +1098,10 @@ async def purge_old_public_form_submissions(ctx: dict, *, retention_days: Option
 
     days = retention_days if retention_days is not None else settings.PUBLIC_FORM_RETENTION_DAYS
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-    with SessionLocal() as db:
+    # Platform-scoped by design (see docstring above) - relies on
+    # public_form_submissions' RLS platform bypass (migration 20260929_0001)
+    # to actually reach rows across every tenant from platform_db_session().
+    with platform_db_session() as db:
         deleted = db.query(PublicFormSubmission).filter(
             PublicFormSubmission.created_at < cutoff
         ).delete(synchronize_session=False)

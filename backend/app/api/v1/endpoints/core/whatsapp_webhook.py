@@ -29,7 +29,7 @@ import os
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from sqlalchemy import text as sql_text
 
-from app.core.database import SessionLocal
+from app.core.database import platform_db_session, switch_tenant_context
 from app.services import whatsapp_service
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ async def whatsapp_webhook_verify(
     """Meta's one-time subscription handshake. Must return the raw
     `hub.challenge` value as plain text (not JSON) on success, or a 403
     on any mismatch — never guess or accept a default token."""
-    with SessionLocal() as db:
+    with platform_db_session() as db:
         candidate_tokens = {
             t["whatsappVerifyToken"] for t in _fetch_all_tenant_settings(db) if t.get("whatsappVerifyToken")
         }
@@ -94,13 +94,21 @@ async def whatsapp_webhook_receive(request: Request):
         return {"processed": False}
 
     phone_number_id = _extract_phone_number_id(payload)
-    with SessionLocal() as db:
+    # SECURITY (worker RLS tenant-context propagation, docs/POSTGRES_APP_ROLE.md):
+    # Meta never identifies the tenant up front (see this module's own
+    # docstring), so resolving it is genuinely platform-scoped - but once
+    # resolved, everything process_webhook_event() writes below
+    # (message_threads/message_items, notification_events) IS tenant-scoped
+    # and must run with that tenant's context explicitly set, not with no
+    # context at all as before.
+    with platform_db_session() as db:
         resolved = (
             whatsapp_service.resolve_tenant_settings_by_phone_id(db, phone_number_id)
             if phone_number_id else None
         )
         if resolved:
             tenant_id, tenant_settings = resolved
+            switch_tenant_context(db, tenant_id)
             app_secret = tenant_settings.get("whatsappAppSecret")
             signature = request.headers.get("x-hub-signature-256", "")
 

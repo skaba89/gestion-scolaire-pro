@@ -143,13 +143,23 @@ class QuotaMiddleware(BaseHTTPMiddleware):
         Uses its own DB session to avoid depending on middleware-injected state.
         """
         from sqlalchemy import select, func  # noqa: PLC0415
-        from app.core.database import SessionLocal  # noqa: PLC0415
+        # SECURITY (worker RLS tenant-context propagation, docs/POSTGRES_APP_ROLE.md):
+        # this runs outside get_db()'s request cycle (its own docstring above
+        # says so - "avoid depending on middleware-injected state"), so it
+        # needs the same explicit tenant context as an ARQ job. Under the
+        # current superuser database role this was invisible; under the
+        # restricted role every count silently returns 0 (RLS hides every
+        # row with no context set), which fails this quota check OPEN by
+        # accident on every single call, not just on a real error — the
+        # opposite of what its own "fail open by design" comment above
+        # intends for actual failures.
+        from app.core.database import worker_db_session  # noqa: PLC0415
 
         try:
             if quota_key == "max_students":
                 from app.models.student import Student  # noqa: PLC0415
 
-                with SessionLocal() as db:
+                with worker_db_session(tenant_id) as db:
                     result = db.execute(
                         select(func.count()).where(Student.tenant_id == tenant_id)
                     )
@@ -162,7 +172,7 @@ class QuotaMiddleware(BaseHTTPMiddleware):
             if quota_key == "max_staff":
                 # No dedicated staff model; count users with STAFF role
                 from sqlalchemy import text  # noqa: PLC0415
-                with SessionLocal() as db:
+                with worker_db_session(tenant_id) as db:
                     result = db.execute(
                         text("SELECT COUNT(*) FROM user_roles WHERE role = 'STAFF' AND tenant_id = :tid"),
                         {"tid": tenant_id},
