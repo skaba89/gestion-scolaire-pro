@@ -162,7 +162,7 @@ jobs:
       # dropped, but a HIGH/CRITICAL finding in a pre-existing base-image
       # package does not fail every future build of unrelated app code.
       - name: Scan image for vulnerabilities (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: "${{ env.REGISTRY }}/${{ env.BACKEND_REPO }}@${{ steps.build.outputs.digest }}"
           format: "sarif"
@@ -250,7 +250,7 @@ jobs:
         run: echo "frontend digest = ${{ steps.build.outputs.digest }}"
 
       - name: Scan image for vulnerabilities (Trivy)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: "${{ env.REGISTRY }}/${{ env.FRONTEND_REPO }}@${{ steps.build.outputs.digest }}"
           format: "sarif"
