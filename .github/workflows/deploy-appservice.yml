@@ -1,0 +1,157 @@
+name: Deploy to Azure App Service (by digest)
+
+# Production actuelle = 3 App Services « conteneur » (api, worker, frontend),
+# créés hors IaC et jusqu'ici en `:latest` — tag mutable que plus rien ne
+# publie depuis #264 : la version réellement servie n'était plus traçable.
+#
+# Ce workflow, MANUEL uniquement (workflow_dispatch), déploie EXACTEMENT les
+# digests OCI d'une release publiée par « Build images » (release-<git sha>)
+# — même principe « build once, promote many » que deploy-azure.yml. Il ne
+# construit rien, ne pousse aucune image, ne modifie AUCUN App Setting (rôles
+# de base, secrets, ports restent gérés hors pipeline) : il ne fait que
+# remplacer la référence d'image de chaque App Service par repo@sha256:…
+#
+# Prérequis (une fois, par un administrateur — voir docs/runbooks/) :
+#   - GitHub Environment `production` avec relecteurs obligatoires ;
+#   - secrets d'environnement OIDC AZURE_CLIENT_ID / AZURE_TENANT_ID /
+#     AZURE_SUBSCRIPTION_ID (identité limitée au groupe de ressources) ;
+#   - variables d'environnement APPSERVICE_RESOURCE_GROUP, APPSERVICE_API,
+#     APPSERVICE_WORKER, APPSERVICE_FRONTEND, API_PUBLIC_URL.
+# Sans eux, le workflow échoue au login ou à la validation — fail-safe voulu.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release à déployer — tag publié par "Build images" (format release-<git sha complet>). Aucun défaut : jamais de "latest".'
+        required: true
+      targets:
+        description: "Services à mettre à jour"
+        required: true
+        type: choice
+        options:
+          - api
+          - worker
+          - frontend
+          - api+worker
+          - all
+
+permissions:
+  id-token: write # OIDC (azure/login@v2)
+  contents: read # téléchargement du manifeste de release
+
+concurrency:
+  group: deploy-appservice-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.targets }} (${{ inputs.release_tag }})
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RG: ${{ vars.APPSERVICE_RESOURCE_GROUP }}
+      APP_API: ${{ vars.APPSERVICE_API }}
+      APP_WORKER: ${{ vars.APPSERVICE_WORKER }}
+      APP_FRONTEND: ${{ vars.APPSERVICE_FRONTEND }}
+      API_PUBLIC_URL: ${{ vars.API_PUBLIC_URL }}
+    steps:
+      - name: Validate configuration
+        run: |
+          set -euo pipefail
+          for v in RG APP_API APP_WORKER APP_FRONTEND API_PUBLIC_URL; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Variable d'environnement GitHub manquante pour $v (voir l'en-tête du workflow)."
+              exit 1
+            fi
+          done
+          if ! [[ "${{ inputs.release_tag }}" =~ ^release-[0-9a-f]{40}$ ]]; then
+            echo "::error::release_tag invalide : release-<sha git complet> attendu."
+            exit 1
+          fi
+
+      - name: Resolve release manifest
+        id: manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh release download "$RELEASE_TAG" --repo "${{ github.repository }}" \
+            --pattern release-manifest.json --output release-manifest.json --clobber
+          BACKEND_IMAGE="$(jq -r '.backend.repository' release-manifest.json)@$(jq -r '.backend.digest' release-manifest.json)"
+          FRONTEND_IMAGE="$(jq -r '.frontend.repository' release-manifest.json)@$(jq -r '.frontend.digest' release-manifest.json)"
+          GIT_SHA="$(jq -r '.release.git_sha' release-manifest.json)"
+          RE='^[a-z0-9.-]+\.azurecr\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$'
+          for img in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
+            if ! [[ "$img" =~ $RE ]]; then
+              echo "::error::Référence d'image invalide dans le manifeste : $img"
+              exit 1
+            fi
+          done
+          if [ "release-$GIT_SHA" != "$RELEASE_TAG" ]; then
+            echo "::error::Le manifeste ne correspond pas à la release demandée."
+            exit 1
+          fi
+          {
+            echo "backend_image=$BACKEND_IMAGE"
+            echo "frontend_image=$FRONTEND_IMAGE"
+            echo "git_sha=$GIT_SHA"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Release $RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "- backend : \`$BACKEND_IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- frontend : \`$FRONTEND_IMAGE\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Record current images (rollback reference)
+        run: |
+          set -euo pipefail
+          for app in "$APP_API" "$APP_WORKER" "$APP_FRONTEND"; do
+            cur=$(az webapp config show --name "$app" --resource-group "$RG" --query linuxFxVersion -o tsv)
+            echo "- $app avant déploiement : \`$cur\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Deploy by digest
+        env:
+          TARGETS: ${{ inputs.targets }}
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
+        run: |
+          set -euo pipefail
+          deploy() {
+            echo "==> $1 -> $2"
+            az webapp config container set --name "$1" --resource-group "$RG" \
+              --container-image-name "$2" --output none
+            got=$(az webapp config show --name "$1" --resource-group "$RG" --query linuxFxVersion -o tsv)
+            if [ "$got" != "DOCKER|$2" ]; then
+              echo "::error::$1 référence '$got' au lieu de 'DOCKER|$2'"
+              exit 1
+            fi
+          }
+          case "$TARGETS" in
+            api) deploy "$APP_API" "$BACKEND_IMAGE" ;;
+            worker) deploy "$APP_WORKER" "$BACKEND_IMAGE" ;;
+            frontend) deploy "$APP_FRONTEND" "$FRONTEND_IMAGE" ;;
+            api+worker) deploy "$APP_API" "$BACKEND_IMAGE"; deploy "$APP_WORKER" "$BACKEND_IMAGE" ;;
+            all) deploy "$APP_API" "$BACKEND_IMAGE"; deploy "$APP_WORKER" "$BACKEND_IMAGE"; deploy "$APP_FRONTEND" "$FRONTEND_IMAGE" ;;
+          esac
+
+      - name: Verify API health
+        if: contains(inputs.targets, 'api') || inputs.targets == 'all'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$API_PUBLIC_URL/health/ready" || true)
+            if [ "$code" = "200" ]; then
+              echo "API ready (200)"; exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::/health/ready ne répond pas 200 après déploiement — rollback : redéployer l'image notée à l'étape « Record current images »."
+          exit 1

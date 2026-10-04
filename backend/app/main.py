@@ -1020,6 +1020,18 @@ def _cors_headers_for(request: Request) -> dict:
         return {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
     return {}
 
+
+def _bearer_secret_matches(request: Request, expected: str) -> bool:
+    """`Authorization: Bearer <secret>` comparé en temps constant ; jamais via l'URL."""
+    import hmac as _hmac
+
+    auth_header = request.headers.get("Authorization", "")
+    provided = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else ""
+    if not expected or not provided:
+        return False
+    return _hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
+
 @app.get("/metrics/", include_in_schema=False)
 async def prometheus_metrics(request: Request):
     """Prometheus metrics — protected by METRICS_SECRET env var in production.
@@ -1044,14 +1056,9 @@ async def prometheus_metrics(request: Request):
             headers=_cors_headers_for(request) if hasattr(request.app.state, '_cors_allowed_origins') else {},
         )
 
-    # Accept secret via query param (?secret=...) or Authorization header
-    import hmac as _hmac
-    query_secret = request.query_params.get("secret", "")
-    auth_header = request.headers.get("Authorization", "")
-    bearer_secret = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else ""
-
-    if not (_hmac.compare_digest(query_secret, metrics_secret) or
-            _hmac.compare_digest(bearer_secret, metrics_secret)):
+    # SECURITY: secret via `Authorization: Bearer` uniquement — plus de
+    # `?secret=` (une URL finit dans les journaux d'accès et les proxys).
+    if not _bearer_secret_matches(request, metrics_secret):
         from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=401,
@@ -1069,8 +1076,8 @@ async def deep_health_check(request: Request):
     operator debugging "something's off" without SSHing into the box.
 
     PHASE 3 (issue #19, PR1): protected the same way as /metrics/ — a
-    shared secret via query param or Authorization header, open in DEBUG
-    mode. This is diagnostic detail (pool occupancy, disk paths, schema
+    shared secret via the `Authorization: Bearer` header only (no longer
+    accepted as a query parameter), open in DEBUG mode. This is diagnostic detail (pool occupancy, disk paths, schema
     revision hashes) that shouldn't be exposed to unauthenticated callers
     the way the coarse healthy/unhealthy status on /health/ready is.
     """
@@ -1083,13 +1090,7 @@ async def deep_health_check(request: Request):
                 headers=_cors_headers_for(request) if hasattr(request.app.state, '_cors_allowed_origins') else {},
             )
 
-        import hmac as _hmac
-        query_secret = request.query_params.get("secret", "")
-        auth_header = request.headers.get("Authorization", "")
-        bearer_secret = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else ""
-
-        if not (_hmac.compare_digest(query_secret, health_deep_secret) or
-                _hmac.compare_digest(bearer_secret, health_deep_secret)):
+        if not _bearer_secret_matches(request, health_deep_secret):
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or missing health-deep secret"},

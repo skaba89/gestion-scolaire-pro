@@ -78,6 +78,18 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   DDL runtime retiré (`user_presence`, bootstrap). Procédure du rôle runtime :
   `docs/runbooks/neon-runtime-role.md`.
 
+- **2026-10-04 — durcissement avant bascule runtime** : `/auth/login-diagnostics/`
+  (secret par en-tête `X-Bootstrap-Secret` en temps constant, plus aucune
+  URL/exception/identifiant dans la réponse) ; `/metrics/` et `/health/deep`
+  n'acceptent plus le secret en query string (`Authorization: Bearer` seul —
+  adapter tout moniteur qui utilisait `?secret=`) ; jeton WhatsApp comparé en
+  temps constant ; présence : anti-IDOR (un admin n'agit que sur son tenant) ;
+  contexte RLS toujours posé (`''` par défaut) à chaque transaction ;
+  webhooks sortants sous `worker_db_session` ; sonde HTTP optionnelle du worker
+  (`WORKER_HEALTH_PORT`, App Service) ; workflow `deploy-appservice.yml`
+  (manuel, par digest) ; plan de protection de `main`
+  (`docs/runbooks/github-main-protection.md`, non appliqué).
+
 ## Documents à considérer avec prudence
 
 | Document | Problème | À faire avant de le citer |

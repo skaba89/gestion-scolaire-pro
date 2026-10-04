@@ -211,14 +211,15 @@ def test_deep_health_rejects_wrong_secret_in_production():
     with patch.object(settings, "DEBUG", False):
         _os.environ["HEALTH_DEEP_SECRET"] = "correct-secret-for-test"
         try:
-            response = client.get("/health/deep?secret=wrong-secret")
+            response = client.get("/health/deep", headers={"Authorization": "Bearer wrong-secret"})
         finally:
             _os.environ.pop("HEALTH_DEEP_SECRET", None)
 
     assert response.status_code == 401
 
 
-def test_deep_health_accepts_correct_secret_in_production():
+def test_deep_health_refuses_correct_secret_in_query_string():
+    """Le secret n'est plus accepté dans l'URL (journaux d'accès, proxys)."""
     from app.main import settings
     import os as _os
 
@@ -229,8 +230,7 @@ def test_deep_health_accepts_correct_secret_in_production():
         finally:
             _os.environ.pop("HEALTH_DEEP_SECRET", None)
 
-    assert response.status_code == 200
-    assert "disk" in response.json()
+    assert response.status_code == 401
 
 
 def test_deep_health_accepts_bearer_token_secret():

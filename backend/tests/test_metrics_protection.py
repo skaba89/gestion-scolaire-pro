@@ -36,14 +36,15 @@ class TestMetricsProtection:
     def test_production_with_wrong_secret_is_rejected(self, monkeypatch):
         monkeypatch.setattr(settings, "DEBUG", False)
         monkeypatch.setenv("METRICS_SECRET", "the-real-secret")
-        resp = client.get("/metrics/", params={"secret": "wrong-guess"})
+        resp = client.get("/metrics/", headers={"Authorization": "Bearer wrong-guess"})
         assert resp.status_code == 401, resp.text
 
-    def test_production_with_correct_query_secret_succeeds(self, monkeypatch):
+    def test_production_refuses_correct_secret_in_query_string(self, monkeypatch):
+        """Le secret n'est plus accepté dans l'URL (journaux d'accès, proxys)."""
         monkeypatch.setattr(settings, "DEBUG", False)
         monkeypatch.setenv("METRICS_SECRET", "the-real-secret")
         resp = client.get("/metrics/", params={"secret": "the-real-secret"})
-        assert resp.status_code == 200, resp.text
+        assert resp.status_code == 401, resp.text
 
     def test_production_with_correct_bearer_secret_succeeds(self, monkeypatch):
         monkeypatch.setattr(settings, "DEBUG", False)

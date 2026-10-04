@@ -1120,9 +1120,12 @@ async def _heartbeat_loop() -> None:
     """Background loop started by on_startup, cancelled by on_shutdown —
     see app/workers/heartbeat.py's module docstring for why this writes to
     Redis instead of exposing an HTTP endpoint."""
+    from app.workers.http_health import mark_heartbeat_ok
+
     while True:
         try:
             await write_heartbeat()
+            mark_heartbeat_ok()
         except Exception as exc:
             # Fail open: a Redis blip must not crash the worker process
             # over a diagnostic side-effect — the next loop iteration
@@ -1139,6 +1142,14 @@ async def on_startup(ctx: dict) -> None:
     logger.info("Worker starting: release_sha=%s", settings.RELEASE_SHA)
     ctx["heartbeat_task"] = asyncio.create_task(_heartbeat_loop())
 
+    # Sonde HTTP uniquement si l'hébergeur l'exige (App Service) — voir
+    # app/workers/http_health.py. Absente par défaut.
+    from app.workers.http_health import configured_port, start_http_health_server
+
+    port = configured_port()
+    if port is not None:
+        ctx["http_health_server"] = await start_http_health_server(port)
+
 
 async def on_shutdown(ctx: dict) -> None:
     """ARQ shutdown hook — cancels the heartbeat loop and removes this
@@ -1151,6 +1162,10 @@ async def on_shutdown(ctx: dict) -> None:
             await task
         except asyncio.CancelledError:
             pass
+    server = ctx.get("http_health_server")
+    if server is not None:
+        server.close()
+        await server.wait_closed()
     try:
         await clear_heartbeat()
     except Exception as exc:
