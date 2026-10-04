@@ -247,3 +247,41 @@ class TestRealVitAdvisoryIsAccepted:
         ))
         monkeypatch.setattr("sys.argv", ["gate", path])
         assert module.main() == 1
+
+
+class TestRealBracesAdvisoryIsAccepted:
+    """Guards that the shipped allowlist accepts exactly the braces HIGH
+    (GHSA-vfj7-8cjw-p6xm, build-time only via tailwindcss 3.x), nothing
+    broader, and that it expires on its review_by date."""
+
+    def test_real_braces_high_is_accepted_by_default_allowlist(self, tmp_path, monkeypatch):
+        module = _load_module()
+        # Do NOT patch ALLOWLIST — exercise the shipped one.
+        monkeypatch.setattr(module, "_today", lambda: datetime.date(2026, 10, 4))
+        path = _write(tmp_path, _report(
+            _advisory(severity="high", ghsa="GHSA-vfj7-8cjw-p6xm", source=1240992, name="braces"),
+            pkg="braces",
+        ))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 0
+
+    def test_a_different_braces_high_still_blocks(self, tmp_path, monkeypatch):
+        """Allowlisting the one known advisory must not blanket-accept braces."""
+        module = _load_module()
+        monkeypatch.setattr(module, "_today", lambda: datetime.date(2026, 10, 4))
+        path = _write(tmp_path, _report(
+            _advisory(severity="high", ghsa="GHSA-future-braces-9999", source=101, name="braces"),
+            pkg="braces",
+        ))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 1
+
+    def test_braces_acceptance_expires_after_review_by(self, tmp_path, monkeypatch):
+        module = _load_module()
+        monkeypatch.setattr(module, "_today", lambda: datetime.date(2027, 1, 1))
+        path = _write(tmp_path, _report(
+            _advisory(severity="high", ghsa="GHSA-vfj7-8cjw-p6xm", source=1240992, name="braces"),
+            pkg="braces",
+        ))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 1
