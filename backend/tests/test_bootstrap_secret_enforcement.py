@@ -42,9 +42,11 @@ class TestEnforceBootstrapSecret:
 
 
 def _run(code: str, with_secret: bool, tmp_path: Path) -> subprocess.CompletedProcess:
-    # cwd = dossier temporaire : config.py lit un `.env` relatif au dossier
-    # courant ; on ne veut hériter d'aucun fichier local (processus hermétique).
-    env = {k: v for k, v in os.environ.items() if k not in {"BOOTSTRAP_SECRET", "DEBUG"}}
+    # Processus hermétique : environnement MINIMAL (aucune variable du runner,
+    # ni DATABASE_URL_*, REDIS_URL…) et cwd = dossier temporaire, car config.py
+    # lit un `.env` relatif au dossier courant.
+    keep = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "LANG")
+    env = {k: os.environ[k] for k in keep if k in os.environ}
     tmp_db = tmp_path / "bootstrap_probe.db"
     env.update({
         "PYTHONPATH": str(BACKEND_DIR),
@@ -58,7 +60,7 @@ def _run(code: str, with_secret: bool, tmp_path: Path) -> subprocess.CompletedPr
     if with_secret:
         env["BOOTSTRAP_SECRET"] = secrets.token_hex(32)
     return subprocess.run([sys.executable, "-c", code], cwd=tmp_path, env=env,
-                          capture_output=True, text=True, timeout=180)
+                          capture_output=True, encoding="utf-8", errors="replace", timeout=180)
 
 
 class TestProcessStartup:
@@ -68,8 +70,8 @@ class TestProcessStartup:
 
     def test_api_refuses_to_start_without_bootstrap_secret(self, tmp_path):
         r = _run("import app.main", with_secret=False, tmp_path=tmp_path)
-        assert r.returncode != 0
-        assert "BOOTSTRAP_SECRET" in (r.stdout + r.stderr)
+        assert r.returncode == 1, r.stderr[-800:]
+        assert "BOOTSTRAP_SECRET is empty and DEBUG is False — refusing to start" in (r.stdout + r.stderr)
 
     def test_api_starts_with_bootstrap_secret(self, tmp_path):
         r = _run("import app.main", with_secret=True, tmp_path=tmp_path)

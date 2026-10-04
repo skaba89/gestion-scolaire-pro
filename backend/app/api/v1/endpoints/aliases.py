@@ -1058,13 +1058,18 @@ def update_presence(
             INSERT INTO user_presence (user_id, tenant_id, status, is_typing, current_conversation_id, metadata, updated_at)
             VALUES (:user_id, :tenant_id, :status, :is_typing, :conv_id, CAST(:metadata AS JSONB), NOW())
             ON CONFLICT (user_id) DO UPDATE SET
+                tenant_id = excluded.tenant_id,
                 status = :status,
                 is_typing = :is_typing,
                 current_conversation_id = :conv_id,
                 metadata = CAST(:metadata AS JSONB),
                 updated_at = NOW()
-            WHERE user_presence.tenant_id = excluded.tenant_id
+            WHERE user_presence.tenant_id = excluded.tenant_id OR :is_self
         """), {
+            # Sa PROPRE ligne peut être rattachée au tenant courant (SUPER_ADMIN
+            # qui change d'établissement via X-Tenant-ID) ; celle d'un autre
+            # utilisateur, jamais (tenant identique exigé).
+            "is_self": body.user_id == user_id,
             "user_id": body.user_id,
             "tenant_id": tenant_id,
             "status": resolved_status,

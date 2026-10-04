@@ -1037,7 +1037,7 @@ async def prometheus_metrics(request: Request):
     """Prometheus metrics — protected by METRICS_SECRET env var in production.
 
     In production (DEBUG=false), requires a METRICS_SECRET to be configured
-    and passed as a query parameter or Authorization header.
+    and passed in the `Authorization: Bearer` header (never as a query parameter).
     This prevents information leakage about endpoint patterns, error rates,
     and active connections to unauthenticated observers.
     """

@@ -313,16 +313,22 @@ class TestRlsTenantContextPooling:
         finally:
             eng.dispose()
         assert not errors, f"erreurs : {errors[:3]}"
-        assert done == [25] * 8 or sorted(done) == [25] * 8, f"itérations incomplètes : {done}"
+        assert sorted(done) == [25] * 8, f"itérations incomplètes : {done}"
 
     # ── valeur de session résiduelle (déploiement mixte / SET manuel) ───────
 
     def test_leftover_session_value_is_never_inherited(self, shared_connection_sessions, data):
         """Une valeur de PORTÉE SESSION laissée sur la connexion (ancien code,
         SET manuel) ne doit jamais être vue par une session, même sans contexte."""
-        with shared_connection_sessions() as raw:
+        # Connexion Core (pas une Session) : le hook after_begin ne s'applique
+        # pas, on simule exactement un client qui laisse une valeur de SESSION.
+        eng = shared_connection_sessions.kw["bind"]
+        with eng.connect() as raw:
             raw.execute(text("SELECT set_config('app.current_tenant_id', :a, false)"), {"a": data["A"]})
             raw.commit()
+            # Précondition : la valeur résiduelle A est bien sur la connexion physique.
+            assert raw.execute(text("SELECT current_setting('app.current_tenant_id', true)")).scalar() == data["A"]
+            raw.rollback()
         try:
             with shared_connection_sessions() as undeclared:
                 assert _visible_users(undeclared, [data["ua"], data["ub"]]) == set(), "valeur de session héritée"
@@ -330,7 +336,7 @@ class TestRlsTenantContextPooling:
                 _set_rls_context(b_session, data["B"])
                 assert _visible_users(b_session, [data["ua"], data["ub"]]) == {data["ub"]}
         finally:
-            with shared_connection_sessions() as raw:
+            with eng.connect() as raw:
                 raw.execute(text("SELECT set_config('app.current_tenant_id', '', false)"))
                 raw.commit()
 

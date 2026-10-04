@@ -1,5 +1,6 @@
 """Sonde HTTP minimale du worker (app/workers/http_health.py)."""
 import asyncio
+import json
 
 import pytest
 
@@ -34,9 +35,12 @@ def _reset_state(monkeypatch):
     monkeypatch.setattr(http_health, "_started_at", http_health.time.monotonic())
 
 
-def test_live_after_recent_heartbeat():
+def test_live_after_recent_heartbeat(monkeypatch):
+    monkeypatch.setenv("RELEASE_SHA", "a" * 40)
     http_health.mark_heartbeat_ok()
-    assert _serve_and_get("/health/live") == (200, b"ok")
+    status, body = _serve_and_get("/health/live")
+    assert status == 200
+    assert json.loads(body) == {"status": "alive", "release_sha": "a" * 40}
 
 
 def test_live_during_startup_grace_period():
@@ -48,6 +52,30 @@ def test_stale_heartbeat_returns_503(monkeypatch):
     monkeypatch.setattr(http_health, "_started_at", old)
     monkeypatch.setattr(http_health, "_last_heartbeat_ok", old)
     assert _serve_and_get("/health/live")[0] == 503
+
+
+def test_stale_body_reports_stale(monkeypatch):
+    old = http_health.time.monotonic() - http_health._LIVENESS_WINDOW_SECONDS - 1
+    monkeypatch.setattr(http_health, "_started_at", old)
+    monkeypatch.setattr(http_health, "_last_heartbeat_ok", old)
+    assert json.loads(_serve_and_get("/health/live")[1])["status"] == "stale"
+
+
+def test_oversized_request_line_is_closed_without_response():
+    async def scenario():
+        server = await http_health.start_http_health_server(0, host="127.0.0.1")
+        port = server.sockets[0].getsockname()[1]
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", port)
+            writer.write(b"GET /" + b"a" * 100_000 + b" HTTP/1.1\r\n\r\n")
+            await writer.drain()
+            data = await reader.read()
+            writer.close()
+            return data
+        finally:
+            server.close()
+            await server.wait_closed()
+    assert asyncio.run(scenario()) == b""
 
 
 def test_no_heartbeat_after_grace_period_returns_503(monkeypatch):

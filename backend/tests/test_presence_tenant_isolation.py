@@ -119,6 +119,20 @@ class TestAllowedAndNoOverwrite:
                             {"u": t["user_a"]}).one()
         assert row == (t["A"], "offline")
 
+    def test_own_presence_follows_the_current_tenant(self, two_tenants):
+        """Un SUPER_ADMIN qui change d'établissement (X-Tenant-ID) garde une
+        présence fonctionnelle : sa propre ligne suit le tenant courant."""
+        t = two_tenants
+        sa = _make_user(None)
+        h_a = _as(sa, t["A"], ["SUPER_ADMIN"])
+        assert client.put(URL, json={"user_id": sa, "status": "online"}, headers=h_a).status_code == 200
+        h_b = _as(sa, t["B"], ["SUPER_ADMIN"])
+        resp = client.put(URL, json={"user_id": sa, "status": "away"}, headers=h_b)
+        assert resp.status_code == 200, resp.text
+        with engine.connect() as c:
+            row = c.execute(text("SELECT tenant_id::text, status FROM user_presence WHERE user_id = :u"), {"u": sa}).one()
+        assert row == (t["B"], "away")
+
     def test_idor_attempt_leaves_other_tenant_presence_untouched(self, two_tenants):
         t = two_tenants
         hb = _as(t["user_b"], t["B"], ["TEACHER"])

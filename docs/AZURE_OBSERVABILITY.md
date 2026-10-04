@@ -68,7 +68,7 @@ This policy was **read from the existing code, not invented for this PR** — `_
 
 ### `/health/deep`
 
-Already correctly protected before this PR: open in `DEBUG=true`, otherwise requires `HEALTH_DEEP_SECRET` via query param or `Authorization: Bearer` header (same pattern as `/metrics/`), `include_in_schema=False` (not in the public OpenAPI schema). This PR adds two new sections without weakening that protection:
+Already correctly protected before this PR: open in `DEBUG=true`, otherwise requires `HEALTH_DEEP_SECRET` via the `Authorization: Bearer` header only — no longer accepted as a query param since 2026-10 (same pattern as `/metrics/`), `include_in_schema=False` (not in the public OpenAPI schema). This PR adds two new sections without weakening that protection:
 
 - `release_sha` — the deployed commit.
 - `workers` — per-replica heartbeat status (see below).
@@ -189,7 +189,7 @@ Out of scope to fully wire (needs an Action Group with real recipients, which is
 
 - No secret in any new log line, health response, or heartbeat payload — confirmed for the migration script by direct reproduction (`tests/test_run_migration_script.py::test_migration_logs_contain_no_secrets`, checking for `password=`, `postgres://`, `postgresql://`, `redis://`, `Authorization:`, `Bearer ` in real subprocess output) and for the worker heartbeat by a unit test asserting the JSON payload never contains those same substrings.
 - `RELEASE_SHA` and revision hashes are not secrets (a public git commit, a migration filename fragment) — safe to log and to return from `/health/live`/`/health/ready` (unauthenticated) as well as `/health/deep` (protected).
-- `/health/deep`'s existing protection (secret via query param or `Authorization: Bearer`, open only in `DEBUG=true`) is unchanged — the new `workers`/`queue` sections are exposed exactly as protected as the sections already there.
+- `/health/deep`'s existing protection (secret via `Authorization: Bearer` only, open only in `DEBUG=true`) is unchanged — the new `workers`/`queue` sections are exposed exactly as protected as the sections already there.
 
 ## Testing
 
