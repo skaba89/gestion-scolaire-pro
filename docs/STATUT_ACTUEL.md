@@ -22,7 +22,7 @@ document concerné (voir le format utilisé dans `PROJECT_ANALYSIS.md` et
 | Paiement mobile money (Wave, Orange Money, MTN, CinetPay) | ✅ En production | `backend/app/services/payment_gateways.py`, `backend/app/api/v1/endpoints/finance/payments.py` |
 | SMS (Android SMS Gateway, Africa's Talking) | ✅ En production | `backend/app/services/notifications.py` |
 | Génération de relevés de notes / transcripts | ✅ En production | `backend/app/api/v1/endpoints/academic/transcripts.py` |
-| Jobs asynchrones WhatsApp (absence, note, bulletin) | ✅ En production | `backend/app/workers/tasks.py`, voir `docs/reports/FINAL_PRODUCTION_READINESS_AUDIT.md` |
+| Jobs asynchrones WhatsApp (absence, note, bulletin) | ❌ Code présent, **worker de production jamais démarré** (constaté 2026-10-04, voir ci-dessous) | `backend/app/workers/tasks.py`, voir `docs/reports/FINAL_PRODUCTION_READINESS_AUDIT.md` |
 | MFA (TOTP + codes de secours) | ✅ En production | `backend/tests/test_mfa_enforcement.py` |
 | Row-Level Security PostgreSQL | 🟡 Activée, non vérifiée en production | Voir réserve ci-dessous |
 
@@ -56,6 +56,27 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   `require_plan` / `require_permission` n'atteint pas le client) et ne
   propage que la clé `error_code` d'un detail dict (`PLAN_REQUIRED` et les
   champs `required_plan` / `current_plan` / `upgrade_url` du 402 sont perdus).
+
+- **2026-10-04 — production (App Service + Neon)** : base migrée de
+  `20260921_0002` à `20260930_0001` (répétée sur branche Neon, sauvegarde
+  `backup-pre-rls-remediation-20261004`) — l'API, en panne depuis au moins le
+  2026-10-03 (image `:latest` exigeant ce schéma), a redémarré. Le **worker
+  n'a jamais démarré** (journaux depuis le 2026-09-18) : `config.py` refusait
+  de s'importer sans `BOOTSTRAP_SECRET`, que le worker n'a pas — corrigé par
+  la PR de remédiation runtime (contrôle déplacé dans `app/main.py`, API
+  seule). Restent **non résolus** : runtime en `neondb_owner` (BYPASSRLS,
+  propriétaire des tables) via le pooler, images App Service en `:latest`
+  (code `f464a42`, sans #264–#268), frontend en échec de démarrage, et un
+  worker ARQ sur App Service sans port HTTP (sonde de démarrage à vérifier).
+
+- **2026-10-04 — contexte tenant compatible pooler** (`app/core/database.py`) :
+  le contexte RLS était posé une fois par session (`set_config(..., false)`) ;
+  derrière un pooler en mode transaction (Neon `-pooler`) il fuyait d'un client
+  à l'autre (reproduit sur branche Neon). Il est désormais mémorisé dans
+  `Session.info` et reposé en `set_config(..., true)` au début de chaque
+  transaction (hook `after_begin`). Tests : `tests/test_rls_tenant_context_pooling.py`.
+  DDL runtime retiré (`user_presence`, bootstrap). Procédure du rôle runtime :
+  `docs/runbooks/neon-runtime-role.md`.
 
 ## Documents à considérer avec prudence
 

@@ -1240,47 +1240,11 @@ def bootstrap_admin(
     validate_password_strength(admin_password)
 
     try:
-        # Step 1: Ensure is_superuser column exists (PostgreSQL)
-        try:
-            if not settings.is_sqlite:
-                db.execute(sqlalchemy.text("SAVEPOINT sp_bootstrap"))
-                col_exists = db.execute(sqlalchemy.text(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_name='users' AND column_name='is_superuser'"
-                )).first()
-                if not col_exists:
-                    db.execute(sqlalchemy.text(
-                        "ALTER TABLE users ADD COLUMN is_superuser BOOLEAN DEFAULT FALSE"
-                    ))
-                    steps.append("added is_superuser column")
-                db.execute(sqlalchemy.text("RELEASE SAVEPOINT sp_bootstrap"))
-                db.commit()
-        except Exception as e:
-            try:
-                db.execute(sqlalchemy.text("ROLLBACK TO SAVEPOINT sp_bootstrap"))
-            except Exception:
-                pass
-            db.rollback()
-            steps.append(f"is_superuser check skipped: {e}")
+        # Le schéma (users.is_superuser, user_roles.tenant_id nullable) est
+        # garanti par les migrations Alembic : le runtime ne fait plus de DDL
+        # (rôle applicatif sans privilège DDL, cf. docs/AZURE_ONE_SHOT_MIGRATIONS.md).
 
-        # Step 2: Ensure user_roles tenant_id is nullable (PostgreSQL)
-        try:
-            if not settings.is_sqlite:
-                nullable_check = db.execute(sqlalchemy.text(
-                    "SELECT is_nullable FROM information_schema.columns "
-                    "WHERE table_name='user_roles' AND column_name='tenant_id'"
-                )).first()
-                if nullable_check and nullable_check[0] == "NO":
-                    db.execute(sqlalchemy.text(
-                        "ALTER TABLE user_roles ALTER COLUMN tenant_id DROP NOT NULL"
-                    ))
-                    db.commit()
-                    steps.append("made tenant_id nullable")
-        except Exception as e:
-            db.rollback()
-            steps.append(f"tenant_id nullable check skipped: {e}")
-
-        # Step 3: Check if admin exists using raw SQL
+        # Check if admin exists using raw SQL
         admin_row = db.execute(
             sqlalchemy.text("SELECT id FROM users WHERE email = :email"),
             {"email": admin_email}

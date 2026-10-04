@@ -1010,45 +1010,23 @@ def update_presence(
         resolved_status = "online"
 
     try:
-        # La table user_presence est créée AVEC RLS par la migration
-        # d5e6f7a8b9c0. On garde un CREATE IF NOT EXISTS comme filet (SQLite,
-        # base non migrée) — sans jamais recréer une table tenant sans RLS :
-        # sur PostgreSQL, si la table manquait, on l'assortit immédiatement de
-        # sa policy tenant pour ne pas casser le health check /health/ready.
-        db.execute(text("""
-            CREATE TABLE IF NOT EXISTS user_presence (
-                user_id UUID PRIMARY KEY,
-                tenant_id UUID,
-                status VARCHAR(50) DEFAULT 'online',
-                is_typing BOOLEAN DEFAULT FALSE,
-                current_conversation_id UUID,
-                metadata JSONB,
-                updated_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """))
-        if db.bind and db.bind.dialect.name == "postgresql":
-            db.execute(text(
-                "ALTER TABLE public.user_presence ENABLE ROW LEVEL SECURITY"
-            ))
-            db.execute(text(
-                "ALTER TABLE public.user_presence FORCE ROW LEVEL SECURITY"
-            ))
+        # PostgreSQL : user_presence (avec RLS + policy tenant) est créée
+        # exclusivement par la migration 20260717_0001 — le runtime ne fait
+        # jamais de DDL (rôle applicatif sans privilège DDL, cf.
+        # docs/AZURE_ONE_SHOT_MIGRATIONS.md). Le CREATE ne subsiste que pour
+        # SQLite (dev/tests), dont le schéma vient de create_all() sans
+        # modèle ORM pour cette table.
+        if db.bind is not None and db.bind.dialect.name == "sqlite":
             db.execute(text("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_policy
-                        WHERE polrelid = 'public.user_presence'::regclass
-                    ) THEN
-                        CREATE POLICY schoolflow_tenant_presence
-                        ON public.user_presence
-                        AS PERMISSIVE FOR ALL TO PUBLIC
-                        USING (tenant_id::text = COALESCE(
-                            current_setting('app.current_tenant_id', true), ''))
-                        WITH CHECK (tenant_id::text = COALESCE(
-                            current_setting('app.current_tenant_id', true), ''));
-                    END IF;
-                END $$;
+                CREATE TABLE IF NOT EXISTS user_presence (
+                    user_id UUID PRIMARY KEY,
+                    tenant_id UUID,
+                    status VARCHAR(50) DEFAULT 'online',
+                    is_typing BOOLEAN DEFAULT FALSE,
+                    current_conversation_id UUID,
+                    metadata JSONB,
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                )
             """))
         import json as _json
         metadata_payload = body.metadata
