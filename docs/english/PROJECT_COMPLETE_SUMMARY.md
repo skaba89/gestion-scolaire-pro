@@ -227,7 +227,7 @@ Estimated read time:      3-4 hours
 ### Data Isolation ✅
 
 - ✅ Each tenant's settings separate
-- ✅ RLS policies on tenants table
+- ✅ `tenants` is a root table without RLS (isolation enforced by the application, and by RLS on tenant-scoped tables)
 - ✅ JWT tenant_id claim enforced
 - ✅ No cross-tenant data leaks
 

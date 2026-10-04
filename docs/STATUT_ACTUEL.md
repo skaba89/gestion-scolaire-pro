@@ -44,6 +44,19 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   2026-09" couvre chacun avec preuve de code. Cette ligne était elle-même
   périmée par rapport au reste du document qu'elle citait.
 
+- **2026-10-04 — `require_plan` fail-closed** (`backend/app/core/security.py`) :
+  tenant introuvable → 403 (`error: TENANT_NOT_FOUND` côté client) ; erreur
+  base de données → 503 ; les autres exceptions se propagent (plus d'accès
+  accordé par défaut). Tests de régression ajoutés. Points hors périmètre,
+  à traiter en tickets séparés : essai sans `trial_ends_at` illimité ;
+  `ai.py` sans `require_permission` ; `tenant.is_active` non contrôlé par
+  `require_plan` ; `except Exception: pass` dans `security.py` (≈ l. 438-439) ;
+  pas de gestion UI du 402 ; `http_exception_handler` (`core/exceptions.py`)
+  ignore `exc.headers` (le `Retry-After` des 503 fail-closed de
+  `require_plan` / `require_permission` n'atteint pas le client) et ne
+  propage que la clé `error_code` d'un detail dict (`PLAN_REQUIRED` et les
+  champs `required_plan` / `current_plan` / `upgrade_url` du 402 sont perdus).
+
 ## Documents à considérer avec prudence
 
 | Document | Problème | À faire avant de le citer |

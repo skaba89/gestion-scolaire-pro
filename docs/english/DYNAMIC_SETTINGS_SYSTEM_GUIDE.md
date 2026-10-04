@@ -551,7 +551,7 @@ async function updateBranding() {
 
 **Solution:**
 1. Check database has `settings` column in `tenants` table
-2. Verify RLS policies allow UPDATE on tenants table
+2. Verify the user is allowed to update the tenant (`tenants` is a root table without RLS; isolation is enforced by the application)
 3. Check admin user has correct role/permissions
 4. Check for JavaScript errors in browser console
 
