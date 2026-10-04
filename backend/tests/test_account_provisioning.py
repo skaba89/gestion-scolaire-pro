@@ -243,6 +243,9 @@ async def test_reset_token_clears_forced_password_flag():
     )
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = user
+    # API réelle de Session : pas de savepoint ouvert (un MagicMock nu renverrait
+    # un objet « vrai », refusé par le garde-fou de _set_rls_context).
+    db.in_nested_transaction.return_value = False
     client = AsyncMock()
     client.get.return_value = None
 
