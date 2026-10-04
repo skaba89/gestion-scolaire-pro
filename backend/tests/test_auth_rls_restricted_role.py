@@ -404,6 +404,44 @@ class TestAuthRlsRestrictedRole:
         assert me_a.status_code == 200 and me_a.json()["tenant"]["id"] == tenant_a
         assert me_b.status_code == 200 and me_b.json()["tenant"]["id"] == tenant_b
 
+    # -- tenants has no RLS: require_plan relies on it ------------------------
+
+    def test_tenants_table_has_no_rls_and_require_plan_works_under_restricted_role(
+        self, restricted_session_local
+    ):
+        """require_plan ouvre SessionLocal() sans contexte tenant : cela ne
+        fonctionne que parce que `tenants` n'a pas de RLS (migration
+        659b47b029bd). Fige cet invariant et le comportement de bout en bout."""
+        from fastapi import HTTPException
+        from app.core.security import require_plan
+
+        with restricted_session_local() as s:
+            relrowsecurity = s.execute(
+                text("SELECT relrowsecurity FROM pg_class WHERE relname = 'tenants'")
+            ).scalar()
+        assert relrowsecurity is False, "tenants must not have RLS enabled (require_plan reads it without tenant context)"
+
+        with engine.begin() as admin_conn:
+            pro_tenant = _make_tenant(admin_conn, "Tenant pro (require_plan)")
+            starter_tenant = _make_tenant(admin_conn, "Tenant starter (require_plan)")
+            admin_conn.execute(
+                text("UPDATE tenants SET subscription_plan='pro', subscription_status='active' WHERE id = :id"),
+                {"id": pro_tenant},
+            )
+            admin_conn.execute(
+                text("UPDATE tenants SET subscription_plan='starter', subscription_status='active' WHERE id = :id"),
+                {"id": starter_tenant},
+            )
+
+        pro_user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": pro_tenant}
+        assert require_plan("pro")(current_user=pro_user) is pro_user
+
+        starter_user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": starter_tenant}
+        with pytest.raises(HTTPException) as exc:
+            require_plan("pro")(current_user=starter_user)
+        assert exc.value.status_code == 402
+        assert exc.value.detail["current_plan"] == "starter"
+
     # -- cron: expire_overdue_subscriptions under the restricted role --------
 
     def test_expire_overdue_subscriptions_works_across_tenants_under_restricted_role(

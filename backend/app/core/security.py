@@ -909,8 +909,15 @@ def require_plan(min_plan: str):
     * Tenants with ``subscription_status`` in {"active", "trialing"} AND
       ``subscription_plan`` weight >= ``min_plan`` weight are allowed.
     * Everyone else gets HTTP 402 with an upgrade prompt.
-    * If the DB look-up fails for any reason, fail **open** so we don't break
-      existing functionality during a DB hiccup.
+    * Fail-closed : tenant introuvable -> HTTP 403 ``TENANT_NOT_FOUND`` ;
+      erreur base de données -> HTTP 503 ; toute autre exception se propage
+      (jamais d'accès accordé par défaut). ``Retry-After: 5`` est posé sur
+      l'exception mais ``http_exception_handler`` ne le transmet pas
+      actuellement au client (ticket séparé).
+
+    Note : la table ``tenants`` n'a pas de RLS (exclue par la migration
+    659b47b029bd), d'où l'usage de ``SessionLocal()`` sans contexte tenant.
+    ``test_auth_rls_restricted_role.py`` fige cet invariant.
     """
     min_weight = _PLAN_WEIGHT.get(min_plan.lower(), 0)
 
@@ -920,6 +927,9 @@ def require_plan(min_plan: str):
         if "SUPER_ADMIN" in roles:
             return current_user
 
+        # tenant_id issu de la base pour les non-SUPER_ADMIN (get_current_user) ;
+        # SUPER_ADMIN déjà court-circuité. Garde de facturation, pas un endpoint :
+        # pas de resolve_current_tenant_id.
         tenant_id = current_user.get("tenant_id")
         if not tenant_id:
             raise HTTPException(
@@ -935,6 +945,8 @@ def require_plan(min_plan: str):
                 },
             )
 
+        from sqlalchemy.exc import SQLAlchemyError
+
         try:
             from app.core.database import SessionLocal
             from app.models.tenant import Tenant as _Tenant
@@ -942,9 +954,16 @@ def require_plan(min_plan: str):
             with SessionLocal() as db:
                 tenant = db.query(_Tenant).filter(_Tenant.id == tenant_id).first()
                 if not tenant:
-                    # Tenant not found — fail open to avoid false positives
-                    logger.warning("require_plan: tenant %s not found, failing open", tenant_id)
-                    return current_user
+                    logger.error("require_plan: tenant %s introuvable — accès refusé (fail-closed)", tenant_id)
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail={
+                            "error": "TENANT_NOT_FOUND",
+                            # error_code : seule clé propagée au client par http_exception_handler
+                            "error_code": "TENANT_NOT_FOUND",
+                            "message": "Établissement introuvable ou inaccessible.",
+                        },
+                    )
 
                 plan = (tenant.subscription_plan or "starter").lower()
                 sub_status = (tenant.subscription_status or "trialing").lower()
@@ -986,9 +1005,12 @@ def require_plan(min_plan: str):
 
         except HTTPException:
             raise
-        except Exception as exc:
-            # Fail open: plan check failure must not break existing functionality
-            logger.warning("require_plan check failed (failing open): %s", exc)
-            return current_user
+        except SQLAlchemyError:
+            logger.exception("require_plan: contrôle du plan impossible (erreur base de données) — refus 503 (fail-closed)")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Le contrôle de l'abonnement est momentanément indisponible. Réessayez plus tard.",
+                headers={"Retry-After": "5"},
+            )
 
     return _check
