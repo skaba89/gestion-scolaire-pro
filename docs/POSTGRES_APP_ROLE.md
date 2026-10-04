@@ -237,6 +237,20 @@ inconditionnellement.
 
 ### Non-contamination du pool de connexions
 
+> **Mise à jour 2026-10-04 — pooler en mode transaction.** Le contexte n'est
+> plus posé au niveau de la session (`set_config(..., false)`) : derrière
+> PgBouncer en mode transaction (endpoint `-pooler` de Neon), une valeur de
+> session reste sur la connexion serveur et est héritée par le client
+> suivant. `_set_rls_context()` mémorise désormais le tenant dans
+> `Session.info` et le repose en `set_config(..., true)` au début de
+> **chaque** transaction (`_reapply_rls_context_on_begin`, hook
+> `after_begin`) ; rien ne survit à la fin d'une transaction. Preuves :
+> `tests/test_rls_tenant_context_pooling.py` (connexion partagée
+> `StaticPool`, entrelacement A→B→A, threads) et validation sur un vrai
+> pooler Neon (branche de répétition). Le texte ci-dessous décrit la
+> garantie d'origine ; la méthode (contexte repositionné avant toute
+> requête) reste vraie, à l'échelle de la transaction.
+
 Même garantie et même méthode de preuve que la PR ARQ workers : chaque
 point d'entrée repositionne explicitement le contexte comme première
 opération, sans jamais supposer d'état hérité. Testé explicitement (voir

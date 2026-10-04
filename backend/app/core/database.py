@@ -68,6 +68,41 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+# ---------------------------------------------------------------------------
+# RLS tenant context — TRANSACTION-scoped, re-applied on every transaction.
+#
+# SECURITY (pooler remediation, 2026-10): the tenant context used to be set
+# once per session with `set_config('app.current_tenant_id', ..., false)`
+# (SESSION scope). Behind a transaction-mode pooler (PgBouncer — Neon's
+# `-pooler` endpoint), every transaction may run on a different server
+# connection: a session-scoped GUC then survives on the server connection
+# and is inherited by whichever client gets it next (tenant A's context
+# leaking into tenant B's request, or a tenant request landing on an empty
+# "platform" context), while the client's own next transaction may run
+# without it. Reproduced on a Neon branch with two clients.
+#
+# The context now lives on the APPLICATION side (`Session.info`) and is
+# re-asserted with `set_config(..., true)` (transaction-local, i.e.
+# `SET LOCAL`) at the start of EVERY transaction the session begins, on
+# whichever server connection that transaction actually got. A
+# transaction-local value disappears at COMMIT/ROLLBACK, so a reused or
+# pooled connection can never carry it over to anyone else, and a session
+# that commits several times keeps its own context in every transaction.
+# ---------------------------------------------------------------------------
+_RLS_TENANT_KEY = "rls_tenant_id"
+_SET_LOCAL_TENANT_SQL = text("SELECT set_config('app.current_tenant_id', :tid, true)")
+
+
+@event.listens_for(Session, "after_begin")
+def _reapply_rls_context_on_begin(session, transaction, connection):
+    """Re-position the tenant context at the start of every transaction of a
+    session that has one (see `_set_rls_context`). Sessions that never had a
+    context set keep PostgreSQL's default (no tenant)."""
+    if _RLS_TENANT_KEY not in session.info or connection.dialect.name != "postgresql":
+        return
+    connection.execute(_SET_LOCAL_TENANT_SQL, {"tid": session.info[_RLS_TENANT_KEY]})
+
+
 def get_db():
     """Dependency to get database session with RLS tenant_id set (PostgreSQL only).
 
@@ -80,22 +115,11 @@ def get_db():
 
     if not settings.is_sqlite:
         try:
-            # PERFORMANCE: this used to be two round-trips — reset to NULL,
-            # then a second query to set the real tenant_id if any. Combined
-            # into one: set_config's third arg accepts NULL directly (same
-            # NULL::uuid-safe reasoning as before — set_config('...', NULL,
-            # false) is valid and clears the setting), so binding tid=None
-            # when there's no tenant does the reset AND the set in a single
-            # round-trip. On a pool this small (see DATABASE_POOL_SIZE),
-            # every round-trip removed is one less unit of time each request
-            # holds a scarce connection — found while diagnosing tail
-            # latency under concurrent load (see docs/reports/
-            # LOAD_TEST_CAMPAIGN_2026-08-07.md).
-            tenant_id = tenant_context.get()
-            db.execute(
-                text("SELECT set_config('app.current_tenant_id', :tid, false)"),
-                {"tid": str(tenant_id) if tenant_id else None},
-            )
+            # Transaction-scoped and re-applied on every transaction of this
+            # session (see _reapply_rls_context_on_begin): one SET LOCAL
+            # round-trip per transaction — the price of being correct behind
+            # a transaction-mode pooler.
+            _set_rls_context(db, tenant_context.get())
         except Exception as exc:
             # RLS set_config may fail if the function doesn't exist yet
             # (e.g. fresh database before Alembic runs RLS migration).
@@ -201,43 +225,31 @@ def _resolve_tenant_context(db: Session, tenant_id: str) -> str:
 
 
 def _set_rls_context(db: Session, tenant_id: Optional[str]) -> None:
-    """Position app.current_tenant_id on this connection. Session-scoped
-    (`set_config(..., false)`, i.e. NOT `SET LOCAL`) — the same choice
-    get_db() makes above, for the same reason: a single job (like a single
-    HTTP request) may issue more than one db.commit() before its session
-    closes (e.g. check_inactive_tenants commits once per flagged tenant in
-    some call patterns), and `SET LOCAL` reverts at the END of the CURRENT
-    transaction — a second transaction on the same Session, after an
-    earlier commit, would silently lose the context that `SET LOCAL` would
-    have given it. Session-scoped survives every commit until this
-    connection is explicitly reset again or returned to the pool.
+    """Set the tenant context of this SESSION (None = no tenant / platform).
 
-    This is why worker_db_session()/platform_db_session() below are the
-    ONLY entry points that may call this: every single one of them
-    re-asserts the tenant context as the FIRST statement on a freshly
-    checked-out connection, so a pooled connection's leftover state from
-    whatever ran on it before is always overwritten before any business
-    query runs - never inherited, never assumed clean.
+    The value is stored in `db.info` and applied TRANSACTION-locally
+    (`set_config(..., true)`): immediately if a transaction is already open,
+    and again by `_reapply_rls_context_on_begin` at the start of every later
+    transaction of this session — so a session that commits several times
+    (check_inactive_tenants, an HTTP request committing then reading back)
+    keeps its own context in each transaction, and nothing ever survives on
+    the server connection once a transaction ends. Safe behind a
+    transaction-mode pooler and on a reused pooled connection (see the
+    module-level comment above `_RLS_TENANT_KEY`).
 
-    IMPORTANT (confirmed against a real PostgreSQL 16 instance while
-    building this): `set_config('app.current_tenant_id', NULL, false)`
-    does NOT clear a custom ("placeholder") GUC to SQL NULL - it resets it
-    to an empty string. `current_setting(..., true) IS NULL` then reads as
-    FALSE on any connection this has ever run on, permanently defeating
-    the `OR current_setting(...) IS NULL` bypass that several RLS policies
-    rely on for platform-scoped access (jobs, notification_events,
-    idempotency_keys, and others - see migration 20260929_0001, this same
-    PR). That migration guards every such policy with NULLIF so this
-    reset is safe; without it, platform_db_session() below would silently
-    stop seeing any row on a connection previously used by a tenant-scoped
-    job.
+    "No tenant" is stored as the empty string: every RLS policy reads the
+    setting through NULLIF(..., '') (migrations 20260928_0001 and
+    20260929_0001), so '' and an unset GUC mean exactly the same thing.
     """
     if settings.is_sqlite:
         return
-    db.execute(
-        text("SELECT set_config('app.current_tenant_id', :tid, false)"),
-        {"tid": str(tenant_id) if tenant_id else None},
-    )
+    value = str(tenant_id) if tenant_id else ""
+    db.info[_RLS_TENANT_KEY] = value
+    if db.in_transaction():
+        db.execute(_SET_LOCAL_TENANT_SQL, {"tid": value})
+    else:
+        # Begins the transaction: _reapply_rls_context_on_begin applies it.
+        db.connection()
 
 
 @contextmanager

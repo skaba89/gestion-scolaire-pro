@@ -10,8 +10,12 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.core.config import settings
+from app.core.config import enforce_bootstrap_secret, settings
 from app.core.client_ip import get_client_ip, get_client_ip_or_load_test_bypass
+
+# Fail-closed avant de construire l'application : sans BOOTSTRAP_SECRET solide
+# (hors DEBUG), l'API refuse de démarrer. Le worker ARQ n'importe pas ce module.
+enforce_bootstrap_secret()
 
 # ─── Sentry — initialisation avant tout le reste ─────────────────────────────
 def _init_sentry() -> None:

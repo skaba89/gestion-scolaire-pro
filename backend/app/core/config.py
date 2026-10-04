@@ -432,25 +432,33 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-if not settings.BOOTSTRAP_SECRET:
-    if not settings.DEBUG:
-        logger.critical(
-            "BOOTSTRAP_SECRET is empty and DEBUG is False — refusing to start. "
-            "The bootstrap endpoint could be used to create a super-admin account "
-            "without authentication. Set BOOTSTRAP_SECRET in your environment."
-        )
-        raise SystemExit(1)
-    else:
+
+def enforce_bootstrap_secret() -> None:
+    """Refuse to start the API without a strong BOOTSTRAP_SECRET (DEBUG off).
+
+    Called by app/main.py — the API is the only process that serves the
+    bootstrap endpoint. This check used to run at import of this module,
+    which killed the ARQ worker too (it imports the same settings but never
+    serves /auth/bootstrap/): the production worker exited with code 1 at
+    every start because it has, rightly, no BOOTSTRAP_SECRET of its own.
+    """
+    if not settings.BOOTSTRAP_SECRET:
+        if not settings.DEBUG:
+            logger.critical(
+                "BOOTSTRAP_SECRET is empty and DEBUG is False — refusing to start. "
+                "The bootstrap endpoint could be used to create a super-admin account "
+                "without authentication. Set BOOTSTRAP_SECRET in your environment."
+            )
+            raise SystemExit(1)
         logger.warning("BOOTSTRAP_SECRET is empty — bootstrap endpoint will reject all requests")
-elif len(settings.BOOTSTRAP_SECRET) < 32:
-    if not settings.DEBUG:
-        logger.critical(
-            "BOOTSTRAP_SECRET is too short (%d chars, minimum 32 required) and DEBUG is False — refusing to start. "
-            "Set a strong BOOTSTRAP_SECRET (at least 32 characters) in your environment.",
-            len(settings.BOOTSTRAP_SECRET),
-        )
-        raise SystemExit(1)
-    else:
+    elif len(settings.BOOTSTRAP_SECRET) < 32:
+        if not settings.DEBUG:
+            logger.critical(
+                "BOOTSTRAP_SECRET is too short (%d chars, minimum 32 required) and DEBUG is False — refusing to start. "
+                "Set a strong BOOTSTRAP_SECRET (at least 32 characters) in your environment.",
+                len(settings.BOOTSTRAP_SECRET),
+            )
+            raise SystemExit(1)
         logger.warning(
             "BOOTSTRAP_SECRET is too short (%d chars, minimum 32 required). "
             "Set a stronger secret for production.",
