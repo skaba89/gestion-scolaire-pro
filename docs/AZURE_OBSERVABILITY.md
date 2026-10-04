@@ -68,7 +68,7 @@ This policy was **read from the existing code, not invented for this PR** — `_
 
 ### `/health/deep`
 
-Already correctly protected before this PR: open in `DEBUG=true`, otherwise requires `HEALTH_DEEP_SECRET` via query param or `Authorization: Bearer` header (same pattern as `/metrics/`), `include_in_schema=False` (not in the public OpenAPI schema). This PR adds two new sections without weakening that protection:
+Already correctly protected before this PR: open in `DEBUG=true`, otherwise requires `HEALTH_DEEP_SECRET` via the `Authorization: Bearer` header only — no longer accepted as a query param since 2026-10 (same pattern as `/metrics/`), `include_in_schema=False` (not in the public OpenAPI schema). This PR adds two new sections without weakening that protection:
 
 - `release_sha` — the deployed commit.
 - `workers` — per-replica heartbeat status (see below).
@@ -120,6 +120,15 @@ under a **per-replica** key (`worker:heartbeat:<worker_id>`, TTL 90s = 3× the i
 - **`missing`** — heartbeat key expired entirely (crashed, or never wrote one).
 
 This read is bounded (one `SMEMBERS` + one `GET` per known replica) and only ever runs on `/health/deep` — never on the hot `/health/ready` path, per the explicit "avoid an expensive check on every probe" rule this PR follows.
+
+### Exception : Azure App Service (production actuelle, 2026-10)
+
+Contrairement à Container Apps, App Service (conteneur Linux) **exige** qu'un conteneur réponde en HTTP sur son port pour le considérer démarré ; sinon il le redémarre en boucle. Pour ce seul cas, `app/workers/http_health.py` fournit une sonde minimale, **désactivée par défaut**, activée par `WORKER_HEALTH_PORT` :
+
+- `GET /health/live` → `200` tant que le dernier heartbeat Redis a réussi il y a moins de 90 s (ou pendant les 90 s de grâce au démarrage), sinon `503` ; tout autre chemin → `404`, rien d'exposé ;
+- aucune dépendance (`asyncio.start_server`), aucun FastAPI : le heartbeat Redis reste la source de vérité, la sonde n'en est que le reflet local.
+
+Réglages App Service du worker (à appliquer lors du déploiement par digest, **non appliqués** ici) : `WORKER_HEALTH_PORT=8000`, `WEBSITES_PORT=8000`, et facultativement le « Health check path » `/health/live`. Commande de démarrage inchangée : `arq app.workers.tasks.WorkerSettings`.
 
 ARQ's own built-in health-check mechanism (`Worker.record_health()`, a queue-scoped key — `arq:queue:health-check` — carrying `j_complete`/`j_failed`/`j_retried`/`j_ongoing`/`queued` counts) is also reused, not reinvented: `WorkerSettings.health_check_interval` is lowered from ARQ's 1-hour default to 30s so "is *any* worker at all consuming this queue" is answerable within ~30s of a total outage. Its raw value is surfaced as `arq_health_check` in `/health/deep`'s `queue` section for an operator who wants ARQ's own job-count view alongside the per-replica identity view above.
 
@@ -180,7 +189,7 @@ Out of scope to fully wire (needs an Action Group with real recipients, which is
 
 - No secret in any new log line, health response, or heartbeat payload — confirmed for the migration script by direct reproduction (`tests/test_run_migration_script.py::test_migration_logs_contain_no_secrets`, checking for `password=`, `postgres://`, `postgresql://`, `redis://`, `Authorization:`, `Bearer ` in real subprocess output) and for the worker heartbeat by a unit test asserting the JSON payload never contains those same substrings.
 - `RELEASE_SHA` and revision hashes are not secrets (a public git commit, a migration filename fragment) — safe to log and to return from `/health/live`/`/health/ready` (unauthenticated) as well as `/health/deep` (protected).
-- `/health/deep`'s existing protection (secret via query param or `Authorization: Bearer`, open only in `DEBUG=true`) is unchanged — the new `workers`/`queue` sections are exposed exactly as protected as the sections already there.
+- `/health/deep`'s existing protection (secret via `Authorization: Bearer` only, open only in `DEBUG=true`) is unchanged — the new `workers`/`queue` sections are exposed exactly as protected as the sections already there.
 
 ## Testing
 

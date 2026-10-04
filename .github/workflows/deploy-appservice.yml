@@ -1,0 +1,263 @@
+name: Deploy to Azure App Service (by digest)
+
+# Production actuelle = 3 App Services « conteneur » (api, worker, frontend),
+# créés hors IaC et jusqu'ici en `:latest` — tag mutable que plus rien ne
+# publie depuis #264 : la version réellement servie n'était plus traçable.
+#
+# Ce workflow, MANUEL uniquement (workflow_dispatch), déploie EXACTEMENT les
+# digests OCI d'une release publiée par « Build images » (release-<git sha>)
+# — même principe « build once, promote many » que deploy-azure.yml. Il ne
+# construit rien, ne pousse aucune image, ne modifie AUCUN App Setting (rôles
+# de base, secrets, ports restent gérés hors pipeline) : il ne fait que
+# remplacer la référence d'image de chaque App Service par repo@sha256:…,
+# puis vérifie que la NOUVELLE révision répond (release_sha de /health/live).
+#
+# SÉCURITÉ : aucune expression ${{ inputs.* }} / ${{ steps.*.outputs.* }}
+# n'est interpolée dans un script `run:` — tout passe par `env:` puis est
+# validé avant usage (pas d'injection de script via les entrées).
+#
+# Prérequis (une fois, par un administrateur — voir docs/runbooks/) :
+#   - GitHub Environment `production` avec relecteurs obligatoires ;
+#   - secrets d'environnement OIDC AZURE_CLIENT_ID / AZURE_TENANT_ID /
+#     AZURE_SUBSCRIPTION_ID (identité limitée au groupe de ressources) ;
+#   - variables d'environnement APPSERVICE_RESOURCE_GROUP, APPSERVICE_API,
+#     APPSERVICE_WORKER, APPSERVICE_FRONTEND, API_PUBLIC_URL,
+#     WORKER_PUBLIC_URL, FRONTEND_PUBLIC_URL, ACR_LOGIN_SERVER.
+# Sans eux, le workflow échoue au login ou à la validation — fail-safe voulu.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release à déployer — tag publié par "Build images" (format release-<git sha complet>). Aucun défaut : jamais de "latest".'
+        required: true
+      targets:
+        description: "Services à mettre à jour"
+        required: true
+        type: choice
+        options:
+          - api
+          - worker
+          - frontend
+          - api+worker
+          - all
+      verify_revision:
+        description: "Vérifier que /health/live renvoie la révision déployée (désactiver UNIQUEMENT pour un rollback vers une image antérieure à RELEASE_SHA intégré, qui renvoie 'unknown')."
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  id-token: write # OIDC (azure/login@v2)
+  contents: read # téléchargement du manifeste de release
+
+concurrency:
+  group: deploy-appservice-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to App Service (production)
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      TARGETS: ${{ inputs.targets }}
+      VERIFY_REVISION: ${{ inputs.verify_revision }}
+      RG: ${{ vars.APPSERVICE_RESOURCE_GROUP }}
+      APP_API: ${{ vars.APPSERVICE_API }}
+      APP_WORKER: ${{ vars.APPSERVICE_WORKER }}
+      APP_FRONTEND: ${{ vars.APPSERVICE_FRONTEND }}
+      API_PUBLIC_URL: ${{ vars.API_PUBLIC_URL }}
+      WORKER_PUBLIC_URL: ${{ vars.WORKER_PUBLIC_URL }}
+      FRONTEND_PUBLIC_URL: ${{ vars.FRONTEND_PUBLIC_URL }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+    steps:
+      - name: Validate inputs and configuration
+        run: |
+          set -euo pipefail
+          for v in RG APP_API APP_WORKER APP_FRONTEND API_PUBLIC_URL WORKER_PUBLIC_URL FRONTEND_PUBLIC_URL ACR_LOGIN_SERVER; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Variable d'environnement GitHub manquante pour $v (voir l'en-tête du workflow)."
+              exit 1
+            fi
+          done
+          if ! [[ "$RELEASE_TAG" =~ ^release-[0-9a-f]{40}$ ]]; then
+            echo "::error::release_tag invalide : release-<sha git complet> attendu."
+            exit 1
+          fi
+          case "$TARGETS" in api|worker|frontend|api+worker|all) ;; *)
+            echo "::error::targets invalide."; exit 1 ;;
+          esac
+          if ! [[ "$ACR_LOGIN_SERVER" =~ ^[a-z0-9]+\.azurecr\.io$ ]]; then
+            echo "::error::ACR_LOGIN_SERVER invalide."
+            exit 1
+          fi
+
+      - name: Resolve and verify release manifest
+        id: manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # La release doit avoir été publiée par la CI (Build images), pas par un humain.
+          author=$(gh release view "$RELEASE_TAG" --repo "$REPO" --json author --jq '.author.login')
+          if [ "$author" != "github-actions[bot]" ] && [ "$author" != "app/github-actions" ]; then
+            echo "::error::Release publiée par '$author' et non par la CI : refus."
+            exit 1
+          fi
+          gh release download "$RELEASE_TAG" --repo "$REPO" \
+            --pattern release-manifest.json --output release-manifest.json --clobber
+          backend_repo=$(jq -r '.backend.repository' release-manifest.json)
+          backend_digest=$(jq -r '.backend.digest' release-manifest.json)
+          backend_sha=$(jq -r '.backend.tag' release-manifest.json)
+          frontend_repo=$(jq -r '.frontend.repository' release-manifest.json)
+          frontend_digest=$(jq -r '.frontend.digest' release-manifest.json)
+          git_sha=$(jq -r '.release.git_sha' release-manifest.json)
+          digest_re='^sha256:[0-9a-f]{64}$'
+          sha_re='^[0-9a-f]{40}$'
+          for repo in "$backend_repo" "$frontend_repo"; do
+            if ! [[ "$repo" =~ ^${ACR_LOGIN_SERVER//./\\.}/[a-z0-9._/-]+$ ]]; then
+              echo "::error::Registre inattendu dans le manifeste : $repo"
+              exit 1
+            fi
+          done
+          if ! [[ "$backend_digest" =~ $digest_re && "$frontend_digest" =~ $digest_re && "$backend_sha" =~ $sha_re && "$git_sha" =~ $sha_re ]]; then
+            echo "::error::Manifeste invalide (digest ou sha)."
+            exit 1
+          fi
+          if [ "release-$git_sha" != "$RELEASE_TAG" ]; then
+            echo "::error::Le manifeste ne correspond pas à la release demandée."
+            exit 1
+          fi
+          # Le commit de la release doit appartenir à main (un dispatch de
+          # « Build images » sur une branche non relue publie aussi une release).
+          status=$(gh api "repos/$REPO/compare/$git_sha...main" --jq '.status')
+          if [ "$status" != "ahead" ] && [ "$status" != "identical" ]; then
+            echo "::error::Le commit $git_sha n'est pas dans l'historique de main (statut '$status') : refus."
+            exit 1
+          fi
+          {
+            echo "backend_image=$backend_repo@$backend_digest"
+            echo "frontend_image=$frontend_repo@$frontend_digest"
+            # Révision inscrite DANS l'image backend (peut précéder la release
+            # quand l'image a été réutilisée sans rebuild) : c'est elle que
+            # /health/live doit renvoyer.
+            echo "backend_sha=$backend_sha"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release $RELEASE_TAG"
+            echo "- backend : \`$backend_repo@$backend_digest\` (révision $backend_sha)"
+            echo "- frontend : \`$frontend_repo@$frontend_digest\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Record current images (rollback reference)
+        run: |
+          set -euo pipefail
+          for app in "$APP_API" "$APP_WORKER" "$APP_FRONTEND"; do
+            cur=$(az webapp config show --name "$app" --resource-group "$RG" --query linuxFxVersion -o tsv)
+            echo "- $app avant déploiement : \`$cur\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Deploy by digest
+        env:
+          BACKEND_IMAGE: ${{ steps.manifest.outputs.backend_image }}
+          FRONTEND_IMAGE: ${{ steps.manifest.outputs.frontend_image }}
+        run: |
+          set -euo pipefail
+          deploy() {
+            echo "==> $1 -> $2"
+            # Ne modifie QUE linuxFxVersion (pas `config container set`, qui peut
+            # réécrire les App Settings DOCKER_REGISTRY_SERVER_*). L'accès au
+            # registre reste celui déjà configuré sur l'App Service.
+            az webapp config set --name "$1" --resource-group "$RG" \
+              --linux-fx-version "DOCKER|$2" --output none
+            got=$(az webapp config show --name "$1" --resource-group "$RG" --query linuxFxVersion -o tsv)
+            if [ "$got" != "DOCKER|$2" ]; then
+              echo "::error::$1 référence '$got' au lieu de 'DOCKER|$2'"
+              exit 1
+            fi
+          }
+          case "$TARGETS" in
+            api) deploy "$APP_API" "$BACKEND_IMAGE" ;;
+            worker) deploy "$APP_WORKER" "$BACKEND_IMAGE" ;;
+            frontend) deploy "$APP_FRONTEND" "$FRONTEND_IMAGE" ;;
+            api+worker) deploy "$APP_API" "$BACKEND_IMAGE"; deploy "$APP_WORKER" "$BACKEND_IMAGE" ;;
+            all) deploy "$APP_API" "$BACKEND_IMAGE"; deploy "$APP_WORKER" "$BACKEND_IMAGE"; deploy "$APP_FRONTEND" "$FRONTEND_IMAGE" ;;
+          esac
+
+      - name: Verify the NEW revision is serving
+        env:
+          BACKEND_SHA: ${{ steps.manifest.outputs.backend_sha }}
+        run: |
+          set -euo pipefail
+          # Attend que /health/live renvoie la révision DÉPLOYÉE (un 200 de
+          # l'ancien conteneur, encore en service pendant le basculement, ne
+          # suffit pas).
+          wait_for_sha() {
+            local name="$1" url="$2"
+            if [ "$VERIFY_REVISION" != "true" ]; then
+              echo "::warning::$name : vérification de révision désactivée (rollback vers une image sans RELEASE_SHA intégré) — contrôle de disponibilité seulement."
+              for i in $(seq 1 45); do
+                code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url/health/live" || true)
+                [ "$code" = "200" ] && return 0
+                sleep 20
+              done
+              echo "::error::$name /health/live ne répond pas 200."
+              return 1
+            fi
+            for i in $(seq 1 45); do
+              body=$(curl -s --max-time 10 "$url/health/live" || true)
+              sha=$(printf '%s' "$body" | jq -r '.release_sha // empty' 2>/dev/null || true)
+              if [ "$sha" = "$BACKEND_SHA" ]; then
+                echo "$name sert la révision $sha"
+                return 0
+              fi
+              sleep 20
+            done
+            echo "::error::$name ne sert pas la révision $BACKEND_SHA après 15 min (dernière : '${sha:-?}'). Rollback : redéployer l'image notée à « Record current images »."
+            return 1
+          }
+          case "$TARGETS" in
+            api|api+worker|all) wait_for_sha "API" "$API_PUBLIC_URL" ;;
+          esac
+          case "$TARGETS" in
+            worker|api+worker|all) wait_for_sha "Worker" "$WORKER_PUBLIC_URL" ;;
+          esac
+          case "$TARGETS" in
+            api|api+worker|all)
+              # Quelques essais bornés : un 503 transitoire (pool, Redis qui se
+              # réchauffe) ne doit pas faire échouer un déploiement sain.
+              for i in $(seq 1 6); do
+                code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$API_PUBLIC_URL/health/ready" || true)
+                [ "$code" = "200" ] && break
+                sleep 10
+              done
+              if [ "$code" != "200" ]; then
+                echo "::error::API /health/ready = $code après déploiement."
+                exit 1
+              fi ;;
+          esac
+          case "$TARGETS" in
+            frontend|all)
+              # LIMITE connue : le frontend n'expose pas sa révision ; un 200 peut
+              # encore venir de l'ancien conteneur. Vérifier linuxFxVersion
+              # (étape précédente) + contrôle visuel. Suivi : version.json servi.
+              for i in $(seq 1 45); do
+                code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_PUBLIC_URL/" || true)
+                [ "$code" = "200" ] && { echo "Frontend 200"; break; }
+                sleep 20
+              done
+              if [ "$code" != "200" ]; then
+                echo "::error::Frontend ne répond pas 200 après déploiement."
+                exit 1
+              fi ;;
+          esac

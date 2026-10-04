@@ -365,7 +365,11 @@ def verify_webhook(mode: Optional[str], token: Optional[str], challenge: Optiona
     back only if `hub.mode == "subscribe"` and the verify token matches the
     one configured for this tenant. Returns None on any mismatch — the
     endpoint must then respond 403, never guess or fall back to a default."""
-    if mode == "subscribe" and expected_token and token == expected_token:
+    import hmac
+
+    if mode == "subscribe" and expected_token and token and hmac.compare_digest(
+        token.encode("utf-8"), expected_token.encode("utf-8")
+    ):
         return challenge
     return None
 

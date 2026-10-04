@@ -998,6 +998,19 @@ def update_presence(
         roles = current_user.get("roles", [])
         if "TENANT_ADMIN" not in roles and "SUPER_ADMIN" not in roles:
             raise HTTPException(status_code=403, detail="Can only update your own presence")
+        # SECURITY (anti-IDOR) : un administrateur n'agit que sur un utilisateur
+        # de SON tenant (tenant résolu ci-dessus). 404 identique pour un id
+        # inexistant, invalide ou d'un autre tenant : aucune fuite d'existence.
+        try:
+            target_id = str(UUID(str(body.user_id)))
+        except (ValueError, TypeError, AttributeError):
+            raise HTTPException(status_code=404, detail="User not found")
+        target = db.execute(
+            text("SELECT 1 FROM users WHERE id = :uid AND tenant_id = :tid"),
+            {"uid": target_id, "tid": tenant_id},
+        ).first()
+        if target is None:
+            raise HTTPException(status_code=404, detail="User not found")
 
     # Derive status string from is_online bool if status not provided
     if body.status:
@@ -1038,16 +1051,25 @@ def update_presence(
                 metadata_payload["current_conversation_id"] = body.current_conversation_id
 
         metadata_json = _json.dumps(metadata_payload) if metadata_payload else None
-        db.execute(text("""
+        # La clause WHERE du DO UPDATE empêche d'écraser la présence d'un
+        # utilisateur rattachée à un AUTRE tenant (défense en profondeur, même
+        # quand le rôle de connexion contourne la RLS).
+        result = db.execute(text("""
             INSERT INTO user_presence (user_id, tenant_id, status, is_typing, current_conversation_id, metadata, updated_at)
             VALUES (:user_id, :tenant_id, :status, :is_typing, :conv_id, CAST(:metadata AS JSONB), NOW())
             ON CONFLICT (user_id) DO UPDATE SET
+                tenant_id = excluded.tenant_id,
                 status = :status,
                 is_typing = :is_typing,
                 current_conversation_id = :conv_id,
                 metadata = CAST(:metadata AS JSONB),
                 updated_at = NOW()
+            WHERE user_presence.tenant_id = excluded.tenant_id OR :is_self
         """), {
+            # Sa PROPRE ligne peut être rattachée au tenant courant (SUPER_ADMIN
+            # qui change d'établissement via X-Tenant-ID) ; celle d'un autre
+            # utilisateur, jamais (tenant identique exigé).
+            "is_self": body.user_id == user_id,
             "user_id": body.user_id,
             "tenant_id": tenant_id,
             "status": resolved_status,
@@ -1055,8 +1077,14 @@ def update_presence(
             "conv_id": body.current_conversation_id or None,
             "metadata": metadata_json,
         })
+        if result.rowcount == 0:
+            # Conflit avec une présence d'un autre tenant : rien n'a été écrit.
+            db.rollback()
+            raise HTTPException(status_code=404, detail="User not found")
         db.commit()
         return {"user_id": body.user_id, "status": resolved_status, "updated_at": datetime.now(timezone.utc).isoformat()}
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Failed to update presence: %s", e, exc_info=True)

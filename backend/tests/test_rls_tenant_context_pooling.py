@@ -22,6 +22,7 @@ from __future__ import annotations
 import random
 import threading
 import uuid
+from contextlib import contextmanager
 
 import pytest
 
@@ -39,6 +40,7 @@ from app.core.database import (  # noqa: E402
     worker_db_session,
 )
 from sqlalchemy import create_engine, text  # noqa: E402
+from sqlalchemy.exc import DBAPIError  # noqa: E402
 from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
@@ -50,6 +52,14 @@ requires_postgres = pytest.mark.skipif(
 
 ROLE = "test_rls_pooling_restricted_role"
 ROLE_PASSWORD = "test-only-pooling-role-password"  # noqa: S105 — rôle jetable, base de test uniquement
+
+
+@contextmanager
+def _rls_violation():
+    """Attend un refus RLS : SQLSTATE 42501 (insufficient_privilege), indépendant de la langue serveur."""
+    with pytest.raises(DBAPIError) as ei:
+        yield
+    assert getattr(ei.value.orig, "sqlstate", None) == "42501", f"SQLSTATE inattendu : {getattr(ei.value.orig, 'sqlstate', None)}"
 
 
 def _restricted_url():
@@ -102,12 +112,10 @@ class TestRlsTenantContextPooling:
     @pytest.fixture(scope="class")
     def restricted_role(self):
         with engine.connect() as conn:
-            try:
-                conn.execute(text(f'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM "{ROLE}"'))
-                conn.commit()
-            except Exception:
-                conn.rollback()
-            conn.execute(text(f'DROP ROLE IF EXISTS "{ROLE}"'))
+            exists = conn.execute(text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": ROLE}).first()
+            if exists:  # reste d'une exécution interrompue
+                conn.execute(text(f'DROP OWNED BY "{ROLE}"'))
+                conn.execute(text(f'DROP ROLE "{ROLE}"'))
             conn.execute(text(
                 f'CREATE ROLE "{ROLE}" LOGIN PASSWORD \'{ROLE_PASSWORD}\' '
                 "NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION"
@@ -139,7 +147,11 @@ class TestRlsTenantContextPooling:
             a, b = _make_tenant(conn, "Pool A"), _make_tenant(conn, "Pool B")
             ua, ub = _make_user(conn, a), _make_user(conn, b)
             ja, jb = _make_job(conn, a), _make_job(conn, b)
-        return {"A": a, "B": b, "ua": ua, "ub": ub, "ja": ja, "jb": jb}
+        yield {"A": a, "B": b, "ua": ua, "ub": ub, "ja": ja, "jb": jb}
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM jobs WHERE id IN (:a, :b)"), {"a": ja, "b": jb})
+            conn.execute(text("DELETE FROM users WHERE id IN (:a, :b)"), {"a": ua, "b": ub})
+            conn.execute(text("DELETE FROM tenants WHERE id IN (:a, :b)"), {"a": a, "b": b})
 
     # ── lecture / écriture inter-tenants ────────────────────────────────────
 
@@ -156,11 +168,11 @@ class TestRlsTenantContextPooling:
     def test_write_a_to_b_is_refused(self, shared_connection_sessions, data):
         with shared_connection_sessions() as db:
             _set_rls_context(db, data["A"])
-            with pytest.raises(Exception, match="row-level security"):
+            with _rls_violation():
                 db.execute(text("UPDATE users SET tenant_id = :b WHERE id = :u"), {"b": data["B"], "u": data["ua"]})
             db.rollback()
             # db.rollback() a terminé la transaction : la suivante reprend bien A.
-            with pytest.raises(Exception, match="row-level security"):
+            with _rls_violation():
                 _make_user(db, data["B"])
             db.rollback()
 
@@ -168,7 +180,7 @@ class TestRlsTenantContextPooling:
         with shared_connection_sessions() as db:
             _set_rls_context(db, None)
             assert _visible_users(db, [data["ua"], data["ub"]]) == set()
-            with pytest.raises(Exception, match="row-level security"):
+            with _rls_violation():
                 _make_user(db, data["A"])
             db.rollback()
         with shared_connection_sessions() as fresh:  # session sans aucun contexte posé
@@ -265,27 +277,73 @@ class TestRlsTenantContextPooling:
         eng = create_engine(_restricted_url(), pool_size=3, max_overflow=0)
         maker = sessionmaker(bind=eng, autocommit=False, autoflush=False)
         own = {data["A"]: {data["ua"]}, data["B"]: {data["ub"]}, None: set()}
-        errors = []
+        errors, done = [], []
+        lock = threading.Lock()
 
         def worker(seed):
             rnd = random.Random(seed)
-            for _ in range(25):
-                tenant = rnd.choice([data["A"], data["B"], None])
-                db = maker()
-                try:
-                    _set_rls_context(db, tenant)
-                    for _ in range(2):  # deux transactions par session
-                        got = _visible_users(db, [data["ua"], data["ub"]])
-                        if got != own[tenant]:
-                            errors.append((tenant, got))
-                        db.commit()
-                finally:
-                    db.close()
+            count = 0
+            try:
+                for _ in range(25):
+                    tenant = rnd.choice([data["A"], data["B"], None])
+                    db = maker()
+                    try:
+                        _set_rls_context(db, tenant)
+                        for _ in range(2):  # deux transactions par session
+                            got = _visible_users(db, [data["ua"], data["ub"]])
+                            if got != own[tenant]:
+                                with lock:
+                                    errors.append(("contamination", tenant, got))
+                            db.commit()
+                    finally:
+                        db.close()
+                    count += 1
+            except Exception as exc:  # un thread qui plante ne doit pas donner un faux vert
+                with lock:
+                    errors.append(("exception", repr(exc)))
+            with lock:
+                done.append(count)
 
-        threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        eng.dispose()
-        assert not errors, f"contamination entre tenants : {errors[:3]}"
+        try:
+            threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            eng.dispose()
+        assert not errors, f"erreurs : {errors[:3]}"
+        assert sorted(done) == [25] * 8, f"itérations incomplètes : {done}"
+
+    # ── valeur de session résiduelle (déploiement mixte / SET manuel) ───────
+
+    def test_leftover_session_value_is_never_inherited(self, shared_connection_sessions, data):
+        """Une valeur de PORTÉE SESSION laissée sur la connexion (ancien code,
+        SET manuel) ne doit jamais être vue par une session, même sans contexte."""
+        # Connexion Core (pas une Session) : le hook after_begin ne s'applique
+        # pas, on simule exactement un client qui laisse une valeur de SESSION.
+        eng = shared_connection_sessions.kw["bind"]
+        with eng.connect() as raw:
+            raw.execute(text("SELECT set_config('app.current_tenant_id', :a, false)"), {"a": data["A"]})
+            raw.commit()
+            # Précondition : la valeur résiduelle A est bien sur la connexion physique.
+            assert raw.execute(text("SELECT current_setting('app.current_tenant_id', true)")).scalar() == data["A"]
+            raw.rollback()
+        try:
+            with shared_connection_sessions() as undeclared:
+                assert _visible_users(undeclared, [data["ua"], data["ub"]]) == set(), "valeur de session héritée"
+            with shared_connection_sessions() as b_session:
+                _set_rls_context(b_session, data["B"])
+                assert _visible_users(b_session, [data["ua"], data["ub"]]) == {data["ub"]}
+        finally:
+            with eng.connect() as raw:
+                raw.execute(text("SELECT set_config('app.current_tenant_id', '', false)"))
+                raw.commit()
+
+    def test_context_change_inside_savepoint_is_refused(self, shared_connection_sessions, data):
+        with shared_connection_sessions() as db:
+            _set_rls_context(db, data["A"])
+            with db.begin_nested():
+                with pytest.raises(RuntimeError):
+                    _set_rls_context(db, data["B"])
+            assert _visible_users(db, [data["ua"], data["ub"]]) == {data["ua"]}

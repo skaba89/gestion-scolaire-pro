@@ -43,6 +43,13 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
+# Révision Git de l'image, renvoyée par /health/live (API et sonde worker) :
+# rend la version servie vérifiable quel que soit l'hébergeur. Une variable
+# d'environnement RELEASE_SHA fournie au runtime (Container Apps) la remplace.
+# Déclarée en fin de fichier pour ne pas invalider le cache des couches.
+ARG RELEASE_SHA=unknown
+ENV RELEASE_SHA=${RELEASE_SHA}
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=15s --timeout=10s --start-period=60s --retries=3 \

@@ -177,13 +177,15 @@ async def _deliver_webhook(url: str, payload: dict, secret: Optional[str] = None
 
 async def _dispatch_webhooks(event: DomainEvent) -> None:
     """Event handler: fan out event to all matching tenant webhooks."""
-    from app.core.database import SessionLocal
+    from app.core.database import worker_db_session
 
     if not event.tenant_id:
         return
 
     try:
-        with SessionLocal() as db:
+        # Contexte RLS du tenant de l'événement (validé, fail-closed) : sous un
+        # rôle NOBYPASSRLS, une session sans contexte ne verrait aucun webhook.
+        with worker_db_session(event.tenant_id) as db:
             rows = db.execute(text("""
                 SELECT url, secret
                 FROM webhooks

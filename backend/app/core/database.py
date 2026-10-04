@@ -95,39 +95,38 @@ _SET_LOCAL_TENANT_SQL = text("SELECT set_config('app.current_tenant_id', :tid, t
 
 @event.listens_for(Session, "after_begin")
 def _reapply_rls_context_on_begin(session, transaction, connection):
-    """Re-position the tenant context at the start of every transaction of a
-    session that has one (see `_set_rls_context`). Sessions that never had a
-    context set keep PostgreSQL's default (no tenant)."""
-    if _RLS_TENANT_KEY not in session.info or connection.dialect.name != "postgresql":
+    """Position the tenant context at the start of EVERY transaction on
+    PostgreSQL: the session's own context (see `_set_rls_context`), or ''
+    (no tenant) for a session that never declared one. Always writing a
+    transaction-local value means a session-scoped value left on the server
+    connection (older code during a mixed deployment, a manual SET behind
+    the pooler) can never be inherited."""
+    if connection.dialect.name != "postgresql":
         return
-    connection.execute(_SET_LOCAL_TENANT_SQL, {"tid": session.info[_RLS_TENANT_KEY]})
+    connection.execute(_SET_LOCAL_TENANT_SQL, {"tid": session.info.get(_RLS_TENANT_KEY, "")})
 
 
 def get_db():
-    """Dependency to get database session with RLS tenant_id set (PostgreSQL only).
+    """Dependency to get a database session carrying the request's RLS tenant context.
 
-    SECURITY: Always resets the RLS context to prevent connection pool leaks.
-    Without this reset, a connection previously used for tenant A would
-    retain app.current_tenant_id = A, causing tenant B's queries to be
-    silently filtered (or blocked) by the wrong RLS policy.
+    The context (TenantMiddleware's `tenant_context`, None = no tenant) is set
+    with `_set_rls_context`: transaction-local and re-applied at the start of
+    every transaction of this session, so nothing survives on a reused or
+    pooled connection (see `_reapply_rls_context_on_begin`).
     """
     db = SessionLocal()
 
     if not settings.is_sqlite:
         try:
-            # Transaction-scoped and re-applied on every transaction of this
-            # session (see _reapply_rls_context_on_begin): one SET LOCAL
-            # round-trip per transaction — the price of being correct behind
-            # a transaction-mode pooler.
+            # One SET LOCAL round-trip per transaction — the price of being
+            # correct behind a transaction-mode pooler.
             _set_rls_context(db, tenant_context.get())
-        except Exception as exc:
-            # RLS set_config may fail if the function doesn't exist yet
-            # (e.g. fresh database before Alembic runs RLS migration).
-            # Log but don't block — the connection is still usable.
-            import logging
-            logging.getLogger(__name__).warning(
-                "set_config failed (RLS may not be configured yet): %s", exc
-            )
+        except Exception:
+            # Fail-closed: never serve a request whose tenant context could
+            # not be positioned (rule: no silent degradation).
+            logger.exception("get_db: impossible de positionner le contexte tenant RLS — requête refusée")
+            db.close()
+            raise
 
     try:
         # PERFORMANCE: this "SELECT 1" liveness probe is redundant on
@@ -243,6 +242,11 @@ def _set_rls_context(db: Session, tenant_id: Optional[str]) -> None:
     """
     if settings.is_sqlite:
         return
+    if db.in_nested_transaction():
+        # A SET LOCAL issued inside a SAVEPOINT is undone by ROLLBACK TO
+        # SAVEPOINT while db.info would keep the new value: the effective
+        # context and the application's view would diverge. Refuse.
+        raise RuntimeError("Le contexte tenant ne peut pas être changé dans un savepoint (begin_nested).")
     value = str(tenant_id) if tenant_id else ""
     db.info[_RLS_TENANT_KEY] = value
     if db.in_transaction():
@@ -354,9 +358,11 @@ def switch_tenant_context(db: Session, tenant_id: str) -> str:
     callers can use the canonical string form afterward.
 
     Callers MUST call `reset_tenant_context(db)` (or otherwise leave this
-    session) before this connection could be reused for anything else -
-    see check_inactive_tenants and retry_failed_notifications in
-    app/workers/tasks.py for the pattern this is meant for.
+    session) before doing platform-scoped work again on this session: the
+    context lives on the SESSION (`db.info`) and is re-applied to every later
+    transaction of it. Nothing survives on the database connection itself
+    (transaction-local) - see check_inactive_tenants and
+    retry_failed_notifications in app/workers/tasks.py for the pattern.
     """
     normalized = _resolve_tenant_context(db, tenant_id)
     _set_rls_context(db, normalized)

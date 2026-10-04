@@ -184,7 +184,7 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://<apiUrl>/health/ready
 
 # 5. Worker heartbeat -> ACTIVE (via /health/deep — nécessite HEALTH_DEEP_SECRET,
 #    ou DEBUG=true, jamais un accès non protégé — voir docs/AZURE_OBSERVABILITY.md)
-curl -sS "https://<apiUrl>/health/deep?secret=$HEALTH_DEEP_SECRET" | jq '.workers'
+curl -sS -H "Authorization: Bearer $HEALTH_DEEP_SECRET" "https://<apiUrl>/health/deep" | jq '.workers'
 # attendu : au moins une entrée avec "status": "running"
 
 # 6. Frontend -> HEALTHY
@@ -192,7 +192,7 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://<frontendUrl>/
 
 # 7. release SHA -> celui attendu (comparer au release-manifest.json de #264)
 curl -sS https://<apiUrl>/health/live | jq -r '.release_sha'
-curl -sS "https://<apiUrl>/health/deep?secret=$HEALTH_DEEP_SECRET" | jq -r '.workers[0].release_sha'
+curl -sS -H "Authorization: Bearer $HEALTH_DEEP_SECRET" "https://<apiUrl>/health/deep" | jq -r '.workers[0].release_sha'
 
 # 8. backend/frontend digest -> ceux attendus (comparer au release-manifest.json)
 az containerapp show --name "$API" --resource-group "$RG" \

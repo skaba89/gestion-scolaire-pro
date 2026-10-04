@@ -58,14 +58,28 @@ SELECT count(*) FROM pg_class WHERE pg_get_userbyid(relowner) LIKE 'schoolflow_%
 
 ## Ordre de bascule (chaque étape validée séparément)
 
-1. Répéter sur une branche Neon issue de `production` (rôles + image de la
-   release en local sur l'endpoint `-pooler` + `tests/test_rls_tenant_context_pooling.py`).
+1. Répéter sur une branche Neon **jetable** issue de `production` (rôles +
+   image de la release en local sur l'endpoint `-pooler` +
+   `tests/test_rls_tenant_context_pooling.py`). Attention : la suite de tests
+   écrit sur la branche (`create_all`, rôles et données de test) — jamais sur
+   `production` ni sur une branche de sauvegarde.
 2. Créer les rôles en production (sans effet tant qu'ils ne sont pas utilisés).
-3. Déployer l'image de la release **par digest** sur l'API (encore en `neondb_owner`).
+   Les mots de passe sont des variables psql (`\set api_pwd …` ou
+   `psql -v api_pwd=…`), générés en mémoire et jamais tapés en clair.
+3. Déployer l'image de la release **par digest** sur l'API **et sur le
+   worker** (encore en `neondb_owner`), et vérifier qu'aucune instance ne
+   tourne plus une image antérieure à #269.
 4. Basculer `DATABASE_URL`, `DATABASE_URL_SYNC`, `DATABASE_URL_ASYNC` de l'API
    vers `schoolflow_api` ; vérifier `GET /platform/security/database-role/`.
-5. Même chose pour le worker (`schoolflow_worker`).
+5. Même chose pour le worker (`schoolflow_worker`), seulement après l'étape 3
+   pour le worker.
 6. Retirer `POSTGRES_*` de l'API ; faire tourner le mot de passe de `neondb_owner`.
 
+**Invariant de sécurité** : une image antérieure à #269 (contexte tenant de
+portée session) ne doit **jamais** tourner avec un rôle `schoolflow_*` via le
+pooler — elle ferait fuir le contexte entre clients.
+
 Rollback de chaque bascule : rétablir les valeurs précédentes des App Settings
-(conservées hors dépôt) ; `DROP ROLE` si les rôles doivent être retirés.
+(conservées hors dépôt) ; `DROP ROLE` si les rôles doivent être retirés. Un
+rollback d'**image** vers une version antérieure à #269 impose de revenir
+**d'abord** à `neondb_owner`.

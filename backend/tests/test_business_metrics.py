@@ -59,7 +59,7 @@ def test_forbidden_request_increments_authz_denied_counter():
     labels = {"method": "GET", "endpoint": endpoint}
     before = _metric_value(_scrape(), "authz_denied_total", labels)
 
-    response = client.get(endpoint, params={"secret": "invalid-secret"})
+    response = client.get(endpoint, headers={"X-Bootstrap-Secret": "invalid-secret"})
     assert response.status_code == 403
 
     after = _metric_value(_scrape(), "authz_denied_total", labels)

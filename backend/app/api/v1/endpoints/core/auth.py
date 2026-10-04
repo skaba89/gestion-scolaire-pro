@@ -1300,7 +1300,7 @@ def bootstrap_admin(
             db.commit()
             steps.append("created SUPER_ADMIN role")
 
-        # Step 4: Verify the result
+        # Verify the result
         verify = db.execute(
             sqlalchemy.text("SELECT id, email, username, is_active, is_superuser FROM users WHERE email = :email"),
             {"email": admin_email}
@@ -1367,146 +1367,108 @@ def diagnostics(
 
 
 # ─── Login Diagnostics (protected by BOOTSTRAP_SECRET) ─────────────────────
-# This endpoint helps diagnose login issues but is protected in production.
-# Pass the BOOTSTRAP_SECRET as a query parameter to access it.
+# Diagnostic opérateur des problèmes de connexion. SÉCURITÉ (2026-10) :
+# - secret uniquement via l'en-tête X-Bootstrap-Secret (jamais en query string :
+#   les URL finissent dans les journaux d'accès, proxys et historiques) ;
+# - comparaison en temps constant (hmac.compare_digest) ;
+# - réponse limitée à des statuts : aucune URL/identifiant de base, aucun texte
+#   d'exception (peut contenir hôte/utilisateur), aucun email/identifiant
+#   d'administrateur, aucune longueur de secret.
+
+BOOTSTRAP_SECRET_HEADER = "X-Bootstrap-Secret"
+
+
+def _bootstrap_secret_matches(provided: Optional[str]) -> bool:
+    """Comparaison en temps constant avec BOOTSTRAP_SECRET ; False si l'un est vide."""
+    import hmac
+
+    expected = settings.BOOTSTRAP_SECRET or ""
+    if not expected or not provided:
+        return False
+    return hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
 
 @router.get("/login-diagnostics/")
+@limiter.limit("5/minute")
 async def login_diagnostics(
+    request: Request,
     db: Session = Depends(get_db),
-    secret: str = Query(default="", description="BOOTSTRAP_SECRET for authorization"),
 ):
-    """Protected diagnostic endpoint to debug login issues.
+    """Diagnostic protégé des problèmes de connexion (base, tables, admin, Redis).
 
-    Requires BOOTSTRAP_SECRET as query parameter in production.
-    Tests database connectivity, admin user existence, password verification,
-    and Redis connectivity. Returns detailed status for each component.
-    Remove this endpoint after resolving deployment issues.
+    Exige l'en-tête ``X-Bootstrap-Secret``. Ne renvoie que des statuts.
     """
     import sqlalchemy
-    import traceback
 
-    # SECURITY: Require BOOTSTRAP_SECRET in production
-    bootstrap_secret = settings.BOOTSTRAP_SECRET or os.environ.get("BOOTSTRAP_SECRET", "")
-    if not bootstrap_secret or secret != bootstrap_secret:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Provide valid BOOTSTRAP_SECRET as ?secret= query parameter."
-        )
+    if not _bootstrap_secret_matches(request.headers.get(BOOTSTRAP_SECRET_HEADER)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    result = {
-        "status": "ok",
-        "components": {},
-        "errors": [],
-    }
+    result = {"status": "ok", "components": {}, "errors": []}
 
-    # 1. Database connectivity
+    def _fail(component: str, exc: Exception) -> None:
+        # Type d'erreur seulement : le message peut contenir hôte, utilisateur
+        # ou fragment de requête. Le détail complet part dans les journaux serveur.
+        logger.warning("login-diagnostics: %s en erreur", component, exc_info=exc)
+        result["components"][component] = {"status": "error", "error_type": type(exc).__name__}
+        result["errors"].append(component)
+        result["status"] = "error"
+
+    # 1. Connectivité base
     try:
         db.execute(sqlalchemy.text("SELECT 1"))
-        result["components"]["database"] = {"status": "ok", "url_prefix": (settings.DATABASE_URL_SYNC or "")[:30] + "..."}
-    except Exception as e:
-        result["components"]["database"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}
-        result["errors"].append(f"Database: {e}")
-        result["status"] = "error"
+        result["components"]["database"] = {
+            "status": "ok",
+            "driver": "sqlite" if settings.is_sqlite else "postgresql",
+        }
+    except Exception as exc:
+        _fail("database", exc)
         return result
 
-    # 2. Check critical tables exist
-    required_tables = ["users", "user_roles"]
-    for table in required_tables:
+    # 2. Tables critiques
+    for table in ("users", "user_roles"):
         try:
             if settings.is_sqlite:
-                db.execute(sqlalchemy.text("SELECT name FROM sqlite_master WHERE type='table' AND name=:t"), {"t": table})
+                found = db.execute(sqlalchemy.text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=:t"), {"t": table}).first()
             else:
-                db.execute(sqlalchemy.text(
-                    "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=:t"
-                ), {"t": table})
-            result["components"][f"table_{table}"] = {"status": "ok"}
-        except Exception as e:
-            result["components"][f"table_{table}"] = {"status": "error", "error": str(e)}
-            result["errors"].append(f"Table {table}: {e}")
+                found = db.execute(sqlalchemy.text(
+                    "SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=:t"), {"t": table}).first()
+            result["components"][f"table_{table}"] = {"status": "ok" if found else "missing"}
+        except Exception as exc:
+            _fail(f"table_{table}", exc)
 
-    # 3. Check admin user
+    # 3. Compte administrateur par défaut (présence et état seulement)
     admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
     try:
-        admin_row = db.execute(
-            sqlalchemy.text("SELECT id, email, username, is_active, is_superuser, password_hash IS NOT NULL as has_password FROM users WHERE email = :email"),
-            {"email": admin_email}
-        ).first()
-
-        if admin_row:
+        admin = find_user_across_all_tenants(db, lambda s: s.query(User).filter(User.email == admin_email).first())
+        if admin is None:
+            result["components"]["admin_user"] = {"status": "not_found"}
+            result["errors"].append("admin_user")
+        else:
+            password_check = "skipped"
+            if settings.ADMIN_DEFAULT_PASSWORD and admin.password_hash:
+                password_check = "ok" if verify_password(settings.ADMIN_DEFAULT_PASSWORD, admin.password_hash) else "mismatch"
             result["components"]["admin_user"] = {
                 "status": "exists",
-                "id": str(admin_row[0]),
-                "email": admin_row[1],
-                "username": admin_row[2],
-                "is_active": bool(admin_row[3]),
-                "is_superuser": bool(admin_row[4]),
-                "has_password_hash": bool(admin_row[5]),
+                "is_active": bool(admin.is_active),
+                "has_password_hash": bool(admin.password_hash),
+                "default_password_check": password_check,
             }
+    except Exception as exc:
+        _fail("admin_user", exc)
 
-            # Check admin roles
-            try:
-                roles = db.execute(
-                    sqlalchemy.text("SELECT role FROM user_roles WHERE user_id = :uid"),
-                    {"uid": str(admin_row[0])}
-                ).fetchall()
-                result["components"]["admin_user"]["roles"] = [r[0] for r in roles]
-            except Exception as e:
-                result["components"]["admin_user"]["roles_error"] = str(e)
-
-            # Test password verification
-            admin_password = settings.ADMIN_DEFAULT_PASSWORD
-            if admin_password and admin_row[5]:  # has_password
-                try:
-                    from app.core.security import verify_password
-                    pw_ok = verify_password(admin_password, admin_row[5]) if hasattr(admin_row, '__getitem__') else False
-                    # admin_row[5] is the result of "password_hash IS NOT NULL" (True/False)
-                    # We need to fetch the actual hash to test
-                    hash_row = db.execute(
-                        sqlalchemy.text("SELECT password_hash FROM users WHERE email = :email"),
-                        {"email": admin_email}
-                    ).first()
-                    if hash_row and hash_row[0]:
-                        pw_ok = verify_password(admin_password, hash_row[0])
-                    else:
-                        pw_ok = False
-                    result["components"]["admin_user"]["password_verification"] = "ok" if pw_ok else "MISMATCH"
-                    if not pw_ok:
-                        result["errors"].append("Admin password does not match ADMIN_DEFAULT_PASSWORD. Use /auth/bootstrap/ to reset.")
-                except Exception as e:
-                    result["components"]["admin_user"]["password_verification"] = f"error: {e}"
-                    result["errors"].append(f"Password verify: {e}")
-            elif not admin_password:
-                result["components"]["admin_user"]["password_verification"] = "skipped (ADMIN_DEFAULT_PASSWORD not set)"
-            else:
-                result["components"]["admin_user"]["password_verification"] = "skipped (no hash in DB)"
-        else:
-            result["components"]["admin_user"] = {
-                "status": "NOT_FOUND",
-                "expected_email": admin_email,
-                "hint": "Admin user not found. The startup bootstrap may have failed. Check Render logs.",
-            }
-            result["errors"].append(f"Admin user '{admin_email}' not found in database")
-    except Exception as e:
-        result["components"]["admin_user"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}
-        result["errors"].append(f"Admin check: {e}")
-
-    # 4. Check config
+    # 4. Configuration (présence seulement, jamais de valeur ni de longueur)
     result["components"]["config"] = {
-        "ADMIN_DEFAULT_EMAIL": settings.ADMIN_DEFAULT_EMAIL or "(not set)",
+        "ADMIN_DEFAULT_EMAIL": "SET" if settings.ADMIN_DEFAULT_EMAIL else "NOT SET",
         "ADMIN_DEFAULT_PASSWORD": "SET" if settings.ADMIN_DEFAULT_PASSWORD else "NOT SET",
-        "ADMIN_DEFAULT_PASSWORD_LENGTH": len(settings.ADMIN_DEFAULT_PASSWORD) if settings.ADMIN_DEFAULT_PASSWORD else 0,
         "SECRET_KEY": "SET" if settings.SECRET_KEY and len(settings.SECRET_KEY) >= 32 else "INVALID",
-        "SECRET_KEY_LENGTH": len(settings.SECRET_KEY) if settings.SECRET_KEY else 0,
-        "BOOTSTRAP_SECRET": "SET" if settings.BOOTSTRAP_SECRET else "NOT SET",
-        "BOOTSTRAP_SECRET_LENGTH": len(settings.BOOTSTRAP_SECRET) if settings.BOOTSTRAP_SECRET else 0,
+        "BOOTSTRAP_SECRET": "SET",
         "DEBUG": settings.DEBUG,
-        "DATABASE_URL_SET": bool(settings.DATABASE_URL),
-        "DATABASE_DRIVER": "sqlite" if settings.is_sqlite else "postgresql",
+        "DATABASE_URL": "SET" if settings.DATABASE_URL else "NOT SET",
     }
 
-    # 5. Redis check — via le wrapper préfixé UNIQUEMENT (ne pas mélanger avec
-    # le client brut : le préfixe sfp: est ajouté automatiquement, et le client
-    # brut attend ex= et non expire=).
+    # 5. Redis — via le wrapper préfixé uniquement (préfixe sfp: automatique,
+    # expire= et non ex=).
     try:
         from app.core.cache import redis_client
         await redis_client.set("_diag_ping", "1", expire=10)
@@ -1514,27 +1476,15 @@ async def login_diagnostics(
         await redis_client.delete("_diag_ping")
         pong_value = pong.decode() if isinstance(pong, bytes) else pong
         if pong_value != "1":
-            raise RuntimeError(f"Redis ping mismatch: expected '1', got {pong_value!r}")
+            raise RuntimeError("Redis ping mismatch")
         result["components"]["redis"] = {"status": "ok"}
-    except Exception as e:
-        result["components"]["redis"] = {"status": "error", "error": f"{type(e).__name__}: {e}"}
-        result["components"]["redis"]["hint"] = "Redis is optional. Login will work without it (rate limiting disabled)."
-
-    # 6. Test actual login query (same as the login endpoint)
-    try:
-        test_user = db.query(User).filter(User.email == admin_email).first()
-        if test_user:
-            result["components"]["login_query"] = {
-                "status": "ok",
-                "user_found": True,
-                "user_email": test_user.email,
-                "user_active": test_user.is_active,
-            }
-        else:
-            result["components"]["login_query"] = {"status": "ok", "user_found": False}
-    except Exception as e:
-        result["components"]["login_query"] = {"status": "error", "error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()}
-        result["errors"].append(f"Login query: {e}")
+    except Exception as exc:
+        logger.warning("login-diagnostics: redis en erreur", exc_info=exc)
+        result["components"]["redis"] = {
+            "status": "error",
+            "error_type": type(exc).__name__,
+            "hint": "Redis is optional. Login will work without it (rate limiting disabled).",
+        }
 
     return result
 

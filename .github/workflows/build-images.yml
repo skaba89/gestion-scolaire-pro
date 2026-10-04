@@ -145,6 +145,9 @@ jobs:
           file: ./backend/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.BACKEND_REPO }}:${{ github.sha }}
+          # Révision servie par /health/live (vérifiée par deploy-appservice.yml).
+          build-args: |
+            RELEASE_SHA=${{ github.sha }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}

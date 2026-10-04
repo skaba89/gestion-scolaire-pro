@@ -47,7 +47,7 @@ class TestMetricsEndpoint:
         from app.core.config import settings as app_settings
         monkeypatch.setattr(app_settings, "DEBUG", False)
         monkeypatch.setenv("METRICS_SECRET", "test-metrics-secret")
-        resp = client.get("/metrics/", params={"secret": "test-metrics-secret"})
+        resp = client.get("/metrics/", headers={"Authorization": "Bearer test-metrics-secret"})
         assert resp.status_code == 200
 
     def test_metrics_reachable_in_debug(self, monkeypatch):
