@@ -68,8 +68,12 @@ def test_oversized_request_line_is_closed_without_response():
         try:
             reader, writer = await asyncio.open_connection("127.0.0.1", port)
             writer.write(b"GET /" + b"a" * 100_000 + b" HTTP/1.1\r\n\r\n")
-            await writer.drain()
-            data = await reader.read()
+            try:
+                await writer.drain()
+                data = await reader.read()
+            except ConnectionResetError:
+                # Fermeture avec données non lues : sous Linux, RST plutôt que FIN.
+                data = b""
             writer.close()
             return data
         finally:
