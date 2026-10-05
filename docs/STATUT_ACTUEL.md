@@ -68,6 +68,8 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   propriétaire des tables) via le pooler, images App Service en `:latest`
   (code `f464a42`, sans #264–#268), frontend en échec de démarrage, et un
   worker ARQ sur App Service sans port HTTP (sonde de démarrage à vérifier).
+  *(Tous résolus depuis : images par digest et worker démarré le 2026-10-04,
+  frontend et rôles runtime le 2026-10-05 — voir les entrées ci-dessous.)*
 
 - **2026-10-04 — contexte tenant compatible pooler** (`app/core/database.py`) :
   le contexte RLS était posé une fois par session (`set_config(..., false)`) ;
@@ -101,6 +103,16 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   Construite, poussée et testée par digest dans `build-images.yml`
   (`frontend_appservice` du manifeste), vérifiée en PR
   (`frontend-appservice-image.yml`), déployée par `deploy-appservice.yml`.
+  En production depuis le 2026-10-05 05:49 UTC (`release-6820abbe…`).
+
+- **2026-10-05 — RLS réellement appliquée en production** : l'API tourne en
+  `schoolflow_api` et le worker en `schoolflow_worker` (NOSUPERUSER,
+  NOBYPASSRLS, pooler Neon) au lieu de `neondb_owner` (BYPASSRLS). Répété sur
+  branche Neon jetable (isolation cross-tenant, pooler), rôles créés puis
+  bascules API et worker validées sans rollback. Restent : retrait des
+  `POSTGRES_*` de l'API, rotation du mot de passe `neondb_owner`,
+  `REVOKE TEMPORARY … FROM PUBLIC`, audit des 15 tables à contournement
+  plateforme. Détails : `docs/runbooks/neon-runtime-role.md`.
 
 ## Documents à considérer avec prudence
 

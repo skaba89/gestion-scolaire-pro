@@ -1,5 +1,13 @@
 # Rôle PostgreSQL non-superutilisateur pour l'application
 
+> **État au 2026-10-05 — production App Service + Neon :** l'API tourne en
+> `schoolflow_api` et le worker en `schoolflow_worker` (NOSUPERUSER,
+> NOBYPASSRLS, via le pooler Neon). Procédure exécutée et résultats :
+> `docs/runbooks/neon-runtime-role.md`. Le texte ci-dessous (Flexible Server,
+> `schoolflow_app`, section « Ne pas encore activer en production ») décrit
+> l'outillage d'origine et l'historique des correctifs ; il ne reflète pas
+> l'état de la production Neon.
+
 Ce document couvre `infra/azure/sql/create_app_role.sql` et le câblage
 associé (`DATABASE_URL_MIGRATIONS`, `effective_migrations_url`) dans
 `backend/app/core/config.py`, `backend/alembic/env.py`,
