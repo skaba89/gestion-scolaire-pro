@@ -123,14 +123,28 @@ the very first run, before any image has ever been pushed), the workflow
     "tag": "a1b2c3d4e5f6...",
     "digest": "sha256:bbbbbbbb...64 hex chars"
   },
+  "frontend_appservice": {
+    "repository": "academyguineenneacr.azurecr.io/schoolflow-frontend-appservice",
+    "tag": "a1b2c3d4e5f6...",
+    "digest": "sha256:cccccccc...64 hex chars"
+  },
   "components": {
     "api": "backend",
     "worker": "backend",
     "migration": "backend",
-    "frontend": "frontend"
+    "frontend": "frontend",
+    "appservice_frontend": "frontend_appservice"
   }
 }
 ```
+
+`frontend_appservice` (2026-10) is the frontend image for **Azure App
+Service** (`Dockerfile.appservice`: static files only, no nginx proxy to the
+docker-compose hostname `api`, listens on `0.0.0.0:${PORT}`). It is pushed,
+pulled back **by digest** and smoke-tested (`scripts/ci/smoke-frontend-appservice.sh`)
+before its digest is published; `deploy-appservice.yml` deploys this image —
+never `frontend`, which only runs where an `api` host exists (docker-compose,
+Container Apps).
 
 `backend.tag`/`frontend.tag` can legitimately differ from `release.git_sha`
 when a side was resolved from a prior build rather than rebuilt this run —
