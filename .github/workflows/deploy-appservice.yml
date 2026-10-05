@@ -112,19 +112,35 @@ jobs:
           backend_repo=$(jq -r '.backend.repository' release-manifest.json)
           backend_digest=$(jq -r '.backend.digest' release-manifest.json)
           backend_sha=$(jq -r '.backend.tag' release-manifest.json)
-          frontend_repo=$(jq -r '.frontend.repository' release-manifest.json)
-          frontend_digest=$(jq -r '.frontend.digest' release-manifest.json)
+          # Frontend App Service = image Dockerfile.appservice (frontend_appservice).
+          # L'image « frontend » (Dockerfile racine, docker-compose / Container
+          # Apps) ne démarre PAS sur App Service : jamais déployée ici.
+          frontend_repo=$(jq -r '.frontend_appservice.repository // empty' release-manifest.json)
+          frontend_digest=$(jq -r '.frontend_appservice.digest // empty' release-manifest.json)
+          frontend_sha=$(jq -r '.frontend_appservice.tag // empty' release-manifest.json)
           git_sha=$(jq -r '.release.git_sha' release-manifest.json)
           digest_re='^sha256:[0-9a-f]{64}$'
           sha_re='^[0-9a-f]{40}$'
-          for repo in "$backend_repo" "$frontend_repo"; do
+          with_frontend=false
+          case "$TARGETS" in frontend|all) with_frontend=true ;; esac
+          if [ "$with_frontend" = true ] && [ -z "$frontend_digest" ]; then
+            echo "::error::Release sans image frontend_appservice (antérieure à Dockerfile.appservice) : frontend non déployable par ce workflow."
+            exit 1
+          fi
+          repos=("$backend_repo")
+          [ "$with_frontend" = true ] && repos+=("$frontend_repo")
+          for repo in "${repos[@]}"; do
             if ! [[ "$repo" =~ ^${ACR_LOGIN_SERVER//./\\.}/[a-z0-9._/-]+$ ]]; then
               echo "::error::Registre inattendu dans le manifeste : $repo"
               exit 1
             fi
           done
-          if ! [[ "$backend_digest" =~ $digest_re && "$frontend_digest" =~ $digest_re && "$backend_sha" =~ $sha_re && "$git_sha" =~ $sha_re ]]; then
+          if ! [[ "$backend_digest" =~ $digest_re && "$backend_sha" =~ $sha_re && "$git_sha" =~ $sha_re ]]; then
             echo "::error::Manifeste invalide (digest ou sha)."
+            exit 1
+          fi
+          if [ "$with_frontend" = true ] && ! [[ "$frontend_digest" =~ $digest_re && "$frontend_sha" =~ $sha_re ]]; then
+            echo "::error::Manifeste invalide (frontend_appservice : digest ou sha)."
             exit 1
           fi
           if [ "release-$git_sha" != "$RELEASE_TAG" ]; then
@@ -140,16 +156,19 @@ jobs:
           fi
           {
             echo "backend_image=$backend_repo@$backend_digest"
-            echo "frontend_image=$frontend_repo@$frontend_digest"
+            echo "frontend_image=${frontend_digest:+$frontend_repo@$frontend_digest}"
             # Révision inscrite DANS l'image backend (peut précéder la release
             # quand l'image a été réutilisée sans rebuild) : c'est elle que
-            # /health/live doit renvoyer.
+            # /health/live doit renvoyer. Idem frontend_sha pour /healthz.
             echo "backend_sha=$backend_sha"
+            echo "frontend_sha=$frontend_sha"
           } >> "$GITHUB_OUTPUT"
           {
             echo "### Release $RELEASE_TAG"
             echo "- backend : \`$backend_repo@$backend_digest\` (révision $backend_sha)"
-            echo "- frontend : \`$frontend_repo@$frontend_digest\`"
+            if [ -n "$frontend_digest" ]; then
+              echo "- frontend App Service : \`$frontend_repo@$frontend_digest\` (révision $frontend_sha)"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Azure login (OIDC)
@@ -197,6 +216,7 @@ jobs:
       - name: Verify the NEW revision is serving
         env:
           BACKEND_SHA: ${{ steps.manifest.outputs.backend_sha }}
+          FRONTEND_SHA: ${{ steps.manifest.outputs.frontend_sha }}
         run: |
           set -euo pipefail
           # Attend que /health/live renvoie la révision DÉPLOYÉE (un 200 de
@@ -248,16 +268,26 @@ jobs:
           esac
           case "$TARGETS" in
             frontend|all)
-              # LIMITE connue : le frontend n'expose pas sa révision ; un 200 peut
-              # encore venir de l'ancien conteneur. Vérifier linuxFxVersion
-              # (étape précédente) + contrôle visuel. Suivi : version.json servi.
+              # /healthz (Dockerfile.appservice) renvoie la révision servie : un
+              # 200 de l'ancien conteneur ne suffit pas. Puis / doit répondre 200.
+              ok=""
               for i in $(seq 1 45); do
-                code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_PUBLIC_URL/" || true)
-                [ "$code" = "200" ] && { echo "Frontend 200"; break; }
+                if [ "$VERIFY_REVISION" != "true" ]; then
+                  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_PUBLIC_URL/healthz" || true)
+                  if [ "$code" = "200" ]; then ok=1; sha="$FRONTEND_SHA"; echo "::warning::Frontend : vérification de révision désactivée — disponibilité seulement."; break; fi
+                else
+                  sha=$(curl -s --max-time 10 "$FRONTEND_PUBLIC_URL/healthz" | jq -r '.release_sha // empty' 2>/dev/null || true)
+                  if [ "$sha" = "$FRONTEND_SHA" ]; then ok=1; echo "Frontend sert la révision $sha"; break; fi
+                fi
                 sleep 20
               done
+              if [ -z "$ok" ]; then
+                echo "::error::Frontend ne sert pas la révision $FRONTEND_SHA après 15 min (dernière : '${sha:-?}'). Rollback : redéployer l'image notée à « Record current images »."
+                exit 1
+              fi
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$FRONTEND_PUBLIC_URL/" || true)
               if [ "$code" != "200" ]; then
-                echo "::error::Frontend ne répond pas 200 après déploiement."
+                echo "::error::Frontend / = $code après déploiement."
                 exit 1
               fi ;;
           esac

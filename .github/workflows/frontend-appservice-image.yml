@@ -1,0 +1,61 @@
+name: Frontend App Service image (PR check)
+
+# Vérifie, AVANT merge, que l'image frontend App Service (Dockerfile.appservice)
+# se construit et démarre comme sur Azure App Service : écoute 0.0.0.0:10000,
+# aucune référence à « api:8000 », aucun secret, échec explicite si l'URL de
+# l'API manque (scripts/ci/smoke-frontend-appservice.sh).
+#
+# Construit localement sur le runner, ne pousse RIEN vers ACR et n'utilise
+# aucun secret : l'image promue est construite, poussée et retestée par
+# digest dans build-images.yml après merge sur main.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile.appservice"
+      - "docker/appservice/**"
+      - "scripts/ci/smoke-frontend-appservice.sh"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "index.html"
+      - "public/**"
+      - ".github/workflows/frontend-appservice-image.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-appservice-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-smoke:
+    name: Build and smoke-test Dockerfile.appservice
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.appservice
+          push: false
+          load: true
+          tags: local/schoolflow-frontend-appservice:pr
+          build-args: |
+            RELEASE_SHA=${{ github.event.pull_request.head.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        env:
+          RELEASE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/ci/smoke-frontend-appservice.sh local/schoolflow-frontend-appservice:pr "$RELEASE_SHA"

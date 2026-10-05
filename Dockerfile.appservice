@@ -1,0 +1,59 @@
+# ─── Academy Guinéenne — Frontend pour Azure App Service ────────────────────
+# Image de PRODUCTION du frontend sur App Service (academy-guineenne-frontend).
+#
+# Différences avec le Dockerfile racine (docker-compose / Container Apps) :
+#   - fichiers statiques uniquement, AUCUN proxy nginx vers « api:8000 »
+#     (nom d'hôte docker-compose, introuvable sur App Service : nginx
+#     s'arrêtait au démarrage — panne d'octobre 2026) ;
+#   - écoute sur 0.0.0.0:${PORT} (10000 par défaut = WEBSITES_PORT) ;
+#   - URL de l'API fournie au démarrage (SCHOOLFLOW_API_URL ou VITE_API_URL),
+#     écrite dans config.js — échec explicite si absente ;
+#   - processus non-root, configuration générée sous /tmp, journaux sur stdout/stderr ;
+#   - /healthz renvoie la révision (RELEASE_SHA) vérifiée par deploy-appservice.yml.
+# Construit et testé par .github/workflows/build-images.yml
+# (scripts/ci/smoke-frontend-appservice.sh) ; voir docs/runbooks/appservice-deploy.md.
+# ─────────────────────────────────────────────────────────────────────────────
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --legacy-peer-deps
+
+COPY . .
+# Aucune URL d'API figée dans le bundle : config.js (généré au démarrage) fait foi.
+ENV VITE_API_URL=
+ENV VITE_FORCE_SW_RESET=true
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN npm run build
+
+# Même base épinglée par digest que le Dockerfile racine (brotli_static).
+FROM fholzer/nginx-brotli@sha256:139a061272fa40c82f18c0eb0bdaa14dde350a739a6138d14ca03d3010683f69
+
+ARG RELEASE_SHA=unknown
+ENV RELEASE_SHA=${RELEASE_SHA} \
+    PORT=10000
+
+# Aucune configuration héritée de l'image de base ni du Dockerfile racine.
+RUN rm -f /etc/nginx/conf.d/*.conf /etc/nginx/*.default
+
+COPY docker/appservice/nginx-main.conf /etc/nginx/nginx.conf
+COPY docker/appservice/site.conf.template docker/appservice/security-headers.conf.template /etc/nginx/appservice/
+COPY docker/appservice/entrypoint.sh /usr/local/bin/appservice-entrypoint.sh
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Seul config.js est modifiable par le processus (écrit au démarrage).
+RUN chmod 0755 /usr/local/bin/appservice-entrypoint.sh && \
+    chmod -R a+rX /usr/share/nginx/html && \
+    touch /usr/share/nginx/html/config.js && \
+    chown nginx:nginx /usr/share/nginx/html/config.js /var/log/nginx && \
+    chown -R nginx:nginx /var/cache/nginx
+
+USER nginx
+
+EXPOSE 10000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+  CMD wget -q -O /dev/null "http://127.0.0.1:${PORT}/healthz" || exit 1
+
+ENTRYPOINT ["/usr/local/bin/appservice-entrypoint.sh"]

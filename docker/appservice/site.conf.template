@@ -1,0 +1,63 @@
+# Frontend Azure App Service — bloc server (voir Dockerfile.appservice).
+# Les jetons __PORT__, __CSP_CONNECT_SRC__ et __RELEASE_SHA__ sont remplacés
+# au démarrage par docker/appservice/entrypoint.sh, après validation.
+#
+# Fichiers statiques uniquement : AUCUN proxy vers l'API. Le navigateur appelle
+# l'API directement via window.__SCHOOLFLOW_CONFIG__.API_URL (config.js généré
+# au démarrage) — aucune dépendance au nom d'hôte docker-compose « api ».
+server {
+    listen 0.0.0.0:__PORT__ default_server;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip_static on;
+    brotli_static on;
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_min_length 256;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript image/svg+xml application/wasm;
+
+    # En-têtes de sécurité : répétés dans chaque location via l'include, car
+    # un add_header dans une location annule ceux hérités du bloc server.
+    include /tmp/nginx-appservice/security-headers.conf;
+
+    # Sonde de santé (App Service, deploy-appservice.yml) : révision servie.
+    location = /healthz {
+        access_log off;
+        default_type application/json;
+        include /tmp/nginx-appservice/security-headers.conf;
+        add_header Cache-Control "no-store" always;
+        return 200 '{"status":"ok","release_sha":"__RELEASE_SHA__"}';
+    }
+
+    location /assets/ {
+        include /tmp/nginx-appservice/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # index.html, config.js et service workers ne doivent jamais être mis en cache.
+    location = /index.html {
+        include /tmp/nginx-appservice/security-headers.conf;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
+    location = /config.js {
+        include /tmp/nginx-appservice/security-headers.conf;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
+    location ~ ^/sw.*\.js$ {
+        include /tmp/nginx-appservice/security-headers.conf;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
+
+    # Fallback SPA.
+    location / {
+        include /tmp/nginx-appservice/security-headers.conf;
+        add_header Cache-Control "no-cache" always;
+        try_files $uri $uri/ /index.html;
+    }
+}

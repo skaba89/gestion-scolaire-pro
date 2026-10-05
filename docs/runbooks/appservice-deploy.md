@@ -1,7 +1,8 @@
 # Runbook — déploiement App Service par digest (`deploy-appservice.yml`)
 
-**Statut : préparé, jamais exécuté.** Chaque lancement est une mise en
-production : validation explicite requise (CLAUDE.md).
+**Statut : exécuté le 2026-10-04 (API + worker, `release-70e28278…`, run
+37237576241) ; frontend jamais encore déployé par ce workflow.** Chaque
+lancement est une mise en production : validation explicite requise (CLAUDE.md).
 
 ## Prérequis (une fois, par un administrateur)
 
@@ -20,6 +21,15 @@ App Service **worker** (une fois, avant le premier déploiement worker) :
 `WORKER_HEALTH_PORT=8000` et `WEBSITES_PORT=8000` (sonde HTTP du worker, voir
 `docs/AZURE_OBSERVABILITY.md`). Sans eux, la vérification worker échoue.
 
+App Service **frontend** : image `schoolflow-frontend-appservice`
+(`Dockerfile.appservice`, entrée `frontend_appservice` du manifeste). Réglages
+utilisés : `PORT` / `WEBSITES_PORT` = `10000`, URL de l'API dans
+`SCHOOLFLOW_API_URL` ou, à défaut, `VITE_API_URL` (origine `https://…`, sans
+chemin ; le conteneur refuse de démarrer sinon), `CSP_CONNECT_SRC` facultatif.
+`BACKEND_HOST` / `BACKEND_PORT` ne servent plus (aucun proxy). Une release
+antérieure à cette image n'a pas de `frontend_appservice` : la cible
+`frontend` est alors refusée.
+
 ## Ce que fait le workflow
 
 1. Valide les entrées (aucune interpolation dans les scripts), la release
@@ -36,8 +46,8 @@ App Service **worker** (une fois, avant le premier déploiement worker) :
 - **Images antérieures à l'intégration de `RELEASE_SHA`** (avant #270) :
   `/health/live` renvoie `unknown`. Pour un rollback vers l'une d'elles,
   lancer avec `verify_revision = false` (contrôle de disponibilité seulement).
-- **Frontend** : pas de révision exposée ; un 200 peut venir de l'ancien
-  conteneur. Vérifier `linuxFxVersion` dans le résumé du run.
+- **Frontend** : `/healthz` renvoie la révision (`frontend_appservice.tag`),
+  vérifiée comme pour l'API, puis `/` doit répondre 200.
 - **Présence d'un SUPER_ADMIN sous rôle NOBYPASSRLS** : sa propre ligne
   `user_presence` reste rattachée au premier établissement visité (la RLS
   empêche de la déplacer ; la requête échoue fermée, 400, sans écriture).

@@ -90,6 +90,18 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   (manuel, par digest) ; plan de protection de `main`
   (`docs/runbooks/github-main-protection.md`, non appliqué).
 
+- **2026-10-05 — image frontend App Service** : le frontend de production
+  (`academy-guineenne-frontend`) ne démarrait plus — `:latest` venait du
+  `Dockerfile` racine (docker-compose), dont nginx proxifie vers le nom d'hôte
+  `api:8000`, introuvable sur App Service (nginx s'arrête au démarrage, code 1),
+  et écoute sur 80 au lieu de 10000. Nouvelle image dédiée `Dockerfile.appservice`
+  (`schoolflow-frontend-appservice`) : statique sans proxy, `0.0.0.0:${PORT}`,
+  non-root, URL de l'API fournie au démarrage (`SCHOOLFLOW_API_URL` ou
+  `VITE_API_URL`, échec explicite si absente), `/healthz` avec la révision.
+  Construite, poussée et testée par digest dans `build-images.yml`
+  (`frontend_appservice` du manifeste), vérifiée en PR
+  (`frontend-appservice-image.yml`), déployée par `deploy-appservice.yml`.
+
 ## Documents à considérer avec prudence
 
 | Document | Problème | À faire avant de le citer |
