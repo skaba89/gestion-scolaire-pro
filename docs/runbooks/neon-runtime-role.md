@@ -1,9 +1,38 @@
 # Runbook — rôles runtime PostgreSQL sur Neon (API / worker, NOBYPASSRLS)
 
-**Statut : préparé, NON exécuté en production.** Chaque étape demande une
-validation humaine explicite (CLAUDE.md, « Opérations interdites sans
-validation »). Ne jamais afficher, journaliser ni committer un mot de passe ou
-une chaîne de connexion.
+**Statut : exécuté en production le 2026-10-05 (étapes 1 à 5) ; étape 6 en
+attente.** Chaque étape demande une validation humaine explicite (CLAUDE.md,
+« Opérations interdites sans validation »). Ne jamais afficher, journaliser ni
+committer un mot de passe ou une chaîne de connexion.
+
+## Journal d'exécution (2026-10-05)
+
+| Étape | Résultat |
+|---|---|
+| 1. Répétition (branche jetable `rehearsal-runtime-roles-20261005`, issue de `production` au 2026-10-04 22:01 UTC) | PASS : attributs, aucun droit DDL, RLS + FORCE sur 117/117 tables, lecture/écriture même tenant OK, lecture/écriture cross-tenant refusées (42501, 0 ligne) — chaque rôle × endpoint direct et `-pooler` ; 40 transactions/rôle sur 4 clients du pooler sans héritage de contexte ; code applicatif réel (8 threads × 25, `after_begin`) sans fuite. La base ne contenant qu'un établissement, un tenant B de test a été créé puis supprimé sur la branche. |
+| 2. Création des rôles en production | PASS : une transaction (CREATE ROLE + GRANT/REVOKE + ALTER DEFAULT PRIVILEGES) ; empreinte RLS/policies identique avant/après ; aucune donnée modifiée. |
+| 3. Image ≥ #269 sur API et worker | release `70e28278…` par digest (2026-10-04). |
+| 4. Bascule API (`schoolflow_api`, `-pooler`, `sslmode=require`) | PASS à 06:09 UTC : seules les 3 `DATABASE_URL*` changées ; `/health/ready` 200 (`rls=active`, `schema=up_to_date`) ; login inconnu 401 ; aucun 5xx. |
+| 5. Bascule worker (`schoolflow_worker`) | PASS à 06:15 UTC : heartbeat `/health/live` « alive » après la période de grâce ; premiers jobs planifiés sous ce rôle : nuit suivante (03:00–04:00 UTC). |
+| 6. Retrait `POSTGRES_*` de l'API ; rotation du mot de passe `neondb_owner` | en attente |
+
+Constats pendant l'exécution :
+
+- Les mots de passe des rôles sont générés en mémoire, posés par `ALTER ROLE`
+  au moment de la bascule et écrits directement dans les App Settings (API
+  Azure Resource Manager), jamais affichés ni stockés ailleurs.
+- `neondb_owner` ne peut pas `REASSIGN OWNED` / `DROP OWNED` sur ces rôles
+  (il n'en est pas membre) : pour les retirer, `REVOKE ALL` (tables, séquences,
+  schéma, base, droits par défaut) puis `DROP ROLE` — ils ne possèdent rien.
+- Les deux rôles héritent de `TEMPORARY` via `PUBLIC` (défaut PostgreSQL ;
+  aucune table temporaire dans le code). Remédiation prévue, après une nuit
+  de jobs réussie : `REVOKE TEMPORARY ON DATABASE neondb FROM PUBLIC;`
+- Sans contexte tenant, les 15 tables à contournement plateforme
+  (migration `20260929_0001`) restent visibles en entier — comportement voulu
+  pour les jobs plateforme ; l'audit des routes sans tenant reste à faire.
+- Rollback d'une bascule : réécrire les 3 `DATABASE_URL*` avec `neondb_owner`
+  (chaîne lue via `neonctl connection-string`, jamais affichée) tant que son
+  mot de passe n'a pas été changé.
 
 ## Contexte
 
