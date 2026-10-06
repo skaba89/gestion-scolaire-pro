@@ -14,6 +14,12 @@ error*.log
 build_output.log
 seed_debug.log
 migration_error.txt
+# Azure App Service diagnostic downloads (Kudu traces) — runtime artifacts,
+# may contain secrets or personal data: never commit
+azure-logs/
+azure-logs-frontend/
+azure-logs*.zip
+azure-log-full.txt
 
 # Environment variables
 .env
@@ -58,8 +64,17 @@ credentials.json
 firebase-adminsdk.json
 docker/keys.txt
 
-# Claude / local assistant state
-.claude/
+# Claude Code — only the shared team configuration is versioned.
+# Everything else under .claude/ stays local: settings.local.json (personal
+# permissions, may contain commands with credentials), worktrees/, launch.json…
+.claude/*
+!.claude/agents/
+!.claude/commands/
+!.claude/skills/
+!.claude/hooks/
+!.claude/settings.json
+CLAUDE.local.md
+**/CLAUDE.local.md
 
 # Legacy one-off scripts
 apply_migrations.ps1
