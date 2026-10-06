@@ -1,7 +1,11 @@
 # Runbook — protection de la branche `main` (GitHub)
 
-**Statut : préparé, NON appliqué.** Opération administrative : à exécuter par
-le propriétaire du dépôt, après validation explicite.
+**Statut : APPLIQUÉ le 2026-10-06** (après validation explicite du
+propriétaire) — ruleset `protect-main` (id `24558312`), variante
+« mainteneur unique » ci-dessous : `required_approving_review_count: 0`,
+`bypass_actors: []`, toutes les autres règles identiques à la commande de ce
+runbook. Vérification : `gh api repos/skaba89/gestion-scolaire-pro/rules/branches/main`.
+Passer à 1 approbation dès qu'un second relecteur a les droits d'écriture.
 
 ## Constat (2026-10-04)
 
