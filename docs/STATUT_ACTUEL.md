@@ -1,6 +1,8 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-09-14, contre le commit `73623a5` (`main`).**
+**Dernière mise à jour : 2026-10-06 (journal de production ci-dessous). Le
+tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
+(`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
 Ce document existe parce que plusieurs documents stratégiques du dépôt
 (`docs/PROJECT_ANALYSIS.md`, `docs/COMPETITIVE_ANALYSIS_2025.md`) ont pris
@@ -22,9 +24,9 @@ document concerné (voir le format utilisé dans `PROJECT_ANALYSIS.md` et
 | Paiement mobile money (Wave, Orange Money, MTN, CinetPay) | ✅ En production | `backend/app/services/payment_gateways.py`, `backend/app/api/v1/endpoints/finance/payments.py` |
 | SMS (Android SMS Gateway, Africa's Talking) | ✅ En production | `backend/app/services/notifications.py` |
 | Génération de relevés de notes / transcripts | ✅ En production | `backend/app/api/v1/endpoints/academic/transcripts.py` |
-| Jobs asynchrones WhatsApp (absence, note, bulletin) | ❌ Code présent, **worker de production jamais démarré** (constaté 2026-10-04, voir ci-dessous) | `backend/app/workers/tasks.py`, voir `docs/reports/FINAL_PRODUCTION_READINESS_AUDIT.md` |
+| Jobs asynchrones WhatsApp (absence, note, bulletin) | 🟡 Code présent, **worker de production démarré** (2026-10-04, en `schoolflow_worker` depuis le 2026-10-05) ; envoi WhatsApp réel non vérifié en production | `backend/app/workers/tasks.py`, voir le journal 2026-10-06 ci-dessous |
 | MFA (TOTP + codes de secours) | ✅ En production | `backend/tests/test_mfa_enforcement.py` |
-| Row-Level Security PostgreSQL | 🟡 Activée, non vérifiée en production | Voir réserve ci-dessous |
+| Row-Level Security PostgreSQL | ✅ Effective en production (rôles runtime NOBYPASSRLS, 117/117 tables à `tenant_id` en `ENABLE` + `FORCE`, audit lecture seule 2026-10-06) | Journal 2026-10-05 et 2026-10-06 ci-dessous |
 
 ## Ce qui reste non vérifié ou non résolu
 
@@ -113,6 +115,29 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   `POSTGRES_*` de l'API, rotation du mot de passe `neondb_owner`,
   `REVOKE TEMPORARY … FROM PUBLIC`, audit des 15 tables à contournement
   plateforme. Détails : `docs/runbooks/neon-runtime-role.md`.
+
+- **2026-10-06 — audit lecture seule de la production (après la bascule runtime)** :
+  API en `schoolflow_api`, worker en `schoolflow_worker` (NOSUPERUSER,
+  NOBYPASSRLS, pooler Neon), `neondb_owner` absent des réglages App Service et
+  plus aucune variable `POSTGRES_*` côté API ; 117/117 tables à `tenant_id` en
+  `ENABLE` + `FORCE ROW LEVEL SECURITY` ; test négatif sous contexte tenant
+  étranger : 0 ligne visible ; images épinglées par digest (release `70e2827`).
+  Jobs : `purge_old_public_form_submissions` (03:30) et `check_inactive_tenants`
+  (04:00) en succès ; **à 03:00 UTC, le worker s'arrêtait chaque nuit** (05/10
+  et 06/10) : après `purge_expired_idempotency_keys` (travail en base effectué),
+  l'écriture du résultat dans Redis dépassait le délai de connexion par défaut
+  d'Arq (1 s, résolution DNS) et l'exception tuait le processus — redémarrage
+  ~3 min, job marqué en échec, sans double exécution. Corrigé par #273 (délai
+  10 s + relances exponentielles, **worker uniquement** — l'API garde l'échec
+  rapide de `enqueue_job`) ; à confirmer sur le run de 03:00 UTC suivant son
+  déploiement. Le même jour : ruleset GitHub `protect-main` actif (PR
+  obligatoire, 5 checks CI requis en mode strict, historique linéaire,
+  suppression et force-push interdits ; 0 approbation — mainteneur unique) et
+  suppression des 4 secrets GitHub orphelins du Deployment Center Azure
+  (aucun workflow ne les utilisait ; authentification « basic » SCM/FTP déjà
+  désactivée sur les trois App Services). Restent, par décision : rotation du
+  mot de passe `neondb_owner`, `REVOKE TEMPORARY … FROM PUBLIC` et l'audit des
+  15 tables à contournement plateforme.
 
 ## Documents à considérer avec prudence
 
