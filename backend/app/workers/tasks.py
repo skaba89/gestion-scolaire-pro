@@ -26,7 +26,7 @@ from app.core.database import (
     switch_tenant_context,
     worker_db_session,
 )
-from app.core.jobs import get_redis_settings
+from app.core.jobs import get_worker_redis_settings
 from app.models.job import Job
 from app.models.notification import Notification
 from app.workers.heartbeat import (
@@ -1213,7 +1213,7 @@ class WorkerSettings:
         # MetricsMiddleware when a tenant's error window actually trips.
         cron(check_inactive_tenants, hour=4, minute=0),
     ]
-    redis_settings: RedisSettings = get_redis_settings()
+    redis_settings: RedisSettings = get_worker_redis_settings()
     max_jobs = 10
     job_timeout = 300  # 5 minutes — generous enough for slow SMTP providers
     max_tries = 3  # retry transient failures (e.g. SMTP timeout) automatically
