@@ -24,6 +24,10 @@ from typing import Any, Optional
 
 from arq import create_pool
 from arq.connections import ArqRedis, RedisSettings
+from redis.asyncio.retry import Retry
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 
 from app.core.config import settings
 
@@ -31,12 +35,48 @@ logger = logging.getLogger(__name__)
 
 _pool: Optional[ArqRedis] = None
 
+# RELIABILITY (production incident, 2026-10-05/06): Arq's defaults are a
+# 1-second connect timeout and NO retry. At 03:00 UTC two nights in a row,
+# resolving the managed Redis host took longer than that while Arq was
+# writing a finished cron job's result (`finish_job`); the TimeoutError is
+# not caught anywhere in Arq's poll loop, so it killed the whole worker
+# process — App Service restarted the container ~3 minutes later and the job
+# was recorded as failed (max retries exceeded) although its database work
+# had completed. Transient network/DNS hiccups must be retried, not fatal.
+REDIS_CONNECT_TIMEOUT_SECONDS = 10
+REDIS_RETRY_ATTEMPTS = 5
+# builtin TimeoutError / OSError (DNS gaierror) are raised INSIDE redis-py's
+# connect retry loop, before it converts them to its own exception types —
+# they must be listed explicitly or the retry never triggers for them.
+REDIS_RETRYABLE_ERRORS = (RedisConnectionError, RedisTimeoutError, TimeoutError, OSError)
+
 
 def get_redis_settings() -> RedisSettings:
     """Parse the same REDIS_URL used everywhere else in this app (see
     app/core/cache.py) into Arq's connection settings, so the queue and
-    the rest of the app always point at the same Redis instance."""
+    the rest of the app always point at the same Redis instance.
+
+    Deliberately keeps Arq's fast-fail defaults: this is what the API's
+    enqueue_job() uses on the request path, which must fail open quickly
+    (and fall back to BackgroundTasks) rather than block an HTTP request
+    for a minute of retries. The worker uses get_worker_redis_settings()."""
     return RedisSettings.from_dsn(settings.REDIS_URL)
+
+
+def get_worker_redis_settings() -> RedisSettings:
+    """Same Redis as get_redis_settings(), with a connect timeout and retry
+    policy that survive transient DNS/network blips instead of crashing the
+    long-running worker process (see the incident comment above)."""
+    redis_settings = get_redis_settings()
+    redis_settings.conn_timeout = REDIS_CONNECT_TIMEOUT_SECONDS
+    redis_settings.retry_on_timeout = True
+    redis_settings.retry_on_error = [RedisConnectionError, RedisTimeoutError]
+    redis_settings.retry = Retry(
+        ExponentialBackoff(cap=10, base=0.5),
+        REDIS_RETRY_ATTEMPTS,
+        supported_errors=REDIS_RETRYABLE_ERRORS,
+    )
+    return redis_settings
 
 
 async def get_arq_pool() -> ArqRedis:
