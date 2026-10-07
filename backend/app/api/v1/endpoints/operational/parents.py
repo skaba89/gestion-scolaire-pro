@@ -14,7 +14,7 @@ import json
 
 logger = logging.getLogger(__name__)
 
-from app.core.database import find_user_across_all_tenants, get_db
+from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
@@ -1059,20 +1059,25 @@ def _resolve_payment_tenant(db: Session, reference: str):
     (NOBYPASSRLS) a plain lookup on the strict `payments` table found
     nothing and every IPN was logged "no matching payment reference" —
     no Mobile Money payment could ever be confirmed (incident 2026-10-07).
-    The reference is searched tenant by tenant (same helper as login-by-email),
-    then the rest of the webhook — gateway verification, confirmation,
-    invoice update — runs strictly under the owning tenant's context.
-    Returns the row ({"tenant_id": ...}) or None.
+    The owning tenant is resolved in ONE indexed lookup by the SECURITY
+    DEFINER function `resolve_payment_tenant()` (migration 20261007_0001,
+    returns the tenant_id only) — constant cost whatever the number of
+    tenants, so an unauthenticated caller cannot make the database scan
+    every tenant per request. Then the rest of the webhook — gateway
+    verification, confirmation, invoice update — runs strictly under the
+    owning tenant's context. Returns {"tenant_id": ...} or None.
     """
-    row = find_user_across_all_tenants(
-        db,
-        lambda s: s.execute(
+    if settings.is_sqlite:
+        # No RLS on SQLite (dev/test): a plain lookup sees every row.
+        tenant_id = db.execute(
             text("SELECT p.tenant_id FROM payments p WHERE p.reference = :ref LIMIT 1"), {"ref": reference}
-        ).mappings().first(),
-    )
-    if row:
-        enter_tenant_context_or_404(db, row["tenant_id"])
-    return row
+        ).scalar()
+    else:
+        tenant_id = db.execute(text("SELECT public.resolve_payment_tenant(:ref)"), {"ref": reference}).scalar()
+    if tenant_id is None:
+        return None
+    enter_tenant_context_or_404(db, tenant_id)
+    return {"tenant_id": tenant_id}
 
 
 @router.post("/payments/webhook/cinetpay/")
