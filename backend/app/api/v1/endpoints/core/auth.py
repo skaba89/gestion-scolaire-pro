@@ -1102,7 +1102,11 @@ async def register_school(
     db.add(tenant)
     db.flush()
 
-    # 5. Create TENANT_ADMIN user
+    # 5. Create TENANT_ADMIN user — under the new tenant's own RLS context:
+    # /auth/* is middleware-exempt (no context), and the restricted runtime
+    # role (NOBYPASSRLS) rejects tenant-scoped inserts made without one
+    # (incident 2026-10-07: public self-registration failed).
+    switch_tenant_context(db, str(tenant.id))
     user_id = str(_uuid.uuid4())
     new_user = User(
         id=user_id,

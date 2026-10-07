@@ -27,7 +27,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
 from app.models import KioskDevice, Room, Student, StudentCheckIn, Tenant
 from app.schemas.kiosk import KioskDeviceCreate, KioskDeviceCreated, KioskDeviceInDB, KioskScanRequest
 from app.utils.audit import log_audit
@@ -246,6 +246,10 @@ def kiosk_scan(
     tenant = db.query(Tenant).filter(Tenant.id == device.tenant_id).first()
     if not tenant or not tenant.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Établissement inactif")
+    # The device token is the authentication: from here on, act strictly as
+    # the device's own tenant (middleware-exempt route — no RLS context yet,
+    # under which strict RLS would hide every student).
+    enter_tenant_context_or_404(db, device.tenant_id)
 
     direction = body.direction.upper() if body.direction else "IN"
     if direction not in ("IN", "OUT"):

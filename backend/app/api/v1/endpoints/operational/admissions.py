@@ -16,7 +16,7 @@ import uuid
 
 from app.core.database import get_db
 from app.core.security import require_permission
-from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
 from app.core.storage import storage_client
 from app.models.base import GUID
 from app.models.audit_log import AuditLog
@@ -724,6 +724,8 @@ def public_apply(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id, Tenant.is_active == True).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found or inactive")
+    # Public portal (middleware-exempt): write under the tenant's RLS context.
+    enter_tenant_context_or_404(db, tenant.id)
 
     # level_id/academic_year_id are optional in the public form — the frontend
     # sends "" (not omitted) when nothing is selected, which Postgres rejects
@@ -810,6 +812,8 @@ def public_check_status(
     db: Session = Depends(get_db),
 ):
     """Check candidature status by parent email (and optionally application ID)."""
+    # Public portal (middleware-exempt): read under the tenant's RLS context.
+    enter_tenant_context_or_404(db, tenant_id)
     # bindparam(type_=GUID()) sur tenant_id/reference : sans ça, un bind
     # texte brut compare la valeur avec tirets de l'appelant à la valeur
     # sans tirets stockée par le GUID TypeDecorator sur SQLite et ne
@@ -900,6 +904,8 @@ class VerifyStudentPayload(BaseModel):
 @router.post("/public/verify-student/")
 def public_verify_student(payload: VerifyStudentPayload, db: Session = Depends(get_db)):
     """Verify that a student exists for re-enrollment (returns masked data)."""
+    # Public portal (middleware-exempt): read under the tenant's RLS context.
+    enter_tenant_context_or_404(db, payload.tenant_id)
     row = db.execute(text("""
         SELECT
             s.id,
@@ -968,6 +974,8 @@ def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
     ).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Établissement introuvable ou inactif.")
+    # Public portal (middleware-exempt): read/write under the tenant's RLS context.
+    enter_tenant_context_or_404(db, tenant.id)
 
     # Verify student belongs to this tenant
     student = db.execute(text("""
@@ -1071,7 +1079,8 @@ def public_tenant_info(slug: str, db: Session = Depends(get_db)):
     if not tenant:
         raise HTTPException(status_code=404, detail="Établissement introuvable.")
 
-    tenant_id = str(tenant["id"])
+    # Public portal (middleware-exempt): read under the tenant's RLS context.
+    tenant_id = enter_tenant_context_or_404(db, tenant["id"])
 
     levels = db.execute(text("""
         SELECT id, name, label, order_index
