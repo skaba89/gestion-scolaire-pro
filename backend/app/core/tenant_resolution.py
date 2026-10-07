@@ -3,13 +3,17 @@
 This helper centralizes tenant resolution and ownership validation to keep
 all tenant-scoped endpoints consistent and reduce cross-tenant access risk.
 """
+from typing import Callable, Iterable, TypeVar
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.core.database import TenantContextError, switch_tenant_context
+from app.core.config import settings
+from app.core.database import TenantContextError, reset_tenant_context, switch_tenant_context
 from app.models import Tenant, User
+
+_T = TypeVar("_T")
 
 
 def enter_tenant_context_or_404(db: Session, tenant_id) -> str:
@@ -33,6 +37,33 @@ def enter_tenant_context_or_404(db: Session, tenant_id) -> str:
         return switch_tenant_context(db, str(tenant_id))
     except TenantContextError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement introuvable.")
+
+
+def collect_across_all_tenants(db: Session, query_fn: Callable[[Session], Iterable[_T]]) -> list[_T]:
+    """Platform-wide READ for SUPER_ADMIN dashboards (billing requests,
+    SaaS metrics): run `query_fn` once per tenant, each time under that
+    tenant's own RLS context, and concatenate the results.
+
+    A platform role acting with no X-Tenant-ID has NO tenant context, so a
+    single cross-tenant query on a strict table returns nothing under the
+    restricted runtime role (NOBYPASSRLS) — e.g. pending subscription
+    requests could not be listed or confirmed (follow-up of #277).
+
+    `query_fn` must fully materialize what it needs (dicts, scalars, or ORM
+    rows whose attributes it already read) — lazy loads after the switch
+    would run under another tenant's context. The context is always reset
+    to "no tenant" afterwards. SQLite (no RLS): a single plain call.
+    """
+    if settings.is_sqlite:
+        return list(query_fn(db))
+    results: list[_T] = []
+    try:
+        for (tenant_id,) in db.query(Tenant.id).all():
+            switch_tenant_context(db, str(tenant_id))
+            results.extend(query_fn(db))
+    finally:
+        reset_tenant_context(db)
+    return results
 
 
 def resolve_current_tenant_id(

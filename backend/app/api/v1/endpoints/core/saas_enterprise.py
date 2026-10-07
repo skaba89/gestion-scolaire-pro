@@ -14,9 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import find_user_across_all_tenants, get_db
 from app.core.security import get_current_user
-from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
 from app.models.saas import SubscriptionPlan, TenantDomain
 from app.models.tenant import Tenant
 from app.services.saas_quota_service import SaaSQuotaService
@@ -216,9 +216,14 @@ async def mark_domain_verified_platform_only(
     db: Session = Depends(get_db),
     _admin: dict = Depends(_require_platform_admin),
 ):
-    domain = db.query(TenantDomain).filter(TenantDomain.id == domain_id).first()
+    # Platform admin, no tenant context: find the domain across tenants
+    # (tenant_domains is RLS-strict), then write under its owner's context.
+    domain = find_user_across_all_tenants(
+        db, lambda s: s.query(TenantDomain).filter(TenantDomain.id == domain_id).first()
+    )
     if not domain:
         raise HTTPException(status_code=404, detail="Domaine introuvable.")
+    enter_tenant_context_or_404(db, domain.tenant_id)
     domain.is_verified = True
     domain.verified_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
