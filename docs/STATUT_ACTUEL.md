@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-06 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-07 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -138,6 +138,49 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   désactivée sur les trois App Services). Restent, par décision : rotation du
   mot de passe `neondb_owner`, `REVOKE TEMPORARY … FROM PUBLIC` et l'audit des
   15 tables à contournement plateforme.
+
+- **2026-10-07 — nuit de jobs vérifiée (#273 confirmé)** : les trois crons
+  (03:00 `purge_expired_idempotency_keys`, 03:30, 04:00 `check_inactive_tenants`)
+  en succès, `j_failed=0`, **aucun redémarrage du worker** — le crash nocturne
+  Redis est corrigé en production. Aucune erreur permission / RLS / contexte
+  tenant / PostgreSQL / Redis entre 02:45 et 05:20 UTC.
+
+- **2026-10-07 — `REVOKE TEMPORARY ON DATABASE neondb FROM PUBLIC`** appliqué
+  (vérifié avant COMMIT : `schoolflow_api` / `schoolflow_worker` sans
+  TEMPORARY, `neondb_owner` le conserve) ; API et worker sains ensuite.
+  Rollback : `GRANT TEMPORARY ON DATABASE neondb TO PUBLIC`.
+
+- **2026-10-07 — régression RLS des routes exemptées du middleware (corrigée)** :
+  depuis la bascule runtime du 05/10, les routes que `TenantMiddleware`
+  exempte de son contexte JWT tournaient **sans contexte tenant** ; les
+  politiques strictes masquaient alors toutes les lignes (constaté en
+  production : `/tenants/slug/uls/levels/` renvoyait `[]` pour un tenant à
+  5 niveaux). Touchés : pages et statistiques publiques, portail public
+  d'admission, scan kiosque, webhooks CinetPay/PayTech (paiement jamais
+  trouvé), onboarding, création de tenant, `register-school` (500 RLS),
+  statistiques super-admin. Échec fermé (aucune fuite). Corrigé par #277
+  (`enter_tenant_context_or_404()` après résolution authentique du tenant ;
+  aucune politique modifiée), déployé (release `1498e22`) et vérifié en
+  production (5 niveaux, année courante 200). Couvert par
+  `tests/test_public_routes_rls_restricted_role.py` (rôle NOBYPASSRLS réel).
+  **Même classe, routes SUPER_ADMIN plateforme** (rapprochement des
+  abonnements Mobile Money, métriques SaaS, santé d'un tenant — 500,
+  impersonation, vérification de domaine) : corrigées par #278,
+  couvertes par `tests/test_platform_routes_rls_restricted_role.py`.
+  `ministry.py` n'est pas concerné (n'agrège que `tenants`, sans RLS).
+
+- **2026-10-07 — audit des politiques RLS de production** : 117 tables à
+  `tenant_id` — 102 strictes, 12 à contournement plateforme sans contexte
+  (`NULLIF(...) IS NULL`, migration `20260929_0001`), 3 exposant aussi leurs
+  lignes `tenant_id IS NULL` (`jobs`, `notification_preferences`,
+  `payment_webhook_events`), et 13 politiques permissives dormantes
+  `superadmin_bypass_*` (rien ne pose `app.is_superadmin` — à supprimer).
+  Le contexte tenant vient du JWT signé (`X-Tenant-ID` réservé au
+  SUPER_ADMIN). Reste : rotation du mot de passe `neondb_owner` (console Neon,
+  par l'administrateur) ; suivi P1 — les webhooks de paiement retrouvent la
+  référence en parcourant les tenants (coût linéaire par appel non
+  authentifié : à remplacer par une recherche à coût constant avant la
+  montée en charge).
 
 ## Documents à considérer avec prudence
 
