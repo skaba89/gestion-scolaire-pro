@@ -68,10 +68,28 @@ DATABASE_URL_MIGRATIONS="$(neonctl connection-string production --project-id "$P
   python -m alembic current
 ```
 
-Une migration **additive** (nouvelle fonction, suppression de politique
-inutilisée, colonne nullable…) est compatible avec le code encore en place :
-on migre d'abord, on déploie ensuite. Une base en avance n'empêche pas l'ancien
-code de démarrer ; une base en retard bloque le nouveau.
+⚠️ **Fenêtre critique entre migration et déploiement.** La vérification de
+schéma de l'API (`_check_alembic_revision()`, `app/main.py`) exige une
+**égalité stricte** entre la révision de la base et la head du code : une base
+**en avance** est aussi signalée `outdated`. Dès la fin de `alembic upgrade`,
+l'API encore en place :
+
+- continue de servir le trafic (une migration additive ne casse pas ses
+  requêtes) ;
+- mais répond **503 sur `/health/ready`** (`schema: outdated`) ;
+- et **refuse de démarrer** si elle redémarre avant le déploiement
+  (`SystemExit` au démarrage — redémarrage plateforme, scale, crash).
+
+Donc : déclencher `deploy-appservice.yml` (étape 3) **immédiatement** après
+l'étape 2, l'approbation Production étant donnée sans attendre — viser
+quelques minutes. Si le déploiement ne peut pas suivre rapidement :
+`alembic downgrade` vers la révision précédente (même commande que l'étape 2)
+pour revenir à l'égalité avec le code en place. Incident constaté le
+2026-10-07 : ~10 min de readiness 503 sans interruption de trafic, résorbées
+par le déploiement.
+
+L'ordre inverse (déployer avant de migrer) n'est pas une alternative : le
+nouveau code refuserait de démarrer face à une base en retard.
 
 ## 3. Déployer l'application
 
@@ -103,3 +121,4 @@ neonctl branches delete "$B" --project-id "$P"
 | Date | Révisions | Notes |
 |---|---|---|
 | 2026-10-04 | `20260921_0002` → `20260930_0001` | manuel, répété sur branche Neon (voir `STATUT_ACTUEL.md`) |
+| 2026-10-07 | `20260930_0001` → `20261007_0002` | #280 — répétée sur `rehearsal-20261007-1127` (supprimée ensuite) ; production migrée à 11:49 UTC (point de restauration `2026-10-07T11:49:20Z`) ; release `6929008` déployée ensuite — readiness 503 ~10 min dans l'intervalle (voir l'avertissement de l'étape 2) |
