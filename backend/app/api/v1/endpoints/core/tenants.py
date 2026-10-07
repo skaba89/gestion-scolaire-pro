@@ -35,9 +35,13 @@ logger = logging.getLogger(__name__)
 # not as a workaround for the bucket-collapsing bug anymore.
 public_browsing_limiter = Limiter(key_func=get_client_ip)
 
-from app.core.database import get_db
+from app.core.database import find_user_across_all_tenants, get_db, reset_tenant_context
 from app.core.security import get_current_user, require_permission, user_has_permission
-from app.core.tenant_resolution import resolve_current_tenant_id, resolve_optional_tenant_settings_context
+from app.core.tenant_resolution import (
+    enter_tenant_context_or_404,
+    resolve_current_tenant_id,
+    resolve_optional_tenant_settings_context,
+)
 from app.utils.audit import log_audit
 from app.schemas.tenants import (
     TenantCreate,
@@ -98,6 +102,10 @@ async def create_tenant(
         db.add(new_tenant)
         db.flush() # Get id
         logger.info(f"Tenant created with ID: {new_tenant.id}")
+        # The new tenant's default rows (academic year, terms, campus, levels,
+        # subjects) are tenant-scoped: write them under its own RLS context
+        # (this route is middleware-exempt, so none is set yet).
+        enter_tenant_context_or_404(db, new_tenant.id)
 
         # 1. Create Academic Year
         logger.info("Initializing academic year...")
@@ -600,6 +608,9 @@ async def list_public_tenants(
 
 def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
     """Helper shared by the public/{slug} and by-domain/{domain} routes."""
+    # Public routes carry no tenant context (TenantMiddleware exemption):
+    # without this, strict RLS hides the tenant's levels/students/teachers.
+    enter_tenant_context_or_404(db, tenant.id)
     landing_raw = (tenant.settings or {}).get("landing", {}) if isinstance(tenant.settings, dict) else {}
 
     # Parse landing settings with defaults
@@ -789,8 +800,12 @@ async def create_tenant_with_admin(
         if existing:
             raise HTTPException(status_code=400, detail="Ce slug est déjà utilisé")
 
-        # Check if admin email is already used
-        existing_user = db.query(User).filter(User.email == tenant_in.admin_email).first()
+        # Check if admin email is already used — in ANY tenant: users.email is
+        # globally unique, and with no tenant context strict RLS would hide
+        # every tenant-scoped account (duplicate then failed later as a 500).
+        existing_user = find_user_across_all_tenants(
+            db, lambda s: s.query(User).filter(User.email == tenant_in.admin_email).first()
+        )
         if existing_user:
             raise HTTPException(status_code=400, detail="Un utilisateur avec cet email existe déjà")
 
@@ -816,6 +831,9 @@ async def create_tenant_with_admin(
         )
         db.add(new_tenant)
         db.flush()
+        # Every row below belongs to the new tenant: write under its own RLS
+        # context (middleware-exempt route, none is set yet).
+        enter_tenant_context_or_404(db, new_tenant.id)
 
         # 2. Create Academic Year
         current_year = datetime.now().year
@@ -1198,21 +1216,27 @@ async def get_super_admin_tenant_stats(
 
     tenants = db.query(Tenant).order_by(Tenant.name).all()
 
-    # Batch queries — 3 queries instead of 3N (one per tenant)
-    student_rows = db.execute(
-        text("SELECT tenant_id, COUNT(*) FROM students GROUP BY tenant_id")
-    ).fetchall()
-    student_counts = {row[0]: row[1] for row in student_rows}
-
-    user_rows = db.execute(
-        text("SELECT tenant_id, COUNT(*) FROM users GROUP BY tenant_id")
-    ).fetchall()
-    user_counts = {row[0]: row[1] for row in user_rows}
-
-    admin_rows = db.execute(
-        text("SELECT tenant_id, COUNT(*) FROM user_roles WHERE role = 'TENANT_ADMIN' GROUP BY tenant_id")
-    ).fetchall()
-    admin_counts = {row[0]: row[1] for row in admin_rows}
+    # Counted tenant by tenant, each under its own RLS context: under the
+    # restricted runtime role (NOBYPASSRLS) a single cross-tenant GROUP BY
+    # with no tenant context sees no tenant rows at all and reported 0
+    # everywhere. 3 queries per tenant — same per-tenant pattern as
+    # check_inactive_tenants (app/workers/tasks.py).
+    student_counts, user_counts, admin_counts = {}, {}, {}
+    try:
+        for t in tenants:
+            enter_tenant_context_or_404(db, t.id)
+            student_counts[t.id] = db.execute(
+                text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid"), {"tid": t.id}
+            ).scalar() or 0
+            user_counts[t.id] = db.execute(
+                text("SELECT COUNT(*) FROM users WHERE tenant_id = :tid"), {"tid": t.id}
+            ).scalar() or 0
+            admin_counts[t.id] = db.execute(
+                text("SELECT COUNT(*) FROM user_roles WHERE tenant_id = :tid AND role = 'TENANT_ADMIN'"),
+                {"tid": t.id},
+            ).scalar() or 0
+    finally:
+        reset_tenant_context(db)
 
     result = []
     for t in tenants:
@@ -1794,7 +1818,7 @@ async def setup_tenant_levels(
 ):
     """Batch create levels during onboarding."""
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
-    tenant_id = str(tid_uuid)
+    tenant_id = enter_tenant_context_or_404(db, tid_uuid)  # middleware-exempt route: no RLS context yet
 
     # Clean existing levels if any
     db.execute(text("DELETE FROM levels WHERE tenant_id = :tid"), {"tid": tenant_id})
@@ -1815,7 +1839,7 @@ async def setup_tenant_subjects(
 ):
     """Batch create subjects during onboarding."""
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
-    tenant_id = str(tid_uuid)
+    tenant_id = enter_tenant_context_or_404(db, tid_uuid)  # middleware-exempt route: no RLS context yet
 
     db.execute(text("DELETE FROM subjects WHERE tenant_id = :tid"), {"tid": tenant_id})
     
@@ -1866,7 +1890,8 @@ async def get_public_tenant_levels(
     tenant = db.query(Tenant).filter(Tenant.slug == slug, Tenant.is_active == True).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+    enter_tenant_context_or_404(db, tenant.id)
+
     rows = db.execute(
         text("SELECT id, name, order_index FROM levels WHERE tenant_id = :tid ORDER BY order_index"),
         {"tid": tenant.id}
@@ -1883,7 +1908,8 @@ async def get_public_tenant_current_year(
     tenant = db.query(Tenant).filter(Tenant.slug == slug, Tenant.is_active == True).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+    enter_tenant_context_or_404(db, tenant.id)
+
     row = db.query(AcademicYear).filter(
         AcademicYear.tenant_id == tenant.id, 
         AcademicYear.is_current == True

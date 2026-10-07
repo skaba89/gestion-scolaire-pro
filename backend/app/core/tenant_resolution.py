@@ -8,7 +8,31 @@ from uuid import UUID
 from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.database import TenantContextError, switch_tenant_context
 from app.models import Tenant, User
+
+
+def enter_tenant_context_or_404(db: Session, tenant_id) -> str:
+    """Position this request's RLS context on a tenant the route has ALREADY
+    resolved authentically — for routes TenantMiddleware exempts from its
+    JWT-based context (public pages, public enrollment portal, kiosk scan,
+    payment webhooks, onboarding, tenant creation).
+
+    Such routes otherwise run with NO tenant context, and under the
+    restricted runtime role (NOSUPERUSER NOBYPASSRLS, in production since
+    2026-10-05) every strict RLS policy then hides the tenant's rows and
+    rejects its writes (incident of 2026-10-07: public levels returned [],
+    kiosk scans and payment webhooks found nothing, tenant creation failed).
+
+    Never derive `tenant_id` from unauthenticated input alone without the
+    route's own check (active tenant by slug, device token, gateway
+    verification...): this only re-applies RLS to a tenant already chosen.
+    Unknown or malformed tenant -> 404 (never 500, never "no tenant").
+    """
+    try:
+        return switch_tenant_context(db, str(tenant_id))
+    except TenantContextError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement introuvable.")
 
 
 def resolve_current_tenant_id(

@@ -14,10 +14,10 @@ import json
 
 logger = logging.getLogger(__name__)
 
-from app.core.database import get_db
+from app.core.database import find_user_across_all_tenants, get_db
 from app.core.config import settings
 from app.core.security import get_current_user, require_permission
-from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
 from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
@@ -1051,6 +1051,30 @@ def _confirm_gateway_payment(db: Session, transaction_id: str, amount: float, te
     return True
 
 
+def _resolve_payment_tenant(db: Session, reference: str):
+    """Find which tenant owns payment `reference` and enter its RLS context.
+
+    Payment webhooks are middleware-exempt (the gateway has no JWT), so they
+    start with no tenant context: under the restricted runtime role
+    (NOBYPASSRLS) a plain lookup on the strict `payments` table found
+    nothing and every IPN was logged "no matching payment reference" —
+    no Mobile Money payment could ever be confirmed (incident 2026-10-07).
+    The reference is searched tenant by tenant (same helper as login-by-email),
+    then the rest of the webhook — gateway verification, confirmation,
+    invoice update — runs strictly under the owning tenant's context.
+    Returns the row ({"tenant_id": ...}) or None.
+    """
+    row = find_user_across_all_tenants(
+        db,
+        lambda s: s.execute(
+            text("SELECT p.tenant_id FROM payments p WHERE p.reference = :ref LIMIT 1"), {"ref": reference}
+        ).mappings().first(),
+    )
+    if row:
+        enter_tenant_context_or_404(db, row["tenant_id"])
+    return row
+
+
 @router.post("/payments/webhook/cinetpay/")
 async def cinetpay_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
@@ -1075,9 +1099,7 @@ async def cinetpay_webhook(request: Request, background_tasks: BackgroundTasks, 
         return {"status": "ignored", "reason": "no transaction_id"}
 
     # Load payment record to find the tenant
-    payment_row = db.execute(text(
-        "SELECT p.tenant_id FROM payments p WHERE p.reference = :ref LIMIT 1"
-    ), {"ref": transaction_id}).mappings().first()
+    payment_row = _resolve_payment_tenant(db, transaction_id)
 
     if payment_row:
         tenant_id = str(payment_row["tenant_id"])
@@ -1139,9 +1161,7 @@ async def paytech_webhook(request: Request, background_tasks: BackgroundTasks, d
                             outcome="ignored", reason="no transaction_id in payload")
         return {"status": "ignored"}
 
-    payment_row = db.execute(text(
-        "SELECT p.tenant_id FROM payments p WHERE p.reference = :ref LIMIT 1"
-    ), {"ref": transaction_id}).mappings().first()
+    payment_row = _resolve_payment_tenant(db, transaction_id)
 
     if payment_row:
         tenant_id = str(payment_row["tenant_id"])
