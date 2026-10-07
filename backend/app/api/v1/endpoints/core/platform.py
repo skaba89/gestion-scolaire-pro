@@ -19,6 +19,7 @@ from sqlalchemy import func, case, text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.tenant_resolution import collect_across_all_tenants, enter_tenant_context_or_404
 from app.core.security import get_current_user
 from app.models.saas import SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
@@ -216,10 +217,12 @@ async def get_saas_metrics(
     # ── Local billing (abonnements payés par Mobile Money / virement) ────────
     # Le MRR réel vient des souscriptions actives × tarif du plan ; il peut
     # mélanger plusieurs devises (GNF, USD…) → agrégé par devise.
-    active_subs = (
-        db.query(TenantSubscription)
-        .filter(TenantSubscription.status == "active")
-        .all()
+    # tenant_subscriptions is RLS-strict and a platform SUPER_ADMIN has no
+    # tenant context: read it tenant by tenant (attributes used below —
+    # plan_id, billing_cycle, current_period_end, tenant_id — are loaded
+    # columns, no lazy load happens after the context switch).
+    active_subs = collect_across_all_tenants(
+        db, lambda s: s.query(TenantSubscription).filter(TenantSubscription.status == "active").all()
     )
     plans_by_id = {str(p.id): p for p in db.query(SubscriptionPlan).all()}
 
@@ -236,12 +239,15 @@ async def get_saas_metrics(
         currency = sub_plan.currency or "USD"
         mrr_by_currency[currency] = mrr_by_currency.get(currency, 0.0) + monthly
 
-    pending_requests_count = (
-        db.query(func.count(TenantSubscription.id))
-        .filter(TenantSubscription.status == "pending_payment")
-        .scalar()
-        or 0
-    )
+    pending_requests_count = sum(collect_across_all_tenants(
+        db,
+        lambda s: [
+            s.query(func.count(TenantSubscription.id))
+            .filter(TenantSubscription.status == "pending_payment")
+            .scalar()
+            or 0
+        ],
+    ))
 
     soon = now + timedelta(days=7)
     expiring_subs = [
@@ -401,6 +407,9 @@ async def impersonate_tenant(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant introuvable.")
+    # Platform SUPER_ADMIN has no tenant context: read the target tenant's
+    # users under its own RLS context (strict `users` policy).
+    enter_tenant_context_or_404(db, tenant.id)
 
     # Find the TENANT_ADMIN user for this tenant
     admin_user = (
@@ -589,6 +598,9 @@ async def get_tenant_health(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    # Platform SUPER_ADMIN has no tenant context: read (and let the quota
+    # engine upsert) this tenant's data under its own RLS context.
+    enter_tenant_context_or_404(db, tenant.id)
 
     # ── Quota usage (reuses the existing SaaS quota engine — no new table) ──
     from app.services.saas_quota_service import SaaSQuotaService
@@ -596,6 +608,11 @@ async def get_tenant_health(
         usage_report = SaaSQuotaService(db).get_usage_report(tenant, recalculate=True)
     except Exception as exc:
         logger.warning("Quota report failed for tenant %s: %s", tenant_id, exc)
+        # Without this rollback a failed flush left the session unusable and
+        # the rest of the health report crashed with PendingRollbackError
+        # (500) instead of degrading to usage_report=None as intended. The
+        # tenant context is re-applied by the next transaction automatically.
+        db.rollback()
         usage_report = None
 
     # ── Recent failed background jobs ───────────────────────────────────────

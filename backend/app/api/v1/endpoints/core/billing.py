@@ -37,9 +37,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import find_user_across_all_tenants, get_db
 from app.core.security import get_current_user
-from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_resolution import (
+    collect_across_all_tenants,
+    enter_tenant_context_or_404,
+    resolve_current_tenant_id,
+)
 from app.models.saas import BillingEvent, SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
 from app.services.subscription_maintenance import (
@@ -381,19 +385,40 @@ async def list_pending_requests(
     """Demandes d'abonnement en attente de rapprochement."""
     _require_roles(current_user, "SUPER_ADMIN")
 
-    pending = (
-        db.query(TenantSubscription)
-        .filter(TenantSubscription.status == "pending_payment")
-        .order_by(TenantSubscription.created_at.asc())
-        .all()
+    def _pending_of_current_tenant(s: Session) -> list[dict]:
+        items = []
+        for sub in (
+            s.query(TenantSubscription)
+            .filter(TenantSubscription.status == "pending_payment")
+            .all()
+        ):
+            data = _subscription_to_dict(sub)
+            data["tenant_name"] = sub.tenant.name if sub.tenant else None
+            data["tenant_slug"] = sub.tenant.slug if sub.tenant else None
+            data["_created_at"] = sub.created_at
+            items.append(data)
+        return items
+
+    # Platform-wide list: tenant_subscriptions is RLS-strict, so it is read
+    # tenant by tenant (no tenant context for a platform SUPER_ADMIN).
+    items = sorted(
+        collect_across_all_tenants(db, _pending_of_current_tenant),
+        key=lambda d: d["_created_at"] or datetime.min,
     )
-    items = []
-    for sub in pending:
-        data = _subscription_to_dict(sub)
-        data["tenant_name"] = sub.tenant.name if sub.tenant else None
-        data["tenant_slug"] = sub.tenant.slug if sub.tenant else None
-        items.append(data)
+    for data in items:
+        data.pop("_created_at")
     return {"items": items, "total": len(items)}
+
+
+def _find_subscription_request(db: Session, subscription_id: str) -> TenantSubscription | None:
+    """Find a subscription request by id across tenants, then stay under its
+    own tenant's RLS context so the confirm/reject writes are allowed."""
+    subscription = find_user_across_all_tenants(
+        db, lambda s: s.query(TenantSubscription).filter(TenantSubscription.id == subscription_id).first()
+    )
+    if subscription is not None:
+        enter_tenant_context_or_404(db, subscription.tenant_id)
+    return subscription
 
 
 @router.post("/requests/{subscription_id}/confirm/")
@@ -406,11 +431,7 @@ async def confirm_subscription_payment(
     """Paiement vérifié → activation de l'abonnement et des quotas du plan."""
     _require_roles(current_user, "SUPER_ADMIN")
 
-    subscription = (
-        db.query(TenantSubscription)
-        .filter(TenantSubscription.id == subscription_id)
-        .first()
-    )
+    subscription = _find_subscription_request(db, subscription_id)
     if not subscription:
         raise HTTPException(status_code=404, detail="Demande introuvable.")
     if subscription.status != "pending_payment":
@@ -480,11 +501,7 @@ async def reject_subscription_request(
     """Rejet d'une demande (paiement introuvable, montant incorrect…)."""
     _require_roles(current_user, "SUPER_ADMIN")
 
-    subscription = (
-        db.query(TenantSubscription)
-        .filter(TenantSubscription.id == subscription_id)
-        .first()
-    )
+    subscription = _find_subscription_request(db, subscription_id)
     if not subscription:
         raise HTTPException(status_code=404, detail="Demande introuvable.")
     if subscription.status != "pending_payment":
