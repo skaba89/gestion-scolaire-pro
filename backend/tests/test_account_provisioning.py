@@ -246,6 +246,9 @@ async def test_reset_token_clears_forced_password_flag():
     # API réelle de Session : pas de savepoint ouvert (un MagicMock nu renverrait
     # un objet « vrai », refusé par le garde-fou de _set_rls_context).
     db.in_nested_transaction.return_value = False
+    # PostgreSQL: find_user_in_owner_tenant() first asks the resolver function
+    # for the owning tenant — a platform account here (tenant_id NULL).
+    db.execute.return_value.all.return_value = [(None,)]
     client = AsyncMock()
     client.get.return_value = None
 

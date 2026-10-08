@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.client_ip import get_client_ip
 from app.core.config import settings
 from app.core.database import (
-    find_user_across_all_tenants,
+    find_user_in_owner_tenant,
     get_db,
     resolve_authenticated_user_row,
     switch_tenant_context,
@@ -280,11 +280,16 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         # deliberately carries no platform-wide RLS bypass. See
         # find_user_across_all_tenants()'s docstring for the full
         # reasoning and why this is not a bypass added to the RLS policy.
-        user = find_user_across_all_tenants(
+        # PERFORMANCE (20261009_0001): the owning tenant is resolved in one
+        # call instead of a tenant-by-tenant sweep — constant cost on this
+        # unauthenticated endpoint, whatever the number of tenants.
+        user = find_user_in_owner_tenant(
             db,
             lambda _db: _db.query(User)
             .filter(or_(User.email == form_data.username, User.username == form_data.username))
             .first(),
+            by="login",
+            value=form_data.username,
         )
 
         if not user:
@@ -353,7 +358,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             )
 
         # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
-        # find_user_across_all_tenants() above always leaves this session's
+        # find_user_in_owner_tenant() above always leaves this session's
         # RLS context reset to "no tenant" once it returns (see its
         # docstring) - correct for the search itself, but every query below
         # this point (user_roles, and anything a future change adds) is
@@ -883,8 +888,9 @@ async def register(
     # `users.email` is globally unique across every tenant - see
     # find_user_across_all_tenants()'s docstring (same reasoning as the
     # /auth/login/ fix above).
-    existing = find_user_across_all_tenants(
-        db, lambda _db: _db.query(User).filter(func.lower(User.email) == body.email).first()
+    existing = find_user_in_owner_tenant(
+        db, lambda _db: _db.query(User).filter(func.lower(User.email) == body.email).first(),
+        by="email_ci", value=body.email,
     )
     if existing:
         raise HTTPException(
@@ -1059,8 +1065,9 @@ async def register_school(
     # creates a brand-new tenant, so there is no tenant context to check
     # this email against even conceptually; it must search every EXISTING
     # tenant for a conflict.
-    existing_user = find_user_across_all_tenants(
-        db, lambda _db: _db.query(User).filter(func.lower(User.email) == body.email).first()
+    existing_user = find_user_in_owner_tenant(
+        db, lambda _db: _db.query(User).filter(func.lower(User.email) == body.email).first(),
+        by="email_ci", value=body.email,
     )
     if existing_user:
         raise HTTPException(status_code=409, detail="Un compte avec cet email existe déjà.")
@@ -1444,7 +1451,9 @@ async def login_diagnostics(
     # 3. Compte administrateur par défaut (présence et état seulement)
     admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
     try:
-        admin = find_user_across_all_tenants(db, lambda s: s.query(User).filter(User.email == admin_email).first())
+        admin = find_user_in_owner_tenant(
+            db, lambda s: s.query(User).filter(User.email == admin_email).first(), by="login", value=admin_email,
+        )
         if admin is None:
             result["components"]["admin_user"] = {"status": "not_found"}
             result["errors"].append("admin_user")
@@ -1618,7 +1627,9 @@ async def reset_password(
     # down: `users`' RLS WITH CHECK applies to UPDATE too, so committing
     # user.password_hash under the "no tenant" context this search leaves
     # behind would silently affect zero rows for a tenant-scoped user.
-    user = find_user_across_all_tenants(db, lambda _db: _db.query(User).filter(User.id == user_id).first())
+    user = find_user_in_owner_tenant(
+        db, lambda _db: _db.query(User).filter(User.id == user_id).first(), by="user_id", value=user_id,
+    )
     if not user or not user.is_active:
         raise HTTPException(status_code=404, detail="Compte introuvable.")
     if not settings.is_sqlite and user.tenant_id:

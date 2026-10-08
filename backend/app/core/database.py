@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -491,12 +492,89 @@ def find_user_across_all_tenants(db: Session, query_fn: Callable[[Session], Opti
 
     from app.models.tenant import Tenant  # local import: avoids a circular import at module load
 
-    for (tenant_id,) in db.query(Tenant.id).all():
-        switch_tenant_context(db, str(tenant_id))
-        found = query_fn(db)
-        if found is not None:
-            reset_tenant_context(db)
-            return found
+    started = time.monotonic()
+    tenant_ids = db.query(Tenant.id).all()
+    try:
+        for (tenant_id,) in tenant_ids:
+            switch_tenant_context(db, str(tenant_id))
+            found = query_fn(db)
+            if found is not None:
+                return found
+        return None
+    finally:
+        reset_tenant_context(db)
+        log_slow_tenant_sweep("find_user_across_all_tenants", len(tenant_ids), started)
 
-    reset_tenant_context(db)
-    return None
+
+# Pre-authentication lookups resolved by a SECURITY DEFINER function
+# (migration 20261009_0001) instead of a tenant-by-tenant sweep.
+_USER_TENANT_RESOLVERS = {
+    "login": text("SELECT tenant_id FROM public.resolve_user_tenants_by_login(:value)"),
+    "email_ci": text("SELECT tenant_id FROM public.resolve_user_tenants_by_email_ci(:value)"),
+    "user_id": text("SELECT tenant_id FROM public.resolve_user_tenants_by_id(CAST(:value AS uuid))"),
+}
+
+
+def find_user_in_owner_tenant(
+    db: Session,
+    query_fn: Callable[[Session], Optional[_T]],
+    *,
+    by: str,
+    value,
+) -> Optional[_T]:
+    """Constant-cost replacement of find_user_across_all_tenants() for the
+    pre-authentication user lookups (login, registration duplicate checks,
+    password reset, MFA).
+
+    `by` selects the resolver — "login" (email or username, exact),
+    "email_ci" (case-insensitive email) or "user_id" — which returns only the
+    owning tenant id(s) of the matching user(s): normally one (NULL for a
+    platform account), none when no user matches. `query_fn` then runs once
+    under each such tenant's own RLS context, so the user row itself is
+    still read through the normal strict policy, never through the
+    SECURITY DEFINER function. Cost: a handful of round trips, independent
+    of the number of tenants (was up to 2N+1).
+
+    `query_fn` must match the resolver's semantics (it is the authoritative
+    filter). Same contract as find_user_across_all_tenants(): the session's
+    RLS context is reset to "no tenant" on return. SQLite: one plain call.
+    """
+    if settings.is_sqlite:
+        return query_fn(db)
+    if by not in _USER_TENANT_RESOLVERS:
+        raise ValueError(f"Unknown user resolver: {by!r}")
+    if value is None or value == "":
+        return None
+    if by == "user_id":
+        try:
+            value = str(uuid.UUID(str(value)))
+        except (ValueError, AttributeError, TypeError):
+            return None
+
+    _set_rls_context(db, None)
+    tenant_ids = [row[0] for row in db.execute(_USER_TENANT_RESOLVERS[by], {"value": str(value)}).all()]
+    try:
+        for tenant_id in tenant_ids:
+            _set_rls_context(db, str(tenant_id) if tenant_id else None)
+            found = query_fn(db)
+            if found is not None:
+                return found
+        return None
+    finally:
+        reset_tenant_context(db)
+
+
+SLOW_TENANT_SWEEP_SECONDS = 0.5
+
+
+def log_slow_tenant_sweep(name: str, tenant_count: int, started: float) -> None:
+    """Observability for the remaining tenant-by-tenant sweeps (platform
+    dashboards, SUPER_ADMIN lookups): their cost grows with the number of
+    tenants, so log when one gets slow — the signal to revisit them (see
+    docs/STATUT_ACTUEL.md, threshold ~200 tenants)."""
+    elapsed = time.monotonic() - started
+    if elapsed >= SLOW_TENANT_SWEEP_SECONDS:
+        logger.warning(
+            "Slow tenant sweep: %s over %d tenants took %.0f ms",
+            name, tenant_count, elapsed * 1000,
+        )

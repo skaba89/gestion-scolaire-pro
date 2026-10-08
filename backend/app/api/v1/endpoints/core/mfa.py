@@ -15,7 +15,7 @@ from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 
 from app.core.config import settings
-from app.core.database import find_user_across_all_tenants, get_db, switch_tenant_context
+from app.core.database import find_user_in_owner_tenant, get_db, switch_tenant_context
 from app.core.security import get_current_user, verify_password
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.user import User
@@ -594,7 +594,9 @@ async def verify_login_mfa(request: Request, body: MFALoginVerifyRequest, db: Se
     # docstring. The session's context must then be repositioned to this
     # user's own tenant before the tenant-scoped mfa_totp_secrets/
     # mfa_backup_codes queries below run.
-    user = find_user_across_all_tenants(db, lambda _db: _db.query(User).filter(User.id == user_id).first())
+    user = find_user_in_owner_tenant(
+        db, lambda _db: _db.query(User).filter(User.id == user_id).first(), by="user_id", value=user_id,
+    )
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="Compte introuvable ou désactivé")
     if not settings.is_sqlite and user.tenant_id:

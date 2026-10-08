@@ -221,9 +221,14 @@ async def get_saas_metrics(
     # tenant context: read it tenant by tenant (attributes used below —
     # plan_id, billing_cycle, current_period_end, tenant_id — are loaded
     # columns, no lazy load happens after the context switch).
-    active_subs = collect_across_all_tenants(
-        db, lambda s: s.query(TenantSubscription).filter(TenantSubscription.status == "active").all()
+    # PERFORMANCE: one sweep for both statuses (was two — 4N round trips).
+    swept_subs = collect_across_all_tenants(
+        db,
+        lambda s: s.query(TenantSubscription)
+        .filter(TenantSubscription.status.in_(("active", "pending_payment")))
+        .all(),
     )
+    active_subs = [sub for sub in swept_subs if sub.status == "active"]
     plans_by_id = {str(p.id): p for p in db.query(SubscriptionPlan).all()}
 
     mrr_by_currency: dict[str, float] = {}
@@ -239,15 +244,7 @@ async def get_saas_metrics(
         currency = sub_plan.currency or "USD"
         mrr_by_currency[currency] = mrr_by_currency.get(currency, 0.0) + monthly
 
-    pending_requests_count = sum(collect_across_all_tenants(
-        db,
-        lambda s: [
-            s.query(func.count(TenantSubscription.id))
-            .filter(TenantSubscription.status == "pending_payment")
-            .scalar()
-            or 0
-        ],
-    ))
+    pending_requests_count = sum(1 for sub in swept_subs if sub.status == "pending_payment")
 
     soon = now + timedelta(days=7)
     expiring_subs = [
