@@ -7,7 +7,8 @@ interface QuickAction {
     href: string;
     label: string;
     icon: LucideIcon;
-    count: number;
+    /** Omitted when there is no meaningful figure (no fake 0). */
+    count?: number;
 }
 
 interface TeacherQuickActionsProps {
@@ -27,7 +28,7 @@ export const TeacherQuickActions = ({ actions }: TeacherQuickActionsProps) => {
                                         <action.icon className="w-6 h-6 text-primary" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold">{action.count}</p>
+                                        {action.count !== undefined && <p className="text-2xl font-bold">{action.count}</p>}
                                         <p className="text-sm text-muted-foreground">{action.label}</p>
                                     </div>
                                 </div>

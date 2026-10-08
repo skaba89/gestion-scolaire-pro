@@ -132,7 +132,9 @@
     "security": "Seguridad",
     "exports": "Exportaciones",
     "auditLogs": "Registros de auditoría",
-    "profile": "Mi perfil"
+    "profile": "Mi perfil",
+    "collapseSidebar": "Contraer el menú",
+    "expandSidebar": "Expandir el menú"
   },
   "dashboard": {
     "hello": "Hola, {{name}} 👋",
