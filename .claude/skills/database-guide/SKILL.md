@@ -50,6 +50,17 @@ Le job de migration s'exécute **avant** la nouvelle API ; l'ancienne version
 tourne encore pendant la bascule. Donc : ajout de colonne nullable ou avec défaut
 d'abord, suppression/renommage en deux temps (expand → contract) sur deux releases.
 
+Chaque migration (à partir de `20261008_0001`) déclare au niveau module
+`backward_compatible = True | False` : **le code de sa `down_revision` continue-t-il
+de fonctionner contre elle ?** `True` pour un ajout pur (table, colonne nullable,
+index, fonction, suppression d'un objet que le code précédent n'utilise plus) ;
+`False` dès qu'elle retire/renomme/contraint ce que le code précédent utilise. Le
+hook `on_version_apply` de `alembic/env.py` l'enregistre dans
+`schema_migration_compat` ; l'API en place reste alors prête (`ahead_compatible`)
+entre la migration et le déploiement au lieu de répondre 503. Une valeur `True`
+erronée est le seul risque résiduel : la vérifier en revue. Test :
+`tests/test_schema_compat.py`.
+
 ## Vérification
 
 ```bash

@@ -4,6 +4,7 @@ from alembic import context
 from sqlalchemy import create_engine, pool
 
 from app.core.config import settings
+from app.core.schema_compat import record_migration_compat
 from app.db.base import Base
 from app.models import *  # noqa: F401,F403
 
@@ -49,7 +50,15 @@ def run_migrations_online() -> None:
     connectable = create_engine(db_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        # P2: record each applied migration's `backward_compatible`
+        # declaration in schema_migration_compat (removed on downgrade), so
+        # that code still running the previous release can prove it may
+        # serve this newer schema — see app/core/schema_compat.py.
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            on_version_apply=lambda ctx, step, heads, run_args: record_migration_compat(ctx.connection, step),
+        )
 
         with context.begin_transaction():
             context.run_migrations()

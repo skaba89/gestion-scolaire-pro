@@ -252,6 +252,14 @@ class Settings(BaseSettings):
     # PROD" answers for images, this answers for a running process.
     RELEASE_SHA: str = os.getenv("RELEASE_SHA", "unknown")
 
+    # P2 (no 503 window during migrations — app/core/schema_compat.py):
+    # "ahead_compatible" (default) lets the running code serve a database
+    # that is ahead of it ONLY through migrations recorded as backward
+    # compatible; "strict" restores exact head equality (emergency switch,
+    # an App Service setting change, no redeploy). Any other value is
+    # treated as strict by decide_schema_status().
+    SCHEMA_COMPAT_MODE: str = "ahead_compatible"
+
     ADMIN_DEFAULT_EMAIL: str = get_secret("ADMIN_DEFAULT_EMAIL", "admin@schoolflow.local")
     ADMIN_DEFAULT_PASSWORD: str = get_secret("ADMIN_DEFAULT_PASSWORD", "")
     BOOTSTRAP_SECRET: str = get_secret("BOOTSTRAP_SECRET", "")
