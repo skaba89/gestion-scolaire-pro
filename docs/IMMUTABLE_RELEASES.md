@@ -285,10 +285,13 @@ slim`) security patch without touching application code.
   (`secrets.AZURE_BUILD_CLIENT_ID`, federated credential limited to
   `refs/heads/main`, roles AcrPush + Reader on the registry only — separate
   from the deploy identity), then `az acr login` writes a short-lived token
-  used by buildx, Trivy and the SBOM step. The former admin-user secrets
-  `ACR_USERNAME`/`ACR_PASSWORD` are no longer referenced (removal of the
-  secrets and of the registry admin user: step C of the ACR plan, once App
-  Service pulls by managed identity).
+  used by buildx, Trivy and the SBOM step. App Service (api, worker,
+  frontend) pulls with its system-assigned managed identity (AcrPull on the
+  registry, `acrUseManagedIdentityCreds=true`). Since 2026-10-08 the
+  registry **admin user is disabled** (passwords regenerated first) and the
+  former secrets `ACR_USERNAME`/`ACR_PASSWORD` are deleted: no registry
+  password exists anywhere. Emergency fallback only:
+  `az acr update --admin-enabled true` (issues new passwords).
 - **No `:latest` anywhere applicative**: neither `build-images.yml` nor
   `deploy-azure.yml` nor `infra/azure/**` names `:latest` for
   `schoolflow-api`/`schoolflow-frontend`. (The frontend Dockerfile's Nginx
