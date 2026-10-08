@@ -15,6 +15,13 @@ les régressions déjà rencontrées.
   sans erreur sur une base qui l'a déjà partiellement appliquée (utile en
   cas de redéploiement, de retry CI, ou d'environnements désynchronisés).
 
+- **Déclarer `backward_compatible = True | False`** au niveau module (obligatoire
+  depuis `20261008_0001`, vérifié par `tests/test_schema_compat.py`) : `True` si le
+  code de la release précédente fonctionne encore contre le schéma migré (ajout
+  pur). Sinon `False` : l'ancien code refusera de démarrer/d'être prêt jusqu'au
+  déploiement — préférer un découpage expand → contract. Détails :
+  `backend/app/core/schema_compat.py`.
+
 ## Pattern idempotent établi
 
 Utiliser les helpers déjà présents (voir migration `20260424_0001` pour

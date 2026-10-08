@@ -161,6 +161,22 @@ async def lifespan(app: FastAPI):
                 revision_status.get("db_revision"), revision_status.get("head_revision"),
             )
             raise SystemExit(1)
+        elif revision_status.get("status") == "incompatible":
+            logger.critical(
+                "Database schema is AHEAD of the code being started without a proven "
+                "backward-compatible chain (db=%s, code head=%s): %s. Refusing to start — "
+                "deploy the code matching the database (see docs/runbooks/appservice-migrations.md).",
+                revision_status.get("db_revision"), revision_status.get("head_revision"),
+                revision_status.get("detail"),
+            )
+            raise SystemExit(1)
+        elif revision_status.get("status") == "ahead_compatible":
+            logger.warning(
+                "Database schema is %s migration(s) ahead of this code (db=%s, code head=%s), "
+                "all recorded as backward compatible — starting. Deploy the matching release.",
+                revision_status.get("ahead_by"), revision_status.get("db_revision"),
+                revision_status.get("head_revision"),
+            )
         elif revision_status.get("status") == "unknown":
             logger.warning(
                 "Could not verify the DB schema revision at startup (%s) — "
@@ -782,7 +798,11 @@ def _readiness_is_healthy(
     # startup check above, which only hard-exits on a CONFIRMED mismatch
     # and merely warns on "unknown" so a transient blip at container boot
     # doesn't crash-loop the whole process.
-    if schema not in ("up_to_date", "skipped"):
+    # P2: "ahead_compatible" (DB ahead only through migrations recorded as
+    # backward compatible, app/core/schema_compat.py) is servable — that is
+    # the normal state between `alembic upgrade` and the deploy of the
+    # matching release. "incompatible" fails like "outdated".
+    if schema not in ("up_to_date", "ahead_compatible", "skipped"):
         return False
     return cache == "connected" and rls == "active"
 
@@ -927,18 +947,25 @@ def _check_alembic_revision() -> dict:
     behind the code that's running" (a real incident class: a bad deploy
     that skips migrations, or a rollback that forgets to also roll back the
     schema) rather than only checking that Alembic ran without erroring.
+
+    P2: a DB *ahead* of the code is accepted ("ahead_compatible") only when
+    every newer migration is recorded as backward compatible in
+    schema_migration_compat — see app/core/schema_compat.py for the full
+    decision table. Never returns credentials, only revision ids.
     """
     try:
         from alembic.config import Config
         from alembic.script import ScriptDirectory
         from sqlalchemy import text as _text
         from app.core.database import engine
+        from app.core.schema_compat import COMPAT_TABLE, CompatRow, decide_schema_status
 
         backend_dir = os.path.dirname(os.path.dirname(__file__))
         alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
         alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
         script = ScriptDirectory.from_config(alembic_cfg)
-        head_revision = script.get_current_head()
+        code_heads = list(script.get_heads())
+        known_revisions = frozenset(rev.revision for rev in script.walk_revisions())
 
         with engine.connect() as conn:
             result = conn.execute(_text(
@@ -946,13 +973,32 @@ def _check_alembic_revision() -> dict:
             )).first()
             db_revision = result[0] if result else None
 
-        if db_revision is None:
-            return {"status": "unknown", "detail": "No alembic_version row found"}
-        return {
-            "status": "up_to_date" if db_revision == head_revision else "outdated",
-            "db_revision": db_revision,
-            "head_revision": head_revision,
-        }
+            compat_rows = None
+            if db_revision is not None and db_revision not in known_revisions:
+                # Only read when the DB is ahead/unknown — the normal path
+                # (up to date) costs exactly the one query above. Any read
+                # failure (missing table, missing grant) leaves compat_rows
+                # None, i.e. "no proof" -> incompatible, never a pass.
+                try:
+                    exists = conn.execute(_text("SELECT to_regclass(:t)"), {"t": f"public.{COMPAT_TABLE}"}).scalar()
+                    if exists is not None:
+                        compat_rows = {
+                            row[0]: CompatRow(row[1], bool(row[2]))
+                            for row in conn.execute(_text(
+                                f"SELECT revision, down_revision, backward_compatible FROM {COMPAT_TABLE}"
+                            ))
+                        }
+                except Exception as exc:
+                    logger.warning("Schema compatibility table unreadable: %s", type(exc).__name__)
+                    compat_rows = None
+
+        return decide_schema_status(
+            db_revision=db_revision,
+            code_heads=code_heads,
+            known_revisions=known_revisions,
+            compat_rows=compat_rows,
+            mode=settings.SCHEMA_COMPAT_MODE,
+        )
     except Exception as exc:
         logger.warning("Deep health check: alembic revision check failed: %s", exc)
         return {"status": "unknown", "detail": str(exc)}

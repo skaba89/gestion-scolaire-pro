@@ -68,28 +68,33 @@ DATABASE_URL_MIGRATIONS="$(neonctl connection-string production --project-id "$P
   python -m alembic current
 ```
 
-⚠️ **Fenêtre critique entre migration et déploiement.** La vérification de
-schéma de l'API (`_check_alembic_revision()`, `app/main.py`) exige une
-**égalité stricte** entre la révision de la base et la head du code : une base
-**en avance** est aussi signalée `outdated`. Dès la fin de `alembic upgrade`,
-l'API encore en place :
+**Fenêtre entre migration et déploiement** (P2, `app/core/schema_compat.py`,
+à partir de la release qui embarque `20261008_0001`). Dès la fin de
+`alembic upgrade`, l'API encore en place voit une base **en avance** sur son
+code :
 
-- continue de servir le trafic (une migration additive ne casse pas ses
-  requêtes) ;
-- mais répond **503 sur `/health/ready`** (`schema: outdated`) ;
-- et **refuse de démarrer** si elle redémarre avant le déploiement
-  (`SystemExit` au démarrage — redémarrage plateforme, scale, crash).
+- si **toutes** les nouvelles migrations sont déclarées
+  `backward_compatible = True` (enregistrées dans `schema_migration_compat`),
+  elle reste prête : `/health/ready` → 200, `schema: ahead_compatible`, et
+  elle redémarre normalement (avertissement dans les journaux) ;
+- si **une seule** est `False` (ou non enregistrée) : `schema: incompatible`,
+  503 et refus de démarrer en cas de redémarrage — comme l'ancien contrôle strict.
 
-Donc : déclencher `deploy-appservice.yml` (étape 3) **immédiatement** après
-l'étape 2, l'approbation Production étant donnée sans attendre — viser
-quelques minutes. Si le déploiement ne peut pas suivre rapidement :
-`alembic downgrade` vers la révision précédente (même commande que l'étape 2)
-pour revenir à l'égalité avec le code en place. Incident constaté le
-2026-10-07 : ~10 min de readiness 503 sans interruption de trafic, résorbées
-par le déploiement.
+Vérifier avant l'étape 2 : `grep -n backward_compatible` sur les migrations
+à appliquer. Dans les deux cas, enchaîner le déploiement (étape 3) ; avec une
+migration `False`, le faire **immédiatement** (approbation Production prête),
+ou revenir par `alembic downgrade` si le déploiement ne peut pas suivre.
+Coupe-circuit : réglage App Service `SCHEMA_COMPAT_MODE=strict` (égalité
+exacte, sans redéploiement).
+
+Historique : avant P2 (release `6929008` et antérieures), le contrôle exigeait
+l'égalité stricte — incident du 2026-10-07 : ~10 min de readiness 503 sans
+interruption de trafic. **La migration `20261008_0001` elle-même s'applique
+encore sous ce contrôle strict** (le code en place ne le connaît pas) :
+l'enchaîner immédiatement avec son déploiement.
 
 L'ordre inverse (déployer avant de migrer) n'est pas une alternative : le
-nouveau code refuserait de démarrer face à une base en retard.
+nouveau code refuserait de démarrer face à une base en retard (`outdated`).
 
 ## 3. Déployer l'application
 
@@ -98,7 +103,7 @@ de l'environnement Production) — voir `docs/runbooks/appservice-deploy.md`.
 
 ## 4. Vérifier (lecture seule)
 
-- `GET /health/ready` : `schema: up_to_date`, `rls: active`, release attendue ;
+- `GET /health/ready` : `schema: up_to_date` (après déploiement), `rls: active`, release attendue ;
 - rôles runtime inchangés (`schoolflow_api` / `schoolflow_worker`) ;
 - la vérification fonctionnelle propre à la PR.
 
