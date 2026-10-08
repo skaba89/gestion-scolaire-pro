@@ -256,6 +256,16 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   Restent : test de connexion réel en production (par l'administrateur, y
   compris email en majuscules), ACR étape C, rotation `neondb_owner`.
 
+- **2026-10-08 — registre d'images : compte admin désactivé (ACR, étape C)**.
+  Vérifié avant (noms seulement) : aucune référence dans le dépôt, les 3 App
+  Services en identité managée sans identifiant de registre, aucune
+  Container App. Mots de passe admin régénérés (anciennes valeurs, qui
+  avaient figuré dans les réglages App Service, invalidées), compte admin
+  désactivé, secrets GitHub `ACR_USERNAME` / `ACR_PASSWORD` supprimés. API,
+  worker et frontend sains ensuite. Plus aucun mot de passe de registre :
+  push CI par OIDC (AcrPush + Reader), pull par identités managées
+  (AcrPull). Secours : `az acr update --admin-enabled true`.
+
 ## Documents à considérer avec prudence
 
 | Document | Problème | À faire avant de le citer |
