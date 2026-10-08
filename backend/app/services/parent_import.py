@@ -16,6 +16,7 @@ from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.student import Student
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.core.tenant_resolution import find_user_by_email_in_any_tenant
 from app.services.student_import import detect_columns
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,9 @@ def run_parent_import(
             # ── Resolve the parent account ──────────────────────────────
             parent = parents_in_batch.get(email)
             if parent is None:
-                existing = db.query(User).filter(func.lower(User.email) == email).first()
+                # Platform-wide (RLS would hide other tenants' accounts and the
+                # whole import would then fail on the unique index).
+                existing = find_user_by_email_in_any_tenant(db, email)
                 if existing is not None:
                     if str(existing.tenant_id) != tenant_id:
                         skipped_rows += 1

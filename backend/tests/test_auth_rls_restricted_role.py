@@ -216,6 +216,19 @@ class TestAuthRlsRestrictedRole:
 
     # -- login: the real HTTP path, real JWT, real get_current_user ----------
 
+    def test_login_email_is_case_insensitive(self, restricted_session_local):
+        """20261010_0001: emails are stored lowercased; typing them with
+        another case (or surrounding spaces) must still log in."""
+        with engine.begin() as admin_conn:
+            tenant = _make_tenant(admin_conn, "Tenant (case login)")
+            email = f"case-login-{uuid.uuid4().hex[:8]}@example.test"
+            _make_user(admin_conn, tenant, email)
+
+        resp = client.post(
+            "/api/v1/auth/login/", data={"username": f"  {email.upper()} ", "password": PLAIN_PASSWORD}
+        )
+        assert resp.status_code == 200, resp.text
+
     def test_login_tenant_a_then_protected_route_returns_200(self, restricted_session_local):
         with engine.begin() as admin_conn:
             tenant_a = _make_tenant(admin_conn, "Tenant A (auth e2e)")

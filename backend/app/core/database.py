@@ -536,8 +536,11 @@ def find_user_in_owner_tenant(
     of the number of tenants (was up to 2N+1).
 
     `query_fn` must match the resolver's semantics (it is the authoritative
-    filter). Same contract as find_user_across_all_tenants(): the session's
-    RLS context is reset to "no tenant" on return. SQLite: one plain call.
+    filter). The session's RLS context is restored to what it was before the
+    call ("no tenant" for the pre-authentication endpoints; the request's
+    own tenant when used for a cross-tenant duplicate check inside a tenant
+    request, whose later writes must stay under that tenant). The returned
+    row's attributes are already loaded. SQLite: one plain call.
     """
     if settings.is_sqlite:
         return query_fn(db)
@@ -551,7 +554,7 @@ def find_user_in_owner_tenant(
         except (ValueError, AttributeError, TypeError):
             return None
 
-    _set_rls_context(db, None)
+    previous_context = db.info.get(_RLS_TENANT_KEY) or None
     tenant_ids = [row[0] for row in db.execute(_USER_TENANT_RESOLVERS[by], {"value": str(value)}).all()]
     try:
         for tenant_id in tenant_ids:
@@ -561,7 +564,7 @@ def find_user_in_owner_tenant(
                 return found
         return None
     finally:
-        reset_tenant_context(db)
+        _set_rls_context(db, previous_context)
 
 
 SLOW_TENANT_SWEEP_SECONDS = 0.5

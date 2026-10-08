@@ -219,6 +219,17 @@ CRON / HTTP admin       : platform_db_session()/get_db() -> liste des tenants (t
   tenant, par la politique stricte habituelle. Coût constant (quelques
   allers-retours) quel que soit le nombre de tenants, au lieu de 2N+1 sur
   des endpoints anonymes. Tests : `test_user_tenant_resolution_postgres.py`.
+  Le contexte RLS de l'appelant est **restauré** au retour : utilisable aussi
+  dans une requête d'établissement. `find_user_by_email_in_any_tenant(db,
+  email)` (`tenant_resolution.py`) l'emploie pour **tous** les contrôles de
+  doublon d'email (création de compte, parent, liaison de compte, imports CSV,
+  ajout d'admin par SUPER_ADMIN) : une requête simple sous le contexte du
+  tenant ne voit pas les comptes des autres établissements (RLS stricte) —
+  la collision ressortait en erreur d'intégrité, 500 ou import entier en
+  échec. Depuis `20261010_0001`, l'email est unique **sans tenir compte de la
+  casse** (`uq_users_email_lower`), stocké en minuscules (`User._normalize_email`)
+  et la connexion par email est insensible à la casse. Tests :
+  `test_email_uniqueness_cross_tenant.py`.
 - **`find_user_across_all_tenants(db, query_fn)`** — conservé pour les
   recherches SUPER_ADMIN par identifiant (abonnement, domaine) ; un
   parcours lent (> 500 ms) est journalisé (`Slow tenant sweep`). Pour un utilisateur

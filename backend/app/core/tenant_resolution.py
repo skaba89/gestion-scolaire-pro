@@ -8,11 +8,13 @@ from typing import Callable, Iterable, TypeVar
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import (
     TenantContextError,
+    find_user_in_owner_tenant,
     log_slow_tenant_sweep,
     reset_tenant_context,
     switch_tenant_context,
@@ -73,6 +75,29 @@ def collect_across_all_tenants(db: Session, query_fn: Callable[[Session], Iterab
         reset_tenant_context(db)
         log_slow_tenant_sweep("collect_across_all_tenants", len(tenant_ids), started)
     return results
+
+
+def find_user_by_email_in_any_tenant(db: Session, email: str):
+    """The account owning `email` (case-insensitive), whatever its tenant —
+    or None.
+
+    `users.email` is unique platform-wide (uq_users_email_lower), but a
+    plain query inside a tenant request only sees that tenant's users
+    (strict RLS): duplicate checks then missed accounts of other tenants and
+    surfaced as IntegrityError / 500, or a whole CSV import failing.
+    Constant cost (find_user_in_owner_tenant); the caller's RLS context is
+    left unchanged. Use the returned row's tenant_id to tell "already in
+    this tenant" from "used by another tenant".
+    """
+    normalized = (email or "").strip().lower()
+    if not normalized:
+        return None
+    return find_user_in_owner_tenant(
+        db,
+        lambda s: s.query(User).filter(func.lower(User.email) == normalized).first(),
+        by="email_ci",
+        value=normalized,
+    )
 
 
 def resolve_current_tenant_id(

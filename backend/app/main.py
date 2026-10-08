@@ -207,7 +207,7 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     db.rollback()
 
-            admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
+            admin_email = (settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local").strip().lower()
             admin_password = settings.ADMIN_DEFAULT_PASSWORD
             # SECURITY FIX: Refuse to use a hardcoded fallback password.
             # If no password is configured or it's too weak, skip admin creation.
