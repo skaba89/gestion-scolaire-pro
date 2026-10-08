@@ -150,3 +150,45 @@ def test_strict_mode_blocks_a_compatible_ahead_db(simulated_ahead_db, monkeypatc
     apply([(f"{FAKE_PREFIX}1", True)])
     monkeypatch.setattr(settings, "SCHEMA_COMPAT_MODE", "strict")
     assert _check_alembic_revision()["status"] == "incompatible"
+
+
+def test_read_only_migration_leaves_only_select_to_non_owner_roles():
+    """20261008_0002: a runtime role that got full DML through default
+    privileges keeps SELECT only; downgrade restores INSERT/UPDATE/DELETE."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "alembic" / "versions" / "20261008_0002_schema_migration_compat_read_only.py"
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    role = "test_schema_compat_dml_role"
+
+    def privileges():
+        with engine.connect() as conn:
+            return {
+                p: conn.execute(text("SELECT has_table_privilege(:r, :t, :p)"), {"r": role, "t": f"public.{COMPAT_TABLE}", "p": p}).scalar()
+                for p in ("SELECT", "INSERT", "UPDATE", "DELETE")
+            }
+
+    with engine.begin() as conn:
+        conn.execute(text(f'DROP ROLE IF EXISTS "{role}"'))
+        conn.execute(text(f'CREATE ROLE "{role}" NOLOGIN NOBYPASSRLS'))
+        conn.execute(text(f'GRANT SELECT, INSERT, UPDATE, DELETE ON {COMPAT_TABLE} TO "{role}"'))
+    try:
+        with engine.begin() as conn:
+            migration.op = SimpleNamespace(get_bind=lambda: conn)
+            migration.upgrade()
+        assert privileges() == {"SELECT": True, "INSERT": False, "UPDATE": False, "DELETE": False}
+
+        with engine.begin() as conn:
+            migration.op = SimpleNamespace(get_bind=lambda: conn)
+            migration.downgrade()
+        assert privileges() == {"SELECT": True, "INSERT": True, "UPDATE": True, "DELETE": True}
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f'REVOKE ALL ON {COMPAT_TABLE} FROM "{role}"'))
+            conn.execute(text(f'DROP ROLE IF EXISTS "{role}"'))
+            # restore the post-upgrade state for the rest of the suite
+            migration.op = SimpleNamespace(get_bind=lambda: conn)
+            migration.upgrade()
