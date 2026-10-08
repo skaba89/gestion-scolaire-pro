@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-07 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-08 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -181,6 +181,28 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   référence en parcourant les tenants (coût linéaire par appel non
   authentifié : à remplacer par une recherche à coût constant avant la
   montée en charge).
+
+- **2026-10-07 — webhooks à coût constant et politiques dormantes supprimées**
+  (#280, release `6929008`, schéma `20261007_0002`) : fonction
+  SECURITY DEFINER `resolve_payment_tenant(text)` (une requête au lieu d'un
+  parcours des tenants) et suppression des 13 politiques
+  `superadmin_bypass_*`. Readiness 503 ~10 min entre migration et
+  déploiement (contrôle de schéma strict) → runbook corrigé (#281), puis P2.
+
+- **2026-10-08 — P2 : plus de fenêtre 503 pendant les migrations** (#282,
+  release `cdee25b`, schéma `20261008_0001`, point de restauration Neon
+  `2026-10-08T07:07:11Z`). Chaque migration déclare `backward_compatible` ;
+  le hook Alembic l'enregistre dans `schema_migration_compat` ; une base en
+  avance uniquement via des migrations compatibles est servie
+  (`schema: ahead_compatible`, readiness 200), tout le reste bloque
+  (`app/core/schema_compat.py`, coupe-circuit `SCHEMA_COMPAT_MODE=strict`).
+  Dernière fenêtre 503 : 07:07 → 07:21 UTC (migration appliquée sous l'ancien
+  contrôle strict). Vérifié après déploiement : readiness 200, `up_to_date`,
+  RLS active, rôles runtime inchangés. Restent : rotation du mot de passe
+  `neondb_owner` (hygiène — il a figuré dans les réglages runtime jusqu'au
+  2026-10-05 ; non bloquant), ACR sans compte admin (OIDC + identité
+  managée), droits d'écriture des rôles runtime sur `schema_migration_compat`
+  (privilèges par défaut — à restreindre à SELECT).
 
 ## Documents à considérer avec prudence
 
