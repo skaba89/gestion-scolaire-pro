@@ -40,6 +40,12 @@ Pour ceux-là, Claude ne passe **jamais** directement de REQUEST à IMPLEMENTATI
 3. L'utilisateur répond exactement « OK » / « GO » ou `/approve-plan` → `approved`.
    Tout autre message (« ok mais… », demande de modification) laisse le verrou posé.
 4. `/cancel-workflow` abandonne et lève le verrou.
+5. Une validation ne vaut que pour **la session** qui l'a donnée et **12 h** au
+   plus : au-delà (ou dans une nouvelle session), l'état passe à `expired` et le
+   contexte de Claude indique qu'aucune validation n'est en cours. Un verrou en
+   attente depuis plus de 24 h reste fermé, mais est signalé comme ancien
+   (`/cancel-workflow` s'il est obsolète). Chaque transition est journalisée
+   dans `.claude/state/history.jsonl` (local, non versionné).
 
 Claude ne peut pas lever le verrou lui-même : seul un message humain déclenche
 `UserPromptSubmit`, et toute écriture dans `.claude/state/` est refusée aux outils.
@@ -128,9 +134,10 @@ comportement sous Git Bash et PowerShell.
 
 | Catégorie | Comportement |
 |---|---|
-| `.env*` réels, clés (`.pem`, `.key`…), `infra/backups/`, `azure-logs*` | **refusé** (lecture, écriture, `cat`/`type`/`Get-Content`…) |
+| `.env*` réels, clés (`.pem`, `.key`…), `infra/backups/`, `azure-logs*` | **refusé** (lecture, écriture, `cat`/`type`/`Get-Content`…, globs `.env*`, `$(cat …)`, `xargs`, `find -exec`, redirection `< .env`). Analyse par segment de commande, sur le programme et ses fichiers : le texte libre (messages `-m`/`--body`, heredocs, motifs `\.env` de grep/sed/rg) ne déclenche plus de refus |
+| `grep -r` sans `--exclude='.env*'` | **confirmation explicite** (`rg` / `git grep` respectent `.gitignore`) |
 | Modification d'une migration existante | **refusé** |
-| Écriture dans `.claude/state/` (verrou) | **refusé** |
+| Écriture dans `.claude/state/` (verrou) | **refusé** (la lecture — `ls`, `cat`, `git check-ignore` — reste permise) |
 | Force push vers `main`/`master`, `--no-verify` | **refusé** |
 | Toute écriture / commande non lecture-seule pendant le verrou HUMAN VALIDATION | **refusé** |
 | Nouvelle migration ; `security.py`, `auth.py`, `mfa.py`, `database.py`, `tenant_resolution.py`, `config.py`, middlewares ; `src/lib/permissions.ts`, `AuthContext.tsx`, `api/client.ts` ; CI, infra, Docker, déploiement, dépendances, templates d'env, `.gitignore`, protections Claude | **confirmation explicite** |
@@ -167,4 +174,6 @@ Ne jamais y placer de secret ; ne jamais mettre d'identifiants dans une commande
 - Nouveau domaine récurrent → nouveau skill court plutôt que grossir `CLAUDE.md`.
 - Après une mise à jour de Claude Code : revérifier les collisions de commandes
   et le chargement des hooks (`/hooks`).
-- Revoir ce dispositif après chaque incident ou faux positif gênant des hooks.
+- Revoir ce dispositif après chaque incident ou faux positif gênant des hooks,
+  en ajoutant le cas à `.claude/hooks/tests/hooks.test.mjs`
+  (`node --test .claude/hooks/tests/`, sans dépendance, hors CI).
