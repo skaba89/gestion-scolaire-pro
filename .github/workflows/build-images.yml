@@ -72,6 +72,7 @@ env:
   FRONTEND_APPSERVICE_REPO: schoolflow-frontend-appservice
 
 permissions:
+  id-token: write # OIDC (azure/login@v2) — no registry password
   contents: write # to publish the release manifest (gh release create)
   security-events: write # to upload Trivy SARIF results to code scanning
 
@@ -126,12 +127,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to Azure Container Registry
-        uses: docker/login-action@v3
+      - name: Azure login (OIDC — build identity, AcrPush + Reader on the registry only)
+        uses: azure/login@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          client-id: ${{ secrets.AZURE_BUILD_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Short-lived AAD token written to the Docker config: reused by buildx,
+      # Trivy and the SBOM step — no registry password anywhere.
+      - name: Log in to Azure Container Registry
+        run: az acr login --name "${REGISTRY%%.*}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -180,9 +186,6 @@ jobs:
           output: "trivy-backend.sarif"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
-        env:
-          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
-          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
       - name: Upload Trivy results to code scanning
         if: always()
@@ -223,12 +226,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to Azure Container Registry
-        uses: docker/login-action@v3
+      - name: Azure login (OIDC — build identity, AcrPush + Reader on the registry only)
+        uses: azure/login@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          client-id: ${{ secrets.AZURE_BUILD_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Short-lived AAD token written to the Docker config: reused by buildx,
+      # Trivy and the SBOM step — no registry password anywhere.
+      - name: Log in to Azure Container Registry
+        run: az acr login --name "${REGISTRY%%.*}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -268,9 +276,6 @@ jobs:
           output: "trivy-frontend.sarif"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
-        env:
-          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
-          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
       - name: Upload Trivy results to code scanning
         if: always()
@@ -314,12 +319,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to Azure Container Registry
-        uses: docker/login-action@v3
+      - name: Azure login (OIDC — build identity, AcrPush + Reader on the registry only)
+        uses: azure/login@v2
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          client-id: ${{ secrets.AZURE_BUILD_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Short-lived AAD token written to the Docker config: reused by buildx,
+      # Trivy and the SBOM step — no registry password anywhere.
+      - name: Log in to Azure Container Registry
+        run: az acr login --name "${REGISTRY%%.*}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -373,9 +383,6 @@ jobs:
           output: "trivy-frontend-appservice.sarif"
           severity: "HIGH,CRITICAL"
           exit-code: "0"
-        env:
-          TRIVY_USERNAME: ${{ secrets.ACR_USERNAME }}
-          TRIVY_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
       - name: Upload Trivy results to code scanning
         if: always()
@@ -404,6 +411,13 @@ jobs:
       digest: ${{ steps.resolve.outputs.digest }}
       tag: ${{ steps.resolve.outputs.tag }}
     steps:
+      - name: Azure login (OIDC — build identity, AcrPush + Reader on the registry only)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_BUILD_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Find latest full-SHA-tagged backend image in ACR
         id: resolve
         run: |
@@ -411,7 +425,6 @@ jobs:
           TAG=$(az acr repository show-tags \
             --name "${REGISTRY%%.*}" \
             --repository "$BACKEND_REPO" \
-            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
             --orderby time_desc --top 100 -o tsv \
             | grep -E '^[0-9a-f]{40}$' | head -n1 || true)
 
@@ -423,7 +436,6 @@ jobs:
           DIGEST=$(az acr repository show \
             --name "${REGISTRY%%.*}" \
             --image "${BACKEND_REPO}:${TAG}" \
-            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
             --query digest -o tsv)
 
           if [ -z "$DIGEST" ]; then
@@ -434,9 +446,6 @@ jobs:
           echo "Resolved existing backend image: tag=$TAG digest=$DIGEST"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-        env:
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
   resolve-frontend:
     name: Resolve existing frontend digest (no rebuild)
@@ -447,6 +456,13 @@ jobs:
       digest: ${{ steps.resolve.outputs.digest }}
       tag: ${{ steps.resolve.outputs.tag }}
     steps:
+      - name: Azure login (OIDC — build identity, AcrPush + Reader on the registry only)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_BUILD_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Find latest full-SHA-tagged frontend image in ACR
         id: resolve
         run: |
@@ -454,7 +470,6 @@ jobs:
           TAG=$(az acr repository show-tags \
             --name "${REGISTRY%%.*}" \
             --repository "$FRONTEND_REPO" \
-            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
             --orderby time_desc --top 100 -o tsv \
             | grep -E '^[0-9a-f]{40}$' | head -n1 || true)
 
@@ -466,7 +481,6 @@ jobs:
           DIGEST=$(az acr repository show \
             --name "${REGISTRY%%.*}" \
             --image "${FRONTEND_REPO}:${TAG}" \
-            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
             --query digest -o tsv)
 
           if [ -z "$DIGEST" ]; then
@@ -477,9 +491,6 @@ jobs:
           echo "Resolved existing frontend image: tag=$TAG digest=$DIGEST"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-        env:
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
   resolve-frontend-appservice:
     name: Resolve existing frontend-appservice digest (no rebuild)
@@ -490,6 +501,13 @@ jobs:
       digest: ${{ steps.resolve.outputs.digest }}
       tag: ${{ steps.resolve.outputs.tag }}
     steps:
+      - name: Azure login (OIDC — build identity, AcrPush + Reader on the registry only)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_BUILD_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Find latest full-SHA-tagged frontend-appservice image in ACR
         id: resolve
         run: |
@@ -497,7 +515,6 @@ jobs:
           TAG=$(az acr repository show-tags \
             --name "${REGISTRY%%.*}" \
             --repository "$FRONTEND_APPSERVICE_REPO" \
-            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
             --orderby time_desc --top 100 -o tsv \
             | grep -E '^[0-9a-f]{40}$' | head -n1 || true)
 
@@ -509,7 +526,6 @@ jobs:
           DIGEST=$(az acr repository show \
             --name "${REGISTRY%%.*}" \
             --image "${FRONTEND_APPSERVICE_REPO}:${TAG}" \
-            --username "$ACR_USERNAME" --password "$ACR_PASSWORD" \
             --query digest -o tsv)
 
           if [ -z "$DIGEST" ]; then
@@ -520,9 +536,6 @@ jobs:
           echo "Resolved existing frontend-appservice image: tag=$TAG digest=$DIGEST"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-        env:
-          ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
-          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
 
   release-manifest:
     name: Generate release manifest
