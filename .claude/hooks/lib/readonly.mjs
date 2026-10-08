@@ -16,7 +16,7 @@ function hasUnsafeRedirect(cmd) {
 
 const GIT_READ = new Set([
   "status", "diff", "log", "show", "ls-files", "blame", "rev-parse", "merge-base",
-  "grep", "shortlog", "describe", "cat-file", "ls-tree", "remote", "config",
+  "grep", "shortlog", "describe", "cat-file", "ls-tree", "remote", "config", "check-ignore", "check-attr",
 ]);
 
 const PLAIN_READ = new Set([

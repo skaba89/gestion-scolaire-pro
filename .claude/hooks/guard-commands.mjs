@@ -6,6 +6,7 @@
 // No dependencies; reads the hook payload on stdin, answers with hookSpecificOutput JSON.
 import { readFileSync } from "node:fs";
 import { isReadOnlyCommand } from "./lib/readonly.mjs";
+import { analyseSecretAccess } from "./lib/secrets.mjs";
 import { isLocked, LOCK_MESSAGE } from "./lib/workflow-state.mjs";
 
 function respond(decision, reasons) {
@@ -33,17 +34,19 @@ const ask = [];
 const has = (re) => re.test(cmd);
 
 // ── HUMAN VALIDATION lock ──────────────────────────────────────────────────
-if (has(/\.claude[\/\\]+state/)) deny.push("L'état du verrou HUMAN VALIDATION (.claude/state/) ne peut être modifié que par un message de l'utilisateur");
-if (isLocked(payload)) {
-  const verdict = isReadOnlyCommand(cmd);
-  if (!verdict.ok) deny.push(`${LOCK_MESSAGE} (${verdict.reason})`);
-}
+// Reading the state (ls, cat, git check-ignore…) is harmless; only a command
+// that is not read-only and names .claude/state is refused.
+const readOnly = isReadOnlyCommand(cmd);
+if (has(/\.claude[\/\\]+state/) && !readOnly.ok) deny.push("L'état du verrou HUMAN VALIDATION (.claude/state/) ne peut être modifié que par un message de l'utilisateur");
+if (isLocked(payload) && !readOnly.ok) deny.push(`${LOCK_MESSAGE} (${readOnly.reason})`);
 
 // ── Secrets ────────────────────────────────────────────────────────────────
-const ENV_FILE = /(^|[\s'"=/\\])\.env(?!\.(example|docker\.example|production\.template|template)\b)(\.[\w.-]+)?(?=$|[\s'";|&)])/;
-const READERS = /\b(cat|type|more|less|head|tail|bat|get-content|gc|grep|rg|sed|awk|findstr|select-string|cp|copy|mv|move|scp|base64|xxd|od|strings|echo|source)\b/i;
-if (has(ENV_FILE) && has(READERS)) deny.push("Lecture/copie d'un fichier .env réel interdite (secrets) — utilisez les templates .env.example");
-if (has(/(^|[\s'"/\\])(infra[\/\\]backups|azure-logs)/) && has(READERS)) deny.push("Lecture de sauvegardes ou journaux cloud interdite (données personnelles / secrets)");
+// Analysed per command segment, on the program actually run and its
+// arguments — not on free text (commit/PR messages, heredoc bodies, regex
+// patterns such as "\.env"), which produced false positives.
+const secrets = analyseSecretAccess(cmd);
+deny.push(...secrets.deny);
+ask.push(...secrets.ask);
 
 // ── Git ────────────────────────────────────────────────────────────────────
 if (has(/--no-verify\b/)) deny.push("--no-verify interdit : ne jamais contourner les hooks Git");

@@ -4,9 +4,10 @@
 //   /feature, /fix, /project-plan, /new-endpoint, /new-migration → lock (awaiting-approval)
 //   "OK" | "GO" | /approve-plan (while locked)            → approved (unlock)
 //   /cancel-workflow                                        → cleared
+//   approval older than 12 h or from another session        → expired (no approval in force)
 // stdout is added to Claude's context so it knows the current lock state.
 import { readFileSync } from "node:fs";
-import { readState, writeState, LOCK_MESSAGE } from "./lib/workflow-state.mjs";
+import { approvalExpiryReason, isStaleLock, readState, writeState, LOCK_MESSAGE } from "./lib/workflow-state.mjs";
 
 let payload;
 try {
@@ -20,7 +21,20 @@ const cmdName = (name) => new RegExp(`(^\\s*/${name}(\\s|$))|(<command-name>\\s*
 const GATED = ["feature", "fix", "project-plan", "new-endpoint", "new-migration"];
 
 const now = new Date().toISOString();
-const current = readState(payload);
+let current = readState(payload);
+
+// An approval only covers the session that gave it, for at most 12 h: past
+// that, no plan counts as validated any more (the next gated command
+// re-locks; nothing may rely on an old "OK").
+const expiry = approvalExpiryReason(current, payload);
+if (expiry) {
+  writeState(payload, { status: "expired", command: current.command, approvedAt: current.approvedAt, expiredAt: now, reason: expiry });
+  process.stdout.write(
+    `Validation du plan /${current.command} expirée (${expiry}) : aucune validation humaine n'est en cours. ` +
+    "Un changement important exige un nouveau plan validé explicitement.\n",
+  );
+  current = readState(payload);
+}
 
 if (cmdName("cancel-workflow").test(prompt)) {
   writeState(payload, { status: "cancelled", command: current?.command ?? null, cancelledAt: now });
@@ -51,6 +65,9 @@ if (isApproval && current?.status === "awaiting-approval") {
 
 if (current?.status === "awaiting-approval") {
   // Any other message keeps the lock (e.g. the user asks for plan changes).
-  process.stdout.write(LOCK_MESSAGE + " Si l'utilisateur demande des modifications du plan, présenter le plan révisé et redemander « OK ».");
+  const stale = isStaleLock(current)
+    ? ` Ce verrou date de plus de 24 h (${current.lockedAt}, /${current.command}) : s'il est obsolète, l'utilisateur peut taper /cancel-workflow.`
+    : "";
+  process.stdout.write(LOCK_MESSAGE + " Si l'utilisateur demande des modifications du plan, présenter le plan révisé et redemander « OK »." + stale);
 }
 process.exit(0);
