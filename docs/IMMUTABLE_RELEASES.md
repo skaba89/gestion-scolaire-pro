@@ -279,9 +279,16 @@ slim`) security patch without touching application code.
 - **Secrets**: `release-manifest.json`, the GitHub Release notes, and every
   workflow log line this pipeline prints contain only registry hostnames,
   repository names, Git SHAs and OCI digests — never a connection string,
-  password, or credential. `ACR_USERNAME`/`ACR_PASSWORD` are read only from
-  `secrets.*` and only used as `docker login`/`az acr` credentials, never
-  echoed.
+  password, or credential. Since 2026-10-08 the pipeline holds **no
+  registry password**: each job signs in with `azure/login` (OIDC) as the
+  dedicated build identity `github-gestion-scolaire-pro-acr-build`
+  (`secrets.AZURE_BUILD_CLIENT_ID`, federated credential limited to
+  `refs/heads/main`, roles AcrPush + Reader on the registry only — separate
+  from the deploy identity), then `az acr login` writes a short-lived token
+  used by buildx, Trivy and the SBOM step. The former admin-user secrets
+  `ACR_USERNAME`/`ACR_PASSWORD` are no longer referenced (removal of the
+  secrets and of the registry admin user: step C of the ACR plan, once App
+  Service pulls by managed identity).
 - **No `:latest` anywhere applicative**: neither `build-images.yml` nor
   `deploy-azure.yml` nor `infra/azure/**` names `:latest` for
   `schoolflow-api`/`schoolflow-frontend`. (The frontend Dockerfile's Nginx
