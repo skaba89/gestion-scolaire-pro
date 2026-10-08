@@ -127,3 +127,4 @@ neonctl branches delete "$B" --project-id "$P"
 |---|---|---|
 | 2026-10-04 | `20260921_0002` → `20260930_0001` | manuel, répété sur branche Neon (voir `STATUT_ACTUEL.md`) |
 | 2026-10-07 | `20260930_0001` → `20261007_0002` | #280 — répétée sur `rehearsal-20261007-1127` (supprimée ensuite) ; production migrée à 11:49 UTC (point de restauration `2026-10-07T11:49:20Z`) ; release `6929008` déployée ensuite — readiness 503 ~10 min dans l'intervalle (voir l'avertissement de l'étape 2) |
+| 2026-10-08 | `20261007_0002` → `20261008_0001` | #282 (P2) — répétée sur `rehearsal-20261008-0658` (supprimée) ; production migrée à 07:07 UTC (point de restauration `2026-10-08T07:07:11Z`) ; release `cdee25b` déployée à 07:21 UTC — dernière fenêtre 503 (code en place encore strict) ; ensuite readiness 200 `up_to_date` |
