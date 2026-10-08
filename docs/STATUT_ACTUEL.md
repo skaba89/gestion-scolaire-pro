@@ -204,6 +204,43 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   managée), droits d'écriture des rôles runtime sur `schema_migration_compat`
   (privilèges par défaut — à restreindre à SELECT).
 
+- **2026-10-08 — `schema_migration_compat` en lecture seule pour le runtime**
+  (#285, schéma `20261008_0002`, point de restauration `2026-10-08T11:41:23Z`,
+  release `3aa8421`). Seul le propriétaire écrit la table ; `schoolflow_api` /
+  `schoolflow_worker` n'ont plus que SELECT. **Première preuve de P2** : après
+  la migration, l'API `cdee25b` encore en place est restée à 200
+  (`ahead_compatible`) jusqu'au déploiement — aucune fenêtre 503.
+
+- **2026-10-08 — registre d'images sans mot de passe (ACR, étapes A et B)**.
+  A (#284) : `build-images.yml` pousse par OIDC avec l'identité dédiée
+  `github-gestion-scolaire-pro-acr-build` (identifiant fédéré limité à
+  `refs/heads/main`, AcrPush + Reader sur le registre seulement) — prouvé par
+  les builds `b10beee` et `3aa8421`. B : api, worker et frontend tirent leurs
+  images par **identité managée système** (AcrPull sur le registre,
+  `acrUseManagedIdentityCreds=true`) ; `DOCKER_REGISTRY_SERVER_USERNAME/PASSWORD`
+  supprimés des trois App Services ; preuve de pull d'un nouveau digest au
+  déploiement de `934f230` (api + worker). Reste C : régénérer puis désactiver
+  le compte admin du registre et supprimer les secrets `ACR_USERNAME` /
+  `ACR_PASSWORD` (après observation).
+
+- **2026-10-08 — garde-fous Claude Code** (#286) : détection des lectures de
+  secrets par segment de commande (fin des faux positifs `.env`, globs et
+  substitutions désormais bloqués), validation limitée à sa session et 12 h,
+  journal local des transitions, 42 tests `node --test`.
+
+- **2026-10-08 — recherches pré-authentification à coût constant** (#287,
+  schéma `20261009_0001`, point de restauration `2026-10-08T16:22:04Z`,
+  release `934f230`). Login, inscription, réinitialisation, MFA et création de
+  tenant résolvent l'établissement propriétaire par trois fonctions SECURITY
+  DEFINER (`resolve_user_tenants_by_login|by_email_ci|by_id`, tenant ids
+  uniquement) puis lisent l'utilisateur sous la RLS stricte : nombre de
+  requêtes constant au lieu de 2N+1 (N = établissements). `saas-metrics` en
+  un parcours, demandes d'abonnement sans chargement par ligne, parcours lents
+  (> 500 ms) journalisés. Migration sans 503 (`ahead_compatible`). Restent :
+  test de connexion réel en production (par l'administrateur), unicité de
+  l'email sensible à la casse (`ix_users_email`) alors que l'inscription
+  vérifie `lower(email)` — à traiter séparément ; rotation `neondb_owner`.
+
 ## Documents à considérer avec prudence
 
 | Document | Problème | À faire avant de le citer |
