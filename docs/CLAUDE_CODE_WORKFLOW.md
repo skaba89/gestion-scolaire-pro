@@ -175,5 +175,6 @@ Ne jamais y placer de secret ; ne jamais mettre d'identifiants dans une commande
 - Après une mise à jour de Claude Code : revérifier les collisions de commandes
   et le chargement des hooks (`/hooks`).
 - Revoir ce dispositif après chaque incident ou faux positif gênant des hooks,
-  en ajoutant le cas à `.claude/hooks/tests/hooks.test.mjs`
-  (`node --test .claude/hooks/tests/`, sans dépendance, hors CI).
+  en ajoutant le cas à `.claude/hooks/tests/hooks_test.mjs`
+  (`node --test .claude/hooks/tests/hooks_test.mjs`, sans dépendance, hors CI ;
+  suffixe `_test` et non `.test` pour que Vitest ne le ramasse pas).

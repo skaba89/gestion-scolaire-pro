@@ -1,4 +1,5 @@
-// Tests of the Claude Code guard hooks. Run: node --test .claude/hooks/tests/
+// Tests of the Claude Code guard hooks. Run: node --test .claude/hooks/tests/hooks_test.mjs
+// (named *_test.mjs, not *.test.mjs: Vitest would otherwise collect it)
 // Each hook is executed as Claude Code runs it (JSON payload on stdin) in a
 // throwaway project directory, so the real .claude/state is never touched.
 import { test } from "node:test";
