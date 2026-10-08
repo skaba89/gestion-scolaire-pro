@@ -216,3 +216,72 @@ class TestPlatformRoutesUnderRestrictedRole:
         resp = client.post(f"/api/v1/platform/domains/{a['domain_id']}/mark-verified/", headers=self._super(seeded))
         assert resp.status_code == 200, resp.text
         assert _admin_scalar("SELECT is_verified FROM tenant_domains WHERE id = :i", i=a["domain_id"]) is True
+
+    # -- tenant administration from the platform screen (2026-10-08 report) ----
+
+    def test_reset_tenant_admin_password_finds_the_admin(self, seeded):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, patch
+
+        tid, admin_id = seeded["A"]["tenant_id"], seeded["A"]["admin_id"]
+        with patch(
+            "app.services.account_provisioning.deliver_password_setup_link",
+            new=AsyncMock(return_value=SimpleNamespace(token="t", expires_in=900)),
+        ), patch("app.api.v1.endpoints.core.auth.blacklist_all_user_tokens", new=AsyncMock()):
+            resp = client.post(f"/api/v1/tenants/{tid}/admins/{admin_id}/reset-password/", headers=self._super(seeded))
+        assert resp.status_code == 200, resp.text
+        assert _admin_scalar("SELECT must_change_password FROM users WHERE id = :u", u=admin_id) is True
+        assert _admin_scalar(
+            "SELECT count(*) FROM audit_logs WHERE resource_id = :u AND action = 'RESET_PASSWORD'", u=admin_id
+        ) == 1
+
+    def test_delete_tenant_removes_it_and_its_data(self, seeded, caplog):
+        with engine.begin() as conn:
+            tid = _uid()
+            conn.execute(text(
+                "INSERT INTO tenants (id, name, slug, type, country, is_active, settings, created_at, updated_at) "
+                "VALUES (:id, 'Université à supprimer', :slug, 'university', 'GN', true, '{}', now(), now())"
+            ), {"id": tid, "slug": f"rls-del-{tid[:8]}"})
+            uid = _uid()
+            conn.execute(text(
+                "INSERT INTO users (id, email, username, tenant_id, password_hash, is_active, created_at, updated_at, "
+                "mfa_enabled, must_change_password) VALUES (:id, :e, :e, :tid, 'x', true, now(), now(), false, false)"
+            ), {"id": uid, "e": f"del-{uid[:8]}@rls-tests.local", "tid": tid})
+            conn.execute(text(
+                "INSERT INTO user_roles (id, user_id, role, tenant_id, created_at, updated_at) "
+                "VALUES (:id, :uid, 'TENANT_ADMIN', :tid, now(), now())"
+            ), {"id": _uid(), "uid": uid, "tid": tid})
+
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="app.api.v1.endpoints.core.tenants"):
+            resp = client.delete(f"/api/v1/tenants/{tid}/", headers=self._super(seeded))
+        assert resp.status_code == 200, resp.text
+        assert any(f"Tenant deleted: id={tid}" in r.getMessage() and "users=1" in r.getMessage() for r in caplog.records)
+        assert _admin_scalar("SELECT count(*) FROM tenants WHERE id = :t", t=tid) == 0
+        assert _admin_scalar("SELECT count(*) FROM users WHERE tenant_id = :t", t=tid) == 0
+
+    def test_list_tenant_admins_is_not_empty(self, seeded):
+        tid, admin_id = seeded["B"]["tenant_id"], seeded["B"]["admin_id"]
+        resp = client.get(f"/api/v1/tenants/{tid}/admins/", headers=self._super(seeded))
+        assert resp.status_code == 200, resp.text
+        assert [a["id"] for a in resp.json()] == [admin_id]
+
+    def test_toggle_tenant_status_is_audited(self, seeded):
+        tid = seeded["B"]["tenant_id"]
+        try:
+            resp = client.patch(f"/api/v1/tenants/{tid}/toggle-status/", headers=self._super(seeded))
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["is_active"] is False
+            assert _admin_scalar(
+                "SELECT count(*) FROM audit_logs WHERE tenant_id = :t AND action = 'DEACTIVATE_TENANT'", t=tid
+            ) == 1
+        finally:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE tenants SET is_active = true WHERE id = :t"), {"t": tid})
+
+    def test_super_admin_update_of_a_tenant_is_persisted(self, seeded):
+        tid = seeded["B"]["tenant_id"]
+        resp = client.patch(f"/api/v1/tenants/{tid}/", json={"city": "Kankan"}, headers=self._super(seeded))
+        assert resp.status_code == 200, resp.text
+        assert _admin_scalar("SELECT city FROM tenants WHERE id = :t", t=tid) == "Kankan"

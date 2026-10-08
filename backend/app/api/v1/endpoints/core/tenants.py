@@ -1089,6 +1089,10 @@ async def list_tenant_admins(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Établissement non trouvé")
+    # Platform screen: SUPER_ADMIN has no tenant context (strict RLS hides the
+    # tenant's users/roles and rejects tenant-scoped audit rows) — act under
+    # the target tenant's own context, as the other SUPER_ADMIN routes (#278).
+    enter_tenant_context_or_404(db, tenant.id)
 
     rows = db.execute(
         text("""
@@ -1134,6 +1138,10 @@ async def reset_tenant_admin_password(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Établissement non trouvé")
+    # Platform screen: SUPER_ADMIN has no tenant context (strict RLS hides the
+    # tenant's users/roles and rejects tenant-scoped audit rows) — act under
+    # the target tenant's own context, as the other SUPER_ADMIN routes (#278).
+    enter_tenant_context_or_404(db, tenant.id)
 
     row = db.execute(
         text("""
@@ -1283,6 +1291,10 @@ async def toggle_tenant_status(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement non trouvé")
+    # Platform screen: SUPER_ADMIN has no tenant context (strict RLS hides the
+    # tenant's users/roles and rejects tenant-scoped audit rows) — act under
+    # the target tenant's own context, as the other SUPER_ADMIN routes (#278).
+    enter_tenant_context_or_404(db, tenant.id)
 
     tenant.is_active = not tenant.is_active
     tenant.updated_at = datetime.now()
@@ -1363,7 +1375,11 @@ async def delete_tenant(
 
     tenant_name = tenant.name
 
-    # Optional safety check: warn if active users remain
+    # Platform screen: SUPER_ADMIN has no tenant context — count the users and
+    # write the audit row under the target tenant's own RLS context (with
+    # none, users are invisible and the audit INSERT is rejected, aborting
+    # the transaction: 500, tenant never deleted).
+    enter_tenant_context_or_404(db, tenant.id)
     user_count = db.query(User.id).filter(User.tenant_id == tenant.id).count()
     if user_count > 0:
         logger.warning(
@@ -1385,6 +1401,13 @@ async def delete_tenant(
 
         db.delete(tenant)
         db.commit()
+        # audit_logs.tenant_id is NOT NULL and cascades on tenant deletion: the
+        # audit row above disappears with the tenant. Keep a durable trace in
+        # the application log (no PII: ids, name and counts only).
+        logger.warning(
+            "Tenant deleted: id=%s name=%r users=%d by user_id=%s",
+            tenant_id, tenant_name, user_count, current_user.get("id"),
+        )
     except IntegrityError as exc:
         db.rollback()
         # Pull the offending table/constraint straight from the driver's
@@ -1726,6 +1749,11 @@ async def update_tenant(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Vous ne pouvez modifier que votre propre établissement.",
             )
+    else:
+        # Platform screen: no tenant context for a SUPER_ADMIN — the
+        # tenant-scoped audit row below would be rejected by RLS and roll the
+        # whole update back (500). Act under the target tenant's context.
+        enter_tenant_context_or_404(db, tenant.id)
 
     # SUPER_ADMIN may also toggle is_active; TENANT_ADMIN may not
     ALLOWED_FIELDS_ADMIN = {
