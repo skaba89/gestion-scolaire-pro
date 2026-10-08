@@ -241,6 +241,21 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   l'email sensible à la casse (`ix_users_email`) alors que l'inscription
   vérifie `lower(email)` — à traiter séparément ; rotation `neondb_owner`.
 
+- **2026-10-08 — email unique sans tenir compte de la casse, sur toute la
+  plateforme** (#289, schéma `20261010_0001`, point de restauration
+  `2026-10-08T17:31:07Z`, release `6524c27`). Index UNIQUE
+  `uq_users_email_lower` (pré-contrôle : aucun doublon en production),
+  emails stockés en minuscules (`User._normalize_email`), connexion par email
+  insensible à la casse (nom d'utilisateur exact). Les contrôles de doublon
+  faits dans une requête d'établissement ne voyaient que ce tenant (RLS
+  stricte) : création/liaison de compte, parent, imports CSV et ajout d'admin
+  SUPER_ADMIN passent par `find_user_by_email_in_any_tenant()` → 409/400
+  explicites, ligne d'import en erreur au lieu d'un import entier en échec
+  ou d'une 500. `POST /tenants/{id}/create-admin/` écrit désormais sous le
+  contexte RLS du tenant cible. Migration sans 503 (`ahead_compatible`).
+  Restent : test de connexion réel en production (par l'administrateur, y
+  compris email en majuscules), ACR étape C, rotation `neondb_owner`.
+
 ## Documents à considérer avec prudence
 
 | Document | Problème | À faire avant de le citer |
