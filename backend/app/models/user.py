@@ -1,6 +1,6 @@
 """User model"""
 from sqlalchemy import Column, String, Boolean, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from app.models.base import Base, GUID, UUIDMixin, TimestampMixin
 
@@ -32,6 +32,13 @@ class User(Base, UUIDMixin, TimestampMixin):
 
     # Relationships
     tenant = relationship("Tenant", back_populates="users", foreign_keys=[tenant_id])
+
+    @validates("email")
+    def _normalize_email(self, _key, value):
+        """Emails are unique case-insensitively (uq_users_email_lower,
+        migration 20261010_0001) and matched in lowercase at login: store them
+        trimmed and lowercased whatever the write path."""
+        return value.strip().lower() if isinstance(value, str) else value
 
     @property
     def full_name(self):

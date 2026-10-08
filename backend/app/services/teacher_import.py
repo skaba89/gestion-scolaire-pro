@@ -8,11 +8,11 @@ can run either synchronously (Redis down) or from an Arq worker task
 """
 import logging
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.core.tenant_resolution import find_user_by_email_in_any_tenant
 from app.services.student_import import detect_columns, parse_date
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,9 @@ def run_teacher_import(
                 error_rows.append({"row": i, "error": f"Email '{email}' en doublon dans le fichier", "data": dict(row)})
                 continue
 
-            if db.query(User).filter(func.lower(User.email) == email).first() is not None:
+            # Platform-wide (RLS would hide other tenants' accounts and the
+            # whole import would then fail on the unique index).
+            if find_user_by_email_in_any_tenant(db, email) is not None:
                 skipped += 1
                 error_rows.append({"row": i, "error": f"Un compte existe déjà pour l'email '{email}'", "data": dict(row)})
                 continue

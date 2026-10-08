@@ -2,7 +2,7 @@ import logging
 import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func, or_, text
+from sqlalchemy import and_, or_, text
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional, Any
 from uuid import UUID
@@ -17,7 +17,11 @@ logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import get_current_user, require_permission
-from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
+from app.core.tenant_resolution import (
+    enter_tenant_context_or_404,
+    find_user_by_email_in_any_tenant,
+    resolve_current_tenant_id,
+)
 from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
@@ -189,7 +193,8 @@ def create_parent(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
     normalized_email = str(parent_in.email).strip().lower()
-    if db.query(User).filter(func.lower(User.email) == normalized_email).first():
+    # Platform-wide check (strict RLS would only show this tenant's users).
+    if find_user_by_email_in_any_tenant(db, normalized_email):
         raise HTTPException(status_code=409, detail="An account already exists for this email")
 
     try:

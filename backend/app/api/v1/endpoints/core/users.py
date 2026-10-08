@@ -3,12 +3,13 @@ from typing import Literal, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 import math
 
 from app.core.database import get_db, reset_tenant_context, switch_tenant_context
+from app.core.tenant_resolution import find_user_by_email_in_any_tenant
 from app.core.security import get_current_user, require_permission, ROLE_PERMISSIONS
 from app.core.config import settings
 from app.utils.audit import log_audit
@@ -1033,7 +1034,8 @@ async def create_user(
     )
 
     normalized_email = str(body.email).strip().lower()
-    if db.query(User).filter(func.lower(User.email) == normalized_email).first():
+    # Platform-wide check (strict RLS would only show this tenant's users).
+    if find_user_by_email_in_any_tenant(db, normalized_email):
         raise HTTPException(status_code=409, detail="User with this email already exists")
 
     if body.password:
@@ -1174,7 +1176,7 @@ async def convert_to_account(
             if account.is_active:
                 raise HTTPException(status_code=409, detail=f"{body.type.capitalize()} account is already active")
 
-            email_owner = db.query(User).filter(func.lower(User.email) == normalized_email).first()
+            email_owner = find_user_by_email_in_any_tenant(db, normalized_email)
             if email_owner and email_owner.id != account.id:
                 raise HTTPException(status_code=409, detail="An account already exists for this email")
 
@@ -1194,7 +1196,7 @@ async def convert_to_account(
                 raise HTTPException(status_code=404, detail="Student not found")
             if student.user_id:
                 raise HTTPException(status_code=409, detail="Student already has a portal account")
-            if db.query(User).filter(func.lower(User.email) == normalized_email).first():
+            if find_user_by_email_in_any_tenant(db, normalized_email):
                 raise HTTPException(status_code=409, detail="An account already exists for this email")
 
             account = User(

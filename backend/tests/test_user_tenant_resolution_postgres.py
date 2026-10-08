@@ -6,7 +6,7 @@ context), like production:
 - the SECURITY DEFINER resolvers return only the owning tenant id(s) and are
   safe against search_path hijacking;
 - find_user_in_owner_tenant() finds users of any tenant, platform accounts,
-  and both rows of a case-insensitive email collision, with a number of
+  and emails whatever their case (20261010_0001), with a number of
   statements that does NOT grow with the number of tenants;
 - the remaining tenant sweeps log when they get slow.
 
@@ -74,13 +74,11 @@ def dataset():
             "tenant_user_email": f"third-{tag}@example.test",
             "tenant_user_name": f"third-{tag}",
             "platform_email": f"platform-{tag}@example.test",
-            "ci_lower": f"case-{tag}@example.test",
-            "ci_upper": f"CASE-{tag}@example.test",
+            "ci_email": f"case-{tag}@example.test",
         }
         data["tenant_user_id"] = _make_user(conn, tenants[2], data["tenant_user_email"], data["tenant_user_name"])
         data["platform_user_id"] = _make_user(conn, None, data["platform_email"])
-        data["ci_lower_id"] = _make_user(conn, tenants[0], data["ci_lower"])
-        data["ci_upper_id"] = _make_user(conn, tenants[1], data["ci_upper"])
+        data["ci_id"] = _make_user(conn, tenants[0], data["ci_email"])
     return data
 
 
@@ -119,7 +117,7 @@ def test_functions_are_security_definer_with_pinned_search_path_and_bypassing_ow
             assert secdef, signature
             assert config == ["search_path=pg_catalog, public"], signature
             assert owner_bypass, signature
-        assert conn.execute(text("SELECT to_regclass('public.ix_users_email_lower')")).scalar() is not None
+        assert conn.execute(text("SELECT to_regclass('public.uq_users_email_lower')")).scalar() is not None
 
 
 def test_resolvers_return_only_owning_tenant_ids(dataset, restricted_sessionmaker):
@@ -129,7 +127,10 @@ def test_resolvers_return_only_owning_tenant_ids(dataset, restricted_sessionmake
         assert _resolve(s, "by_login", dataset["tenant_user_name"]) == [uuid.UUID(t[2])]
         assert _resolve(s, "by_login", dataset["platform_email"]) == [None]
         assert _resolve(s, "by_login", "nobody-here@example.test") == []
-        assert sorted(map(str, _resolve(s, "by_email_ci", dataset["ci_lower"].upper()))) == sorted([t[0], t[1]])
+        assert _resolve(s, "by_email_ci", dataset["ci_email"].upper()) == [uuid.UUID(t[0])]
+        # 20261010_0001: email login is case-insensitive (and trimmed), username stays exact.
+        assert _resolve(s, "by_login", "  " + dataset["tenant_user_email"].upper() + " ") == [uuid.UUID(t[2])]
+        assert _resolve(s, "by_login", dataset["tenant_user_name"].upper()) == []
         assert _resolve(s, "by_id", dataset["tenant_user_id"]) == [uuid.UUID(t[2])]
         assert _resolve(s, "by_id", _uid()) == []
         columns = s.execute(text("SELECT * FROM public.resolve_user_tenants_by_login(:v)"), {"v": dataset["tenant_user_email"]}).keys()
@@ -196,7 +197,7 @@ def test_helper_finds_users_with_constant_statement_count(dataset, restricted_se
     assert before <= 6
 
 
-def test_helper_finds_platform_account_and_both_case_variants(dataset, restricted_sessionmaker):
+def test_helper_finds_platform_account_by_id_and_any_case(dataset, restricted_sessionmaker):
     with restricted_sessionmaker() as s:
         platform = find_user_in_owner_tenant(
             s, lambda q: q.query(User).filter(User.email == dataset["platform_email"]).first(),
@@ -210,17 +211,12 @@ def test_helper_finds_platform_account_and_both_case_variants(dataset, restricte
         )
         assert by_id is not None
 
-        upper = dataset["ci_upper"]
-        exact_upper = find_user_in_owner_tenant(
-            s, lambda q: q.query(User).filter(User.email == upper).first(), by="email_ci", value=upper,
-        )
-        assert exact_upper is not None and str(exact_upper.id) == dataset["ci_upper_id"]
-
+        upper = dataset["ci_email"].upper()
         any_case = find_user_in_owner_tenant(
-            s, lambda q: q.query(User).filter(func.lower(User.email) == dataset["ci_lower"]).first(),
-            by="email_ci", value=dataset["ci_lower"],
+            s, lambda q: q.query(User).filter(func.lower(User.email) == upper.lower()).first(),
+            by="email_ci", value=upper,
         )
-        assert any_case is not None
+        assert any_case is not None and str(any_case.id) == dataset["ci_id"]
 
         assert find_user_in_owner_tenant(
             s, lambda q: q.query(User).filter(User.email == "nobody@example.test").first(),
@@ -243,3 +239,25 @@ def test_slow_tenant_sweep_is_logged(caplog, monkeypatch, restricted_sessionmake
     with caplog.at_level(logging.WARNING, logger="app.core.database"), restricted_sessionmaker() as s:
         collect_across_all_tenants(s, lambda q: [])
     assert any("Slow tenant sweep: collect_across_all_tenants" in r.getMessage() for r in caplog.records)
+
+
+def test_helper_restores_the_callers_tenant_context(dataset, restricted_sessionmaker):
+    """Inside a tenant request (duplicate check before a write), the
+    request's own context must survive the cross-tenant lookup."""
+    own_tenant = dataset["tenants"][1]
+    with restricted_sessionmaker() as s:
+        db_module.switch_tenant_context(s, own_tenant)
+        other = find_user_in_owner_tenant(
+            s, lambda q: q.query(User).filter(User.email == dataset["tenant_user_email"]).first(),
+            by="login", value=dataset["tenant_user_email"],
+        )
+        assert other is not None and str(other.tenant_id) == dataset["tenants"][2]
+        assert s.info.get(db_module._RLS_TENANT_KEY) == own_tenant
+        assert s.execute(text("SELECT current_setting('app.current_tenant_id', true)")).scalar() == own_tenant
+
+
+def test_unique_index_rejects_a_case_duplicate(dataset):
+    from sqlalchemy.exc import IntegrityError
+
+    with pytest.raises(IntegrityError), engine.begin() as conn:
+        _make_user(conn, dataset["tenants"][2], dataset["ci_email"].upper())

@@ -286,7 +286,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         user = find_user_in_owner_tenant(
             db,
             lambda _db: _db.query(User)
-            .filter(or_(User.email == form_data.username, User.username == form_data.username))
+            .filter(or_(User.email == form_data.username.strip().lower(), User.username == form_data.username))
             .first(),
             by="login",
             value=form_data.username,
@@ -1234,7 +1234,7 @@ def bootstrap_admin(
     import uuid as _uuid
     from app.core.security import get_password_hash
 
-    admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
+    admin_email = (settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local").strip().lower()
     # new_password param takes priority over env var
     admin_password = body.new_password or settings.ADMIN_DEFAULT_PASSWORD
     steps = []
@@ -1449,10 +1449,11 @@ async def login_diagnostics(
             _fail(f"table_{table}", exc)
 
     # 3. Compte administrateur par défaut (présence et état seulement)
-    admin_email = settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local"
+    admin_email = (settings.ADMIN_DEFAULT_EMAIL or "admin@schoolflow.local").strip().lower()
     try:
         admin = find_user_in_owner_tenant(
-            db, lambda s: s.query(User).filter(User.email == admin_email).first(), by="login", value=admin_email,
+            db, lambda s: s.query(User).filter(User.email == admin_email).first(),
+            by="login", value=admin_email,
         )
         if admin is None:
             result["components"]["admin_user"] = {"status": "not_found"}

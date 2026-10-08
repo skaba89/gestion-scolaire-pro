@@ -804,8 +804,8 @@ async def create_tenant_with_admin(
         # globally unique, and with no tenant context strict RLS would hide
         # every tenant-scoped account (duplicate then failed later as a 500).
         existing_user = find_user_in_owner_tenant(
-            db, lambda s: s.query(User).filter(User.email == tenant_in.admin_email).first(),
-            by="login", value=tenant_in.admin_email,
+            db, lambda s: s.query(User).filter(func.lower(User.email) == tenant_in.admin_email.strip().lower()).first(),
+            by="email_ci", value=tenant_in.admin_email,
         )
         if existing_user:
             raise HTTPException(status_code=400, detail="Un utilisateur avec cet email existe déjà")
@@ -993,10 +993,15 @@ async def create_tenant_admin_user(
             detail=f"Rôle invalide: '{body.role}'. Rôles autorisés: {', '.join(sorted(ROLE_PERMISSIONS.keys()))}",
         )
 
-    # Check email uniqueness
-    existing_user = db.query(User).filter(User.email == body.email).first()
-    if existing_user:
+    # Check email uniqueness — platform-wide (a SUPER_ADMIN without tenant
+    # context sees no tenant's users under strict RLS; a collision then
+    # surfaced as a 500 on INSERT).
+    from app.core.tenant_resolution import enter_tenant_context_or_404, find_user_by_email_in_any_tenant
+    if find_user_by_email_in_any_tenant(db, body.email):
         raise HTTPException(status_code=400, detail="Un utilisateur avec cet email existe déjà")
+    # The new account and its role belong to this tenant: write them under
+    # its RLS context (WITH CHECK), as for the other SUPER_ADMIN routes (#278).
+    enter_tenant_context_or_404(db, tenant.id)
 
     import secrets
     from app.core.security import get_password_hash

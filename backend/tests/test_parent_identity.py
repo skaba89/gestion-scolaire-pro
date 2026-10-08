@@ -10,6 +10,25 @@ from pydantic import ValidationError
 from starlette.requests import Request
 
 
+@pytest.fixture(autouse=True)
+def _email_lookup_on_mocked_session(monkeypatch):
+    """These tests drive the endpoints with a mocked Session. On PostgreSQL
+    the real find_user_by_email_in_any_tenant() goes through the resolver
+    function and RLS context switches, which a mock cannot emulate (its
+    behaviour is covered under a real NOBYPASSRLS role by
+    test_email_uniqueness_cross_tenant.py). Here it becomes the plain query
+    on the mocked session that these tests already script."""
+    from app.api.v1.endpoints.core import users as users_module
+    from app.api.v1.endpoints.operational import parents as parents_module
+    from app.models.user import User
+
+    def lookup(db, email):
+        return db.query(User).filter(User.email == email).first()
+
+    monkeypatch.setattr(users_module, "find_user_by_email_in_any_tenant", lookup)
+    monkeypatch.setattr(parents_module, "find_user_by_email_in_any_tenant", lookup)
+
+
 def _fake_request() -> Request:
     return Request({
         "type": "http", "method": "GET", "path": "/",
