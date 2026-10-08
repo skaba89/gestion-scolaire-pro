@@ -393,9 +393,8 @@ async def list_pending_requests(
             .all()
         ):
             data = _subscription_to_dict(sub)
-            data["tenant_name"] = sub.tenant.name if sub.tenant else None
-            data["tenant_slug"] = sub.tenant.slug if sub.tenant else None
             data["_created_at"] = sub.created_at
+            data["_tenant_id"] = sub.tenant_id
             items.append(data)
         return items
 
@@ -405,8 +404,17 @@ async def list_pending_requests(
         collect_across_all_tenants(db, _pending_of_current_tenant),
         key=lambda d: d["_created_at"] or datetime.min,
     )
+    # PERFORMANCE: tenant names in one query (`tenants` has no RLS) instead
+    # of one lazy `sub.tenant` load per request.
+    tenant_ids = {d["_tenant_id"] for d in items if d["_tenant_id"]}
+    tenants = (
+        {t.id: t for t in db.query(Tenant).filter(Tenant.id.in_(tenant_ids)).all()} if tenant_ids else {}
+    )
     for data in items:
         data.pop("_created_at")
+        tenant = tenants.get(data.pop("_tenant_id"))
+        data["tenant_name"] = tenant.name if tenant else None
+        data["tenant_slug"] = tenant.slug if tenant else None
     return {"items": items, "total": len(items)}
 
 

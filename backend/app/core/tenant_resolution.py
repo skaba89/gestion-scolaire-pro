@@ -3,6 +3,7 @@
 This helper centralizes tenant resolution and ownership validation to keep
 all tenant-scoped endpoints consistent and reduce cross-tenant access risk.
 """
+import time
 from typing import Callable, Iterable, TypeVar
 from uuid import UUID
 
@@ -10,7 +11,12 @@ from fastapi import HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import TenantContextError, reset_tenant_context, switch_tenant_context
+from app.core.database import (
+    TenantContextError,
+    log_slow_tenant_sweep,
+    reset_tenant_context,
+    switch_tenant_context,
+)
 from app.models import Tenant, User
 
 _T = TypeVar("_T")
@@ -57,12 +63,15 @@ def collect_across_all_tenants(db: Session, query_fn: Callable[[Session], Iterab
     if settings.is_sqlite:
         return list(query_fn(db))
     results: list[_T] = []
+    started = time.monotonic()
+    tenant_ids = db.query(Tenant.id).all()
     try:
-        for (tenant_id,) in db.query(Tenant.id).all():
+        for (tenant_id,) in tenant_ids:
             switch_tenant_context(db, str(tenant_id))
             results.extend(query_fn(db))
     finally:
         reset_tenant_context(db)
+        log_slow_tenant_sweep("collect_across_all_tenants", len(tenant_ids), started)
     return results
 
 

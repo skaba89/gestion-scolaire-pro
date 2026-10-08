@@ -175,12 +175,12 @@ cron, WebSocket, health/security checks) :
 | Chemin / fonction | Source de session | Scope | Source du tenant | Contexte RLS avant | Correction | Test |
 |---|---|---|---|---|---|---|
 | `get_current_user()` | `SessionLocal()` indépendante | HTTP, tenant-scoped | claim `tenant_id` du JWT | reset inconditionnel à NULL (bug) | `resolve_authenticated_user_row(db, user_id, token.get("tenant_id"))` | `test_login_tenant_a_then_protected_route_returns_200` |
-| `POST /auth/login/` | `get_db()` (mais `/auth/*` est exempté de `TenantMiddleware`) | HTTP, platform-scoped par nécessité (`email`/`username` uniques globalement) | aucun (pré-auth) | aucun contexte positionné | `find_user_across_all_tenants()` puis `switch_tenant_context()` vers le tenant trouvé | `test_login_*`, `test_second_tenants_user_can_also_log_in` |
+| `POST /auth/login/` | `get_db()` (mais `/auth/*` est exempté de `TenantMiddleware`) | HTTP, platform-scoped par nécessité (`email`/`username` uniques globalement) | aucun (pré-auth) | aucun contexte positionné | `find_user_in_owner_tenant(by="login")` (coût constant, 20261009_0001) puis `switch_tenant_context()` vers le tenant trouvé | `test_login_*`, `test_second_tenants_user_can_also_log_in` |
 | `POST /auth/refresh/` | `get_db()` (`/auth/refresh` exempté) | HTTP, tenant-scoped | claim `tenant_id` du token expiré | aucun contexte positionné | `resolve_authenticated_user_row(db, user_id, payload.get("tenant_id"))` | tests existants `test_token_lifecycle.py` (non-régression) |
-| `POST /mfa/login/verify/` | `get_db()` (`/mfa/login/verify` exempté) | HTTP, tenant-scoped | aucun (le token `mfa_pending` ne porte pas `tenant_id`) | aucun contexte positionné | `find_user_across_all_tenants()` puis `switch_tenant_context()` | tests existants `test_totp_mfa_login.py` (non-régression) |
+| `POST /mfa/login/verify/` | `get_db()` (`/mfa/login/verify` exempté) | HTTP, tenant-scoped | aucun (le token `mfa_pending` ne porte pas `tenant_id`) | aucun contexte positionné | `find_user_in_owner_tenant(by="user_id")` puis `switch_tenant_context()` | tests existants `test_totp_mfa_login.py` (non-régression) |
 | `POST /auth/change-password/`, `POST /auth/reset-forced-password/` | `get_db()` (`/auth/*` exempté) | HTTP, tenant-scoped (self-lookup) | `current_user["tenant_id"]` (déjà résolu) | aucun contexte positionné | `resolve_authenticated_user_row(db, user_id, current_user.get("tenant_id"))` | tests existants (non-régression) |
-| Vérification d'unicité d'email — `POST /auth/register/`, `POST /auth/create-with-admin/` | `get_db()` (`/auth/*` exempté) | HTTP, platform-scoped par nécessité | aucun (pré-auth) | aucun contexte positionné | `find_user_across_all_tenants()` | tests existants d'inscription (non-régression) |
-| `POST /auth/reset-password/` (lien de réinitialisation) | `get_db()` (`/auth/*` exempté) | HTTP, tenant-scoped | aucun (`user_id` stocké dans Redis, sans tenant) | aucun contexte positionné | `find_user_across_all_tenants()` puis `switch_tenant_context()` (nécessaire aussi pour que l'`UPDATE` du mot de passe ne soit pas silencieusement filtré par `WITH CHECK`) | `test_account_provisioning.py` (mock mis à jour) |
+| Vérification d'unicité d'email — `POST /auth/register/`, `POST /auth/create-with-admin/` | `get_db()` (`/auth/*` exempté) | HTTP, platform-scoped par nécessité | aucun (pré-auth) | aucun contexte positionné | `find_user_in_owner_tenant(by="email_ci")` | tests existants d'inscription (non-régression) |
+| `POST /auth/reset-password/` (lien de réinitialisation) | `get_db()` (`/auth/*` exempté) | HTTP, tenant-scoped | aucun (`user_id` stocké dans Redis, sans tenant) | aucun contexte positionné | `find_user_in_owner_tenant(by="user_id")` puis `switch_tenant_context()` (nécessaire aussi pour que l'`UPDATE` du mot de passe ne soit pas silencieusement filtré par `WITH CHECK`) | `test_account_provisioning.py` (mock mis à jour) |
 | `GET /users/me/` | `get_db()` (`/users/me` est dans la liste `public_paths` de `TenantMiddleware` — "résout son propre tenant, pas via le contexte RLS") | HTTP, tenant-scoped (self-lookup, SQL brut) | `current_user["tenant_id"]` (déjà résolu) | aucun contexte positionné | `switch_tenant_context(db, current_user["tenant_id"])` / `reset_tenant_context(db)` avant les requêtes SQL brutes | `test_login_tenant_a_then_protected_route_returns_200`, `test_token_a_cannot_use_x_tenant_id_header_to_reach_tenant_b` |
 | WebSocket `app/api/v1/endpoints/core/realtime.py::websocket_endpoint` | `SessionLocal()` indépendante | WebSocket, tenant-scoped | claim `tenant_id` du JWT (`token_tenant`) | aucun reset du tout (pire : hérite de l'état laissé par une connexion précédente du pool) | `resolve_authenticated_user_row(db, token_sub, token_tenant)` | `test_websocket_tenant_a_connects_successfully`, `test_websocket_tenant_a_token_denied_for_tenant_b_path` |
 | `app/scripts/expire_subscriptions.py` / `expire_overdue_subscriptions()` | `SessionLocal()` indépendante (script) et `get_db()` (endpoint `POST /billing/maintenance/expire/`) | Cron + HTTP, platform-scoped (balaie tous les tenants) | aucun | une seule requête globale sur `tenant_subscriptions` (politique RLS stricte, sans bypass) → 0 ligne visible | `platform_db_session()` (script) + boucle par tenant avec `switch_tenant_context()`/`reset_tenant_context()` (fonction elle-même, pour couvrir aussi l'appel HTTP) | `test_expire_overdue_subscriptions_works_across_tenants_under_restricted_role` |
@@ -191,7 +191,7 @@ cron, WebSocket, health/security checks) :
 
 ```
 HTTP (route normale)   : Requête -> TenantMiddleware (JWT.tenant_id) -> tenant_context -> get_db() -> set_config -> get_current_user() (session partagée) -> RLS
-HTTP (/auth/*, exempté): Requête -> aucun tenant_context -> get_db() (contexte vide) -> find_user_across_all_tenants() ou resolve_authenticated_user_row() -> switch_tenant_context() -> RLS
+HTTP (/auth/*, exempté): Requête -> aucun tenant_context -> get_db() (contexte vide) -> find_user_in_owner_tenant() ou resolve_authenticated_user_row() -> switch_tenant_context() -> RLS
 WEBSOCKET               : Connexion -> JWT.tenant_id -> SessionLocal() indépendante (TenantMiddleware ne s'exécute jamais pour un WebSocket) -> resolve_authenticated_user_row() -> RLS
 CRON / HTTP admin       : platform_db_session()/get_db() -> liste des tenants (table racine, sans RLS) -> switch_tenant_context() par tenant -> RLS -> reset_tenant_context()
 ```
@@ -209,7 +209,19 @@ CRON / HTTP admin       : platform_db_session()/get_db() -> liste des tenants (t
   par exemple pendant une impersonation via `X-Tenant-ID`). Restaure le
   contexte à `tenant_id` avant de retourner, pour que le reste de la
   session partagée (`get_db()`) continue de voir le bon tenant.
-- **`find_user_across_all_tenants(db, query_fn)`** — pour un utilisateur
+- **`find_user_in_owner_tenant(db, query_fn, by=..., value=...)`** (depuis
+  la migration `20261009_0001`) — remplace le parcours ci-dessous pour les
+  recherches pré-authentification (login, inscription, réinitialisation,
+  MFA, création de tenant). Trois fonctions `SECURITY DEFINER`
+  (`resolve_user_tenants_by_login|by_email_ci|by_id`, `search_path` figé)
+  renvoient **uniquement** le(s) `tenant_id` propriétaire(s) ; la ligne
+  `users` elle-même est ensuite lue une fois, sous le contexte RLS de ce
+  tenant, par la politique stricte habituelle. Coût constant (quelques
+  allers-retours) quel que soit le nombre de tenants, au lieu de 2N+1 sur
+  des endpoints anonymes. Tests : `test_user_tenant_resolution_postgres.py`.
+- **`find_user_across_all_tenants(db, query_fn)`** — conservé pour les
+  recherches SUPER_ADMIN par identifiant (abonnement, domaine) ; un
+  parcours lent (> 500 ms) est journalisé (`Slow tenant sweep`). Pour un utilisateur
   dont on ne connaît ni le tenant, ni même s'il en a un (login par email,
   vérification d'unicité à l'inscription, token de réinitialisation de
   mot de passe stocké dans Redis sans tenant). `users.email` et

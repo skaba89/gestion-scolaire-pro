@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # not as a workaround for the bucket-collapsing bug anymore.
 public_browsing_limiter = Limiter(key_func=get_client_ip)
 
-from app.core.database import find_user_across_all_tenants, get_db, reset_tenant_context
+from app.core.database import find_user_in_owner_tenant, get_db, reset_tenant_context
 from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.tenant_resolution import (
     enter_tenant_context_or_404,
@@ -803,8 +803,9 @@ async def create_tenant_with_admin(
         # Check if admin email is already used — in ANY tenant: users.email is
         # globally unique, and with no tenant context strict RLS would hide
         # every tenant-scoped account (duplicate then failed later as a 500).
-        existing_user = find_user_across_all_tenants(
-            db, lambda s: s.query(User).filter(User.email == tenant_in.admin_email).first()
+        existing_user = find_user_in_owner_tenant(
+            db, lambda s: s.query(User).filter(User.email == tenant_in.admin_email).first(),
+            by="login", value=tenant_in.admin_email,
         )
         if existing_user:
             raise HTTPException(status_code=400, detail="Un utilisateur avec cet email existe déjà")
