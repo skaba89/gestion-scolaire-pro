@@ -133,7 +133,9 @@
     "communication": "通讯",
     "announcements": "公告",
     "administration": "行政管理",
-    "profile": "我的资料"
+    "profile": "我的资料",
+    "collapseSidebar": "收起菜单",
+    "expandSidebar": "展开菜单"
   },
   "dashboard": {
     "hello": "您好，{{name}} 👋",

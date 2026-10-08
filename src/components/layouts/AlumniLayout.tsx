@@ -4,6 +4,8 @@ import { AnimatePresence } from "framer-motion";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ResponsiveSidebar } from "@/components/layouts/ResponsiveSidebar";
+import { sidebarOffsetClass, useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
+import { cn } from "@/lib/utils";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PageTransition } from "@/components/layouts/PageTransition";
 import { ScrollProgress } from "@/components/ui/scroll-progress";
@@ -16,6 +18,7 @@ import {
 
 export function AlumniLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { collapsed } = useSidebarCollapsed();
   const location = useLocation();
   const { getTenantUrl } = useTenantUrl();
 
@@ -55,17 +58,15 @@ export function AlumniLayout() {
       />
 
       {/* Main Content */}
-      <div className="lg:pl-72">
-        <main className="p-4 md:p-6 lg:p-8 pt-20 lg:pt-8 pb-24 lg:pb-8">
-          <AnimatePresence mode="wait">
-            <PageTransition key={location.pathname}>
-              <div className="max-w-7xl mx-auto">
-                <Outlet />
-              </div>
-            </PageTransition>
-          </AnimatePresence>
-        </main>
-      </div>
+      <main className={cn(sidebarOffsetClass(collapsed), "pt-16 lg:pt-0 pb-20 lg:pb-0 min-h-screen transition-[margin] duration-300")}>
+        <AnimatePresence mode="wait">
+          <PageTransition key={location.pathname}>
+            <div className="page-container">
+              <Outlet />
+            </div>
+          </PageTransition>
+        </AnimatePresence>
+      </main>
 
       {/* Mobile Bottom Navigation */}
       <MobileBottomNav items={navItems} />

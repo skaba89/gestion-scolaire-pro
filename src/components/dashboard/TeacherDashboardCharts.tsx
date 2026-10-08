@@ -16,7 +16,7 @@ import {
   Cell,
   Legend
 } from "recharts";
-import { Users, TrendingUp, BookOpen, ClipboardCheck } from "lucide-react";
+import { Users, TrendingUp, ClipboardCheck } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 const COLORS = ['hsl(217, 91%, 40%)', 'hsl(199, 89%, 48%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(16, 85%, 57%)', 'hsl(168, 76%, 42%)'];
@@ -171,7 +171,7 @@ export const TeacherDashboardCharts = () => {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -201,19 +201,6 @@ export const TeacherDashboardCharts = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-info" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{classroomStats?.length || 0}</p>
-                <p className="text-xs text-muted-foreground">Classes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
                 <ClipboardCheck className="w-5 h-5 text-warning" />
               </div>
@@ -227,7 +214,7 @@ export const TeacherDashboardCharts = () => {
       </div>
 
       {/* Charts Row */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-4 lg:gap-6">
         {/* Students by Classroom */}
         <Card>
           <CardHeader>
@@ -251,7 +238,7 @@ export const TeacherDashboardCharts = () => {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+              <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
                 Aucune donnée disponible
               </div>
             )}
@@ -291,7 +278,7 @@ export const TeacherDashboardCharts = () => {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+              <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
                 Aucune note saisie
               </div>
             )}

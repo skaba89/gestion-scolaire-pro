@@ -23,12 +23,14 @@ export const StudentHeader = ({
     onAddClick,
 }: StudentHeaderProps) => {
     return (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            {/* Title and actions on one line from lg; actions keep their natural
+                width instead of wrapping under each other next to a squeezed title. */}
+            <div className="min-w-0">
                 <h1 className="text-2xl font-display font-bold text-foreground">Gestion des {StudentsLabel}</h1>
                 <p className="text-muted-foreground">Gérez les dossiers et inscriptions {getLabel("of_students")}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 lg:justify-end lg:shrink-0">
                 <Button variant="outline" onClick={onAIAnalysis} disabled={isAnalyzing}>
                     {isAnalyzing ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />

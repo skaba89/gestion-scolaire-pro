@@ -16,11 +16,14 @@ import {
 } from "lucide-react";
 import { ChatBot } from "@/components/chat/ChatBot";
 import { ResponsiveSidebar } from "@/components/layouts/ResponsiveSidebar";
+import { sidebarOffsetClass, useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
+import { cn } from "@/lib/utils";
 import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { PageTransition } from "@/components/layouts/PageTransition";
 
 export const StudentLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { collapsed } = useSidebarCollapsed();
   const { t } = useTranslation();
   const location = useLocation();
   const { getTenantUrl } = useTenantUrl();
@@ -56,7 +59,7 @@ export const StudentLayout = () => {
       />
 
       {/* Main Content */}
-      <main className="lg:ml-72 pt-16 lg:pt-0 pb-20 lg:pb-0 min-h-screen">
+      <main className={cn(sidebarOffsetClass(collapsed), "pt-16 lg:pt-0 pb-20 lg:pb-0 min-h-screen transition-[margin] duration-300")}>
         <AnimatePresence mode="wait">
           <PageTransition key={location.pathname}>
             <div className="page-container">

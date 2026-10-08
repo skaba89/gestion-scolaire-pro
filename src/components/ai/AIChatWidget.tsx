@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ export const AIChatWidget = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const { profile } = useAuth();
   const { tenant } = useTenant();
+  const { pathname } = useLocation();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -170,13 +172,19 @@ export const AIChatWidget = () => {
 
   // ── Render ──────────────────────────────────────────────────────────────
 
+  // These portals render their own assistant (ChatBot in their layout): a
+  // second floating button stacked on top of it only hid page content.
+  if (/^\/[^/]+\/(teacher|parent|student|department)(\/|$)/.test(pathname)) {
+    return null;
+  }
+
   return (
     <>
       {/* ── Floating Button ── */}
       <Button
         onClick={toggleChat}
         className={cn(
-          "fixed bottom-20 right-4 z-50 h-14 w-14 rounded-full shadow-lg",
+          "fixed bottom-20 lg:bottom-6 right-4 z-50 h-14 w-14 rounded-full shadow-lg",
           "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500",
           "text-white border-0",
           "transition-all duration-300 hover:scale-105",
@@ -203,7 +211,7 @@ export const AIChatWidget = () => {
           className={cn(
             "fixed z-50 shadow-2xl border-border/50 overflow-hidden",
             "bottom-36 right-4 w-[calc(100vw-2rem)] max-w-[420px]",
-            "sm:bottom-36 sm:right-4",
+            "sm:bottom-36 sm:right-4 lg:bottom-24",
             "animate-in slide-in-from-bottom-5 fade-in duration-300",
             isMinimized && "h-14 !p-0",
           )}
