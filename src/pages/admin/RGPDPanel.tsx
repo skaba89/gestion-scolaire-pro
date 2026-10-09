@@ -31,6 +31,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toList } from "@/lib/api-list";
 
 interface UserLegalData {
     user_id: string;
@@ -42,6 +43,23 @@ interface UserLegalData {
     };
     can_be_fully_deleted: boolean;
     message: string;
+}
+
+interface ExportHistoryItem {
+    id: string;
+    export_date: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    user_email?: string | null;
+    requester_email?: string | null;
+}
+
+interface RetentionRisk {
+    user_id: string;
+    email?: string | null;
+    account_created_at: string;
+    retention_end_date: string;
+    compliance_status?: string | null;
 }
 
 export default function AdminRGPDPanel() {
@@ -77,9 +95,9 @@ export default function AdminRGPDPanel() {
 
     const { data: exportHistory = [] } = useQuery({
         queryKey: ['rgpd', 'export-history'],
-        queryFn: async () => {
+        queryFn: async (): Promise<ExportHistoryItem[]> => {
             const response = await apiClient.get('/rgpd/export-history/');
-            return response.data || [];
+            return toList<ExportHistoryItem>(response.data);
         },
         enabled: isAdmin,
         staleTime: 2 * 60 * 1000,
@@ -87,9 +105,9 @@ export default function AdminRGPDPanel() {
 
     const { data: retentionRisks = [] } = useQuery({
         queryKey: ['rgpd', 'retention-risks'],
-        queryFn: async () => {
+        queryFn: async (): Promise<RetentionRisk[]> => {
             const response = await apiClient.get('/rgpd/retention-risks/');
-            return response.data || [];
+            return toList<RetentionRisk>(response.data);
         },
         enabled: isAdmin,
         staleTime: 5 * 60 * 1000,

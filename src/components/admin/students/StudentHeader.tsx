@@ -2,12 +2,13 @@ import { Plus, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StudentExport } from "@/components/students/StudentExport";
 import { StudentImport } from "@/components/students/StudentImport";
+import type { StudentLabelType } from "@/hooks/useStudentLabel";
 
 interface StudentHeaderProps {
     studentsLabel: string;
     StudentsLabel: string;
     studentLabel: string;
-    getLabel: (key: string) => string;
+    getLabel: (type?: StudentLabelType, capitalize?: boolean) => string;
     isAnalyzing: boolean;
     onAIAnalysis: () => void;
     onAddClick: () => void;

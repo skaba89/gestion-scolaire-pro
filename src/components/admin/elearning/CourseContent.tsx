@@ -22,10 +22,13 @@ interface CourseContentProps {
     modules: any[];
     onAddModule: () => void;
     onEditModule: (module: any) => void;
-    onDeleteModule: (id: string) => void;
+    // The page needs the objects (title for the confirmation) and the
+    // lesson's module: passing ids only made every delete a no-op and lost
+    // the module when editing a lesson.
+    onDeleteModule: (module: any) => void;
     onAddLesson: (moduleId: string) => void;
-    onEditLesson: (lesson: any) => void;
-    onDeleteLesson: (id: string) => void;
+    onEditLesson: (lesson: any, moduleId: string) => void;
+    onDeleteLesson: (lesson: any, moduleId: string) => void;
     onAIUpdate?: () => void;
 }
 
@@ -102,7 +105,7 @@ export function CourseContent({
                                 <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Modifier le module" onClick={(e) => { e.stopPropagation(); onEditModule(module); }}>
                                     <Edit className="h-3 w-3" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" aria-label="Supprimer le module" onClick={(e) => { e.stopPropagation(); onDeleteModule(module.id); }}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" aria-label="Supprimer le module" onClick={(e) => { e.stopPropagation(); onDeleteModule(module); }}>
                                     <Trash2 className="h-3 w-3" />
                                 </Button>
                             </div>
@@ -153,10 +156,10 @@ export function CourseContent({
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Modifier la leçon" onClick={() => onEditLesson(lesson)}>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Modifier la leçon" onClick={() => onEditLesson(lesson, module.id)}>
                                                 <Edit className="h-3 w-3" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label="Supprimer la leçon" onClick={() => onDeleteLesson(lesson.id)}>
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" aria-label="Supprimer la leçon" onClick={() => onDeleteLesson(lesson, module.id)}>
                                                 <Trash2 className="h-3 w-3" />
                                             </Button>
                                         </div>

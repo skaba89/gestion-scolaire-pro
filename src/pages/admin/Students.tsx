@@ -33,7 +33,9 @@ const Students = () => {
     students,
     totalCount,
     isLoading,
-    archive: archiveStudent,
+    // The hook exposes archiveStudent (no `archive` alias): reading `archive`
+    // gave undefined and the archive button threw a TypeError.
+    archiveStudent,
     delete: deleteStudent,
     createAccount
   } = useStudents({

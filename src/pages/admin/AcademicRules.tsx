@@ -21,6 +21,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { useTerminology } from "@/hooks/useTerminology";
+import { toList } from "@/lib/api-list";
 
 type AcademicRuleType = 'PASSING_GRADE' | 'HONOR_ROLL_THRESHOLD' | 'COEFFICIENT_POLICY' | 'ATTENDANCE_LIMIT' | 'PROMOTION_RULE';
 
@@ -59,11 +60,11 @@ export default function AcademicRules() {
     // Fetch levels for dropdown
     const { data: levels } = useQuery({
         queryKey: ["levels"],
-        queryFn: async () => {
+        queryFn: async (): Promise<{ id: string; name: string }[]> => {
             const { data } = await apiClient.get("/students/levels/", {
                 params: { ordering: "name" },
             });
-            return data;
+            return toList<{ id: string; name: string }>(data);
         },
     });
 

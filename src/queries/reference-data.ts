@@ -1,4 +1,6 @@
 import { apiClient } from "@/api/client";
+import { toList } from "@/lib/api-list";
+import type { Level } from "@/lib/types";
 import { offlineDb, cacheStudents } from "@/lib/offlineDb";
 
 /**
@@ -9,9 +11,9 @@ import { offlineDb, cacheStudents } from "@/lib/offlineDb";
 export const referenceQueries = {
     levels: (tenantId: string) => ({
         queryKey: ['levels', tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<Level[]> => {
             const response = await apiClient.get('/levels/');
-            return response.data || [];
+            return toList<Level>(response.data);
         },
         staleTime: 30 * 60 * 1000, // 30 minutes
     }),

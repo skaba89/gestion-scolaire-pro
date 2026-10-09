@@ -50,7 +50,9 @@ const TeachersPage = () => {
   });
 
   const { data: subjectsData = [] } = useSubjects(tenant?.id || "");
-  const { data: teacherSchedule = [] } = useTeacherSchedule(selectedTeacher?.id);
+  // useTeacherSchedule returns { schedule, … } (not a query result): reading
+  // `data` always gave the [] default — the schedule was never displayed.
+  const { schedule: teacherSchedule = [] } = useTeacherSchedule(selectedTeacher?.id);
 
   // Reset to page 1 when search changes
   useEffect(() => {

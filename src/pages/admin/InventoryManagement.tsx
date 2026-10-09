@@ -131,7 +131,7 @@ export const InventoryManagement = () => {
         });
     };
 
-    const lowStockItems = items?.filter(item => item.stock_quantity <= item.min_stock_level && item.stock_quantity > 0) || [];
+    const lowStockItems = items?.filter(item => item.min_stock_level !== undefined && item.stock_quantity <= item.min_stock_level && item.stock_quantity > 0) || [];
     const outOfStockItems = items?.filter(item => item.stock_quantity <= 0) || [];
     const totalInventoryValue = items?.reduce((acc, item) => acc + (item.unit_price * item.stock_quantity), 0) || 0;
 
@@ -314,7 +314,7 @@ export const InventoryManagement = () => {
                                                             <AlertTriangle className="w-3 h-3" />
                                                             {t("inventoryMgmt.statusOutOfStock")}
                                                         </Badge>
-                                                    ) : item.stock_quantity <= item.min_stock_level ? (
+                                                    ) : item.min_stock_level !== undefined && item.stock_quantity <= item.min_stock_level ? (
                                                         <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600 bg-amber-50">
                                                             <AlertTriangle className="w-3 h-3" />
                                                             {t("inventoryMgmt.statusLow")}
@@ -399,7 +399,7 @@ export const InventoryManagement = () => {
                                                 <TableCell className="text-muted-foreground">
                                                     {format(new Date(trans.created_at), "dd MMM yyyy HH:mm", { locale: fr })}
                                                 </TableCell>
-                                                <TableCell className="font-medium">{trans.item?.name}</TableCell>
+                                                <TableCell className="font-medium">{trans.item_name}</TableCell>
                                                 <TableCell>
                                                     {trans.transaction_type === 'IN' ? (
                                                         <Badge variant="outline" className="gap-1 border-emerald-500 text-emerald-600 bg-emerald-50">

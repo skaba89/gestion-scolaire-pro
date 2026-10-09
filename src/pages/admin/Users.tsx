@@ -34,6 +34,7 @@ import { AppRole as AppRoleType } from "@/lib/types";
 import { hasPermission } from "@/lib/permissions";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { toast } from "sonner";
+import { toList } from "@/lib/api-list";
 
 const UsersPage = () => {
   const { t } = useTranslation();
@@ -157,11 +158,13 @@ const UsersPage = () => {
             onPageSizeChange={setPageSize}
             onEdit={async (user) => {
               if (user.roles.includes("STUDENT")) {
-                const response = await apiClient.get<any[]>("/students/", {
+                const response = await apiClient.get("/students/", {
                   params: { user_id: user.id }
                 });
-                const students = response.data?.results || response.data || [];
-                const studentMatch = students.find((s: any) => s.user_id === user.id);
+                // The endpoint returns { items, total }: reading `.results`
+                // left an object here and `.find` threw a TypeError.
+                const students = toList<{ id: string; user_id?: string | null }>(response.data);
+                const studentMatch = students.find((s) => s.user_id === user.id);
 
                 if (studentMatch) {
                   navigate(getTenantUrl(`/admin/students/${studentMatch.id}`));

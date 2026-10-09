@@ -320,10 +320,10 @@ export default function Elearning() {
                 modules={displayModules}
                 onAddModule={handleAddModule}
                 onEditModule={(module: any) => handleEditModule(module)}
-                onDeleteModule={(module: any) => handleDeleteModule(module)}
+                onDeleteModule={handleDeleteModule}
                 onAddLesson={(moduleId: string) => handleAddLesson(moduleId)}
-                onEditLesson={(lesson: any, moduleId: string) => handleEditLesson(lesson, moduleId)}
-                onDeleteLesson={(lesson: any, moduleId: string) => handleDeleteLesson(lesson, moduleId)}
+                onEditLesson={handleEditLesson}
+                onDeleteLesson={handleDeleteLesson}
               />
             </div>
 

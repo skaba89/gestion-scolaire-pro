@@ -42,7 +42,7 @@ export const useEnrollments = (classroomId: string) => {
     });
 };
 
-export const useClassroomDepartments = (classroomId: string) => {
+export const useClassroomDepartments = (classroomId?: string) => {
     return useQuery({
         queryKey: ['classroom_departments', classroomId],
         queryFn: async () => {

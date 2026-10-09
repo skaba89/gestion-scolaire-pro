@@ -36,6 +36,22 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toList } from "@/lib/api-list";
+
+interface NamedRow {
+  id: string;
+  name: string;
+}
+
+interface AssessmentRow {
+  id: string;
+  name: string;
+  type?: string | null;
+  max_score?: number | null;
+  weight?: number | null;
+  classrooms?: { name?: string | null } | null;
+  subjects?: { name?: string | null } | null;
+}
 
 const Grades = () => {
   const { t } = useTranslation();
@@ -46,22 +62,22 @@ const Grades = () => {
 
   const { data: classrooms } = useQuery({
     queryKey: ["classrooms", tenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<NamedRow[]> => {
       if (!tenant?.id) return [];
       const { data } = await apiClient.get("/infrastructure/classrooms/");
-      return data;
+      return toList<NamedRow>(data);
     },
     enabled: !!tenant?.id,
   });
 
   const { data: assessments, isLoading } = useQuery({
     queryKey: ["assessments", tenant?.id, selectedClassroom],
-    queryFn: async () => {
+    queryFn: async (): Promise<AssessmentRow[]> => {
       if (!tenant?.id) return [];
       const { data } = await apiClient.get("/assessments/", {
         params: selectedClassroom !== "all" ? { classId: selectedClassroom } : {}
       });
-      return data.items || data;
+      return toList<AssessmentRow>(data);
     },
     enabled: !!tenant?.id,
   });
