@@ -1,7 +1,6 @@
 import { Building2, Users, Layers } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShortcutCard } from "../components/GuideComponents";
 import { ScreenshotCard } from "../components/GuideComponents";
 import adminDashboard from "@/assets/docs/admin-dashboard.png";
 

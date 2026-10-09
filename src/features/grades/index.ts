@@ -4,7 +4,7 @@
 export * from "./types/grades";
 
 // Hooks
-export { useGrades, useStudentGrades } from "./hooks/useGrades";
+export { useGrades } from "./hooks/useGrades";
 
 // Services
 export { gradesService } from "./services/gradesService";
