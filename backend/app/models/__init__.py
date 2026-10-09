@@ -9,6 +9,7 @@ from app.models.academic_year import AcademicYear
 from app.models.user_role import UserRole
 from app.models.tenant_security import TenantSecuritySettings
 from app.models.audit_log import AuditLog
+from app.models.platform_audit_log import PlatformAuditLog
 from app.models.grade import Grade
 from app.models.payment import Payment, PaymentMethod, PaymentStatus, Invoice, InvoiceStatus
 from app.models.rgpd import AccountDeletionRequest, RGPDLog
