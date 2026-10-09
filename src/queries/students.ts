@@ -4,6 +4,9 @@ import { toast } from "sonner";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { Student } from "@/lib/types";
 
+// Re-exported: several components import the type from here.
+export type { Student };
+
 export const studentQueries = {
     all: (tenantId: string, showArchived: boolean = false) => ({
         queryKey: ["students", tenantId, showArchived] as const,

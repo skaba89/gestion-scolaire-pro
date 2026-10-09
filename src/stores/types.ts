@@ -1,5 +1,7 @@
 import { AppRole } from "@/lib/types";
 
+export type { AppRole };
+
 /**
  * Zustand Store Types
  * Shared type definitions for all stores
