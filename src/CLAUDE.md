@@ -44,7 +44,8 @@ features/                    # modules par domaine (adoption partielle)
 ## Vérifications
 
 ```bash
-npm run type-check
+npm run type-check      # tsc strict + cliquet ts-baseline.json (aucune nouvelle erreur)
+npm run type-check:update-baseline   # après avoir corrigé des erreurs : baisse la référence
 npm run lint            # ne pas dépasser le budget --max-warnings de ci.yml
 npm run check:i18n
 npx vitest run src/<chemin>

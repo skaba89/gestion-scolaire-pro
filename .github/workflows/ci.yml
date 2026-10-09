@@ -56,6 +56,11 @@ jobs:
 
       - name: Type-check (TypeScript)
         run: npm run type-check
+        # Real check since 2026-10-09 (it used to check nothing: tsconfig.json
+        # has "files": []). scripts/check-ts-baseline.mjs runs strict tsc on
+        # tsconfig.app.json + tsconfig.node.json and fails on any file with
+        # more errors than ts-baseline.json (pre-existing debt, can only go
+        # down: npm run type-check:update-baseline after fixing errors).
 
       - name: Check i18n key completeness
         # AUDIT 2026-08: scripts/check-i18n-keys.mjs already existed (blocks

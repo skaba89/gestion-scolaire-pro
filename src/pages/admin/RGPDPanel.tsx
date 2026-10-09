@@ -167,10 +167,14 @@ export default function AdminRGPDPanel() {
 
             setAnonymizeDialogOpen(false);
             setAnonymizeReason('');
+            // legalData comes from a query keyed on selectedUserId: clearing
+            // the selection clears it. (setLegalData / loadGlobalStats no
+            // longer existed — the ReferenceError turned every successful
+            // anonymization into an error toast.)
             setSelectedUserId(null);
-            setLegalData(null);
             setSearchEmail('');
-            loadGlobalStats();
+            queryClient.invalidateQueries({ queryKey: ['rgpd', 'stats'] });
+            queryClient.invalidateQueries({ queryKey: ['rgpd', 'retention-risks'] });
         } catch (error: any) {
             toast.error('Erreur lors de l\'anonymisation', {
                 description: error.message,

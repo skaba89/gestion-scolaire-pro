@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Share2, Check, Lock, Sparkles, TrendingUp, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";

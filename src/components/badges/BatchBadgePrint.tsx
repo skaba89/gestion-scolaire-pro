@@ -45,7 +45,7 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
   const printRef = useRef<HTMLDivElement>(null);
 
   const [open, setOpen] = useState(false);
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [classrooms, setClassrooms] = useState<ClassRoom[]>([]);
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
   const [students, setStudents] = useState<StudentWithBadge[]>([]);
   const [loading, setLoading] = useState(false);
