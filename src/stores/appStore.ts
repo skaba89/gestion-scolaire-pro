@@ -8,7 +8,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type { User, Tenant, Permission, Notification, AppRole } from "./types";
 
-interface AppState {
+export interface AppState {
   // User state
   user: User | null;
   setUser: (user: User | null) => void;
