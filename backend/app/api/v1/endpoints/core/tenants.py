@@ -42,7 +42,7 @@ from app.core.tenant_resolution import (
     resolve_current_tenant_id,
     resolve_optional_tenant_settings_context,
 )
-from app.utils.audit import log_audit
+from app.utils.audit import log_audit, log_platform_audit
 from app.schemas.tenants import (
     TenantCreate,
     TenantResponse,
@@ -920,6 +920,14 @@ async def create_tenant_with_admin(
                 "admin_email": tenant_in.admin_email,
             }
         )
+        log_platform_audit(
+            db,
+            actor_user_id=current_user.get("id"),
+            action="CREATE_TENANT_WITH_ADMIN",
+            target_type="TENANT",
+            target_id=str(new_tenant.id),
+            details={"name": new_tenant.name, "slug": new_tenant.slug},
+        )
 
         # 8. Email the activation link — if this fails, roll back the whole
         # tenant rather than leave an establishment with an admin who can
@@ -1315,6 +1323,14 @@ async def toggle_tenant_status(
             details={"name": tenant.name, "slug": tenant.slug, "is_active": False},
             severity="WARNING",
         )
+        log_platform_audit(
+            db,
+            actor_user_id=acting_user_id,
+            action="DEACTIVATE_TENANT",
+            target_type="TENANT",
+            target_id=str(tenant.id),
+            details={"name": tenant.name, "slug": tenant.slug},
+        )
 
         # Revoke all sessions for every user belonging to this tenant
         tenant_users = db.query(User.id).filter(User.tenant_id == tenant.id).all()
@@ -1342,6 +1358,14 @@ async def toggle_tenant_status(
             resource_id=str(tenant.id),
             details={"name": tenant.name, "slug": tenant.slug, "is_active": True},
             severity="INFO",
+        )
+        log_platform_audit(
+            db,
+            actor_user_id=acting_user_id,
+            action="ACTIVATE_TENANT",
+            target_type="TENANT",
+            target_id=str(tenant.id),
+            details={"name": tenant.name, "slug": tenant.slug},
         )
 
     # log_audit() only flushes internally — the is_active toggle itself
@@ -1398,12 +1422,20 @@ async def delete_tenant(
             details={"name": tenant_name, "user_count": user_count},
             severity="WARNING",
         )
+        # audit_logs.tenant_id is NOT NULL and cascades on tenant deletion: the
+        # row above disappears with the tenant. The platform trail survives it
+        # (committed atomically with the deletion — no trace of a failed one).
+        log_platform_audit(
+            db,
+            actor_user_id=current_user.get("id"),
+            action="DELETE_TENANT",
+            target_type="TENANT",
+            target_id=str(tenant.id),
+            details={"name": tenant_name, "slug": tenant.slug, "user_count": user_count},
+        )
 
         db.delete(tenant)
         db.commit()
-        # audit_logs.tenant_id is NOT NULL and cascades on tenant deletion: the
-        # audit row above disappears with the tenant. Keep a durable trace in
-        # the application log (no PII: ids, name and counts only).
         logger.warning(
             "Tenant deleted: id=%s name=%r users=%d by user_id=%s",
             tenant_id, tenant_name, user_count, current_user.get("id"),

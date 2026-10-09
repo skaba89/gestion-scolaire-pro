@@ -260,6 +260,10 @@ class TestPlatformRoutesUnderRestrictedRole:
         assert any(f"Tenant deleted: id={tid}" in r.getMessage() and "users=1" in r.getMessage() for r in caplog.records)
         assert _admin_scalar("SELECT count(*) FROM tenants WHERE id = :t", t=tid) == 0
         assert _admin_scalar("SELECT count(*) FROM users WHERE tenant_id = :t", t=tid) == 0
+        # The platform trail survives the tenant (20261011_0001).
+        assert _admin_scalar(
+            "SELECT count(*) FROM platform_audit_logs WHERE action = 'DELETE_TENANT' AND target_id = :t", t=tid
+        ) == 1
 
     def test_list_tenant_admins_is_not_empty(self, seeded):
         tid, admin_id = seeded["B"]["tenant_id"], seeded["B"]["admin_id"]
@@ -275,6 +279,9 @@ class TestPlatformRoutesUnderRestrictedRole:
             assert resp.json()["is_active"] is False
             assert _admin_scalar(
                 "SELECT count(*) FROM audit_logs WHERE tenant_id = :t AND action = 'DEACTIVATE_TENANT'", t=tid
+            ) == 1
+            assert _admin_scalar(
+                "SELECT count(*) FROM platform_audit_logs WHERE target_id = :t AND action = 'DEACTIVATE_TENANT'", t=tid
             ) == 1
         finally:
             with engine.begin() as conn:
