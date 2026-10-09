@@ -26,6 +26,7 @@ from app.core.database import (
     switch_tenant_context,
     worker_db_session,
 )
+from app.core.config import settings as _settings
 from app.core.jobs import get_worker_redis_settings
 from app.models.job import Job
 from app.models.notification import Notification
@@ -1172,6 +1173,10 @@ async def on_shutdown(ctx: dict) -> None:
         logger.warning("Worker heartbeat cleanup failed: %s", exc)
 
 
+# See WorkerSettings.poll_delay (settings.WORKER_POLL_DELAY_SECONDS).
+WORKER_POLL_DELAY_SECONDS = _settings.WORKER_POLL_DELAY_SECONDS
+
+
 class WorkerSettings:
     """Entry point for the Arq worker process: `arq app.workers.tasks.WorkerSettings`
     (see the `worker` service in docker-compose.yml)."""
@@ -1226,3 +1231,11 @@ class WorkerSettings:
     # this queue" is answerable within ~30s of a total outage rather than
     # up to an hour later.
     health_check_interval = HEARTBEAT_INTERVAL_SECONDS
+    # Redis request budget (incident 2026-10-09: the managed Redis plan's
+    # 500,000-request cap was exhausted and every worker start then failed
+    # with "max requests limit exceeded"). ARQ polls the queue every 0.5 s
+    # by default — ~350,000 commands a day on an idle queue. The default 5 s
+    # cuts that by 90% (~35,000/day); a capped plan needs more (30 s fits a
+    # 500,000/month cap) — set WORKER_POLL_DELAY_SECONDS, no redeploy needed.
+    # A queued job (imports, notifications) starts at most that much later.
+    poll_delay = WORKER_POLL_DELAY_SECONDS

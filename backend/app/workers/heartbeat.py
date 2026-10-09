@@ -40,7 +40,10 @@ from app.core.config import settings
 # Written every HEARTBEAT_INTERVAL_SECONDS; expires after HEARTBEAT_TTL_SECONDS
 # (3x the interval — tolerates two missed writes, e.g. a slow job blocking
 # the event loop briefly, before being reported MISSING instead of RUNNING).
-HEARTBEAT_INTERVAL_SECONDS = 30
+# 60 s (was 30): halves the heartbeat + ARQ health-check Redis writes
+# (request budget — see WorkerSettings.poll_delay); a dead worker is still
+# reported MISSING within 3 minutes.
+HEARTBEAT_INTERVAL_SECONDS = 60
 HEARTBEAT_TTL_SECONDS = HEARTBEAT_INTERVAL_SECONDS * 3
 
 # STALE band: the heartbeat key is still present (not yet TTL-expired) but

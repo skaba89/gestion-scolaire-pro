@@ -234,6 +234,12 @@ class Settings(BaseSettings):
     AZURE_STORAGE_CONTAINER: str = get_secret("AZURE_STORAGE_CONTAINER", "schoolflow-documents")
 
     REDIS_URL: str = get_secret("REDIS_URL", "redis://localhost:6379/0")
+    # ARQ worker queue polling interval (seconds). Each poll costs Redis
+    # requests: ~2 per poll per worker replica, i.e. ~35,000/day at 5 s.
+    # Managed Redis plans with a request cap (incident 2026-10-09: 500,000
+    # requests) need a longer interval (30 s fits that cap); a queued job
+    # then starts at most this many seconds later. Bounded to [1, 60].
+    WORKER_POLL_DELAY_SECONDS: float = 5.0
 
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     APP_NAME: str = "Academy Guinéenne API"
@@ -402,6 +408,13 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = get_secret("SENTRY_DSN", "")
     SENTRY_ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05"))
+
+    @field_validator("WORKER_POLL_DELAY_SECONDS", mode="after")
+    @classmethod
+    def _bound_worker_poll_delay(cls, v: float) -> float:
+        if not 1 <= v <= 60:
+            raise ValueError("WORKER_POLL_DELAY_SECONDS doit être compris entre 1 et 60 secondes.")
+        return v
 
     @field_validator("GROQ_MAX_TOKENS", mode="before")
     @classmethod
