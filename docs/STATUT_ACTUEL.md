@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-08 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-09 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -265,6 +265,51 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   worker et frontend sains ensuite. Plus aucun mot de passe de registre :
   push CI par OIDC (AcrPush + Reader), pull par identités managées
   (AcrPull). Secours : `az acr update --admin-enabled true`.
+
+- **2026-10-08 — écran plateforme d'un établissement (#292, release
+  `08e04f3`)** : signalé par l'administrateur — impossible de supprimer une
+  université, de réinitialiser le mot de passe de son admin, admin absent de
+  la liste. Même famille que #277/#278 : l'écran n'envoie pas d'`X-Tenant-ID`,
+  les 5 routes (liste/réinitialisation admin, suppression, activation,
+  modification par SUPER_ADMIN) tournaient sans contexte tenant sous le rôle
+  NOBYPASSRLS (liste vide, 404, 500 par audit refusé). Corrigé par
+  `enter_tenant_context_or_404` ; tests de régression sous rôle restreint.
+
+- **2026-10-09 — pages adaptées à l'écran (#293, frontend `ed67ada`)** :
+  barre latérale collante pleine hauteur (le menu admin faisait défiler les
+  pages vides sur ~2,5 écrans), repliable en rail de 72 px sur tous les
+  portails, conteneur plus dense, un seul bouton d'assistant, tableau de bord
+  enseignant sans doublons. Mesuré avant/après (Playwright, 3 tailles
+  d'écran). Constat ouvert : `npm run type-check` ne vérifie aucun fichier
+  (`tsconfig.json` à `"files": []`) — 546 erreurs strictes préexistantes.
+
+- **2026-10-09 — audit isolé et trace plateforme (#294, schéma
+  `20261011_0001`, point de restauration `2026-10-09T05:15:17Z`)** :
+  `log_audit` insère l'audit dans un SAVEPOINT (un audit refusé est signalé —
+  ERROR + Sentry — sans annuler l'opération ; les erreurs de l'appelant
+  remontent toujours). Table `platform_audit_logs` (sans tenant, ajout seul
+  pour les rôles runtime) : suppression / activation / création
+  d'établissement — la trace d'une suppression survit au tenant. Migration
+  sans 503.
+
+- **2026-10-09 — INCIDENT worker : quota Redis épuisé (05:17 → 08:20 UTC)**.
+  Le worker ne démarrait plus (`max requests limit exceeded. Limit: 500000`,
+  lu dans le journal du conteneur — journalisation des conteneurs du worker
+  activée et conservée). Cause : ARQ interrogeait la file toutes les 0,5 s
+  (~350 000 requêtes/jour à vide) sur l'offre Upstash plafonnée ; l'ancienne
+  image échouait de même (cause d'environnement, pas de code). API et
+  frontend restés en service ; tâches de fond arrêtées ~3 h, file vide (rien
+  perdu). Le passage d'Upstash au paiement à l'usage n'a pas levé le plafond
+  appliqué. Résolution : **Azure Managed Redis** `academy-guineenne-redis`
+  (Balanced B0, France Central, sans HA, `EnterpriseCluster`, TLS port 10000,
+  ~13 $/mois, sans plafond de requêtes — « Azure Cache for Redis » n'accepte
+  plus de créations) ; `REDIS_URL` remplacée sur l'API et le worker (clé non
+  encodée dans l'URL : ARQ ne décode pas les `%XX`). Prévention (#295,
+  release `77cbae2`) : `WORKER_POLL_DELAY_SECONDS` (5 s par défaut, 1–60,
+  réglage App Service sans redéploiement ; 30 s si une offre plafonnée
+  devait revenir), battement de cœur 60 s — −90 % de requêtes à vide.
+  Restent : supprimer la base Upstash `regular-duckling-284924` (console
+  Upstash), test de connexion réel en production.
 
 ## Documents à considérer avec prudence
 

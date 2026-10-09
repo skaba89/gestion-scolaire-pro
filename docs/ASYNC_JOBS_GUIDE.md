@@ -6,7 +6,13 @@ Ce guide décrit l'infrastructure posée et **comment migrer une nouvelle tâche
 
 ## Architecture
 
-- **File** : Arq, adossée à Redis (la même instance que le reste de l'app — `settings.REDIS_URL`).
+- **File** : Arq, adossée à Redis (la même instance que le reste de l'app — `settings.REDIS_URL` ;
+  en production : Azure Managed Redis, TLS, port 10000).
+- **Budget de requêtes Redis** : le worker interroge la file toutes les
+  `WORKER_POLL_DELAY_SECONDS` (5 s par défaut, borné 1–60) — ~2 requêtes par
+  interrogation, ~35 000/jour à vide. Ne pas revenir au défaut ARQ (0,5 s) : sur
+  une offre plafonnée, il a épuisé 500 000 requêtes et arrêté le worker
+  (incident 2026-10-09, `docs/STATUT_ACTUEL.md`). Une offre plafonnée demande 30 s.
 - **`app/core/jobs.py`** : `enqueue_job(function_name, *args, **kwargs)` — échoue toujours "ouvert" (ne lève jamais, retourne `None` si Redis est injoignable), pour rester cohérent avec toutes les autres fonctionnalités Redis-optionnelles du projet (blacklist token, lockout, limite de sessions...).
 - **`app/workers/tasks.py`** : les fonctions de tâche elles-mêmes (`async def ma_tache(ctx, ...)`), et `WorkerSettings` qui les enregistre.
 - **Table `jobs`** (migration `20260724_0002`) : statut visible (`PENDING/RUNNING/SUCCESS/FAILED`), payload, résultat, erreur, horodatages. `tenant_id` nullable (certains jobs futurs seront transverses, ex. un export ministère).
