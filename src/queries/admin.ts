@@ -22,6 +22,77 @@ export interface EventRegistration {
     user_id: string;
 }
 
+
+/** E-learning course (backend: /analytics/elearning/courses/). */
+export interface ElearningCourse {
+    id: string;
+    title: string;
+    description?: string | null;
+    category?: string | null;
+    level?: string | null;
+    status?: string | null;
+    thumbnail_url?: string | null;
+    duration_hours?: number | null;
+    is_free?: boolean;
+    enrollments?: number;
+}
+
+export interface ElearningEnrollment {
+    id?: string;
+    course_id?: string;
+    student_id: string;
+}
+
+/** Forum (backend: communication.py /communication/forums/). */
+export interface Forum {
+    id: string;
+    title: string;
+    description?: string | null;
+    category?: string | null;
+    is_active: boolean;
+    created_at?: string;
+}
+
+/** Survey (backend: surveys.py /surveys/). */
+export interface Survey {
+    id: string;
+    title: string;
+    description?: string | null;
+    target_audience?: string | null;
+    is_active: boolean;
+    is_anonymous?: boolean;
+    starts_at?: string | null;
+    ends_at?: string | null;
+}
+
+/** Inventory API shapes (backend: app/api/v1/endpoints/operational/inventory.py). */
+export interface InventoryCategory {
+    id: string;
+    name: string;
+}
+
+export interface InventoryItem {
+    id: string;
+    name: string;
+    description?: string | null;
+    category_id?: string | null;
+    category?: { id?: string | null; name?: string | null } | null;
+    unit_price: number;
+    stock_quantity: number;
+    /** Not stored by the backend (yet): low-stock alerts cannot trigger. */
+    min_stock_level?: number;
+}
+
+export interface InventoryTransaction {
+    id: string;
+    item_id: string;
+    item_name?: string | null;
+    transaction_type: "IN" | "OUT" | "ADJUSTMENT" | string;
+    quantity: number;
+    notes?: string | null;
+    created_at: string;
+}
+
 export const adminQueries = {
     events: (tenantId: string) => ({
         queryKey: ["school-events", tenantId] as const,
@@ -375,7 +446,7 @@ export const adminQueries = {
     // E-learning Queries — backed by /analytics/elearning/courses/
     adminCourses: (tenantId: string) => ({
         queryKey: ["admin-courses", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<ElearningCourse[]> => {
             if (!tenantId) return [];
             const response = await apiClient.get("/analytics/elearning/courses/");
             return response.data || [];
@@ -393,7 +464,7 @@ export const adminQueries = {
 
     adminCourseEnrollments: (tenantId: string) => ({
         queryKey: ["admin-course-enrollments", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<ElearningEnrollment[]> => {
             if (!tenantId) return [];
             const response = await apiClient.get("/analytics/elearning/enrollments/");
             return response.data || [];
@@ -403,7 +474,7 @@ export const adminQueries = {
     // Forum Queries
     adminForums: (tenantId: string) => ({
         queryKey: ["admin-student-forums", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<Forum[]> => {
             if (!tenantId) return [];
             const response = await apiClient.get("/communication/forums/");
             return response.data || [];
@@ -412,7 +483,7 @@ export const adminQueries = {
 
     adminForumPostCounts: (tenantId: string) => ({
         queryKey: ["admin-forum-post-counts", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<Record<string, number>> => {
             if (!tenantId) return {};
             const response = await apiClient.get("/communication/forums/post-counts/");
             return response.data || {};
@@ -444,7 +515,7 @@ export const adminQueries = {
     // Survey Queries
     adminSurveys: (tenantId: string) => ({
         queryKey: ["admin-surveys", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<Survey[]> => {
             if (!tenantId) return [];
             const response = await apiClient.get("/surveys/");
             return response.data || [];
@@ -462,7 +533,7 @@ export const adminQueries = {
 
     adminSurveyResponseCounts: (tenantId: string) => ({
         queryKey: ["admin-survey-response-counts", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<Record<string, number>> => {
             if (!tenantId) return {};
             const response = await apiClient.get("/surveys/response-counts/");
             return response.data || {};
@@ -471,7 +542,7 @@ export const adminQueries = {
     // Inventory Queries
     inventoryCategories: (tenantId: string) => ({
         queryKey: ["admin-inventory-categories", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<InventoryCategory[]> => {
             if (!tenantId) return [];
             const response = await apiClient.get("/inventory/categories/");
             return response.data || [];
@@ -480,7 +551,7 @@ export const adminQueries = {
 
     inventoryItems: (tenantId: string) => ({
         queryKey: ["admin-inventory-items", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<InventoryItem[]> => {
             if (!tenantId) return [];
             const response = await apiClient.get("/inventory/items/");
             return response.data || [];
@@ -546,7 +617,7 @@ export const adminQueries = {
 
     inventoryTransactions: (tenantId: string) => ({
         queryKey: ["admin-inventory-transactions", tenantId] as const,
-        queryFn: async () => {
+        queryFn: async (): Promise<InventoryTransaction[]> => {
             if (!tenantId) return [];
             const response = await apiClient.get("/inventory/transactions/");
             return response.data || [];

@@ -14,7 +14,6 @@ import { UserPlus, Users, RefreshCw, Loader2 } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { academicYearQueries } from "@/queries/academic-years";
 import { classroomQueries } from "@/queries/classrooms";
-import { useDepartments } from "@/queries/departments";
 import { useStudents } from "@/hooks/queries/useStudents";
 import { useEnrollments } from "@/hooks/queries/useEnrollments";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
@@ -25,7 +24,6 @@ export const EnrollmentManager = () => {
   const { StudentsLabel, studentsLabel, studentLabel, getLabel } = useStudentLabel();
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
 
   const parentUnenrolledRef = useRef<HTMLDivElement>(null);
@@ -34,9 +32,8 @@ export const EnrollmentManager = () => {
   // Data fetching using unified hooks
   const { data: academicYears = [] } = useQuery(academicYearQueries.all(tenant?.id || ""));
   const { data: classrooms = [] } = useQuery(classroomQueries.all(tenant?.id || ""));
-  const { data: departments = [] } = useDepartments(tenant?.id);
   const { students = [] } = useStudents(tenant?.id || "", false, {
-    fields: "id, first_name, last_name, department_id, registration_number"
+    fields: "id, first_name, last_name, registration_number"
   });
 
   // Fetch ALL enrollments of the year to correctly identify truly unenrolled students
@@ -64,13 +61,8 @@ export const EnrollmentManager = () => {
 
     const enrolledIdsInYear = new Set(allYearEnrollments.map(e => e.student_id));
 
-    let filtered = (students || []).filter(s => !enrolledIdsInYear.has(s.id));
-
-    if (selectedDepartment !== "all") {
-      filtered = filtered.filter(s => s.department_id === selectedDepartment);
-    }
-    return filtered;
-  }, [students, allYearEnrollments, selectedYear, selectedDepartment]);
+    return (students || []).filter(s => !enrolledIdsInYear.has(s.id));
+  }, [students, allYearEnrollments, selectedYear]);
 
   // Virtualization for unenrolled list
   const unenrolledVirtualizer = useVirtualizer({
@@ -205,22 +197,6 @@ export const EnrollmentManager = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-2 block">Département (Filtre)</label>
-              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tous les départements" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les départements</SelectItem>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="flex items-end">
               <Button onClick={handleAutoAssign} variant="outline" className="w-full">
                 <RefreshCw className="h-4 w-4 mr-2" />
@@ -275,11 +251,6 @@ export const EnrollmentManager = () => {
                               />
                               <span className="flex-1 text-sm truncate">
                                 {student.last_name} {student.first_name}
-                                {student.department_id && (
-                                  <span className="ml-2 text-[10px] text-muted-foreground italic">
-                                    ({departments.find(d => d.id === student.department_id)?.name})
-                                  </span>
-                                )}
                               </span>
                               {student.registration_number && (
                                 <Badge variant="outline" className="text-[10px]">{student.registration_number}</Badge>

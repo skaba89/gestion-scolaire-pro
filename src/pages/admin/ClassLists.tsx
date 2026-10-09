@@ -34,6 +34,24 @@ const exportClassListPdf = async (classroom: unknown, tenantName: string) => {
     generateClassListPdf(classroom as Parameters<typeof generateClassListPdf>[0], tenantName);
 };
 
+interface ClassListStudent {
+    id: string;
+    first_name: string;
+    last_name: string;
+    email?: string | null;
+    photo_url?: string | null;
+    registration_number?: string | null;
+}
+
+interface ClassList {
+    id: string;
+    name: string;
+    students: ClassListStudent[];
+    level?: { name?: string | null } | null;
+    campus?: { name?: string | null } | null;
+    capacity?: number | null;
+}
+
 const ClassLists = () => {
     const { t } = useTranslation();
     const { tenant } = useTenant();
@@ -56,7 +74,7 @@ const ClassLists = () => {
 
     const { data: classLists = [], isLoading } = useQuery({
         queryKey: ["class-lists", tenant?.id, selectedDept, selectedLevel],
-        queryFn: async () => {
+        queryFn: async (): Promise<ClassList[]> => {
             if (!tenant?.id) return [];
 
             const classParams: Record<string, string> = { expand: "level,campus" };

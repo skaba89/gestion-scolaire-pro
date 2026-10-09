@@ -41,6 +41,34 @@ import {
 import { format, startOfMonth, endOfMonth, subMonths, eachMonthOfInterval } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { toList } from "@/lib/api-list";
+
+interface NamedRef {
+  id?: string;
+  name?: string;
+}
+
+interface AcademicYearRow {
+  id: string;
+  name: string;
+}
+
+interface EnrollmentRow {
+  status?: string | null;
+  level?: NamedRef | null;
+  classroom?: NamedRef | null;
+}
+
+interface StudentRow {
+  status?: string | null;
+  deleted_at?: string | null;
+  gender?: string | null;
+  created_at?: string | null;
+}
+
+interface ApplicationRow {
+  status?: string | null;
+}
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
@@ -53,12 +81,12 @@ const EnrollmentStats = () => {
   // Fetch academic years
   const { data: academicYears } = useQuery({
     queryKey: ["academic-years-stats", tenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<AcademicYearRow[]> => {
       if (!tenant?.id) return [];
       const { data } = await apiClient.get("/students/academic-years/", {
         params: { ordering: "-start_date" },
       });
-      return Array.isArray(data) ? data : (data?.items ?? []);
+      return toList<AcademicYearRow>(data);
     },
     enabled: !!tenant?.id,
   });
@@ -66,14 +94,14 @@ const EnrollmentStats = () => {
   // Fetch enrollments with details
   const { data: enrollments } = useQuery({
     queryKey: ["enrollments-stats", tenant?.id, selectedYear],
-    queryFn: async () => {
+    queryFn: async (): Promise<EnrollmentRow[]> => {
       if (!tenant?.id) return [];
       const params: Record<string, string> = { expand: "student,classroom,level,academic_year" };
       if (selectedYear !== "all") {
         params.academic_year_id = selectedYear;
       }
       const { data } = await apiClient.get("/admissions/enrollments/", { params });
-      return Array.isArray(data) ? data : (data?.items ?? []);
+      return toList<EnrollmentRow>(data);
     },
     enabled: !!tenant?.id,
   });
@@ -81,10 +109,10 @@ const EnrollmentStats = () => {
   // Fetch students
   const { data: students } = useQuery({
     queryKey: ["students-stats", tenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<StudentRow[]> => {
       if (!tenant?.id) return [];
       const { data } = await apiClient.get("/students/");
-      return Array.isArray(data) ? data : (data?.items ?? []);
+      return toList<StudentRow>(data);
     },
     enabled: !!tenant?.id,
   });
@@ -92,18 +120,18 @@ const EnrollmentStats = () => {
   // Fetch admission applications
   const { data: applications } = useQuery({
     queryKey: ["applications-stats", tenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ApplicationRow[]> => {
       if (!tenant?.id) return [];
       const { data } = await apiClient.get("/admissions/applications/");
-      return Array.isArray(data) ? data : (data?.items ?? []);
+      return toList<ApplicationRow>(data);
     },
     enabled: !!tenant?.id,
   });
 
   // Calculate statistics
   const stats = {
-    totalStudents: (students as any[])?.filter(s => s.status === 'ACTIVE' && !s.deleted_at).length || 0,
-    archivedStudents: (students as any[])?.filter(s => s.status === 'ARCHIVED' || s.deleted_at).length || 0,
+    totalStudents: students?.filter(s => s.status === 'ACTIVE' && !s.deleted_at).length || 0,
+    archivedStudents: students?.filter(s => s.status === 'ARCHIVED' || s.deleted_at).length || 0,
     totalEnrollments: enrollments?.length || 0,
     activeEnrollments: enrollments?.filter(e => (e.status || "").toUpperCase() === "ACTIVE").length || 0,
     pendingApplications: applications?.filter(a => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW").length || 0,
@@ -113,7 +141,7 @@ const EnrollmentStats = () => {
 
   // Enrollments by level
   const enrollmentsByLevel = enrollments?.reduce((acc: Record<string, number>, e) => {
-    const levelName = (e.level as any)?.name || "Non assigné";
+    const levelName = e.level?.name || "Non assigné";
     acc[levelName] = (acc[levelName] || 0) + 1;
     return acc;
   }, {}) || {};
@@ -125,7 +153,7 @@ const EnrollmentStats = () => {
 
   // Enrollments by classroom
   const enrollmentsByClassroom = enrollments?.reduce((acc: Record<string, number>, e) => {
-    const classroomName = (e.classroom as any)?.name || "Non assigné";
+    const classroomName = e.classroom?.name || "Non assigné";
     acc[classroomName] = (acc[classroomName] || 0) + 1;
     return acc;
   }, {}) || {};

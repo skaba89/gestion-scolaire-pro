@@ -19,6 +19,15 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { toList } from "@/lib/api-list";
+
+interface DataAnomaly {
+    id: string;
+    rule_code: string;
+    severity: string;
+    description?: string | null;
+    detected_at: string;
+}
 
 const DataQuality = () => {
     const { t } = useTranslation();
@@ -29,13 +38,13 @@ const DataQuality = () => {
 
     const { data: anomalies, isLoading } = useQuery({
         queryKey: ["data-quality-anomalies", tenant?.id],
-        queryFn: async () => {
+        queryFn: async (): Promise<DataAnomaly[]> => {
             if (!tenant?.id) return [];
             const { data } = await apiClient.get("/audit/data-quality/", {
                 params: { is_resolved: false, ordering: "-detected_at" },
             });
 
-            return data;
+            return toList<DataAnomaly>(data);
         },
         enabled: !!tenant?.id,
     });

@@ -74,8 +74,19 @@ export async function getLoginHistory(userId?: string) {
 }
 
 /** Active sessions — not yet implemented in native JWT mode, returns empty */
-export async function getActiveSessions(_userId?: string) {
-  // Sessions are managed by the backend. Use the session API for session management.
+export interface ActiveSession {
+  id: string;
+  user_id: string;
+  browser?: string | null;
+  os?: string | null;
+  device_type?: string | null;
+  ip_address?: string | null;
+  last_activity_at?: string | null;
+}
+
+export async function getActiveSessions(_userId?: string): Promise<ActiveSession[]> {
+  // Stub: no session-listing API exists yet, so the security sessions page
+  // always shows an empty list.
   return [];
 }
 
