@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LogOut, ChevronDown, ChevronRight, LucideIcon } from "lucide-react";
+import { Menu, X, LogOut, ChevronDown, ChevronRight, LucideIcon, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +12,7 @@ import { TenantBranding } from "@/components/TenantBranding";
 import { TenantSwitcher } from "./TenantSwitcher";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { StaggerContainer, StaggerItem } from "./PageTransition";
+import { sidebarWidthClass, useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import {
   Collapsible,
   CollapsibleContent,
@@ -49,6 +50,7 @@ export const ResponsiveSidebar = ({
   const { signOut, profile } = useAuth();
   const { t } = useTranslation();
   const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const { collapsed, rail, toggle: toggleCollapsed } = useSidebarCollapsed();
 
   const toggleGroup = (label: string) => {
     setOpenGroups(prev =>
@@ -117,6 +119,27 @@ export const ResponsiveSidebar = ({
     );
   };
 
+  const renderRailItem = (item: NavItem) => {
+    const isActive = isItemActive(item.href);
+    return (
+      <Link
+        key={item.href}
+        to={item.href}
+        data-tour={getTourAttr(item.href)}
+        title={item.label}
+        aria-label={item.label}
+        className={cn(
+          "flex items-center justify-center w-11 h-11 mx-auto rounded-xl transition-colors",
+          isActive
+            ? "bg-primary text-primary-foreground shadow-colored"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+        )}
+      >
+        <item.icon className="w-5 h-5" />
+      </Link>
+    );
+  };
+
   const renderNavGroup = (group: NavGroup) => {
     const isOpen = openGroups.includes(group.label);
     const hasActiveItem = group.items.some(item => isItemActive(item.href));
@@ -182,23 +205,47 @@ export const ResponsiveSidebar = ({
       <aside
         data-tour="sidebar"
         className={cn(
-          "fixed top-0 left-0 h-full w-72 bg-card/80 backdrop-blur-xl border-r border-border/50 z-40 transition-transform duration-300 ease-out",
+          "fixed top-0 left-0 h-full bg-card/80 backdrop-blur-xl border-r border-border/50 z-40 transition-[transform,width] duration-300 ease-out",
+          sidebarWidthClass(collapsed),
           "lg:translate-x-0 overflow-hidden",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Logo - Desktop only */}
-          <div className="p-6 border-b border-border hidden lg:block">
-            <TenantBranding subtitle={portalName} />
+          {/* Logo + collapse toggle - Desktop only */}
+          <div className={cn("border-b border-border hidden lg:flex items-center gap-2", rail ? "flex-col p-2" : "p-4")}>
+            <div className="flex-1 min-w-0">
+              <TenantBranding subtitle={rail ? undefined : portalName} showName={!rail} size={rail ? "sm" : "md"} />
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleCollapsed}
+              title={rail ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+              aria-label={rail ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+            >
+              {rail ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+            </Button>
           </div>
 
-          <div className="mt-4 lg:mt-2">
-            <TenantSwitcher />
-          </div>
+          {!rail && (
+            <div className="mt-4 lg:mt-2">
+              <TenantSwitcher />
+            </div>
+          )}
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1 overflow-y-auto no-scrollbar mt-16 lg:mt-0">
+          <nav className={cn("flex-1 space-y-1 overflow-y-auto no-scrollbar mt-16 lg:mt-0", rail ? "p-2" : "p-3")}>
+            {rail ? (
+              <div className="flex flex-col gap-1">
+                {navItems?.map(renderRailItem)}
+                {navGroups?.map(group => (
+                  <div key={group.label} className="flex flex-col gap-1 mt-1 pt-1 border-t border-border">
+                    {group.items.map(renderRailItem)}
+                  </div>
+                ))}
+              </div>
+            ) : (
             <StaggerContainer>
               {navItems?.map(item => (
                 <StaggerItem key={item.href}>
@@ -211,10 +258,22 @@ export const ResponsiveSidebar = ({
                 </StaggerItem>
               ))}
             </StaggerContainer>
+            )}
           </nav>
 
           {/* User Section */}
-          <div className="p-4 border-t border-border bg-muted/30">
+          {rail ? (
+            <div className="p-2 border-t border-border bg-muted/30 flex flex-col items-center gap-1">
+              <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center text-white font-semibold shadow-colored">
+                {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+              </div>
+              <NotificationBell />
+              <Button variant="ghost" size="icon" onClick={() => signOut()} title={t("auth.logout")} aria-label={t("auth.logout")}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+          <div className="p-3 border-t border-border bg-muted/30">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-11 h-11 rounded-xl bg-gradient-primary flex items-center justify-center text-white font-semibold shadow-colored">
                 {profile?.first_name?.[0]}{profile?.last_name?.[0]}
@@ -240,6 +299,7 @@ export const ResponsiveSidebar = ({
               {t("auth.logout")}
             </Button>
           </div>
+          )}
         </div>
       </aside>
 

@@ -132,7 +132,9 @@
     "security": "الأمان",
     "exports": "التصديرات",
     "auditLogs": "سجلات التدقيق",
-    "profile": "ملفي الشخصي"
+    "profile": "ملفي الشخصي",
+    "collapseSidebar": "طي القائمة",
+    "expandSidebar": "توسيع القائمة"
   },
   "dashboard": {
     "hello": "مرحباً، {{name}} 👋",

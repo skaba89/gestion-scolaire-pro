@@ -84,6 +84,8 @@
         "logout": "Déconnexion"
     },
     "nav": {
+    "collapseSidebar": "Réduire le menu",
+    "expandSidebar": "Agrandir le menu",
         "overview": "Vue d'ensemble",
         "dashboard": "Tableau de bord",
         "analytics": "Analytiques",

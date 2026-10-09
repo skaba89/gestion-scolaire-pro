@@ -55,7 +55,9 @@ import {
   Search,
   Globe,
   Upload,
-  Inbox
+  Inbox,
+  PanelLeftClose,
+  PanelLeftOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -79,6 +81,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { Permission, hasPermission } from "@/lib/permissions";
 import { useTerminology } from "@/hooks/useTerminology";
+import { sidebarWidthClass, useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import { GlobalSearch } from "@/components/search/GlobalSearch";
 import { OfflineBanner, OfflineStatusDot } from "@/components/offline/OfflineBanner";
 // AIChatWidget rendered globally in App.tsx
@@ -113,6 +116,7 @@ export const AdminLayout = () => {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { t } = useTranslation();
+  const { collapsed, rail, toggle: toggleCollapsed } = useSidebarCollapsed();
 
   const isLeft = settings?.sidebar_position !== "right";
   const isCompact = settings?.sidebar_layout === "compact";
@@ -375,19 +379,36 @@ export const AdminLayout = () => {
 
       <div className={cn("flex", !isLeft && "flex-row-reverse")}>
         {/* Sidebar */}
+        {/* Desktop: sticky, full viewport height, scrolls on its own — the
+            page height is the content's, not the (long) menu's. */}
         <aside className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static",
+          "fixed inset-y-0 left-0 z-50 bg-card border-r border-border transform transition-[transform,width] duration-200 ease-in-out",
+          "lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:shrink-0",
+          sidebarWidthClass(collapsed),
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}>
           <div className="flex flex-col h-full">
-            {/* Logo */}
-            <div className="p-4 border-b border-border hidden lg:block">
-              <TenantBranding subtitle={t("portal.adminSpace")} />
+            {/* Logo + collapse toggle (desktop) */}
+            <div className={cn("border-b border-border hidden lg:flex items-center gap-2", rail ? "flex-col p-2" : "p-4")}>
+              <div className="flex-1 min-w-0">
+                <TenantBranding subtitle={rail ? undefined : t("portal.adminSpace")} showName={!rail} size={rail ? "sm" : "md"} />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleCollapsed}
+                title={rail ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+                aria-label={rail ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+              >
+                {rail ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </Button>
             </div>
 
-            <div className="mt-4">
-              <TenantSwitcher />
-            </div>
+            {!rail && (
+              <div className="mt-4">
+                <TenantSwitcher />
+              </div>
+            )}
 
             {/* Mobile close button */}
             <div className="p-3 border-b border-border lg:hidden flex items-center justify-between mt-14">
@@ -399,19 +420,44 @@ export const AdminLayout = () => {
 
             {/* Navigation */}
             <nav className="flex-1 p-2 overflow-y-auto no-scrollbar">
-              {navSections.map((section, index) => (
-                <NavSectionComponent
-                  key={index}
-                  section={section}
-                  isActive={isSectionActive(section)}
-                  isItemActive={isItemActive}
-                  onItemClick={() => setSidebarOpen(false)}
-                  isCompact={isCompact}
-                />
-              ))}
+              {rail
+                ? navSections.map((section, index) => (
+                  <RailSection
+                    key={index}
+                    section={section}
+                    isItemActive={isItemActive}
+                    divider={index > 0}
+                  />
+                ))
+                : navSections.map((section, index) => (
+                  <NavSectionComponent
+                    key={index}
+                    section={section}
+                    isActive={isSectionActive(section)}
+                    isItemActive={isItemActive}
+                    onItemClick={() => setSidebarOpen(false)}
+                    isCompact={isCompact}
+                  />
+                ))}
             </nav>
 
             {/* User Section */}
+            {rail ? (
+              <div className="p-2 border-t border-border bg-muted/30 flex flex-col items-center gap-1">
+                <Link
+                  to={getTenantUrl("/admin/profile")}
+                  title={t("nav.profile", "Mon Profil")}
+                  aria-label={t("nav.profile", "Mon Profil")}
+                  className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center text-white font-semibold shadow-colored"
+                >
+                  {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                </Link>
+                <NotificationBell />
+                <Button variant="ghost" size="icon" onClick={signOut} title={t("auth.logout")} aria-label={t("auth.logout")}>
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
             <div className="p-3 border-t border-border bg-muted/30">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center text-white font-semibold shadow-colored">
@@ -459,6 +505,7 @@ export const AdminLayout = () => {
                 {t("auth.logout")}
               </Button>
             </div>
+            )}
           </div>
         </aside>
 
@@ -477,7 +524,7 @@ export const AdminLayout = () => {
         </AnimatePresence>
 
         {/* Main Content */}
-        <main className="flex-1 pt-14 lg:pt-0 pb-20 lg:pb-0 min-h-screen w-full overflow-x-hidden">
+        <main className="flex-1 min-w-0 pt-14 lg:pt-0 pb-20 lg:pb-0 min-h-screen w-full overflow-x-hidden">
           <AnimatePresence mode="wait">
             <PageTransition key={location.pathname}>
               <div className="page-container">
@@ -569,3 +616,34 @@ const NavSectionComponent = ({ section, isActive, isItemActive, onItemClick, isC
     </Collapsible>
   );
 };
+
+interface RailSectionProps {
+  section: NavSection;
+  isItemActive: (href: string) => boolean;
+  divider: boolean;
+}
+
+/** Collapsed desktop sidebar: one icon per page, label as tooltip. */
+const RailSection = ({ section, isItemActive, divider }: RailSectionProps) => (
+  <div className={cn("flex flex-col items-center gap-1", divider && "mt-2 pt-2 border-t border-border")}>
+    {section.items.map((item) => {
+      const active = isItemActive(item.href);
+      return (
+        <Link
+          key={item.href}
+          to={item.href}
+          title={item.label}
+          aria-label={item.label}
+          className={cn(
+            "flex items-center justify-center w-10 h-10 rounded-lg transition-colors",
+            active
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+              : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+          )}
+        >
+          <item.icon className="w-5 h-5" />
+        </Link>
+      );
+    })}
+  </div>
+);

@@ -64,7 +64,7 @@ const TeacherDashboard = () => {
     { href: getTenantUrl("/teacher/classes"), label: t("teacherDashboard.myClasses"), icon: School, count: (assignedClassrooms || []).length },
     { href: getTenantUrl("/teacher/grades"), label: t("teacherDashboard.grades"), icon: BarChart3, count: (assessments || []).length },
     { href: getTenantUrl("/teacher/homework"), label: t("teacherDashboard.homeworkToGrade"), icon: FileText, count: stats?.pendingHomework || 0 },
-    { href: getTenantUrl("/teacher/attendance"), label: t("teacherDashboard.attendance"), icon: ClipboardCheck, count: 0 },
+    { href: getTenantUrl("/teacher/attendance"), label: t("teacherDashboard.attendance"), icon: ClipboardCheck },
   ];
 
   if (isLoading) {

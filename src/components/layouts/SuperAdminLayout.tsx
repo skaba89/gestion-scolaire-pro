@@ -4,8 +4,12 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Building2, Plus, LogOut, UserCog, Settings,
-  Menu, X, Home, ChevronRight, LayoutDashboard, Shield, BarChart3, ReceiptText
+  Menu, X, Home, ChevronRight, LayoutDashboard, Shield, BarChart3, ReceiptText,
+  PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+import { sidebarWidthClass, useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
 import { Button } from "@/components/ui/button";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { ScrollProgress } from "@/components/ui/scroll-progress";
@@ -24,6 +28,8 @@ export const SuperAdminLayout = () => {
   const navigate = useNavigate();
   const { signOut, profile } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { t } = useTranslation();
+  const { collapsed, rail, toggle: toggleCollapsed } = useSidebarCollapsed();
 
   const isActive = (href: string, end?: boolean) => {
     if (end) return location.pathname === href;
@@ -52,20 +58,37 @@ export const SuperAdminLayout = () => {
 
       <div className="flex">
         {/* Sidebar */}
-        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-card border-r border-border transform transition-transform duration-200 lg:translate-x-0 lg:static ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        {/* Desktop: sticky full-height sidebar with its own scroll. */}
+        <aside className={cn(
+          "fixed inset-y-0 left-0 z-50 bg-card border-r border-border transform transition-[transform,width] duration-200",
+          "lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:shrink-0",
+          sidebarWidthClass(collapsed),
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}>
           <div className="flex flex-col h-full">
-            {/* Logo */}
-            <div className="p-4 border-b border-border hidden lg:flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
+            {/* Logo + collapse toggle (desktop) */}
+            <div className={cn("border-b border-border hidden lg:flex items-center gap-3", rail ? "flex-col p-2 gap-2" : "p-4")}>
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <p className="font-bold text-sm">Academy Guinéenne</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <Shield className="w-3 h-3 text-primary" />
-                  <span className="text-[10px] text-primary font-medium">SUPER ADMIN</span>
+              {!rail && (
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm truncate">Academy Guinéenne</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Shield className="w-3 h-3 text-primary" />
+                    <span className="text-[10px] text-primary font-medium">SUPER ADMIN</span>
+                  </div>
                 </div>
-              </div>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleCollapsed}
+                title={rail ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+                aria-label={rail ? t("nav.expandSidebar") : t("nav.collapseSidebar")}
+              >
+                {rail ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </Button>
             </div>
 
             {/* Mobile close */}
@@ -80,21 +103,25 @@ export const SuperAdminLayout = () => {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 p-2 space-y-0.5 mt-2">
+            <nav className="flex-1 p-2 space-y-0.5 mt-2 overflow-y-auto no-scrollbar">
               {navItems.map((item) => (
                 <Link
                   key={item.href}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  title={rail ? item.label : undefined}
+                  aria-label={rail ? item.label : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200",
+                    rail ? "justify-center w-10 h-10 mx-auto" : "px-3 py-2.5",
                     isActive(item.href, item.end)
                       ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
+                  )}
                 >
-                  <item.icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                  {isActive(item.href, item.end) && (
+                  <item.icon className={rail ? "w-5 h-5" : "w-4 h-4"} />
+                  {!rail && <span>{item.label}</span>}
+                  {!rail && isActive(item.href, item.end) && (
                     <ChevronRight className="w-4 h-4 ml-auto" />
                   )}
                 </Link>
@@ -102,6 +129,16 @@ export const SuperAdminLayout = () => {
             </nav>
 
             {/* User Section */}
+            {rail ? (
+              <div className="p-2 border-t border-border bg-muted/30 flex flex-col items-center gap-1">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-semibold shadow-md">
+                  {profile?.first_name?.[0]}{profile?.last_name?.[0]}
+                </div>
+                <Button variant="ghost" size="icon" onClick={signOut} title={t("auth.logout")} aria-label={t("auth.logout")}>
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
             <div className="p-3 border-t border-border bg-muted/30">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-semibold shadow-md">
@@ -123,6 +160,7 @@ export const SuperAdminLayout = () => {
                 Déconnexion
               </Button>
             </div>
+            )}
           </div>
         </aside>
 
@@ -140,10 +178,11 @@ export const SuperAdminLayout = () => {
         </AnimatePresence>
 
         {/* Main Content */}
-        <main className="flex-1 pt-14 lg:pt-0 min-h-screen w-full overflow-x-hidden">
+        <main className="flex-1 min-w-0 pt-14 lg:pt-0 min-h-screen w-full overflow-x-hidden">
           <AnimatePresence mode="wait">
             <PageTransition key={location.pathname}>
-              <div className="p-4 lg:p-6 max-w-7xl mx-auto">
+              {/* Same container as every other portal (was capped at 1280px). */}
+              <div className="page-container">
                 <Outlet />
               </div>
             </PageTransition>

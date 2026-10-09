@@ -138,7 +138,9 @@
     "exports": "Exports",
     "auditLogs": "Audit Logs",
     "settings": "Settings",
-    "profile": "My profile"
+    "profile": "My profile",
+    "collapseSidebar": "Collapse menu",
+    "expandSidebar": "Expand menu"
   },
   "portal": {
     "adminSpace": "Admin Portal",
