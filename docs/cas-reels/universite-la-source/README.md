@@ -228,6 +228,37 @@ Faire d'abord la saisie sur un établissement **de test** (slug
 `universite-la-source-demo`), valider avec l'université, puis créer
 l'établissement définitif.
 
+### Saisie automatique des étapes 4 à 13
+
+[`scripts/seed_universite_la_source.py`](../../../scripts/seed_universite_la_source.py)
+rejoue les étapes 4 à 10 (et 12–13 avec `--with-imports`) **via l'API**,
+avec les mêmes contrôles de permissions et d'isolation que l'interface. Il
+est idempotent : chaque objet est cherché par code (sinon par nom) avant
+création, les étudiants par matricule, les enseignants par e-mail — on peut
+le relancer sans créer de doublon. Les frais (étape 11) ne sont pas saisis
+faute de montants officiels.
+
+```bash
+# Prérequis : étapes 1–2 faites (établissement type « university » + admin activé)
+export ULS_API_URL=http://127.0.0.1:8000/api/v1
+export ULS_ADMIN_EMAIL=...        # compte TENANT_ADMIN de l'établissement
+export ULS_ADMIN_PASSWORD=...     # (ou ULS_ACCESS_TOKEN si la MFA est active)
+python scripts/seed_universite_la_source.py --dry-run         # lecture seule
+python scripts/seed_universite_la_source.py                   # structure
+python scripts/seed_universite_la_source.py --with-imports    # + CSV fictifs
+```
+
+- Hors `localhost`, le script refuse de s'exécuter sans `--allow-remote` :
+  toute écriture sur un environnement partagé doit être validée avant.
+- Les identifiants ne sont lus que dans l'environnement et ne sont jamais
+  affichés. Un SUPER_ADMIN peut l'utiliser en ajoutant `ULS_TENANT_ID`.
+- `--with-imports` exige le plan **pro** (sinon HTTP 402) et un worker
+  actif (les imports sont des tâches asynchrones).
+- La connexion est limitée à 5 essais par minute : en cas de HTTP 429,
+  attendre une minute.
+- Le campus principal créé avec l'établissement est réutilisé (renommage
+  éventuel : Admin › Campus) ; les niveaux préréglés L1–M2 sont conservés.
+
 ## 13. Données de démonstration [FICTIF]
 
 - [`etudiants.csv`](etudiants.csv) — 12 étudiants fictifs répartis sur
@@ -238,7 +269,7 @@ l'établissement définitif.
   e-mail, téléphone, matières, diplôme, département, type de contrat).
 
 Les noms sont fictifs, les e-mails utilisent le domaine réservé
-`example.test` et les téléphones sont des numéros de test : **ne pas
+`example.com` et les téléphones sont des numéros de test : **ne pas
 importer ces fichiers dans l'établissement définitif.**
 
 ## 14. À obtenir de l'université avant la production
