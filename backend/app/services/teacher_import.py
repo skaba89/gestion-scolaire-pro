@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.core.tenant_resolution import find_user_by_email_in_any_tenant
-from app.services.student_import import detect_columns, invalid_email_reason, parse_date
+from app.services.student_import import (
+    ROW_FAILED_MESSAGE, detect_columns, invalid_email_reason, parse_date, too_long_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,15 @@ def run_teacher_import(
                 error_rows.append({"row": i, "error": f"Un compte existe déjà pour l'email '{email}'", "data": dict(row)})
                 continue
 
+            too_long = too_long_fields(User, {
+                "email": email, "username": email,
+                "first_name": first_name, "last_name": last_name, "phone": get("phone"),
+            })
+            if too_long:
+                skipped += 1
+                error_rows.append({"row": i, "error": " ; ".join(too_long), "data": dict(row)})
+                continue
+
             dob_str = get("date_of_birth")
             dob = parse_date(dob_str) if dob_str else None
             if dob_str and dob is None:
@@ -102,15 +113,19 @@ def run_teacher_import(
                 is_verified=False,
                 must_change_password=True,
             )
-            db.add(teacher)
-            db.flush()
-            db.add(UserRole(tenant_id=tenant_id, user_id=teacher.id, role="TEACHER"))
+            # Point de sauvegarde par ligne : une erreur inattendue n'annule
+            # que cette ligne, pas la transaction de tout le fichier.
+            with db.begin_nested():
+                db.add(teacher)
+                db.flush()
+                db.add(UserRole(tenant_id=tenant_id, user_id=teacher.id, role="TEACHER"))
+                db.flush()
             emails_in_batch.add(email)
             created += 1
 
         except Exception as exc:
             logger.warning("Teacher import row %s error: %s", i, exc)
-            error_rows.append({"row": i, "error": str(exc), "data": dict(row)})
+            error_rows.append({"row": i, "error": ROW_FAILED_MESSAGE, "data": dict(row)})
             skipped += 1
 
     return {"created": created, "skipped": skipped, "error_rows": error_rows}

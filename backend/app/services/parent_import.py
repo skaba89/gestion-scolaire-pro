@@ -17,7 +17,9 @@ from app.models.student import Student
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.core.tenant_resolution import find_user_by_email_in_any_tenant
-from app.services.student_import import detect_columns, invalid_email_reason
+from app.services.student_import import (
+    ROW_FAILED_MESSAGE, detect_columns, invalid_email_reason, too_long_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,7 @@ def run_parent_import(
     parents_in_batch: dict[str, User] = {}
 
     for i, row in enumerate(rows, start=2):
+        row_savepoint = None
         try:
             def get(field: str) -> str:
                 col = mapping.get(field)
@@ -92,6 +95,16 @@ def run_parent_import(
                 error_rows.append({"row": i, "error": f"Email invalide '{email}' : {reason}", "data": dict(row)})
                 continue
 
+            too_long = too_long_fields(User, {
+                "email": email, "username": email,
+                "first_name": first_name, "last_name": last_name, "phone": get("phone"),
+                "occupation": get("occupation"), "address": get("address"),
+            })
+            if too_long:
+                skipped_rows += 1
+                error_rows.append({"row": i, "error": " ; ".join(too_long), "data": dict(row)})
+                continue
+
             reg_numbers = split_list(get("student_registration_numbers"))
             student_emails = [e.lower() for e in split_list(get("student_emails"))]
             if not reg_numbers and not student_emails:
@@ -99,12 +112,25 @@ def run_parent_import(
                 error_rows.append({"row": i, "error": "Aucun élève référencé (matricule ou email élève)", "data": dict(row)})
                 continue
 
+            # Recherche plateforme AVANT le point de sauvegarde : elle change
+            # le contexte tenant, ce qui est interdit dans un begin_nested.
+            existing = (
+                None if email in parents_in_batch
+                else find_user_by_email_in_any_tenant(db, email)
+            )
+
+            # Point de sauvegarde par ligne : une erreur inattendue n'annule
+            # que cette ligne (compte + liens), pas tout le fichier.
+            row_savepoint = db.begin_nested()
+            row_counts = (created_parents, reused_parents, created_links, skipped_links)
+            row_new_parent = False
+
             # ── Resolve the parent account ──────────────────────────────
             parent = parents_in_batch.get(email)
             if parent is None:
                 # Platform-wide (RLS would hide other tenants' accounts and the
-                # whole import would then fail on the unique index).
-                existing = find_user_by_email_in_any_tenant(db, email)
+                # whole import would then fail on the unique index) — looked
+                # up above, before the row savepoint.
                 if existing is not None:
                     if str(existing.tenant_id) != tenant_id:
                         skipped_rows += 1
@@ -113,6 +139,7 @@ def run_parent_import(
                             "error": f"Email '{email}' déjà utilisé par un compte d'un autre établissement",
                             "data": dict(row),
                         })
+                        row_savepoint.commit()
                         continue
                     existing_roles = {
                         r.role for r in db.query(UserRole).filter(
@@ -126,6 +153,7 @@ def run_parent_import(
                             "error": f"Email '{email}' déjà utilisé par un compte non-parent existant",
                             "data": dict(row),
                         })
+                        row_savepoint.commit()
                         continue
                     parent = existing
                     reused_parents += 1
@@ -148,6 +176,7 @@ def run_parent_import(
                     db.flush()
                     db.add(UserRole(tenant_id=tenant_id, user_id=parent.id, role="PARENT"))
                     created_parents += 1
+                    row_new_parent = True
                 parents_in_batch[email] = parent
 
             # ── Resolve referenced students — THIS tenant only ──────────
@@ -173,6 +202,7 @@ def run_parent_import(
 
             if not student_ids:
                 skipped_rows += 1
+                row_savepoint.commit()
                 continue
 
             relation_type = get("relation_type") or None
@@ -196,9 +226,20 @@ def run_parent_import(
                 ))
                 created_links += 1
 
+            db.flush()
+            row_savepoint.commit()
+
         except Exception as exc:
             logger.warning("Parent import row %s error: %s", i, exc)
-            error_rows.append({"row": i, "error": str(exc), "data": dict(row)})
+            # Après un échec de flush le savepoint est inactif mais doit
+            # quand même être annulé pour rendre la session utilisable.
+            if row_savepoint is not None:
+                row_savepoint.rollback()
+                # Annule aussi les compteurs et le cache de cette ligne.
+                created_parents, reused_parents, created_links, skipped_links = row_counts
+                if row_new_parent:
+                    parents_in_batch.pop(email, None)
+            error_rows.append({"row": i, "error": ROW_FAILED_MESSAGE, "data": dict(row)})
             skipped_rows += 1
 
     return {
