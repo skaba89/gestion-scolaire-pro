@@ -26,6 +26,7 @@ from app.services.parent_import import (
 from app.services.student_import import (
     STUDENT_COLUMN_MAP,
     detect_columns as _detect_columns,
+    invalid_email_reason as _invalid_email_reason,
     parse_date as _parse_date,
     parse_gender as _parse_gender,
     parse_csv_bytes as _parse_csv_bytes,
@@ -154,6 +155,9 @@ async def preview_student_import(
                        "parent_name", "parent_phone", "parent_email"):
             col = mapping.get(field)
             record[field] = row.get(col, "").strip() if col else ""
+        for field in ("email", "parent_email"):
+            if record[field] and (reason := _invalid_email_reason(record[field])):
+                row_errors.append(f"Ligne {i}: email invalide '{record[field]}' ({reason})")
 
         record["_errors"] = row_errors
         preview.append(record)

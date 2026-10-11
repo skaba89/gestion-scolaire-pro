@@ -140,11 +140,11 @@ def test_teacher_import_reports_other_tenants_email_and_keeps_going(restricted_s
     tag = uuid.uuid4().hex[:8]
     with engine.begin() as conn:
         tenant_a, tenant_b = _make_tenant(conn), _make_tenant(conn)
-        _make_user(conn, tenant_b, f"teacher-b-{tag}@example.test")
+        _make_user(conn, tenant_b, f"teacher-b-{tag}@example.com")
 
     rows = [
-        {"first_name": "Awa", "last_name": "Camara", "email": f"Teacher-B-{tag}@example.test"},
-        {"first_name": "Moussa", "last_name": "Diallo", "email": f"teacher-new-{tag}@example.test"},
+        {"first_name": "Awa", "last_name": "Camara", "email": f"Teacher-B-{tag}@example.com"},
+        {"first_name": "Moussa", "last_name": "Diallo", "email": f"teacher-new-{tag}@example.com"},
     ]
     with restricted_sessionmaker() as s:
         db_module.switch_tenant_context(s, tenant_a)
@@ -157,6 +157,6 @@ def test_teacher_import_reports_other_tenants_email_and_keeps_going(restricted_s
     assert "existe déjà" in result["error_rows"][0]["error"]
     with engine.connect() as conn:
         created_tenant = conn.execute(
-            text("SELECT tenant_id FROM users WHERE email = :e"), {"e": f"teacher-new-{tag}@example.test"}
+            text("SELECT tenant_id FROM users WHERE email = :e"), {"e": f"teacher-new-{tag}@example.com"}
         ).scalar()
     assert str(created_tenant) == tenant_a

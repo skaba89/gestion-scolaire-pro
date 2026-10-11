@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.core.tenant_resolution import find_user_by_email_in_any_tenant
-from app.services.student_import import detect_columns, parse_date
+from app.services.student_import import detect_columns, invalid_email_reason, parse_date
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,11 @@ def run_teacher_import(
             if not first_name or not last_name or not email:
                 skipped += 1
                 error_rows.append({"row": i, "error": "Nom/prénom/email manquant", "data": dict(row)})
+                continue
+
+            if reason := invalid_email_reason(email):
+                skipped += 1
+                error_rows.append({"row": i, "error": f"Email invalide '{email}' : {reason}", "data": dict(row)})
                 continue
 
             if email in emails_in_batch:

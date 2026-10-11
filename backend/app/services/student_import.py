@@ -14,6 +14,7 @@ import string
 from datetime import datetime, date
 from typing import Optional
 
+from email_validator import EmailNotValidError, validate_email
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -61,6 +62,20 @@ def parse_date(val: str) -> Optional[date]:
             return datetime.strptime(val, fmt).date()
         except ValueError:
             continue
+    return None
+
+
+def invalid_email_reason(val: str) -> Optional[str]:
+    """Raison du refus d'un e-mail importé, ou None s'il est acceptable.
+
+    Même règle que le schéma de lecture (`EmailStr` de pydantic, sans test
+    DNS) : un e-mail que ce schéma refuse, une fois en base, fait échouer
+    GET /students/ (HTTP 500) pour tout l'établissement — par exemple un
+    domaine réservé comme `.test`. On le refuse donc dès l'import."""
+    try:
+        validate_email(val, check_deliverability=False)
+    except EmailNotValidError as exc:
+        return str(exc)
     return None
 
 
@@ -159,6 +174,16 @@ def run_student_import(
                 reg = generate_registration(existing_regs)
             else:
                 existing_regs.add(reg)
+
+            bad_emails = [
+                f"{label} invalide '{value}' : {reason}"
+                for label, value in (("Email", get("email")), ("Email parent", get("parent_email")))
+                if value and (reason := invalid_email_reason(value))
+            ]
+            if bad_emails:
+                skipped += 1
+                error_rows.append({"row": i, "error": " ; ".join(bad_emails), "data": dict(row)})
+                continue
 
             academic_year = get("academic_year") or default_academic_year or ""
 
