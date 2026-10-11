@@ -1,0 +1,7 @@
+nom,prenom,email,telephone,matieres,diplome,departement,type_contrat,date_naissance,sexe
+Cisse,Lamine,lamine.cisse@example.com,+224600000301,Microéconomie I;Macroéconomie I,Doctorat en économie,Économie,CDI,1978-04-12,M
+Kaba,Nene,nene.kaba@example.com,+224600000302,Comptabilité générale;Statistique descriptive,Master en finance,Banque et Assurance,Vacataire,1985-09-03,F
+Doumbouya,Ibrahima,ibrahima.doumbouya@example.com,+224600000303,Algorithmique et programmation;Systèmes d'exploitation,Doctorat en informatique,Informatique,CDI,1982-01-27,M
+Fofana,Mariam,mariam.fofana@example.com,+224600000304,Architecture des ordinateurs;Mathématiques discrètes,Ingénieur en informatique,Informatique,CDD,1988-06-19,F
+Haba,Pierre,pierre.haba@example.com,+224600000305,Anatomie générale;Biophysique,Doctorat en médecine,Médecine,CDI,1975-11-08,M
+Traore,Aminata,aminata.traore@example.com,+224600000306,Épidémiologie de terrain;Santé communautaire,Doctorat en santé publique,Santé publique,Vacataire,1980-03-22,F

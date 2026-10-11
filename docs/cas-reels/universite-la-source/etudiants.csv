@@ -1,0 +1,13 @@
+nom,prenom,date_naissance,sexe,matricule,niveau,classe,annee_scolaire,email,telephone,ville,nom_parent,tel_parent
+Diallo,Mariama,2005-03-14,F,ULS24-ECO-001,Licence 1,L1 Économie,2024-2025,mariama.diallo@example.com,+224600000101,Conakry,Diallo Ibrahima,+224600000201
+Camara,Mamadou,2004-11-02,M,ULS24-ECO-002,Licence 1,L1 Économie,2024-2025,mamadou.camara@example.com,+224600000102,Conakry,Camara Fatoumata,+224600000202
+Bah,Aissatou,2005-07-21,F,ULS24-ECO-003,Licence 1,L1 Économie,2024-2025,aissatou.bah@example.com,+224600000103,Kindia,Bah Oumar,+224600000203
+Soumah,Alpha,2005-01-09,M,ULS24-BA-001,Licence 1,L1 Banque Assurance,2024-2025,alpha.soumah@example.com,+224600000104,Conakry,Soumah Kadiatou,+224600000204
+Keita,Fatoumata,2004-09-30,F,ULS24-BA-002,Licence 1,L1 Banque Assurance,2024-2025,fatoumata.keita@example.com,+224600000105,Coyah,Keita Sekou,+224600000205
+Sylla,Ousmane,2003-05-17,M,ULS24-GI-001,Ingénieur 1,ING1 Génie informatique,2024-2025,ousmane.sylla@example.com,+224600000106,Conakry,Sylla Mariama,+224600000206
+Conde,Hawa,2004-12-25,F,ULS24-GI-002,Ingénieur 1,ING1 Génie informatique,2024-2025,hawa.conde@example.com,+224600000107,Dubréka,Conde Mamady,+224600000207
+Barry,Thierno,2004-04-04,M,ULS24-GI-003,Ingénieur 1,ING1 Génie informatique,2024-2025,thierno.barry@example.com,+224600000108,Labé,Barry Aminata,+224600000208
+Toure,Kadiatou,2005-08-12,F,ULS24-MED-001,Médecine 1,MED1 Médecine,2024-2025,kadiatou.toure@example.com,+224600000109,Conakry,Toure Lansana,+224600000209
+Kourouma,Sekou,2004-02-28,M,ULS24-MED-002,Médecine 1,MED1 Médecine,2024-2025,sekou.kourouma@example.com,+224600000110,Kankan,Kourouma Djenab,+224600000210
+Bangoura,Djenabou,2001-10-03,F,ULS24-SP-001,Master 1,M1 Santé publique,2024-2025,djenabou.bangoura@example.com,+224600000111,Conakry,Bangoura Moussa,+224600000211
+Sow,Abdoulaye,2000-06-15,M,ULS24-SP-002,Master 1,M1 Santé publique,2024-2025,abdoulaye.sow@example.com,+224600000112,Mamou,Sow Hadiatou,+224600000212
