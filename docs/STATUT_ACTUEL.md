@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-09 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-11 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -310,6 +310,24 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   devait revenir), battement de cœur 60 s — −90 % de requêtes à vide.
   Restent : supprimer la base Upstash `regular-duckling-284924` (console
   Upstash), test de connexion réel en production.
+
+- **2026-10-11 — imports CSV robustes face aux données invalides** (#301,
+  #302). Un e-mail ou une valeur trop longue acceptés par l'import, mais
+  refusés par le schéma de lecture, faisaient répondre `GET /students/` en
+  500 pour tout l'établissement ; une ligne trop longue faisait perdre tout
+  un fichier enseignants/parents ; le 500 et le statut du job recopiaient
+  la requête SQL. Désormais : validation par ligne (`StudentCreate`,
+  longueurs des colonnes `users`, e-mail selon `EmailStr`), point de
+  sauvegarde par ligne, message d'erreur générique. #301 déployé (api +
+  worker) ; #302 fusionné. Restent : `str(exc)` dans le statut des autres
+  jobs du worker, paramètres SQL (PII) dans les journaux d'échec d'import.
+- **2026-10-11 — pages d'administration sans backend retirées des routes** :
+  `early-warnings`, `success-plans`, `electronic-signatures`,
+  `sponsorships` appelaient des routes API inexistantes et n'étaient
+  liées à aucun menu. Les fichiers restent dans `src/pages/admin/`
+  (`EarlyWarnings`, `SuccessPlans`, `ElectronicSignatures`,
+  `Sponsorships`) ; les réactiver dans `src/routes/AdminRoutes.tsx` une
+  fois leur backend livré.
 
 ## Documents à considérer avec prudence
 

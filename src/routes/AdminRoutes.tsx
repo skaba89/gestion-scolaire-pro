@@ -55,7 +55,6 @@ const SuperAdminTenants = lazy(() => import("@/pages/admin/SuperAdminTenants"));
 const Careers = lazy(() => import("@/pages/admin/Careers"));
 const AlumniMentors = lazy(() => import("@/pages/admin/AlumniMentors"));
 const Forums = lazy(() => import("@/pages/admin/Forums"));
-const Sponsorships = lazy(() => import("@/pages/admin/Sponsorships"));
 const Surveys = lazy(() => import("@/pages/admin/Surveys"));
 const AlumniRequestsManagement = lazy(() => import("@/pages/admin/AlumniRequestsManagement"));
 const SecuritySessions = lazy(() => import("@/pages/admin/SecuritySessions"));
@@ -63,9 +62,6 @@ const Documentation = lazy(() => import("@/pages/admin/Documentation"));
 const TestingGuide = lazy(() => import("@/pages/admin/TestingGuide"));
 const UniversityGuide = lazy(() => import("@/pages/admin/UniversityGuide"));
 const Incidents = lazy(() => import("@/pages/admin/Incidents"));
-const EarlyWarnings = lazy(() => import("@/pages/admin/EarlyWarnings"));
-const SuccessPlans = lazy(() => import("@/pages/admin/SuccessPlans"));
-const ElectronicSignatures = lazy(() => import("@/pages/admin/ElectronicSignatures"));
 const VideoMeetings = lazy(() => import("@/pages/admin/VideoMeetings"));
 const ClassLists = lazy(() => import("@/pages/admin/ClassLists"));
 const DataQuality = lazy(() => import("@/pages/admin/DataQuality"));
@@ -138,7 +134,6 @@ export const AdminRoutes = () => {
             <Route path="careers" element={<Careers />} />
             <Route path="alumni-mentors" element={<AlumniMentors />} />
             <Route path="forums" element={<Forums />} />
-            <Route path="sponsorships" element={<Sponsorships />} />
             <Route path="surveys" element={<Surveys />} />
             <Route path="alumni-requests" element={<AlumniRequestsManagement />} />
             <Route path="security" element={<SecuritySessions />} />
@@ -148,9 +143,9 @@ export const AdminRoutes = () => {
             <Route path="testing-guide" element={<TestingGuide />} />
             <Route path="university-guide" element={<UniversityGuide />} />
             <Route path="incidents" element={<Incidents />} />
-            <Route path="early-warnings" element={<EarlyWarnings />} />
-            <Route path="success-plans" element={<SuccessPlans />} />
-            <Route path="electronic-signatures" element={<ElectronicSignatures />} />
+            {/* Retirées (2026-10) faute de backend : early-warnings, success-plans,
+                electronic-signatures, sponsorships — les pages restent dans
+                src/pages/admin/, voir docs/STATUT_ACTUEL.md. */}
             <Route path="video-meetings" element={<VideoMeetings />} />
             <Route path="data-quality" element={<DataQuality />} />
             <Route path="academic-rules" element={<AcademicRules />} />
