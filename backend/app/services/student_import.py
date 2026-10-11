@@ -9,6 +9,7 @@ of "how a row becomes a Student row".
 """
 import csv
 import io
+import logging
 import random
 import string
 from datetime import datetime, date
@@ -16,8 +17,22 @@ from typing import Optional
 
 from email_validator import EmailNotValidError, validate_email
 from fastapi import HTTPException
+from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from app.schemas.student import StudentCreate
+
+logger = logging.getLogger(__name__)
+
+# Messages renvoyés au client à la place du texte de l'exception : celui-ci
+# peut contenir la requête SQL (tables, colonnes, valeurs). Le détail reste
+# dans les journaux serveur.
+IMPORT_FAILED_MESSAGE = (
+    "Erreur interne pendant l'import : aucune ligne n'a été enregistrée. "
+    "Réessayez ou contactez le support."
+)
+ROW_FAILED_MESSAGE = "Erreur d'enregistrement de cette ligne (détail dans les journaux serveur)"
 
 STUDENT_COLUMN_MAP = {
     # Identification
@@ -77,6 +92,34 @@ def invalid_email_reason(val: str) -> Optional[str]:
     except EmailNotValidError as exc:
         return str(exc)
     return None
+
+
+def too_long_fields(model, values: dict) -> list[str]:
+    """Champs dont la valeur dépasse la longueur de sa colonne en base.
+
+    Sans ce contrôle, PostgreSQL refuse l'INSERT et — sans point de
+    sauvegarde — fait échouer tout le fichier importé."""
+    errors = []
+    for column, value in values.items():
+        length = getattr(model.__table__.columns[column].type, "length", None)
+        if value and length and len(value) > length:
+            errors.append(f"{column} trop long ({len(value)} caractères, max {length})")
+    return errors
+
+
+def schema_errors(exc: ValidationError) -> list[str]:
+    """Erreurs pydantic lisibles, sans recopier les valeurs en entier."""
+    errors = []
+    for err in exc.errors():
+        field = ".".join(str(part) for part in err["loc"])
+        if err["type"] == "string_too_long":
+            errors.append(
+                f"{field} trop long ({len(str(err['input']))} caractères, "
+                f"max {err['ctx']['max_length']})"
+            )
+        else:
+            errors.append(f"{field} invalide ({err['msg']})")
+    return errors
 
 
 def parse_gender(val: str) -> str:
@@ -187,31 +230,18 @@ def run_student_import(
 
             academic_year = get("academic_year") or default_academic_year or ""
 
-            db.execute(text("""
-                INSERT INTO students (
-                    id, tenant_id, registration_number, first_name, last_name,
-                    date_of_birth, gender, level, class_name, academic_year,
-                    email, phone, address, city,
-                    parent_name, parent_phone, parent_email,
-                    status, created_at, updated_at
-                ) VALUES (
-                    gen_random_uuid(), :tid, :reg, :fn, :ln,
-                    :dob, :gender, :level, :class_name, :ay,
-                    :email, :phone, :address, :city,
-                    :parent_name, :parent_phone, :parent_email,
-                    'ACTIVE', NOW(), NOW()
-                )
-                ON CONFLICT (registration_number) DO NOTHING
-            """), {
-                "tid": tenant_id,
-                "reg": reg,
-                "fn": first_name,
-                "ln": last_name,
-                "dob": dob.isoformat(),
+            # Mêmes contraintes que le schéma de lecture (StudentList) : une
+            # valeur qu'il refuse, une fois en base, fait échouer
+            # GET /students/ (HTTP 500) pour tout l'établissement.
+            values = {
+                "registration_number": reg,
+                "first_name": first_name,
+                "last_name": last_name,
+                "date_of_birth": dob,
                 "gender": gender,
-                "level": get("level"),
-                "class_name": get("class_name"),
-                "ay": academic_year,
+                "level": get("level") or None,
+                "class_name": get("class_name") or None,
+                "academic_year": academic_year or None,
                 "email": get("email") or None,
                 "phone": get("phone") or None,
                 "address": get("address") or None,
@@ -219,11 +249,55 @@ def run_student_import(
                 "parent_name": get("parent_name") or None,
                 "parent_phone": get("parent_phone") or None,
                 "parent_email": get("parent_email") or None,
-            })
+            }
+            try:
+                StudentCreate(**values)
+            except ValidationError as exc:
+                skipped += 1
+                error_rows.append({"row": i, "error": " ; ".join(schema_errors(exc)), "data": dict(row)})
+                continue
+
+            # Point de sauvegarde par ligne : une erreur inattendue n'annule
+            # que cette ligne, pas la transaction de tout le fichier.
+            with db.begin_nested():
+                db.execute(text("""
+                    INSERT INTO students (
+                        id, tenant_id, registration_number, first_name, last_name,
+                        date_of_birth, gender, level, class_name, academic_year,
+                        email, phone, address, city,
+                        parent_name, parent_phone, parent_email,
+                        status, created_at, updated_at
+                    ) VALUES (
+                        gen_random_uuid(), :tid, :reg, :fn, :ln,
+                        :dob, :gender, :level, :class_name, :ay,
+                        :email, :phone, :address, :city,
+                        :parent_name, :parent_phone, :parent_email,
+                        'ACTIVE', NOW(), NOW()
+                    )
+                    ON CONFLICT (registration_number) DO NOTHING
+                """), {
+                    "tid": tenant_id,
+                    "reg": reg,
+                    "fn": first_name,
+                    "ln": last_name,
+                    "dob": dob.isoformat(),
+                    "gender": gender,
+                    "level": get("level"),
+                    "class_name": get("class_name"),
+                    "ay": academic_year,
+                    "email": get("email") or None,
+                    "phone": get("phone") or None,
+                    "address": get("address") or None,
+                    "city": get("city") or None,
+                    "parent_name": get("parent_name") or None,
+                    "parent_phone": get("parent_phone") or None,
+                    "parent_email": get("parent_email") or None,
+                })
             created += 1
 
         except Exception as exc:
-            error_rows.append({"row": i, "error": str(exc), "data": dict(row)})
+            logger.warning("Student import row %s error: %s", i, exc)
+            error_rows.append({"row": i, "error": ROW_FAILED_MESSAGE, "data": dict(row)})
             skipped += 1
 
     return {"created": created, "skipped": skipped, "error_rows": error_rows}

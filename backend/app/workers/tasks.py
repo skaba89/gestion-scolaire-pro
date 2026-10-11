@@ -234,7 +234,7 @@ async def import_students_job(
     once, visibly (job.status == "FAILED"), than to let Arq's default
     retry silently create duplicate students.
     """
-    from app.services.student_import import run_student_import
+    from app.services.student_import import IMPORT_FAILED_MESSAGE, run_student_import
     from app.utils.audit import log_audit
 
     with worker_db_session(tenant_id) as db:
@@ -268,8 +268,9 @@ async def import_students_job(
         except Exception as exc:
             db.rollback()
             logger.error("import_students_job failed for tenant %s: %s", tenant_id, exc)
-            _job_finished(job_id, success=False, error=str(exc))
-            return {"job_id": job_id, "error": str(exc)}
+            # Jamais str(exc) côté client : il peut contenir la requête SQL.
+            _job_finished(job_id, success=False, error=IMPORT_FAILED_MESSAGE)
+            return {"job_id": job_id, "error": IMPORT_FAILED_MESSAGE}
 
 
 async def import_parents_job(
@@ -284,6 +285,7 @@ async def import_parents_job(
     against whatever the first attempt already committed, double-counting
     "created" on a partial success)."""
     from app.services.parent_import import run_parent_import
+    from app.services.student_import import IMPORT_FAILED_MESSAGE
     from app.utils.audit import log_audit
 
     with worker_db_session(tenant_id) as db:
@@ -321,8 +323,9 @@ async def import_parents_job(
         except Exception as exc:
             db.rollback()
             logger.error("import_parents_job failed for tenant %s: %s", tenant_id, exc)
-            _job_finished(job_id, success=False, error=str(exc))
-            return {"job_id": job_id, "error": str(exc)}
+            # Jamais str(exc) côté client : il peut contenir la requête SQL.
+            _job_finished(job_id, success=False, error=IMPORT_FAILED_MESSAGE)
+            return {"job_id": job_id, "error": IMPORT_FAILED_MESSAGE}
 
 
 async def import_teachers_job(
@@ -335,6 +338,7 @@ async def import_teachers_job(
     import_parents_job above (a retry would re-check email uniqueness
     against rows this same attempt already committed)."""
     from app.services.teacher_import import run_teacher_import
+    from app.services.student_import import IMPORT_FAILED_MESSAGE
     from app.utils.audit import log_audit
 
     with worker_db_session(tenant_id) as db:
@@ -358,8 +362,9 @@ async def import_teachers_job(
         except Exception as exc:
             db.rollback()
             logger.error("import_teachers_job failed for tenant %s: %s", tenant_id, exc)
-            _job_finished(job_id, success=False, error=str(exc))
-            return {"job_id": job_id, "error": str(exc)}
+            # Jamais str(exc) côté client : il peut contenir la requête SQL.
+            _job_finished(job_id, success=False, error=IMPORT_FAILED_MESSAGE)
+            return {"job_id": job_id, "error": IMPORT_FAILED_MESSAGE}
 
 
 async def generate_report_cards_batch_job(

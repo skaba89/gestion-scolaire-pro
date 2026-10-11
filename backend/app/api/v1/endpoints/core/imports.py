@@ -24,6 +24,7 @@ from app.services.parent_import import (
     run_parent_import,
 )
 from app.services.student_import import (
+    IMPORT_FAILED_MESSAGE,
     STUDENT_COLUMN_MAP,
     detect_columns as _detect_columns,
     invalid_email_reason as _invalid_email_reason,
@@ -261,8 +262,8 @@ async def confirm_student_import(
         except Exception as exc:
             db.rollback()
             logger.error("Import commit failed: %s", exc)
-            _job_finished(job_id, success=False, error=str(exc))
-            raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
+            _job_finished(job_id, success=False, error=IMPORT_FAILED_MESSAGE)
+            raise HTTPException(status_code=500, detail=IMPORT_FAILED_MESSAGE)
 
     return {"job_id": job_id}
 
@@ -509,8 +510,8 @@ async def confirm_parent_import(
         except Exception as exc:
             db.rollback()
             logger.error("Parent import commit failed: %s", exc)
-            _job_finished(job_id, success=False, error=str(exc))
-            raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
+            _job_finished(job_id, success=False, error=IMPORT_FAILED_MESSAGE)
+            raise HTTPException(status_code=500, detail=IMPORT_FAILED_MESSAGE)
 
     return {"job_id": job_id}
 
@@ -683,8 +684,8 @@ async def confirm_teacher_import(
         except Exception as exc:
             db.rollback()
             logger.error("Teacher import commit failed: %s", exc)
-            _job_finished(job_id, success=False, error=str(exc))
-            raise HTTPException(status_code=500, detail=f"Erreur lors de la sauvegarde: {exc}")
+            _job_finished(job_id, success=False, error=IMPORT_FAILED_MESSAGE)
+            raise HTTPException(status_code=500, detail=IMPORT_FAILED_MESSAGE)
 
     return {"job_id": job_id}
 
