@@ -17,7 +17,7 @@ from app.models.student import Student
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.core.tenant_resolution import find_user_by_email_in_any_tenant
-from app.services.student_import import detect_columns
+from app.services.student_import import detect_columns, invalid_email_reason
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,11 @@ def run_parent_import(
             if not first_name or not last_name or not email:
                 skipped_rows += 1
                 error_rows.append({"row": i, "error": "Nom/prénom/email manquant", "data": dict(row)})
+                continue
+
+            if reason := invalid_email_reason(email):
+                skipped_rows += 1
+                error_rows.append({"row": i, "error": f"Email invalide '{email}' : {reason}", "data": dict(row)})
                 continue
 
             reg_numbers = split_list(get("student_registration_numbers"))
