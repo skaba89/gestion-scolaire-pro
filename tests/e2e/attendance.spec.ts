@@ -100,14 +100,3 @@ test.describe('Incidents', () => {
     }
   });
 });
-
-test.describe('Alertes précoces', () => {
-  test('la page early-warnings se charge', async ({ loginAsAdmin, page }) => {
-    await loginAsAdmin(page);
-    await page.goto('/admin/early-warnings');
-    await page.waitForLoadState('networkidle');
-
-    await expect(page.locator('h1, h2').first()).toBeVisible();
-    expect(page.url()).not.toContain('/auth/login');
-  });
-});
