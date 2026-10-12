@@ -37,6 +37,19 @@ def _clear_overrides():
     app.dependency_overrides.pop(get_current_user, None)
 
 
+@pytest.fixture(autouse=True)
+def _disable_payments_rate_limiter():
+    """POST /payments/register/ est limité à 10/minute par IP, partagé avec
+    tout le reste de la suite (test_payment_sequential_reference.py, lancé
+    juste après, recevait des 429) — même motif que
+    test_auth_rls_restricted_role.py."""
+    from app.api.v1.endpoints.finance.payments import limiter as payments_limiter
+    previous = payments_limiter.enabled
+    payments_limiter.enabled = False
+    yield
+    payments_limiter.enabled = previous
+
+
 @pytest.fixture
 def school():
     tag = uuid.uuid4().hex[:8]
