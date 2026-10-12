@@ -160,8 +160,6 @@ jobs:
       APP_URL_PSYCOPG: postgresql+psycopg://e2e_app:e2e-app-pw@localhost:5432/schoolflow_e2e
       REDIS_URL: redis://localhost:6379/0
       DEBUG: "true"
-      SECRET_KEY: test-secret-key-for-ci-min-32-chars
-      BOOTSTRAP_SECRET: test-bootstrap-secret-key-for-ci-32chars
       BACKEND_CORS_ORIGINS: http://localhost:3000
       WORKER_POLL_DELAY_SECONDS: "1"
       # Hors de l'espace de travail : jamais publié comme artefact.
@@ -170,6 +168,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Generate throwaway secrets for this run
+        # Générées à chaque exécution : aucune valeur, même factice, dans le dépôt.
+        run: |
+          echo "SECRET_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "BOOTSTRAP_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
       - name: Setup Python 3.11
         uses: actions/setup-python@v5
