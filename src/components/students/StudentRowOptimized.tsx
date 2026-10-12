@@ -30,6 +30,7 @@ import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { resolveUploadUrl } from "@/utils/url";
+import { useGenderLabel } from "@/lib/gender";
 
 interface StudentRowProps {
   student: any;
@@ -63,6 +64,7 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
   ariaRole,
   ariaRowIndex,
 }: StudentRowProps) {
+  const genderLabel = useGenderLabel();
   const { studentLabel } = useStudentLabel();
   const { getTenantUrl } = useTenantUrl();
 
@@ -135,7 +137,7 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
           : "-"
         }
       </TableCell>
-      <TableCell className="hidden lg:table-cell text-sm">{student.gender || "-"}</TableCell>
+      <TableCell className="hidden lg:table-cell text-sm">{genderLabel(student.gender)}</TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
           <Button

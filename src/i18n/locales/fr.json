@@ -1,5 +1,10 @@
 {
     "common": {
+        "gender": {
+            "male": "Masculin",
+            "female": "Féminin",
+            "other": "Autre"
+        },
         "loading": "Chargement...",
         "save": "Enregistrer",
         "cancel": "Annuler",

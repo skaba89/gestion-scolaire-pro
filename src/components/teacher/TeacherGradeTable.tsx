@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Table,
     TableBody,
@@ -34,6 +35,7 @@ export const TeacherGradeTable = ({
     isSaving,
     studentLabel,
 }: TeacherGradeTableProps) => {
+    const { t } = useTranslation();
     const [historyGradeId, setHistoryGradeId] = useState<string | null>(null);
     const [historyStudentName, setHistoryStudentName] = useState("");
 
@@ -116,6 +118,8 @@ export const TeacherGradeTable = ({
                                                         size="icon"
                                                         variant="ghost"
                                                         className="h-9 w-9 text-muted-foreground hover:text-green-600 hover:bg-green-50"
+                                                        // Bouton icône : sans libellé, illisible au lecteur d'écran.
+                                                        aria-label={`${t("common.save")} — ${student?.first_name ?? ""} ${student?.last_name ?? ""}`.trim()}
                                                         onClick={() => {
                                                             const input = document.getElementById(`grade-${student?.id}`) as HTMLInputElement;
                                                             const score = parseFloat(input.value);

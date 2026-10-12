@@ -32,6 +32,8 @@ test.describe.serial('Inscription et affectation d\'un étudiant', () => {
 
     await page.getByPlaceholder(/Rechercher par nom ou numéro/).fill(matricule);
     await expect(page.getByRole('gridcell', { name: matricule })).toBeVisible();
+    // Bug corrigé : le genre s'affichait brut (« FEMALE »).
+    await expect(page.getByRole('row').filter({ hasText: matricule })).toContainText('Féminin');
   });
 
   test('l\'admin l\'affecte à la classe « L1 Économie »', async ({ page }) => {

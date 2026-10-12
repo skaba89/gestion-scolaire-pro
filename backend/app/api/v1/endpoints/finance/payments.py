@@ -7,13 +7,13 @@ import logging
 from typing import Optional, List, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
 import uuid as _uuid
 import math, secrets
-from datetime import datetime
+from datetime import date, datetime
 from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 
@@ -86,6 +86,17 @@ class RegisterPaymentRequest(BaseModel):
     method: str
     reference: Optional[str] = None
     notes: Optional[str] = None
+    # Date réelle de l'encaissement (ex. transfert Mobile Money reçu la
+    # veille). Absente : aujourd'hui. Avant, la date saisie dans l'écran
+    # n'était jamais transmise : tout paiement était daté du jour de saisie.
+    payment_date: Optional[date] = None
+
+    @field_validator("payment_date")
+    @classmethod
+    def _not_in_the_future(cls, value: Optional[date]) -> Optional[date]:
+        if value is not None and value > date.today():
+            raise ValueError("La date de paiement ne peut pas être dans le futur")
+        return value
 
 class ReversePaymentRequest(BaseModel):
     notes: Optional[str] = None
@@ -370,14 +381,14 @@ def register_payment(
         INSERT INTO payments (id, tenant_id, student_id, invoice_id, amount, payment_method,
                               reference, notes, status, payment_date, created_at, updated_at)
         VALUES (:id, :tenant_id, :student_id, :invoice_id, :amount, :method,
-                :reference, :notes, 'COMPLETED', CURRENT_DATE, NOW(), NOW())
+                :reference, :notes, 'COMPLETED', COALESCE(:payment_date, CURRENT_DATE), NOW(), NOW())
         RETURNING id
     """), {
         "id": str(_uuid.uuid4()),
         "tenant_id": tenant_id, "student_id": str(inv["student_id"]),
         "invoice_id": body.invoice_id,
         "amount": body.amount, "method": method_value,
-        "reference": reference, "notes": body.notes
+        "reference": reference, "notes": body.notes, "payment_date": body.payment_date,
     }).scalar()
 
     # 3. Update invoice
@@ -581,9 +592,11 @@ def create_invoice_atomic(
                               subtotal, tax_amount, discount_amount,
                               items, due_date, issue_date, notes, has_payment_plan, installments_count,
                               status, created_at, updated_at)
+        -- due_date est NOT NULL en base mais facultative dans l'API : sans
+        -- échéance, la création échouait en 500 ; on retient la date d'émission.
         VALUES (:id, :tenant_id, :student_id, :invoice_number, :total_amount, 0,
                 :total_amount, 0, 0,
-                :items, :due_date, COALESCE(:due_date, CURRENT_DATE), :notes, :has_payment_plan, :installments_count,
+                :items, COALESCE(:due_date, CURRENT_DATE), COALESCE(:due_date, CURRENT_DATE), :notes, :has_payment_plan, :installments_count,
                 'PENDING', NOW(), NOW())
         RETURNING id
     """), {
@@ -973,6 +986,19 @@ def list_fees(
         raise HTTPException(status_code=500, detail="Operation failed. Please try again.")
 
 
+def _ensure_unique_fee_name(db: Session, tenant_id: str, name: str, exclude_id: Optional[str] = None) -> None:
+    """Deux frais du même nom (casse ignorée) rendaient le choix ambigu dans
+    les factures (« Frais d'inscription » proposé deux fois)."""
+    row = db.execute(text("""
+        SELECT 1 FROM fees
+        WHERE tenant_id = :tenant_id AND lower(trim(name)) = lower(trim(:name))
+          AND (CAST(:exclude_id AS TEXT) IS NULL OR CAST(id AS TEXT) <> CAST(:exclude_id AS TEXT))
+        LIMIT 1
+    """), {"tenant_id": tenant_id, "name": name, "exclude_id": exclude_id}).first()
+    if row:
+        raise HTTPException(status_code=409, detail=f"Un frais nommé « {name.strip()} » existe déjà")
+
+
 @router.post("/fees/", status_code=status.HTTP_201_CREATED)
 def create_fee(
     request: Request,
@@ -982,6 +1008,7 @@ def create_fee(
 ):
     """Create a new fee type."""
     tenant_id = _get_tenant_id(request, current_user, db)
+    _ensure_unique_fee_name(db, tenant_id, body.name)
     try:
         fee_id = db.execute(text("""
             INSERT INTO fees (id, tenant_id, name, description, amount, created_at)
@@ -1026,6 +1053,8 @@ def update_fee(
         updates = {k: v for k, v in updates.items() if k in ALLOWED_FEE_FIELDS}
         if not updates:
             raise HTTPException(status_code=400, detail="No fields to update")
+        if "name" in updates:
+            _ensure_unique_fee_name(db, tenant_id, updates["name"], exclude_id=fee_id)
         set_clause = ", ".join([f"{k} = :{k}" for k in updates])
         updates["fee_id"] = fee_id
         updates["tenant_id"] = tenant_id

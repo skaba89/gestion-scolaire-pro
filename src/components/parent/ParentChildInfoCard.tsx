@@ -15,6 +15,7 @@ import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { resolveUploadUrl } from "@/utils/url";
+import { useGenderLabel } from "@/lib/gender";
 
 interface Student {
     id: string;
@@ -41,6 +42,7 @@ export const ParentChildInfoCard = ({
     getTenantUrl,
     onViewAttendance
 }: ParentChildInfoCardProps) => {
+    const genderLabel = useGenderLabel();
     return (
         <Card className="overflow-hidden h-full flex flex-col border-primary/10 hover:shadow-lg transition-all duration-300">
             <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b p-6">
@@ -89,7 +91,7 @@ export const ParentChildInfoCard = ({
                     <div className="flex items-center gap-2.5 text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg">
                         <Users className="w-3.5 h-3.5 text-primary/60 shrink-0" />
                         <span className="font-medium">
-                            {student.gender === "M" ? "Masculin" : student.gender === "F" ? "Féminin" : "N/A"}
+                            {genderLabel(student.gender, "N/A")}
                         </span>
                     </div>
                 </div>

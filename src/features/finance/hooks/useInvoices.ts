@@ -100,7 +100,7 @@ export const useInvoices = (tenantId?: string, options?: { page?: number; pageSi
         try {
             const year = new Date().getFullYear();
             const { data } = await apiClient.get("/payments/sequence/", {
-                params: { prefix: `INV-${year}-` }
+                params: { prefix: "INV-" } // l'API ajoute déjà l'année (INV-2026-2026-… sinon)
             });
             return typeof data === "string" ? data : `INV-${year}-${Date.now().toString().slice(-6)}`;
         } catch {
