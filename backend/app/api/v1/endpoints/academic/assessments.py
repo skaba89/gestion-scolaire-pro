@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, user_has_permission
+from app.core.teacher_scope import teacher_teaches_class
 from app.core.tenant_resolution import resolve_current_tenant_id
 
 router = APIRouter()
@@ -40,22 +41,6 @@ def _validate_assessment_fks(db: Session, *, tenant_id: str, subject_id: Optiona
             raise HTTPException(status_code=404, detail="Classe introuvable dans cet établissement")
 
 
-def _teacher_may_grade(db: Session, *, tenant_id: str, user_id: str,
-                       class_id: Optional[str], subject_id: Optional[str]) -> bool:
-    """L'enseignant est affecté à cette classe, et à cette matière si son
-    affectation en précise une (subject_id NULL = toutes les matières)."""
-    if not class_id:
-        return False
-    row = db.execute(text("""
-        SELECT 1 FROM teacher_assignments
-        WHERE tenant_id = :tid AND user_id = :uid AND classroom_id = :cid
-          AND (subject_id IS NULL OR subject_id = :sid)
-        LIMIT 1
-    """), {"tid": tenant_id, "uid": str(user_id), "cid": str(class_id),
-           "sid": str(subject_id) if subject_id else None}).first()
-    return row is not None
-
-
 def _require_assessment_write(db: Session, *, tenant_id: str, user: dict,
                               targets: List[tuple]) -> None:
     """Écriture d'évaluation : settings:write (administration), ou un
@@ -69,8 +54,8 @@ def _require_assessment_write(db: Session, *, tenant_id: str, user: dict,
         return
     is_teacher = "TEACHER" in (user.get("roles") or []) and user_has_permission(user, "grades:write")
     if is_teacher and all(
-        _teacher_may_grade(db, tenant_id=tenant_id, user_id=user.get("id"),
-                           class_id=class_id, subject_id=subject_id)
+        teacher_teaches_class(db, tenant_id=tenant_id, user_id=user.get("id"),
+                              class_id=class_id, subject_id=subject_id)
         for class_id, subject_id in targets
     ):
         return
