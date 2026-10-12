@@ -277,6 +277,17 @@ class Seeder:
                               {**s, "academic_year_id": year["id"]})
             sem_by_number[s["number"]] = obj
 
+        # Les évaluations (notes) se rattachent à une « période » (table terms),
+        # distincte des semestres LMD : on aligne une période sur chaque semestre.
+        print("Périodes de notation")
+        terms = [t for t in api.get("/terms/") if str(t.get("academic_year_id")) == str(year["id"])]
+        for s in SEMESTERS:
+            self.ensure("période", "/terms/", terms, None, s["name"], {
+                "academic_year_id": year["id"], "name": s["name"],
+                "start_date": s["start_date"], "end_date": s["end_date"],
+                "sequence_number": s["number"], "is_active": s["is_active"],
+            })
+
         print("Facultés")
         faculties = api.get("/faculties/")
         fac = {code: self.ensure("faculté", "/faculties/", faculties, code, name,

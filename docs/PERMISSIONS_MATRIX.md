@@ -821,3 +821,31 @@ Non retenu comme correctif séparé (signalé pour information seulement) :
 (`users.id`) non vérifié, mais l'impact se limite à une référence
 d'affichage orpheline (nom du doyen), pas à une pollution structurelle
 des données — laissé pour un futur balayage si jugé prioritaire.
+
+## Périmètre TEACHER sur les inscriptions et les évaluations (2026-10-12)
+
+Trouvé par les parcours E2E (`tests/e2e/journeys/`, voir
+`docs/E2E_JOURNEYS.md`) : la saisie des notes était **impossible pour tout
+enseignant**, pour deux gardes trop larges posées en 2026-09.
+
+| Endpoint | Avant | Après |
+|---|---|---|
+| `GET /infrastructure/enrollments/` | `enrollments:read` (TEACHER ne l'a pas → 403 sur ses propres classes) | `enrollments:read`, **ou** TEACHER affecté à la classe demandée (`class_id` obligatoire) |
+| `POST /assessments/` | `settings:write` (bouton « Nouvelle évaluation » enseignant → 403) | `settings:write`, **ou** TEACHER avec `grades:write` affecté à la classe — et à la matière si l'affectation en précise une |
+| `PUT` / `DELETE /assessments/{id}/` | `settings:write` | idem ; pour `PUT`, droit requis sur l'évaluation actuelle **et** sur sa destination (pas de déplacement vers la classe d'un collègue) |
+
+- Source du rattachement : table `teacher_assignments` (affectations
+  administrées via `POST /teachers/`), celle dont l'écran de saisie des notes
+  tire déjà la liste des classes de l'enseignant. **Écart connu** : le
+  périmètre présences (section du 2026-09-27) s'appuie sur la table
+  `schedule`. À unifier dans un balayage dédié.
+- `ROLE_PERMISSIONS` inchangé (aucune permission globale ajoutée au rôle
+  TEACHER), donc `src/lib/permissions.ts` inchangé.
+- Tests : `backend/tests/test_enrollments_teacher_scope.py` (6) et
+  `backend/tests/test_assessments_teacher_scope.py` (9), PostgreSQL ; les
+  cas positifs échouent sans le correctif, les refus (autre classe, autre
+  matière, sans classe, autre établissement, autre rôle) passent dans les
+  deux cas.
+- Corrigé au passage : `GET /assessments/` ne renvoyait pas `class_id`,
+  champ sur lequel la saisie des notes filtre — aucune évaluation ne
+  s'affichait jamais (`tests/test_assessment_business_rules.py`).

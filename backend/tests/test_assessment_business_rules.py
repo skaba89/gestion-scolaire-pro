@@ -170,3 +170,25 @@ class TestUpdateAssessmentValidatesForeignKeys:
         foreign_subject_id = _make_subject(tenant_b)
         updated = client.put(f"{BASE}/{assessment_id}/", json={"subject_id": foreign_subject_id}, headers=headers)
         assert updated.status_code == 404, updated.text
+
+
+@_needs_postgres
+class TestAssessmentListExposesClassId:
+    """GET /assessments/ ne renvoyait pas class_id : la saisie des notes
+    enseignant filtre les évaluations sur ce champ côté client
+    (TeacherGradeFilters), donc n'en affichait JAMAIS aucune. Trouvé par
+    les parcours E2E (2026-10-12)."""
+
+    def test_list_returns_class_id_and_filters_on_it(self):
+        tenant_id = _make_tenant()
+        subject_id = _make_subject(tenant_id)
+        class_id = _make_classroom(tenant_id)
+        other_class_id = _make_classroom(tenant_id)
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        for cid in (class_id, other_class_id):
+            assert client.post(f"{BASE}/", json=_payload(subject_id, class_id=cid), headers=headers).status_code == 200
+
+        resp = client.get(f"{BASE}/", params={"classId": class_id}, headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        assert [a["class_id"] for a in resp.json()["items"]] == [class_id]
