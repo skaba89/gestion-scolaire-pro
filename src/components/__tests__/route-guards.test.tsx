@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { ProtectedRoute, getRedirectPathForRoles } from "@/components/ProtectedRoute";
+import { ownTenantPath } from "@/lib/tenant-path";
 import { TenantRoute } from "@/components/TenantRoute";
 
 const mockNavigate = vi.fn();
@@ -221,5 +222,82 @@ describe("TenantRoute", () => {
     );
 
     expect(await screen.findByText("Tenant content")).toBeInTheDocument();
+  });
+});
+
+describe("ownTenantPath", () => {
+  it("rewrites a foreign tenant URL onto the user's own slug, same path", () => {
+    expect(ownTenantPath("/temoin/admin/students", "temoin", "lasource", false)).toBe("/lasource/admin/students");
+  });
+
+  it("does nothing on the user's own tenant, for SUPER_ADMIN, or without slugs", () => {
+    expect(ownTenantPath("/lasource/admin", "lasource", "lasource", false)).toBeNull();
+    expect(ownTenantPath("/temoin/admin", "temoin", "lasource", true)).toBeNull();
+    expect(ownTenantPath("/temoin/admin", "temoin", null, false)).toBeNull();
+    expect(ownTenantPath("/super-admin", undefined, "lasource", false)).toBeNull();
+  });
+});
+
+describe("ProtectedRoute — URL d'un autre établissement", () => {
+  const renderAdmin = (path: string) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route
+            path="/:tenantSlug/admin/*"
+            element={
+              <ProtectedRoute allowedRoles={["TENANT_ADMIN", "SUPER_ADMIN"]}>
+                <div>Admin dashboard</div>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  const asUser = (roles: string[]) =>
+    mockUseAuth.mockReturnValue({
+      user: { id: "user-1" },
+      isLoading: false,
+      roles,
+      hasRole: (role: string) => roles.includes(role),
+      mustChangePassword: false,
+      tenant: { id: "tenant-1", slug: "lasource" },
+      isMfaVerified: true,
+    });
+
+  beforeEach(() => {
+    mockNavigate.mockReset();
+    mockUseTenant.mockReturnValue({
+      tenant: { id: "tenant-2", slug: "temoin" },
+      setCurrentTenant: mockSetCurrentTenant,
+      isLoading: false,
+    });
+  });
+
+  it("renvoie un admin vers son établissement, sans rien afficher de l'autre", async () => {
+    asUser(["TENANT_ADMIN"]);
+    renderAdmin("/temoin/admin/students?tab=list");
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith("/lasource/admin/students?tab=list", { replace: true });
+    });
+    expect(screen.queryByText("Admin dashboard")).not.toBeInTheDocument();
+  });
+
+  it("laisse le SUPER_ADMIN consulter un autre établissement", () => {
+    asUser(["SUPER_ADMIN"]);
+    renderAdmin("/temoin/admin/students");
+
+    expect(screen.getByText("Admin dashboard")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("ne redirige pas sur son propre établissement", () => {
+    asUser(["TENANT_ADMIN"]);
+    renderAdmin("/lasource/admin/students");
+
+    expect(screen.getByText("Admin dashboard")).toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

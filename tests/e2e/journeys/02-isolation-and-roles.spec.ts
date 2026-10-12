@@ -42,6 +42,17 @@ test.describe('Isolation entre établissements', () => {
   });
 });
 
+test.describe("URL d'un autre établissement", () => {
+  test.use({ storageState: stateFile('witness') });
+
+  test("l'admin du témoin est renvoyé vers son propre établissement", async ({ page }) => {
+    const { uls, witness } = credentials();
+    await page.goto(`/${uls.slug}/admin/students`);
+    await page.waitForURL(new RegExp(`/${witness.slug}/admin/students`));
+    await expect(page.getByText('Université La Source')).toHaveCount(0);
+  });
+});
+
 test.describe('Rôle enseignant', () => {
   test.use({ storageState: stateFile('teacher') });
 
