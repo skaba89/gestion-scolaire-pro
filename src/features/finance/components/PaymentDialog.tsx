@@ -21,6 +21,7 @@ import {
 import { useCurrency } from "@/hooks/useCurrency";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { apiClient } from "@/api/client";
+import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 import { Invoice } from "../types";
 import { paymentSchema, PaymentFormValues } from "@/lib/validations/financeSchemas";
@@ -53,6 +54,13 @@ export const PaymentDialog = ({
     const { formatCurrency } = useCurrency();
     const { StudentLabel } = useStudentLabel();
     const [isInitiating, setIsInitiating] = useState(false);
+    const { tenant } = useTenant();
+    // Drapeaux NON secrets des paramètres financiers (les clés de passerelle,
+    // elles, sont retirées de la réponse pour les non-administrateurs).
+    const financeSettings = (tenant?.settings ?? {}) as Record<string, unknown>;
+    const onlinePaymentEnabled = Boolean(
+        financeSettings.enableOnlinePayments || financeSettings.enableMobileMoney || financeSettings.enableCinetPay
+    );
 
     const form = useForm<PaymentFormValues>({
         resolver: zodResolver(paymentSchema),
@@ -82,7 +90,11 @@ export const PaymentDialog = ({
     const onSubmit = async (values: PaymentFormValues) => {
         if (!invoice) return;
 
-        if (values.payment_method === "mobile_money") {
+        // « Mobile Money (reçu) » s'enregistre comme les autres moyens (avec la
+        // référence de la transaction Orange Money / MTN) ; seul « Payer en
+        // ligne » passe par la passerelle. Avant, choisir Mobile Money lançait
+        // toujours la passerelle : impossible de saisir un transfert déjà reçu.
+        if (values.payment_method === "online") {
             setIsInitiating(true);
             try {
                 const response = await apiClient.post('/payments/intent/', null, {
@@ -203,8 +215,11 @@ export const PaymentDialog = ({
                                         <SelectContent>
                                             <SelectItem value="cash">Espèces</SelectItem>
                                             <SelectItem value="bank_transfer">Virement</SelectItem>
-                                            <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                                            <SelectItem value="mobile_money">Mobile Money (reçu)</SelectItem>
                                             <SelectItem value="check">Chèque</SelectItem>
+                                            {onlinePaymentEnabled && (
+                                                <SelectItem value="online">Payer en ligne (passerelle Mobile Money)</SelectItem>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                     <FormMessage />

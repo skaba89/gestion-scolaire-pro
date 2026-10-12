@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { toList } from "@/lib/api-list";
+import type { Fee as FinanceFee } from "../types";
 
 interface Fee {
     id: string;
@@ -28,8 +30,10 @@ export const useFees = (tenantId?: string) => {
         queryFn: async () => {
             if (!tenantId) return [];
             const { data } = await apiClient.get("/payments/fees/");
-            const raw = (data || []);
-            return Array.isArray(raw) ? raw : [];
+            // L'API renvoie { items, total } : l'ancien `Array.isArray(data)`
+            // retombait toujours sur [] — onglet Frais vide et aucun frais
+            // proposé dans les factures (trouvé par les parcours E2E).
+            return toList<FinanceFee>(data);
         },
         enabled: !!tenantId,
     });
