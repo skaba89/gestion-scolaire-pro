@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { TwoFactorChallenge } from "@/components/auth/TwoFactorChallenge";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { ownTenantPath } from "@/lib/tenant-path";
 import { AppRole } from "@/lib/types";
 
 interface ProtectedRouteProps {
@@ -14,6 +15,7 @@ interface ProtectedRouteProps {
 function routeDebug(..._args: unknown[]): void {
   // intentionally empty — debug logging removed
 }
+
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const {
@@ -28,6 +30,10 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
   const { tenant } = useTenant();
   const navigate = useNavigate();
   const location = useLocation();
+  const { tenantSlug } = useParams<{ tenantSlug?: string }>();
+  const foreignTenantRedirect = user
+    ? ownTenantPath(location.pathname, tenantSlug, authTenant?.slug, hasRole("SUPER_ADMIN"))
+    : null;
   const navigationRef = useRef<string | null>(null);
 
   // Use refs for tenant values to avoid re-triggering navigation on tenant state changes
@@ -71,6 +77,13 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
       }
     }
 
+    if (foreignTenantRedirect) {
+      routeDebug("Foreign tenant URL, redirecting to own tenant", foreignTenantRedirect);
+      navigationRef.current = navigationKey;
+      navigate(`${foreignTenantRedirect}${location.search}${location.hash}`, { replace: true });
+      return;
+    }
+
     if (allowedRoles && allowedRoles.length > 0) {
       // If user has no roles at all, redirect to auth — something is wrong
       if (roles.length === 0) {
@@ -105,6 +118,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     location.hash,
     hasRole,
     mustChangePassword,
+    foreignTenantRedirect,
   ]);
 
   if (isLoading) {
@@ -132,6 +146,11 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
   if (!isMfaVerified) {
     return <TwoFactorChallenge onSuccess={() => undefined} />;
+  }
+
+  // Ne rien afficher de l'autre établissement pendant la redirection.
+  if (foreignTenantRedirect) {
+    return null;
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
