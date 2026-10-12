@@ -74,6 +74,18 @@ def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_i
     return allowed_ids
 
 
+def _teacher_may_create(db: Session, *, current_user: dict, tenant_id: str, classroom_id: Optional[str]) -> bool:
+    """Création : contrairement à la modification (tolérante pour les
+    enregistrements anciens sans classe), un enseignant DOIT indiquer une
+    classe qu'il enseigne — sinon omettre classroom_id contournerait le
+    contrôle."""
+    if not is_scoped_teacher(current_user):
+        return True
+    return bool(classroom_id) and teacher_teaches_class(
+        db, tenant_id=tenant_id, user_id=current_user.get("id"), class_id=classroom_id,
+    )
+
+
 def _teacher_may_modify(db: Session, *, current_user: dict, tenant_id: str, classroom_id: Optional[str]) -> bool:
     """Ownership scoping (institutional-readiness audit, 2026-09): a TEACHER
     holds attendance:write tenant-wide, so without this check any teacher
@@ -306,7 +318,7 @@ def create_attendance(
     )
     # 2026-10-12 : la création ne vérifiait aucune classe — un enseignant
     # pouvait pointer n'importe quelle classe de l'établissement.
-    if not _teacher_may_modify(db, current_user=current_user, tenant_id=tenant_id,
+    if not _teacher_may_create(db, current_user=current_user, tenant_id=tenant_id,
                                classroom_id=str(record.classroom_id) if record.classroom_id else None):
         raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
 
@@ -393,7 +405,7 @@ def create_attendance_bulk(
             db, tenant_id=tenant_id, student_id=record.student_id,
             subject_id=record.subject_id, classroom_id=record.classroom_id,
         )
-        if not _teacher_may_modify(db, current_user=current_user, tenant_id=tenant_id,
+        if not _teacher_may_create(db, current_user=current_user, tenant_id=tenant_id,
                                    classroom_id=str(record.classroom_id) if record.classroom_id else None):
             raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
         existing = db.execute(text("""

@@ -92,6 +92,12 @@ class TestAttendance:
         resp = c.post("/api/v1/attendance/", json=_attendance_body(school, school["mine"]), headers=HEADERS)
         assert resp.status_code == 403
 
+    def test_teacher_cannot_bypass_the_check_by_omitting_the_class(self, school):
+        c = _as(school["outsider"], school["tenant_id"])
+        body = _attendance_body(school, None)
+        body.pop("classroom_id")
+        assert c.post("/api/v1/attendance/", json=body, headers=HEADERS).status_code == 403
+
     def test_outsider_cannot_bulk_create(self, school):
         c = _as(school["outsider"], school["tenant_id"])
         resp = c.post("/api/v1/attendance/bulk/", json={"records": [_attendance_body(school, school["mine"])]},
