@@ -28,11 +28,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useFinances } from "../hooks/useFinances";
 import { useTenant } from "@/contexts/TenantContext";
 import { cn } from "@/lib/utils";
+import { paymentMethodLabel } from "../utils/paymentMethod";
 
 interface PaymentHistoryProps {
     payments: Payment[];
     isLoading: boolean;
 }
+
 
 export const PaymentHistory = ({ payments, isLoading }: PaymentHistoryProps) => {
     const { formatCurrency } = useCurrency();
@@ -112,10 +114,7 @@ export const PaymentHistory = ({ payments, isLoading }: PaymentHistoryProps) => 
                                             {formatCurrency(Number(payment.amount))}
                                         </TableCell>
                                         <TableCell className="capitalize">
-                                            {payment.payment_method === "cash" ? "Espèces" :
-                                                payment.payment_method === "bank_transfer" ? "Virement" :
-                                                    payment.payment_method === "mobile_money" ? "Mobile Money" :
-                                                        payment.payment_method === "check" ? "Chèque" : payment.payment_method || "-"}
+                                            {paymentMethodLabel(payment.payment_method)}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={payment.status === 'REVERSED' ? "destructive" : "secondary"}>

@@ -1,5 +1,10 @@
 {
   "common": {
+    "gender": {
+      "male": "Masculino",
+      "female": "Femenino",
+      "other": "Otro"
+    },
     "save": "Guardar",
     "cancel": "Cancelar",
     "delete": "Eliminar",

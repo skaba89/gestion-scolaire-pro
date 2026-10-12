@@ -25,6 +25,7 @@ export const usePayments = (tenantId?: string) => {
             method: string;
             reference?: string;
             notes?: string;
+            payment_date?: string;
         }) => {
             const { data } = await apiClient.post("/payments/register/", {
                 invoice_id: params.invoiceId,
@@ -32,6 +33,9 @@ export const usePayments = (tenantId?: string) => {
                 method: params.method,
                 reference: params.reference,
                 notes: params.notes,
+                // La date saisie dans l'écran n'était jamais transmise : tout
+                // paiement était daté du jour de saisie.
+                payment_date: params.payment_date || undefined,
             });
             return data;
         },

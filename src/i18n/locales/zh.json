@@ -1,5 +1,10 @@
 {
   "common": {
+    "gender": {
+      "male": "男",
+      "female": "女",
+      "other": "其他"
+    },
     "save": "保存",
     "cancel": "取消",
     "delete": "删除",

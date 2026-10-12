@@ -16,6 +16,8 @@ const run = Date.now().toString(36).toUpperCase();
 const matricule = `E2E-FIN-${run}`;
 const feeName = `Frais d'inscription ${run}`;
 const omReference = `OM-${run}`;
+// Transfert reçu la veille : la date saisie doit être conservée.
+const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 
 test.describe.serial('Frais, facture et paiement Mobile Money', () => {
   test.beforeAll(async ({ request }) => {
@@ -61,6 +63,8 @@ test.describe.serial('Frais, facture et paiement Mobile Money', () => {
     const row = page.locator('tr').filter({ hasText: matricule });
     await expect(row).toContainText('500 000');
     await expect(row).toContainText('En attente');
+    // Bug corrigé : l'année figurait deux fois (INV-2026-2026-…).
+    await expect(row).not.toContainText(/INV-\d{4}-\d{4}-/);
   });
 
   test('un transfert Mobile Money reçu puis un solde en espèces soldent la facture', async ({ page, request }) => {
@@ -76,6 +80,7 @@ test.describe.serial('Frais, facture et paiement Mobile Money', () => {
     await dialog.getByRole('combobox').first().click();
     await page.getByRole('option', { name: 'Mobile Money (reçu)' }).click();
     await dialog.locator('input[name=reference]').fill(omReference);
+    await dialog.locator('input[name=payment_date]').fill(yesterday);
     let paid = page.waitForResponse((r) => r.url().endsWith('/payments/register/'));
     await dialog.getByRole('button', { name: 'Enregistrer le paiement' }).click();
     let resp = await paid;
@@ -97,8 +102,15 @@ test.describe.serial('Frais, facture et paiement Mobile Money', () => {
     // 3. Le paiement Mobile Money est enregistré comme tel, avec sa référence.
     const payments = await (await api(request, 'admin').get('/payments/payments/?page_size=100')).json();
     const items = (payments.items ?? payments) as { reference: string; payment_method: string; amount: number }[];
-    const om = items.find((p) => p.reference === omReference);
+    const om = items.find((p) => p.reference === omReference) as
+      { payment_method: string; amount: number; payment_date: string } | undefined;
     expect(om?.payment_method).toBe('MOBILE_MONEY');
     expect(Number(om?.amount)).toBe(200000);
+    // Bug corrigé : la date saisie n'était pas transmise (toujours aujourd'hui).
+    expect(om?.payment_date?.slice(0, 10)).toBe(yesterday);
+
+    // Historique : méthode traduite (bug corrigé : « MOBILE_MONEY » brut).
+    await page.getByRole('tab', { name: 'Paiements' }).click();
+    await expect(page.getByRole('tabpanel')).not.toContainText('MOBILE_MONEY');
   });
 });

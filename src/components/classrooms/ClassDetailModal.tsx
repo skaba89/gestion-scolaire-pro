@@ -11,6 +11,7 @@ import { useTenant } from "@/contexts/TenantContext";
 import { ClassSubjectsManager } from "./ClassSubjectsManager";
 import { BookOpen } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { useGenderLabel } from "@/lib/gender";
 
 interface Student {
     id: string;
@@ -28,6 +29,7 @@ interface ClassDetailModalProps {
 }
 
 export const ClassDetailModal = ({ isOpen, onClose, classroom }: ClassDetailModalProps) => {
+  const genderLabel = useGenderLabel();
     const { tenant } = useTenant();
     const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
     const [students, setStudents] = useState<Student[]>([]);
@@ -139,7 +141,7 @@ export const ClassDetailModal = ({ isOpen, onClose, classroom }: ClassDetailModa
                                                         Actif
                                                     </Badge>
                                                     <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                                                        {student.gender === 'male' ? 'Garçon' : 'Fille'}
+                                                        {genderLabel(student.gender)}
                                                     </span>
                                                 </div>
                                             </div>

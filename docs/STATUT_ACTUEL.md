@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-11 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-12 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -328,6 +328,24 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   (`EarlyWarnings`, `SuccessPlans`, `ElectronicSignatures`,
   `Sponsorships`) ; les réactiver dans `src/routes/AdminRoutes.tsx` une
   fois leur backend livré.
+
+- **2026-10-12 — parcours E2E sur vraie stack** (#304, #305, #306 ; voir
+  `docs/E2E_JOURNEYS.md`). Job CI `e2e-journeys` (RLS réelle, rôle
+  NOBYPASSRLS ; pas encore contrôle obligatoire). Bugs trouvés et corrigés :
+  case d'inscription et lignes empilées (page Inscriptions) ; enseignant
+  bloqué sur ses propres classes et évaluations (périmètre
+  `teacher_assignments`, voir `PERMISSIONS_MATRIX.md`) ; évaluations
+  jamais listées (`class_id` absent) ; onglet Frais toujours vide ;
+  Mobile Money reçu impossible à saisir (« Mobile Money (reçu) » distinct
+  de « Payer en ligne »).
+- **2026-10-12 — constats mineurs des parcours** : numéro de facture avec
+  l'année en double ; méthode de paiement et genre affichés bruts (le genre
+  était même FAUX dans la fiche classe : « Fille » pour tous les garçons) ;
+  date de paiement saisie ignorée (désormais transmise, jamais dans le
+  futur) ; frais homonymes (409) ; facture sans échéance en 500 (échéance =
+  date d'émission) ; bouton de note sans libellé accessible. Reste : renvoi
+  d'un admin vers son propre établissement quand il ouvre l'URL d'un autre
+  (aucune donnée exposée, API 403/404).
 
 ## Documents à considérer avec prudence
 

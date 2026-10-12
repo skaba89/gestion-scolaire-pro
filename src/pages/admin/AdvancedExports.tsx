@@ -19,11 +19,13 @@ import { ExportFieldSelector } from "@/components/admin/exports/ExportFieldSelec
 import { ExportFilters } from "@/components/admin/exports/ExportFilters";
 import { ExportActionButtons } from "@/components/admin/exports/ExportActionButtons";
 import { ExportHistory } from "@/components/admin/exports/ExportHistory";
+import { useGenderLabel } from "@/lib/gender";
 
 type ExportType = "students" | "teachers" | "grades" | "attendance" | "finances" | "schedule";
 
 export default function AdvancedExports() {
   const { t } = useTranslation();
+  const genderLabel = useGenderLabel();
   const { tenant } = useTenant();
 
   const exportConfigs = useMemo<Record<ExportType, { label: string; icon: React.ElementType; description: string; fields: string[] }>>(() => ({
@@ -184,7 +186,7 @@ export default function AdvancedExports() {
             Email: s.email || "",
             Téléphone: s.phone || "",
             "Date de naissance": s.date_of_birth || "",
-            Genre: s.gender === "M" ? "Masculin" : s.gender === "F" ? "Féminin" : "",
+            Genre: genderLabel(s.gender, ""),
             Nationalité: s.nationality || "",
             Adresse: s.address || "",
             Ville: s.city || "",
