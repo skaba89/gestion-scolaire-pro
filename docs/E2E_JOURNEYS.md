@@ -18,7 +18,7 @@ Vite. Ils complètent le smoke navigateur (`tests/e2e/smoke`, sans backend).
 | 1 | `alembic upgrade head` (rôle propriétaire) | schéma + politiques RLS |
 | 2 | `scripts/ci/e2e_app_role.sql` | rôle `e2e_app` NOSUPERUSER NOBYPASSRLS |
 | 3 | `scripts/ci/seed_e2e.py` | établissements « Université La Source (démo) » et « témoin », comptes admin / enseignant |
-| 4 | `scripts/seed_universite_la_source.py` (via l'API) | facultés, programmes, niveaux, classes, matières |
+| 4 | `scripts/seed_universite_la_source.py` (via l'API) | facultés, programmes, niveaux, classes, matières, périodes de notation |
 
 `seed_e2e.py` écrit directement en base car `POST /tenants/create-with-admin/`
 exige l'envoi réel d'un e-mail d'invitation. Il refuse de tourner sans
@@ -31,8 +31,13 @@ exige l'envoi réel d'un e-mail d'invitation. Il refuse de tourner sans
 |---|---|
 | `01-student-enrollment.spec.ts` | l'admin crée un étudiant par le formulaire, l'affecte à « L1 Économie » |
 | `02-isolation-and-roles.spec.ts` | un autre établissement ne lit ni ne modifie rien ; l'enseignant n'accède pas aux finances (API 403, interface redirigée) |
+| `03-grades-report-card.spec.ts` | l'enseignant affecté à « L1 Économie »/ECO101 crée une évaluation et saisit une note ; l'admin la voit dans les bulletins et télécharge un vrai PDF (WeasyPrint) |
 
-Prévus : notes et bulletin (PR 2), facturation et paiement Mobile Money (PR 3).
+Prévu : facturation et paiement Mobile Money (PR 3).
+
+Le PDF du bulletin exige WeasyPrint et ses bibliothèques système (installées
+par le job CI, comme dans `backend/Dockerfile`). Sans elles, l'étape PDF du
+parcours 03 échoue en local — c'est attendu.
 
 ## Lancer en local
 

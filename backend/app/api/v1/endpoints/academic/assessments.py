@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 
 router = APIRouter()
@@ -38,6 +38,56 @@ def _validate_assessment_fks(db: Session, *, tenant_id: str, subject_id: Optiona
                           {"id": class_id, "tid": tenant_id}).first()
         if not row:
             raise HTTPException(status_code=404, detail="Classe introuvable dans cet établissement")
+
+
+def _teacher_may_grade(db: Session, *, tenant_id: str, user_id: str,
+                       class_id: Optional[str], subject_id: Optional[str]) -> bool:
+    """L'enseignant est affecté à cette classe, et à cette matière si son
+    affectation en précise une (subject_id NULL = toutes les matières)."""
+    if not class_id:
+        return False
+    row = db.execute(text("""
+        SELECT 1 FROM teacher_assignments
+        WHERE tenant_id = :tid AND user_id = :uid AND classroom_id = :cid
+          AND (subject_id IS NULL OR subject_id = :sid)
+        LIMIT 1
+    """), {"tid": tenant_id, "uid": str(user_id), "cid": str(class_id),
+           "sid": str(subject_id) if subject_id else None}).first()
+    return row is not None
+
+
+def _require_assessment_write(db: Session, *, tenant_id: str, user: dict,
+                              targets: List[tuple]) -> None:
+    """Écriture d'évaluation : settings:write (administration), ou un
+    enseignant (grades:write) affecté à la classe — et à la matière — de
+    CHAQUE couple (class_id, subject_id) touché.
+
+    2026-10-12 : seul settings:write passait ; l'écran enseignant
+    « Nouvelle évaluation » répondait donc toujours 403. Trouvé par les
+    parcours E2E (tests/e2e/journeys)."""
+    if user_has_permission(user, "settings:write"):
+        return
+    is_teacher = "TEACHER" in (user.get("roles") or []) and user_has_permission(user, "grades:write")
+    if is_teacher and all(
+        _teacher_may_grade(db, tenant_id=tenant_id, user_id=user.get("id"),
+                           class_id=class_id, subject_id=subject_id)
+        for class_id, subject_id in targets
+    ):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=("Un enseignant ne peut gérer que les évaluations de ses classes et matières."
+                if is_teacher else "Permission refusée: settings:write"),
+    )
+
+
+def _existing_assessment(db: Session, *, tenant_id: str, assessment_id: UUID):
+    row = db.execute(text(
+        "SELECT class_id, subject_id FROM assessments WHERE id = :id AND tenant_id = :tid"
+    ), {"id": str(assessment_id), "tid": tenant_id}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    return row
 
 
 class AssessmentCreate(BaseModel):
@@ -79,7 +129,7 @@ def get_assessments(
         return {"items": []}
 
     query_str = """
-        SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id,
+        SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id, a.class_id,
                a.name, a.assessment_type, a.date, a.max_score, a.weight, a.description,
                a.created_at, a.updated_at,
                s.name as subject_name, s.code as subject_code,
@@ -119,6 +169,10 @@ def get_assessments(
             "subject_id": str(r["subject_id"]) if r["subject_id"] else None,
             "term_id": str(r["term_id"]) if r["term_id"] else None,
             "academic_year_id": str(r["academic_year_id"]) if r.get("academic_year_id") else None,
+            # Le filtre de classe de la saisie des notes (TeacherGradeFilters)
+            # porte sur class_id : absent de la réponse, aucune évaluation ne
+            # s'affichait jamais côté enseignant.
+            "class_id": str(r["class_id"]) if r.get("class_id") else None,
             "name": r["name"],
             "type": r.get("assessment_type"),
             "date": r["date"].isoformat() if r.get("date") and hasattr(r.get("date"), 'isoformat') else str(r.get("date")) if r.get("date") else None,
@@ -138,12 +192,14 @@ def create_assessment(
     request: Request,
     assessment: AssessmentCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(get_current_user),
 ):
     """Create a new assessment."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    _require_assessment_write(db, tenant_id=tenant_id, user=current_user,
+                              targets=[(assessment.class_id, assessment.subject_id)])
     _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=assessment.subject_id,
                               term_id=assessment.term_id, class_id=assessment.class_id)
 
@@ -222,12 +278,16 @@ def delete_assessment(
     request: Request,
     id: UUID,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(get_current_user),
 ):
     """Delete an assessment."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    if not user_has_permission(current_user, "settings:write"):
+        current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
+        _require_assessment_write(db, tenant_id=tenant_id, user=current_user,
+                                  targets=[(current["class_id"], current["subject_id"])])
 
     try:
         query = text("DELETE FROM assessments WHERE id = :id AND tenant_id = :tenant_id")
@@ -250,12 +310,20 @@ def update_assessment(
     id: UUID,
     assessment: AssessmentUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:write")),
+    current_user: dict = Depends(get_current_user),
 ):
     """Update an assessment."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    if not user_has_permission(current_user, "settings:write"):
+        # L'enseignant doit avoir droit sur l'évaluation telle qu'elle est ET
+        # telle qu'elle sera (pas de déplacement vers la classe d'un collègue).
+        current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
+        _require_assessment_write(db, tenant_id=tenant_id, user=current_user, targets=[
+            (current["class_id"], current["subject_id"]),
+            (assessment.class_id or current["class_id"], assessment.subject_id or current["subject_id"]),
+        ])
     _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=assessment.subject_id,
                               term_id=assessment.term_id, class_id=assessment.class_id)
 

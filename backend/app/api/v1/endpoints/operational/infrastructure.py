@@ -1,10 +1,11 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import status as status_codes
 from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.security import get_current_user, require_permission
+from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from fastapi import Query
 from app.crud import academic as crud
@@ -115,6 +116,19 @@ def create_classroom(
         raise HTTPException(status_code=404, detail=str(exc))
 
 # --- Enrollments ---
+def _teacher_assigned_to_class(db: Session, *, tenant_id: str, user: dict, class_id: UUID) -> bool:
+    """True si l'utilisateur est un enseignant affecté à cette classe, dans
+    cet établissement (table teacher_assignments)."""
+    if "TEACHER" not in (user.get("roles") or []):
+        return False
+    row = db.execute(text("""
+        SELECT 1 FROM teacher_assignments
+        WHERE tenant_id = :tid AND user_id = :uid AND classroom_id = :cid
+        LIMIT 1
+    """), {"tid": tenant_id, "uid": str(user.get("id")), "cid": str(class_id)}).first()
+    return row is not None
+
+
 @router.get("/enrollments/", response_model=List[Enrollment])
 def read_enrollments(
     request: Request,
@@ -127,11 +141,26 @@ def read_enrollments(
     # serving the same data) which already requires enrollments:read — any
     # authenticated tenant user could list every student's enrollment
     # (class_id/status) tenant-wide via this path. Gated to match the alias.
-    current_user: dict = Depends(require_permission("enrollments:read")),
+    #
+    # 2026-10-12: that gate also locked TEACHERs out of their own classes
+    # (they hold no enrollments:read), breaking grade entry and attendance.
+    # A teacher may now read the enrollments of a class they are ASSIGNED
+    # to — never tenant-wide, never without class_id. Found by the E2E
+    # journeys (tests/e2e/journeys).
+    current_user: dict = Depends(get_current_user),
 ):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not user_has_permission(current_user, "enrollments:read") and not (
+        class_id is not None
+        and _teacher_assigned_to_class(db, tenant_id=tenant_id, user=current_user, class_id=class_id)
+    ):
+        raise HTTPException(
+            status_code=status_codes.HTTP_403_FORBIDDEN,
+            detail="Permission refusée: enrollments:read",
+        )
     return crud.get_enrollments(
         db,
-        tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
+        tenant_id=tenant_id,
         class_id=class_id,
         status=status,
     )

@@ -214,6 +214,7 @@ Money, MTN MoMo) via le module Paiements de l'ERP. Pas de carte bancaire.
 | 3 | Paramètres (devise GNF, fuseau, logo, contacts) | Admin › Paramètres | `PATCH /tenants/{id}/` |
 | 4 | Campus | Admin › Campus | `/campuses/` |
 | 5 | Année académique + semestres | Admin › Années / Semestres | `/academic-years/`, `/semesters/` |
+| 5 bis | Périodes de notation (une par semestre — les évaluations s'y rattachent) | Admin › Périodes | `/terms/` |
 | 6 | Facultés puis départements | Admin › Facultés / Départements | `/faculties/`, `/departments/` |
 | 7 | Programmes | Admin › Programmes | `/infrastructure/programs/` |
 | 8 | Niveaux (ajouts ING, MED, PHA) | Admin › Niveaux | `/levels/` |
