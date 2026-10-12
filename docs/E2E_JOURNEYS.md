@@ -32,8 +32,11 @@ exige l'envoi réel d'un e-mail d'invitation. Il refuse de tourner sans
 | `01-student-enrollment.spec.ts` | l'admin crée un étudiant par le formulaire, l'affecte à « L1 Économie » |
 | `02-isolation-and-roles.spec.ts` | un autre établissement ne lit ni ne modifie rien ; l'enseignant n'accède pas aux finances (API 403, interface redirigée) |
 | `03-grades-report-card.spec.ts` | l'enseignant affecté à « L1 Économie »/ECO101 crée une évaluation et saisit une note ; l'admin la voit dans les bulletins et télécharge un vrai PDF (WeasyPrint) |
+| `04-fees-invoice-mobile-money.spec.ts` | frais d'inscription → facture → paiement **Mobile Money reçu** (référence Orange Money) → solde en espèces → facture « Payé » ; méthode `MOBILE_MONEY` vérifiée par l'API |
 
-Prévu : facturation et paiement Mobile Money (PR 3).
+Le paiement **en ligne** par passerelle (CinetPay / PayTech) n'est pas joué :
+l'initier appelle l'API réelle du prestataire. Son rapprochement par webhook
+signé est couvert par `backend/tests/test_payment_webhook_events.py`.
 
 Le PDF du bulletin exige WeasyPrint et ses bibliothèques système (installées
 par le job CI, comme dans `backend/Dockerfile`). Sans elles, l'étape PDF du

@@ -14,6 +14,12 @@ vi.mock('@/hooks/useCurrency', () => ({
   useCurrency: () => ({ formatCurrency: (value: number) => `${value} GNF` }),
 }));
 
+// Paramètres financiers de l'établissement (drapeaux non secrets).
+const tenantSettings: Record<string, unknown> = {};
+vi.mock('@/contexts/TenantContext', () => ({
+  useTenant: () => ({ tenant: { id: 't1', settings: tenantSettings } }),
+}));
+
 vi.mock('@/hooks/useStudentLabel', () => ({
   useStudentLabel: () => ({ StudentLabel: 'Étudiant' }),
 }));
@@ -55,9 +61,10 @@ function renderDialog(onSave = vi.fn(), onOpenChange = vi.fn()) {
   return { onSave, onOpenChange };
 }
 
-describe('PaymentDialog Mobile Money', () => {
+describe('PaymentDialog — paiement en ligne (passerelle)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    tenantSettings.enableOnlinePayments = true;
     vi.spyOn(window, 'open').mockImplementation(() => null);
     vi.mocked(apiClient.post).mockResolvedValue({
       data: {
@@ -72,7 +79,7 @@ describe('PaymentDialog Mobile Money', () => {
     const user = userEvent.setup();
     const { onSave, onOpenChange } = renderDialog();
 
-    await user.selectOptions(screen.getByRole('combobox'), 'mobile_money');
+    await user.selectOptions(screen.getByRole('combobox'), 'online');
     await user.click(screen.getByRole('button', { name: 'Enregistrer le paiement' }));
 
     await waitFor(() => {
@@ -100,12 +107,37 @@ describe('PaymentDialog Mobile Money', () => {
     const user = userEvent.setup();
     const { onSave, onOpenChange } = renderDialog();
 
-    await user.selectOptions(screen.getByRole('combobox'), 'mobile_money');
+    await user.selectOptions(screen.getByRole('combobox'), 'online');
     await user.click(screen.getByRole('button', { name: 'Enregistrer le paiement' }));
 
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     expect(onSave).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(window.open).not.toHaveBeenCalled();
+  });
+});
+
+describe('PaymentDialog — Mobile Money reçu', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete tenantSettings.enableOnlinePayments;
+  });
+
+  it('enregistre un transfert Mobile Money déjà reçu, sans passer par la passerelle', async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderDialog();
+
+    await user.selectOptions(screen.getByRole('combobox'), 'mobile_money');
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le paiement' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0][0]).toMatchObject({ invoiceId: invoice.id, method: 'mobile_money', amount: 50000 });
+    expect(apiClient.post).not.toHaveBeenCalled();
+  });
+
+  it('ne propose « Payer en ligne » que si le paiement en ligne est activé', () => {
+    renderDialog();
+    expect(screen.queryByRole('option', { name: /Payer en ligne/ })).toBeNull();
+    expect(screen.getByRole('option', { name: 'Mobile Money (reçu)' })).toBeTruthy();
   });
 });
