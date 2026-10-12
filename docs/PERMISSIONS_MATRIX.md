@@ -834,11 +834,8 @@ enseignant**, pour deux gardes trop larges posées en 2026-09.
 | `POST /assessments/` | `settings:write` (bouton « Nouvelle évaluation » enseignant → 403) | `settings:write`, **ou** TEACHER avec `grades:write` affecté à la classe — et à la matière si l'affectation en précise une |
 | `PUT` / `DELETE /assessments/{id}/` | `settings:write` | idem ; pour `PUT`, droit requis sur l'évaluation actuelle **et** sur sa destination (pas de déplacement vers la classe d'un collègue) |
 
-- Source du rattachement : table `teacher_assignments` (affectations
-  administrées via `POST /teachers/`), celle dont l'écran de saisie des notes
-  tire déjà la liste des classes de l'enseignant. **Écart connu** : le
-  périmètre présences (section du 2026-09-27) s'appuie sur la table
-  `schedule`. À unifier dans un balayage dédié.
+- Source du rattachement : voir la section suivante (règle unifiée
+  affectation OU emploi du temps, 2026-10-12).
 - `ROLE_PERMISSIONS` inchangé (aucune permission globale ajoutée au rôle
   TEACHER), donc `src/lib/permissions.ts` inchangé.
 - Tests : `backend/tests/test_enrollments_teacher_scope.py` (6) et
@@ -849,3 +846,27 @@ enseignant**, pour deux gardes trop larges posées en 2026-09.
 - Corrigé au passage : `GET /assessments/` ne renvoyait pas `class_id`,
   champ sur lequel la saisie des notes filtre — aucune évaluation ne
   s'affichait jamais (`tests/test_assessment_business_rules.py`).
+
+## Périmètre TEACHER unifié : affectation OU emploi du temps (2026-10-12)
+
+Une seule règle, `app/core/teacher_scope.py::teacher_teaches_class` : un
+enseignant **enseigne une classe** s'il y est affecté (`teacher_assignments`)
+**ou** s'il y a un créneau (`schedule`). Quand la matière compte
+(évaluations), la ligne doit porter sur cette matière ou n'en préciser
+aucune. Rôles privilégiés (SUPER_ADMIN, TENANT_ADMIN, DIRECTOR,
+DEPARTMENT_HEAD, SECRETARY, STAFF) jamais restreints.
+
+| Endpoint | Avant | Après |
+|---|---|---|
+| `POST /attendance/`, `POST /attendance/bulk/` | **aucune vérification de classe** (un enseignant pointait n'importe quelle classe) | enseignant limité à ses classes (403 sinon) |
+| `PATCH` / `DELETE /attendance/{id}/`, `PUT /school-life/attendance/{id}/` | emploi du temps seul (affecté mais non planifié → 403 pour corriger sa propre saisie) | affectation OU emploi du temps |
+| `GET /infrastructure/enrollments/`, écriture `/assessments/` (#305) | affectation seule | affectation OU emploi du temps |
+
+Inchangé : enregistrement sans `classroom_id` (données anciennes) toujours
+permissif en modification ; `ROLE_PERMISSIONS` et `permissions.ts` inchangés.
+
+Tests : `backend/tests/test_teacher_scope_unified.py` (9 ; 5 échouent sans le
+correctif, 4 témoins passent dans les deux cas) ; suites
+`test_teacher_attendance_scope_2026_09_27.py`,
+`test_enrollments_teacher_scope.py`, `test_assessments_teacher_scope.py`
+inchangées et vertes.

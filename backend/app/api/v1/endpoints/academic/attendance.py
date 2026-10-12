@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
 
 router = APIRouter()
 
@@ -85,17 +86,15 @@ def _teacher_may_modify(db: Session, *, current_user: dict, tenant_id: str, clas
     (non-privileged) TEACHER. A record with no classroom_id predates this
     check or was entered without one — permissive fallback since ownership
     can't be determined, matching prior behavior for that case."""
-    roles = set(current_user.get("roles", []))
-    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR",
-                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
-    if privileged or "TEACHER" not in roles:
+    # 2026-10-12 : affectation OU emploi du temps (app/core/teacher_scope.py) —
+    # avant, l'emploi du temps seul : un enseignant affecté mais non planifié
+    # saisissait une présence puis ne pouvait plus la corriger.
+    if not is_scoped_teacher(current_user):
         return True
     if not classroom_id:
         return True
-    row = db.execute(text(
-        "SELECT 1 FROM schedule WHERE tenant_id = :tid AND class_id = :cid AND teacher_id = :uid"
-    ), {"tid": tenant_id, "cid": classroom_id, "uid": current_user.get("id")}).first()
-    return row is not None
+    return teacher_teaches_class(db, tenant_id=tenant_id, user_id=current_user.get("id"),
+                                 class_id=classroom_id)
 
 
 def _validate_attendance_fks(db: Session, *, tenant_id: str, student_id: str,
@@ -305,6 +304,11 @@ def create_attendance(
         db, tenant_id=tenant_id, student_id=record.student_id,
         subject_id=record.subject_id, classroom_id=record.classroom_id,
     )
+    # 2026-10-12 : la création ne vérifiait aucune classe — un enseignant
+    # pouvait pointer n'importe quelle classe de l'établissement.
+    if not _teacher_may_modify(db, current_user=current_user, tenant_id=tenant_id,
+                               classroom_id=str(record.classroom_id) if record.classroom_id else None):
+        raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
 
     idem_key = request.headers.get("x-idempotency-key")
     request_body = record.model_dump(mode="json")
@@ -389,6 +393,9 @@ def create_attendance_bulk(
             db, tenant_id=tenant_id, student_id=record.student_id,
             subject_id=record.subject_id, classroom_id=record.classroom_id,
         )
+        if not _teacher_may_modify(db, current_user=current_user, tenant_id=tenant_id,
+                                   classroom_id=str(record.classroom_id) if record.classroom_id else None):
+            raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
         existing = db.execute(text("""
             SELECT id FROM attendance
             WHERE tenant_id = :tenant_id AND student_id = :student_id AND date = :date

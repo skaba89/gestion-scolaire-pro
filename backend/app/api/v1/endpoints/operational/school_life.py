@@ -30,6 +30,7 @@ from app.schemas.school_life import (
 )
 from app.crud import school_life as crud_sl
 from app.utils.audit import log_audit
+from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -254,17 +255,15 @@ def _teacher_may_modify(db: Session, *, current_user: dict, tenant_id: str, clas
     academic/attendance.py's helper of the same name — see there for the
     full rationale. Duplicated per-file per this codebase's existing
     convention (e.g. _allowed_student_ids_for_caller above)."""
-    roles = set(current_user.get("roles", []))
-    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR",
-                          "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
-    if privileged or "TEACHER" not in roles:
+    # 2026-10-12 : affectation OU emploi du temps (app/core/teacher_scope.py) —
+    # avant, l'emploi du temps seul : un enseignant affecté mais non planifié
+    # saisissait une présence puis ne pouvait plus la corriger.
+    if not is_scoped_teacher(current_user):
         return True
     if not classroom_id:
         return True
-    row = db.execute(text(
-        "SELECT 1 FROM schedule WHERE tenant_id = :tid AND class_id = :cid AND teacher_id = :uid"
-    ), {"tid": tenant_id, "cid": classroom_id, "uid": current_user.get("id")}).first()
-    return row is not None
+    return teacher_teaches_class(db, tenant_id=tenant_id, user_id=current_user.get("id"),
+                                 class_id=classroom_id)
 
 
 @router.get("/attendance/", response_model=List[Attendance])
