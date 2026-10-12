@@ -235,8 +235,9 @@ export const EnrollmentManager = () => {
                             key={student.id}
                             style={{
                               position: 'absolute',
-                              top: 0,
-                              transform: `translateY(${virtualRow.start}px)`,
+                              // `top` et non `transform` : StaggerItem (framer-motion) anime `y`
+                              // et écrasait le translateY — toutes les lignes s'empilaient en haut.
+                              top: virtualRow.start,
                               width: '100%',
                               height: `${virtualRow.size}px`
                             }}
@@ -248,6 +249,10 @@ export const EnrollmentManager = () => {
                               <Checkbox
                                 checked={selectedStudents.includes(student.id)}
                                 onCheckedChange={() => toggleStudentSelection(student.id)}
+                                // Sans stopPropagation, le clic sur la case
+                                // remontait au onClick de la ligne : double
+                                // bascule, la case ne se cochait jamais.
+                                onClick={(e) => e.stopPropagation()}
                               />
                               <span className="flex-1 text-sm truncate">
                                 {student.last_name} {student.first_name}
@@ -317,8 +322,9 @@ export const EnrollmentManager = () => {
                               key={enrollment.id}
                               style={{
                                 position: 'absolute',
-                                top: 0,
-                                transform: `translateY(${virtualRow.start}px)`,
+                                // `top` et non `transform` : StaggerItem (framer-motion) anime `y`
+                                // et écrasait le translateY — toutes les lignes s'empilaient en haut.
+                                top: virtualRow.start,
                                 width: '100%',
                                 height: `${virtualRow.size}px`
                               }}

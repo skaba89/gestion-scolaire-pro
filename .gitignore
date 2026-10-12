@@ -152,3 +152,7 @@ load-tests/tenants.*.json
 !load-tests/tenants.sample.json
 !load-tests/tenants.10.json
 !load-tests/tenants.50.json
+
+# Parcours E2E (playwright.journeys.config.ts)
+playwright-report-journeys/
+e2e-logs/
