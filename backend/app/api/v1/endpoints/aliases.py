@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.parent_scope import parent_student_filter
 from app.core.tenant_resolution import resolve_current_tenant_id
 
 
@@ -113,7 +114,11 @@ def list_invoices_alias(
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
-    filters = ""
+    # Un PARENT (payments:read) ne voit que les factures de SES enfants —
+    # cet alias renvoyait celles de toutes les familles (2026-10-13).
+    filters, scope_params = parent_student_filter(db, tenant_id=tenant_id, user=current_user,
+                                                  column="i.student_id", requested_student_id=student_id)
+    params.update(scope_params)
     if student_id:
         filters += " AND i.student_id = :student_id"
         params["student_id"] = student_id

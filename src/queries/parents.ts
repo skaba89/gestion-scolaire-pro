@@ -1,4 +1,6 @@
 import { apiClient } from "@/api/client";
+import { toList } from "@/lib/api-list";
+import type { ParentInvoice } from "@/features/parents/services/parentsService";
 
 export const parentQueries = {
     children: (parentId: string) => ({
@@ -22,12 +24,14 @@ export const parentQueries = {
             if (!studentIds.length) return [];
             // Assuming the backend supports multiple student_ids or we fetch per student
             // For now, let's assume filtering by student_id list or repeated calls
-            const response = await apiClient.get<any[]>("/payments/invoices/", {
-                params: { status: "PENDING" } // Or filter logic
+            const response = await apiClient.get<unknown>("/payments/invoices/", {
+                params: { status: "PENDING", page_size: 100 }
             });
             // Filter by studentIds on client side for now if backend doesn't support .in_
-            const invoices = response.data.invoices || response.data || [];
-            return invoices.filter(inv => studentIds.includes(inv.student_id));
+            // Réponse paginée { items } : `response.data.invoices || response.data`
+            // renvoyait l'objet, et .filter plantait.
+            const invoices = toList<ParentInvoice>(response.data);
+            return invoices.filter(inv => inv.student_id && studentIds.includes(inv.student_id));
         },
         enabled: studentIds.length > 0,
     }),
@@ -36,16 +40,16 @@ export const parentQueries = {
         queryFn: async () => {
             if (!parentId || studentIds.length === 0) return [];
 
-            const params: any = {};
+            const params: Record<string, string | number> = { page_size: 100 };
             if (selectedStudentId !== "all") {
                 params.student_id = selectedStudentId;
             }
 
-            const response = await apiClient.get<any[]>("/payments/invoices/", { params });
+            const response = await apiClient.get<unknown>("/payments/invoices/", { params });
             // If selectedStudentId is 'all', we might need to filter by studentIds on client side
-            const invoices = response.data.invoices || response.data || [];
+            const invoices = toList<ParentInvoice>(response.data);
             if (selectedStudentId === "all") {
-                return invoices.filter(inv => studentIds.includes(inv.student_id));
+                return invoices.filter(inv => inv.student_id && studentIds.includes(inv.student_id));
             }
             return invoices;
         },

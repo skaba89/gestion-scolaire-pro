@@ -9,6 +9,7 @@ import math
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.parent_scope import parent_student_filter
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
@@ -89,7 +90,11 @@ def list_payment_schedules(
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
-    extra_where = ""
+    # Un PARENT ne voit que les échéanciers des factures de SES enfants —
+    # la liste renvoyait ceux de toutes les familles (2026-10-13).
+    extra_where, scope_params = parent_student_filter(db, tenant_id=tenant_id, user=current_user,
+                                                      column="i.student_id", requested_student_id=student_id)
+    params.update(scope_params)
     if invoice_id:
         extra_where += " AND ps.invoice_id = :invoice_id"
         params["invoice_id"] = invoice_id
