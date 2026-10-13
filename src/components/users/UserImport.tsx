@@ -134,14 +134,12 @@ export const UserImport = ({ onImportComplete }: UserImportProps) => {
       const user = updatedUsers[i];
 
       try {
-        const { error } = await apiClient.post('/users/', {
+        await apiClient.post('/users/', {
           email: user.email,
           first_name: user.firstName,
           last_name: user.lastName,
           roles: [user.role],
         });
-
-        if (error) throw error;
 
         updatedUsers[i] = { ...user, status: "success" };
         successCount++;

@@ -130,15 +130,13 @@ export function PendingUsersList() {
 
         setIsCreatingParent(true);
         try {
-            const { error } = await apiClient.post('/parents/', {
+            await apiClient.post('/parents/', {
                 first_name: newParent.firstName,
                 last_name: newParent.lastName,
                 email: newParent.email,
                 phone: newParent.phone || null,
                 tenant_id: tenant.id
             });
-
-            if (error) throw error;
 
             toast({
                 title: "Parent ajouté",

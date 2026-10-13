@@ -110,9 +110,9 @@ const TenantAuthPage = () => {
   const { data: tenantData, isLoading: tenantLoading } = usePublicTenant(tenantSlug);
 
   // Branding data
-  const primaryColor = tenantData?.landing?.primary_color || tenantData?.settings?.primary_color || "#1e3a5f";
-  const secondaryColor = tenantData?.landing?.secondary_color || tenantData?.settings?.secondary_color || "#64748b";
-  const rawLogoUrl = tenantData?.landing?.logo_url || tenantData?.settings?.logo_url || null;
+  const primaryColor = tenantData?.landing?.primary_color || "#1e3a5f";
+  const secondaryColor = tenantData?.landing?.secondary_color || "#64748b";
+  const rawLogoUrl = tenantData?.landing?.logo_url || null;
   const logoUrl = rawLogoUrl ? resolveUploadUrl(rawLogoUrl) : null;
   const bannerUrl = resolveUploadUrl(tenantData?.landing?.banner_url || null);
   const tenantName = tenantData?.name || "";
@@ -328,10 +328,10 @@ const TenantAuthPage = () => {
                 <span>{accreditation}</span>
               </div>
             )}
-            {stats?.students_count > 0 && (
+            {(stats?.student_count ?? 0) > 0 && (
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-2 rounded-lg">
                 <Users className="w-4 h-4" />
-                <span>{stats.students_count} étudiants</span>
+                <span>{stats.student_count} étudiants</span>
               </div>
             )}
           </div>

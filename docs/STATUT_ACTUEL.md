@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-12 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-13 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -346,6 +346,16 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   date d'émission) ; bouton de note sans libellé accessible. Reste : renvoi
   d'un admin vers son propre établissement quand il ouvre l'URL d'un autre
   (aucune donnée exposée, API 403/404).
+- **2026-10-13 — dette TypeScript, lot 1 (vrais bugs)** : sur 230 erreurs
+  `tsc`, celles qui cachaient un bug visible sont corrigées (230 → 214,
+  `ts-baseline.json` abaissé). Régénérer les codes de secours MFA invalidait
+  les anciens sans jamais afficher les nouveaux (« Afficher les codes »
+  plantait) ; l'import CSV d'élèves côté navigateur s'arrêtait à la première
+  ligne refusée sans enregistrer la séquence de matricules ; le nombre
+  d'étudiants de la page de connexion et la carte « En cours » des alumni
+  lisaient un champ inexistant ; une redirection sans rôle n'utilisait pas
+  `replace`. Restent surtout des paramètres non typés (TS7006) et du code
+  mort (`features/*/…List`, 4 pages masquées en #303).
 
 ## Documents à considérer avec prudence
 

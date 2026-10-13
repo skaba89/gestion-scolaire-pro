@@ -23,8 +23,6 @@ export const useExportData = () => {
                 user: {
                     id: user.id,
                     email: user.email,
-                    created_at: user.created_at,
-                    last_sign_in: user.last_sign_in_at,
                     app_roles: roles,
                 },
                 profile: profile,

@@ -116,7 +116,7 @@ export default function AlumniDashboard() {
                 {loadingRequests ? (
                   <Skeleton className="h-7 w-12" />
                 ) : (
-                  <p className="text-2xl font-bold">{requestsStats?.inProgress || 0}</p>
+                  <p className="text-2xl font-bold">{requestsStats?.in_progress || 0}</p>
                 )}
               </div>
             </div>

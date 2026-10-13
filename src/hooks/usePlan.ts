@@ -28,12 +28,12 @@ const PLAN_WEIGHT: Record<string, number> = {
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
 export function usePlan() {
-  const { isAuthenticated } = useAuth();
+  const { user } = useAuth();
 
   const { data, isLoading, error } = useQuery<SubscriptionInfo>({
     queryKey: ["billing-subscription"],
     queryFn: () => apiClient.get("/billing/subscription/").then((r) => r.data),
-    enabled: isAuthenticated,
+    enabled: !!user,
     staleTime: 5 * 60 * 1000,   // 5 min cache
     gcTime: 10 * 60 * 1000,
     retry: 1,
