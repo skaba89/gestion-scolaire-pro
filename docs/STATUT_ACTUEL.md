@@ -356,6 +356,9 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   lisaient un champ inexistant ; une redirection sans rôle n'utilisait pas
   `replace`. Restent surtout des paramètres non typés (TS7006) et du code
   mort (`features/*/…List`, 4 pages masquées en #303).
+  Lot 2 : cartes, listes et formulaire de `features/{grades,students,attendance}`
+  supprimés (aucun écran ne les affichait ; hooks, services et types gardés) :
+  214 → 192. Les 4 pages masquées sont conservées en attendant leur backend.
 
 ## Documents à considérer avec prudence
 
