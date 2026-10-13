@@ -107,7 +107,7 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
   // Mutation to link DATA parent (Contact Info)
   const linkDataParentMutation = useMutation({
     mutationFn: async (parentId: string) => {
-      const { error } = await apiClient.post('/student-parents/', {
+      await apiClient.post('/student-parents/', {
         tenant_id: tenantId,
         student_id: studentId,
         parent_id: parentId,

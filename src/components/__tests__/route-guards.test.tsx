@@ -131,6 +131,42 @@ describe("ProtectedRoute", () => {
     });
   });
 
+  it("replaces the history entry when a signed-in user has no role", async () => {
+    // L'option replace était passée en 3e argument de navigate() et ignorée :
+    // « Retour » ramenait sur la page qui redirige aussitôt.
+    mockUseAuth.mockReturnValue({
+      user: { id: "user-1" },
+      isLoading: false,
+      roles: [],
+      hasRole: () => false,
+      mustChangePassword: false,
+      tenant: { id: "tenant-1", slug: "lasource" },
+      isMfaVerified: true,
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/lasource/admin"]}>
+        <Routes>
+          <Route
+            path="/:tenantSlug/admin"
+            element={
+              <ProtectedRoute allowedRoles={["TENANT_ADMIN"]}>
+                <div>Admin dashboard</div>
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith("/lasource/auth", {
+        state: { from: "/lasource/admin" },
+        replace: true,
+      });
+    });
+  });
+
   it("renders the MFA challenge when verification is missing", () => {
     mockUseAuth.mockReturnValue({
       user: { id: "user-1" },

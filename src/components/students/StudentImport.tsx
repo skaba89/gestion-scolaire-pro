@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import { apiErrorDetail } from "@/lib/api-error";
 import { useTenant } from "@/contexts/TenantContext";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { getMatriculeConfig } from "@/lib/matricule";
@@ -230,12 +231,14 @@ export const StudentImport = () => {
           registration_number: registrationNumber,
         };
 
-        const { error } = await apiClient.post('/students/', insertData);
-
-        if (error) {
-          results.errors.push(`Ligne ${i + 2}: ${error.response?.data?.detail || error.message}`);
-        } else {
+        // apiClient lève une exception sur erreur : sans ce try, la première
+        // ligne refusée (doublon, e-mail invalide…) interrompait tout l'import
+        // et la séquence de matricules n'était pas enregistrée.
+        try {
+          await apiClient.post('/students/', insertData);
           results.success++;
+        } catch (error) {
+          results.errors.push(`Ligne ${i + 2}: ${apiErrorDetail(error)}`);
         }
       }
 

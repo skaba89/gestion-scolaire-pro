@@ -91,7 +91,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
         const tenantMatch = location.pathname.match(/^\/([^/]+)\/.+/);
         const authPath = tenantMatch ? `/${tenantMatch[1]}/auth` : "/auth";
         navigationRef.current = navigationKey;
-        navigate(authPath, { state: { from: `${location.pathname}${location.search}${location.hash}` } }, { replace: true });
+        navigate(authPath, { state: { from: `${location.pathname}${location.search}${location.hash}` }, replace: true });
         return;
       }
       const hasAllowedRole = allowedRoles.some((role) => hasRole(role));

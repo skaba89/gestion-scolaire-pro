@@ -63,6 +63,22 @@ export const SecuritySettings: React.FC = () => {
         }
     };
 
+    // Régénérer invalide les anciens codes : les nouveaux doivent être
+    // affichés. Avant, « Régénérer » ne les montrait pas et « Afficher les
+    // codes de secours » plantait (`mutate()` ne renvoie rien) — l'utilisateur
+    // se retrouvait sans aucun code valide connu.
+    const handleRegenerateBackupCodes = async () => {
+        if (!confirm("Générer de nouveaux codes ? Les anciens ne fonctionneront plus.")) return;
+        try {
+            const res = await generateBackupCodes.mutateAsync();
+            setLastGeneratedCodes(res.codes);
+            setShowBackupCodes(true);
+        } catch (error) {
+            // useGenerateBackupCodes n'affiche rien en cas d'échec.
+            toast.error("Impossible de générer les codes de secours");
+        }
+    };
+
     const handleConfirmDisableMFA = async () => {
         try {
             await toggleMfa.mutateAsync({ enabled: false, currentPassword: disablePassword });
@@ -160,7 +176,7 @@ export const SecuritySettings: React.FC = () => {
                                         <Button 
                                             variant="outline" 
                                             size="sm" 
-                                            onClick={() => generateBackupCodes.mutate()}
+                                            onClick={handleRegenerateBackupCodes}
                                             disabled={generateBackupCodes.isPending}
                                         >
                                             <RefreshCw className={`w-3 h-3 mr-2 ${generateBackupCodes.isPending ? 'animate-spin' : ''}`} />
@@ -201,14 +217,7 @@ export const SecuritySettings: React.FC = () => {
                                             </Alert>
                                         </div>
                                     ) : (
-                                        <Button variant="link" className="px-0" onClick={() => {
-                                            if (confirm("Générer de nouveaux codes ? Les anciens ne fonctionneront plus.")) {
-                                                generateBackupCodes.mutate().then(res => {
-                                                    setLastGeneratedCodes(res.codes);
-                                                    setShowBackupCodes(true);
-                                                });
-                                            }
-                                        }}>
+                                        <Button variant="link" className="px-0" onClick={handleRegenerateBackupCodes}>
                                             Afficher les codes de secours
                                         </Button>
                                     )}
