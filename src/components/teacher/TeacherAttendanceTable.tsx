@@ -75,6 +75,9 @@ export const TeacherAttendanceTable = ({
                                                 return (
                                                     <Button
                                                         key={status}
+                                                        // Boutons-icônes : libellé pour les lecteurs d'écran.
+                                                        aria-label={config.label}
+                                                        aria-pressed={isActive}
                                                         size="sm"
                                                         variant={isActive ? "default" : "outline"}
                                                         className={cn(

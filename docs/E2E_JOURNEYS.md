@@ -33,6 +33,7 @@ exige l'envoi réel d'un e-mail d'invitation. Il refuse de tourner sans
 | `02-isolation-and-roles.spec.ts` | un autre établissement ne lit ni ne modifie rien ; l'enseignant n'accède pas aux finances (API 403, interface redirigée) |
 | `03-grades-report-card.spec.ts` | l'enseignant affecté à « L1 Économie »/ECO101 crée une évaluation et saisit une note ; l'admin la voit dans les bulletins et télécharge un vrai PDF (WeasyPrint) |
 | `04-fees-invoice-mobile-money.spec.ts` | frais d'inscription → facture → paiement **Mobile Money reçu** (référence Orange Money) → solde en espèces → facture « Payé » ; méthode `MOBILE_MONEY` vérifiée par l'API |
+| `05-teacher-attendance.spec.ts` | l'enseignant pointe un absent puis corrige en présent (boutons accessibles « Absent » / « Présent ») ; l'API ne garde qu'une présence, au statut corrigé |
 
 Le paiement **en ligne** par passerelle (CinetPay / PayTech) n'est pas joué :
 l'initier appelle l'API réelle du prestataire. Son rapprochement par webhook

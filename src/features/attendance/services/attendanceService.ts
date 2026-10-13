@@ -5,6 +5,23 @@
 
 import { apiClient } from "@/api/client";
 import type { AttendanceRecord, AttendanceFormData, AttendanceFilters, AttendanceStats } from "../types/attendance";
+import { toList } from "@/lib/api-list";
+
+
+/**
+ * Format attendu par l'API (AttendanceCreate) : `classroom_id` et `reason`.
+ * Les écrans envoyaient `class_id` et `notes`, ignorés par l'API — la
+ * présence était enregistrée sans classe, donc hors du périmètre enseignant.
+ */
+function toApiRecord(data: AttendanceFormData) {
+  return {
+    student_id: data.student_id,
+    date: data.date,
+    status: data.status,
+    reason: data.notes ?? undefined,
+    classroom_id: data.class_id ?? undefined,
+  };
+}
 
 export interface SessionCheckIn {
   id: string;
@@ -59,11 +76,8 @@ export const attendanceService = {
     };
   },
 
-  async createAttendance(tenantId: string, data: AttendanceFormData) {
-    const { data: result } = await apiClient.post("/attendance/", {
-      ...data,
-      tenant_id: tenantId,
-    });
+  async createAttendance(_tenantId: string, data: AttendanceFormData) {
+    const { data: result } = await apiClient.post("/attendance/", toApiRecord(data));
     return result as unknown as AttendanceRecord;
   },
 
@@ -84,17 +98,37 @@ export const attendanceService = {
    * Upsert attendance record (Create or Update based on student + date + class)
    * Used by Teacher View for quick toggling
    */
-  async upsertAttendance(tenantId: string, data: AttendanceFormData) {
-    const { data: result } = await apiClient.post("/attendance/upsert/", {
-      ...data,
-      tenant_id: tenantId,
+  async upsertAttendance(_tenantId: string, data: AttendanceFormData) {
+    // Il n'existe pas de route /attendance/upsert/ (l'API répondait 405 :
+    // le pointage enseignant échouait à chaque clic). Mise à jour de la
+    // présence existante de l'étudiant pour ce jour et cette classe, sinon
+    // création — deux routes existantes, soumises au périmètre enseignant.
+    const record = toApiRecord(data);
+    const { data: found } = await apiClient.get("/attendance/", {
+      params: {
+        student_id: record.student_id,
+        classroom_id: record.classroom_id,
+        date_from: record.date,
+        date_to: record.date,
+      },
     });
-    return result as unknown as AttendanceRecord;
+    const existing = toList<AttendanceRecord>(found).find(
+      (a) => a.student_id === record.student_id && String(a.date).slice(0, 10) === record.date,
+    );
+    if (existing) {
+      const { data: updated } = await apiClient.patch(`/attendance/${existing.id}/`, {
+        status: record.status,
+        reason: record.reason,
+      });
+      return updated as unknown as AttendanceRecord;
+    }
+    const { data: created } = await apiClient.post("/attendance/", record);
+    return created as unknown as AttendanceRecord;
   },
 
-  async bulkCreateAttendance(tenantId: string, records: AttendanceFormData[]) {
+  async bulkCreateAttendance(_tenantId: string, records: AttendanceFormData[]) {
     const { data } = await apiClient.post("/attendance/bulk/", {
-      records: records.map(r => ({ ...r, tenant_id: tenantId })),
+      records: records.map(toApiRecord),
     });
     return (data || []) as unknown as AttendanceRecord[];
   },
