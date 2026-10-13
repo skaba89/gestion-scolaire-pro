@@ -870,3 +870,24 @@ correctif, 4 témoins passent dans les deux cas) ; suites
 `test_teacher_attendance_scope_2026_09_27.py`,
 `test_enrollments_teacher_scope.py`, `test_assessments_teacher_scope.py`
 inchangées et vertes.
+
+## Périmètre PARENT sur les listes financières (2026-10-13)
+
+Le rôle PARENT détient `payments:read` pour consulter les factures et
+paiements de SES enfants. Seuls `GET /payments/invoices/` et les routes par
+identifiant (reçu, échéancier) appliquaient cette règle ; quatre listes
+renvoyaient les données de **toutes les familles de l'établissement** :
+
+| Route | Données exposées |
+|---|---|
+| `GET /invoices/` (alias) | factures + nom, matricule, téléphone de l'élève |
+| `GET /payments/payments/` | paiements |
+| `GET /payments/export/` | export CSV des paiements |
+| `GET /payment-schedules/` | échéanciers (montants, échéances, statut) |
+
+Correctif : `app/core/parent_scope.py::parent_student_filter`, appliqué aux
+cinq listes (dont `/payments/invoices/`, qui reprend la même règle). Un parent
+non privilégié (sans rôle de `FINANCE_PRIVILEGED_ROLES`) ne voit que ses
+enfants ; `student_id` d'une autre famille → 403 ; sans enfant lié → liste
+vide. Aucun autre rôle non privilégié ne détient `payments:read`.
+Tests : `backend/tests/test_parent_finance_scope.py` (26 cas).
