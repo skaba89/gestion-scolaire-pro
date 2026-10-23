@@ -43,6 +43,20 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     to_encode.update({"iss": "schoolflow-pro", "aud": "schoolflow-api"})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
+# Claims marking a pre-session token: it proves the password only and is
+# accepted exclusively by its own MFA endpoint — never as a bearer token,
+# a refresh token or a WebSocket credential.
+#   mfa_pending → POST /mfa/login/verify/ (account with MFA enabled)
+#   mfa_setup   → POST /mfa/setup/enroll|verify/ (privileged account without
+#                 MFA while ENFORCE_MFA=true: forced enrollment at login)
+RESTRICTED_TOKEN_CLAIMS = ("mfa_pending", "mfa_setup")
+
+
+def is_restricted_token(payload: dict) -> bool:
+    """True for a pre-session token (see RESTRICTED_TOKEN_CLAIMS)."""
+    return any(payload.get(claim) for claim in RESTRICTED_TOKEN_CLAIMS)
+
+
 def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
     """Decode and validate a JWT access token (with expiry check)."""
     credentials_exception = HTTPException(
@@ -75,8 +89,9 @@ def verify_token(token: str = Depends(oauth2_scheme)) -> dict:
     # alone. Without this check, anyone holding a mfa_pending token (e.g.
     # captured from the login response before a code is ever entered) could
     # use it directly as a full bearer token, skipping the second factor
-    # entirely — the exact bypass this whole gate exists to close.
-    if payload.get("mfa_pending"):
+    # entirely — the exact bypass this whole gate exists to close. Same for
+    # a mfa_setup token (forced enrollment, see RESTRICTED_TOKEN_CLAIMS).
+    if is_restricted_token(payload):
         raise credentials_exception
 
     return payload
@@ -110,7 +125,7 @@ def verify_token_raw(token: str) -> dict:
     # exchange a mfa_pending token — which only proves password correctness,
     # not a completed second factor — for a full, real access token, the
     # same bypass closed on verify_token() above.
-    if payload.get("mfa_pending"):
+    if is_restricted_token(payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or malformed token",
