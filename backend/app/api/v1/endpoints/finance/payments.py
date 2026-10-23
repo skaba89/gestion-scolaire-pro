@@ -19,6 +19,7 @@ from app.core.client_ip import get_client_ip
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.parent_scope import parent_student_filter
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.services.payment_gateways import CinetPayGateway, get_gateway
@@ -131,9 +132,12 @@ def list_payments(
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
-    extra = ""
+    # Un PARENT ne voit que les paiements de SES enfants.
+    extra, scope_params = parent_student_filter(db, tenant_id=tenant_id, user=current_user,
+                                                column="p.student_id", requested_student_id=student_id)
+    params.update(scope_params)
     if student_id:
-        extra = " AND p.student_id = :student_id"
+        extra += " AND p.student_id = :student_id"
         params["student_id"] = student_id
 
     sql = text(f"""
@@ -189,7 +193,10 @@ def export_payments_csv(
     """
     tenant_id = _get_tenant_id(request, current_user, db)
     params: dict = {"tenant_id": tenant_id}
-    extra = ""
+    # Un PARENT n'exporte que les paiements de SES enfants.
+    extra, scope_params = parent_student_filter(db, tenant_id=tenant_id, user=current_user,
+                                                column="p.student_id", requested_student_id=student_id)
+    params.update(scope_params)
     if student_id:
         extra += " AND p.student_id = :student_id"
         params["student_id"] = student_id
@@ -501,21 +508,10 @@ def list_invoices(
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
 
-    filters = ""
-
     # ── Règle métier : un PARENT ne voit que les factures de SES enfants ──
-    roles = set(current_user.get("roles", []))
-    privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "ACCOUNTANT",
-                          "SECRETARY", "STAFF"}
-    if "PARENT" in roles and not privileged:
-        child_rows = db.execute(text(
-            "SELECT student_id FROM parent_students WHERE tenant_id = :tid AND parent_id = :uid"
-        ), {"tid": tenant_id, "uid": current_user.get("id")}).fetchall()
-        child_ids = [str(r[0]) for r in child_rows]
-        if not child_ids:
-            return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 0}
-        filters += " AND i.student_id = ANY(:parent_children)"
-        params["parent_children"] = child_ids
+    filters, scope_params = parent_student_filter(db, tenant_id=tenant_id, user=current_user,
+                                                  column="i.student_id", requested_student_id=student_id)
+    params.update(scope_params)
 
     if student_id:
         filters += " AND i.student_id = :student_id"

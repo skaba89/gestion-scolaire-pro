@@ -359,6 +359,14 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   Lot 2 : cartes, listes et formulaire de `features/{grades,students,attendance}`
   supprimés (aucun écran ne les affichait ; hooks, services et types gardés) :
   214 → 192. Les 4 pages masquées sont conservées en attendant leur backend.
+- **2026-10-13 — SÉCURITÉ : périmètre PARENT sur les listes financières.**
+  Un parent connecté pouvait lister les factures (alias `/invoices/`), les
+  paiements, l'export CSV et les échéanciers de toutes les familles de son
+  établissement (pas d'un autre établissement). Corrigé et testé (voir
+  `docs/PERMISSIONS_MATRIX.md`) ; la page Factures du parent utilise
+  désormais `/payments/invoices/` (le choix « Tous » plusieurs enfants ne
+  fonctionnait pas). Exploitation éventuelle non vérifiée (journaux de
+  production non consultés).
 
 ## Documents à considérer avec prudence
 

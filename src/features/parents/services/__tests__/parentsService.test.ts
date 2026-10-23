@@ -53,27 +53,40 @@ describe("parentsService", () => {
       expect(mocks.get).not.toHaveBeenCalled();
     });
 
-    it("fetches invoices for all selected students", async () => {
-      const invoices = [{ id: "inv-1", amount: 100 }];
-      mocks.get.mockResolvedValue({ data: invoices });
+    it("lets the server scope « Tous » to the parent's children (no student_id)", async () => {
+      // Avant : student_id=s1,s2 vers l'alias /invoices/ (identifiant
+      // invalide, et l'alias ne filtrait pas par famille).
+      const invoices = [{ id: "inv-1", status: "PENDING" }];
+      mocks.get.mockResolvedValue({ data: { items: invoices, total: 1 } });
 
       const result = await parentsService.getInvoices(["s1", "s2"]);
 
       expect(result).toEqual(invoices);
-      expect(mocks.get).toHaveBeenCalledWith("/invoices/", {
-        params: { student_id: "s1,s2" },
+      expect(mocks.get).toHaveBeenCalledWith("/payments/invoices/", {
+        params: { page_size: 100 },
       });
     });
 
     it("filters invoices for one selected student", async () => {
-      mocks.get.mockResolvedValue({ data: [] });
+      mocks.get.mockResolvedValue({ data: { items: [] } });
 
       const result = await parentsService.getInvoices(["s1", "s2"], "s2");
 
       expect(result).toEqual([]);
-      expect(mocks.get).toHaveBeenCalledWith("/invoices/", {
-        params: { student_id: "s2" },
+      expect(mocks.get).toHaveBeenCalledWith("/payments/invoices/", {
+        params: { page_size: 100, student_id: "s2" },
       });
+    });
+
+    it("keeps only unpaid invoices for the unpaid list", async () => {
+      mocks.get.mockResolvedValue({ data: { items: [
+        { id: "a", status: "PENDING" }, { id: "b", status: "PAID" },
+        { id: "c", status: "PARTIAL" }, { id: "d", status: "OVERDUE" },
+      ] } });
+
+      const result = await parentsService.getUnpaidInvoices(["s1"]);
+
+      expect(result.map((inv) => inv.id)).toEqual(["a", "c", "d"]);
     });
   });
 });

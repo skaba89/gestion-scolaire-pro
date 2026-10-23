@@ -1,4 +1,18 @@
 import { apiClient } from "@/api/client";
+import { toList } from "@/lib/api-list";
+
+export interface ParentInvoice {
+    id: string;
+    student_id: string | null;
+    invoice_number: string;
+    total_amount: number;
+    paid_amount: number;
+    status: string;
+    due_date: string | null;
+    [key: string]: unknown;
+}
+
+const UNPAID_STATUSES = new Set(["PENDING", "PARTIAL", "OVERDUE"]);
 
 export const parentsService = {
     async getChildren(parentId: string) {
@@ -15,27 +29,25 @@ export const parentsService = {
         }));
     },
 
-    async getUnpaidInvoices(studentIds: string[]) {
-        if (!studentIds.length) return [];
-        const { data } = await apiClient.get<any>("/invoices/", {
-            params: {
-                student_id: studentIds.join(","),
-                status: "PENDING,PARTIAL,OVERDUE",
-            },
-        });
-        return Array.isArray(data) ? data : (data?.items ?? []);
-    },
-
+    /**
+     * Factures des enfants du parent. Le serveur ne renvoie que celles de SES
+     * enfants (règle PARENT) : pour « Tous », aucun student_id n'est envoyé.
+     * Avant : `student_id=id1,id2` vers l'alias /invoices/ — identifiant
+     * invalide, et cet alias ne filtrait pas par famille.
+     */
     async getInvoices(studentIds: string[], selectedStudentId?: string) {
         if (studentIds.length === 0) return [];
-        const params: Record<string, string> = {};
+        const params: Record<string, string | number> = { page_size: 100 };
         if (selectedStudentId && selectedStudentId !== "all") {
             params.student_id = selectedStudentId;
-        } else {
-            params.student_id = studentIds.join(",");
         }
-        const { data } = await apiClient.get<any>("/invoices/", { params });
-        return Array.isArray(data) ? data : (data?.items ?? []);
+        const { data } = await apiClient.get<unknown>("/payments/invoices/", { params });
+        return toList<ParentInvoice>(data);
+    },
+
+    async getUnpaidInvoices(studentIds: string[]) {
+        const invoices = await this.getInvoices(studentIds);
+        return invoices.filter((inv) => UNPAID_STATUSES.has(inv.status));
     },
 
     async getNotifications(userId: string) {
