@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-13 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-24 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -367,6 +367,19 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   désormais `/payments/invoices/` (le choix « Tous » plusieurs enfants ne
   fonctionnait pas). Exploitation éventuelle non vérifiée (journaux de
   production non consultés).
+- **2026-10-24 — MFA de bout en bout (constaté sur un déploiement VPS sous
+  rôle restreint)** : la page de connexion d'un établissement
+  (`/:slug/auth`) ignorait `mfa_required` (« Aucun établissement associé »,
+  aucun écran de code) ; avec `ENFORCE_MFA=true` un admin sans MFA était
+  bloqué à vie (403 sans session) ; un SUPER_ADMIN ne pouvait pas activer sa
+  MFA (pas de page profil, activation TOTP « réussie » sans rien écrire sous
+  le contexte d'un tenant consulté, OTP email en 500 et codes de secours
+  inutilisables à cause des politiques RLS). Corrigé : étape MFA partagée
+  (`components/auth/MfaLoginStep.tsx`) sur `/auth` et `/:slug/auth`,
+  enrôlement forcé à la connexion (`/mfa/setup/*`), contexte RLS du compte
+  dans `mfa.py`, migration `20261024_0001`, page `/super-admin/profile`.
+  Reste : `POST /mfa/otp/request/` génère le code email mais ne l'envoie
+  pas (envoi jamais implémenté).
 
 ## Documents à considérer avec prudence
 
