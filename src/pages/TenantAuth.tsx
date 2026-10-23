@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { MfaLoginStep } from "@/components/auth/MfaLoginStep";
 import { useToast } from "@/hooks/use-toast";
 import { usePublicTenant } from "@/hooks/usePublicTenant";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,9 @@ const TenantAuthPage = () => {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Second login step (code challenge or forced MFA enrollment): replaces
+  // the form until <MfaLoginStep> has opened the real session.
+  const [mfaStep, setMfaStep] = useState<{ mode: "challenge" | "setup"; token: string; tenantId: string | null } | null>(null);
   const [logoError, setLogoError] = useState(false);
   // See src/api/client.ts's cold-start retry — Render's free tier sleeps
   // the backend after inactivity, and the first request can take 20-50s.
@@ -134,6 +138,40 @@ const TenantAuthPage = () => {
 
   const typeLabel = getTenantTypeLabel(type);
 
+  const redirectAfterLogin = (profileData: unknown) => {
+    const typedProfileData = profileData as { roles?: string[]; tenant?: { slug?: string } } | undefined;
+    const userRoles: string[] = typedProfileData?.roles || [];
+    const profileSlug = typedProfileData?.tenant?.slug || tenantSlug || null;
+
+    if (userRoles.includes("SUPER_ADMIN")) {
+      navigate("/super-admin", { replace: true });
+      return;
+    }
+    if (!profileSlug) {
+      toast({
+        title: "Erreur",
+        description: "Aucun établissement associé à votre compte. Contactez un administrateur.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const slug = profileSlug;
+    if (userRoles.includes("TENANT_ADMIN") || userRoles.includes("DIRECTOR") || userRoles.includes("STAFF")) {
+      navigate(`/${slug}/admin`, { replace: true });
+    } else if (userRoles.includes("TEACHER")) {
+      navigate(`/${slug}/teacher`, { replace: true });
+    } else if (userRoles.includes("PARENT")) {
+      navigate(`/${slug}/parent`, { replace: true });
+    } else if (userRoles.includes("STUDENT")) {
+      navigate(`/${slug}/student`, { replace: true });
+    } else if (userRoles.includes("ALUMNI")) {
+      navigate(`/${slug}/alumni`, { replace: true });
+    } else {
+      navigate(`/${slug}/admin`, { replace: true });
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
@@ -161,7 +199,10 @@ const TenantAuthPage = () => {
         localStorage.removeItem("last_tenant_id");
       }
 
-      const { error, profileData } = await signIn(normalizedEmail, trimmedPassword, isUuid(tenantId) ? tenantId : null);
+      const loginTenantId = isUuid(tenantId) ? tenantId : null;
+      const { error, profileData, mfaRequired, mfaToken, mfaSetupRequired, mfaSetupToken } = await signIn(
+        normalizedEmail, trimmedPassword, loginTenantId,
+      );
       if (error) {
         const msg = error.message || "Identifiants incorrects";
         console.error("[TenantAuth] Login failed:", msg);
@@ -181,36 +222,16 @@ const TenantAuthPage = () => {
         return;
       }
 
-      const userRoles: string[] = (profileData?.roles as string[]) || [];
-      const profileSlug = (profileData?.tenant?.slug as string) || tenantSlug || null;
-
-      if (userRoles.includes("SUPER_ADMIN")) {
-        navigate("/super-admin", { replace: true });
+      if (mfaRequired && mfaToken) {
+        setMfaStep({ mode: "challenge", token: mfaToken, tenantId: loginTenantId });
         return;
       }
-      if (!profileSlug) {
-        toast({
-          title: "Erreur",
-          description: "Aucun établissement associé à votre compte. Contactez un administrateur.",
-          variant: "destructive",
-        });
+      if (mfaSetupRequired && mfaSetupToken) {
+        setMfaStep({ mode: "setup", token: mfaSetupToken, tenantId: loginTenantId });
         return;
       }
 
-      const slug = profileSlug;
-      if (userRoles.includes("TENANT_ADMIN") || userRoles.includes("DIRECTOR") || userRoles.includes("STAFF")) {
-        navigate(`/${slug}/admin`, { replace: true });
-      } else if (userRoles.includes("TEACHER")) {
-        navigate(`/${slug}/teacher`, { replace: true });
-      } else if (userRoles.includes("PARENT")) {
-        navigate(`/${slug}/parent`, { replace: true });
-      } else if (userRoles.includes("STUDENT")) {
-        navigate(`/${slug}/student`, { replace: true });
-      } else if (userRoles.includes("ALUMNI")) {
-        navigate(`/${slug}/alumni`, { replace: true });
-      } else {
-        navigate(`/${slug}/admin`, { replace: true });
-      }
+      redirectAfterLogin(profileData);
     } finally {
       setSubmitting(false);
       setColdStartAttempt(null);
@@ -371,69 +392,80 @@ const TenantAuthPage = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="votre@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={submitting || isLoading}
-                className="h-12"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <div className="relative">
+          {mfaStep ? (
+            <MfaLoginStep
+              mode={mfaStep.mode}
+              token={mfaStep.token}
+              tenantId={mfaStep.tenantId}
+              accentColor={pColor}
+              onSuccess={redirectAfterLogin}
+              onCancel={() => setMfaStep(null)}
+            />
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
                 <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="votre@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   disabled={submitting || isLoading}
-                  className="h-12 pr-12"
+                  className="h-12"
                 />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowPassword((v) => !v)}
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
               </div>
-            </div>
 
-            <Button
-              type="submit"
-              className="w-full h-12 text-base font-semibold"
-              style={{ backgroundColor: pColor }}
-              disabled={submitting || isLoading}
-            >
-              {submitting || isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  {coldStartAttempt ? "Réveil du serveur…" : "Connexion..."}
-                </>
-              ) : (
-                <>
-                  Se connecter
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </>
+              <div className="space-y-2">
+                <Label htmlFor="password">Mot de passe</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={submitting || isLoading}
+                    className="h-12 pr-12"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 text-base font-semibold"
+                style={{ backgroundColor: pColor }}
+                disabled={submitting || isLoading}
+              >
+                {submitting || isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    {coldStartAttempt ? "Réveil du serveur…" : "Connexion..."}
+                  </>
+                ) : (
+                  <>
+                    Se connecter
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </>
+                )}
+              </Button>
+              {coldStartAttempt && (
+                <p className="text-center text-xs text-muted-foreground -mt-2">
+                  Le serveur était en veille, il se réveille — cela peut prendre jusqu'à 30 secondes.
+                </p>
               )}
-            </Button>
-            {coldStartAttempt && (
-              <p className="text-center text-xs text-muted-foreground -mt-2">
-                Le serveur était en veille, il se réveille — cela peut prendre jusqu'à 30 secondes.
-              </p>
-            )}
-          </form>
+            </form>
+          )}
 
           <p className="text-center text-sm text-muted-foreground">
             Mot de passe oublié ? Contactez votre administrateur.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { MfaLoginStep } from "@/components/auth/MfaLoginStep";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +48,7 @@ function getSafeReturnPath(value: unknown): string | null {
 }
 
 const AuthNative = () => {
-  const { signIn, completeMfaLogin, isLoading, user } = useAuth();
+  const { signIn, isLoading, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,11 +56,11 @@ const AuthNative = () => {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  // Set when /auth/login/ reports the account requires a second factor —
-  // the login form is replaced by a code prompt until completeMfaLogin()
-  // exchanges mfaToken + a TOTP/backup code for the real session.
-  const [mfaToken, setMfaToken] = useState<string | null>(null);
-  const [mfaCode, setMfaCode] = useState("");
+  // Set when /auth/login/ reports a second step: a code challenge (account
+  // with MFA) or a forced enrollment (privileged account without MFA while
+  // the platform enforces it). The login form is replaced by <MfaLoginStep>
+  // until it exchanges the pre-session token for the real session.
+  const [mfaStep, setMfaStep] = useState<{ mode: "challenge" | "setup"; token: string } | null>(null);
   // Set by apiClient's cold-start retry (src/api/client.ts) while a 503/
   // timeout on /auth/login/ is being silently retried in the background —
   // Render's free tier sleeps the backend after inactivity, and the first
@@ -106,7 +107,7 @@ const AuthNative = () => {
     setSubmitting(true);
     setColdStartAttempt(null);
     try {
-      const { error, profileData, mfaRequired, mfaToken: token } = await signIn(email, password);
+      const { error, profileData, mfaRequired, mfaToken, mfaSetupRequired, mfaSetupToken } = await signIn(email, password);
       if (error) {
         const msg = error.message || "Identifiants incorrects";
         let description = msg;
@@ -127,8 +128,12 @@ const AuthNative = () => {
         return;
       }
 
-      if (mfaRequired && token) {
-        setMfaToken(token);
+      if (mfaRequired && mfaToken) {
+        setMfaStep({ mode: "challenge", token: mfaToken });
+        return;
+      }
+      if (mfaSetupRequired && mfaSetupToken) {
+        setMfaStep({ mode: "setup", token: mfaSetupToken });
         return;
       }
 
@@ -178,28 +183,6 @@ const AuthNative = () => {
       navigate(`/${slug}/alumni`, { replace: true });
     } else {
       navigate(`/${slug}/admin`, { replace: true });
-    }
-  };
-
-  const handleMfaSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!mfaToken || mfaCode.length !== 6) return;
-
-    setSubmitting(true);
-    try {
-      const { error, profileData } = await completeMfaLogin(mfaToken, mfaCode);
-      if (error) {
-        toast({
-          title: "Code invalide",
-          description: error.message || "Le code saisi est incorrect ou a expiré.",
-          variant: "destructive",
-        });
-        setMfaCode("");
-        return;
-      }
-      redirectAfterLogin(profileData);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -300,64 +283,13 @@ const AuthNative = () => {
             </div>
           </div>
 
-          {mfaToken ? (
-            <>
-              {/* MFA challenge header */}
-              <div className="space-y-2">
-                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Vérification en deux étapes</h2>
-                <p className="text-sm text-slate-500 leading-relaxed">
-                  Entrez le code à 6 chiffres de votre application d'authentification, ou l'un de vos codes de secours.
-                </p>
-              </div>
-
-              {/* MFA Form */}
-              <form className="space-y-5" onSubmit={handleMfaSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="mfa-code" className="text-sm font-medium text-slate-700">
-                    Code de vérification
-                  </Label>
-                  <Input
-                    id="mfa-code"
-                    inputMode="numeric"
-                    placeholder="000000"
-                    value={mfaCode}
-                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    autoFocus
-                    autoComplete="one-time-code"
-                    className="h-12 pl-4 pr-4 rounded-xl border-slate-200 bg-white text-slate-900 text-center text-2xl tracking-widest placeholder:text-slate-400 transition-all duration-200 focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full h-12 text-base font-semibold text-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700"
-                  disabled={submitting || isLoading || mfaCode.length !== 6}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Vérification...
-                    </>
-                  ) : (
-                    <>
-                      Vérifier
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => {
-                    setMfaToken(null);
-                    setMfaCode("");
-                  }}
-                >
-                  Retour
-                </Button>
-              </form>
-            </>
+          {mfaStep ? (
+            <MfaLoginStep
+              mode={mfaStep.mode}
+              token={mfaStep.token}
+              onSuccess={redirectAfterLogin}
+              onCancel={() => setMfaStep(null)}
+            />
           ) : (
             <>
               {/* Welcome header */}

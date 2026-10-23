@@ -78,7 +78,26 @@
     "loginTitle": "登录",
     "loginSubtitle": "登录您的空间",
     "loginButton": "登录",
-    "invalidCredentials": "登录凭据无效"
+    "invalidCredentials": "登录凭据无效",
+    "mfa": {
+      "challengeTitle": "两步验证",
+      "challengeDescription": "请输入身份验证器应用中的 6 位验证码，或您的一个备用码。",
+      "setupTitle": "开启两步验证",
+      "setupDescription": "您的账户拥有管理权限：必须启用两步验证。请使用身份验证器应用（Google Authenticator、Microsoft Authenticator、Aegis 等）扫描此二维码，然后输入显示的验证码。",
+      "manualKey": "或在应用中输入此密钥：",
+      "copyKey": "复制密钥",
+      "keyCopied": "密钥已复制",
+      "copyFailed": "复制失败",
+      "copyFailedDescription": "请手动复制密钥。",
+      "codeLabel": "验证码",
+      "verifying": "正在验证...",
+      "verify": "验证",
+      "activateAndSignIn": "启用并登录",
+      "backToLogin": "返回登录",
+      "invalidCode": "验证码无效",
+      "invalidCodeDescription": "验证码不正确或已过期。",
+      "setupStartFailed": "无法开始启用多重身份验证"
+    }
   },
   "nav": {
     "dashboard": "仪表板",
