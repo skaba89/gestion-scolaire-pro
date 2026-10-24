@@ -389,6 +389,22 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   sous Windows uniquement) et GHSA-mrhx (zod 3, validation de formulaires
   dans le navigateur uniquement). À traiter : migrations vite 5 → 6+ et
   zod 3 → 4 (+ `@hookform/resolvers` 5).
+- **2026-10-24 — production déplacée sur un VPS OVH ; Azure abandonné.**
+  L'abonnement Azure a pris fin : les entrées « App Service + Neon »
+  ci-dessus décrivent un environnement qui n'existe plus. Production :
+  VPS unique, Docker Compose + Caddy, PostgreSQL sous rôle restreint
+  `schoolflow_app` (RLS réellement appliqué), `ENFORCE_MFA=true`, emails
+  Gmail SMTP, dump quotidien + copie chiffrée Backblaze B2 (restauration
+  testée). Configuration et procédure de remise en route versionnées dans
+  `deploy/vps/` (sans secret ; `.env.docker` reste hors dépôt).
+  `build-images.yml` n'est plus déclenché par les push (le registre ACR
+  n'existe plus : échec à chaque commit depuis le 2026-10-23). Corrigés en
+  même temps : `docker/nginx.conf` (en-têtes de sécurité perdus dans les
+  `location` ; IP de l'API mémorisée au démarrage → 502 après recréation du
+  conteneur api), image MinIO introuvable (`quay.io` → Chainguard, par
+  digest), commande Redis de `docker-compose.prod.yml` qui démarrait sans
+  mot de passe, noms SMTP de `.env.production.template`. Reste : nom de
+  domaine définitif (HTTPS provisoire sur sslip.io).
 
 ## Documents à considérer avec prudence
 
