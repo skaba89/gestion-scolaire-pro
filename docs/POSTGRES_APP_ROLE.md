@@ -711,7 +711,16 @@ avec la connexion applicative réellement positionnée sur `schoolflow_app`
 cette PR** (à traiter avant une activation en production, pas
 nécessairement avant un premier essai encadré sur Azure DEV) :
 
-1. **`/tenants/settings`, `/tenants/security-settings`,
+1. **AUDITÉ le 2026-10-24 (sonde sous rôle restreint)** : `/tenants/onboarding/*`
+   positionnent déjà leur contexte (`enter_tenant_context_or_404`, corrigé
+   le 2026-10-07) ; `/storage/upload` n'ouvre aucune session base ;
+   `/tenants/settings` et `/tenants/security-settings` enregistraient bien
+   les paramètres (`tenants` sans RLS) mais **perdaient la ligne
+   d'audit** (refusée par RLS, abandonnée par `log_audit`) — corrigé par
+   `enter_tenant_context_or_404` dans les deux PATCH, testé dans
+   `test_public_routes_rls_restricted_role.py`. Texte d'origine conservé
+   ci-dessous pour l'historique.
+   **`/tenants/settings`, `/tenants/security-settings`,
    `/tenants/onboarding/*`, `/storage/upload`** — fichier
    `app/middlewares/tenant.py`, section `public_paths` : ces routes sont,
    comme `/users/me/` (corrigé ici), explicitement exemptées de
