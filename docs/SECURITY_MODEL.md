@@ -20,6 +20,24 @@ qui l'implémente.
   existant sur `POST /auth/change-password/`. Activer le MFA ne demande
   toujours rien (aucun risque à protéger un compte davantage). Testé dans
   `test_totp_mfa_login.py::TestDisableTotpRequiresCurrentPassword`.
+- MFA obligatoire (`ENFORCE_MFA=true`, défaut hors DEBUG) pour les
+  `PRIVILEGED_ROLES` : un compte privilégié sans MFA ne reçoit plus un 403
+  (qui le bloquait définitivement, faute de session pour s'enrôler) mais un
+  jeton `mfa_setup` de 10 minutes, sans rôle, accepté **uniquement** par
+  `POST /mfa/setup/enroll/` + `/mfa/setup/verify/` ; la session n'est
+  ouverte qu'après un code TOTP valide. Ce jeton, comme `mfa_pending`, est
+  refusé comme bearer, refresh et WebSocket (`RESTRICTED_TOKEN_CLAIMS`,
+  `core/security.py`) et devient inutilisable dès que la MFA est active
+  (409). Risque résiduel : qui détient le mot de passe d'un compte pas
+  encore enrôlé peut enrôler son propre TOTP — identique à l'absence de MFA.
+- Les données MFA appartiennent au **compte**, pas au tenant consulté : les
+  endpoints MFA en libre-service se placent dans le contexte RLS du tenant
+  du compte lui-même (« aucun tenant » pour un compte plateforme,
+  `_use_own_tenant_context`), et une mise à jour de `users.mfa_enabled`
+  qui ne touche pas exactement une ligne échoue (500) au lieu de répondre
+  « succès ». Politiques `email_otps` / `mfa_backup_codes` NULL-safe pour
+  les comptes plateforme (migration `20261024_0001`). Testé sous rôle
+  restreint dans `test_mfa_platform_and_forced_enrollment.py`.
 - Verrouillage de compte après tentatives échouées
   (`test_account_lockout.py`).
 - Rate limiting sur les endpoints d'authentification (slowapi) :

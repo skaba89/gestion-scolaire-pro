@@ -78,7 +78,26 @@
     "loginTitle": "Iniciar sesión",
     "loginSubtitle": "Conéctese a su espacio",
     "loginButton": "Iniciar sesión",
-    "invalidCredentials": "Credenciales inválidas"
+    "invalidCredentials": "Credenciales inválidas",
+    "mfa": {
+      "challengeTitle": "Verificación en dos pasos",
+      "challengeDescription": "Introduzca el código de 6 dígitos de su aplicación de autenticación, o uno de sus códigos de respaldo.",
+      "setupTitle": "Active la verificación en dos pasos",
+      "setupDescription": "Su cuenta tiene derechos de administración: la verificación en dos pasos es obligatoria. Escanee este código QR con una aplicación de autenticación (Google Authenticator, Microsoft Authenticator, Aegis…) e introduzca el código que muestra.",
+      "manualKey": "O introduzca esta clave en la aplicación:",
+      "copyKey": "Copiar la clave",
+      "keyCopied": "Clave copiada",
+      "copyFailed": "No se pudo copiar",
+      "copyFailedDescription": "Copie la clave manualmente.",
+      "codeLabel": "Código de verificación",
+      "verifying": "Verificando...",
+      "verify": "Verificar",
+      "activateAndSignIn": "Activar e iniciar sesión",
+      "backToLogin": "Volver al inicio de sesión",
+      "invalidCode": "Código no válido",
+      "invalidCodeDescription": "El código es incorrecto o ha caducado.",
+      "setupStartFailed": "No se pudo iniciar la activación de la MFA"
+    }
   },
   "nav": {
     "dashboard": "Panel",

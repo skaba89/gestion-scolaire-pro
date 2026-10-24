@@ -1,7 +1,9 @@
 """MFA enforcement for privileged roles — national audit Phase 1, point 5.
 
-Before this test: `PRIVILEGED_ROLES_REQUIRING_MFA` blocks login with 403 when
-`settings.ENFORCE_MFA` is true and the user hasn't enabled MFA, but nothing in
+Before this test: `PRIVILEGED_ROLES_REQUIRING_MFA` gates login when
+`settings.ENFORCE_MFA` is true and the user hasn't enabled MFA (originally a
+403; since 2026-10 a forced-enrollment response with no session, see
+_assert_gated_for_mfa_setup), but nothing in
 the test suite actually flipped ENFORCE_MFA on and proved the gate works —
 `TestMFAEnforcement` in test_analytics.py only checks unrelated 401 paths
 (bad password, missing token) despite its name. This file exercises the
@@ -21,6 +23,18 @@ BOOTSTRAP_URL = "/api/v1/auth/bootstrap/"
 LOGIN_URL = "/api/v1/auth/login/"
 GOOD_SECRET = os.environ["BOOTSTRAP_SECRET"]
 STRONG_PASSWORD = "MfaEnforce!2026"
+
+
+def _assert_gated_for_mfa_setup(resp) -> None:
+    """A privileged account without MFA under ENFORCE_MFA=true is no longer
+    answered a bare 403 (which left it no way to ever enroll): it gets a
+    forced-enrollment response — still no session, only a mfa_setup token."""
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["mfa_setup_required"] is True
+    assert body["mfa_setup_token"]
+    assert not body.get("access_token"), "the password alone must never open a session"
+    assert not body.get("refresh_token")
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -213,7 +227,7 @@ def _fresh_institutional_role(role: str) -> str:
 class TestMFAEnforcementForPrivilegedRoles:
     def test_login_blocked_when_enforce_mfa_true_and_mfa_disabled(self, monkeypatch):
         """A SUPER_ADMIN (privileged role) without MFA enabled must be
-        refused login (403) once ENFORCE_MFA is on — this is the actual
+        refused a session (forced MFA enrollment) once ENFORCE_MFA is on — this is the actual
         production default (see app/core/config.py:230, ENFORCE_MFA
         defaults to true whenever DEBUG is not explicitly 'true')."""
         from app.core.config import settings as app_settings
@@ -222,8 +236,7 @@ class TestMFAEnforcementForPrivilegedRoles:
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-        assert resp.status_code == 403, resp.text
-        assert "MFA" in resp.json()["detail"]
+        _assert_gated_for_mfa_setup(resp)
 
     def test_login_allowed_when_enforce_mfa_true_and_mfa_enabled(self, monkeypatch):
         """The same privileged user, once MFA is marked enabled on their
@@ -262,8 +275,7 @@ class TestMFAEnforcementForPrivilegedRoles:
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-        assert resp.status_code == 403, resp.text
-        assert "MFA" in resp.json()["detail"]
+        _assert_gated_for_mfa_setup(resp)
 
     def test_ministry_admin_allowed_once_mfa_enabled(self, monkeypatch):
         from app.core.config import settings as app_settings
@@ -286,8 +298,7 @@ class TestMFAEnforcementForPrivilegedRoles:
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-        assert resp.status_code == 403, resp.text
-        assert "MFA" in resp.json()["detail"]
+        _assert_gated_for_mfa_setup(resp)
 
     def test_national_inspector_allowed_once_mfa_enabled(self, monkeypatch):
         from app.core.config import settings as app_settings
@@ -313,8 +324,7 @@ class TestMFAEnforcementForPrivilegedRoles:
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-        assert resp.status_code == 403, resp.text
-        assert "MFA" in resp.json()["detail"]
+        _assert_gated_for_mfa_setup(resp)
 
     @pytest.mark.parametrize("role", ["REGIONAL_DIRECTOR", "PREFECTURE_ADMIN", "COMMUNE_ADMIN"])
     def test_institutional_scoped_role_allowed_once_mfa_enabled(self, monkeypatch, role):
@@ -377,12 +387,11 @@ class TestPrivilegedRolesSingleSourceOfTruth:
         monkeypatch.setattr(app_settings, "ENFORCE_MFA", True)
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-        assert resp.status_code == 403, resp.text
-        assert "MFA" in resp.json()["detail"]
+        _assert_gated_for_mfa_setup(resp)
 
     def test_role_not_in_privileged_roles_does_not_require_mfa(self, monkeypatch):
         """Control case: a role that was never added to PRIVILEGED_ROLES
-        must not be gated — proves the previous test's 403 comes from the
+        must not be gated — proves the previous test's gate comes from the
         set membership, not from every unknown role being blocked."""
         from app.core.config import settings as app_settings
 
@@ -391,3 +400,5 @@ class TestPrivilegedRolesSingleSourceOfTruth:
 
         resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
         assert resp.status_code == 200, resp.text
+        assert resp.json()["access_token"], "a non-privileged role gets a real session"
+        assert resp.json()["mfa_setup_required"] is False

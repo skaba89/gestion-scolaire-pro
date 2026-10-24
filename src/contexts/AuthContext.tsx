@@ -21,8 +21,10 @@ type AuthContextType = {
   isLoading: boolean;
   mustChangePassword: boolean;
   isMfaVerified: boolean;
-  signIn: (email: string, password: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any; mfaRequired?: boolean; mfaToken?: string }>;
+  signIn: (email: string, password: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: any; mfaRequired?: boolean; mfaToken?: string; mfaSetupRequired?: boolean; mfaSetupToken?: string }>;
   completeMfaLogin: (mfaToken: string, code: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: unknown }>;
+  startMfaSetup: (mfaSetupToken: string) => Promise<{ error: Error | null; secret?: string; uri?: string }>;
+  completeMfaSetup: (mfaSetupToken: string, code: string, tenantId?: string | null) => Promise<{ error: Error | null; profileData?: unknown }>;
   verifyMfa: (token: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (email: string, password: string, metadata?: unknown) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -191,6 +193,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
         return { error: null, mfaRequired: true, mfaToken: response.data.mfa_token };
       }
+      // Privileged account without MFA while the platform enforces it: the
+      // mfa_setup_token only allows enrolling a TOTP factor (startMfaSetup /
+      // completeMfaSetup), which then opens the session.
+      if (response.data?.mfa_setup_required) {
+        setIsLoading(false);
+        return { error: null, mfaSetupRequired: true, mfaSetupToken: response.data.mfa_setup_token };
+      }
 
       const token = response.data?.access_token;
       if (!token) {
@@ -215,10 +224,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [clearAuth, applyProfileData]);
 
-  const completeMfaLogin = useCallback(async (mfaToken: string, code: string, tenantId?: string | null) => {
+  // Exchanges a pre-session token + a code for the real session (shared by
+  // the login challenge and the forced enrollment).
+  const exchangeCodeForSession = useCallback(async (endpoint: string, payload: Record<string, string>, tenantId?: string | null) => {
     try {
       setIsLoading(true);
-      const response = await apiClient.post("/mfa/login/verify/", { mfa_token: mfaToken, code });
+      const response = await apiClient.post(endpoint, payload);
 
       if (response.data?.valid === false) {
         return { error: new Error("Code invalide") };
@@ -241,6 +252,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   }, [applyProfileData]);
+
+  const completeMfaLogin = useCallback(
+    (mfaToken: string, code: string, tenantId?: string | null) =>
+      exchangeCodeForSession("/mfa/login/verify/", { mfa_token: mfaToken, code }, tenantId),
+    [exchangeCodeForSession],
+  );
+
+  const startMfaSetup = useCallback(async (mfaSetupToken: string) => {
+    try {
+      const response = await apiClient.post<{ secret: string; uri: string }>("/mfa/setup/enroll/", { mfa_token: mfaSetupToken });
+      return { error: null, secret: response.data.secret, uri: response.data.uri };
+    } catch (error: unknown) {
+      const detail = axios.isAxiosError<{ detail?: string }>(error) ? error.response?.data?.detail : undefined;
+      return { error: new Error(detail || "Impossible de démarrer l'activation de la MFA") };
+    }
+  }, []);
+
+  const completeMfaSetup = useCallback(
+    (mfaSetupToken: string, code: string, tenantId?: string | null) =>
+      exchangeCodeForSession("/mfa/setup/verify/", { mfa_token: mfaSetupToken, code }, tenantId),
+    [exchangeCodeForSession],
+  );
 
   const signUp = useCallback(async (email: string, password: string, metadata?: unknown) => {
     try {
@@ -315,6 +348,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMfaVerified,
       signIn,
       completeMfaLogin,
+      startMfaSetup,
+      completeMfaSetup,
       verifyMfa,
       signUp,
       signOut,
@@ -335,6 +370,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isMfaVerified,
       signIn,
       completeMfaLogin,
+      startMfaSetup,
+      completeMfaSetup,
       verifyMfa,
       signUp,
       signOut,

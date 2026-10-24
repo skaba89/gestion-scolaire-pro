@@ -15,9 +15,8 @@ from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 
 from app.core.config import settings
-from app.core.database import find_user_in_owner_tenant, get_db, switch_tenant_context
+from app.core.database import find_user_in_owner_tenant, get_db, reset_tenant_context, switch_tenant_context
 from app.core.security import get_current_user, verify_password
-from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models.user import User
 from app.models.user_role import UserRole
 
@@ -51,6 +50,42 @@ def _require_current_password(db: Session, user_id: str, current_password: str) 
     user = db.query(User).filter(User.id == user_id).first()
     if not user or not verify_password(current_password, getattr(user, "password_hash", None)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+
+
+def _use_own_tenant_context(db: Session, user_id: str) -> User:
+    """Load the caller's own row and position the session's RLS context on
+    the caller's OWN tenant (or "no tenant" for a platform account).
+
+    MFA data belongs to the account, not to the tenant being viewed: a
+    SUPER_ADMIN browsing /<slug>/admin/ sends that tenant's X-Tenant-ID, so
+    get_db() runs under it — and under the restricted role
+    (NOSUPERUSER NOBYPASSRLS) the SUPER_ADMIN's own `users` row (tenant_id
+    NULL) is then invisible: `UPDATE users SET mfa_enabled` touched 0 rows
+    while the endpoint answered "TOTP activé avec succès". Every MFA
+    self-service endpoint calls this first.
+    """
+    user = find_user_in_owner_tenant(
+        db, lambda _db: _db.query(User).filter(User.id == user_id).first(), by="user_id", value=user_id,
+    )
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    if not settings.is_sqlite:
+        if user.tenant_id:
+            switch_tenant_context(db, str(user.tenant_id))
+        else:
+            reset_tenant_context(db)
+    return user
+
+
+def _set_mfa_enabled(db: Session, user_id: str, enabled: bool) -> None:
+    """UPDATE users.mfa_enabled, failing loudly if the row was not reached
+    (an RLS context mismatch must never pass for a success)."""
+    result = db.execute(
+        text("UPDATE users SET mfa_enabled = :enabled WHERE id = :user_id"),
+        {"enabled": enabled, "user_id": user_id},
+    )
+    if result.rowcount != 1:
+        raise RuntimeError(f"users.mfa_enabled update matched {result.rowcount} row(s) for user {user_id}")
 
 
 def _generate_raw_code() -> str:
@@ -91,9 +126,12 @@ def generate_backup_codes(
     Returns the plain-text codes (only shown once).
     """
     user_id = current_user.get("id")
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    # The codes belong to the account: stored under its OWN tenant (NULL for
+    # a platform account), never under a tenant a SUPER_ADMIN is viewing.
+    user = _use_own_tenant_context(db, user_id)
+    tenant_id = str(user.tenant_id) if user.tenant_id else None
 
     try:
         # Invalidate existing codes
@@ -142,6 +180,7 @@ def verify_backup_code(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    _use_own_tenant_context(db, user_id)
 
     try:
         code_hash = _hash_code(body.code)
@@ -185,6 +224,7 @@ def list_backup_codes(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    _use_own_tenant_context(db, user_id)
 
     try:
         rows = db.execute(
@@ -220,6 +260,7 @@ def count_backup_codes(
     user_id = current_user.get("id")
     if not user_id:
         return {"count": 0}
+    _use_own_tenant_context(db, user_id)
 
     try:
         row = db.execute(
@@ -264,6 +305,7 @@ def request_otp(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    _use_own_tenant_context(db, user_id)
 
     try:
         # Rate-limit check: max 3 OTPs in the past hour
@@ -328,6 +370,7 @@ def verify_otp(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    _use_own_tenant_context(db, user_id)
 
     try:
         code_hash = _hash_code(body.code.strip())
@@ -367,6 +410,7 @@ def get_otp_remaining(
     user_id = current_user.get("id")
     if not user_id:
         return {"remaining": 0}
+    _use_own_tenant_context(db, user_id)
 
     try:
         count_row = db.execute(
@@ -418,9 +462,7 @@ def enroll_totp(
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    user = _use_own_tenant_context(db, user_id)
 
     try:
         secret = pyotp.random_base32()
@@ -461,6 +503,7 @@ def verify_totp(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    _use_own_tenant_context(db, user_id)
 
     try:
         row = db.execute(
@@ -478,10 +521,7 @@ def verify_totp(
             text("UPDATE mfa_totp_secrets SET verified = TRUE WHERE user_id = :user_id"),
             {"user_id": user_id},
         )
-        db.execute(
-            text("UPDATE users SET mfa_enabled = TRUE WHERE id = :user_id"),
-            {"user_id": user_id},
-        )
+        _set_mfa_enabled(db, user_id, True)
         db.commit()
         return {"valid": True, "message": "TOTP activé avec succès"}
     except HTTPException:
@@ -502,11 +542,12 @@ def disable_totp(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    _use_own_tenant_context(db, user_id)
     _require_current_password(db, user_id, body.current_password)
 
     try:
         db.execute(text("DELETE FROM mfa_totp_secrets WHERE user_id = :user_id"), {"user_id": user_id})
-        db.execute(text("UPDATE users SET mfa_enabled = FALSE WHERE id = :user_id"), {"user_id": user_id})
+        _set_mfa_enabled(db, user_id, False)
         db.commit()
         return {"success": True, "enabled": False}
     except Exception as e:
@@ -524,6 +565,7 @@ def get_totp_status(
     user_id = current_user.get("id")
     if not user_id:
         return {"enabled": False}
+    _use_own_tenant_context(db, user_id)
 
     try:
         row = db.execute(
@@ -644,6 +686,130 @@ async def verify_login_mfa(request: Request, body: MFALoginVerifyRequest, db: Se
     return await _issue_full_session_token(db, user, roles)
 
 
+# ─── Forced MFA enrollment at login ─────────────────────────────────────────
+#
+# With ENFORCE_MFA=true, /auth/login/ used to answer a bare 403 to a
+# privileged account without MFA: no session, hence no way to ever reach the
+# enrollment screen — every new TENANT_ADMIN/DIRECTOR was locked out for
+# good. login() now returns a short-lived mfa_setup token (password proven,
+# nothing else); these two endpoints exchange it for a TOTP enrollment and,
+# once a valid code proves possession of the authenticator, the real
+# session. The token is refused as a bearer/refresh/WebSocket credential
+# (RESTRICTED_TOKEN_CLAIMS) and becomes useless as soon as MFA is enabled.
+
+class MFASetupTokenRequest(BaseModel):
+    mfa_token: str
+
+
+class MFASetupVerifyRequest(BaseModel):
+    mfa_token: str
+    code: str
+
+
+def _decode_mfa_setup_token(token: str) -> str:
+    """Return the user_id encoded in a valid, unexpired mfa_setup token."""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            audience="schoolflow-api",
+            issuer="schoolflow-pro",
+        )
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Session d'activation MFA invalide ou expirée. Reconnectez-vous.")
+
+    if not payload.get("mfa_setup"):
+        raise HTTPException(status_code=401, detail="Jeton invalide pour cette opération")
+
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(status_code=401, detail="Jeton invalide")
+    return sub
+
+
+def _load_setup_user(db: Session, token: str) -> User:
+    """Resolve the mfa_setup token's account (own RLS context) and refuse it
+    once MFA is already enabled: the token only ever bootstraps a first factor,
+    it can never replace an existing one."""
+    user = _use_own_tenant_context(db, _decode_mfa_setup_token(token))
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="Compte introuvable ou désactivé")
+    if user.mfa_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La MFA est déjà active sur ce compte. Reconnectez-vous et saisissez votre code.",
+        )
+    return user
+
+
+@router.post("/setup/enroll/")
+@limiter.limit("10/minute")
+def setup_enroll_totp(request: Request, body: MFASetupTokenRequest, db: Session = Depends(get_db)):
+    """Forced enrollment, step 1: new pending TOTP secret + provisioning URI."""
+    user = _load_setup_user(db, body.mfa_token)
+    try:
+        secret = pyotp.random_base32()
+        db.execute(
+            text("""
+                INSERT INTO mfa_totp_secrets (id, user_id, secret, verified, created_at)
+                VALUES (:id, :user_id, :secret, FALSE, :created_at)
+                ON CONFLICT (user_id) DO UPDATE
+                    SET secret = EXCLUDED.secret, verified = FALSE, created_at = EXCLUDED.created_at
+            """),
+            {
+                "id": str(uuid.uuid4()),
+                "user_id": str(user.id),
+                "secret": secret,
+                "created_at": datetime.now(timezone.utc),
+            },
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to start forced TOTP enrollment: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+    uri = pyotp.totp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=TOTP_ISSUER)
+    return {"secret": secret, "uri": uri}
+
+
+@router.post("/setup/verify/")
+@limiter.limit("10/minute")  # SECURITY: rate limit to prevent code brute-force
+async def setup_verify_totp(request: Request, body: MFASetupVerifyRequest, db: Session = Depends(get_db)):
+    """Forced enrollment, step 2: verify the code, enable MFA, open the session."""
+    from app.api.v1.endpoints.core.auth import _issue_full_session_token
+
+    user = _load_setup_user(db, body.mfa_token)
+    user_id = str(user.id)
+    try:
+        row = db.execute(
+            text("SELECT secret FROM mfa_totp_secrets WHERE user_id = :user_id AND verified = FALSE"),
+            {"user_id": user_id},
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail="Aucun enrôlement TOTP en cours. Recommencez l'activation.")
+        if not pyotp.TOTP(row.secret).verify(body.code.strip(), valid_window=1):
+            return {"valid": False, "message": "Code invalide"}
+
+        db.execute(
+            text("UPDATE mfa_totp_secrets SET verified = TRUE WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        )
+        _set_mfa_enabled(db, user_id, True)
+        db.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to complete forced TOTP enrollment: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+    logger.info("MFA enabled through forced enrollment at login for user %s", user_id)
+    roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
+    return await _issue_full_session_token(db, user, roles)
+
+
 @router.get("/status/")
 def get_mfa_status(
     db: Session = Depends(get_db),
@@ -651,10 +817,11 @@ def get_mfa_status(
 ):
     """Check if MFA is enabled for the current user."""
     user_id = current_user.get("id")
+    if not user_id:
+        return {"enabled": False}
+    _use_own_tenant_context(db, user_id)
 
     try:
-        if not user_id:
-            return {"enabled": False}
 
         row = db.execute(
             text("SELECT mfa_enabled FROM users WHERE id = :user_id"),
@@ -684,6 +851,7 @@ def toggle_mfa(
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
+    _use_own_tenant_context(db, user_id)
     enabled = body.enabled
     if not enabled:
         # Only disabling needs step-up: turning MFA ON has no downside to
@@ -693,10 +861,7 @@ def toggle_mfa(
         _require_current_password(db, user_id, body.current_password)
 
     try:
-        db.execute(
-            text("UPDATE users SET mfa_enabled = :enabled WHERE id = :user_id"),
-            {"enabled": enabled, "user_id": user_id}
-        )
+        _set_mfa_enabled(db, user_id, enabled)
         db.commit()
         return {"success": True, "enabled": enabled}
     except Exception as e:

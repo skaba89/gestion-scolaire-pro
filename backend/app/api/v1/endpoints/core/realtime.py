@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.core.cache import redis_client
 from app.core.config import settings
-from app.core.security import _evaluate_revocation
+from app.core.security import _evaluate_revocation, is_restricted_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -46,8 +46,9 @@ async def websocket_endpoint(
     # SECURITY (national-readiness audit, 2026-09, P1-5 follow-up): a
     # mfa_pending token (see app/core/security.py verify_token()) proves
     # only a correct password, not a completed second factor — it must
-    # never authenticate anything beyond POST /mfa/login/verify/.
-    if payload.get("mfa_pending"):
+    # never authenticate anything beyond POST /mfa/login/verify/ (same for a
+    # mfa_setup token — see RESTRICTED_TOKEN_CLAIMS).
+    if is_restricted_token(payload):
         await websocket.close(code=4003, reason="MFA verification required")
         return
 

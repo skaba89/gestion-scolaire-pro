@@ -141,6 +141,12 @@ class Token(BaseModel):
     # and POST /mfa/login/verify/.
     mfa_required: bool = False
     mfa_token: str | None = None
+    # Set instead when a privileged account has no MFA while ENFORCE_MFA=true:
+    # mfa_setup_token only allows enrolling a TOTP factor through
+    # POST /mfa/setup/enroll/ + /mfa/setup/verify/, which then issues the
+    # real session.
+    mfa_setup_required: bool = False
+    mfa_setup_token: str | None = None
 
 
 async def _issue_full_session_token(db: Session, user: "User", roles: list[str]) -> Token:
@@ -408,14 +414,22 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         if user_privileged_roles and not mfa_enabled:
             enforce_mfa = settings.ENFORCE_MFA
             if enforce_mfa:
+                # Used to be a bare 403: with no session the account could
+                # never reach the enrollment screen, i.e. it was locked out
+                # for good. Hand out a short-lived, roleless mfa_setup token
+                # instead — it is refused everywhere except the two
+                # /mfa/setup/ endpoints (see RESTRICTED_TOKEN_CLAIMS), so the
+                # password alone still grants no access.
                 logger.warning(
-                    "Login blocked: user '%s' has privileged role(s) %s but MFA is not enabled (ENFORCE_MFA=true)",
+                    "Login gated: user '%s' has privileged role(s) %s but MFA is not enabled "
+                    "(ENFORCE_MFA=true) — forced MFA enrollment required",
                     user.email, user_privileged_roles
                 )
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="L'authentification multi-facteurs (MFA) est obligatoire pour ce compte. Veuillez activer le MFA via les paramètres de sécurité.",
+                mfa_setup_token = create_access_token(
+                    {"sub": str(user.id), "mfa_setup": True},
+                    expires_delta=timedelta(minutes=10),
                 )
+                return Token(mfa_setup_required=True, mfa_setup_token=mfa_setup_token)
             else:
                 logger.warning(
                     "MFA not enabled for user '%s' with privileged roles %s. "

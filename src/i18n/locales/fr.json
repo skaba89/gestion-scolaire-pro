@@ -72,7 +72,26 @@
         "loginButton": "Se connecter",
         "invalidCredentials": "Identifiants invalides",
         "email": "Email",
-        "password": "Mot de passe"
+        "password": "Mot de passe",
+        "mfa": {
+            "challengeTitle": "Vérification en deux étapes",
+            "challengeDescription": "Entrez le code à 6 chiffres de votre application d'authentification, ou l'un de vos codes de secours.",
+            "setupTitle": "Activez la vérification en deux étapes",
+            "setupDescription": "Votre compte dispose de droits d'administration : la vérification en deux étapes est obligatoire. Scannez ce QR code avec une application d'authentification (Google Authenticator, Microsoft Authenticator, Aegis…), puis saisissez le code affiché.",
+            "manualKey": "Ou saisissez cette clé dans l'application :",
+            "copyKey": "Copier la clé",
+            "keyCopied": "Clé copiée",
+            "copyFailed": "Copie impossible",
+            "copyFailedDescription": "Recopiez la clé manuellement.",
+            "codeLabel": "Code de vérification",
+            "verifying": "Vérification...",
+            "verify": "Vérifier",
+            "activateAndSignIn": "Activer et se connecter",
+            "backToLogin": "Retour à la connexion",
+            "invalidCode": "Code invalide",
+            "invalidCodeDescription": "Le code saisi est incorrect ou a expiré.",
+            "setupStartFailed": "Impossible de démarrer l'activation de la MFA"
+        }
     },
     "navigation": {
         "dashboard": "Tableau de bord",

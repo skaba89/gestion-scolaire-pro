@@ -15,12 +15,17 @@ import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { ScrollProgress } from "@/components/ui/scroll-progress";
 import { PageTransition } from "@/components/layouts/PageTransition";
 
-const navItems = [
+type NavItem = { href: string; label: string; labelKey?: string; icon: typeof LayoutDashboard; end?: boolean };
+
+const navItems: NavItem[] = [
   { href: "/super-admin", label: "Tableau de bord", icon: LayoutDashboard, end: true },
   { href: "/super-admin/saas-dashboard", label: "SaaS Dashboard", icon: BarChart3 },
   { href: "/super-admin/subscription-requests", label: "Demandes d'abonnement", icon: ReceiptText },
   { href: "/super-admin/tenants", label: "Établissements", icon: Building2 },
   { href: "/super-admin/create-tenant", label: "Nouvel établissement", icon: Plus },
+  // Profile & security (MFA enrollment, backup codes) — had no entry point
+  // for a SUPER_ADMIN, whose account belongs to no tenant.
+  { href: "/super-admin/profile", label: "Mon profil", labelKey: "nav.profile", icon: UserCog },
 ];
 
 export const SuperAdminLayout = () => {
@@ -109,8 +114,8 @@ export const SuperAdminLayout = () => {
                   key={item.href}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  title={rail ? item.label : undefined}
-                  aria-label={rail ? item.label : undefined}
+                  title={rail ? (item.labelKey ? t(item.labelKey) : item.label) : undefined}
+                  aria-label={rail ? (item.labelKey ? t(item.labelKey) : item.label) : undefined}
                   className={cn(
                     "flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200",
                     rail ? "justify-center w-10 h-10 mx-auto" : "px-3 py-2.5",
@@ -120,7 +125,7 @@ export const SuperAdminLayout = () => {
                   )}
                 >
                   <item.icon className={rail ? "w-5 h-5" : "w-4 h-4"} />
-                  {!rail && <span>{item.label}</span>}
+                  {!rail && <span>{item.labelKey ? t(item.labelKey) : item.label}</span>}
                   {!rail && isActive(item.href, item.end) && (
                     <ChevronRight className="w-4 h-4 ml-auto" />
                   )}

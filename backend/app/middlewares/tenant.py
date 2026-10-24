@@ -39,6 +39,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # request legitimately carries none) — same pre-session shape as
             # /auth/login above (national-readiness audit, 2026-09, P1-5).
             "/mfa/login/verify", "/mfa/login/verify/",
+            # --- Forced MFA enrollment at login: same pre-session shape,
+            # identity proven by a mfa_setup token in the body.
+            "/mfa/setup/enroll", "/mfa/setup/enroll/",
+            "/mfa/setup/verify", "/mfa/setup/verify/",
             "/favicon.ico", "/favicon.png", "/redoc",
             # Prometheus scrape — the endpoint enforces its own METRICS_SECRET
             # in production (see app/main.py), no JWT/tenant context involved.

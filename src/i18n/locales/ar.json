@@ -78,7 +78,26 @@
     "loginTitle": "تسجيل الدخول",
     "loginSubtitle": "سجّل الدخول إلى مساحتك",
     "loginButton": "تسجيل الدخول",
-    "invalidCredentials": "بيانات الاعتماد غير صحيحة"
+    "invalidCredentials": "بيانات الاعتماد غير صحيحة",
+    "mfa": {
+      "challengeTitle": "التحقق بخطوتين",
+      "challengeDescription": "أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة، أو أحد رموزك الاحتياطية.",
+      "setupTitle": "فعّل التحقق بخطوتين",
+      "setupDescription": "لحسابك صلاحيات إدارية: التحقق بخطوتين إلزامي. امسح رمز QR هذا بتطبيق مصادقة (Google Authenticator أو Microsoft Authenticator أو Aegis…)، ثم أدخل الرمز الظاهر.",
+      "manualKey": "أو أدخل هذا المفتاح في التطبيق:",
+      "copyKey": "نسخ المفتاح",
+      "keyCopied": "تم نسخ المفتاح",
+      "copyFailed": "تعذّر النسخ",
+      "copyFailedDescription": "انسخ المفتاح يدويًا.",
+      "codeLabel": "رمز التحقق",
+      "verifying": "جارٍ التحقق...",
+      "verify": "تحقق",
+      "activateAndSignIn": "التفعيل وتسجيل الدخول",
+      "backToLogin": "العودة إلى تسجيل الدخول",
+      "invalidCode": "رمز غير صالح",
+      "invalidCodeDescription": "الرمز غير صحيح أو منتهي الصلاحية.",
+      "setupStartFailed": "تعذّر بدء تفعيل المصادقة متعددة العوامل"
+    }
   },
   "nav": {
     "dashboard": "لوحة التحكم",

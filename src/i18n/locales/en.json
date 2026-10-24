@@ -72,7 +72,26 @@
     "loginButton": "Login",
     "invalidCredentials": "Invalid credentials",
     "email": "Email",
-    "password": "Password"
+    "password": "Password",
+    "mfa": {
+      "challengeTitle": "Two-step verification",
+      "challengeDescription": "Enter the 6-digit code from your authenticator app, or one of your backup codes.",
+      "setupTitle": "Turn on two-step verification",
+      "setupDescription": "Your account has administrative rights: two-step verification is mandatory. Scan this QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, Aegis…), then enter the code it shows.",
+      "manualKey": "Or enter this key in the app:",
+      "copyKey": "Copy key",
+      "keyCopied": "Key copied",
+      "copyFailed": "Copy failed",
+      "copyFailedDescription": "Copy the key manually.",
+      "codeLabel": "Verification code",
+      "verifying": "Verifying...",
+      "verify": "Verify",
+      "activateAndSignIn": "Activate and sign in",
+      "backToLogin": "Back to sign in",
+      "invalidCode": "Invalid code",
+      "invalidCodeDescription": "The code is incorrect or has expired.",
+      "setupStartFailed": "Could not start MFA activation"
+    }
   },
   "navigation": {
     "dashboard": "Dashboard",
