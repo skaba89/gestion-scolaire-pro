@@ -28,6 +28,8 @@ plus qu'à la main.
 | `scripts/sauvegarde-distante.sh` | Copie chiffrée des dumps vers B2 (cron) |
 | `schoolflow-offsite.cron` | Entrée cron à copier dans `/etc/cron.d/` |
 | `scripts/mfa-compte.sh` | Secours MFA d'un compte directement en base (téléphone perdu) |
+| `scripts/surveillance.py` | Contrôles toutes les 5 min (API, dump local, copie B2, disque) ; email à la panne et au rétablissement |
+| `schoolflow-surveillance.cron` | Entrée cron de la surveillance |
 
 ## Variables propres au VPS (`.env.docker`)
 
@@ -57,7 +59,8 @@ sudo docker compose --env-file .env.docker -f docker-compose.yml -f deploy/vps/d
 ./deploy/vps/deploy.sh
 ```
 
-`deploy.sh` s'arrête en erreur si `/api/health/ready` (via Caddy, sur le vrai
+`deploy.sh` supprime aussi le cache de build Docker de plus de 7 jours
+(il grossissait d'environ 14 Go par jour de déploiements). Il s'arrête en erreur si `/api/health/ready` (via Caddy, sur le vrai
 domaine) ne répond pas `healthy`. Retour arrière : `git checkout <sha précédent>`
 puis relancer les étapes build / up du script (pas de `git pull`) ; une
 migration ne se défait qu'avec `alembic downgrade` explicite.
@@ -80,6 +83,12 @@ migration ne se défait qu'avec `alembic downgrade` explicite.
    les anciennes sauvegardes, voir ci-dessous), puis
    `sudo install -m 644 deploy/vps/schoolflow-offsite.cron /etc/cron.d/schoolflow-offsite`.
 9. Emails : `sudo ./deploy/vps/scripts/configurer-smtp.sh` puis `./deploy/vps/deploy.sh`.
+10. Surveillance : `sudo ./deploy/vps/scripts/surveillance.py --test-email`
+    (vérifier la réception), puis
+    `sudo install -m 644 deploy/vps/schoolflow-surveillance.cron /etc/cron.d/schoolflow-surveillance`.
+    Destinataire : `ALERT_EMAIL` dans `.env.docker` (sinon `SMTP_USER`).
+    Ne couvre pas l'arrêt complet du VPS : pour cela, un moniteur externe
+    (ex. UptimeRobot) sur `https://$VPS_DOMAIN/api/health/ready`.
 
 ### Restaurer depuis Backblaze B2
 
@@ -106,5 +115,6 @@ nouvelles données ; vérifier ensuite `/api/health/ready` (`schema: up_to_date`
 ```bash
 curl -s https://$VPS_DOMAIN/api/health/ready     # status healthy, rls active, release_sha
 sudo tail /var/log/schoolflow-offsite.log        # dernière copie B2
+sudo tail /var/log/schoolflow-surveillance.log   # derniers contrôles (api, dump, distant, disque)
 sudo rclone ls distant-crypt: | tail             # contenu distant (déchiffré)
 ```
