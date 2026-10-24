@@ -379,7 +379,16 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   enrôlement forcé à la connexion (`/mfa/setup/*`), contexte RLS du compte
   dans `mfa.py`, migration `20261024_0001`, page `/super-admin/profile`.
   Reste : `POST /mfa/otp/request/` génère le code email mais ne l'envoie
-  pas (envoi jamais implémenté).
+  pas (envoi jamais implémenté). L'étape de connexion accepte aussi les
+  codes de secours `XXXX-XXXX` (le champ ne gardait que 6 chiffres).
+- **2026-10-24 — npm audit (PR #315)** : Security Scan échouait sur `main`
+  (6 avis HIGH/CRITICAL). Corrigés : dompurify 3.4.17, follow-redirects
+  1.16.1, vite 8.3.5 (copie interne de vitest). Acceptés jusqu'au
+  2026-12-31 dans `scripts/ci/npm_audit_severity_gate.py` (aucun correctif
+  dans la version majeure utilisée) : GHSA-587h (vite 5.4, serveur de dev
+  sous Windows uniquement) et GHSA-mrhx (zod 3, validation de formulaires
+  dans le navigateur uniquement). À traiter : migrations vite 5 → 6+ et
+  zod 3 → 4 (+ `@hookform/resolvers` 5).
 
 ## Documents à considérer avec prudence
 
