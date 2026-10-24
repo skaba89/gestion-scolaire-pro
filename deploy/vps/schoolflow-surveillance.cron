@@ -1,0 +1,6 @@
+# À copier dans /etc/cron.d/schoolflow-surveillance (root, mode 644) — chemin
+# du dépôt à adapter. Contrôles toutes les 5 minutes, email à la première
+# panne et au rétablissement (voir deploy/vps/scripts/surveillance.py).
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+*/5 * * * * root /home/ubuntu/gestion-scolaire-pro/deploy/vps/scripts/surveillance.py >>/var/log/schoolflow-surveillance.log 2>&1

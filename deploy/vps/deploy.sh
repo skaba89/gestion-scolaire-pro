@@ -10,6 +10,11 @@ $C up -d --wait postgres redis minio
 $C run --rm --no-deps api alembic upgrade head
 $C up -d --wait
 
+# Cache de build Docker : il grossit à chaque déploiement (≈ 14 Go en un jour
+# sur ce VPS). On ne garde que les 7 derniers jours ; ni images, ni
+# conteneurs, ni volumes ne sont touchés.
+sudo docker builder prune -f --filter until=168h >/dev/null
+
 # Contrôle de bout en bout (Caddy → nginx → API) sur le vrai domaine, résolu
 # localement : un simple `curl http://localhost` n'atteint aucun site Caddy
 # (réponse vide, que curl -f considère pourtant comme un succès).
