@@ -16,6 +16,10 @@ Regressions covered (found on a VPS deployment, 2026-10):
 3. With ENFORCE_MFA=true a privileged account without MFA got a bare 403 at
    login, hence no way to ever reach the enrollment screen. It now gets a
    mfa_setup token, accepted ONLY by /mfa/setup/enroll|verify/.
+4. POST /mfa/otp/request/ answered "success" without ever sending the
+   email, and /mfa/otp/verify/ refused every code (naive vs aware datetime,
+   swallowed): the code now goes to the account's own address only, and a
+   failed delivery stores nothing.
 
 Same pattern as test_auth_rls_restricted_role.py: a disposable restricted
 role, `app.core.database.SessionLocal` monkeypatched to it, the REAL app via
@@ -23,6 +27,7 @@ TestClient — a superuser bypasses RLS and would prove nothing.
 """
 from __future__ import annotations
 
+import re
 import uuid
 
 import pyotp
@@ -95,6 +100,12 @@ def _login(email: str) -> dict:
     resp = client.post(LOGIN_URL, data={"username": email, "password": PLAIN_PASSWORD})
     assert resp.status_code == 200, resp.text
     return resp.json()
+
+
+def _code_from(message: dict) -> str:
+    match = re.search(r"\b(\d{6})\b", message["text"])
+    assert match, "no 6-digit code in the email"
+    return match.group(1)
 
 
 def _bearer(token: str, tenant_id: str | None = None) -> dict:
@@ -173,6 +184,26 @@ class TestMfaPlatformAndForcedEnrollment:
         yield
         app.dependency_overrides.pop(_gcu, None)
 
+    @pytest.fixture(autouse=True)
+    def outbox(self, monkeypatch):
+        """Records the emails POST /mfa/otp/request/ sends instead of
+        reaching an SMTP server; `outbox.fail = True` simulates a provider
+        that refuses the message."""
+        import app.api.v1.endpoints.core.mfa as mfa_module
+
+        class _Outbox(list):
+            fail = False
+
+            def send(self, to, subject, html, text=None):
+                if self.fail:
+                    return False
+                self.append({"to": to, "subject": subject, "html": html, "text": text})
+                return True
+
+        box = _Outbox()
+        monkeypatch.setattr(mfa_module, "_email_sender", lambda: box)
+        return box
+
     @pytest.fixture
     def enforce_mfa(self, monkeypatch):
         from app.core.config import settings as app_settings
@@ -241,6 +272,83 @@ class TestMfaPlatformAndForcedEnrollment:
         with engine.connect() as conn:
             count = conn.execute(text("SELECT count(*) FROM email_otps WHERE user_id = :id"), {"id": user_id}).scalar()
         assert count == 1
+
+    # -- 2b. email OTP is actually delivered, to the account's own address ----
+
+    def test_email_otp_is_sent_to_the_account_address_not_the_request_body(
+        self, super_admin_viewing_tenant, outbox
+    ):
+        # The endpoint used to answer "success" without sending anything; the
+        # body's `email` must never choose the recipient (that would mail a
+        # valid code to whoever asks).
+        user_id, token, viewed_tenant = super_admin_viewing_tenant
+        headers = _bearer(token, viewed_tenant)
+        resp = client.post("/api/v1/mfa/otp/request/", json={"email": "attacker@example.test"}, headers=headers)
+        assert resp.status_code == 200, resp.text
+
+        with engine.connect() as conn:
+            own_email = conn.execute(text("SELECT email FROM users WHERE id = :id"), {"id": user_id}).scalar()
+        assert [m["to"] for m in outbox] == [own_email]
+        code = _code_from(outbox[0])
+        assert code in outbox[0]["html"]
+
+        verify = client.post("/api/v1/mfa/otp/verify/", json={"code": code}, headers=headers)
+        assert verify.json() == {"valid": True}
+        replay = client.post("/api/v1/mfa/otp/verify/", json={"code": code}, headers=headers)
+        assert replay.json() == {"valid": False}, "a code must only work once"
+
+    def test_email_otp_for_tenant_account_goes_to_its_own_address(self, restricted, enforce_mfa, outbox):
+        with engine.begin() as admin_conn:
+            tenant_id = _make_tenant(admin_conn, "Établissement OTP")
+            _, email = _make_user(admin_conn, tenant_id, "TENANT_ADMIN")
+        enforce_mfa(False)
+        token = _login(email)["access_token"]
+
+        resp = client.post("/api/v1/mfa/otp/request/", json={}, headers=_bearer(token, tenant_id))
+        assert resp.status_code == 200, resp.text
+        assert [m["to"] for m in outbox] == [email]
+        verify = client.post(
+            "/api/v1/mfa/otp/verify/", json={"code": _code_from(outbox[0])}, headers=_bearer(token, tenant_id)
+        )
+        assert verify.json() == {"valid": True}
+
+    def test_email_otp_delivery_failure_is_503_and_leaves_nothing_behind(
+        self, super_admin_viewing_tenant, outbox
+    ):
+        user_id, token, viewed_tenant = super_admin_viewing_tenant
+        headers = _bearer(token, viewed_tenant)
+        first = client.post("/api/v1/mfa/otp/request/", json={}, headers=headers)
+        assert first.status_code == 200, first.text
+        previous_code = _code_from(outbox[0])
+
+        outbox.fail = True
+        failed = client.post("/api/v1/mfa/otp/request/", json={}, headers=headers)
+        assert failed.status_code == 503, failed.text
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT count(*) FROM email_otps WHERE user_id = :id"), {"id": user_id}).scalar()
+        assert rows == 1, "an undelivered code must not be stored nor count against the hourly quota"
+
+        verify = client.post("/api/v1/mfa/otp/verify/", json={"code": previous_code}, headers=headers)
+        assert verify.json() == {"valid": True}, "a failed delivery must not invalidate the previous code"
+
+    def test_expired_email_otp_is_refused(self, super_admin_viewing_tenant, outbox):
+        user_id, token, viewed_tenant = super_admin_viewing_tenant
+        headers = _bearer(token, viewed_tenant)
+        assert client.post("/api/v1/mfa/otp/request/", json={}, headers=headers).status_code == 200
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE email_otps SET expires_at = NOW() - INTERVAL '1 minute' WHERE user_id = :id"),
+                {"id": user_id},
+            )
+        verify = client.post("/api/v1/mfa/otp/verify/", json={"code": _code_from(outbox[0])}, headers=headers)
+        assert verify.json() == {"valid": False}
+
+    def test_email_otp_hourly_quota_still_applies(self, super_admin_viewing_tenant, outbox):
+        _, token, viewed_tenant = super_admin_viewing_tenant
+        headers = _bearer(token, viewed_tenant)
+        statuses = [client.post("/api/v1/mfa/otp/request/", json={}, headers=headers).status_code for _ in range(4)]
+        assert statuses == [200, 200, 200, 429]
+        assert len(outbox) == 3
 
     def test_super_admin_backup_codes_stored_under_own_null_tenant(self, super_admin_viewing_tenant):
         user_id, token, viewed_tenant = super_admin_viewing_tenant

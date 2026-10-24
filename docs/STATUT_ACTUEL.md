@@ -378,9 +378,15 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   (`components/auth/MfaLoginStep.tsx`) sur `/auth` et `/:slug/auth`,
   enrôlement forcé à la connexion (`/mfa/setup/*`), contexte RLS du compte
   dans `mfa.py`, migration `20261024_0001`, page `/super-admin/profile`.
-  Reste : `POST /mfa/otp/request/` génère le code email mais ne l'envoie
-  pas (envoi jamais implémenté). L'étape de connexion accepte aussi les
-  codes de secours `XXXX-XXXX` (le champ ne gardait que 6 chiffres).
+  L'étape de connexion accepte aussi les codes de secours `XXXX-XXXX` (le
+  champ ne gardait que 6 chiffres). Code par email : voir l'entrée suivante.
+- **2026-10-24 — code de vérification par email réellement envoyé.**
+  `POST /mfa/otp/request/` répondait « succès » sans jamais envoyer
+  l'email ; et `/mfa/otp/verify/` refusait tout code (comparaison d'une date
+  sans fuseau à une date UTC → exception masquée en « code invalide ») : la
+  fonction n'avait donc jamais marché. Désormais envoyé via `EmailSender`
+  (Gmail SMTP en production) à l'adresse du compte en base, jamais à celle
+  fournie par le client ; échec d'envoi → 503 sans rien conserver.
 - **2026-10-24 — npm audit (PR #315)** : Security Scan échouait sur `main`
   (6 avis HIGH/CRITICAL). Corrigés : dompurify 3.4.17, follow-redirects
   1.16.1, vite 8.3.5 (copie interne de vitest). Acceptés jusqu'au

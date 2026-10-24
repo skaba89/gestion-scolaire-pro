@@ -38,6 +38,12 @@ qui l'implémente.
   « succès ». Politiques `email_otps` / `mfa_backup_codes` NULL-safe pour
   les comptes plateforme (migration `20261024_0001`). Testé sous rôle
   restreint dans `test_mfa_platform_and_forced_enrollment.py`.
+- Code de vérification par email (`POST /mfa/otp/request/`) : envoyé
+  **uniquement à l'adresse du compte lue en base** (le champ `email` de la
+  requête est ignoré), 6 chiffres, 15 minutes, usage unique, 3 demandes par
+  heure. Un échec d'envoi (ou aucun fournisseur configuré) répond 503 et
+  annule tout : le code n'est pas stocké, ne compte pas dans le quota et
+  n'invalide pas le précédent. Le code n'est jamais journalisé.
 - Verrouillage de compte après tentatives échouées
   (`test_account_lockout.py`).
 - Rate limiting sur les endpoints d'authentification (slowapi) :

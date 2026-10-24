@@ -19,12 +19,14 @@ from app.core.database import find_user_in_owner_tenant, get_db, reset_tenant_co
 from app.core.security import get_current_user, verify_password
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.services.notifications import EmailSender, Templates
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 limiter = Limiter(key_func=get_client_ip)
 
 TOTP_ISSUER = "Academy Guinéenne"
+EMAIL_OTP_TTL_MINUTES = 15
 
 NUM_CODES = 10
 CODE_LENGTH = 8  # characters per segment (format: XXXX-XXXX)
@@ -86,6 +88,18 @@ def _set_mfa_enabled(db: Session, user_id: str, enabled: bool) -> None:
     )
     if result.rowcount != 1:
         raise RuntimeError(f"users.mfa_enabled update matched {result.rowcount} row(s) for user {user_id}")
+
+
+def _email_sender() -> EmailSender:
+    return EmailSender(
+        resend_api_key=settings.RESEND_API_KEY,
+        smtp_host=settings.SMTP_HOST,
+        smtp_port=settings.SMTP_PORT,
+        smtp_user=settings.SMTP_USER,
+        smtp_pass=settings.SMTP_PASS,
+        from_email=settings.FROM_EMAIL,
+        from_name=settings.FROM_NAME,
+    )
 
 
 def _generate_raw_code() -> str:
@@ -281,7 +295,9 @@ def count_backup_codes(
 # ─── Email OTP ────────────────────────────────────────────────────────────────
 
 class OTPRequest(BaseModel):
-    email: str
+    # Ignored: the code always goes to the account's own address (from the
+    # database). Kept so existing clients that still send it are not rejected.
+    email: str | None = None
 
 class OTPVerifyRequest(BaseModel):
     code: str
@@ -295,8 +311,8 @@ def request_otp(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Generate and store an email OTP for the authenticated user.
-    Rate limited to 3 per hour.
+    Generate an email OTP for the authenticated user and email it to the
+    account's own address. Rate limited to 3 per hour.
     """
     # SECURITY FIX: Use cryptographically secure secrets module instead of random for OTP generation
     import string  # secrets is already imported at module level
@@ -305,7 +321,7 @@ def request_otp(
     user_id = current_user.get("id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    _use_own_tenant_context(db, user_id)
+    user = _use_own_tenant_context(db, user_id)
 
     try:
         # Rate-limit check: max 3 OTPs in the past hour
@@ -324,7 +340,7 @@ def request_otp(
         # Generate 6-digit code using cryptographically secure secrets.choice
         code = "".join(secrets.choice(string.digits) for _ in range(6))
         code_hash = _hash_code(code)
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_OTP_TTL_MINUTES)
 
         # Invalidate previous OTPs
         db.execute(
@@ -345,9 +361,29 @@ def request_otp(
                 "expires_at": expires_at
             }
         )
-        db.commit()
 
-        # In production: send email here via SMTP/SendGrid/etc.
+        # Sent BEFORE commit (this endpoint used to answer "success" without
+        # ever sending anything): a code that never reached the inbox must
+        # neither count against the hourly quota nor invalidate the previous
+        # one, so a failed delivery rolls everything back.
+        # Recipient = the account's own address, never the request body.
+        if not (settings.RESEND_API_KEY or settings.SMTP_HOST):
+            logger.error("Email OTP requested by user %s but no email provider is configured", user_id)
+        message = Templates.email_otp(
+            user_name=user.first_name or user.email,
+            code=code,
+            school_name=settings.FROM_NAME,
+            expires_minutes=EMAIL_OTP_TTL_MINUTES,
+        )
+        if not _email_sender().send(user.email, message["subject"], message["html"], message["text"]):
+            db.rollback()
+            logger.error("Email OTP not delivered for user %s", user_id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Impossible d'envoyer le code par email pour le moment. "
+                "Réessayez plus tard ou utilisez votre application d'authentification.",
+            )
+        db.commit()
         return {"success": True, "remaining": max_attempts - used - 1}
     except HTTPException:
         raise
@@ -375,9 +411,13 @@ def verify_otp(
     try:
         code_hash = _hash_code(body.code.strip())
 
+        # Expiry compared by PostgreSQL itself: `expires_at` is a timestamp
+        # WITHOUT time zone, so comparing the naive value it returns with an
+        # aware datetime.now(timezone.utc) raised TypeError — swallowed below
+        # into {"valid": False}: no email OTP could ever be verified.
         row = db.execute(
             text("""
-                SELECT id, expires_at, is_valid FROM email_otps
+                SELECT id, expires_at > NOW() AS unexpired FROM email_otps
                 WHERE user_id = :user_id AND code_hash = :code_hash AND is_valid = true
                 ORDER BY created_at DESC LIMIT 1
             """),
@@ -387,7 +427,7 @@ def verify_otp(
         if not row:
             return {"valid": False}
 
-        if row.expires_at < datetime.now(timezone.utc):
+        if not row.unexpired:
             db.execute(text("UPDATE email_otps SET is_valid = false WHERE id = :id"), {"id": row.id})
             db.commit()
             return {"valid": False}
