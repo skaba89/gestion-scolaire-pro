@@ -19,7 +19,7 @@ Workflow détaillé, agents, skills et commandes : `docs/CLAUDE_CODE_WORKFLOW.md
 | Données | PostgreSQL 16 avec **Row-Level Security**, Redis 7, stockage objet (MinIO en local, Azure Blob en cloud — voir `docs/STORAGE_ARCHITECTURE.md`) |
 | Auth | JWT natif HS256 (`iss`/`aud`), bcrypt, TOTP + codes de secours, révocation Redis (jti + `token_version`) |
 | IA | Groq par défaut (autres fournisseurs optionnels dans `backend/app/core/config.py`) |
-| Prod | Images immuables (release = SHA Git, déployées par digest). **Production actuelle : Azure App Service** (api / worker / frontend, `deploy-appservice.yml`) + PostgreSQL Neon (pooler) + Redis managé ; rôles runtime `schoolflow_api` / `schoolflow_worker` (NOBYPASSRLS), `neondb_owner` réservé à l'administration et aux migrations. Azure Container Apps (`infra/azure/`, `deploy-azure.yml`) = cible préparée ; `render.yaml` / `netlify.toml` / `server.mjs` = cibles héritées. État daté : `docs/STATUT_ACTUEL.md` |
+| Prod | **Production actuelle (depuis 2026-10) : VPS OVH unique**, Docker Compose (`docker-compose.yml` + `deploy/vps/docker-compose.vps.yml`), Caddy (TLS), PostgreSQL / Redis / MinIO conteneurisés ; rôle runtime `schoolflow_app` (NOBYPASSRLS), `schoolflow` réservé aux migrations ; mise à jour par `deploy/vps/deploy.sh`, sauvegardes chiffrées vers Backblaze B2 — voir `deploy/vps/README.md`. **Azure abandonné** (abonnement terminé) : App Service, Container Apps (`infra/azure/`), `deploy-*.yml` et `build-images.yml` (manuel uniquement) sont conservés mais inactifs ; `render.yaml` / `netlify.toml` / `server.mjs` = cibles héritées. État daté : `docs/STATUT_ACTUEL.md` |
 | Versions | Node : voir `.nvmrc` — Python 3.11 |
 
 ## Règles d'or (non négociables)
@@ -158,7 +158,7 @@ Environnement Windows : Bash = Git Bash (syntaxe POSIX). Préférer des chemins 
 | Migrations | `docs/MIGRATION_GUIDE.md`, `docs/AZURE_ONE_SHOT_MIGRATIONS.md` |
 | Jobs async | `docs/ASYNC_JOBS_GUIDE.md` |
 | CI / releases | `.github/workflows/`, `docs/IMMUTABLE_RELEASES.md` |
-| Exploitation | `docs/OPERATIONS_RUNBOOK.md`, `docs/runbooks/`, `docs/DRP_GUIDE.md` |
+| Exploitation | `deploy/vps/README.md` (production VPS), `docs/OPERATIONS_RUNBOOK.md`, `docs/runbooks/`, `docs/DRP_GUIDE.md` |
 
 Certains documents stratégiques sont signalés obsolètes par un bandeau : le code fait foi.
 

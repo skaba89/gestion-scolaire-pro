@@ -1,0 +1,25 @@
+# Point d'entrée public — HTTPS automatique (Let's Encrypt), HTTP → HTTPS.
+# VPS_DOMAIN et VPS_PUBLIC_IP viennent de .env.docker (voir
+# docker-compose.vps.yml). Changer de domaine : modifier VPS_DOMAIN,
+# BACKEND_CORS_ORIGINS et FRONTEND_URL dans .env.docker, puis
+# `./deploy/vps/deploy.sh`.
+{$VPS_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Frame-Options "DENY"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+	request_body {
+		max_size 50MB
+	}
+	reverse_proxy frontend:80
+}
+
+# Accès par l'IP brute : redirection vers le domaine.
+http://{$VPS_PUBLIC_IP} {
+	redir https://{$VPS_DOMAIN}{uri} permanent
+}

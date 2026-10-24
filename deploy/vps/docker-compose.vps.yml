@@ -1,0 +1,102 @@
+# deploy/vps/docker-compose.vps.yml — Overlay de production pour un VPS unique
+# (production actuelle : VPS OVH, voir deploy/vps/README.md).
+#
+# Usage (depuis la racine du dépôt — les chemins relatifs ci-dessous partent
+# du dossier du PREMIER fichier -f, donc de la racine) :
+#   docker compose --env-file .env.docker -f docker-compose.yml \
+#     -f deploy/vps/docker-compose.vps.yml up -d
+# En pratique : ./deploy/vps/deploy.sh
+#
+# Différences avec docker-compose.yml (dev) :
+#   - images de prod (backend/Dockerfile) pour api + worker, sans montage du code source ;
+#   - aucun port exposé sur l'hôte sauf Caddy (80/443) ;
+#   - migrations = étape séparée (`run --rm api alembic upgrade head`), jamais au démarrage.
+services:
+  postgres:
+    restart: always
+    ports: !reset []
+    mem_limit: 1g
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=1GB
+        -c work_mem=4MB
+        -c maintenance_work_mem=128MB
+        -c max_connections=100
+        -c log_min_duration_statement=500
+
+  redis:
+    restart: always
+    ports: !reset []
+    mem_limit: 256m
+    # Une seule ligne : en scalaire YAML ">" les lignes plus indentées gardent
+    # leur saut de ligne, et sh exécuterait "redis-server" seul, sans mot de passe.
+    # noeviction : la file ARQ et les révocations de jetons ne doivent jamais
+    # être évincées silencieusement.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync everysec"]
+
+  minio:
+    restart: always
+    ports: !reset []
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    ports: !reset []
+    volumes: !reset []
+    mem_limit: 1536m
+    command: ["bash", "start.sh"]
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    volumes: !reset []
+    mem_limit: 512m
+    # L'image hérite du HEALTHCHECK HTTP de l'API (port 8000) que le worker
+    # n'expose pas : on utilise le contrôle natif d'ARQ (clé de santé Redis).
+    healthcheck:
+      test: ["CMD", "python", "-m", "arq", "--check", "app.workers.tasks.WorkerSettings"]
+      interval: 60s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
+
+  frontend:
+    restart: always
+    ports: !reset []
+
+  db-backup:
+    restart: always
+    environment:
+      POSTGRES_HOST: postgres
+      SCHEDULE: "@daily"
+      HEALTHCHECK_PORT: "8080"
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Lus par deploy/vps/Caddyfile ({$VPS_DOMAIN}, {$VPS_PUBLIC_IP}) ;
+      # à définir dans .env.docker.
+      VPS_DOMAIN: ${VPS_DOMAIN:?définir VPS_DOMAIN dans .env.docker}
+      VPS_PUBLIC_IP: ${VPS_PUBLIC_IP:?définir VPS_PUBLIC_IP dans .env.docker}
+    volumes:
+      - ./deploy/vps/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+    networks:
+      - schoolflow-network
+    mem_limit: 128m
+
+volumes:
+  caddy_data:
+  caddy_config:

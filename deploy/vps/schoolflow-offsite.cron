@@ -1,0 +1,6 @@
+# À copier dans /etc/cron.d/schoolflow-offsite (root, mode 644) — chemin du
+# dépôt à adapter. Copie chiffrée des sauvegardes vers le stockage distant,
+# après le dump local de minuit (service db-backup).
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 3 * * * root /home/ubuntu/gestion-scolaire-pro/deploy/vps/scripts/sauvegarde-distante.sh

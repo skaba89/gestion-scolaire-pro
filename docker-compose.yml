@@ -38,8 +38,13 @@ services:
     # DevOps fix (2026-09): Docker Hub's minio/minio repository was
     # deprecated/pulled by MinIO in 2024 ("pull access denied ... may
     # require 'docker login'" on a fresh clone with no auth issue at all)
-    # — MinIO now publishes exclusively to quay.io. Same image, same tag.
-    image: quay.io/minio/minio:RELEASE.2024-11-07T00-52-20Z
+    # — MinIO then published to quay.io only.
+    # 2026-10-24: quay.io/minio/minio no longer serves this tag either ("no
+    # such manifest"). Chainguard's MinIO build is used instead, pinned by
+    # digest: entrypoint is the minio binary (same `command:` below) and it
+    # ships `mc` for the healthcheck. It runs as a non-root user: an old
+    # minio_data volume created as root may need `chown -R 65532` once.
+    image: cgr.dev/chainguard/minio@sha256:ae73835075ee168f1745cc28d4cf5bbd6a5973e5609b2b2593280aaa495ea113
     command: server /data --console-address ":9001"
     env_file: .env.docker
     # MINIO_ROOT_USER and MINIO_ROOT_PASSWORD come from env_file

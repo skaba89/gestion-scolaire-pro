@@ -27,13 +27,10 @@ services:
 
   redis:
     restart: always
-    command: >
-      sh -c 'redis-server
-        --requirepass "$$REDIS_PASSWORD"
-        --maxmemory 128mb
-        --maxmemory-policy allkeys-lru
-        --appendonly yes
-        --appendfsync everysec'
+    # One line on purpose: in a folded (">") YAML scalar, more-indented lines
+    # keep their newline, so sh ran `redis-server` alone — WITHOUT the
+    # password — and the following lines as separate (failing) commands.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory 128mb --maxmemory-policy allkeys-lru --appendonly yes --appendfsync everysec"]
     deploy:
       resources:
         limits:

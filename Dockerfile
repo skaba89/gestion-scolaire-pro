@@ -46,6 +46,7 @@ COPY docker/nginx-main.conf /etc/nginx/nginx.conf
 
 # Copy custom server block config
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 # Copy runtime config entrypoint
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh
