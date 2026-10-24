@@ -36,10 +36,11 @@ plus qu'à la main.
 En plus de `.env.docker.example` :
 
 ```
-VPS_DOMAIN=academy-guineenne.gn          # nom servi par Caddy
+VPS_DOMAIN=academy-guineenne.org         # nom servi par Caddy
+VPS_REDIRECT_HOSTS=www.academy-guineenne.org   # redirigés vers VPS_DOMAIN (plusieurs : séparés par des espaces)
 VPS_PUBLIC_IP=203.0.113.10               # http://<IP> redirige vers le domaine
-BACKEND_CORS_ORIGINS=https://academy-guineenne.gn
-FRONTEND_URL=https://academy-guineenne.gn
+BACKEND_CORS_ORIGINS=https://academy-guineenne.org
+FRONTEND_URL=https://academy-guineenne.org
 ENFORCE_MFA=true
 DEBUG=False
 DATABASE_URL=...schoolflow_app...        # rôle restreint (NOBYPASSRLS)

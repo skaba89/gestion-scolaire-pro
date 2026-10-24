@@ -409,8 +409,10 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   `location` ; IP de l'API mémorisée au démarrage → 502 après recréation du
   conteneur api), image MinIO introuvable (`quay.io` → Chainguard, par
   digest), commande Redis de `docker-compose.prod.yml` qui démarrait sans
-  mot de passe, noms SMTP de `.env.production.template`. Reste : nom de
-  domaine définitif (HTTPS provisoire sur sslip.io).
+  mot de passe, noms SMTP de `.env.production.template`. Domaine
+  définitif : **academy-guineenne.org** (DNS IONOS, A → VPS, pas d'AAAA) ;
+  `www.` et l'ancienne adresse provisoire `51-75-248-4.sslip.io`
+  redirigent vers lui (`VPS_REDIRECT_HOSTS`).
 
 ## Documents à considérer avec prudence
 

@@ -83,10 +83,11 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      # Lus par deploy/vps/Caddyfile ({$VPS_DOMAIN}, {$VPS_PUBLIC_IP}) ;
+      # Lus par deploy/vps/Caddyfile ({$VPS_DOMAIN}, {$VPS_REDIRECT_HOSTS}, {$VPS_PUBLIC_IP}) ;
       # à définir dans .env.docker.
       VPS_DOMAIN: ${VPS_DOMAIN:?définir VPS_DOMAIN dans .env.docker}
       VPS_PUBLIC_IP: ${VPS_PUBLIC_IP:?définir VPS_PUBLIC_IP dans .env.docker}
+      VPS_REDIRECT_HOSTS: ${VPS_REDIRECT_HOSTS:?définir VPS_REDIRECT_HOSTS dans .env.docker (ex. www.<domaine>)}
     volumes:
       - ./deploy/vps/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
