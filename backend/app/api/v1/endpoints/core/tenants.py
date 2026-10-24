@@ -452,7 +452,9 @@ async def update_tenant_settings(
             raise HTTPException(status_code=422, detail=str(exc))
 
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
-    tenant_id = str(tid_uuid)
+    # middleware-exempt route: no RLS context yet — without it the audit_logs
+    # row below is refused by RLS and log_audit() silently drops it.
+    tenant_id = enter_tenant_context_or_404(db, tid_uuid)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
 
     current_settings = tenant.settings or {}
@@ -520,7 +522,9 @@ async def update_security_settings(
     Merges into settings.security sub-key.
     """
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
-    tenant_id = str(tid_uuid)
+    # middleware-exempt route: no RLS context yet — without it the audit_logs
+    # row below is refused by RLS and log_audit() silently drops it.
+    tenant_id = enter_tenant_context_or_404(db, tid_uuid)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
 
     current_settings = tenant.settings or {}

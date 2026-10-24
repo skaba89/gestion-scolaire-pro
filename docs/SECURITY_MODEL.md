@@ -342,7 +342,12 @@ consentements. Suppression de compte : demande tracée
 
 ## Risques connus (non résolus, hors périmètre de cette session)
 
-- **P1 (outillage livré, activation NON recommandée)** : le rôle
+- **ACTIVÉ en production (VPS OVH, depuis 2026-10-23)** : l'API et le
+  worker tournent sous `schoolflow_app` (`NOSUPERUSER NOBYPASSRLS`),
+  `schoolflow` étant réservé aux migrations. Les routes exemptées du
+  `TenantMiddleware` ont été auditées sous ce rôle le 2026-10-24 (voir
+  `docs/POSTGRES_APP_ROLE.md`, risque résiduel 1). Historique ci-dessous.
+- **P1 (outillage livré, activation NON recommandée — historique)** : le rôle
   PostgreSQL de production ne doit pas être superutilisateur, sinon RLS
   est un théâtre de sécurité en prod aussi. `infra/azure/sql/create_app_role.sql`
   fournit désormais un rôle applicatif restreint (`NOSUPERUSER

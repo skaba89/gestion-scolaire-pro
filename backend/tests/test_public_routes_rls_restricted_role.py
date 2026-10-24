@@ -284,6 +284,35 @@ class TestPublicRoutesUnderRestrictedRole:
         assert _admin_scalar("SELECT count(*) FROM levels WHERE tenant_id = :t", t=a["id"]) == 3
         assert _admin_scalar("SELECT count(*) FROM levels WHERE tenant_id = :t", t=b["id"]) == 2
 
+    @pytest.mark.parametrize(
+        "url,body,action",
+        [
+            ("/api/v1/tenants/settings/", {"rls_probe": "on"}, "UPDATE_SETTINGS"),
+            ("/api/v1/tenants/security-settings/", {"session_timeout_minutes": 45}, "UPDATE_SECURITY_SETTINGS"),
+        ],
+    )
+    def test_settings_update_is_audited_under_own_tenant(self, seeded, url, body, action):
+        # Middleware-exempt routes ran with NO RLS context: the settings were
+        # saved (tenants has no RLS) but the audit_logs row was refused by RLS
+        # and log_audit() dropped it — tenant settings changed with no trace.
+        a, b = seeded["A"], seeded["B"]
+        count_sql = "SELECT count(*) FROM audit_logs WHERE tenant_id = :t AND action = :a"
+        before_a = _admin_scalar(count_sql, t=a["id"], a=action)
+        before_b = _admin_scalar(count_sql, t=b["id"], a=action)
+
+        resp = client.patch(url, json=body, headers=_auth(a["admin_id"], a["id"], ["TENANT_ADMIN"]))
+        assert resp.status_code == 200, resp.text
+
+        assert _admin_scalar(count_sql, t=a["id"], a=action) == before_a + 1, "audit row lost under RLS"
+        assert _admin_scalar(count_sql, t=b["id"], a=action) == before_b
+        assert _admin_scalar("SELECT settings::text FROM tenants WHERE id = :t", t=b["id"]) == "{}"
+
+    def test_settings_update_cannot_target_another_tenant(self, seeded):
+        a, b = seeded["A"], seeded["B"]
+        headers = {**_auth(a["admin_id"], a["id"], ["TENANT_ADMIN"]), "X-Tenant-ID": b["id"]}
+        client.patch("/api/v1/tenants/settings/", json={"cross_tenant": "x"}, headers=headers)
+        assert _admin_scalar("SELECT settings->>'cross_tenant' FROM tenants WHERE id = :t", t=b["id"]) is None
+
     @_needs_redis
     def test_super_admin_stats_count_every_tenant(self, seeded):
         resp = client.get(

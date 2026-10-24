@@ -413,6 +413,14 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   définitif : **academy-guineenne.org** (DNS IONOS, A → VPS, pas d'AAAA) ;
   `www.` et l'ancienne adresse provisoire `51-75-248-4.sslip.io`
   redirigent vers lui (`VPS_REDIRECT_HOSTS`).
+- **2026-10-24 — audit des routes exemptées sous rôle restreint.**
+  Modifier les paramètres ou la sécurité d'un établissement
+  (`PATCH /tenants/settings/`, `/tenants/security-settings/`) ne laissait
+  **aucune ligne dans `audit_logs`** : sans contexte RLS sur ces routes
+  exemptées, l'insertion était refusée et `log_audit` l'abandonnait
+  (paramètres pourtant enregistrés). Corrigé + tests. Onboarding et upload
+  vérifiés sans défaut. Aucune occurrence dans les journaux de production
+  (aucune modification de paramètres depuis la mise en service).
 
 ## Documents à considérer avec prudence
 
