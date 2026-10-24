@@ -16,6 +16,8 @@ import importlib.util
 import json
 import os
 
+import pytest
+
 SCRIPT_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "scripts", "ci", "npm_audit_severity_gate.py",
 )
@@ -282,6 +284,44 @@ class TestRealBracesAdvisoryIsAccepted:
         path = _write(tmp_path, _report(
             _advisory(severity="high", ghsa="GHSA-vfj7-8cjw-p6xm", source=1240992, name="braces"),
             pkg="braces",
+        ))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 1
+
+
+class TestOctober2026AcceptedAdvisories:
+    """Guards the two acceptances added on 2026-10-24 (vite 5.4 launch-editor
+    on Windows, zod 3 collections): each accepts exactly its own advisory id,
+    and both expire on their review_by date."""
+
+    CASES = [
+        ("GHSA-587h-7wmj-h5pm", 1242658, "vite"),
+        ("GHSA-mrhx-c7xc-m3w5", 1243066, "zod"),
+    ]
+
+    @pytest.mark.parametrize("ghsa,source,pkg", CASES)
+    def test_accepted_by_default_allowlist(self, tmp_path, monkeypatch, ghsa, source, pkg):
+        module = _load_module()
+        # Do NOT patch ALLOWLIST — exercise the shipped one.
+        monkeypatch.setattr(module, "_today", lambda: datetime.date(2026, 10, 24))
+        path = _write(tmp_path, _report(_advisory(severity="high", ghsa=ghsa, source=source, name=pkg), pkg=pkg))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 0
+
+    @pytest.mark.parametrize("ghsa,source,pkg", CASES)
+    def test_acceptance_expires_after_review_by(self, tmp_path, monkeypatch, ghsa, source, pkg):
+        module = _load_module()
+        monkeypatch.setattr(module, "_today", lambda: datetime.date(2027, 1, 1))
+        path = _write(tmp_path, _report(_advisory(severity="high", ghsa=ghsa, source=source, name=pkg), pkg=pkg))
+        monkeypatch.setattr("sys.argv", ["gate", path])
+        assert module.main() == 1
+
+    def test_a_different_zod_high_still_blocks(self, tmp_path, monkeypatch):
+        """Accepting the one zod advisory must not blanket-accept zod."""
+        module = _load_module()
+        monkeypatch.setattr(module, "_today", lambda: datetime.date(2026, 10, 24))
+        path = _write(tmp_path, _report(
+            _advisory(severity="high", ghsa="GHSA-future-zod-9999", source=102, name="zod"), pkg="zod",
         ))
         monkeypatch.setattr("sys.argv", ["gate", path])
         assert module.main() == 1
