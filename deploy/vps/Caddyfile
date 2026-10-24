@@ -1,5 +1,5 @@
 # Point d'entrée public — HTTPS automatique (Let's Encrypt), HTTP → HTTPS.
-# VPS_DOMAIN et VPS_PUBLIC_IP viennent de .env.docker (voir
+# VPS_DOMAIN, VPS_REDIRECT_HOSTS et VPS_PUBLIC_IP viennent de .env.docker (voir
 # docker-compose.vps.yml). Changer de domaine : modifier VPS_DOMAIN,
 # BACKEND_CORS_ORIGINS et FRONTEND_URL dans .env.docker, puis
 # `./deploy/vps/deploy.sh`.
@@ -17,6 +17,13 @@
 		max_size 50MB
 	}
 	reverse_proxy frontend:80
+}
+
+# Autres noms (www, ancien domaine provisoire…) : redirection permanente vers
+# le domaine principal, en HTTPS (certificat obtenu pour chacun d'eux).
+# VPS_REDIRECT_HOSTS peut contenir plusieurs noms séparés par des espaces.
+{$VPS_REDIRECT_HOSTS} {
+	redir https://{$VPS_DOMAIN}{uri} permanent
 }
 
 # Accès par l'IP brute : redirection vers le domaine.
