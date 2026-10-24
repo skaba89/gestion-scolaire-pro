@@ -88,6 +88,36 @@ describe('TenantAuth — connexion avec MFA', () => {
     expect(completeMfaSetup).toHaveBeenCalledWith('setup-token', '654321', TENANT_ID);
   });
 
+  it('accepte un code de secours XXXX-XXXX à la place du code TOTP', async () => {
+    // Le champ ne gardait que 6 chiffres : un code de secours (8 caractères
+    // hexadécimaux) était impossible à saisir, malgré le texte qui l'annonce.
+    signIn.mockResolvedValue({ error: null, mfaRequired: true, mfaToken: 'pending-token' });
+    completeMfaLogin.mockResolvedValue({ error: null, profileData: ADMIN_PROFILE });
+    renderLogin();
+
+    submitCredentials();
+    await screen.findByText('auth.mfa.challengeTitle');
+    fireEvent.change(screen.getByLabelText('auth.mfa.codeLabel'), { target: { value: 'a1b2-c3d4' } });
+    expect(screen.getByLabelText('auth.mfa.codeLabel')).toHaveValue('A1B2-C3D4');
+    fireEvent.click(screen.getByRole('button', { name: /auth\.mfa\.verify/ }));
+
+    expect(await screen.findByText('Espace administration')).toBeInTheDocument();
+    expect(completeMfaLogin).toHaveBeenCalledWith('pending-token', 'A1B2-C3D4', TENANT_ID);
+  });
+
+  it('n\'accepte que des chiffres pendant l\'activation forcée', async () => {
+    signIn.mockResolvedValue({ error: null, mfaSetupRequired: true, mfaSetupToken: 'setup-token' });
+    startMfaSetup.mockResolvedValue({ error: null, secret: 'JBSWY3DPEHPK3PXP', uri: 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP' });
+    renderLogin();
+
+    submitCredentials();
+    await screen.findByText('JBSWY3DPEHPK3PXP');
+    fireEvent.change(screen.getByLabelText('auth.mfa.codeLabel'), { target: { value: 'A1B2-C3' } });
+
+    expect(screen.getByLabelText('auth.mfa.codeLabel')).toHaveValue('123');
+    expect(screen.getByRole('button', { name: /auth\.mfa\.activateAndSignIn/ })).toBeDisabled();
+  });
+
   it('reste sur l\'étape MFA si le code est refusé', async () => {
     signIn.mockResolvedValue({ error: null, mfaRequired: true, mfaToken: 'pending-token' });
     completeMfaLogin.mockResolvedValue({ error: new Error('Code invalide') });

@@ -27,6 +27,11 @@ type MfaLoginStepProps = {
   accentColor?: string;
 };
 
+// TOTP: 6 digits. Backup code (challenge only): 8 hex chars, shown as
+// XXXX-XXXX — the backend ignores case and the dash (_hash_code in mfa.py).
+const TOTP_CODE = /^\d{6}$/;
+const BACKUP_CODE = /^[0-9A-F]{8}$/;
+
 export function MfaLoginStep({ mode, token, tenantId, onSuccess, onCancel, accentColor }: MfaLoginStepProps) {
   const { t } = useTranslation();
   const { completeMfaLogin, startMfaSetup, completeMfaSetup } = useAuth();
@@ -55,9 +60,17 @@ export function MfaLoginStep({ mode, token, tenantId, onSuccess, onCancel, accen
     // the enrollment (it would replace the pending secret already scanned).
   }, [mode, token, startMfaSetup]);
 
+  const acceptsBackupCode = mode === "challenge";
+  const normalizeCode = (value: string) =>
+    acceptsBackupCode
+      ? value.toUpperCase().replace(/[^0-9A-F-]/g, "").slice(0, 9)
+      : value.replace(/\D/g, "").slice(0, 6);
+  const codeIsComplete =
+    TOTP_CODE.test(code) || (acceptsBackupCode && BACKUP_CODE.test(code.replace(/-/g, "")));
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (code.length !== 6) return;
+    if (!codeIsComplete) return;
 
     setSubmitting(true);
     try {
@@ -132,10 +145,10 @@ export function MfaLoginStep({ mode, token, tenantId, onSuccess, onCancel, accen
           <Label htmlFor="mfa-code">{t("auth.mfa.codeLabel")}</Label>
           <Input
             id="mfa-code"
-            inputMode="numeric"
+            inputMode={acceptsBackupCode ? "text" : "numeric"}
             placeholder="000000"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) => setCode(normalizeCode(e.target.value))}
             autoFocus
             autoComplete="one-time-code"
             disabled={waitingForEnrollment || enrollmentError !== null}
@@ -147,7 +160,7 @@ export function MfaLoginStep({ mode, token, tenantId, onSuccess, onCancel, accen
           type="submit"
           className="w-full h-12 text-base font-semibold"
           style={accentColor ? { backgroundColor: accentColor } : undefined}
-          disabled={submitting || code.length !== 6 || waitingForEnrollment}
+          disabled={submitting || !codeIsComplete || waitingForEnrollment}
         >
           {submitting ? (
             <>
