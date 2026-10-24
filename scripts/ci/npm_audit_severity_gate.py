@@ -88,6 +88,44 @@ ALLOWLIST = {
         "review_by": "2026-12-31",
         "tracking": "P2 backlog — tailwindcss 3.x -> 4.x migration (or a patched braces release)",
     },
+    # Ajouté le 2026-10-24 (fix/npm-audit-2026-10), en même temps que la
+    # montée de dompurify 3.4.17, follow-redirects 1.16.1 et du vite 8 de
+    # vitest (8.3.5). Le vite 5.4.x racine reste exposé : aucun correctif 5.x.
+    "GHSA-587h-7wmj-h5pm": {
+        "package": "vite",
+        "url": "https://github.com/advisories/GHSA-587h-7wmj-h5pm",
+        "added": "2026-10-24",
+        "reason": (
+            "launch-editor (bundled in vite) `fs.existsSync()` check bypass on "
+            "Windows, used by the dev server's open-in-editor middleware. Affects "
+            "`vite dev` on a Windows developer machine ONLY; the production "
+            "artefact is the static bundle emitted by `vite build`, which never "
+            "runs the dev server or launch-editor. Patched only in vite "
+            "6.4.4+/7.3.7+/8.1.6+ — no 5.x fix; same semver-major chantier as "
+            "GHSA-fx2h-pf6j-xcff. vitest's own nested vite 8 is already patched."
+        ),
+        "review_by": "2026-12-31",
+        "tracking": "P2 backlog — vite 5.x -> latest major upgrade",
+    },
+    # Ajouté le 2026-10-24 (fix/npm-audit-2026-10). Aucun correctif 3.x : zod
+    # 4.6.6+ seulement, migration majeure (API des schémas, et
+    # @hookform/resolvers 3 -> 5) à mener dans un chantier dédié.
+    "GHSA-mrhx-c7xc-m3w5": {
+        "package": "zod",
+        "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+        "added": "2026-10-24",
+        "reason": (
+            "zod memory exhaustion while validating oversized constrained "
+            "collections. zod runs in the browser only (form validation through "
+            "react-hook-form); the backend is Python and never uses it. The only "
+            "collection schemas (invoice items, homework attachment URLs) "
+            "validate what the user typed into their own form — no file import, "
+            "API response or third-party payload goes through zod — so the worst "
+            "case is a user freezing their own tab. No 3.x fix exists."
+        ),
+        "review_by": "2026-12-31",
+        "tracking": "P2 backlog — zod 3.x -> 4.x (+ @hookform/resolvers 5) migration",
+    },
 }
 
 
