@@ -32,6 +32,7 @@ import logging
 import smtplib
 import ssl
 from dataclasses import dataclass, field
+from html import escape
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Optional
@@ -745,6 +746,54 @@ class Templates:
         )
         return {
             "subject": f"[{school_name}] Réinitialisation de mot de passe",
+            "html": html,
+            "text": plain,
+            "whatsapp_text": plain,
+            "whatsapp_vars": [],
+        }
+
+    @staticmethod
+    def email_otp(
+        user_name: str,
+        code: str,
+        school_name: str = "Academy Guinéenne",
+        expires_minutes: int = 15,
+    ) -> dict:
+        """One-time verification code — POST /mfa/otp/request/."""
+        safe_name = escape(user_name)
+        safe_school = escape(school_name)
+        html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px;background:#ffffff">
+          <div style="text-align:center;margin-bottom:24px">
+            <h2 style="color:#1a56db;margin:0">🔐 {safe_school}</h2>
+            <p style="color:#6b7280;font-size:14px;margin:4px 0 0">Code de vérification</p>
+          </div>
+          <p style="color:#374151">Bonjour <strong>{safe_name}</strong>,</p>
+          <p style="color:#374151">Voici votre code de vérification :</p>
+          <p style="text-align:center;margin:32px 0;font-size:32px;font-weight:bold;letter-spacing:8px;color:#111827">
+            {code}
+          </p>
+          <p style="color:#6b7280;font-size:13px">
+            ⏱ Ce code expire dans <strong>{expires_minutes} minutes</strong> et ne peut servir qu'une fois.
+          </p>
+          <p style="color:#6b7280;font-size:13px">
+            Si vous n'avez pas demandé ce code, ignorez cet email et pensez à changer
+            votre mot de passe : quelqu'un d'autre est peut-être connecté à votre compte.
+          </p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+          <p style="color:#9ca3af;font-size:12px;text-align:center">
+            {safe_school} · Cet email a été envoyé automatiquement, merci de ne pas y répondre.
+          </p>
+        </div>"""
+        plain = (
+            f"Bonjour {user_name},\n\n"
+            f"Votre code de vérification {school_name} : {code}\n\n"
+            f"Il expire dans {expires_minutes} minutes et ne peut servir qu'une fois.\n\n"
+            f"Si vous n'avez pas demandé ce code, ignorez cet email et changez votre mot de passe.\n\n"
+            f"— L'équipe {school_name}"
+        )
+        return {
+            "subject": f"[{school_name}] Votre code de vérification",
             "html": html,
             "text": plain,
             "whatsapp_text": plain,
