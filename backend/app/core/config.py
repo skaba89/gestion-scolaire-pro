@@ -272,6 +272,13 @@ class Settings(BaseSettings):
     SECRET_KEY: str = get_secret("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    # Session bounds enforced by /auth/refresh/ (which accepts an expired
+    # access token): refused once the token has been expired for longer than
+    # SESSION_IDLE_TIMEOUT_HOURS (inactivity), or once the original login
+    # (`auth_time` claim) is older than SESSION_MAX_AGE_DAYS, however active
+    # the session. Without them a stolen or forgotten token refreshed forever.
+    SESSION_IDLE_TIMEOUT_HOURS: int = 8
+    SESSION_MAX_AGE_DAYS: int = 7
 
     # RGPD Phase 5: how long a public contact-form message is kept before
     # the nightly purge job deletes it. 365 days by default — long enough
@@ -408,6 +415,13 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = get_secret("SENTRY_DSN", "")
     SENTRY_ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05"))
+
+    @field_validator("SESSION_IDLE_TIMEOUT_HOURS", "SESSION_MAX_AGE_DAYS", mode="after")
+    @classmethod
+    def _bound_session_lifetime(cls, v: int, info) -> int:
+        if not 1 <= v <= 90:
+            raise ValueError(f"{info.field_name} doit être compris entre 1 et 90.")
+        return v
 
     @field_validator("WORKER_POLL_DELAY_SECONDS", mode="after")
     @classmethod

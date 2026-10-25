@@ -17,7 +17,7 @@ from app.core.database import (
     resolve_authenticated_user_row,
     switch_tenant_context,
 )
-from app.core.security import PRIVILEGED_ROLES, create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
+from app.core.security import PRIVILEGED_ROLES, TENANT_DEACTIVATED_DETAIL, create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
 from app.models.user import User
 from app.models.user_role import UserRole
 
@@ -182,6 +182,9 @@ async def _issue_full_session_token(db: Session, user: "User", roles: list[str])
                 "roles": roles,
                 "jti": token_jti,
                 "tv": token_version,
+                # Original login time, carried unchanged by every refresh:
+                # bounds the whole session to SESSION_MAX_AGE_DAYS.
+                "auth_time": int(datetime.now(timezone.utc).timestamp()),
             }
         )
     except Exception as tok_err:
@@ -515,6 +518,38 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # SECURITY: session bounds. This endpoint accepts an EXPIRED token, and
+    # used to accept one expired for any length of time: a token left in a
+    # shared school computer's localStorage, or stolen, refreshed forever.
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    exp = payload.get("exp")
+    if not isinstance(exp, (int, float)) or now_ts - exp > settings.SESSION_IDLE_TIMEOUT_HOURS * 3600:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expirée après inactivité. Reconnectez-vous.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # Tokens minted before `auth_time` existed get the current time once:
+    # nobody is logged out by the deploy, and the cap applies from then on.
+    auth_time = payload.get("auth_time")
+    if not isinstance(auth_time, (int, float)):
+        auth_time = now_ts
+    elif now_ts - auth_time > settings.SESSION_MAX_AGE_DAYS * 86400:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session trop ancienne. Reconnectez-vous.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # An impersonation token is deliberately short-lived (15 min, platform.py)
+    # and refreshing it would mint a plain TENANT_ADMIN session that drops the
+    # impersonated_by audit claim.
+    if payload.get("impersonated_by"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Une session d'impersonation ne peut pas être prolongée.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # SECURITY: Reject refresh for a token invalidated by logout-all. Without
     # this, a token whose version was bumped stale by /auth/logout-all/ could
     # still refresh itself into a brand-new, fully valid token — silently
@@ -536,6 +571,13 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
             detail="User not found or inactive",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Same rule as /auth/login/ and get_current_user(): a deactivated
+    # institution's sessions are not prolonged.
+    if user_db.tenant_id:
+        from app.models.tenant import Tenant
+        tenant_obj = db.query(Tenant).filter(Tenant.id == user_db.tenant_id).first()
+        if tenant_obj is not None and not tenant_obj.is_active:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_DEACTIVATED_DETAIL)
 
     # 4. Fetch current roles from DB
     # SECURITY (audit P0-2): the DB is the single source of truth for roles.
@@ -584,6 +626,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
             "roles": all_roles,
             "jti": token_jti,
             "tv": token_version,
+            "auth_time": int(auth_time),
         }
     )
     return Token(
@@ -1184,6 +1227,7 @@ async def register_school(
         "roles": ["TENANT_ADMIN"],
         "tenant_id": str(tenant.id),
         "tenant_slug": slug,
+        "auth_time": int(datetime.now(timezone.utc).timestamp()),
     }
     access_token = create_access_token(data=token_data)
 
