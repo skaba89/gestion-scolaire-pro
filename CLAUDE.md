@@ -14,7 +14,7 @@ Workflow détaillé, agents, skills et commandes : `docs/CLAUDE_CODE_WORKFLOW.md
 
 | Couche | Technologie |
 |---|---|
-| Frontend | React 18, Vite 5, TypeScript 5.8, Tailwind 3.4, shadcn/Radix, React Query 5, Zustand, react-router 7, i18next (fr/en/es/ar/zh), Capacitor 8, PWA + Dexie (hors-ligne) |
+| Frontend | React 18, Vite 7, TypeScript 5.8, Tailwind 3.4, shadcn/Radix, React Query 5, Zustand, react-router 7, i18next (fr/en/es/ar/zh), Capacitor 8, PWA + Dexie (hors-ligne) |
 | Backend | FastAPI, SQLAlchemy 2.0 (**sessions synchrones**), Pydantic 2, Alembic, slowapi, ARQ (worker Redis), WeasyPrint |
 | Données | PostgreSQL 16 avec **Row-Level Security**, Redis 7, stockage objet (MinIO en local, Azure Blob en cloud — voir `docs/STORAGE_ARCHITECTURE.md`) |
 | Auth | JWT natif HS256 (`iss`/`aud`), bcrypt, TOTP + codes de secours, révocation Redis (jti + `token_version`) |
