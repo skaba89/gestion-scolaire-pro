@@ -52,6 +52,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 RESTRICTED_TOKEN_CLAIMS = ("mfa_pending", "mfa_setup")
 
 
+TENANT_DEACTIVATED_DETAIL = "Votre établissement est désactivé. Contactez un administrateur."
+
+
 def is_restricted_token(payload: dict) -> bool:
     """True for a pre-session token (see RESTRICTED_TOKEN_CLAIMS)."""
     return any(payload.get(claim) for claim in RESTRICTED_TOKEN_CLAIMS)
@@ -445,13 +448,19 @@ async def get_current_user(
         # Resolve tenant name for AI branding (used by chat/audit endpoints)
         tenant_name = None
         if resolved_tenant_id:
-            try:
-                from app.models.tenant import Tenant
-                tenant_obj = db.query(Tenant).filter(Tenant.id == resolved_tenant_id).first()
-                if tenant_obj:
-                    tenant_name = tenant_obj.name
-            except Exception:
-                pass
+            from app.models.tenant import Tenant
+            tenant_obj = db.query(Tenant).filter(Tenant.id == resolved_tenant_id).first()
+            if tenant_obj:
+                tenant_name = tenant_obj.name
+                # SECURITY: a deactivated institution used to be blocked at
+                # /auth/login/ only — its users' existing sessions kept
+                # working (and refreshing) indefinitely. SUPER_ADMIN keeps
+                # access to manage it.
+                if not tenant_obj.is_active and "SUPER_ADMIN" not in roles:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=TENANT_DEACTIVATED_DETAIL,
+                    )
 
         return {
             "id": str(user_db.id),

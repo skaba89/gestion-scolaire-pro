@@ -428,6 +428,17 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   caractères, historique tronqué à 20 tours et limite de débit comptée par
   compte (et non plus par IP, partagée par toute une école). Voir
   `docs/PERMISSIONS_MATRIX.md` § IA.
+- **2026-10-25 — sessions bornées, établissement désactivé coupé.**
+  `/auth/refresh/` rafraîchissait un jeton expiré depuis n'importe quand :
+  désormais 8 h d'inactivité et 7 jours depuis la connexion au maximum
+  (`SESSION_IDLE_TIMEOUT_HOURS` / `SESSION_MAX_AGE_DAYS`). Un établissement
+  désactivé est refusé à chaque requête et au rafraîchissement, plus
+  seulement à la connexion. Les erreurs HTTP transmettent enfin
+  `Retry-After` / `WWW-Authenticate` et les champs du 402 ; le
+  `except Exception: pass` de `get_current_user` est supprimé. Tickets du
+  2026-10-04 restants : essai sans `trial_ends_at` illimité (règle métier
+  à trancher), pas de gestion UI du 402 ; `ai.py` sans `require_permission`
+  réglé le même jour (entrée précédente).
 - **2026-10-25 — zod 4.6.6 + @hookform/resolvers 5.9.1.** Corrige
   GHSA-mrhx-c7xc-m3w5 (aucun correctif en 3.x) ; l'exception temporaire du
   contrôle `npm audit` est retirée. Messages d'erreur des formulaires

@@ -30,6 +30,18 @@ qui l'implémente.
   `core/security.py`) et devient inutilisable dès que la MFA est active
   (409). Risque résiduel : qui détient le mot de passe d'un compte pas
   encore enrôlé peut enrôler son propre TOTP — identique à l'absence de MFA.
+- **Durée de session bornée** (2026-10-25) : `/auth/refresh/` accepte un
+  jeton expiré, mais plus s'il est expiré depuis plus de
+  `SESSION_IDLE_TIMEOUT_HOURS` (8 h, inactivité) ni si la connexion
+  d'origine — claim `auth_time`, posé à la connexion et recopié tel quel à
+  chaque rafraîchissement — date de plus de `SESSION_MAX_AGE_DAYS` (7 j).
+  Auparavant un jeton oublié dans le `localStorage` d'un poste partagé, ou
+  volé, se rafraîchissait indéfiniment. Un jeton d'impersonation (15 min) ne
+  peut pas être prolongé. Testé dans
+  `test_session_lifetime_and_tenant_deactivation.py`.
+- **Établissement désactivé** (`tenants.is_active = false`) : refus 403 à
+  chaque requête (`get_current_user`) et au rafraîchissement, plus seulement
+  à la connexion ; `SUPER_ADMIN` garde l'accès pour l'administrer.
 - Les données MFA appartiennent au **compte**, pas au tenant consulté : les
   endpoints MFA en libre-service se placent dans le contexte RLS du tenant
   du compte lui-même (« aucun tenant » pour un compte plateforme,

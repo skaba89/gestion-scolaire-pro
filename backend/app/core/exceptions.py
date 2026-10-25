@@ -206,7 +206,8 @@ async def http_exception_handler(
     if isinstance(exc.detail, dict):
         # Structured detail produced by api_error() or similar
         message = exc.detail.get("message", str(exc.detail))
-        error = exc.detail.get("error_code", "HTTP_ERROR")
+        # require_plan()'s 402 uses "error", api_error() uses "error_code".
+        error = exc.detail.get("error_code") or exc.detail.get("error") or "HTTP_ERROR"
         content: dict[str, Any] = {
             "error": error,
             "message": message,
@@ -215,6 +216,10 @@ async def http_exception_handler(
         }
         if "details" in exc.detail:
             content["details"] = exc.detail["details"]
+        # Other fields of a structured detail (e.g. the 402's required_plan /
+        # current_plan / upgrade_url) used to be dropped on the way out.
+        for key, value in exc.detail.items():
+            content.setdefault(key, value)
     else:
         message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
         content = {
@@ -224,10 +229,12 @@ async def http_exception_handler(
             "request_id": request_id,
         }
 
+    # exc.headers (Retry-After of the fail-closed 503s, WWW-Authenticate of
+    # the 401s) used to be dropped too.
     return JSONResponse(
         status_code=exc.status_code,
         content=content,
-        headers=_cors_headers(request),
+        headers={**(exc.headers or {}), **_cors_headers(request)},
     )
 
 
