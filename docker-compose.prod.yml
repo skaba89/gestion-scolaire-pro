@@ -30,7 +30,10 @@ services:
     # One line on purpose: in a folded (">") YAML scalar, more-indented lines
     # keep their newline, so sh ran `redis-server` alone — WITHOUT the
     # password — and the following lines as separate (failing) commands.
-    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory 128mb --maxmemory-policy allkeys-lru --appendonly yes --appendfsync everysec"]
+    # noeviction, as in deploy/vps/docker-compose.vps.yml: under allkeys-lru a
+    # full Redis could evict token-revocation keys (jti blacklist,
+    # token_version) and silently make revoked tokens valid again.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --maxmemory 128mb --maxmemory-policy noeviction --appendonly yes --appendfsync everysec"]
     deploy:
       resources:
         limits:

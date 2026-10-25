@@ -322,7 +322,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const verifyMfa = useCallback(async (token: string) => {
     try {
-      await apiClient.post('/mfa/otp/verify/', { code: token });
+      // A wrong or expired code is a 200 with {valid: false}, not an HTTP
+      // error: only an explicit valid === true counts as verified.
+      const { data } = await apiClient.post<{ valid?: boolean }>('/mfa/otp/verify/', { code: token });
+      if (data?.valid !== true) {
+        return { success: false, error: 'Code invalide' };
+      }
       setIsMfaVerified(true);
       return { success: true };
     } catch {
