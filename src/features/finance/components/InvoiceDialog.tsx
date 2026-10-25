@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { z } from "zod";
 import {
     Dialog,
     DialogContent,
@@ -49,7 +50,7 @@ export const InvoiceDialog = ({
 }: InvoiceDialogProps) => {
     const { studentLabel, StudentLabel, isUniversity } = useStudentLabel();
 
-    const form = useForm<InvoiceFormValues>({
+    const form = useForm<z.input<typeof invoiceSchema>, unknown, InvoiceFormValues>({
         resolver: zodResolver(invoiceSchema),
         defaultValues: {
             student_id: "",

@@ -107,25 +107,6 @@ ALLOWLIST = {
         "review_by": "2026-12-31",
         "tracking": "P2 backlog — vite 5.x -> latest major upgrade",
     },
-    # Ajouté le 2026-10-24 (fix/npm-audit-2026-10). Aucun correctif 3.x : zod
-    # 4.6.6+ seulement, migration majeure (API des schémas, et
-    # @hookform/resolvers 3 -> 5) à mener dans un chantier dédié.
-    "GHSA-mrhx-c7xc-m3w5": {
-        "package": "zod",
-        "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
-        "added": "2026-10-24",
-        "reason": (
-            "zod memory exhaustion while validating oversized constrained "
-            "collections. zod runs in the browser only (form validation through "
-            "react-hook-form); the backend is Python and never uses it. The only "
-            "collection schemas (invoice items, homework attachment URLs) "
-            "validate what the user typed into their own form — no file import, "
-            "API response or third-party payload goes through zod — so the worst "
-            "case is a user freezing their own tab. No 3.x fix exists."
-        ),
-        "review_by": "2026-12-31",
-        "tracking": "P2 backlog — zod 3.x -> 4.x (+ @hookform/resolvers 5) migration",
-    },
 }
 
 

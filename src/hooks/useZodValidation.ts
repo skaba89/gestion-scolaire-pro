@@ -33,11 +33,11 @@ export function useZodValidation(schema: ZodSchema) {
       return {
         isValid: true,
         errors: [],
-        data: result,
+        data: result as Record<string, unknown>,
       };
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const validationErrors: ValidationError[] = error.errors.map((err) => ({
+        const validationErrors: ValidationError[] = error.issues.map((err) => ({
           field: err.path.join('.'),
           message: err.message,
         }));
@@ -69,7 +69,7 @@ export function useZodValidation(schema: ZodSchema) {
       return null;
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return error.errors[0]?.message || 'Invalid input';
+        return error.issues[0]?.message || 'Invalid input';
       }
       return 'Invalid input';
     }
