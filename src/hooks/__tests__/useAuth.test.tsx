@@ -157,4 +157,30 @@ describe("useAuth", () => {
     });
     expect(localStorage.setItem).toHaveBeenCalledWith("last_tenant_id", "tenant-123");
   });
+
+  it.each([
+    [{ valid: false }],
+    [{}],
+  ])("verifyMfa rejects a %j response instead of treating it as success", async (body) => {
+    mockApiPost.mockResolvedValueOnce({ data: body });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      expect(await result.current.verifyMfa("123456")).toEqual({ success: false, error: "Code invalide" });
+    });
+    expect(mockApiPost).toHaveBeenCalledWith("/mfa/otp/verify/", { code: "123456" });
+    expect(result.current.isMfaVerified).toBe(false);
+  });
+
+  it("verifyMfa succeeds only on valid: true", async () => {
+    mockApiPost.mockResolvedValueOnce({ data: { valid: true } });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      expect(await result.current.verifyMfa("123456")).toEqual({ success: true });
+    });
+    expect(result.current.isMfaVerified).toBe(true);
+  });
 });
