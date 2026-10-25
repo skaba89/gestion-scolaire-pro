@@ -891,3 +891,17 @@ non privilégié (sans rôle de `FINANCE_PRIVILEGED_ROLES`) ne voit que ses
 enfants ; `student_id` d'une autre famille → 403 ; sans enfant lié → liste
 vide. Aucun autre rôle non privilégié ne détient `payments:read`.
 Tests : `backend/tests/test_parent_finance_scope.py` (26 cas).
+
+## IA (`POST /ai/chat`, `POST /ai/audit`) — 2026-10-25
+
+Chaque appel consomme le quota Groq partagé de la plateforme. Les deux routes
+restent réservées à l'offre « pro » (`require_plan("pro")`).
+
+| Route | Rôles autorisés | Limites |
+|---|---|---|
+| `POST /ai/chat` | tout compte connecté (chatbot des espaces élève, parent, enseignant + widget global) | 20/min **par compte** ; message ≤ 4 000 caractères (sinon 422) ; historique tronqué aux 20 derniers tours, sans tour `system` fourni par le client |
+| `POST /ai/audit` | `ai:audit` : SUPER_ADMIN, TENANT_ADMIN, DIRECTOR (403 sinon) | 10/min **par compte** ; données ≤ 50 Ko (sinon 422) |
+
+Frontend : `ai:audit` ajouté aux mêmes trois rôles dans `src/lib/permissions.ts`
+(aucun écran ne l'utilise encore : `AIAuditButton` n'est monté nulle part).
+Tests : `backend/tests/test_ai_routes_quota_rbac.py`.

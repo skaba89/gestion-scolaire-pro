@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-24 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-25 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -421,6 +421,13 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   (paramètres pourtant enregistrés). Corrigé + tests. Onboarding et upload
   vérifiés sans défaut. Aucune occurrence dans les journaux de production
   (aucune modification de paramètres depuis la mise en service).
+- **2026-10-25 — routes IA bornées.** `POST /ai/audit` était appelable par
+  tout compte d'un établissement « pro » (élève compris), avec des données de
+  taille illimitée envoyées à Groq ; il exige désormais `ai:audit` (direction).
+  `POST /ai/chat` reste ouvert à tous les rôles, mais message ≤ 4 000
+  caractères, historique tronqué à 20 tours et limite de débit comptée par
+  compte (et non plus par IP, partagée par toute une école). Voir
+  `docs/PERMISSIONS_MATRIX.md` § IA.
 
 ## Documents à considérer avec prudence
 

@@ -567,6 +567,9 @@ ROLE_PERMISSIONS: dict = {
         "certificates:read", "certificates:write",
         "analytics:read",
         "audit:read", "audit:write",
+        # AI audit report (/ai/audit): sends tenant data to the external LLM
+        # and spends the shared Groq quota — management only.
+        "ai:audit",
         # Settings (but NOT RGPD deletion)
         "settings:read", "settings:write",
         # MFA
@@ -575,6 +578,7 @@ ROLE_PERMISSIONS: dict = {
     ],
     "DIRECTOR": [
         "users:read", "users:write",
+        "ai:audit",
         "students:read", "students:write",
         "enrollments:read", "enrollments:write",
         "grades:read", "grades:write",

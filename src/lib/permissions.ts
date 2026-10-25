@@ -125,7 +125,8 @@ export type Permission =
   | "guides:read"
 
   // AI
-  | "ai:read";
+  | "ai:read"
+  | "ai:audit";
 
 // Permission matrix by role
 export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
@@ -151,7 +152,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "certificates:read", "certificates:generate",
     "rooms:read", "rooms:manage",
     "dashboard:admin",
-    "guides:read", "ai:read",
+    "guides:read", "ai:read", "ai:audit",
   ],
 
   TENANT_ADMIN: [
@@ -175,7 +176,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "certificates:read", "certificates:generate",
     "rooms:read", "rooms:manage",
     "dashboard:admin",
-    "guides:read", "ai:read",
+    "guides:read", "ai:read", "ai:audit",
   ],
 
   DIRECTOR: [
@@ -199,7 +200,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "certificates:read", "certificates:generate",
     "rooms:read", "rooms:manage",
     "dashboard:admin",
-    "guides:read", "ai:read",
+    "guides:read", "ai:read", "ai:audit",
   ],
 
   DEPARTMENT_HEAD: [

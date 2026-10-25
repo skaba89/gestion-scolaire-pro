@@ -30,10 +30,6 @@ class TestDirectLimitersUseGetClientIp:
     """Modules dont le Limiter() prend get_client_ip directement comme
     key_func — vérifiable par identité de fonction."""
 
-    def test_ai(self):
-        from app.api.v1.endpoints.core.ai import limiter
-        assert limiter._key_func is get_client_ip
-
     def test_mfa(self):
         from app.api.v1.endpoints.core.mfa import limiter
         assert limiter._key_func is get_client_ip
@@ -127,6 +123,23 @@ class TestWrapperKeyFunctionsDelegateToGetClientIp:
             path_params={"tenant_slug": "ecole-test"},
         )
         assert _submit_form_rate_key(request) == "203.0.113.7:ecole-test"
+
+    def test_ai_rate_key_is_per_account_with_proxy_aware_ip_fallback(self):
+        """ai.py::_ai_rate_key (2026-10-25) — compte par compte (une école
+        entière derrière un même Wi-Fi partage une IP publique) ; repli sur
+        la vraie IP derrière le proxy si aucun compte n'a été posé."""
+        from types import SimpleNamespace
+        from app.api.v1.endpoints.core.ai import _ai_rate_key, limiter
+
+        assert limiter._key_func is _ai_rate_key
+        request = SimpleNamespace(
+            client=SimpleNamespace(host="10.0.4.23"),
+            headers={"X-Forwarded-For": "203.0.113.7"},
+            state=SimpleNamespace(),
+        )
+        assert _ai_rate_key(request) == "203.0.113.7"
+        request.state.ai_rate_key = "user:42"
+        assert _ai_rate_key(request) == "user:42"
 
     def test_hash_ip_helper_receives_the_real_client_ip_not_the_proxy_ip(self):
         """public_pages.py::submit_public_form — le hash d'IP loggé pour
