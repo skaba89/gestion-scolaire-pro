@@ -48,30 +48,10 @@ NON_BLOCKING_SEVERITIES = {"low", "moderate", "info"}
 # Keyed by advisory id (GHSA id preferred; numeric npm `source` also matches).
 # Each entry MUST carry a written reason and a `review_by` (YYYY-MM-DD) after
 # which it stops applying and the advisory blocks CI again.
-ALLOWLIST = {
-    # Ajouté le 2026-10-04 (fix/deps-security-2026-10). Non corrigé
-    # immédiatement : aucune version corrigée de `braces` n'existe (3.0.3 est
-    # la dernière publiée et l'avis couvre <=3.0.3) ; la seule issue proposée
-    # par npm est tailwindcss 4.x, une migration majeure (configuration,
-    # plugin PostCSS) à mener dans un chantier dédié.
-    "GHSA-vfj7-8cjw-p6xm": {
-        "package": "braces",
-        "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-        "cve": "CVE-2026-93687",
-        "added": "2026-10-04",
-        "reason": (
-            "braces stack-exhaustion DoS via deeply nested brace patterns. Only "
-            "reachable through tailwindcss 3.4.x (devDependency) -> chokidar / "
-            "micromatch, which expand the glob patterns of tailwind.config.ts "
-            "`content` — patterns written by the developers in the repository, "
-            "never user input — at build/dev time only. No shipped code imports "
-            "braces, micromatch, fast-glob or chokidar, so there is no production "
-            "runtime exposure. No fixed braces release exists; the only npm-"
-            "proposed fix is tailwindcss 4.x, a semver-major migration."
-        ),
-        "review_by": "2026-12-31",
-        "tracking": "P2 backlog — tailwindcss 3.x -> 4.x migration (or a patched braces release)",
-    },
+ALLOWLIST: dict[str, dict] = {
+    # Vide depuis le 2026-10-25 : zod (GHSA-mrhx) et vite (GHSA-587h,
+    # GHSA-fx2h) corrigés par montée de version ; braces (GHSA-vfj7) retiré
+    # par GitHub le 2026-10-23 (advisory withdrawn).
 }
 
 
