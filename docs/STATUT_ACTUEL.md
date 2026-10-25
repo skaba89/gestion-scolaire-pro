@@ -431,8 +431,12 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
 - **2026-10-25 — zod 4.6.6 + @hookform/resolvers 5.9.1.** Corrige
   GHSA-mrhx-c7xc-m3w5 (aucun correctif en 3.x) ; l'exception temporaire du
   contrôle `npm audit` est retirée. Messages d'erreur des formulaires
-  inchangés (`invalid_type_error` / `errorMap` → `error`). Reste à faire avant
-  le 2026-12-31 : vite 5 → 6+ (GHSA-587h-7wmj-h5pm).
+  inchangés (`invalid_type_error` / `errorMap` → `error`).
+- **2026-10-25 — vite 5.4 → 7.3.7.** Corrige GHSA-587h-7wmj-h5pm et
+  GHSA-fx2h-pf6j-xcff (serveur de dev) ; leurs exceptions du contrôle
+  `npm audit` sont retirées — il n'y a plus aucune vulnérabilité high/critical
+  (`npm audit` : 15 avis modérés/faibles, contre 17 dont 1 high). Plugins
+  inchangés (tous compatibles vite 7), `build.target` reste `es2020`.
 
 ## Documents à considérer avec prudence
 

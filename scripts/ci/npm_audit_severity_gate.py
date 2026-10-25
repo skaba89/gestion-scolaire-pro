@@ -49,22 +49,6 @@ NON_BLOCKING_SEVERITIES = {"low", "moderate", "info"}
 # Each entry MUST carry a written reason and a `review_by` (YYYY-MM-DD) after
 # which it stops applying and the advisory blocks CI again.
 ALLOWLIST = {
-    "GHSA-fx2h-pf6j-xcff": {
-        "package": "vite",
-        "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff",
-        "reason": (
-            "vite dev-server `server.fs.deny` bypass on Windows alternate data "
-            "paths. Affects `vite dev` (the local development server) ONLY; the "
-            "production artefact is the static bundle emitted by `vite build` and "
-            "never runs the dev server, so there is no production runtime exposure. "
-            "No non-breaking fix is available: the advisory is patched only in "
-            "vite 6.4.3+/7.x/8.x, while this repository is pinned to vite 5.4.x. "
-            "Moving off 5.x is a semver-major upgrade that also drags vitest and "
-            "the vite plugins, tracked separately as a P2 dependency chantier."
-        ),
-        "review_by": "2026-12-31",
-        "tracking": "P2 backlog — vite 5.x -> latest major upgrade",
-    },
     # Ajouté le 2026-10-04 (fix/deps-security-2026-10). Non corrigé
     # immédiatement : aucune version corrigée de `braces` n'existe (3.0.3 est
     # la dernière publiée et l'avis couvre <=3.0.3) ; la seule issue proposée
@@ -87,25 +71,6 @@ ALLOWLIST = {
         ),
         "review_by": "2026-12-31",
         "tracking": "P2 backlog — tailwindcss 3.x -> 4.x migration (or a patched braces release)",
-    },
-    # Ajouté le 2026-10-24 (fix/npm-audit-2026-10), en même temps que la
-    # montée de dompurify 3.4.17, follow-redirects 1.16.1 et du vite 8 de
-    # vitest (8.3.5). Le vite 5.4.x racine reste exposé : aucun correctif 5.x.
-    "GHSA-587h-7wmj-h5pm": {
-        "package": "vite",
-        "url": "https://github.com/advisories/GHSA-587h-7wmj-h5pm",
-        "added": "2026-10-24",
-        "reason": (
-            "launch-editor (bundled in vite) `fs.existsSync()` check bypass on "
-            "Windows, used by the dev server's open-in-editor middleware. Affects "
-            "`vite dev` on a Windows developer machine ONLY; the production "
-            "artefact is the static bundle emitted by `vite build`, which never "
-            "runs the dev server or launch-editor. Patched only in vite "
-            "6.4.4+/7.3.7+/8.1.6+ — no 5.x fix; same semver-major chantier as "
-            "GHSA-fx2h-pf6j-xcff. vitest's own nested vite 8 is already patched."
-        ),
-        "review_by": "2026-12-31",
-        "tracking": "P2 backlog — vite 5.x -> latest major upgrade",
     },
 }
 
