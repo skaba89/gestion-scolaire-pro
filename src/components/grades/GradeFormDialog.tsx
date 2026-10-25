@@ -26,8 +26,8 @@ const schema = z.object({
     subject_id: z.string().min(1, "La matière est requise"),
     term_id: z.string().min(1, "Le trimestre est requis"),
     type: z.enum(["exam", "quiz", "homework", "project"]).default("exam"),
-    max_score: z.number({ invalid_type_error: "Nombre requis" }).min(1).max(200),
-    weight: z.number({ invalid_type_error: "Nombre requis" }).min(0.5).max(10),
+    max_score: z.number({ error: (iss) => (iss.code === "invalid_type" ? "Nombre requis" : undefined) }).min(1).max(200),
+    weight: z.number({ error: (iss) => (iss.code === "invalid_type" ? "Nombre requis" : undefined) }).min(0.5).max(10),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -61,7 +61,7 @@ export const GradeFormDialog = ({
         control,
         reset,
         formState: { errors },
-    } = useForm<FormValues>({
+    } = useForm<z.input<typeof schema>, unknown, FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { name: "", class_id: "", subject_id: "", term_id: "", type: "exam", max_score: 20, weight: 1 },
     });

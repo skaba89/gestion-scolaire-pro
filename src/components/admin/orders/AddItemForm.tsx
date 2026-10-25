@@ -15,9 +15,9 @@ import { useTenant } from "@/contexts/TenantContext";
 
 const schema = z.object({
     name: z.string().min(1, "Le nom de l'article est requis").max(200),
-    price: z.number({ invalid_type_error: "Prix invalide" }).positive("Le prix doit être positif"),
+    price: z.number({ error: (iss) => (iss.code === "invalid_type" ? "Prix invalide" : undefined) }).positive("Le prix doit être positif"),
     quantity: z
-        .number({ invalid_type_error: "Quantité invalide" })
+        .number({ error: (iss) => (iss.code === "invalid_type" ? "Quantité invalide" : undefined) })
         .int("Quantité entière requise")
         .min(1, "Minimum 1"),
 });

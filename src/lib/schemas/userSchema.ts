@@ -57,7 +57,7 @@ export const RegisterSchema = z
       ),
     password_confirm: z.string(),
     terms: z.literal(true, {
-      errorMap: () => ({ message: "Vous devez accepter les conditions" }),
+      error: "Vous devez accepter les conditions",
     }),
   })
   .refine((data) => data.password === data.password_confirm, {
