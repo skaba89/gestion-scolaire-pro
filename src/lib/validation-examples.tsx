@@ -64,7 +64,7 @@ export function StudentFormWithZod() {
             first_name: '',
             last_name: '',
             birth_date: '',
-            gender: 'M' as 'M' | 'F' | 'O',
+            gender: 'M' as 'M' | 'F' | 'OTHER',
             email: '',
             phone: '',
         },

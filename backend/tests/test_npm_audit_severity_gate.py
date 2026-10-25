@@ -290,13 +290,13 @@ class TestRealBracesAdvisoryIsAccepted:
 
 
 class TestOctober2026AcceptedAdvisories:
-    """Guards the two acceptances added on 2026-10-24 (vite 5.4 launch-editor
-    on Windows, zod 3 collections): each accepts exactly its own advisory id,
-    and both expire on their review_by date."""
+    """Guards the acceptance added on 2026-10-24 (vite 5.4 launch-editor on
+    Windows): it accepts exactly its own advisory id and expires on its
+    review_by date. The zod 3 acceptance (GHSA-mrhx-c7xc-m3w5) was removed
+    on 2026-10-25 with the zod 4.6.6 upgrade."""
 
     CASES = [
         ("GHSA-587h-7wmj-h5pm", 1242658, "vite"),
-        ("GHSA-mrhx-c7xc-m3w5", 1243066, "zod"),
     ]
 
     @pytest.mark.parametrize("ghsa,source,pkg", CASES)
@@ -316,12 +316,14 @@ class TestOctober2026AcceptedAdvisories:
         monkeypatch.setattr("sys.argv", ["gate", path])
         assert module.main() == 1
 
-    def test_a_different_zod_high_still_blocks(self, tmp_path, monkeypatch):
-        """Accepting the one zod advisory must not blanket-accept zod."""
+    def test_zod_acceptance_was_withdrawn_after_upgrade(self, tmp_path, monkeypatch):
+        """zod is on 4.6.6+ (patched): its old advisory must block again if a
+        downgrade ever reintroduced it."""
         module = _load_module()
+        assert "GHSA-mrhx-c7xc-m3w5" not in module.ALLOWLIST
         monkeypatch.setattr(module, "_today", lambda: datetime.date(2026, 10, 24))
         path = _write(tmp_path, _report(
-            _advisory(severity="high", ghsa="GHSA-future-zod-9999", source=102, name="zod"), pkg="zod",
+            _advisory(severity="high", ghsa="GHSA-mrhx-c7xc-m3w5", source=1243066, name="zod"), pkg="zod",
         ))
         monkeypatch.setattr("sys.argv", ["gate", path])
         assert module.main() == 1

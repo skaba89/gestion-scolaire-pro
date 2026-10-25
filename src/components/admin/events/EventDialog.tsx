@@ -39,7 +39,7 @@ const eventSchema = z.object({
     start_date: z.string().min(1, "La date de début est requise"),
     end_date: z.string().optional(),
     location: z.string().optional(),
-    max_participants: z.coerce.number().optional(),
+    max_participants: z.coerce.number<string | number>().optional(),
     registration_required: z.boolean().default(false),
     is_public: z.boolean().default(true),
 });
@@ -60,7 +60,7 @@ export const EventDialog = ({
     initialData
 }: EventDialogProps) => {
     const { studentsLabel } = useStudentLabel();
-    const form = useForm<EventFormValues>({
+    const form = useForm<z.input<typeof eventSchema>, unknown, EventFormValues>({
         resolver: zodResolver(eventSchema),
         defaultValues: {
             title: "",

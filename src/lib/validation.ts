@@ -64,7 +64,7 @@ export const studentSchema = z.object({
         ),
 
     gender: z.enum(['M', 'F', 'OTHER'], {
-        errorMap: () => ({ message: 'Genre invalide (M, F, ou OTHER)' }),
+        error: 'Genre invalide (M, F, ou OTHER)',
     }),
 
     // Optional fields
@@ -86,7 +86,7 @@ export const studentSchema = z.object({
         .optional(),
 
     status: z.enum(['ACTIVE', 'INACTIVE', 'GRADUATED', 'EXPELLED'], {
-        errorMap: () => ({ message: 'Statut invalide' }),
+        error: 'Statut invalide',
     }).optional(),
 });
 
@@ -121,7 +121,7 @@ export const invoiceSchema = z.object({
     description: z.string().max(500, 'La description ne peut pas dépasser 500 caractères').optional(),
 
     status: z.enum(['PENDING', 'PAID', 'OVERDUE', 'CANCELLED'], {
-        errorMap: () => ({ message: 'Statut invalide' }),
+        error: 'Statut invalide',
     }).optional(),
 
     invoice_number: z
@@ -148,7 +148,7 @@ export const paymentSchema = z.object({
         .max(100000, 'Le montant ne peut pas dépasser 100 000'),
 
     payment_method: z.enum(['CASH', 'CHECK', 'BANK_TRANSFER', 'CARD', 'MOBILE_PAYMENT'], {
-        errorMap: () => ({ message: 'Méthode de paiement invalide' }),
+        error: 'Méthode de paiement invalide',
     }),
 
     payment_date: z
@@ -224,7 +224,7 @@ export const attendanceSchema = z.object({
         ),
 
     status: z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'], {
-        errorMap: () => ({ message: 'Statut de présence invalide' }),
+        error: 'Statut de présence invalide',
     }),
 
     subject_id: z.string().uuid('ID matière invalide').optional(),
@@ -256,7 +256,7 @@ export function validateData<T>(schema: z.ZodSchema<T>, data: unknown): {
     }
 
     const errors: Record<string, string> = {};
-    result.error.errors.forEach((err) => {
+    result.error.issues.forEach((err) => {
         const path = err.path.join('.');
         errors[path] = err.message;
     });
