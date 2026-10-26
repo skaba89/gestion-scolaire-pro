@@ -2725,5 +2725,153 @@
             "canceled": "Annulé",
             "unpaid": "Impayé"
         }
+    },
+    "superAdminTenants": {
+        "accessDenied": "Accès refusé",
+        "accessDeniedText": "Cette page est réservée au Super Administrateur.",
+        "title": "Super Admin",
+        "subtitle": "Gestion de tous les établissements de la plateforme",
+        "newTenant": "Nouvel établissement",
+        "stats": {
+            "tenants": "Établissements",
+            "active": "Actifs",
+            "users": "Utilisateurs",
+            "students": "Élèves"
+        },
+        "emptyTitle": "Aucun établissement",
+        "emptyText": "Commencez par créer votre premier établissement. Vous pourrez ensuite créer les utilisateurs admin pour chaque établissement.",
+        "createTenant": "Créer un établissement",
+        "searchPlaceholder": "Rechercher par nom, slug ou email...",
+        "listTitle": "Établissements ({{n}})",
+        "loading": "Chargement...",
+        "noResults": "Aucun résultat",
+        "table": {
+            "name": "Nom",
+            "type": "Type",
+            "slug": "Slug",
+            "admins": "Admins",
+            "users": "Utilisateurs",
+            "students": "Élèves",
+            "subscription": "Abonnement",
+            "status": "Statut",
+            "actions": "Actions"
+        },
+        "active": "Actif",
+        "inactive": "Inactif",
+        "settings": "Paramètres de l'établissement",
+        "openTenant": "Ouvrir l'établissement dans un nouvel onglet",
+        "cancel": "Annuler",
+        "types": {
+            "primary": "École primaire",
+            "middle": "Collège",
+            "high": "Lycée",
+            "university": "Université",
+            "school": "École",
+            "training": "Centre de formation"
+        },
+        "detail": {
+            "users": "Utilisateurs",
+            "students": "Élèves",
+            "admins": "Admins",
+            "type": "Type",
+            "slug": "Slug",
+            "email": "Email",
+            "phone": "Téléphone",
+            "address": "Adresse",
+            "website": "Site web",
+            "status": "Statut",
+            "createdAt": "Créé le"
+        },
+        "health": {
+            "button": "Santé de l'établissement (support)",
+            "title": "Santé — {{name}}",
+            "error": "Erreur lors du chargement",
+            "overall": "Statut global",
+            "status": {
+                "healthy": "Sain",
+                "degraded": "Dégradé",
+                "critical": "Critique",
+                "inactive": "Inactif"
+            },
+            "quotas": "Quotas",
+            "unlimited": "(illimité)",
+            "failedJobs": "Jobs échoués récents :",
+            "unknownError": "erreur inconnue",
+            "lastImport": "Dernier import :",
+            "lastWebhook": "Dernier webhook paiement échoué :",
+            "noDetail": "sans détail",
+            "lastActivity": "Dernière activité :",
+            "none": "Aucun"
+        },
+        "addAdmin": {
+            "fillAll": "Veuillez remplir tous les champs",
+            "created": "Utilisateur {{email}} créé — lien d'activation envoyé par email",
+            "createError": "Erreur lors de la création",
+            "button": "Ajouter un utilisateur",
+            "title": "Ajouter un utilisateur — {{name}}",
+            "firstName": "Prénom *",
+            "lastName": "Nom *",
+            "email": "Email *",
+            "role": "Rôle",
+            "roles": {
+                "TENANT_ADMIN": "Administrateur de l'établissement",
+                "DIRECTOR": "Directeur",
+                "TEACHER": "Enseignant",
+                "STAFF": "Personnel",
+                "ACCOUNTANT": "Comptable"
+            },
+            "note": "Un email avec un lien de création de mot de passe sera envoyé à cette adresse. Vous ne définissez ni ne voyez jamais son mot de passe.",
+            "sending": "Envoi en cours...",
+            "submit": "Créer et envoyer l'invitation"
+        },
+        "subscription": {
+            "updated": "Abonnement de {{name}} mis à jour : {{plan}}.",
+            "error": "Erreur lors du changement d'abonnement",
+            "title": "Changer l'abonnement",
+            "tenant": "Établissement :",
+            "current": "Offre actuelle :",
+            "next": "Nouvelle offre",
+            "saving": "Enregistrement...",
+            "save": "Enregistrer"
+        },
+        "toggle": {
+            "deactivated": "Établissement {{name}} désactivé. Toutes les sessions ont été révoquées.",
+            "reactivated": "Établissement {{name}} réactivé.",
+            "error": "Erreur lors du changement de statut",
+            "deactivateTitle": "Désactiver l'établissement",
+            "reactivateTitle": "Réactiver l'établissement",
+            "warning": "Attention",
+            "warningText": "Tous les utilisateurs de l'établissement <b>{{name}}</b> seront immédiatement déconnectés et ne pourront plus se reconnecter tant que l'établissement est désactivé.",
+            "tenant": "Établissement :",
+            "usersAffected": "Utilisateurs concernés :",
+            "studentsAffected": "Élèves concernés :",
+            "reactivateLater": "Vous pourrez réactiver cet établissement à tout moment depuis ce tableau de bord.",
+            "reactivateText": "Voulez-vous réactiver l'établissement <b>{{name}}</b> ? Les utilisateurs pourront à nouveau se connecter.",
+            "deactivate": "Désactiver",
+            "reactivate": "Réactiver"
+        },
+        "remove": {
+            "deleted": "Établissement {{name}} supprimé définitivement.",
+            "error": "Erreur lors de la suppression",
+            "title": "Supprimer l'établissement",
+            "irreversible": "Action irréversible",
+            "irreversibleText": "La suppression de l'établissement <b>{{name}}</b> entraînera la suppression définitive de toutes les données associées.",
+            "tenant": "Établissement :",
+            "users": "Utilisateurs :",
+            "students": "Élèves :",
+            "items": {
+                "users": "Tous les utilisateurs et leurs comptes",
+                "grades": "Toutes les notes et évaluations",
+                "payments": "Tous les paiements et factures",
+                "attendance": "Toutes les données de présence",
+                "messages": "Tous les messages et annonces"
+            },
+            "understand": "Je comprends les risques — Continuer",
+            "typeName": "Veuillez taper le nom de l'établissement pour confirmer.",
+            "typeLabel": "Tapez <b>{{name}}</b> pour confirmer :",
+            "lastChance": "Dernière chance — Cette action est irréversible.",
+            "deleting": "Suppression en cours...",
+            "confirm": "Supprimer définitivement"
+        }
     }
 }

@@ -2772,5 +2772,153 @@
       "canceled": "Cancelado",
       "unpaid": "Impagado"
     }
+  },
+  "superAdminTenants": {
+    "accessDenied": "Acceso denegado",
+    "accessDeniedText": "Esta página está reservada al Superadministrador.",
+    "title": "Super Admin",
+    "subtitle": "Gestión de todos los centros de la plataforma",
+    "newTenant": "Nuevo centro",
+    "stats": {
+      "tenants": "Centros",
+      "active": "Activos",
+      "users": "Usuarios",
+      "students": "Alumnos"
+    },
+    "emptyTitle": "Ningún centro",
+    "emptyText": "Empiece creando su primer centro. Después podrá crear los usuarios administradores de cada centro.",
+    "createTenant": "Crear un centro",
+    "searchPlaceholder": "Buscar por nombre, slug o email...",
+    "listTitle": "Centros ({{n}})",
+    "loading": "Cargando...",
+    "noResults": "Sin resultados",
+    "table": {
+      "name": "Nombre",
+      "type": "Tipo",
+      "slug": "Slug",
+      "admins": "Admins",
+      "users": "Usuarios",
+      "students": "Alumnos",
+      "subscription": "Suscripción",
+      "status": "Estado",
+      "actions": "Acciones"
+    },
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "settings": "Parámetros del centro",
+    "openTenant": "Abrir el centro en una pestaña nueva",
+    "cancel": "Cancelar",
+    "types": {
+      "primary": "Escuela primaria",
+      "middle": "Colegio",
+      "high": "Liceo",
+      "university": "Universidad",
+      "school": "Escuela",
+      "training": "Centro de formación"
+    },
+    "detail": {
+      "users": "Usuarios",
+      "students": "Alumnos",
+      "admins": "Admins",
+      "type": "Tipo",
+      "slug": "Slug",
+      "email": "Email",
+      "phone": "Teléfono",
+      "address": "Dirección",
+      "website": "Sitio web",
+      "status": "Estado",
+      "createdAt": "Creado el"
+    },
+    "health": {
+      "button": "Salud del centro (soporte)",
+      "title": "Salud — {{name}}",
+      "error": "Error al cargar",
+      "overall": "Estado general",
+      "status": {
+        "healthy": "Correcto",
+        "degraded": "Degradado",
+        "critical": "Crítico",
+        "inactive": "Inactivo"
+      },
+      "quotas": "Cuotas",
+      "unlimited": "(ilimitado)",
+      "failedJobs": "Tareas fallidas recientes:",
+      "unknownError": "error desconocido",
+      "lastImport": "Última importación:",
+      "lastWebhook": "Último webhook de pago fallido:",
+      "noDetail": "sin detalle",
+      "lastActivity": "Última actividad:",
+      "none": "Ninguno"
+    },
+    "addAdmin": {
+      "fillAll": "Rellene todos los campos",
+      "created": "Usuario {{email}} creado — enlace de activación enviado por email",
+      "createError": "Error al crear",
+      "button": "Añadir un usuario",
+      "title": "Añadir un usuario — {{name}}",
+      "firstName": "Nombre *",
+      "lastName": "Apellido *",
+      "email": "Email *",
+      "role": "Rol",
+      "roles": {
+        "TENANT_ADMIN": "Administrador del centro",
+        "DIRECTOR": "Director",
+        "TEACHER": "Docente",
+        "STAFF": "Personal",
+        "ACCOUNTANT": "Contable"
+      },
+      "note": "Se enviará a esta dirección un email con un enlace para crear la contraseña. Usted nunca define ni ve su contraseña.",
+      "sending": "Enviando...",
+      "submit": "Crear y enviar la invitación"
+    },
+    "subscription": {
+      "updated": "Suscripción de {{name}} actualizada: {{plan}}.",
+      "error": "Error al cambiar la suscripción",
+      "title": "Cambiar la suscripción",
+      "tenant": "Centro:",
+      "current": "Plan actual:",
+      "next": "Nuevo plan",
+      "saving": "Guardando...",
+      "save": "Guardar"
+    },
+    "toggle": {
+      "deactivated": "Centro {{name}} desactivado. Se han revocado todas las sesiones.",
+      "reactivated": "Centro {{name}} reactivado.",
+      "error": "Error al cambiar el estado",
+      "deactivateTitle": "Desactivar el centro",
+      "reactivateTitle": "Reactivar el centro",
+      "warning": "Atención",
+      "warningText": "Todos los usuarios del centro <b>{{name}}</b> se desconectarán de inmediato y no podrán volver a conectarse mientras el centro esté desactivado.",
+      "tenant": "Centro:",
+      "usersAffected": "Usuarios afectados:",
+      "studentsAffected": "Alumnos afectados:",
+      "reactivateLater": "Podrá reactivar este centro en cualquier momento desde este panel.",
+      "reactivateText": "¿Desea reactivar el centro <b>{{name}}</b>? Los usuarios podrán volver a conectarse.",
+      "deactivate": "Desactivar",
+      "reactivate": "Reactivar"
+    },
+    "remove": {
+      "deleted": "Centro {{name}} eliminado definitivamente.",
+      "error": "Error al eliminar",
+      "title": "Eliminar el centro",
+      "irreversible": "Acción irreversible",
+      "irreversibleText": "La eliminación del centro <b>{{name}}</b> supondrá la eliminación definitiva de todos sus datos.",
+      "tenant": "Centro:",
+      "users": "Usuarios:",
+      "students": "Alumnos:",
+      "items": {
+        "users": "Todos los usuarios y sus cuentas",
+        "grades": "Todas las notas y evaluaciones",
+        "payments": "Todos los pagos y facturas",
+        "attendance": "Todos los datos de asistencia",
+        "messages": "Todos los mensajes y anuncios"
+      },
+      "understand": "Entiendo los riesgos — Continuar",
+      "typeName": "Escriba el nombre del centro para confirmar.",
+      "typeLabel": "Escriba <b>{{name}}</b> para confirmar:",
+      "lastChance": "Última oportunidad — Esta acción es irreversible.",
+      "deleting": "Eliminando...",
+      "confirm": "Eliminar definitivamente"
+    }
   }
 }

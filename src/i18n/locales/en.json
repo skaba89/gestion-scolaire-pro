@@ -2725,5 +2725,153 @@
       "canceled": "Cancelled",
       "unpaid": "Unpaid"
     }
+  },
+  "superAdminTenants": {
+    "accessDenied": "Access denied",
+    "accessDeniedText": "This page is reserved for the Super Administrator.",
+    "title": "Super Admin",
+    "subtitle": "Management of every institution on the platform",
+    "newTenant": "New institution",
+    "stats": {
+      "tenants": "Institutions",
+      "active": "Active",
+      "users": "Users",
+      "students": "Students"
+    },
+    "emptyTitle": "No institution",
+    "emptyText": "Start by creating your first institution. You can then create the admin users for each institution.",
+    "createTenant": "Create an institution",
+    "searchPlaceholder": "Search by name, slug or email...",
+    "listTitle": "Institutions ({{n}})",
+    "loading": "Loading...",
+    "noResults": "No results",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "slug": "Slug",
+      "admins": "Admins",
+      "users": "Users",
+      "students": "Students",
+      "subscription": "Subscription",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "active": "Active",
+    "inactive": "Inactive",
+    "settings": "Institution settings",
+    "openTenant": "Open the institution in a new tab",
+    "cancel": "Cancel",
+    "types": {
+      "primary": "Primary school",
+      "middle": "Middle school",
+      "high": "High school",
+      "university": "University",
+      "school": "School",
+      "training": "Training centre"
+    },
+    "detail": {
+      "users": "Users",
+      "students": "Students",
+      "admins": "Admins",
+      "type": "Type",
+      "slug": "Slug",
+      "email": "Email",
+      "phone": "Phone",
+      "address": "Address",
+      "website": "Website",
+      "status": "Status",
+      "createdAt": "Created on"
+    },
+    "health": {
+      "button": "Institution health (support)",
+      "title": "Health — {{name}}",
+      "error": "Error while loading",
+      "overall": "Overall status",
+      "status": {
+        "healthy": "Healthy",
+        "degraded": "Degraded",
+        "critical": "Critical",
+        "inactive": "Inactive"
+      },
+      "quotas": "Quotas",
+      "unlimited": "(unlimited)",
+      "failedJobs": "Recent failed jobs:",
+      "unknownError": "unknown error",
+      "lastImport": "Last import:",
+      "lastWebhook": "Last failed payment webhook:",
+      "noDetail": "no detail",
+      "lastActivity": "Last activity:",
+      "none": "None"
+    },
+    "addAdmin": {
+      "fillAll": "Please fill in every field",
+      "created": "User {{email}} created — activation link sent by email",
+      "createError": "Error while creating",
+      "button": "Add a user",
+      "title": "Add a user — {{name}}",
+      "firstName": "First name *",
+      "lastName": "Last name *",
+      "email": "Email *",
+      "role": "Role",
+      "roles": {
+        "TENANT_ADMIN": "Institution administrator",
+        "DIRECTOR": "Director",
+        "TEACHER": "Teacher",
+        "STAFF": "Staff",
+        "ACCOUNTANT": "Accountant"
+      },
+      "note": "An email with a password creation link will be sent to this address. You never set or see their password.",
+      "sending": "Sending...",
+      "submit": "Create and send the invitation"
+    },
+    "subscription": {
+      "updated": "Subscription of {{name}} updated: {{plan}}.",
+      "error": "Error while changing the subscription",
+      "title": "Change the subscription",
+      "tenant": "Institution:",
+      "current": "Current plan:",
+      "next": "New plan",
+      "saving": "Saving...",
+      "save": "Save"
+    },
+    "toggle": {
+      "deactivated": "Institution {{name}} deactivated. Every session has been revoked.",
+      "reactivated": "Institution {{name}} reactivated.",
+      "error": "Error while changing the status",
+      "deactivateTitle": "Deactivate the institution",
+      "reactivateTitle": "Reactivate the institution",
+      "warning": "Warning",
+      "warningText": "Every user of the institution <b>{{name}}</b> will be signed out immediately and will not be able to sign in again while the institution is deactivated.",
+      "tenant": "Institution:",
+      "usersAffected": "Users affected:",
+      "studentsAffected": "Students affected:",
+      "reactivateLater": "You can reactivate this institution at any time from this dashboard.",
+      "reactivateText": "Reactivate the institution <b>{{name}}</b>? Users will be able to sign in again.",
+      "deactivate": "Deactivate",
+      "reactivate": "Reactivate"
+    },
+    "remove": {
+      "deleted": "Institution {{name}} permanently deleted.",
+      "error": "Error while deleting",
+      "title": "Delete the institution",
+      "irreversible": "Irreversible action",
+      "irreversibleText": "Deleting the institution <b>{{name}}</b> will permanently delete all of its data.",
+      "tenant": "Institution:",
+      "users": "Users:",
+      "students": "Students:",
+      "items": {
+        "users": "Every user and their accounts",
+        "grades": "Every grade and assessment",
+        "payments": "Every payment and invoice",
+        "attendance": "All attendance data",
+        "messages": "Every message and announcement"
+      },
+      "understand": "I understand the risks — Continue",
+      "typeName": "Please type the name of the institution to confirm.",
+      "typeLabel": "Type <b>{{name}}</b> to confirm:",
+      "lastChance": "Last chance — This action is irreversible.",
+      "deleting": "Deleting...",
+      "confirm": "Delete permanently"
+    }
   }
 }
