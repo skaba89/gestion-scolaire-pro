@@ -486,8 +486,10 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   locales ; prix et dates au format de la langue. `src/lib/pricing.ts` ne
   porte plus de textes (`planLabel(t, slug)`). Au passage : le widget IA
   transmet la langue de l'utilisateur à l'API (toujours `fr` auparavant) et
-  le graphique MRR n'indique plus « USD ». Reste en français en dur :
-  `SuperAdminDashboard` (hors périmètre, libellés d'offres traduits).
+  le graphique MRR n'indique plus « USD ». `SuperAdminDashboard` (liste
+  des établissements du super-admin) traduit à son tour (122 clés
+  `superAdminTenants.*`) ; le nom d'établissement inséré dans les phrases
+  `Trans` est échappé (test de non-interprétation du balisage).
 
 ## Documents à considérer avec prudence
 

@@ -19,9 +19,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-import i18n from "@/i18n/config";
+import { Trans, useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { PLAN_SLUGS, planLabel } from "@/lib/pricing";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
@@ -47,29 +46,34 @@ interface TenantStat {
   subscription_status: string;
 }
 
-// Libellés traduits à l'affichage (page encore en français en dur : i18n.t direct).
-const getPlanLabel = (plan: string) => planLabel(i18n.t, plan);
+// Textes : superAdminTenants.* (locales).
+const NS = "superAdminTenants";
+const TENANT_TYPES = ["primary", "middle", "high", "university", "school", "training"];
+const ADMIN_ROLES = ["TENANT_ADMIN", "DIRECTOR", "TEACHER", "STAFF", "ACCOUNTANT"];
 
-const getTypeLabel = (type: string) => {
-  const map: Record<string, string> = {
-    primary: "École Primaire",
-    middle: "Collège",
-    high: "Lycée",
-    university: "Université",
-    school: "École",
-    training: "Centre de Formation",
-  };
-  return map[type] || type;
-};
+const getTypeLabel = (t: TFunction, type: string) =>
+  TENANT_TYPES.includes(type) ? t(`${NS}.types.${type}`) : type;
 
-const getTypeBadge = (type: string) => {
-  const active = ["primary", "middle", "high", "university", "school", "training"].includes(type);
-  return <Badge variant={active ? "default" : "outline"}>{getTypeLabel(type)}</Badge>;
+const getTypeBadge = (t: TFunction, type: string) => (
+  <Badge variant={TENANT_TYPES.includes(type) ? "default" : "outline"}>{getTypeLabel(t, type)}</Badge>
+);
+
+const formatDateTime = (value: string, locale: string) =>
+  new Date(value).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+
+// Le nom d'établissement est une donnée utilisateur : échappé avant que Trans
+// n'analyse la phrase (sinon « <strong> » dans un nom deviendrait du balisage),
+// puis restitué tel quel à l'affichage.
+const boldSafe = {
+  components: { b: <strong /> },
+  tOptions: { interpolation: { escapeValue: true } },
+  shouldUnescape: true,
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 const SuperAdminDashboard = () => {
+  const { t } = useTranslation();
   const { hasRole } = useAuth();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
@@ -88,23 +92,23 @@ const SuperAdminDashboard = () => {
         <Card className="max-w-md">
           <CardContent className="pt-6 text-center">
             <Shield className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h2 className="text-xl font-bold mb-2">Accès refusé</h2>
-            <p className="text-muted-foreground">Cette page est réservée au Super Administrateur.</p>
+            <h2 className="text-xl font-bold mb-2">{t(`${NS}.accessDenied`)}</h2>
+            <p className="text-muted-foreground">{t(`${NS}.accessDeniedText`)}</p>
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const filteredTenants = tenants.filter((t) =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTenants = tenants.filter((tenant) =>
+    tenant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tenant.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tenant.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const totalStudents = tenants.reduce((a, t) => a + t.student_count, 0);
-  const totalUsers = tenants.reduce((a, t) => a + t.user_count, 0);
-  const activeCount = tenants.filter((t) => t.is_active).length;
+  const totalStudents = tenants.reduce((a, tenant) => a + tenant.student_count, 0);
+  const totalUsers = tenants.reduce((a, tenant) => a + tenant.user_count, 0);
+  const activeCount = tenants.filter((tenant) => tenant.is_active).length;
 
   return (
     <div className="space-y-6">
@@ -113,15 +117,15 @@ const SuperAdminDashboard = () => {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Shield className="w-6 h-6 text-primary" />
-            Super Admin
+            {t(`${NS}.title`)}
           </h1>
           <p className="text-muted-foreground">
-            Gestion de tous les établissements de la plateforme
+            {t(`${NS}.subtitle`)}
           </p>
         </div>
         <Button onClick={() => navigate("/super-admin/create-tenant")}>
           <Plus className="w-4 h-4 mr-2" />
-          Nouvel établissement
+          {t(`${NS}.newTenant`)}
         </Button>
       </div>
 
@@ -135,7 +139,7 @@ const SuperAdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{tenants.length}</p>
-                <p className="text-xs text-muted-foreground">Établissements</p>
+                <p className="text-xs text-muted-foreground">{t(`${NS}.stats.tenants`)}</p>
               </div>
             </div>
           </CardContent>
@@ -148,7 +152,7 @@ const SuperAdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{activeCount}</p>
-                <p className="text-xs text-muted-foreground">Actifs</p>
+                <p className="text-xs text-muted-foreground">{t(`${NS}.stats.active`)}</p>
               </div>
             </div>
           </CardContent>
@@ -161,7 +165,7 @@ const SuperAdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{totalUsers}</p>
-                <p className="text-xs text-muted-foreground">Utilisateurs</p>
+                <p className="text-xs text-muted-foreground">{t(`${NS}.stats.users`)}</p>
               </div>
             </div>
           </CardContent>
@@ -174,7 +178,7 @@ const SuperAdminDashboard = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{totalStudents}</p>
-                <p className="text-xs text-muted-foreground">{totalStudents > 1 ? "Élèves" : "Élève"}</p>
+                <p className="text-xs text-muted-foreground">{t(`${NS}.stats.students`)}</p>
               </div>
             </div>
           </CardContent>
@@ -186,13 +190,13 @@ const SuperAdminDashboard = () => {
         <Card className="text-center py-16">
           <CardContent>
             <School className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-            <h2 className="text-xl font-bold mb-2">Aucun établissement</h2>
+            <h2 className="text-xl font-bold mb-2">{t(`${NS}.emptyTitle`)}</h2>
             <p className="text-muted-foreground mb-6">
-              Commencez par créer votre premier établissement. Vous pourrez ensuite créer les utilisateurs admin pour chaque établissement.
+              {t(`${NS}.emptyText`)}
             </p>
             <Button onClick={() => navigate("/super-admin/create-tenant")}>
               <Plus className="w-4 h-4 mr-2" />
-              Créer un établissement
+              {t(`${NS}.createTenant`)}
             </Button>
           </CardContent>
         </Card>
@@ -206,7 +210,7 @@ const SuperAdminDashboard = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Rechercher par nom, slug ou email..."
+                  placeholder={t(`${NS}.searchPlaceholder`)}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -219,28 +223,23 @@ const SuperAdminDashboard = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5" />
-                Établissements ({filteredTenants.length})
+                {t(`${NS}.listTitle`, { n: filteredTenants.length })}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+                <div className="text-center py-8 text-muted-foreground">{t(`${NS}.loading`)}</div>
               ) : filteredTenants.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">Aucun résultat</div>
+                <div className="text-center py-8 text-muted-foreground">{t(`${NS}.noResults`)}</div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Nom</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Slug</TableHead>
-                        <TableHead>Admins</TableHead>
-                        <TableHead>Utilisateurs</TableHead>
-                        <TableHead>Élèves</TableHead>
-                        <TableHead>Abonnement</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        {(["name", "type", "slug", "admins", "users", "students", "subscription", "status"] as const).map((col) => (
+                          <TableHead key={col}>{t(`${NS}.table.${col}`)}</TableHead>
+                        ))}
+                        <TableHead className="text-right">{t(`${NS}.table.actions`)}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -259,7 +258,7 @@ const SuperAdminDashboard = () => {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{getTypeBadge(tenant.type)}</TableCell>
+                          <TableCell>{getTypeBadge(t, tenant.type)}</TableCell>
                           <TableCell>
                             <code className="text-xs bg-muted px-2 py-1 rounded">{tenant.slug}</code>
                           </TableCell>
@@ -269,11 +268,11 @@ const SuperAdminDashboard = () => {
                           <TableCell>{tenant.user_count}</TableCell>
                           <TableCell>{tenant.student_count}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{getPlanLabel(tenant.subscription_plan)}</Badge>
+                            <Badge variant="outline">{planLabel(t, tenant.subscription_plan)}</Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant={tenant.is_active ? "default" : "secondary"}>
-                              {tenant.is_active ? "Actif" : "Inactif"}
+                              {tenant.is_active ? t(`${NS}.active`) : t(`${NS}.inactive`)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -282,7 +281,7 @@ const SuperAdminDashboard = () => {
                                 size="sm"
                                 variant="ghost"
                                 onClick={() => navigate(`/super-admin/tenants/${tenant.id}/settings`)}
-                                title="Paramètres de l'établissement"
+                                title={t(`${NS}.settings`)}
                               >
                                 <Settings className="w-4 h-4" />
                               </Button>
@@ -302,7 +301,7 @@ const SuperAdminDashboard = () => {
                                     "noopener"
                                   );
                                 }}
-                                title="Ouvrir l'établissement dans un nouvel onglet"
+                                title={t(`${NS}.openTenant`)}
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </Button>
@@ -325,6 +324,7 @@ const SuperAdminDashboard = () => {
 // ─── Tenant Detail Dialog ────────────────────────────────────────────────────
 
 function TenantDetailDialog({ tenant }: { tenant: TenantStat }) {
+  const { t, i18n } = useTranslation();
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -345,34 +345,34 @@ function TenantDetailDialog({ tenant }: { tenant: TenantStat }) {
               <CardContent className="p-4 text-center">
                 <Users className="w-6 h-6 mx-auto mb-2 text-primary" />
                 <p className="text-2xl font-bold">{tenant.user_count}</p>
-                <p className="text-xs text-muted-foreground">Utilisateurs</p>
+                <p className="text-xs text-muted-foreground">{t(`${NS}.detail.users`)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
                 <GraduationCap className="w-6 h-6 mx-auto mb-2 text-primary" />
                 <p className="text-2xl font-bold">{tenant.student_count}</p>
-                <p className="text-xs text-muted-foreground">Élèves</p>
+                <p className="text-xs text-muted-foreground">{t(`${NS}.detail.students`)}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
                 <Shield className="w-6 h-6 mx-auto mb-2 text-primary" />
                 <p className="text-2xl font-bold">{tenant.admin_count}</p>
-                <p className="text-xs text-muted-foreground">Admins</p>
+                <p className="text-xs text-muted-foreground">{t(`${NS}.detail.admins`)}</p>
               </CardContent>
             </Card>
           </div>
           <div className="space-y-2 text-sm">
-            <p><strong>Type:</strong> {getTypeLabel(tenant.type)}</p>
-            <p><strong>Slug:</strong> <code className="bg-muted px-2 py-0.5 rounded">{tenant.slug}</code></p>
-            <p><strong>Email:</strong> {tenant.email || "-"}</p>
-            <p><strong>Téléphone:</strong> {tenant.phone || "-"}</p>
-            <p><strong>Adresse:</strong> {tenant.address || "-"}</p>
-            <p><strong>Site web:</strong> {tenant.website || "-"}</p>
-            <p><strong>Statut:</strong> {tenant.is_active ? "Actif" : "Inactif"}</p>
+            <p><strong>{t(`${NS}.detail.type`)}:</strong> {getTypeLabel(t, tenant.type)}</p>
+            <p><strong>{t(`${NS}.detail.slug`)}:</strong> <code className="bg-muted px-2 py-0.5 rounded">{tenant.slug}</code></p>
+            <p><strong>{t(`${NS}.detail.email`)}:</strong> {tenant.email || "-"}</p>
+            <p><strong>{t(`${NS}.detail.phone`)}:</strong> {tenant.phone || "-"}</p>
+            <p><strong>{t(`${NS}.detail.address`)}:</strong> {tenant.address || "-"}</p>
+            <p><strong>{t(`${NS}.detail.website`)}:</strong> {tenant.website || "-"}</p>
+            <p><strong>{t(`${NS}.detail.status`)}:</strong> {tenant.is_active ? t(`${NS}.active`) : t(`${NS}.inactive`)}</p>
             {tenant.created_at && (
-              <p><strong>Créé le:</strong> {format(new Date(tenant.created_at), "dd MMM yyyy à HH:mm", { locale: fr })}</p>
+              <p><strong>{t(`${NS}.detail.createdAt`)}:</strong> {formatDateTime(tenant.created_at, i18n.language)}</p>
             )}
           </div>
         </div>
@@ -393,14 +393,8 @@ const HEALTH_STATUS_VARIANT: Record<string, "default" | "secondary" | "destructi
   inactive: "outline",
 };
 
-const HEALTH_STATUS_LABEL: Record<string, string> = {
-  healthy: "Sain",
-  degraded: "Dégradé",
-  critical: "Critique",
-  inactive: "Inactif",
-};
-
 function TenantHealthDialog({ tenant }: { tenant: TenantStat }) {
+  const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["tenant-health", tenant.id],
@@ -414,7 +408,7 @@ function TenantHealthDialog({ tenant }: { tenant: TenantStat }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title="Santé de l'établissement (support)">
+        <Button size="sm" variant="ghost" title={t(`${NS}.health.button`)}>
           <Activity className="w-4 h-4" />
         </Button>
       </DialogTrigger>
@@ -422,30 +416,32 @@ function TenantHealthDialog({ tenant }: { tenant: TenantStat }) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Activity className="w-5 h-5" />
-            Santé — {tenant.name}
+            {t(`${NS}.health.title`, { name: tenant.name })}
           </DialogTitle>
         </DialogHeader>
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+          <div className="text-center py-8 text-muted-foreground">{t(`${NS}.loading`)}</div>
         ) : isError ? (
-          <div className="text-center py-8 text-destructive">Erreur lors du chargement</div>
+          <div className="text-center py-8 text-destructive">{t(`${NS}.health.error`)}</div>
         ) : data ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Statut global</span>
+              <span className="text-sm text-muted-foreground">{t(`${NS}.health.overall`)}</span>
               <Badge variant={HEALTH_STATUS_VARIANT[data.overall_status] || "outline"}>
-                {HEALTH_STATUS_LABEL[data.overall_status] || data.overall_status}
+                {HEALTH_STATUS_VARIANT[data.overall_status]
+                  ? t(`${NS}.health.status.${data.overall_status}`)
+                  : data.overall_status}
               </Badge>
             </div>
 
             {data.quota?.quotas && (
               <div className="space-y-1.5">
-                <p className="text-sm font-medium">Quotas</p>
+                <p className="text-sm font-medium">{t(`${NS}.health.quotas`)}</p>
                 {data.quota.quotas.map((q: any) => (
                   <div key={q.resource} className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{q.resource}</span>
                     <span className={q.warning ? "text-amber-600 font-medium" : ""}>
-                      {q.used}{q.limit !== null ? ` / ${q.limit}` : " (illimité)"}
+                      {q.used}{q.limit !== null ? ` / ${q.limit}` : ` ${t(`${NS}.health.unlimited`)}`}
                     </span>
                   </div>
                 ))}
@@ -454,34 +450,34 @@ function TenantHealthDialog({ tenant }: { tenant: TenantStat }) {
 
             <div className="space-y-1 text-sm">
               <p>
-                <strong>Jobs échoués récents :</strong>{" "}
+                <strong>{t(`${NS}.health.failedJobs`)}</strong>{" "}
                 {data.failed_jobs_recent?.length || 0}
               </p>
               {data.failed_jobs_recent?.slice(0, 3).map((j: any) => (
                 <p key={j.id} className="text-xs text-muted-foreground pl-3">
-                  {j.job_type} — {j.error || "erreur inconnue"}
+                  {j.job_type} — {j.error || t(`${NS}.health.unknownError`)}
                 </p>
               ))}
             </div>
 
             <div className="space-y-1 text-sm">
               <p>
-                <strong>Dernier import :</strong>{" "}
+                <strong>{t(`${NS}.health.lastImport`)}</strong>{" "}
                 {data.last_import
-                  ? `${data.last_import.action} (${format(new Date(data.last_import.created_at), "dd MMM yyyy à HH:mm", { locale: fr })})`
-                  : "Aucun"}
+                  ? `${data.last_import.action} (${formatDateTime(data.last_import.created_at, i18n.language)})`
+                  : t(`${NS}.health.none`)}
               </p>
               <p>
-                <strong>Dernier webhook paiement échoué :</strong>{" "}
+                <strong>{t(`${NS}.health.lastWebhook`)}</strong>{" "}
                 {data.last_failed_payment_webhook
-                  ? `${data.last_failed_payment_webhook.gateway} — ${data.last_failed_payment_webhook.reason || "sans détail"}`
-                  : data.last_failed_payment_webhook_note || "Aucun"}
+                  ? `${data.last_failed_payment_webhook.gateway} — ${data.last_failed_payment_webhook.reason || t(`${NS}.health.noDetail`)}`
+                  : data.last_failed_payment_webhook_note || t(`${NS}.health.none`)}
               </p>
               <p>
-                <strong>Dernière activité :</strong>{" "}
+                <strong>{t(`${NS}.health.lastActivity`)}</strong>{" "}
                 {data.last_activity_at
-                  ? format(new Date(data.last_activity_at), "dd MMM yyyy à HH:mm", { locale: fr })
-                  : "Aucune"}
+                  ? formatDateTime(data.last_activity_at, i18n.language)
+                  : t(`${NS}.health.none`)}
               </p>
             </div>
           </div>
@@ -494,6 +490,7 @@ function TenantHealthDialog({ tenant }: { tenant: TenantStat }) {
 // ─── Add Admin Dialog ────────────────────────────────────────────────────────
 
 function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -504,7 +501,7 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !firstName || !lastName) {
-      toast.error("Veuillez remplir tous les champs");
+      toast.error(t(`${NS}.addAdmin.fillAll`));
       return;
     }
     setLoading(true);
@@ -518,14 +515,14 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
         last_name: lastName,
         role,
       });
-      toast.success(`Utilisateur ${email} créé — lien d'activation envoyé par email`);
+      toast.success(t(`${NS}.addAdmin.created`, { email }));
       setOpen(false);
       setEmail("");
       setFirstName("");
       setLastName("");
       onSuccess();
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || "Erreur lors de la création";
+      const detail = err?.response?.data?.detail || t(`${NS}.addAdmin.createError`);
       toast.error(detail);
     } finally {
       setLoading(false);
@@ -535,7 +532,7 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title="Ajouter un utilisateur">
+        <Button size="sm" variant="ghost" title={t(`${NS}.addAdmin.button`)}>
           <UserPlus className="w-4 h-4" />
         </Button>
       </DialogTrigger>
@@ -543,49 +540,46 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserPlus className="w-5 h-5" />
-            Ajouter un utilisateur — {tenant.name}
+            {t(`${NS}.addAdmin.title`, { name: tenant.name })}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Prénom *</Label>
+              <Label>{t(`${NS}.addAdmin.firstName`)}</Label>
               <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
             </div>
             <div className="space-y-1.5">
-              <Label>Nom *</Label>
+              <Label>{t(`${NS}.addAdmin.lastName`)}</Label>
               <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Email *</Label>
+            <Label>{t(`${NS}.addAdmin.email`)}</Label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
           <div className="space-y-1.5">
-            <Label>Rôle</Label>
+            <Label>{t(`${NS}.addAdmin.role`)}</Label>
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="TENANT_ADMIN">Administrateur de l'établissement</SelectItem>
-                <SelectItem value="DIRECTOR">Directeur</SelectItem>
-                <SelectItem value="TEACHER">Enseignant</SelectItem>
-                <SelectItem value="STAFF">Personnel</SelectItem>
-                <SelectItem value="ACCOUNTANT">Comptable</SelectItem>
+                {ADMIN_ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>{t(`${NS}.addAdmin.roles.${r}`)}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <p className="text-xs text-muted-foreground">
-            Un email avec un lien de création de mot de passe sera envoyé à cette adresse.
-            Vous ne définissez ni ne voyez jamais son mot de passe.
+            {t(`${NS}.addAdmin.note`)}
           </p>
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">Annuler</Button>
+              <Button type="button" variant="outline">{t(`${NS}.cancel`)}</Button>
             </DialogClose>
             <Button type="submit" disabled={loading}>
-              {loading ? "Envoi en cours..." : "Créer et envoyer l'invitation"}
+              {loading ? t(`${NS}.addAdmin.sending`) : t(`${NS}.addAdmin.submit`)}
             </Button>
           </DialogFooter>
         </form>
@@ -600,6 +594,7 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
 // premium / enterprise, cette liste en est le miroir.
 
 function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState(tenant.subscription_plan);
@@ -612,11 +607,11 @@ function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; o
     setLoading(true);
     try {
       await apiClient.patch(`/platform/tenants/${tenant.id}/subscription/`, { plan });
-      toast.success(`Abonnement de ${tenant.name} mis à jour : ${getPlanLabel(plan)}.`);
+      toast.success(t(`${NS}.subscription.updated`, { name: tenant.name, plan: planLabel(t, plan) }));
       setOpen(false);
       onSuccess();
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || "Erreur lors du changement d'abonnement";
+      const detail = err?.response?.data?.detail || t(`${NS}.subscription.error`);
       toast.error(detail);
     } finally {
       setLoading(false);
@@ -632,7 +627,7 @@ function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; o
       }}
     >
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title="Changer l'abonnement">
+        <Button size="sm" variant="ghost" title={t(`${NS}.subscription.title`)}>
           <CreditCard className="w-4 h-4" />
         </Button>
       </DialogTrigger>
@@ -640,16 +635,16 @@ function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; o
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="w-5 h-5" />
-            Changer l'abonnement
+            {t(`${NS}.subscription.title`)}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="text-sm text-muted-foreground">
-            <p><strong>Établissement :</strong> {tenant.name}</p>
-            <p><strong>Plan actuel :</strong> {getPlanLabel(tenant.subscription_plan)}</p>
+            <p><strong>{t(`${NS}.subscription.tenant`)}</strong> {tenant.name}</p>
+            <p><strong>{t(`${NS}.subscription.current`)}</strong> {planLabel(t, tenant.subscription_plan)}</p>
           </div>
           <div className="space-y-2">
-            <Label>Nouveau plan</Label>
+            <Label>{t(`${NS}.subscription.next`)}</Label>
             <Select value={plan} onValueChange={setPlan}>
               <SelectTrigger>
                 <SelectValue />
@@ -657,7 +652,7 @@ function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; o
               <SelectContent>
                 {PLAN_SLUGS.map((slug) => (
                   <SelectItem key={slug} value={slug}>
-                    {getPlanLabel(slug)}
+                    {planLabel(t, slug)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -666,10 +661,10 @@ function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; o
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">Annuler</Button>
+            <Button variant="outline">{t(`${NS}.cancel`)}</Button>
           </DialogClose>
           <Button onClick={handleSave} disabled={loading}>
-            {loading ? "Enregistrement..." : "Enregistrer"}
+            {loading ? t(`${NS}.subscription.saving`) : t(`${NS}.subscription.save`)}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -680,6 +675,7 @@ function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; o
 // ─── Tenant Toggle Status Dialog ────────────────────────────────────────────
 
 function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -689,13 +685,13 @@ function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
       await apiClient.patch(`/tenants/${tenant.id}/toggle-status/`);
       toast.success(
         tenant.is_active
-          ? `Établissement ${tenant.name} désactivé. Toutes les sessions ont été révoquées.`
-          : `Établissement ${tenant.name} réactivé.`
+          ? t(`${NS}.toggle.deactivated`, { name: tenant.name })
+          : t(`${NS}.toggle.reactivated`, { name: tenant.name })
       );
       setOpen(false);
       onSuccess();
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || "Erreur lors du changement de statut";
+      const detail = err?.response?.data?.detail || t(`${NS}.toggle.error`);
       toast.error(detail);
     } finally {
       setLoading(false);
@@ -708,7 +704,7 @@ function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
         <Button
           size="sm"
           variant="ghost"
-          title={tenant.is_active ? "Désactiver l'établissement" : "Réactiver l'établissement"}
+          title={tenant.is_active ? t(`${NS}.toggle.deactivateTitle`) : t(`${NS}.toggle.reactivateTitle`)}
         >
           <Power className={`w-4 h-4 ${tenant.is_active ? "text-orange-500" : "text-green-500"}`} />
         </Button>
@@ -717,7 +713,7 @@ function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Power className={`w-5 h-5 ${tenant.is_active ? "text-orange-500" : "text-green-500"}`} />
-            {tenant.is_active ? "Désactiver" : "Réactiver"} l'établissement
+            {tenant.is_active ? t(`${NS}.toggle.deactivateTitle`) : t(`${NS}.toggle.reactivateTitle`)}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
@@ -726,43 +722,40 @@ function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
               <div className="flex items-start gap-3 p-4 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
                 <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
                 <div className="text-sm">
-                  <p className="font-medium text-orange-800 dark:text-orange-200">Attention</p>
+                  <p className="font-medium text-orange-800 dark:text-orange-200">{t(`${NS}.toggle.warning`)}</p>
                   <p className="text-orange-700 dark:text-orange-300 mt-1">
-                    Tous les utilisateurs de l'établissement <strong>{tenant.name}</strong> seront
-                    immédiatement déconnectés et ne pourront plus se reconnecter tant que l'établissement
-                    est désactivé.
+                    <Trans i18nKey={`${NS}.toggle.warningText`} values={{ name: tenant.name }} {...boldSafe} />
                   </p>
                 </div>
               </div>
               <div className="text-sm text-muted-foreground">
-                <p><strong>Établissement :</strong> {tenant.name}</p>
-                <p><strong>Utilisateurs concernés :</strong> {tenant.user_count}</p>
-                <p><strong>Élèves concernés :</strong> {tenant.student_count}</p>
+                <p><strong>{t(`${NS}.toggle.tenant`)}</strong> {tenant.name}</p>
+                <p><strong>{t(`${NS}.toggle.usersAffected`)}</strong> {tenant.user_count}</p>
+                <p><strong>{t(`${NS}.toggle.studentsAffected`)}</strong> {tenant.student_count}</p>
               </div>
               <p className="text-sm text-muted-foreground">
-                Vous pourrez réactiver cet établissement à tout moment depuis ce tableau de bord.
+                {t(`${NS}.toggle.reactivateLater`)}
               </p>
             </>
           ) : (
             <div className="text-sm text-muted-foreground">
               <p>
-                Voulez-vous réactiver l'établissement <strong>{tenant.name}</strong> ?
-                Les utilisateurs pourront à nouveau se connecter.
+                <Trans i18nKey={`${NS}.toggle.reactivateText`} values={{ name: tenant.name }} {...boldSafe} />
               </p>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={() => setOpen(false)}>{t(`${NS}.cancel`)}</Button>
             <Button
               variant={tenant.is_active ? "destructive" : "default"}
               disabled={loading}
               onClick={handleToggle}
             >
               {loading
-                ? "Chargement..."
+                ? t(`${NS}.loading`)
                 : tenant.is_active
-                  ? "Désactiver"
-                  : "Réactiver"}
+                  ? t(`${NS}.toggle.deactivate`)
+                  : t(`${NS}.toggle.reactivate`)}
             </Button>
           </DialogFooter>
         </div>
@@ -774,6 +767,7 @@ function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
 // ─── Tenant Delete Dialog ────────────────────────────────────────────────────
 
 function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [confirmStep, setConfirmStep] = useState(0); // 0 = not confirmed, 1 = first confirm, 2 = second confirm
   const [loading, setLoading] = useState(false);
@@ -782,12 +776,12 @@ function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
     setLoading(true);
     try {
       await apiClient.delete(`/tenants/${tenant.id}/`);
-      toast.success(`Établissement ${tenant.name} supprimé définitivement.`);
+      toast.success(t(`${NS}.remove.deleted`, { name: tenant.name }));
       setOpen(false);
       setConfirmStep(0);
       onSuccess();
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || "Erreur lors de la suppression";
+      const detail = err?.response?.data?.detail || t(`${NS}.remove.error`);
       toast.error(detail);
     } finally {
       setLoading(false);
@@ -802,7 +796,7 @@ function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetAndClose(); else setOpen(true); }}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title="Supprimer l'établissement">
+        <Button size="sm" variant="ghost" title={t(`${NS}.remove.title`)}>
           <Trash2 className="w-4 h-4 text-red-500" />
         </Button>
       </DialogTrigger>
@@ -810,7 +804,7 @@ function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="w-5 h-5 text-red-500" />
-            Supprimer l'établissement
+            {t(`${NS}.remove.title`)}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
@@ -819,31 +813,28 @@ function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
               <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
                 <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                 <div className="text-sm">
-                  <p className="font-medium text-red-800 dark:text-red-200">Action irréversible</p>
+                  <p className="font-medium text-red-800 dark:text-red-200">{t(`${NS}.remove.irreversible`)}</p>
                   <p className="text-red-700 dark:text-red-300 mt-1">
-                    La suppression de l'établissement <strong>{tenant.name}</strong> entraînera
-                    la suppression définitive de toutes les données associées.
+                    <Trans i18nKey={`${NS}.remove.irreversibleText`} values={{ name: tenant.name }} {...boldSafe} />
                   </p>
                 </div>
               </div>
               <div className="text-sm text-muted-foreground space-y-1">
-                <p><strong>Établissement :</strong> {tenant.name}</p>
-                <p><strong>Utilisateurs :</strong> {tenant.user_count}</p>
-                <p><strong>Élèves :</strong> {tenant.student_count}</p>
+                <p><strong>{t(`${NS}.remove.tenant`)}</strong> {tenant.name}</p>
+                <p><strong>{t(`${NS}.remove.users`)}</strong> {tenant.user_count}</p>
+                <p><strong>{t(`${NS}.remove.students`)}</strong> {tenant.student_count}</p>
               </div>
               <ul className="text-sm text-red-600 dark:text-red-400 list-disc list-inside space-y-1">
-                <li>Tous les utilisateurs et leurs comptes</li>
-                <li>Toutes les notes et évaluations</li>
-                <li>Tous les paiements et factures</li>
-                <li>Toutes les données de présence</li>
-                <li>Tous les messages et annonces</li>
+                {(["users", "grades", "payments", "attendance", "messages"] as const).map((item) => (
+                  <li key={item}>{t(`${NS}.remove.items.${item}`)}</li>
+                ))}
               </ul>
               <Button
                 variant="destructive"
                 className="w-full"
                 onClick={() => setConfirmStep(1)}
               >
-                Je comprends les risques — Continuer
+                {t(`${NS}.remove.understand`)}
               </Button>
             </>
           )}
@@ -852,11 +843,13 @@ function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
               <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
                 <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                 <p className="text-sm text-red-700 dark:text-red-300">
-                  Veuillez taper le nom de l'établissement pour confirmer.
+                  {t(`${NS}.remove.typeName`)}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label>Tapez <strong>{tenant.name}</strong> pour confirmer :</Label>
+                <Label>
+                  <Trans i18nKey={`${NS}.remove.typeLabel`} values={{ name: tenant.name }} {...boldSafe} />
+                </Label>
                 <Input
                   placeholder={tenant.name}
                   onChange={(e) => {
@@ -866,7 +859,7 @@ function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={resetAndClose}>Annuler</Button>
+                <Button variant="outline" onClick={resetAndClose}>{t(`${NS}.cancel`)}</Button>
               </DialogFooter>
             </>
           )}
@@ -875,17 +868,17 @@ function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
               <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
                 <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                 <p className="text-sm font-medium text-red-700 dark:text-red-300">
-                  Dernière chance — Cette action est irréversible.
+                  {t(`${NS}.remove.lastChance`)}
                 </p>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={resetAndClose}>Annuler</Button>
+                <Button variant="outline" onClick={resetAndClose}>{t(`${NS}.cancel`)}</Button>
                 <Button
                   variant="destructive"
                   disabled={loading}
                   onClick={handleDelete}
                 >
-                  {loading ? "Suppression en cours..." : "Supprimer définitivement"}
+                  {loading ? t(`${NS}.remove.deleting`) : t(`${NS}.remove.confirm`)}
                 </Button>
               </DialogFooter>
             </>
