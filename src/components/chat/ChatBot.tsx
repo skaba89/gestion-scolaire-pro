@@ -11,10 +11,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useSettings } from "@/hooks/useSettings";
 import { resolveUploadUrl } from "@/utils/url";
+import { isPlanRequiredError, PlanRequiredError } from "@/lib/plan-required";
+import { PlanRequiredNotice } from "@/components/ai/PlanRequiredNotice";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  /** Bulle locale « abonnement requis » : jamais renvoyée à l'API. */
+  planRequired?: boolean;
 }
 
 // Resolve API base URL (same logic as apiClient)
@@ -152,6 +156,7 @@ export const ChatBot = () => {
       }),
     });
 
+    if (resp.status === 402) throw new PlanRequiredError();
     if (!resp.ok) {
       const error = await resp.json();
       throw new Error(error.error || "Connection error");
@@ -216,9 +221,16 @@ export const ChatBot = () => {
     setIsLoading(true);
 
     try {
-      const apiMessages = newMessages.slice(1);
+      const apiMessages = newMessages
+        .slice(1)
+        .filter((m) => !m.planRequired)
+        .map(({ role, content }) => ({ role, content }));
       await streamChat(apiMessages);
     } catch (error) {
+      if (isPlanRequiredError(error)) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "", planRequired: true }]);
+        return;
+      }
       toast.error(error instanceof Error ? error.message : "Connection error");
       setMessages((prev) => [
         ...prev,
@@ -326,7 +338,7 @@ export const ChatBot = () => {
                           : "bg-muted text-foreground"
                       )}
                     >
-                      {message.content}
+                      {message.planRequired ? <PlanRequiredNotice /> : message.content}
                     </div>
                     {message.role === "user" && (
                       <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">

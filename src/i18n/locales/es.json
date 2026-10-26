@@ -2525,5 +2525,9 @@
     "configuration": "Configuración",
     "teacherEditInfo": "Editable desde la ficha del profesor",
     "badgeNew": "Nuevo"
+  },
+  "planRequired": {
+    "aiAssistant": "El asistente de IA está incluido en la suscripción de su institución. No está disponible hasta que la suscripción esté activa.",
+    "viewPlans": "Ver los planes"
   }
 }
