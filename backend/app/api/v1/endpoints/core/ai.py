@@ -158,7 +158,7 @@ async def chat(
     request: Request,
     body: ChatRequest | ChatRequestV2,
     current_user: dict = Depends(_chat_user),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     Chat support endpoint.
@@ -258,7 +258,7 @@ async def audit(
     request: Request,
     req: AuditRequest,
     current_user: dict = Depends(_audit_user),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     Audit analysis endpoint.

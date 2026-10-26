@@ -2,80 +2,36 @@ import { Link } from "react-router-dom";
 import { Check, Zap, Shield, Users, Star, ArrowRight, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  INCLUDED_FEATURES,
+  PUBLIC_PLANS,
+  SALES_EMAIL,
+  TRIAL_DAYS,
+  formatEur,
+  type PublicPlan,
+} from "@/lib/pricing";
 
 // ─── Plan data ────────────────────────────────────────────────────────────────
+// Grille du 2026-10-26 : src/lib/pricing.ts (miroir de plan_catalog.py).
 
-const PLANS = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: "Gratuit",
-    priceDetail: "pour toujours",
-    description: "Idéal pour découvrir la plateforme et les petits établissements.",
-    badge: null,
-    highlight: false,
-    features: [
-      "Jusqu'à 150 élèves",
-      "1 campus",
-      "Gestion des notes et bulletins",
-      "Emploi du temps",
-      "Portail parents",
-      "Support communautaire",
-    ],
-    cta: "Commencer gratuitement",
-    ctaLink: "/inscription",
-    ctaVariant: "outline" as const,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "500 000 GNF",
-    priceDetail: "/ mois — 5 000 000 GNF/an (2 mois offerts)",
-    description: "Pour les établissements en croissance avec des besoins avancés.",
-    badge: "Recommandé",
-    highlight: true,
-    features: [
-      "Jusqu'à 500 élèves",
-      "3 campus",
-      "Tout le plan Starter",
-      "Notifications WhatsApp & Email",
-      "Rapports ministériels",
-      "Import/Export Excel",
-      "IA pédagogique (Groq)",
-      "Support prioritaire par email",
-    ],
-    cta: "Essai gratuit 30 jours",
-    ctaLink: "/inscription",
-    ctaVariant: "default" as const,
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "1 000 000 GNF",
-    priceDetail: "/ mois — 10 000 000 GNF/an (2 mois offerts)",
-    description: "Pour les grands établissements et les réseaux multi-campus.",
-    badge: null,
-    highlight: false,
-    features: [
-      "Élèves illimités",
-      "Campus illimités",
-      "Tout le plan Pro",
-      "SSO / Intégration LDAP",
-      "API personnalisée",
-      "SLA 99,9 % garanti",
-      "Onboarding dédié",
-      "Support téléphonique 24/7",
-    ],
-    cta: "Nous contacter",
-    ctaLink: "mailto:sales@schoolflow.pro",
-    ctaVariant: "outline" as const,
-  },
-];
+function planPrice(plan: PublicPlan) {
+  if (plan.priceMonthly === null || plan.priceYearly === null) {
+    return { price: "Sur devis", detail: "selon le nombre d'établissements" };
+  }
+  return {
+    price: formatEur(plan.priceMonthly),
+    detail: `/ mois — ${formatEur(plan.priceYearly)}/an (2 mois offerts)`,
+  };
+}
 
 const FAQ = [
   {
-    q: "Puis-je changer de plan à tout moment ?",
-    a: "Oui, vous pouvez passer à un plan supérieur immédiatement. Le downgrade prend effet à la fin de la période en cours.",
+    q: "Y a-t-il une offre gratuite ?",
+    a: `Non. Chaque établissement dispose de ${TRIAL_DAYS} jours d'essai avec toutes les fonctionnalités (jusqu'à 500 élèves), puis choisit l'offre adaptée à son effectif.`,
+  },
+  {
+    q: "Puis-je changer d'offre à tout moment ?",
+    a: "Oui, vous pouvez passer à une offre supérieure quand votre effectif augmente. Une offre doit couvrir le nombre d'élèves inscrits.",
   },
   {
     q: "Y a-t-il des frais d'installation ?",
@@ -83,7 +39,7 @@ const FAQ = [
   },
   {
     q: "Quels modes de paiement acceptez-vous ?",
-    a: "Orange Money, MTN MoMo et virement bancaire. Votre abonnement est activé dès vérification du paiement — aucune carte bancaire requise.",
+    a: "Les prix sont indiqués en euros et se règlent en francs guinéens (GNF) au taux du jour, par Orange Money, MTN MoMo ou virement bancaire. Votre abonnement est activé dès vérification du paiement — aucune carte bancaire requise.",
   },
   {
     q: "Mes données sont-elles sécurisées ?",
@@ -118,72 +74,86 @@ export default function Pricing() {
           Tarifs simples, sans surprise
         </Badge>
         <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-4">
-          Le bon plan pour chaque{" "}
+          La bonne offre pour chaque{" "}
           <span className="text-indigo-600 dark:text-indigo-400">établissement</span>
         </h1>
         <p className="text-lg text-gray-500 dark:text-gray-400 max-w-xl mx-auto">
-          Démarrez gratuitement, upgradez quand vous grandissez.
-          30 jours d'essai Pro inclus sans carte bancaire.
+          Toutes les fonctionnalités dans chaque offre : seul votre effectif compte.
+          {` ${TRIAL_DAYS} jours d'essai, sans carte bancaire.`}
         </p>
       </section>
 
       {/* Pricing cards */}
-      <section className="max-w-6xl mx-auto px-6 pb-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.id}
-              className={`relative rounded-2xl border p-8 flex flex-col gap-6 transition-shadow ${
-                plan.highlight
-                  ? "border-indigo-500 shadow-2xl shadow-indigo-100 dark:shadow-indigo-900/30 bg-white dark:bg-gray-900"
-                  : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm"
-              }`}
-            >
-              {plan.badge && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                  <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 px-4 py-1">
-                    <Star className="w-3 h-3 mr-1" />
-                    {plan.badge}
-                  </Badge>
-                </div>
-              )}
-
-              {/* Plan header */}
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{plan.name}</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{plan.description}</p>
-              </div>
-
-              {/* Price */}
-              <div className="flex items-end gap-1">
-                <span className="text-4xl font-extrabold text-gray-900 dark:text-white">{plan.price}</span>
-                <span className="text-gray-500 dark:text-gray-400 mb-1">{plan.priceDetail}</span>
-              </div>
-
-              {/* CTA */}
-              <Button
-                asChild
-                variant={plan.ctaVariant}
-                className={`w-full h-11 ${plan.highlight ? "bg-indigo-600 hover:bg-indigo-700 text-white" : ""}`}
+      <section className="max-w-7xl mx-auto px-6 pb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 items-start">
+          {PUBLIC_PLANS.map((plan) => {
+            const { price, detail } = planPrice(plan);
+            const onQuote = plan.priceMonthly === null;
+            return (
+              <div
+                key={plan.slug}
+                className={`relative rounded-2xl border p-8 flex flex-col gap-6 transition-shadow ${
+                  plan.highlight
+                    ? "border-indigo-500 shadow-2xl shadow-indigo-100 dark:shadow-indigo-900/30 bg-white dark:bg-gray-900"
+                    : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm"
+                }`}
               >
-                <Link to={plan.ctaLink}>
-                  {plan.cta}
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Link>
-              </Button>
+                {plan.highlight && (
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                    <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 px-4 py-1">
+                      <Star className="w-3 h-3 mr-1" />
+                      Recommandé
+                    </Badge>
+                  </div>
+                )}
 
-              {/* Feature list */}
-              <ul className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-800">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
-                    <Check className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+                {/* Plan header */}
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{plan.name}</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{plan.description}</p>
+                </div>
+
+                {/* Price */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{price}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{detail}</span>
+                </div>
+
+                {/* CTA */}
+                <Button
+                  asChild
+                  variant={plan.highlight ? "default" : "outline"}
+                  className={`w-full h-11 ${plan.highlight ? "bg-indigo-600 hover:bg-indigo-700 text-white" : ""}`}
+                >
+                  {onQuote ? (
+                    <a href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Offre Entreprise")}`}>
+                      Nous contacter
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </a>
+                  ) : (
+                    <Link to="/inscription">
+                      {`Essai ${TRIAL_DAYS} jours`}
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Link>
+                  )}
+                </Button>
+
+                {/* Feature list */}
+                <ul className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+                  {[plan.students, ...INCLUDED_FEATURES].map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-sm text-gray-700 dark:text-gray-300">
+                      <Check className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </div>
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-8">
+          Prix en euros, payables en francs guinéens (GNF) au taux du jour par Mobile Money ou virement bancaire.
+        </p>
       </section>
 
       {/* Trust badges */}
@@ -229,11 +199,11 @@ export default function Pricing() {
       <section className="bg-indigo-700 dark:bg-indigo-900 text-white text-center py-16 px-6">
         <h2 className="text-3xl font-bold mb-3">Prêt à moderniser votre établissement ?</h2>
         <p className="text-indigo-200 mb-8 text-lg">
-          30 jours d'essai gratuit · Sans carte bancaire · Annulable à tout moment
+          {`${TRIAL_DAYS} jours d'essai · Sans carte bancaire · Annulable à tout moment`}
         </p>
         <Link to="/inscription">
           <Button size="lg" className="bg-white text-indigo-700 hover:bg-indigo-50 font-semibold h-12 px-8">
-            Démarrer gratuitement
+            {`Démarrer l'essai de ${TRIAL_DAYS} jours`}
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </Link>
@@ -246,7 +216,7 @@ export default function Pricing() {
         {" · "}
         <Link to="/terms" className="hover:underline">CGU</Link>
         {" · "}
-        <a href="mailto:support@schoolflow.pro" className="hover:underline">Contact</a>
+        <a href={`mailto:${SALES_EMAIL}`} className="hover:underline">Contact</a>
       </footer>
     </div>
   );

@@ -96,7 +96,7 @@ def _maybe_alert_import_failure_rate(
 async def preview_student_import(
     file: UploadFile = File(...),
     current_user: dict = Depends(require_permission("students:write")),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     POST /import/students/preview/
@@ -188,7 +188,7 @@ async def confirm_student_import(
     default_academic_year: str = Form(""),
     current_user: dict = Depends(require_permission("students:write")),
     db: Session = Depends(get_db),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     POST /import/students/confirm/
@@ -368,7 +368,7 @@ def download_student_template(
 async def preview_parent_import(
     file: UploadFile = File(...),
     current_user: dict = Depends(require_permission("users:write")),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     POST /import/parents/preview/
@@ -437,7 +437,7 @@ async def confirm_parent_import(
     skip_errors: bool = Form(False),
     current_user: dict = Depends(require_permission("users:write")),
     db: Session = Depends(get_db),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     POST /import/parents/confirm/
@@ -569,7 +569,7 @@ def download_parent_template(
 async def preview_teacher_import(
     file: UploadFile = File(...),
     current_user: dict = Depends(require_permission("users:write")),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     POST /import/teachers/preview/
@@ -624,7 +624,7 @@ async def confirm_teacher_import(
     skip_errors: bool = Form(False),
     current_user: dict = Depends(require_permission("users:write")),
     db: Session = Depends(get_db),
-    _plan: dict = Depends(require_plan("pro")),
+    _plan: dict = Depends(require_plan("standard")),
 ):
     """
     POST /import/teachers/confirm/

@@ -16,10 +16,9 @@ from sqlalchemy.orm import Session
 
 from app.models.saas import BillingEvent, SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
+from app.services.plan_catalog import apply_quota_limits
 
 logger = logging.getLogger(__name__)
-
-FALLBACK_PLAN_SLUG = "starter"
 
 
 def _now() -> datetime:
@@ -28,28 +27,7 @@ def _now() -> datetime:
 
 def apply_plan_quotas(tenant: Tenant, plan: SubscriptionPlan) -> None:
     """Copy plan limits into tenant.settings so QuotaMiddleware enforces them."""
-    settings_dict = dict(tenant.settings or {})
-    quotas = dict(settings_dict.get("quotas") or {})
-    if plan.max_students is not None:
-        quotas["max_students"] = plan.max_students
-    else:
-        quotas.pop("max_students", None)
-    if plan.max_storage_gb is not None:
-        quotas["max_storage_mb"] = plan.max_storage_gb * 1024
-    else:
-        quotas.pop("max_storage_mb", None)
-    settings_dict["quotas"] = quotas
-    tenant.settings = settings_dict  # reassign to trigger JSON change detection
-
-
-def _reset_quotas(tenant: Tenant) -> None:
-    """Drop plan-specific quotas so the middleware falls back to defaults."""
-    settings_dict = dict(tenant.settings or {})
-    quotas = dict(settings_dict.get("quotas") or {})
-    quotas.pop("max_students", None)
-    quotas.pop("max_storage_mb", None)
-    settings_dict["quotas"] = quotas
-    tenant.settings = settings_dict
+    apply_quota_limits(tenant, plan.max_students, plan.max_storage_gb)
 
 
 def expire_overdue_subscriptions(db: Session) -> dict:
@@ -84,12 +62,6 @@ def expire_overdue_subscriptions(db: Session) -> dict:
     from app.core.config import settings as _settings
 
     now = _now()
-    fallback_plan = (
-        db.query(SubscriptionPlan)
-        .filter(SubscriptionPlan.slug == FALLBACK_PLAN_SLUG)
-        .first()
-    )
-
     tenant_ids = [str(tid) for (tid,) in db.query(Tenant.id).all()]
 
     expired_tenants: list[str] = []
@@ -116,12 +88,10 @@ def expire_overdue_subscriptions(db: Session) -> dict:
 
             tenant = db.query(Tenant).filter(Tenant.id == subscription.tenant_id).first()
             if tenant:
-                tenant.subscription_plan = FALLBACK_PLAN_SLUG
+                # Pas d'offre gratuite de repli (grille du 2026-10-26) : l'offre
+                # et ses limites sont conservées, seul le statut passe à
+                # « expired » (require_plan refuse alors l'accès).
                 tenant.subscription_status = "expired"
-                if fallback_plan:
-                    apply_plan_quotas(tenant, fallback_plan)
-                else:
-                    _reset_quotas(tenant)
                 expired_tenants.append(tenant.slug)
 
             db.add(BillingEvent(

@@ -33,6 +33,7 @@ from app.models.saas import SubscriptionPlan, TenantQuotaUsage, TenantSubscripti
 from app.models.student import Student
 from app.models.tenant import Tenant
 from app.models.user import User
+from app.services.plan_catalog import PLAN_CATALOG, TRIAL_PLAN_SLUG
 
 
 @dataclass(frozen=True)
@@ -53,53 +54,15 @@ class QuotaDecision:
 # alembic/versions/20260815_0001_seed_default_subscription_plans.py),
 # these numbers are never consulted.
 #
-# Audit stratégique 2026-08-16, incohérence interne #3 : ces chiffres
-# avaient dérivé de ceux réellement seedés par la migration (ex. Starter
-# ici disait 300 élèves, la migration en dit 150) — deux catalogues qui
-# ne s'accordaient plus. Réalignés sur la migration, qui reste la seule
-# source de vérité pour la tarification réelle ; "free" ajouté (absent
-# ici alors qu'il existe dans la migration).
+# Grille du 2026-10-26 : dérivées de app/services/plan_catalog.py (même
+# source que le seed et la migration 20261026_0001). Une ancienne offre
+# (free/starter/pro/institution) sans ligne en base retombe sur Standard.
+_LIMIT_KEYS = (
+    "max_students", "max_users", "max_storage_gb",
+    "max_ai_requests", "max_exports_per_day", "max_campuses",
+)
 DEFAULT_PLAN_LIMITS: dict[str, dict[str, Any]] = {
-    "free": {
-        "max_students": 30,
-        "max_users": 5,
-        "max_storage_gb": 1,
-        "max_ai_requests": 20,
-        "max_exports_per_day": 3,
-        "max_campuses": 1,
-    },
-    "starter": {
-        "max_students": 150,
-        "max_users": 15,
-        "max_storage_gb": 5,
-        "max_ai_requests": 100,
-        "max_exports_per_day": 10,
-        "max_campuses": 1,
-    },
-    "pro": {
-        "max_students": 800,
-        "max_users": 60,
-        "max_storage_gb": 25,
-        "max_ai_requests": 1000,
-        "max_exports_per_day": 50,
-        "max_campuses": 3,
-    },
-    "enterprise": {
-        "max_students": None,
-        "max_users": None,
-        "max_storage_gb": 200,
-        "max_ai_requests": 10000,
-        "max_exports_per_day": None,
-        "max_campuses": None,
-    },
-    "institution": {
-        "max_students": None,
-        "max_users": None,
-        "max_storage_gb": None,
-        "max_ai_requests": None,
-        "max_exports_per_day": None,
-        "max_campuses": None,
-    },
+    plan["slug"]: {key: plan[key] for key in _LIMIT_KEYS} for plan in PLAN_CATALOG
 }
 
 
@@ -122,7 +85,7 @@ class SaaSQuotaService:
         if subscription and subscription.plan:
             return subscription.plan
 
-        slug = (tenant.subscription_plan or "starter").lower()
+        slug = (tenant.subscription_plan or TRIAL_PLAN_SLUG).lower()
         return self.db.query(SubscriptionPlan).filter(SubscriptionPlan.slug == slug).first()
 
     def calculate_usage(self, tenant_id: str) -> TenantQuotaUsage:
@@ -158,8 +121,8 @@ class SaaSQuotaService:
                 "features": plan.features or {},
             }
 
-        slug = (tenant.subscription_plan or "starter").lower()
-        limits = dict(DEFAULT_PLAN_LIMITS.get(slug, DEFAULT_PLAN_LIMITS["starter"]))
+        slug = (tenant.subscription_plan or TRIAL_PLAN_SLUG).lower()
+        limits = dict(DEFAULT_PLAN_LIMITS.get(slug, DEFAULT_PLAN_LIMITS[TRIAL_PLAN_SLUG]))
         limits["plan_slug"] = slug
         limits["features"] = {}
         return limits

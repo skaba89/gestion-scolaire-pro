@@ -636,7 +636,7 @@ function DataImportContent() {
 
 export default function DataImport() {
   return (
-    <PlanGate minPlan="pro">
+    <PlanGate minPlan="standard">
       <DataImportContent />
     </PlanGate>
   );
