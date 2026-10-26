@@ -9,6 +9,7 @@ from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
 
 from app.core.config import settings
+from app.services.plan_catalog import PLAN_WEIGHT as _PLAN_WEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -908,12 +909,9 @@ def require_permission(permission: str):
 
 # ─── Feature Gating — Plan hierarchy ─────────────────────────────────────────
 
-# Numeric weight per plan level (higher = more features)
-_PLAN_WEIGHT: dict[str, int] = {
-    "starter": 0,
-    "pro": 1,
-    "enterprise": 2,
-}
+# Numeric weight per plan level (higher = more features) : _PLAN_WEIGHT,
+# importé de app/services/plan_catalog.py (grille du 2026-10-26 ; pas d'offre
+# gratuite, « starter » / « free » valent 0).
 
 # Statuses that count as "access granted" for a paid or trial period
 _ACTIVE_STATUSES = {"active", "trialing"}
@@ -926,7 +924,7 @@ def require_plan(min_plan: str):
 
         @router.post("/ai/chat/")
         async def chat(
-            _plan: None = Depends(require_plan("pro")),
+            _plan: None = Depends(require_plan("standard")),
             current_user: dict = Depends(get_current_user),
         ):
             ...
@@ -948,6 +946,10 @@ def require_plan(min_plan: str):
     ``test_auth_rls_restricted_role.py`` fige cet invariant.
     """
     min_weight = _PLAN_WEIGHT.get(min_plan.lower(), 0)
+    if min_weight == 0:
+        # Une offre inconnue (ex. ancien « pro » renommé) donnerait un seuil 0
+        # que tout établissement franchirait : refus dès l'import du module.
+        raise ValueError(f"require_plan: offre inconnue ou gratuite '{min_plan}'")
 
     def _check(current_user: dict = Depends(get_current_user)) -> dict:
         # SUPER_ADMIN bypasses all plan checks
@@ -996,10 +998,14 @@ def require_plan(min_plan: str):
                 plan = (tenant.subscription_plan or "starter").lower()
                 sub_status = (tenant.subscription_status or "trialing").lower()
 
-                # Check trial validity for "trialing" status
-                if sub_status == "trialing" and tenant.trial_ends_at:
+                # Essai : borné par trial_ends_at. Sans date de fin, il n'y a
+                # plus d'essai illimité (pas d'offre gratuite) : expiré.
+                if sub_status == "trialing":
                     from datetime import datetime, timezone
-                    if tenant.trial_ends_at < datetime.now(timezone.utc).replace(tzinfo=None):
+                    if (
+                        tenant.trial_ends_at is None
+                        or tenant.trial_ends_at < datetime.now(timezone.utc).replace(tzinfo=None)
+                    ):
                         sub_status = "expired"
 
                 plan_weight = _PLAN_WEIGHT.get(plan, 0)

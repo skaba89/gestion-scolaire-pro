@@ -113,23 +113,29 @@ class TestAccessGranted:
         user = _user()
         assert _call("pro", user) is user
 
-    def test_pro_trialing_without_trial_end_allowed(self, patch_session):
-        # Comportement actuel figé : trialing sans trial_ends_at => accès.
-        # Faiblesse connue suivie en ticket séparé (docs/STATUT_ACTUEL.md,
-        # 2026-10-04) : ce test changera quand la règle métier sera revue.
+    def test_trialing_without_trial_end_is_refused(self, patch_session):
+        # Grille du 2026-10-26 : plus d'essai illimité (pas d'offre gratuite).
         patch_session(_tenant("pro", "trialing", None))
-        user = _user()
-        assert _call("pro", user) is user
+        with pytest.raises(HTTPException) as exc:
+            _call("pro", _user())
+        assert exc.value.status_code == 402
+        assert exc.value.detail["current_status"] == "expired"
 
     def test_pro_trialing_future_trial_end_allowed(self, patch_session):
         patch_session(_tenant("pro", "trialing", _naive_utc_now() + timedelta(days=5)))
         user = _user()
         assert _call("pro", user) is user
 
-    def test_status_none_defaults_to_trialing_allowed(self, patch_session):
+    def test_status_none_defaults_to_trialing_without_end_refused(self, patch_session):
         patch_session(_tenant("pro", None, None))
+        with pytest.raises(HTTPException) as exc:
+            _call("pro", _user())
+        assert exc.value.status_code == 402
+
+    def test_status_none_with_future_trial_end_allowed(self, patch_session):
+        patch_session(_tenant("standard", None, _naive_utc_now() + timedelta(days=5)))
         user = _user()
-        assert _call("pro", user) is user
+        assert _call("standard", user) is user
 
 
 # ─── Fail-closed : tenant introuvable / erreurs ─────────────────────────────────

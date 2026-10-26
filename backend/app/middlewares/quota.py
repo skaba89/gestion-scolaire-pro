@@ -124,14 +124,23 @@ class QuotaMiddleware(BaseHTTPMiddleware):
         from sqlalchemy import select as _sel
 
         limit: int = DEFAULT_QUOTAS.get(quota_key, 99_999)
+        unlimited = False
         try:
             with _SL() as _db:
                 _tenant = _db.execute(_sel(_Tenant).where(_Tenant.id == tenant_id)).scalar_one_or_none()
                 if _tenant and isinstance(getattr(_tenant, "settings", None), dict):
                     _quotas = _tenant.settings.get("quotas", {})
-                    limit = int(_quotas.get(quota_key, DEFAULT_QUOTAS.get(quota_key, 99_999)))
+                    # Clé présente à None = offre illimitée (apply_quota_limits) ;
+                    # clé absente = limite par défaut.
+                    if quota_key in _quotas and _quotas[quota_key] is None:
+                        unlimited = True
+                    else:
+                        limit = int(_quotas.get(quota_key, DEFAULT_QUOTAS.get(quota_key, 99_999)))
         except Exception:
             pass  # Fail open with default quotas
+
+        if unlimited:
+            return False, 0, 0
 
         current = await self._count_resources(tenant_id, quota_key)
         return current >= limit, current, limit

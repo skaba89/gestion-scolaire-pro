@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { PLAN_LABELS, PLAN_SLUGS } from "@/lib/pricing";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
   Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle, Settings,
@@ -45,14 +46,9 @@ interface TenantStat {
   subscription_status: string;
 }
 
-const SUBSCRIPTION_PLANS = [
-  { value: "starter", label: "Starter" },
-  { value: "pro", label: "Pro" },
-  { value: "enterprise", label: "Enterprise" },
-] as const;
+const SUBSCRIPTION_PLANS = PLAN_SLUGS.map((value) => ({ value, label: PLAN_LABELS[value] }));
 
-const getPlanLabel = (plan: string) =>
-  SUBSCRIPTION_PLANS.find((p) => p.value === plan)?.label || plan;
+const getPlanLabel = (plan: string) => PLAN_LABELS[plan] || plan;
 
 const getTypeLabel = (type: string) => {
   const map: Record<string, string> = {
@@ -599,8 +595,9 @@ function AddAdminDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: 
 }
 
 // ─── Tenant Subscription Dialog ─────────────────────────────────────────────
-// No "free" plan on purpose: the backend (PATCH /platform/tenants/{id}/subscription/)
-// already rejects anything outside starter/pro/enterprise, this list just mirrors it.
+// Grille du 2026-10-26, pas d'offre gratuite : le backend (PATCH
+// /platform/tenants/{id}/subscription/) n'accepte que standard / medium /
+// premium / enterprise, cette liste en est le miroir.
 
 function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
   const [open, setOpen] = useState(false);

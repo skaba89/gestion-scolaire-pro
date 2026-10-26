@@ -2,13 +2,16 @@
  * usePlan — hook React Query pour connaître le plan d'abonnement du tenant courant.
  *
  * Usage:
- *   const { plan, status, isProOrAbove, isActive, trialActive, trialEndsAt } = usePlan();
+ *   const { plan, status, hasAccess, isActive, trialActive, trialEndsAt } = usePlan();
  *
- * isPro / isEnterprise vérifient aussi que le statut est actif ou en essai.
+ * hasAccess vérifie aussi que le statut est actif ou en essai non échu.
+ * Grille du 2026-10-26 (src/lib/pricing.ts) : pas d'offre gratuite.
+ * Affichage uniquement — le backend (require_plan) décide.
  */
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { hasPlanAccess, type PlanSlug } from "@/lib/pricing";
 
 interface SubscriptionInfo {
   plan: string;
@@ -18,12 +21,6 @@ interface SubscriptionInfo {
   billing_email: string | null;
   is_super_admin?: boolean;
 }
-
-const PLAN_WEIGHT: Record<string, number> = {
-  starter: 0,
-  pro: 1,
-  enterprise: 2,
-};
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
@@ -39,15 +36,18 @@ export function usePlan() {
     retry: 1,
   });
 
-  const plan = data?.plan ?? "starter";
+  const plan = data?.plan ?? "standard";
   const status = data?.status ?? "trialing";
   const isSuperAdmin = data?.is_super_admin ?? false;
 
-  // Super-admin always has full access
-  const hasAccess = (minPlan: "starter" | "pro" | "enterprise"): boolean => {
-    if (isSuperAdmin) return true;
-    if (!ACTIVE_STATUSES.has(status)) return false;
-    return (PLAN_WEIGHT[plan] ?? 0) >= (PLAN_WEIGHT[minPlan] ?? 0);
+  // Essai sans date de fin ou échu : refusé, comme require_plan côté backend.
+  const trialExpired =
+    status === "trialing" && (!data?.trial_ends_at || new Date(data.trial_ends_at).getTime() <= Date.now());
+
+  const hasAccess = (minPlan: PlanSlug): boolean => {
+    if (isSuperAdmin) return true; // Super-admin always has full access
+    if (!ACTIVE_STATUSES.has(status) || (data && trialExpired)) return false;
+    return hasPlanAccess(plan, minPlan);
   };
 
   return {
@@ -65,8 +65,6 @@ export function usePlan() {
 
     // Convenience flags
     isActive: ACTIVE_STATUSES.has(status) || isSuperAdmin,
-    isStarter: plan === "starter",
-    isProOrAbove: hasAccess("pro"),
     isEnterprise: hasAccess("enterprise"),
 
     // Generic check

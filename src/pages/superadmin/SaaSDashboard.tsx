@@ -22,6 +22,7 @@ import {
   ChevronLeft, ChevronRight, LogIn, Crown, Hourglass, Wallet, CalendarClock,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { PLAN_LABELS, PLAN_SLUGS } from "@/lib/pricing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,10 +33,10 @@ interface SaasMetrics {
   expired_trials: number;
   past_due_tenants: number;
   canceled_tenants: number;
-  mrr_usd: number;
-  arr_usd: number;
+  mrr_eur: number;
+  arr_eur: number;
   conversion_rate_pct: number;
-  by_plan: { starter: number; pro: number; enterprise: number };
+  by_plan: Record<string, number>;
   by_status: Record<string, number>;
   new_tenants_7d: number;
   new_tenants_30d: number;
@@ -79,22 +80,27 @@ interface TenantsPage {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PLAN_LABELS: Record<string, string> = {
-  starter: "Starter",
-  pro: "Pro",
-  enterprise: "Enterprise",
+const PLAN_COLORS: Record<string, string> = {
+  other: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  standard: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  medium: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  premium: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  enterprise: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
 };
 
-const PLAN_COLORS: Record<string, string> = {
-  starter: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  pro: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
-  enterprise: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+const PLAN_BAR_COLORS: Record<string, string> = {
+  standard: "bg-sky-500",
+  medium: "bg-indigo-500",
+  premium: "bg-amber-500",
+  enterprise: "bg-purple-500",
+  other: "bg-gray-400",
 };
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
   trialing: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
   past_due: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+  expired: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
   canceled: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   unpaid: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   other: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -103,6 +109,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   active: "Actif",
   trialing: "Essai",
+  expired: "Expiré",
   past_due: "En retard",
   canceled: "Annulé",
   unpaid: "Impayé",
@@ -112,8 +119,8 @@ function fmt(n: number, decimals = 0): string {
   return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: decimals }).format(n);
 }
 
-function fmtUSD(n: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+function fmtEUR(n: number): string {
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -153,7 +160,7 @@ function KpiCard({
 
 function PlanBadge({ plan }: { plan: string }) {
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PLAN_COLORS[plan] || PLAN_COLORS.starter}`}>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PLAN_COLORS[plan] || PLAN_COLORS.other}`}>
       {PLAN_LABELS[plan] || plan}
     </span>
   );
@@ -336,9 +343,9 @@ export default function SaaSDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KpiCard
               icon={DollarSign}
-              label="MRR (USD)"
-              value={metricsLoading ? "…" : fmtUSD(metrics?.mrr_usd ?? 0)}
-              sub={metrics ? `ARR : ${fmtUSD(metrics.arr_usd)}` : undefined}
+              label="MRR (EUR)"
+              value={metricsLoading ? "…" : fmtEUR(metrics?.mrr_eur ?? 0)}
+              sub={metrics ? `ARR : ${fmtEUR(metrics.arr_eur)}` : undefined}
               color="text-green-600 dark:text-green-400"
             />
             <KpiCard
@@ -440,14 +447,14 @@ export default function SaaSDashboard() {
                 <CardTitle className="text-base">Répartition par plan</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {["starter", "pro", "enterprise"].map((p) => {
-                  const count = metrics?.by_plan[p as keyof typeof metrics.by_plan] ?? 0;
+                {[...PLAN_SLUGS, "other"].map((p) => {
+                  const count = metrics?.by_plan[p] ?? 0;
                   const total = metrics?.total_tenants || 1;
                   const pct = Math.round((count / total) * 100);
                   return (
                     <div key={p} className="space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{PLAN_LABELS[p]}</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{PLAN_LABELS[p] ?? "Anciennes offres"}</span>
                         <span className="text-gray-500 dark:text-gray-400">
                           {metricsLoading ? "…" : `${fmt(count)} (${pct}%)`}
                         </span>
@@ -455,7 +462,7 @@ export default function SaaSDashboard() {
                       <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800">
                         <div
                           className={`h-2 rounded-full transition-all ${
-                            p === "enterprise" ? "bg-purple-500" : p === "pro" ? "bg-indigo-500" : "bg-gray-400"
+                            PLAN_BAR_COLORS[p]
                           }`}
                           style={{ width: `${pct}%` }}
                         />
@@ -566,9 +573,9 @@ export default function SaaSDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les plans</SelectItem>
-                <SelectItem value="starter">Starter</SelectItem>
-                <SelectItem value="pro">Pro</SelectItem>
-                <SelectItem value="enterprise">Enterprise</SelectItem>
+                {PLAN_SLUGS.map((slug) => (
+                  <SelectItem key={slug} value={slug}>{PLAN_LABELS[slug]}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={tenantStatusFilter} onValueChange={handleStatusFilter}>

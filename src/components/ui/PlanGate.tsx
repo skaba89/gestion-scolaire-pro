@@ -2,11 +2,11 @@
  * PlanGate — composant de gating UI basé sur le plan d'abonnement.
  *
  * Usage:
- *   <PlanGate minPlan="pro">
+ *   <PlanGate minPlan="standard">
  *     <AIInsightsPanel />
  *   </PlanGate>
  *
- *   <PlanGate minPlan="pro" fallback={<div>Upgrade requis</div>}>
+ *   <PlanGate minPlan="standard" fallback={<div>Abonnement requis</div>}>
  *     <ImportButton />
  *   </PlanGate>
  */
@@ -15,14 +15,7 @@ import { Lock, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlan } from "@/hooks/usePlan";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
-
-type Plan = "starter" | "pro" | "enterprise";
-
-const PLAN_LABELS: Record<Plan, string> = {
-  starter: "Starter",
-  pro: "Pro",
-  enterprise: "Enterprise",
-};
+import { PLAN_LABELS, type PlanSlug as Plan } from "@/lib/pricing";
 
 interface PlanGateProps {
   /** Minimum plan required to see the content */
@@ -42,7 +35,7 @@ function UpgradeBanner({ minPlan, compact }: { minPlan: Plan; compact?: boolean 
     return (
       <span className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
         <Lock className="w-3 h-3" />
-        Plan {PLAN_LABELS[minPlan]} requis
+        {minPlan === "standard" ? "Abonnement requis" : `Offre ${PLAN_LABELS[minPlan]} requise`}
       </span>
     );
   }
@@ -54,16 +47,20 @@ function UpgradeBanner({ minPlan, compact }: { minPlan: Plan; compact?: boolean 
       </div>
       <div>
         <p className="font-semibold text-gray-900 dark:text-white mb-1">
-          Fonctionnalité réservée au plan <span className="text-indigo-600 dark:text-indigo-400">{PLAN_LABELS[minPlan]}</span>
+          {minPlan === "standard" ? (
+            "Fonctionnalité incluse dans l'abonnement"
+          ) : (
+            <>Fonctionnalité réservée à l'offre <span className="text-indigo-600 dark:text-indigo-400">{PLAN_LABELS[minPlan]}</span></>
+          )}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Passez à un plan supérieur pour accéder à cette fonctionnalité.
+          Votre essai est terminé ou votre abonnement n'est pas actif. Souscrivez une offre pour y accéder.
         </p>
       </div>
       <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
         <Link to={getTenantUrl("/admin/billing")}>
           <Zap className="w-4 h-4 mr-2" />
-          Voir les plans
+          Voir les offres
           <ArrowRight className="w-4 h-4 ml-2" />
         </Link>
       </Button>

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import apiClient from "@/api/client";
+import { PLAN_LABELS, SALES_EMAIL, TRIAL_DAYS, formatEur } from "@/lib/pricing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ interface SubscribeResponse {
   currency: string;
   payment_instructions: { method: string; detail: string; note: string };
   message: string;
+  conversion_note?: string;
 }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -65,9 +67,13 @@ const PAYMENT_METHODS: { id: string; label: string; icon: React.ReactNode }[] = 
 ];
 
 function formatPrice(amount: number, currency: string) {
-  if (!amount) return "Gratuit";
+  // Pas d'offre gratuite : un prix nul est une offre sur devis.
+  if (!amount) return "Sur devis";
+  if (currency === "EUR") return formatEur(amount);
   return `${new Intl.NumberFormat("fr-FR").format(amount)} ${currency}`;
 }
+
+const GNF_NOTE = "Payable en GNF au taux du jour (Mobile Money ou virement).";
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -77,6 +83,7 @@ function StatusBadge({ status }: { status: string }) {
     trialing:        { label: "Essai gratuit",         className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",      icon: <Clock className="w-3 h-3" /> },
     pending_payment: { label: "Paiement en attente",   className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: <Hourglass className="w-3 h-3" /> },
     past_due:        { label: "Paiement en retard",    className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: <AlertTriangle className="w-3 h-3" /> },
+    expired:         { label: "Expiré",                className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: <AlertTriangle className="w-3 h-3" /> },
     canceled:        { label: "Annulé",                className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",          icon: <XCircle className="w-3 h-3" /> },
     rejected:        { label: "Demande rejetée",       className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",          icon: <XCircle className="w-3 h-3" /> },
   };
@@ -158,7 +165,7 @@ export default function Billing() {
   }
 
   const plans = plansData?.items ?? [];
-  const currentPlan = sub?.plan ?? "starter";
+  const currentPlan = sub?.plan ?? "standard";
   const currentStatus = sub?.status ?? "trialing";
   const isActive = ["active", "trialing"].includes(currentStatus);
   const pendingRequest = sub?.latest_request?.status === "pending_payment" ? sub.latest_request : null;
@@ -207,6 +214,9 @@ export default function Billing() {
               Montant à régler :{" "}
               <strong>{formatPrice(instructions.amount_due, instructions.currency)}</strong>
             </p>
+            {instructions.currency === "EUR" && (
+              <p className="text-xs text-gray-500">{instructions.conversion_note ?? GNF_NOTE}</p>
+            )}
             <p className="text-gray-700 dark:text-gray-300">{instructions.payment_instructions.detail}</p>
             <p className="text-xs text-gray-500">{instructions.payment_instructions.note}</p>
           </CardContent>
@@ -219,8 +229,8 @@ export default function Billing() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <CardTitle className="text-lg capitalize flex items-center gap-2">
-                Plan {plans.find((p) => p.slug === currentPlan)?.name ?? currentPlan}
-                {currentPlan === "pro" && <Star className="w-4 h-4 text-yellow-500 fill-yellow-400" />}
+                Offre {plans.find((p) => p.slug === currentPlan)?.name ?? PLAN_LABELS[currentPlan] ?? currentPlan}
+                {currentPlan === "premium" && <Star className="w-4 h-4 text-yellow-500 fill-yellow-400" />}
               </CardTitle>
               <CardDescription className="mt-1">
                 {sub?.billing_email && <>Facturé à <strong>{sub.billing_email}</strong></>}
@@ -237,9 +247,9 @@ export default function Billing() {
               <div>
                 <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Essai gratuit en cours</p>
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                  Votre essai Pro expire le{" "}
+                  Votre essai de {TRIAL_DAYS} jours expire le{" "}
                   <strong>{new Date(sub.trial_ends_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</strong>.
-                  Souscrivez avant la fin pour ne pas perdre accès.
+                  Il n'y a pas d'offre gratuite : souscrivez avant la fin pour garder l'accès.
                 </p>
               </div>
             </div>
@@ -268,24 +278,25 @@ export default function Billing() {
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <ArrowUpCircle className="w-5 h-5 text-indigo-500" />
-          Changer de plan
+          Choisir une offre
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {plans.map((plan) => {
             const isCurrent = plan.slug === currentPlan;
             const isSelected = selectedPlan === plan.slug;
             const price = billingCycle === "yearly" ? plan.price_yearly : plan.price_monthly;
+            const onQuote = plan.features?.on_quote === true || price === 0;
 
             return (
               <Card
                 key={plan.slug}
                 className={`relative flex flex-col transition-shadow ${
-                  plan.slug === "pro"
+                  plan.slug === "medium"
                     ? "border-indigo-300 dark:border-indigo-700 shadow-lg"
                     : "border-gray-200 dark:border-gray-800"
                 } ${isCurrent ? "ring-2 ring-indigo-400 dark:ring-indigo-600" : ""}`}
               >
-                {plan.slug === "pro" && (
+                {plan.slug === "medium" && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 text-xs px-3">
                       Recommandé
@@ -296,13 +307,16 @@ export default function Billing() {
                   <CardTitle className="text-base flex items-center justify-between">
                     {plan.name}
                     {isCurrent && (
-                      <Badge variant="secondary" className="text-xs">Plan actuel</Badge>
+                      <Badge variant="secondary" className="text-xs">Offre actuelle</Badge>
                     )}
                   </CardTitle>
                   <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
                     {formatPrice(price, plan.currency)}
                     {price > 0 && <span className="text-xs text-gray-400"> / {billingCycle === "yearly" ? "an" : "mois"}</span>}
                   </p>
+                  {!onQuote && plan.currency === "EUR" && (
+                    <p className="text-xs text-gray-400">{GNF_NOTE}</p>
+                  )}
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4 flex-1">
                   <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 flex-1">
@@ -321,11 +335,11 @@ export default function Billing() {
 
                   {isCurrent ? (
                     <Button variant="outline" size="sm" disabled className="w-full">
-                      Plan actuel
+                      Offre actuelle
                     </Button>
-                  ) : price === 0 ? (
+                  ) : onQuote ? (
                     <Button variant="outline" size="sm" asChild className="w-full">
-                      <a href="mailto:sales@schoolflow.pro">Nous contacter</a>
+                      <a href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent(`Offre ${plan.name}`)}`}>Nous contacter</a>
                     </Button>
                   ) : isSelected ? (
                     <div className="space-y-2">
@@ -381,7 +395,7 @@ export default function Billing() {
                       disabled={!!pendingRequest}
                       onClick={() => setSelectedPlan(plan.slug)}
                     >
-                      {pendingRequest ? "Demande en cours…" : `Passer au ${plan.name}`}
+                      {pendingRequest ? "Demande en cours…" : `Choisir ${plan.name}`}
                     </Button>
                   )}
                 </CardContent>

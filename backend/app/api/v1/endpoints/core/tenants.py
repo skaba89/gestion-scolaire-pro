@@ -56,6 +56,7 @@ from app.schemas.tenants import (
     validate_tenant_slug,
 )
 from app.models import Tenant, AcademicYear, Campus, Level, Subject, User, UserRole
+from app.services.plan_catalog import TRIAL_PLAN_SLUG, start_trial
 
 router = APIRouter()
 
@@ -99,6 +100,7 @@ async def create_tenant(
                 "locale": "fr-GN",
             }
         )
+        start_trial(new_tenant)  # 30 jours, limites Standard (pas d'offre gratuite)
         db.add(new_tenant)
         db.flush() # Get id
         logger.info(f"Tenant created with ID: {new_tenant.id}")
@@ -834,6 +836,7 @@ async def create_tenant_with_admin(
                 "locale": "fr-GN",
             }
         )
+        start_trial(new_tenant)  # 30 jours, limites Standard (pas d'offre gratuite)
         db.add(new_tenant)
         db.flush()
         # Every row below belongs to the new tenant: write under its own RLS
@@ -1280,7 +1283,7 @@ async def get_super_admin_tenant_stats(
             "student_count": student_counts.get(t.id, 0),
             "user_count": user_counts.get(t.id, 0),
             "admin_count": admin_counts.get(t.id, 0),
-            "subscription_plan": t.subscription_plan or "starter",
+            "subscription_plan": t.subscription_plan or TRIAL_PLAN_SLUG,
             "subscription_status": t.subscription_status or "trialing",
         })
     return result
