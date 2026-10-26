@@ -467,6 +467,18 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   d'abonnement (PR #328) — ticket « pas de gestion UI du 402 » clos. Reste :
   un établissement expiré ne perd que l'IA et l'import (blocage complet à
   décider séparément).
+- **2026-10-26 — incident : /api envoyé à MineFleet (≈ 3 min).** Le
+  frontend est aussi sur le réseau Docker partagé « edge » du proxy commun
+  (`~/vps-proxy`) ; l'API MineFleet y a rejoint ce réseau sous son nom de
+  service « api ». Au redémarrage du frontend (déploiement de 09:55 UTC),
+  `http://api:8000` a résolu vers elle : tout `/api` d'academy-guineenne.org
+  répondait 404. Mesure immédiate (09:57) : `minefleet-api-1` rebranché sur
+  « edge » avec le seul alias `minefleet-api`. Une seule requête mal routée
+  dans les journaux MineFleet (un contrôle de santé) : aucune requête
+  utilisateur ni identifiant transmis. Correctif durable : nginx joint l'API
+  et MinIO par les alias `gsp-api` / `gsp-minio` (`docker-compose.yml`), test
+  `backend/tests/test_nginx_unique_upstream_names.py`. Règle pour le proxy
+  commun : une application sur « edge » n'est jointe que par un alias propre.
 - **2026-10-26 — dette i18n des pages d'abonnement soldée.** Tarifs, grille
   de l'accueil, Facturation, `PlanGate`, widget IA global et tableau de bord
   SaaS : plus aucun texte en dur, 207 clés (`plans.*`, `pricing.*`,

@@ -2,11 +2,14 @@
 
 La production tourne sur **un seul VPS** (Ubuntu) avec Docker Compose :
 `docker-compose.yml` (services) + `deploy/vps/docker-compose.vps.yml` (images
-de prod, aucun port exposé hors Caddy, limites mémoire). Caddy termine le TLS
-(Let's Encrypt) et passe tout au frontend nginx, qui relaie `/api/` à l'API.
+de prod, aucun port exposé, limites mémoire). Le TLS (Let's Encrypt) est assuré
+par le **proxy commun du serveur**, `~/vps-proxy` (projet Caddy indépendant, partagé
+avec les autres applications du VPS) : il joint le frontend nginx par le réseau
+Docker externe `edge` (alias `gsp-frontend`), et nginx relaie `/api/` à l'API.
+Le site est décrit dans `~/vps-proxy/sites/gestion-scolaire.caddy`.
 
 ```
-Internet ──443──▶ caddy ──▶ frontend (nginx) ──/api/──▶ api ──▶ postgres (RLS, rôle restreint)
+Internet ──443──▶ vps-proxy ──edge──▶ frontend (nginx) ──/api/──▶ api ──▶ postgres (RLS, rôle restreint)
                                                          │──▶ redis ◀── worker (ARQ)
                                                          └──▶ minio
 db-backup : dump quotidien → infra/backups/ ; cron 3 h → copie chiffrée Backblaze B2
@@ -21,7 +24,6 @@ plus qu'à la main.
 | Fichier | Rôle |
 |---|---|
 | `docker-compose.vps.yml` | Overlay de production |
-| `Caddyfile` | TLS + en-têtes de sécurité ; domaine lu dans `.env.docker` |
 | `deploy.sh` | Mise à jour : pull → build → migrations → redémarrage → contrôle de santé |
 | `scripts/configurer-smtp.sh` | Saisie des identifiants Gmail SMTP (interactif) |
 | `scripts/configurer-sauvegarde-b2.sh` | Saisie des clés Backblaze B2 + création des clés de chiffrement (interactif) |
@@ -36,9 +38,7 @@ plus qu'à la main.
 En plus de `.env.docker.example` :
 
 ```
-VPS_DOMAIN=academy-guineenne.org         # nom servi par Caddy
-VPS_REDIRECT_HOSTS=www.academy-guineenne.org   # redirigés vers VPS_DOMAIN (plusieurs : séparés par des espaces)
-VPS_PUBLIC_IP=203.0.113.10               # http://<IP> redirige vers le domaine
+VPS_DOMAIN=academy-guineenne.org         # contrôle de santé de deploy.sh (le site lui-même est dans ~/vps-proxy)
 BACKEND_CORS_ORIGINS=https://academy-guineenne.org
 FRONTEND_URL=https://academy-guineenne.org
 ENFORCE_MFA=true
@@ -61,7 +61,7 @@ sudo docker compose --env-file .env.docker -f docker-compose.yml -f deploy/vps/d
 ```
 
 `deploy.sh` supprime aussi le cache de build Docker de plus de 7 jours
-(il grossissait d'environ 14 Go par jour de déploiements). Il s'arrête en erreur si `/api/health/ready` (via Caddy, sur le vrai
+(il grossissait d'environ 14 Go par jour de déploiements). Il s'arrête en erreur si `/api/health/ready` (via le proxy commun, sur le vrai
 domaine) ne répond pas `healthy`. Retour arrière : `git checkout <sha précédent>`
 puis relancer les étapes build / up du script (pas de `git pull`) ; une
 migration ne se défait qu'avec `alembic downgrade` explicite.
