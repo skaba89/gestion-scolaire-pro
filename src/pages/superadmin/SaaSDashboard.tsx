@@ -4,6 +4,7 @@
  * Accessible uniquement aux SUPER_ADMIN.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,7 +23,7 @@ import {
   ChevronLeft, ChevronRight, LogIn, Crown, Hourglass, Wallet, CalendarClock,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { PLAN_LABELS, PLAN_SLUGS } from "@/lib/pricing";
+import { PLAN_SLUGS, formatEur, planLabel } from "@/lib/pricing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,22 +107,8 @@ const STATUS_COLORS: Record<string, string> = {
   other: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  active: "Actif",
-  trialing: "Essai",
-  expired: "Expiré",
-  past_due: "En retard",
-  canceled: "Annulé",
-  unpaid: "Impayé",
-};
-
-function fmt(n: number, decimals = 0): string {
-  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: decimals }).format(n);
-}
-
-function fmtEUR(n: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n);
-}
+// Libellés : saasDashboard.status.* (locales).
+const STATUS_KEYS = ["active", "trialing", "expired", "past_due", "canceled", "unpaid"];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -159,17 +146,19 @@ function KpiCard({
 }
 
 function PlanBadge({ plan }: { plan: string }) {
+  const { t } = useTranslation();
   return (
     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PLAN_COLORS[plan] || PLAN_COLORS.other}`}>
-      {PLAN_LABELS[plan] || plan}
+      {planLabel(t, plan)}
     </span>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   return (
     <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLORS[status] || STATUS_COLORS.other}`}>
-      {STATUS_LABELS[status] || status}
+      {STATUS_KEYS.includes(status) ? t(`saasDashboard.status.${status}`) : status}
     </span>
   );
 }
@@ -202,6 +191,10 @@ function MiniBarChart({ data, label }: { data: { label: string; value: number }[
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function SaaSDashboard() {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
+  const fmt = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n);
+  const fmtEUR = (n: number) => formatEur(n, locale, 0);
   const qc = useQueryClient();
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantPlanFilter, setTenantPlanFilter] = useState("all");
@@ -246,12 +239,12 @@ export default function SaaSDashboard() {
       // Store token and redirect to tenant dashboard
       localStorage.setItem("schoolflow:access_token", data.access_token);
       localStorage.setItem("schoolflow:impersonating", "true");
-      toast.success(`Connexion en tant qu'admin de ${data.tenant_name} (15 min)`);
+      toast.success(t("saasDashboard.impersonated", { name: data.tenant_name }));
       window.location.href = `/${data.tenant_slug}/admin`;
     },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(msg || "Erreur lors de l'impersonation");
+      toast.error(msg || t("saasDashboard.impersonateError"));
     },
   });
 
@@ -288,16 +281,18 @@ export default function SaaSDashboard() {
         <div>
           <div className="flex items-center gap-2">
             <Crown className="w-6 h-6 text-yellow-500" />
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">SaaS Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t("saasDashboard.title")}</h1>
             <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 hover:bg-purple-100">
               SUPER_ADMIN
             </Badge>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Métriques de la plateforme Academy Guinéenne
+            {t("saasDashboard.subtitle")}
             {metrics?.generated_at && (
               <span className="ml-2 text-xs">
-                — Mis à jour à {new Date(metrics.generated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                {t("saasDashboard.updatedAt", {
+                  time: new Date(metrics.generated_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+                })}
               </span>
             )}
           </p>
@@ -309,14 +304,14 @@ export default function SaaSDashboard() {
           disabled={metricsLoading}
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${metricsLoading ? "animate-spin" : ""}`} />
-          Actualiser
+          {t("saasDashboard.refresh")}
         </Button>
       </div>
 
       {metricsError && (
         <Alert variant="destructive">
           <AlertTriangle className="w-4 h-4" />
-          <AlertDescription>Impossible de charger les métriques. Vérifiez votre connexion.</AlertDescription>
+          <AlertDescription>{t("saasDashboard.loadError")}</AlertDescription>
         </Alert>
       )}
 
@@ -324,17 +319,16 @@ export default function SaaSDashboard() {
         <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800">
           <AlertTriangle className="w-4 h-4 text-orange-500" />
           <AlertDescription className="text-orange-800 dark:text-orange-300">
-            <strong>{metrics.past_due_list.length} établissement(s)</strong> ont des paiements en retard.
-            Vérifiez la liste dans l'onglet Tenants.
+            {t("saasDashboard.pastDueAlert", { n: fmt(metrics.past_due_list.length) })}
           </AlertDescription>
         </Alert>
       )}
 
       <Tabs defaultValue="overview">
         <TabsList>
-          <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
-          <TabsTrigger value="tenants">Établissements</TabsTrigger>
-          <TabsTrigger value="growth">Croissance</TabsTrigger>
+          <TabsTrigger value="overview">{t("saasDashboard.tabs.overview")}</TabsTrigger>
+          <TabsTrigger value="tenants">{t("saasDashboard.tabs.tenants")}</TabsTrigger>
+          <TabsTrigger value="growth">{t("saasDashboard.tabs.growth")}</TabsTrigger>
         </TabsList>
 
         {/* ── Overview tab ─────────────────────────────────────────────────── */}
@@ -343,27 +337,27 @@ export default function SaaSDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KpiCard
               icon={DollarSign}
-              label="MRR (EUR)"
+              label={t("saasDashboard.kpi.mrr")}
               value={metricsLoading ? "…" : fmtEUR(metrics?.mrr_eur ?? 0)}
-              sub={metrics ? `ARR : ${fmtEUR(metrics.arr_eur)}` : undefined}
+              sub={metrics ? t("saasDashboard.kpi.arr", { value: fmtEUR(metrics.arr_eur) }) : undefined}
               color="text-green-600 dark:text-green-400"
             />
             <KpiCard
               icon={Building2}
-              label="Établissements actifs"
+              label={t("saasDashboard.kpi.activeTenants")}
               value={metricsLoading ? "…" : fmt(metrics?.active_tenants ?? 0)}
-              sub={metrics ? `${fmt(metrics.total_tenants)} total` : undefined}
+              sub={metrics ? t("saasDashboard.kpi.total", { n: fmt(metrics.total_tenants) }) : undefined}
             />
             <KpiCard
               icon={Zap}
-              label="En période d'essai"
+              label={t("saasDashboard.kpi.trialing")}
               value={metricsLoading ? "…" : fmt(metrics?.trialing_tenants ?? 0)}
-              sub={metrics ? `${metrics.conversion_rate_pct}% de conversion` : undefined}
+              sub={metrics ? t("saasDashboard.kpi.conversion", { pct: metrics.conversion_rate_pct }) : undefined}
               color="text-blue-600 dark:text-blue-400"
             />
             <KpiCard
               icon={AlertTriangle}
-              label="Paiements en retard"
+              label={t("saasDashboard.kpi.pastDue")}
               value={metricsLoading ? "…" : fmt(metrics?.past_due_tenants ?? 0)}
               color="text-orange-600 dark:text-orange-400"
               alert={(metrics?.past_due_tenants ?? 0) > 0}
@@ -374,7 +368,7 @@ export default function SaaSDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <KpiCard
               icon={Wallet}
-              label="MRR abonnements locaux"
+              label={t("saasDashboard.kpi.localMrr")}
               value={
                 metricsLoading
                   ? "…"
@@ -384,7 +378,7 @@ export default function SaaSDashboard() {
               }
               sub={
                 metrics?.local_billing
-                  ? `${fmt(metrics.local_billing.active_subscriptions)} abonnement(s) actif(s)`
+                  ? t("saasDashboard.kpi.activeSubscriptions", { n: fmt(metrics.local_billing.active_subscriptions) })
                   : undefined
               }
               color="text-emerald-600 dark:text-emerald-400"
@@ -392,16 +386,16 @@ export default function SaaSDashboard() {
             <Link to="/super-admin/subscription-requests" className="block">
               <KpiCard
                 icon={Hourglass}
-                label="Demandes d'abonnement en attente"
+                label={t("saasDashboard.kpi.pendingRequests")}
                 value={metricsLoading ? "…" : fmt(metrics?.local_billing?.pending_requests ?? 0)}
-                sub="Cliquer pour rapprocher les paiements"
+                sub={t("saasDashboard.kpi.pendingHint")}
                 color="text-amber-600 dark:text-amber-400"
                 alert={(metrics?.local_billing?.pending_requests ?? 0) > 0}
               />
             </Link>
             <KpiCard
               icon={CalendarClock}
-              label="Expirent sous 7 jours"
+              label={t("saasDashboard.kpi.expiringSoon")}
               value={metricsLoading ? "…" : fmt(metrics?.local_billing?.expiring_soon?.length ?? 0)}
               sub={
                 metrics?.local_billing?.expiring_soon?.length
@@ -420,20 +414,20 @@ export default function SaaSDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <KpiCard
               icon={TrendingUp}
-              label="Nouveaux (7 jours)"
+              label={t("saasDashboard.kpi.new7d")}
               value={metricsLoading ? "…" : `+${fmt(metrics?.new_tenants_7d ?? 0)}`}
-              sub={metrics ? `+${fmt(metrics.new_tenants_30d)} ce mois` : undefined}
+              sub={metrics ? t("saasDashboard.kpi.newThisMonth", { n: fmt(metrics.new_tenants_30d) }) : undefined}
               color="text-indigo-600 dark:text-indigo-400"
             />
             <KpiCard
               icon={Activity}
-              label="Essais expirés (non convertis)"
+              label={t("saasDashboard.kpi.expiredTrials")}
               value={metricsLoading ? "…" : fmt(metrics?.expired_trials ?? 0)}
               color="text-gray-500"
             />
             <KpiCard
               icon={Users}
-              label="Annulés"
+              label={t("saasDashboard.kpi.canceled")}
               value={metricsLoading ? "…" : fmt(metrics?.canceled_tenants ?? 0)}
               color="text-red-500 dark:text-red-400"
             />
@@ -444,7 +438,7 @@ export default function SaaSDashboard() {
             {/* Plan distribution */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Répartition par plan</CardTitle>
+                <CardTitle className="text-base">{t("saasDashboard.planDistribution")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {[...PLAN_SLUGS, "other"].map((p) => {
@@ -454,7 +448,7 @@ export default function SaaSDashboard() {
                   return (
                     <div key={p} className="space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{PLAN_LABELS[p] ?? "Anciennes offres"}</span>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">{p === "other" ? t("plans.other") : planLabel(t, p)}</span>
                         <span className="text-gray-500 dark:text-gray-400">
                           {metricsLoading ? "…" : `${fmt(count)} (${pct}%)`}
                         </span>
@@ -478,7 +472,7 @@ export default function SaaSDashboard() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Globe className="w-4 h-4 text-indigo-500" />
-                  Top pays
+                  {t("saasDashboard.topCountries")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -500,7 +494,7 @@ export default function SaaSDashboard() {
                     </div>
                   ))}
                   {(!metrics || metrics.top_countries.length === 0) && (
-                    <p className="text-sm text-gray-400 dark:text-gray-500">Aucune donnée</p>
+                    <p className="text-sm text-gray-400 dark:text-gray-500">{t("saasDashboard.noData")}</p>
                   )}
                 </div>
               </CardContent>
@@ -513,37 +507,37 @@ export default function SaaSDashboard() {
               <CardHeader>
                 <CardTitle className="text-base text-orange-700 dark:text-orange-400 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  Paiements en retard
+                  {t("saasDashboard.pastDueTitle")}
                 </CardTitle>
-                <CardDescription>Ces établissements nécessitent une action.</CardDescription>
+                <CardDescription>{t("saasDashboard.pastDueDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {metrics.past_due_list.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between rounded-lg bg-orange-50 dark:bg-orange-950/30 px-3 py-2">
+                  {metrics.past_due_list.map((tenant) => (
+                    <div key={tenant.id} className="flex items-center justify-between rounded-lg bg-orange-50 dark:bg-orange-950/30 px-3 py-2">
                       <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">{t.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">/{t.slug} · {PLAN_LABELS[t.plan] || t.plan}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{tenant.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">/{tenant.slug} · {planLabel(t, tenant.plan)}</p>
                       </div>
                       <div className="flex gap-2">
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-7 text-xs"
-                          onClick={() => window.open(`/${t.slug}/admin/billing`, "_blank")}
+                          onClick={() => window.open(`/${tenant.slug}/admin/billing`, "_blank")}
                         >
                           <ExternalLink className="w-3 h-3 mr-1" />
-                          Billing
+                          {t("saasDashboard.billing")}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs"
-                          onClick={() => impersonateMutation.mutate(t.id)}
+                          onClick={() => impersonateMutation.mutate(tenant.id)}
                           disabled={impersonateMutation.isPending}
                         >
                           <LogIn className="w-3 h-3 mr-1" />
-                          Accès
+                          {t("saasDashboard.access")}
                         </Button>
                       </div>
                     </div>
@@ -562,32 +556,31 @@ export default function SaaSDashboard() {
               <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
               <Input
                 className="pl-8 h-9"
-                placeholder="Rechercher par nom, slug, email…"
+                placeholder={t("saasDashboard.searchPlaceholder")}
                 value={tenantSearch}
                 onChange={handleSearch}
               />
             </div>
             <Select value={tenantPlanFilter} onValueChange={handlePlanFilter}>
               <SelectTrigger className="w-36 h-9">
-                <SelectValue placeholder="Tous les plans" />
+                <SelectValue placeholder={t("saasDashboard.allPlans")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous les plans</SelectItem>
+                <SelectItem value="all">{t("saasDashboard.allPlans")}</SelectItem>
                 {PLAN_SLUGS.map((slug) => (
-                  <SelectItem key={slug} value={slug}>{PLAN_LABELS[slug]}</SelectItem>
+                  <SelectItem key={slug} value={slug}>{planLabel(t, slug)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={tenantStatusFilter} onValueChange={handleStatusFilter}>
               <SelectTrigger className="w-40 h-9">
-                <SelectValue placeholder="Tous statuts" />
+                <SelectValue placeholder={t("saasDashboard.allStatuses")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tous statuts</SelectItem>
-                <SelectItem value="active">Actif</SelectItem>
-                <SelectItem value="trialing">Essai</SelectItem>
-                <SelectItem value="past_due">En retard</SelectItem>
-                <SelectItem value="canceled">Annulé</SelectItem>
+                <SelectItem value="all">{t("saasDashboard.allStatuses")}</SelectItem>
+                {["active", "trialing", "expired", "past_due", "canceled"].map((status) => (
+                  <SelectItem key={status} value={status}>{t(`saasDashboard.status.${status}`)}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -598,47 +591,47 @@ export default function SaaSDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Établissement</TableHead>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead className="text-right">Utilisateurs</TableHead>
-                    <TableHead>Pays</TableHead>
-                    <TableHead>Créé le</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>{t("saasDashboard.table.tenant")}</TableHead>
+                    <TableHead>{t("saasDashboard.table.plan")}</TableHead>
+                    <TableHead>{t("saasDashboard.table.status")}</TableHead>
+                    <TableHead className="text-right">{t("saasDashboard.table.users")}</TableHead>
+                    <TableHead>{t("saasDashboard.table.country")}</TableHead>
+                    <TableHead>{t("saasDashboard.table.createdAt")}</TableHead>
+                    <TableHead className="text-right">{t("saasDashboard.table.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tenantsLoading ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-gray-400 dark:text-gray-500">
-                        Chargement…
+                        {t("saasDashboard.loading")}
                       </TableCell>
                     </TableRow>
                   ) : (tenantsPage?.items || []).length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-gray-400 dark:text-gray-500">
-                        Aucun établissement trouvé
+                        {t("saasDashboard.noTenants")}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    (tenantsPage?.items || []).map((t) => (
-                      <TableRow key={t.id}>
+                    (tenantsPage?.items || []).map((tenant) => (
+                      <TableRow key={tenant.id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-gray-900 dark:text-white text-sm">{t.name}</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500">/{t.slug}</p>
+                            <p className="font-medium text-gray-900 dark:text-white text-sm">{tenant.name}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">/{tenant.slug}</p>
                           </div>
                         </TableCell>
-                        <TableCell><PlanBadge plan={t.subscription_plan} /></TableCell>
-                        <TableCell><StatusBadge status={t.subscription_status} /></TableCell>
+                        <TableCell><PlanBadge plan={tenant.subscription_plan} /></TableCell>
+                        <TableCell><StatusBadge status={tenant.subscription_status} /></TableCell>
                         <TableCell className="text-right text-sm text-gray-600 dark:text-gray-300">
-                          {fmt(t.user_count)}
+                          {fmt(tenant.user_count)}
                         </TableCell>
                         <TableCell>
-                          <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{t.country}</span>
+                          <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{tenant.country}</span>
                         </TableCell>
                         <TableCell className="text-xs text-gray-400 dark:text-gray-500">
-                          {t.created_at ? new Date(t.created_at).toLocaleDateString("fr-FR") : "—"}
+                          {tenant.created_at ? new Date(tenant.created_at).toLocaleDateString(locale) : "—"}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
@@ -646,8 +639,8 @@ export default function SaaSDashboard() {
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2"
-                              onClick={() => window.open(`/${t.slug}/admin`, "_blank")}
-                              title="Voir le dashboard"
+                              onClick={() => window.open(`/${tenant.slug}/admin`, "_blank")}
+                              title={t("saasDashboard.viewDashboard")}
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Button>
@@ -655,9 +648,9 @@ export default function SaaSDashboard() {
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2"
-                              onClick={() => impersonateMutation.mutate(t.id)}
+                              onClick={() => impersonateMutation.mutate(tenant.id)}
                               disabled={impersonateMutation.isPending}
-                              title="Accès temporaire (15 min)"
+                              title={t("saasDashboard.tempAccess")}
                             >
                               <LogIn className="w-3.5 h-3.5" />
                             </Button>
@@ -675,8 +668,11 @@ export default function SaaSDashboard() {
           {tenantsPage && tenantsPage.pages > 1 && (
             <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
               <span>
-                {fmt((page - 1) * (tenantsPage.page_size) + 1)}–
-                {fmt(Math.min(page * tenantsPage.page_size, tenantsPage.total))} sur {fmt(tenantsPage.total)}
+                {t("saasDashboard.pagination", {
+                  from: fmt((page - 1) * tenantsPage.page_size + 1),
+                  to: fmt(Math.min(page * tenantsPage.page_size, tenantsPage.total)),
+                  total: fmt(tenantsPage.total),
+                })}
               </span>
               <div className="flex gap-2">
                 <Button
@@ -711,14 +707,14 @@ export default function SaaSDashboard() {
             {/* Signups trend */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Inscriptions — 14 derniers jours</CardTitle>
-                <CardDescription>Nouveaux établissements par jour</CardDescription>
+                <CardTitle className="text-base">{t("saasDashboard.signupsTitle")}</CardTitle>
+                <CardDescription>{t("saasDashboard.signupsDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {signupsChartData.length > 0 ? (
                   <MiniBarChart data={signupsChartData} label="" />
                 ) : (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 py-6 text-center">Aucune donnée disponible</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 py-6 text-center">{t("saasDashboard.noDataAvailable")}</p>
                 )}
               </CardContent>
             </Card>
@@ -726,14 +722,14 @@ export default function SaaSDashboard() {
             {/* Revenue trend */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">MRR estimé — 6 derniers mois</CardTitle>
-                <CardDescription>Revenus mensuels récurrents (USD)</CardDescription>
+                <CardTitle className="text-base">{t("saasDashboard.mrrTitle")}</CardTitle>
+                <CardDescription>{t("saasDashboard.mrrDesc")}</CardDescription>
               </CardHeader>
               <CardContent>
                 {revenueChartData.length > 0 ? (
                   <MiniBarChart data={revenueChartData} label="" />
                 ) : (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 py-6 text-center">Aucune donnée disponible</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 py-6 text-center">{t("saasDashboard.noDataAvailable")}</p>
                 )}
               </CardContent>
             </Card>
@@ -743,14 +739,14 @@ export default function SaaSDashboard() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-indigo-500" />
-                  Acquisition
+                  {t("saasDashboard.acquisition")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  { label: "7 jours", value: metrics?.new_tenants_7d ?? 0, color: "bg-indigo-400" },
-                  { label: "30 jours", value: metrics?.new_tenants_30d ?? 0, color: "bg-indigo-500" },
-                  { label: "90 jours", value: metrics?.new_tenants_90d ?? 0, color: "bg-indigo-600" },
+                  { label: t("saasDashboard.days", { n: 7 }), value: metrics?.new_tenants_7d ?? 0, color: "bg-indigo-400" },
+                  { label: t("saasDashboard.days", { n: 30 }), value: metrics?.new_tenants_30d ?? 0, color: "bg-indigo-500" },
+                  { label: t("saasDashboard.days", { n: 90 }), value: metrics?.new_tenants_90d ?? 0, color: "bg-indigo-600" },
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between text-sm">
                     <span className="text-gray-600 dark:text-gray-300">{row.label}</span>
@@ -777,23 +773,23 @@ export default function SaaSDashboard() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Shield className="w-4 h-4 text-green-500" />
-                  Tunnel de conversion
+                  {t("saasDashboard.funnel")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
                   {
-                    label: "Inscrits (essai)",
+                    label: t("saasDashboard.funnelSignedUp"),
                     value: (metrics?.trialing_tenants ?? 0) + (metrics?.expired_trials ?? 0),
                     color: "bg-blue-400",
                   },
                   {
-                    label: "Essais expirés",
+                    label: t("saasDashboard.funnelExpired"),
                     value: metrics?.expired_trials ?? 0,
                     color: "bg-orange-400",
                   },
                   {
-                    label: "Convertis (payants actifs)",
+                    label: t("saasDashboard.funnelConverted"),
                     value: metrics?.active_tenants ?? 0,
                     color: "bg-green-500",
                   },
@@ -818,7 +814,7 @@ export default function SaaSDashboard() {
                 })}
                 <Separator />
                 <div className="flex justify-between text-sm font-medium">
-                  <span className="text-gray-700 dark:text-gray-300">Taux de conversion</span>
+                  <span className="text-gray-700 dark:text-gray-300">{t("saasDashboard.conversionRate")}</span>
                   <span className={`font-bold ${(metrics?.conversion_rate_pct ?? 0) >= 20 ? "text-green-600 dark:text-green-400" : "text-orange-600 dark:text-orange-400"}`}>
                     {metricsLoading ? "…" : `${metrics?.conversion_rate_pct ?? 0}%`}
                   </span>

@@ -19,7 +19,9 @@ import {
 import { useState } from "react";
 import { resolveUploadUrl } from "@/utils/url";
 import { usePublicTenants } from "@/hooks/usePublicTenant";
-import { INCLUDED_FEATURES, PUBLIC_PLANS, SALES_EMAIL, TRIAL_DAYS, formatEur } from "@/lib/pricing";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import { INCLUDED_FEATURE_KEYS, PUBLIC_PLANS, SALES_EMAIL, TRIAL_DAYS, formatEur, planLabel } from "@/lib/pricing";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,17 +94,19 @@ const STATS = [
 ];
 
 // Grille du 2026-10-26 : une seule source pour le site public,
-// src/lib/pricing.ts (miroir de backend/app/services/plan_catalog.py).
-const PRICING = PUBLIC_PLANS.map((plan) => ({
-  tier: plan.name,
-  slug: plan.slug,
-  price: plan.priceMonthly === null ? "Sur devis" : formatEur(plan.priceMonthly),
-  period: plan.priceMonthly === null ? "" : "/ mois",
-  description: plan.description,
-  features: [plan.students, ...INCLUDED_FEATURES.slice(0, 3)],
-  cta: plan.priceMonthly === null ? "Nous contacter" : `Essai ${TRIAL_DAYS} jours`,
-  highlight: plan.highlight,
-}));
+// src/lib/pricing.ts (miroir de backend/app/services/plan_catalog.py) ;
+// textes de la grille dans les locales (plans.* / pricing.*).
+const pricingCards = (t: TFunction, locale: string) =>
+  PUBLIC_PLANS.map((plan) => ({
+    tier: planLabel(t, plan.slug),
+    slug: plan.slug,
+    price: plan.priceMonthly === null ? t("plans.onQuote") : formatEur(plan.priceMonthly, locale),
+    period: plan.priceMonthly === null ? "" : t("plans.perMonth"),
+    description: t(`plans.description.${plan.slug}`),
+    features: [t(`plans.students.${plan.slug}`), ...INCLUDED_FEATURE_KEYS.slice(0, 3).map((key) => t(key))],
+    cta: plan.priceMonthly === null ? t("pricing.contactUs") : t("pricing.trialCta", { days: TRIAL_DAYS }),
+    highlight: plan.highlight,
+  }));
 
 const TESTIMONIALS = [
   {
@@ -320,6 +324,7 @@ function HeroIllustration() {
 
 export default function SchoolFlowHomePage() {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Real tenants, same data source as /annuaire — this section previously
@@ -328,13 +333,13 @@ export default function SchoolFlowHomePage() {
   // "Détails" click to a nonexistent tenant ("Établissement introuvable" /
   // login failure) — exactly what a user clicking them would hit.
   const { data: tenantCards, isLoading: tenantsLoading } = usePublicTenants();
-  const publicTenants: PublicTenant[] = (tenantCards ?? []).slice(0, 6).map((t) => ({
-    id: t.id,
-    name: t.name,
-    slug: t.slug,
-    type: t.type,
-    description: t.description ?? undefined,
-    logo_url: t.logo_url ?? undefined,
+  const publicTenants: PublicTenant[] = (tenantCards ?? []).slice(0, 6).map((card) => ({
+    id: card.id,
+    name: card.name,
+    slug: card.slug,
+    type: card.type,
+    description: card.description ?? undefined,
+    logo_url: card.logo_url ?? undefined,
   }));
 
   const navLinks = [
@@ -576,21 +581,21 @@ export default function SchoolFlowHomePage() {
             <p className="text-sm text-gray-400">Exemples illustratifs de bénéfices constatés</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map((t) => (
-              <div key={t.name} className="bg-white rounded-2xl p-7 shadow-sm border border-gray-100 flex flex-col gap-4">
+            {TESTIMONIALS.map((testimonial) => (
+              <div key={testimonial.name} className="bg-white rounded-2xl p-7 shadow-sm border border-gray-100 flex flex-col gap-4">
                 <div className="flex gap-1">
-                  {Array.from({ length: t.rating }).map((_, i) => (
+                  {Array.from({ length: testimonial.rating }).map((_, i) => (
                     <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                   ))}
                 </div>
                 <p className="text-gray-600 text-sm leading-relaxed italic flex-1">
-                  &ldquo;{t.content}&rdquo;
+                  &ldquo;{testimonial.content}&rdquo;
                 </p>
                 <div className="flex items-center gap-3">
-                  <InitialsAvatar name={t.name} size="sm" />
+                  <InitialsAvatar name={testimonial.name} size="sm" />
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm">{t.name}</p>
-                    <p className="text-gray-400 text-xs">{t.role}</p>
+                    <p className="font-semibold text-gray-900 text-sm">{testimonial.name}</p>
+                    <p className="text-gray-400 text-xs">{testimonial.role}</p>
                   </div>
                 </div>
               </div>
@@ -663,7 +668,7 @@ export default function SchoolFlowHomePage() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
-            {PRICING.map((plan) => (
+            {pricingCards(t, i18n.language).map((plan) => (
               <div
                 key={plan.tier}
                 className={`rounded-2xl p-8 flex flex-col gap-6 transition-all ${
@@ -710,7 +715,7 @@ export default function SchoolFlowHomePage() {
                 <button
                   onClick={() =>
                     plan.slug === "enterprise"
-                      ? (window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Offre Entreprise")}`)
+                      ? (window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(t("pricing.enterpriseSubject"))}`)
                       : navigate("/admin/create-tenant")
                   }
                   className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${

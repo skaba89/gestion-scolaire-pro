@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +37,17 @@ interface DisplayMessage {
 
 const PLAN_REQUIRED_MESSAGE: DisplayMessage = { role: "assistant", content: "", planRequired: true };
 
+function welcomeMessage(
+  t: TFunction,
+  firstName: string | undefined,
+  tenantName: string | undefined,
+  key: "aiChat.welcome" | "aiChat.welcomeShort",
+): string {
+  const greeting = firstName ? t("aiChat.greetingNamed", { name: firstName }) : t("aiChat.greeting");
+  const institution = tenantName || t("aiChat.defaultInstitution");
+  return `${greeting}\n\n${t(key, { institution })}`;
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export const AIChatWidget = () => {
@@ -48,6 +61,7 @@ export const AIChatWidget = () => {
   const { profile } = useAuth();
   const { tenant } = useTenant();
   const { pathname } = useLocation();
+  const { t, i18n } = useTranslation();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -66,20 +80,14 @@ export const AIChatWidget = () => {
   // Set welcome message on first open
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      const userName = profile?.first_name;
-      const institutionName = tenant?.name || "votre établissement";
-      const greeting = userName
-        ? `Bonjour ${userName} ! 👋`
-        : "Bonjour ! 👋";
-
       setMessages([
         {
           role: "assistant",
-          content: `${greeting}\n\nJe suis votre assistant IA pour ${institutionName}. Je peux vous aider avec :\n\n• La gestion des étudiants et inscriptions\n• Les notes et bulletins\n• La planification et calendrier\n• Les finances et paiements\n• Toute question sur la plateforme\n\nComment puis-je vous aider ?`,
+          content: welcomeMessage(t, profile?.first_name, tenant?.name, "aiChat.welcome"),
         },
       ]);
     }
-  }, [isOpen, messages.length, profile?.first_name, tenant?.name]);
+  }, [isOpen, messages.length, profile?.first_name, tenant?.name, t]);
 
   const handleSend = async () => {
     const messageText = input.trim();
@@ -103,6 +111,7 @@ export const AIChatWidget = () => {
         tenantId: tenant?.id,
         tenantName: tenant?.name,
         userId: profile?.id,
+        language: i18n.language,
       });
 
       setMessages((prev) => [
@@ -119,18 +128,18 @@ export const AIChatWidget = () => {
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "Une erreur est survenue. Veuillez réessayer.";
+          : t("aiChat.genericError");
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `⚠️ Désolé, une erreur est survenue :\n${errorMessage}`,
+          content: `${t("aiChat.errorPrefix")}\n${errorMessage}`,
           isError: true,
         },
       ]);
 
-      toast.error("Erreur lors de la communication avec l'assistant IA.");
+      toast.error(t("aiChat.toastError"));
     } finally {
       setIsLoading(false);
     }
@@ -144,19 +153,13 @@ export const AIChatWidget = () => {
   };
 
   const clearChat = () => {
-    const userName = profile?.first_name;
-    const institutionName = tenant?.name || "votre établissement";
-    const greeting = userName
-      ? `Bonjour ${userName} ! 👋`
-      : "Bonjour ! 👋";
-
     setMessages([
       {
         role: "assistant",
-        content: `${greeting}\n\nJe suis votre assistant IA pour ${institutionName}. Comment puis-je vous aider ?`,
+        content: welcomeMessage(t, profile?.first_name, tenant?.name, "aiChat.welcomeShort"),
       },
     ]);
-    toast.success("Conversation effacée.");
+    toast.success(t("aiChat.cleared"));
   };
 
   const toggleChat = () => {
@@ -175,9 +178,9 @@ export const AIChatWidget = () => {
   // ── Quick suggestions ────────────────────────────────────────────────────
 
   const suggestions = [
-    "Comment ajouter un étudiant ?",
-    "Générer un bulletin scolaire",
-    "Voir les absences du jour",
+    t("aiChat.suggestions.addStudent"),
+    t("aiChat.suggestions.reportCard"),
+    t("aiChat.suggestions.absences"),
   ];
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -203,8 +206,8 @@ export const AIChatWidget = () => {
         size="icon"
         aria-label={
           isOpen
-            ? "Fermer l'assistant IA"
-            : "Ouvrir l'assistant IA"
+            ? t("aiChat.close")
+            : t("aiChat.open")
         }
         aria-expanded={isOpen}
       >
@@ -230,7 +233,7 @@ export const AIChatWidget = () => {
           <CardHeader className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-t-lg py-3 px-4 flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base font-medium">
               <Sparkles className="h-5 w-5" />
-              <span>Assistant IA</span>
+              <span>{t("aiChat.title")}</span>
             </CardTitle>
             <div className="flex items-center gap-1">
               <Button
@@ -238,8 +241,8 @@ export const AIChatWidget = () => {
                 size="icon"
                 className="h-7 w-7 text-white hover:bg-white/20"
                 onClick={clearChat}
-                aria-label="Effacer la conversation"
-                title="Effacer la conversation"
+                aria-label={t("aiChat.clear")}
+                title={t("aiChat.clear")}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -248,8 +251,8 @@ export const AIChatWidget = () => {
                 size="icon"
                 className="h-7 w-7 text-white hover:bg-white/20"
                 onClick={toggleMinimize}
-                aria-label={isMinimized ? "Agrandir" : "Réduire"}
-                title={isMinimized ? "Agrandir" : "Réduire"}
+                aria-label={isMinimized ? t("aiChat.expand") : t("aiChat.minimize")}
+                title={isMinimized ? t("aiChat.expand") : t("aiChat.minimize")}
               >
                 {isMinimized ? (
                   <Maximize2 className="h-3.5 w-3.5" />
@@ -262,8 +265,8 @@ export const AIChatWidget = () => {
                 size="icon"
                 className="h-7 w-7 text-white hover:bg-white/20"
                 onClick={() => setIsOpen(false)}
-                aria-label="Fermer"
-                title="Fermer"
+                aria-label={t("aiChat.closeShort")}
+                title={t("aiChat.closeShort")}
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -333,7 +336,7 @@ export const AIChatWidget = () => {
                         <div className="flex items-center gap-1.5">
                           <Loader2 className="h-4 w-4 animate-spin text-violet-600 dark:text-violet-400" />
                           <span className="text-xs text-muted-foreground">
-                            L'IA réfléchit…
+                            {t("aiChat.thinking")}
                           </span>
                         </div>
                       </div>
@@ -379,6 +382,7 @@ export const AIChatWidget = () => {
                               tenantId: tenant?.id,
                               tenantName: tenant?.name,
                               userId: profile?.id,
+                              language: i18n.language,
                             })
                               .then((result) => {
                                 setMessages((prev) => [
@@ -399,13 +403,11 @@ export const AIChatWidget = () => {
                                   {
                                     role: "assistant",
                                     content:
-                                      "⚠️ Désolé, une erreur est survenue. Veuillez réessayer.",
+                                      t("aiChat.retryError"),
                                     isError: true,
                                   },
                                 ]);
-                                toast.error(
-                                  "Erreur lors de la communication avec l'IA.",
-                                );
+                                toast.error(t("aiChat.toastError"));
                               })
                               .finally(() => setIsLoading(false));
                           }, 0);
@@ -427,17 +429,17 @@ export const AIChatWidget = () => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Posez votre question…"
+                    placeholder={t("aiChat.placeholder")}
                     disabled={isLoading}
                     className="flex-1 rounded-xl"
-                    aria-label="Votre message"
+                    aria-label={t("aiChat.inputLabel")}
                   />
                   <Button
                     onClick={handleSend}
                     disabled={isLoading || !input.trim()}
                     size="icon"
                     className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-0"
-                    aria-label="Envoyer le message"
+                    aria-label={t("aiChat.send")}
                   >
                     <MessageSquare className="h-4 w-4" />
                   </Button>

@@ -46,9 +46,9 @@ function renderAt(ui: React.ReactElement) {
 
 describe("AIChatWidget — 402 abonnement requis", () => {
   async function sendMessage() {
-    fireEvent.click(screen.getByRole("button", { name: "Ouvrir l'assistant IA" }));
-    fireEvent.change(screen.getByLabelText("Votre message"), { target: { value: "Bonjour" } });
-    fireEvent.click(screen.getByRole("button", { name: "Envoyer le message" }));
+    fireEvent.click(screen.getByRole("button", { name: "aiChat.open" }));
+    fireEvent.change(screen.getByLabelText("aiChat.inputLabel"), { target: { value: "Bonjour" } });
+    fireEvent.click(screen.getByRole("button", { name: "aiChat.send" }));
     return screen.findByText(/planRequired\.aiAssistant/);
   }
 
@@ -59,7 +59,7 @@ describe("AIChatWidget — 402 abonnement requis", () => {
 
     await sendMessage();
     expect(screen.queryByText(/PLAN_REQUIRED/)).toBeNull();
-    expect(screen.queryByText(/une erreur est survenue/)).toBeNull();
+    expect(screen.queryByText(/aiChat\.(errorPrefix|retryError)/)).toBeNull();
     expect(mockToastError).not.toHaveBeenCalled();
     expect(screen.queryByRole("link", { name: "planRequired.viewPlans" })).toBeNull();
   });
@@ -82,8 +82,8 @@ describe("AIChatWidget — 402 abonnement requis", () => {
     renderAt(<AIChatWidget />);
 
     await sendMessage();
-    fireEvent.change(screen.getByLabelText("Votre message"), { target: { value: "Encore" } });
-    fireEvent.click(screen.getByRole("button", { name: "Envoyer le message" }));
+    fireEvent.change(screen.getByLabelText("aiChat.inputLabel"), { target: { value: "Encore" } });
+    fireEvent.click(screen.getByRole("button", { name: "aiChat.send" }));
     await screen.findByText("ok");
 
     const history = mockChatWithAI.mock.calls[1][1] as { content: string }[];

@@ -1,8 +1,9 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { formatEur, hasPlanAccess, PUBLIC_PLANS } from "@/lib/pricing";
+import i18n from "@/i18n/config";
+import { formatEur, hasPlanAccess, planLabel, PUBLIC_PLANS } from "@/lib/pricing";
 import Pricing from "@/pages/public/Pricing";
 import { PlanGate } from "@/components/ui/PlanGate";
 
@@ -16,6 +17,14 @@ vi.mock("@/contexts/TenantContext", () => ({
   useTenant: () => ({ tenant: { slug: "ecole-test" } }),
 }));
 
+beforeAll(async () => {
+  await i18n.changeLanguage("fr");
+});
+
+afterEach(async () => {
+  await i18n.changeLanguage("fr");
+});
+
 describe("grille tarifaire (2026-10-26)", () => {
   it("affiche les prix décidés, en euros", () => {
     expect(PUBLIC_PLANS.map((p) => [p.slug, p.priceMonthly])).toEqual([
@@ -25,6 +34,12 @@ describe("grille tarifaire (2026-10-26)", () => {
       ["enterprise", null],
     ]);
     expect(formatEur(49.99).replace(/\s/g, " ")).toBe("49,99 €");
+  });
+
+  it("traduit les noms d'offres et signale les anciennes", () => {
+    expect(planLabel(i18n.t, "enterprise")).toBe("Entreprise");
+    expect(planLabel(i18n.t, "starter")).toBe("Starter (ancienne offre)");
+    expect(planLabel(i18n.t, "inconnue")).toBe("inconnue");
   });
 
   it("n'accorde rien à une offre gratuite ou inconnue", () => {
@@ -86,5 +101,22 @@ describe("PlanGate", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText("Import")).toBeInTheDocument();
+  });
+});
+
+describe("page Tarifs en anglais", () => {
+  it("affiche la grille traduite, prix au format anglais", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <MemoryRouter>
+        <Pricing />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Enterprise" })).toBeInTheDocument();
+    expect(screen.getByText("Frequently asked questions")).toBeInTheDocument();
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("€49.99");
+    expect(text).toContain("30-day trial");
+    expect(text).not.toMatch(/Sur devis|Questions fréquentes/);
   });
 });

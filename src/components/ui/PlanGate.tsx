@@ -11,11 +11,12 @@
  *   </PlanGate>
  */
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Lock, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlan } from "@/hooks/usePlan";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
-import { PLAN_LABELS, type PlanSlug as Plan } from "@/lib/pricing";
+import { planLabel, type PlanSlug as Plan } from "@/lib/pricing";
 
 interface PlanGateProps {
   /** Minimum plan required to see the content */
@@ -29,13 +30,14 @@ interface PlanGateProps {
 }
 
 function UpgradeBanner({ minPlan, compact }: { minPlan: Plan; compact?: boolean }) {
+  const { t } = useTranslation();
   const { getTenantUrl } = useTenantUrl();
 
   if (compact) {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-2 py-0.5 rounded-full">
         <Lock className="w-3 h-3" />
-        {minPlan === "standard" ? "Abonnement requis" : `Offre ${PLAN_LABELS[minPlan]} requise`}
+        {minPlan === "standard" ? t("planGate.subscriptionRequired") : t("planGate.planRequired", { plan: planLabel(t, minPlan) })}
       </span>
     );
   }
@@ -48,19 +50,22 @@ function UpgradeBanner({ minPlan, compact }: { minPlan: Plan; compact?: boolean 
       <div>
         <p className="font-semibold text-gray-900 dark:text-white mb-1">
           {minPlan === "standard" ? (
-            "Fonctionnalité incluse dans l'abonnement"
+            t("planGate.includedTitle")
           ) : (
-            <>Fonctionnalité réservée à l'offre <span className="text-indigo-600 dark:text-indigo-400">{PLAN_LABELS[minPlan]}</span></>
+            <>
+              {t("planGate.reservedTitle")}{" "}
+              <span className="text-indigo-600 dark:text-indigo-400">{planLabel(t, minPlan)}</span>
+            </>
           )}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Votre essai est terminé ou votre abonnement n'est pas actif. Souscrivez une offre pour y accéder.
+          {t("planGate.text")}
         </p>
       </div>
       <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
         <Link to={getTenantUrl("/admin/billing")}>
           <Zap className="w-4 h-4 mr-2" />
-          Voir les offres
+          {t("planGate.viewPlans")}
           <ArrowRight className="w-4 h-4 ml-2" />
         </Link>
       </Button>
