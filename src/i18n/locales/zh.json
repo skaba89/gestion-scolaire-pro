@@ -2560,5 +2560,9 @@
     "configuration": "配置",
     "teacherEditInfo": "可从教师档案中修改",
     "badgeNew": "新"
+  },
+  "planRequired": {
+    "aiAssistant": "AI 助手包含在贵机构的订阅中。订阅激活前无法使用。",
+    "viewPlans": "查看套餐"
   }
 }
