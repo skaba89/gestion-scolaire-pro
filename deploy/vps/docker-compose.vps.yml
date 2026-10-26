@@ -90,14 +90,26 @@ services:
       VPS_REDIRECT_HOSTS: ${VPS_REDIRECT_HOSTS:?définir VPS_REDIRECT_HOSTS dans .env.docker (ex. www.<domaine>)}
     volumes:
       - ./deploy/vps/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Sites d'autres applications du VPS (CodeRoute Guinée) : blocs Caddy
+      # générés par leur propre deploy.sh, importés par le Caddyfile.
+      # Dossier vide ou absent = aucun site supplémentaire.
+      - ${CODEROUTE_CADDY_SITES_DIR:-/home/ubuntu/CodeRouteGuinee/deploy/vps/generated}:/etc/caddy/sites:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - frontend
     networks:
       - schoolflow-network
+      # Réseau vers CodeRoute uniquement : Caddy y joint le frontend et l'API
+      # CodeRoute, sans aucun accès des conteneurs CodeRoute à Academy.
+      - coderoute-edge
     mem_limit: 128m
 
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  # Créé par ce projet (nom fixe) ; CodeRoute s'y raccorde en « external ».
+  coderoute-edge:
+    name: coderoute-edge

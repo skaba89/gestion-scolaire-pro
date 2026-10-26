@@ -51,6 +51,25 @@ Sans nom de domaine, `<ip-avec-tirets>.sslip.io` (ex. `203-0-113-10.sslip.io`)
 fonctionne avec Let's Encrypt. **Garder une copie de `.env.docker` hors du VPS**
 (gestionnaire de mots de passe) : il n'existe nulle part ailleurs.
 
+## Autres applications sur ce VPS (CodeRoute Guinée)
+
+Le Caddy d'Academy est le **seul** point d'entrée public du VPS (80/443).
+Il sert aussi CodeRoute Guinée, qui ne publie aucun port :
+
+- `Caddyfile` se termine par `import /etc/caddy/sites/*.caddy` ; le dossier
+  `CODEROUTE_CADDY_SITES_DIR` (par défaut
+  `/home/ubuntu/CodeRouteGuinee/deploy/vps/generated`) est monté en lecture
+  seule sur `/etc/caddy/sites`. Dossier vide ou absent : Academy fonctionne seul.
+- Caddy rejoint le réseau `coderoute-edge`, **créé par ce projet** (nom fixe) ;
+  CodeRoute s'y raccorde en `external`. Seul Caddy est sur ce réseau côté
+  Academy : les conteneurs CodeRoute n'atteignent ni l'API, ni PostgreSQL,
+  ni Redis d'Academy.
+- Le `deploy.sh` de CodeRoute génère son bloc de site puis lance
+  `caddy reload` (sans coupure pour Academy).
+
+Retirer CodeRoute : vider le dossier monté puis `caddy reload`, ou retirer la
+ligne `import`, le volume et le réseau, puis `./deploy/vps/deploy.sh`.
+
 ## Mise à jour courante
 
 ```bash

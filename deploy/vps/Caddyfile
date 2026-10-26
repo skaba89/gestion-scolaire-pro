@@ -30,3 +30,8 @@
 http://{$VPS_PUBLIC_IP} {
 	redir https://{$VPS_DOMAIN}{uri} permanent
 }
+
+# Sites des autres applications hébergées sur ce VPS (CodeRoute Guinée), un
+# fichier par site, montés en lecture seule (docker-compose.vps.yml). Aucun
+# fichier = rien d'importé, Academy fonctionne seul.
+import /etc/caddy/sites/*.caddy
