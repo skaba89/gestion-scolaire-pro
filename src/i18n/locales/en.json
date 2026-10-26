@@ -2478,5 +2478,9 @@
     "configuration": "Configuration",
     "teacherEditInfo": "Editable from the teacher record",
     "badgeNew": "New"
+  },
+  "planRequired": {
+    "aiAssistant": "The AI assistant is included in your institution's subscription. It is unavailable until the subscription is active.",
+    "viewPlans": "View plans"
   }
 }
