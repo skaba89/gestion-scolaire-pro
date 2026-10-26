@@ -467,6 +467,15 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   d'abonnement (PR #328) — ticket « pas de gestion UI du 402 » clos. Reste :
   un établissement expiré ne perd que l'IA et l'import (blocage complet à
   décider séparément).
+- **2026-10-26 — dette i18n des pages d'abonnement soldée.** Tarifs, grille
+  de l'accueil, Facturation, `PlanGate`, widget IA global et tableau de bord
+  SaaS : plus aucun texte en dur, 207 clés (`plans.*`, `pricing.*`,
+  `billing.*`, `planGate.*`, `aiChat.*`, `saasDashboard.*`) dans les 5
+  locales ; prix et dates au format de la langue. `src/lib/pricing.ts` ne
+  porte plus de textes (`planLabel(t, slug)`). Au passage : le widget IA
+  transmet la langue de l'utilisateur à l'API (toujours `fr` auparavant) et
+  le graphique MRR n'indique plus « USD ». Reste en français en dur :
+  `SuperAdminDashboard` (hors périmètre, libellés d'offres traduits).
 
 ## Documents à considérer avec prudence
 
