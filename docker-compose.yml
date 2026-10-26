@@ -59,7 +59,12 @@ services:
     volumes:
       - minio_data:/data
     networks:
-      - schoolflow-network
+      schoolflow-network:
+        # Nom propre au projet : le frontend est aussi sur le réseau partagé
+        # « edge » du proxy commun, où « minio » peut désigner le service
+        # d'une autre application (incident MineFleet du 2026-10-26).
+        aliases:
+          - gsp-minio
     mem_limit: 512m
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
@@ -113,7 +118,12 @@ services:
       retries: 3
       start_period: 60s
     networks:
-      - schoolflow-network
+      schoolflow-network:
+        # Nom propre au projet : le frontend est aussi sur le réseau partagé
+        # « edge » du proxy commun, où « api » peut désigner le service
+        # d'une autre application (incident MineFleet du 2026-10-26).
+        aliases:
+          - gsp-api
     mem_limit: 512m
 
   # National audit Phase 5: Arq worker processing jobs enqueued via
