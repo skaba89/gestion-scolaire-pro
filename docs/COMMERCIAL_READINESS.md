@@ -1,5 +1,11 @@
 # État de préparation commerciale — Academy Guinéenne
 
+> ⚠️ **Offres et prix périmés depuis le 2026-10-26.** Grille en vigueur :
+> Standard 49,99 €/mois (≤ 500 élèves), Medium 99,99 € (501–999), Premium
+> 499,99 € (≥ 1 000), Entreprise sur devis ; pas d'offre gratuite, 30 jours
+> d'essai. Source : `backend/app/services/plan_catalog.py` et
+> `docs/STATUT_ACTUEL.md` (journal du 2026-10-26).
+
 Document de référence pour l'équipe commerciale. Reflète l'état réel du
 produit à date, pas une promesse marketing.
 

@@ -35,6 +35,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import find_user_across_all_tenants, get_db
@@ -45,11 +46,13 @@ from app.core.tenant_resolution import (
     resolve_current_tenant_id,
 )
 from app.models.saas import BillingEvent, SubscriptionPlan, TenantSubscription
+from app.models.student import Student
 from app.models.tenant import Tenant
 from app.services.subscription_maintenance import (
     apply_plan_quotas,
     expire_overdue_subscriptions,
 )
+from app.services.plan_catalog import TRIAL_PLAN_SLUG, is_on_quote
 from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
@@ -163,6 +166,9 @@ class SubscribeRequest(BaseModel):
 class ConfirmRequest(BaseModel):
     payment_reference: Optional[str] = Field(None, max_length=255)
     note: Optional[str] = Field(None, max_length=1000)
+    # Prix catalogue en euros, réglé en GNF au taux du jour : montant
+    # effectivement reçu, conservé dans le journal de facturation.
+    amount_paid_gnf: Optional[float] = Field(None, gt=0, le=1_000_000_000_000)
 
 
 class RejectRequest(BaseModel):
@@ -199,7 +205,7 @@ async def get_subscription(
     )
 
     return {
-        "plan": tenant.subscription_plan or "starter",
+        "plan": tenant.subscription_plan or TRIAL_PLAN_SLUG,
         "status": tenant.subscription_status or "trialing",
         "trial_active": trial_active,
         "trial_ends_at": trial_ends_at,
@@ -253,8 +259,26 @@ async def request_subscription(
     )
     if not plan:
         raise HTTPException(status_code=400, detail="Plan invalide ou inactif.")
+    if is_on_quote(plan.features):
+        raise HTTPException(
+            status_code=400,
+            detail="L'offre Entreprise est sur devis : contactez l'équipe Academy Guinéenne.",
+        )
 
     tenant = _get_tenant(db, str(tenant_id))
+
+    if plan.max_students is not None:
+        students_count = (
+            db.query(func.count(Student.id)).filter(Student.tenant_id == str(tenant_id)).scalar() or 0
+        )
+        if students_count > plan.max_students:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"L'offre {plan.name} est limitée à {plan.max_students} élèves ; "
+                    f"votre établissement en compte {students_count}. Choisissez une offre supérieure."
+                ),
+            )
 
     pending = (
         db.query(TenantSubscription)
@@ -319,6 +343,7 @@ async def request_subscription(
             "Demande enregistrée. Votre abonnement sera activé après vérification "
             "du paiement par l'équipe Academy Guinéenne."
         ),
+        "conversion_note": "Montant en euros, payable en GNF au taux du jour.",
     }
 
 
@@ -474,6 +499,7 @@ async def confirm_subscription_payment(
             "subscription_id": str(subscription.id),
             "plan_slug": plan.slug,
             "payment_reference": subscription.provider_reference,
+            "amount_paid_gnf": body.amount_paid_gnf,
             "note": body.note,
             "confirmed_by": current_user.get("id"),
         },

@@ -19,6 +19,7 @@ import {
 import { useState } from "react";
 import { resolveUploadUrl } from "@/utils/url";
 import { usePublicTenants } from "@/hooks/usePublicTenant";
+import { INCLUDED_FEATURES, PUBLIC_PLANS, SALES_EMAIL, TRIAL_DAYS, formatEur } from "@/lib/pricing";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,77 +91,18 @@ const STATS = [
   { value: "RGPD", label: "Conforme" },
 ];
 
-// Audit stratégique 2026-08-16, incohérence interne #3 : ces 4 paliers
-// (Starter/Standard/Premium/Enterprise, prix en €) ne correspondaient à
-// aucune autre source du produit — ni la migration qui seede
-// réellement subscription_plans en base
-// (backend/alembic/versions/20260815_0001_seed_default_subscription_plans.py),
-// ni le service de quotas SaaS. Alignés ici sur la migration, qui reste
-// la seule source de vérité pour la tarification réelle : 5 paliers
-// (Free/Starter/Pro/Enterprise/Institution), mêmes quotas élèves, mêmes
-// prix (en USD, tels que seedés — aucun taux de conversion inventé ici).
-const PRICING = [
-  {
-    tier: "Free",
-    price: "0$",
-    period: "",
-    description: "Découverte et démonstration, sans engagement",
-    features: ["Jusqu'à 30 élèves", "5 comptes utilisateurs", "1 établissement", "Fonctionnalités essentielles"],
-    cta: "Essayer gratuitement",
-    highlight: false,
-  },
-  {
-    tier: "Starter",
-    price: "0$",
-    period: "",
-    description: "Pour les petites écoles guinéennes",
-    features: ["Jusqu'à 150 élèves", "15 comptes utilisateurs", "Gestion des inscriptions", "Support email"],
-    cta: "Commencer avec Starter",
-    highlight: false,
-  },
-  {
-    tier: "Pro",
-    price: "29$",
-    period: "/ mois",
-    description: "Pour les établissements en croissance",
-    features: [
-      "Jusqu'à 800 élèves",
-      "Analyses IA incluses",
-      "Bulletins en ligne",
-      "Jusqu'à 3 campus",
-    ],
-    cta: "Choisir Pro",
-    highlight: true,
-  },
-  {
-    tier: "Enterprise",
-    price: "99$",
-    period: "/ mois",
-    description: "Pour les grandes écoles et universités",
-    features: [
-      "Élèves illimités",
-      "Multi-campus illimité",
-      "Support prioritaire",
-      "API complète",
-    ],
-    cta: "Choisir Enterprise",
-    highlight: false,
-  },
-  {
-    tier: "Institution",
-    price: "Sur devis",
-    period: "",
-    description: "Pour les réseaux et ministères éducatifs",
-    features: [
-      "Contrat annuel, SLA",
-      "Déploiement dédié",
-      "Formation incluse",
-      "Support dédié",
-    ],
-    cta: "Nous contacter",
-    highlight: false,
-  },
-];
+// Grille du 2026-10-26 : une seule source pour le site public,
+// src/lib/pricing.ts (miroir de backend/app/services/plan_catalog.py).
+const PRICING = PUBLIC_PLANS.map((plan) => ({
+  tier: plan.name,
+  slug: plan.slug,
+  price: plan.priceMonthly === null ? "Sur devis" : formatEur(plan.priceMonthly),
+  period: plan.priceMonthly === null ? "" : "/ mois",
+  description: plan.description,
+  features: [plan.students, ...INCLUDED_FEATURES.slice(0, 3)],
+  cta: plan.priceMonthly === null ? "Nous contacter" : `Essai ${TRIAL_DAYS} jours`,
+  highlight: plan.highlight,
+}));
 
 const TESTIMONIALS = [
   {
@@ -716,11 +658,11 @@ export default function SchoolFlowHomePage() {
               Des offres pour chaque taille d&apos;établissement
             </h2>
             <p className="text-gray-500 text-lg max-w-xl mx-auto">
-              Des solutions adaptées à chaque établissement guinéen. Pas de frais cachés.
+              Toutes les fonctionnalités dans chaque offre, {TRIAL_DAYS} jours d&apos;essai. Prix en euros, payables en GNF au taux du jour.
             </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-6 items-start">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
             {PRICING.map((plan) => (
               <div
                 key={plan.tier}
@@ -766,7 +708,11 @@ export default function SchoolFlowHomePage() {
                   ))}
                 </ul>
                 <button
-                  onClick={() => navigate(plan.tier === "Institution" ? "/contact" : "/admin/create-tenant")}
+                  onClick={() =>
+                    plan.slug === "enterprise"
+                      ? (window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Offre Entreprise")}`)
+                      : navigate("/admin/create-tenant")
+                  }
                   className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
                     plan.highlight
                       ? "bg-white text-[#1e3a5f] hover:bg-blue-50"
@@ -802,7 +748,7 @@ export default function SchoolFlowHomePage() {
               onClick={() => navigate("/admin/create-tenant")}
               className="px-8 py-4 bg-white text-[#1e3a5f] font-bold rounded-xl hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 transform text-base"
             >
-              Créer mon établissement gratuitement
+              {`Créer mon établissement — essai ${TRIAL_DAYS} jours`}
             </button>
             <button
               onClick={() => navigate("/ecole/lasource")}

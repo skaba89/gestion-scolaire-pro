@@ -25,6 +25,7 @@ from app.models.saas import SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.services.plan_catalog import PLAN_CATALOG, PLANS_BY_SLUG, TRIAL_PLAN_SLUG, apply_quota_limits, monthly_price, plan_weight
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -41,13 +42,9 @@ def _require_super_admin(current_user: dict = Depends(get_current_user)) -> dict
     return current_user
 
 
-# ─── Pricing constants (MRR calculation) ──────────────────────────────────────
-
-PLAN_MONTHLY_USD: dict[str, float] = {
-    "starter": 0.0,
-    "pro": 29.0,
-    "enterprise": 99.0,
-}
+# ─── Pricing (MRR calculation) ────────────────────────────────────────────────
+# Prix mensuels en euros du catalogue (app/services/plan_catalog.py) ; une
+# offre sur devis ou ancienne compte 0 (montant réel : journal de facturation).
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,7 +57,7 @@ def _is_trial_valid(tenant: Tenant) -> bool:
     if tenant.subscription_status != "trialing":
         return False
     if tenant.trial_ends_at is None:
-        return True
+        return False  # plus d'essai illimité (grille du 2026-10-26)
     return tenant.trial_ends_at > _now_utc()
 
 
@@ -75,7 +72,7 @@ async def get_saas_metrics(
     Tableau de bord SaaS pour le SUPER_ADMIN.
 
     Retourne :
-    - MRR (Monthly Recurring Revenue) estimé en USD
+    - MRR (Monthly Recurring Revenue) estimé en EUR (prix catalogue)
     - Nombre de tenants par plan et statut
     - Nouveaux inscrits (7j, 30j, 90j)
     - Taux de conversion trial → payant
@@ -88,7 +85,8 @@ async def get_saas_metrics(
 
     # ── Counters ─────────────────────────────────────────────────────────────
     total = len(tenants)
-    by_plan: dict[str, int] = {"starter": 0, "pro": 0, "enterprise": 0}
+    by_plan: dict[str, int] = {p["slug"]: 0 for p in PLAN_CATALOG}
+    by_plan["other"] = 0
     by_status: dict[str, int] = {"active": 0, "trialing": 0, "past_due": 0, "canceled": 0, "unpaid": 0, "other": 0}
     mrr = 0.0
     trial_count = 0
@@ -98,14 +96,14 @@ async def get_saas_metrics(
     new_7d = new_30d = new_90d = 0
 
     for t in tenants:
-        plan = (t.subscription_plan or "starter").lower()
+        plan = (t.subscription_plan or TRIAL_PLAN_SLUG).lower()
         sub_status = (t.subscription_status or "trialing").lower()
 
-        # plan bucket
+        # plan bucket (anciennes offres : "other")
         if plan in by_plan:
             by_plan[plan] += 1
         else:
-            by_plan["starter"] += 1
+            by_plan["other"] += 1
 
         # status bucket
         if sub_status in by_status:
@@ -121,10 +119,9 @@ async def get_saas_metrics(
                 expired_trials += 1
 
         # MRR (only active paid)
-        if sub_status == "active" and plan in PLAN_MONTHLY_USD:
-            mrr += PLAN_MONTHLY_USD[plan]
-            if plan != "starter":
-                active_paid_count += 1
+        if sub_status == "active" and plan_weight(plan) > 0:
+            mrr += monthly_price(plan)
+            active_paid_count += 1
 
         # Recent signups
         if t.created_at:
@@ -187,7 +184,6 @@ async def get_saas_metrics(
                     COUNT(*) AS count
                 FROM tenants
                 WHERE subscription_status = 'active'
-                  AND subscription_plan IN ('pro', 'enterprise')
                   AND created_at >= NOW() - INTERVAL '6 months'
                 GROUP BY month, subscription_plan
                 ORDER BY month
@@ -197,7 +193,7 @@ async def get_saas_metrics(
         month_mrr: dict[str, float] = {}
         for r in rows:
             month = r.month
-            plan_price = PLAN_MONTHLY_USD.get(r.subscription_plan or "starter", 0.0)
+            plan_price = monthly_price(r.subscription_plan)
             month_mrr[month] = month_mrr.get(month, 0.0) + plan_price * r.count
         revenue_trend = [{"month": m, "mrr": round(v, 2)} for m, v in sorted(month_mrr.items())]
     except Exception:
@@ -304,8 +300,8 @@ async def get_saas_metrics(
         "expired_trials": expired_trials,
         "past_due_tenants": by_status["past_due"],
         "canceled_tenants": by_status["canceled"],
-        "mrr_usd": round(mrr, 2),
-        "arr_usd": round(mrr * 12, 2),
+        "mrr_eur": round(mrr, 2),
+        "arr_eur": round(mrr * 12, 2),
         "conversion_rate_pct": conversion_rate,
         # ── Plan distribution
         "by_plan": by_plan,
@@ -368,7 +364,7 @@ async def list_platform_tenants(
             "country": t.country,
             "email": t.email,
             "is_active": t.is_active,
-            "subscription_plan": t.subscription_plan or "starter",
+            "subscription_plan": t.subscription_plan or TRIAL_PLAN_SLUG,
             "subscription_status": t.subscription_status or "trialing",
             "trial_ends_at": t.trial_ends_at.isoformat() if t.trial_ends_at else None,
             "stripe_customer_id": t.stripe_customer_id,
@@ -480,21 +476,21 @@ from pydantic import BaseModel, field_validator
 
 
 class SubscriptionUpdate(BaseModel):
-    plan: Optional[str] = None            # starter | pro | enterprise
+    plan: Optional[str] = None            # standard | medium | premium | enterprise
     status: Optional[str] = None          # trialing | active | past_due | canceled
     expires_at: Optional[datetime] = None  # date d'expiration (trial_ends_at)
 
     @field_validator("plan")
     @classmethod
     def validate_plan(cls, v):
-        if v is not None and v.lower() not in {"starter", "pro", "enterprise"}:
-            raise ValueError("Plan invalide. Valeurs : starter, pro, enterprise")
+        if v is not None and v.lower() not in PLANS_BY_SLUG:
+            raise ValueError(f"Plan invalide. Valeurs : {', '.join(PLANS_BY_SLUG)}")
         return v.lower() if v else v
 
     @field_validator("status")
     @classmethod
     def validate_status(cls, v):
-        allowed = {"trialing", "active", "past_due", "canceled"}
+        allowed = {"trialing", "active", "expired", "past_due", "canceled"}
         if v is not None and v.lower() not in allowed:
             raise ValueError(f"Statut invalide. Valeurs : {', '.join(sorted(allowed))}")
         return v.lower() if v else v
@@ -520,6 +516,8 @@ async def update_tenant_subscription(
     if body.plan is not None:
         changes["plan"] = {"from": tenant.subscription_plan, "to": body.plan}
         tenant.subscription_plan = body.plan
+        catalog_plan = PLANS_BY_SLUG[body.plan]
+        apply_quota_limits(tenant, catalog_plan["max_students"], catalog_plan["max_storage_gb"])
     if body.status is not None:
         changes["status"] = {"from": tenant.subscription_status, "to": body.status}
         tenant.subscription_status = body.status
@@ -742,7 +740,7 @@ async def get_tenant_health(
         "tenant_id": str(tenant.id),
         "tenant_name": tenant.name,
         "is_active": tenant.is_active,
-        "subscription_plan": tenant.subscription_plan or "starter",
+        "subscription_plan": tenant.subscription_plan or TRIAL_PLAN_SLUG,
         "subscription_status": tenant.subscription_status or "trialing",
         "quota": usage_report,
         "failed_jobs_recent": failed_jobs_payload,

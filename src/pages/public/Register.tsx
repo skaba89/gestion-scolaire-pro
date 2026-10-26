@@ -190,7 +190,7 @@ export default function Register() {
 
       toast({
         title: "🎉 Établissement créé !",
-        description: "Votre essai Pro de 30 jours est activé. Configurons votre école.",
+        description: "Votre essai de 30 jours est activé. Configurons votre école.",
       });
 
       // Hydrate the Auth context BEFORE navigating — otherwise the user
@@ -229,12 +229,12 @@ export default function Register() {
           </div>
           <h1 className="text-3xl font-bold text-white mb-3">Academy Guinéenne</h1>
           <p className="text-indigo-200 text-sm leading-relaxed mb-8">
-            Créez votre espace scolaire en moins de 2 minutes et commencez votre essai Pro gratuit de 30 jours.
+            Créez votre espace scolaire en moins de 2 minutes et commencez votre essai de 30 jours, toutes fonctionnalités incluses.
           </p>
           {/* Benefits */}
           <div className="space-y-3 text-left">
             {[
-              "30 jours d'essai Pro gratuit",
+              "30 jours d'essai, toutes fonctionnalités",
               "Sans carte bancaire",
               "Données sécurisées & isolées",
               "Support inclus",
@@ -263,7 +263,7 @@ export default function Register() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Créer votre établissement</h2>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-              Inscription gratuite · Essai Pro 30 jours · Sans CB
+              Essai 30 jours · Sans carte bancaire
             </p>
           </div>
 
@@ -444,9 +444,9 @@ export default function Register() {
               <div className="flex items-start gap-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4">
                 <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <p className="font-medium text-indigo-800 dark:text-indigo-300">Essai Pro gratuit — 30 jours</p>
+                  <p className="font-medium text-indigo-800 dark:text-indigo-300">Essai de 30 jours — toutes les fonctionnalités</p>
                   <p className="text-indigo-600 dark:text-indigo-400 text-xs mt-0.5">
-                    Accès complet à toutes les fonctionnalités Pro. Aucune carte bancaire requise.
+                    Accès complet à toutes les fonctionnalités (jusqu'à 500 élèves). Aucune carte bancaire requise.
                     Votre essai expire dans 30 jours.
                   </p>
                 </div>

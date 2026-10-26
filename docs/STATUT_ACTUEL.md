@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-25 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-10-26 (journal de production ci-dessous). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -448,6 +448,25 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   `npm audit` sont retirées — il n'y a plus aucune vulnérabilité high/critical
   (`npm audit` : 15 avis modérés/faibles, contre 17 dont 1 high). Plugins
   inchangés (tous compatibles vite 7), `build.target` reste `es2020`.
+- **2026-10-26 — nouvelle grille tarifaire, plus d'offre gratuite.**
+  Standard 49,99 €/mois (≤ 500 élèves), Medium 99,99 € (501–999), Premium
+  499,99 € (≥ 1 000, un établissement), Entreprise sur devis (plusieurs
+  établissements) ; annuel = 10 mois ; prix en euros payés en GNF au taux du
+  jour (montant reçu saisi à la confirmation). Toutes les fonctionnalités
+  dans toutes les offres. Catalogue : `backend/app/services/plan_catalog.py`
+  (miroir d'affichage `src/lib/pricing.ts`), migration `20261026_0001`.
+  Essai de 30 jours aux limites Standard à toute création d'établissement ;
+  **l'essai sans `trial_ends_at` n'est plus illimité** (ticket du 2026-10-04
+  clos) ; à l'expiration, l'offre est conservée et le statut passe à
+  `expired` (plus de repli sur Starter gratuit). La migration bascule les
+  essais et l'ancienne offre gratuite en essai Standard (30 jours de grâce
+  si aucune date de fin) ; les abonnements payants actifs sont inchangés.
+  Corrigés au passage : une offre « illimitée » était plafonnée à 1 000
+  élèves par le `QuotaMiddleware` ; une offre trop petite pour l'effectif
+  pouvait être souscrite. Le 402 des assistants IA affiche un message
+  d'abonnement (PR #328) — ticket « pas de gestion UI du 402 » clos. Reste :
+  un établissement expiré ne perd que l'IA et l'import (blocage complet à
+  décider séparément).
 
 ## Documents à considérer avec prudence
 

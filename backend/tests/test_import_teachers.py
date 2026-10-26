@@ -57,7 +57,7 @@ def _make_pro_tenant(name: str = "École Import Enseignants") -> str:
         db.add(Tenant(
             id=tenant_id, name=name, slug=f"import-teachers-{tenant_id[:8]}",
             type="primary", country="GN", is_active=True, settings={},
-            subscription_plan="pro", subscription_status="trialing",
+            subscription_plan="standard", subscription_status="active",  # offre payante (grille 2026-10-26)
         ))
         db.commit()
     return tenant_id

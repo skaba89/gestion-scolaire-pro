@@ -20,6 +20,7 @@ from app.core.database import (
 from app.core.security import PRIVILEGED_ROLES, TENANT_DEACTIVATED_DETAIL, create_access_token, get_current_user, require_permission, validate_token_version, verify_password, verify_token_raw
 from app.models.user import User
 from app.models.user_role import UserRole
+from app.services.plan_catalog import start_trial
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1104,7 +1105,7 @@ async def register_school(
     """Self-service school registration.
 
     Creates a new tenant + TENANT_ADMIN user in one atomic operation.
-    Starts a 30-day Pro trial automatically.
+    Starts a 30-day trial (Standard limits) automatically.
     Returns a JWT so the user is immediately logged in.
     """
     import uuid as _uuid
@@ -1141,7 +1142,6 @@ async def register_school(
         suffix += 1
 
     # 4. Create tenant
-    trial_ends = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
     tenant = Tenant(
         id=str(_uuid.uuid4()),
         name=body.school_name,
@@ -1151,9 +1151,6 @@ async def register_school(
         email=body.email,
         phone=body.phone or "",
         is_active=True,
-        subscription_plan="pro",      # trial gives full Pro access
-        subscription_status="trialing",
-        trial_ends_at=trial_ends,
         billing_email=body.email,
         settings={
             "onboarding_step": 1,
@@ -1163,6 +1160,7 @@ async def register_school(
             "locale": "fr-GN",
         },
     )
+    start_trial(tenant)  # 30 jours, limites Standard (pas d'offre gratuite)
     db.add(tenant)
     db.flush()
 

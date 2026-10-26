@@ -24,9 +24,10 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     # ── Stripe Billing ─────────────────────────────────────────────────────────
     stripe_customer_id = Column(String(255), nullable=True, index=True)
     stripe_subscription_id = Column(String(255), nullable=True, index=True)
-    # plan: "starter" | "pro" | "enterprise"
-    subscription_plan = Column(String(50), nullable=True, default="starter")
-    # status mirrors Stripe: "trialing" | "active" | "past_due" | "canceled" | "unpaid"
+    # plan : "standard" | "medium" | "premium" | "enterprise" (grille du
+    # 2026-10-26, app/services/plan_catalog.py) ; anciens : free/starter/pro/institution
+    subscription_plan = Column(String(50), nullable=True, default="standard")
+    # status : "trialing" | "active" | "expired" | "past_due" | "canceled" | "unpaid"
     subscription_status = Column(String(50), nullable=True, default="trialing")
     trial_ends_at = Column(DateTime, nullable=True)
     billing_email = Column(String(255), nullable=True)

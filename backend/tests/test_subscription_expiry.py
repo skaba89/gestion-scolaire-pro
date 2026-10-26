@@ -66,7 +66,7 @@ def _make_tenant_with_subscription(*, period_end_delta_days: int) -> tuple[str, 
         return tenant_id, str(sub.id)
 
 
-def test_overdue_subscription_is_expired_and_tenant_downgraded():
+def test_overdue_subscription_is_expired_and_tenant_loses_access():
     tenant_id, sub_id = _make_tenant_with_subscription(period_end_delta_days=-5)
 
     with SessionLocal() as db:
@@ -77,10 +77,11 @@ def test_overdue_subscription_is_expired_and_tenant_downgraded():
         sub = db.query(TenantSubscription).filter(TenantSubscription.id == sub_id).first()
         assert sub.status == "expired"
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-        assert tenant.subscription_plan == "starter"
+        # Pas d'offre gratuite de repli (grille du 2026-10-26) : l'offre et ses
+        # limites restent, le statut « expired » coupe l'accès (require_plan).
+        assert tenant.subscription_plan.startswith("expiry-plan-")
         assert tenant.subscription_status == "expired"
-        # Les quotas du plan payant ne doivent plus s'appliquer.
-        assert tenant.settings.get("quotas", {}).get("max_students") != 500
+        assert tenant.settings.get("quotas", {}).get("max_students") == 500
 
 
 def test_active_subscription_within_period_is_untouched():
