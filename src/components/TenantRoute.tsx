@@ -3,6 +3,7 @@ import { useParams, Navigate } from "react-router-dom";
 import { useTenant } from "@/contexts/TenantContext";
 import { usePublicTenant } from "@/hooks/usePublicTenant";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SubscriptionGate } from "@/components/SubscriptionGate";
 
 export function TenantRoute({ children }: { children: React.ReactNode }) {
     const { tenantSlug } = useParams<{ tenantSlug: string }>();
@@ -57,5 +58,5 @@ export function TenantRoute({ children }: { children: React.ReactNode }) {
         return <Navigate to={tenantSlug ? `/${tenantSlug}/auth` : "/"} replace />;
     }
 
-    return <>{children}</>;
+    return <SubscriptionGate>{children}</SubscriptionGate>;
 }

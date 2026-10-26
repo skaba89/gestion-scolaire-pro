@@ -2725,5 +2725,14 @@
       "canceled": "Cancelled",
       "unpaid": "Unpaid"
     }
+  },
+  "subscriptionGate": {
+    "blockedTitle": "Your institution's subscription has expired",
+    "blockedAdmin": "Access is suspended until the subscription is renewed. Your data is kept.",
+    "blockedMember": "Your institution's access is suspended. Please contact your institution's management.",
+    "readOnly": "Subscription expired: read-only access.",
+    "readOnlyUntil": "Subscription expired: read-only access until {{date}}.",
+    "renew": "Renew the subscription",
+    "signOut": "Sign out"
   }
 }

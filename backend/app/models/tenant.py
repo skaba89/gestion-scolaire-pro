@@ -1,8 +1,15 @@
 """Tenant model"""
+from datetime import datetime, timedelta, timezone
+
 from sqlalchemy import Column, String, Boolean, JSON, Text, DateTime
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, UUIDMixin, TimestampMixin
+from app.services.plan_catalog import TRIAL_DAYS
+
+
+def _default_trial_end() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=TRIAL_DAYS)
 
 
 class Tenant(Base, UUIDMixin, TimestampMixin):
@@ -29,7 +36,10 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     subscription_plan = Column(String(50), nullable=True, default="standard")
     # status : "trialing" | "active" | "expired" | "past_due" | "canceled" | "unpaid"
     subscription_status = Column(String(50), nullable=True, default="trialing")
-    trial_ends_at = Column(DateTime, nullable=True)
+    # Tout établissement créé démarre un essai de TRIAL_DAYS jours (aussi posé
+    # explicitement par plan_catalog.start_trial) : sans date, l'essai était
+    # échu dès la création (lecture seule, get_current_user).
+    trial_ends_at = Column(DateTime, nullable=True, default=_default_trial_end)
     billing_email = Column(String(255), nullable=True)
 
     # Signature / official document fields

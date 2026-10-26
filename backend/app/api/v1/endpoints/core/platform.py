@@ -25,7 +25,16 @@ from app.models.saas import SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.user_role import UserRole
-from app.services.plan_catalog import PLAN_CATALOG, PLANS_BY_SLUG, TRIAL_PLAN_SLUG, apply_quota_limits, monthly_price, plan_weight
+from app.services.plan_catalog import (
+    PLAN_CATALOG,
+    PLANS_BY_SLUG,
+    TRIAL_PLAN_SLUG,
+    apply_quota_limits,
+    clear_subscription_ended,
+    mark_subscription_ended,
+    monthly_price,
+    plan_weight,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -521,6 +530,12 @@ async def update_tenant_subscription(
     if body.status is not None:
         changes["status"] = {"from": tenant.subscription_status, "to": body.status}
         tenant.subscription_status = body.status
+        # Délai de lecture seule : démarre quand l'accès payé cesse, s'efface
+        # quand il reprend (subscription_access).
+        if body.status == "active":
+            clear_subscription_ended(tenant)
+        elif body.status != "trialing":
+            mark_subscription_ended(tenant, _now_utc())
     if body.expires_at is not None:
         expires_naive = body.expires_at.replace(tzinfo=None)
         changes["expires_at"] = {

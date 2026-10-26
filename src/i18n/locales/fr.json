@@ -2725,5 +2725,14 @@
             "canceled": "Annulé",
             "unpaid": "Impayé"
         }
+    },
+    "subscriptionGate": {
+        "blockedTitle": "L'abonnement de votre établissement a expiré",
+        "blockedAdmin": "L'accès est suspendu jusqu'au renouvellement de l'abonnement. Vos données sont conservées.",
+        "blockedMember": "L'accès de votre établissement est suspendu. Contactez la direction de votre établissement.",
+        "readOnly": "Abonnement expiré : accès en lecture seule.",
+        "readOnlyUntil": "Abonnement expiré : accès en lecture seule jusqu'au {{date}}.",
+        "renew": "Renouveler l'abonnement",
+        "signOut": "Se déconnecter"
     }
 }

@@ -39,6 +39,12 @@ vi.mock("@/components/auth/TwoFactorChallenge", () => ({
   ),
 }));
 
+// Contrôle d'abonnement testé à part (SubscriptionGate.test.tsx) : ici, seule
+// la résolution de l'établissement par TenantRoute est en jeu.
+vi.mock("@/components/SubscriptionGate", () => ({
+  SubscriptionGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock("@/components/ui/skeleton", () => ({
   Skeleton: ({ className }: { className?: string }) => <div data-testid="skeleton" className={className} />,
 }));

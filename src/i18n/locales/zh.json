@@ -2807,5 +2807,14 @@
       "canceled": "已取消",
       "unpaid": "未付款"
     }
+  },
+  "subscriptionGate": {
+    "blockedTitle": "贵机构的订阅已过期",
+    "blockedAdmin": "在续订之前访问已暂停。您的数据会被保留。",
+    "blockedMember": "贵机构的访问已暂停。请联系贵机构的管理层。",
+    "readOnly": "订阅已过期：只读访问。",
+    "readOnlyUntil": "订阅已过期：只读访问至 {{date}}。",
+    "renew": "续订",
+    "signOut": "退出登录"
   }
 }

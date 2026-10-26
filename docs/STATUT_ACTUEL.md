@@ -466,7 +466,7 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
   pouvait être souscrite. Le 402 des assistants IA affiche un message
   d'abonnement (PR #328) — ticket « pas de gestion UI du 402 » clos. Reste :
   un établissement expiré ne perd que l'IA et l'import (blocage complet à
-  décider séparément).
+  décider séparément — fait, entrée « abonnement échu » ci-dessous).
 - **2026-10-26 — incident : /api envoyé à MineFleet (≈ 3 min).** Le
   frontend est aussi sur le réseau Docker partagé « edge » du proxy commun
   (`~/vps-proxy`) ; l'API MineFleet y a rejoint ce réseau sous son nom de
@@ -501,3 +501,18 @@ Ne pas dupliquer ici — se référer directement à ces documents, qui restent
 Avant de citer un chiffre ou une fonctionnalité de ce dépôt devant un tiers
 externe, vérifier qu'il provient d'un document **daté après 2026-08** ou de
 ce fichier — pas d'un document de 2025 non révisé.
+- **2026-10-26 — abonnement échu : lecture seule 15 jours, puis blocage.**
+  Décision produit (pas d'offre gratuite). Contrôle dans `get_current_user`
+  (`backend/app/core/security.py`), règle dans `plan_catalog.subscription_access` :
+  essai terminé, période payée écoulée ou annulation → lecture seule pendant
+  `SUBSCRIPTION_READ_ONLY_DAYS` (15), écritures refusées en 402
+  `SUBSCRIPTION_READ_ONLY` ; ensuite 402 `SUBSCRIPTION_EXPIRED` sur tout, hors
+  `/auth/`, `/billing/`, `/mfa/` et lectures d'interface (profil, configuration
+  de l'établissement). SUPER_ADMIN et impersonation non concernés ;
+  `SUBSCRIPTION_ENFORCEMENT=false` coupe le contrôle. Écran de blocage / bandeau
+  « lecture seule » : `src/components/SubscriptionGate.tsx` (page Facturation
+  toujours accessible). **Corrigé au passage : l'expiration des abonnements
+  payés n'était planifiée nulle part** (`app.scripts.expire_subscriptions`
+  jamais lancé) — tâche ARQ quotidienne `expire_subscriptions_job` (02:30), qui
+  horodate aussi le début du délai des établissements échus sans date. Tout
+  établissement créé reçoit par défaut 30 jours d'essai (`Tenant.trial_ends_at`).

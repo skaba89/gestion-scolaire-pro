@@ -59,8 +59,10 @@ def _seed_tenant(conn, label: str) -> dict:
     device and a pending Mobile Money payment — inserted as the admin role."""
     t = {"id": _uid(), "slug": f"rls-{label}-{_uid()[:8]}"}
     conn.execute(text(
-        "INSERT INTO tenants (id, name, slug, type, country, is_active, settings, created_at, updated_at) "
-        "VALUES (:id, :name, :slug, 'primary', 'GN', true, '{}', now(), now())"
+        # Essai en cours, comme tout établissement créé par l'API (sans date,
+        # l'abonnement serait échu : lecture seule, get_current_user).
+        "INSERT INTO tenants (id, name, slug, type, country, is_active, settings, trial_ends_at, created_at, updated_at) "
+        "VALUES (:id, :name, :slug, 'primary', 'GN', true, '{}', now() + interval '30 days', now(), now())"
     ), {"id": t["id"], "name": f"École {label}", "slug": t["slug"]})
     for i, name in enumerate(("CP1", "CP2"), start=1):
         conn.execute(text(

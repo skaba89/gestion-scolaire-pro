@@ -280,6 +280,13 @@ class Settings(BaseSettings):
     SESSION_IDLE_TIMEOUT_HOURS: int = 8
     SESSION_MAX_AGE_DAYS: int = 7
 
+    # Abonnement échu (essai terminé, période payée écoulée, annulation) :
+    # lecture seule pendant SUBSCRIPTION_READ_ONLY_DAYS, puis blocage hors
+    # connexion et facturation (get_current_user). SUBSCRIPTION_ENFORCEMENT=false
+    # coupe le contrôle sans redéploiement (retour arrière).
+    SUBSCRIPTION_ENFORCEMENT: bool = True
+    SUBSCRIPTION_READ_ONLY_DAYS: int = 15
+
     # RGPD Phase 5: how long a public contact-form message is kept before
     # the nightly purge job deletes it. 365 days by default — long enough
     # for a school to follow up on an admissions inquiry, short enough to
@@ -416,7 +423,7 @@ class Settings(BaseSettings):
     SENTRY_ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     SENTRY_TRACES_SAMPLE_RATE: float = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.05"))
 
-    @field_validator("SESSION_IDLE_TIMEOUT_HOURS", "SESSION_MAX_AGE_DAYS", mode="after")
+    @field_validator("SESSION_IDLE_TIMEOUT_HOURS", "SESSION_MAX_AGE_DAYS", "SUBSCRIPTION_READ_ONLY_DAYS", mode="after")
     @classmethod
     def _bound_session_lifetime(cls, v: int, info) -> int:
         if not 1 <= v <= 90:

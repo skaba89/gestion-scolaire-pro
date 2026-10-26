@@ -2772,5 +2772,14 @@
       "canceled": "Cancelado",
       "unpaid": "Impagado"
     }
+  },
+  "subscriptionGate": {
+    "blockedTitle": "La suscripción de su centro ha caducado",
+    "blockedAdmin": "El acceso está suspendido hasta que se renueve la suscripción. Sus datos se conservan.",
+    "blockedMember": "El acceso de su centro está suspendido. Póngase en contacto con la dirección de su centro.",
+    "readOnly": "Suscripción caducada: acceso de solo lectura.",
+    "readOnlyUntil": "Suscripción caducada: acceso de solo lectura hasta el {{date}}.",
+    "renew": "Renovar la suscripción",
+    "signOut": "Cerrar sesión"
   }
 }

@@ -20,6 +20,9 @@ interface SubscriptionInfo {
   trial_ends_at: string | null;
   billing_email: string | null;
   is_super_admin?: boolean;
+  /** Contrôle d'abonnement (get_current_user) : full | read_only | blocked. */
+  access?: "full" | "read_only" | "blocked";
+  read_only_until?: string | null;
 }
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
@@ -54,6 +57,8 @@ export function usePlan() {
     // Raw data
     plan,
     status,
+    access: isSuperAdmin ? "full" : (data?.access ?? "full"),
+    readOnlyUntil: data?.read_only_until ? new Date(data.read_only_until) : null,
     trialActive: data?.trial_active ?? false,
     trialEndsAt: data?.trial_ends_at ? new Date(data.trial_ends_at) : null,
     billingEmail: data?.billing_email ?? null,
