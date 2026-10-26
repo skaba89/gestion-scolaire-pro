@@ -108,8 +108,8 @@
         "logout": "Déconnexion"
     },
     "nav": {
-    "collapseSidebar": "Réduire le menu",
-    "expandSidebar": "Agrandir le menu",
+        "collapseSidebar": "Réduire le menu",
+        "expandSidebar": "Agrandir le menu",
         "overview": "Vue d'ensemble",
         "dashboard": "Tableau de bord",
         "analytics": "Analytiques",
@@ -2478,5 +2478,9 @@
         "configuration": "Configuration",
         "teacherEditInfo": "Modifiable depuis la fiche enseignant",
         "badgeNew": "Nouveau"
+    },
+    "planRequired": {
+        "aiAssistant": "L'assistant IA est inclus dans l'abonnement de votre établissement. Il n'est pas disponible tant que l'abonnement n'est pas actif.",
+        "viewPlans": "Voir les offres"
     }
 }
