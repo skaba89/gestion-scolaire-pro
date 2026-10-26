@@ -20,6 +20,8 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { chatWithAI, type ChatMessage } from "@/queries/ai";
+import { isPlanRequiredError } from "@/lib/plan-required";
+import { PlanRequiredNotice } from "./PlanRequiredNotice";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +29,11 @@ interface DisplayMessage {
   role: "user" | "assistant";
   content: string;
   isError?: boolean;
+  /** Bulle locale « abonnement requis » : jamais renvoyée à l'API. */
+  planRequired?: boolean;
 }
+
+const PLAN_REQUIRED_MESSAGE: DisplayMessage = { role: "assistant", content: "", planRequired: true };
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -89,7 +95,7 @@ export const AIChatWidget = () => {
       // Build conversation history (everything before the current user message)
       const history = updatedMessages
         .slice(0, -1)
-        .filter((m) => !m.isError)
+        .filter((m) => !m.isError && !m.planRequired)
         .map((m) => ({ role: m.role, content: m.content })) as ChatMessage[];
 
       // Pass tenant context so AI uses establishment name instead of platform name
@@ -104,6 +110,10 @@ export const AIChatWidget = () => {
         { role: "assistant", content: result.response },
       ]);
     } catch (error: unknown) {
+      if (isPlanRequiredError(error)) {
+        setMessages((prev) => [...prev, PLAN_REQUIRED_MESSAGE]);
+        return;
+      }
       console.error("AI Chat error:", error);
 
       const errorMessage =
@@ -303,7 +313,7 @@ export const AIChatWidget = () => {
                               : "bg-muted text-foreground rounded-bl-md",
                         )}
                       >
-                        {message.content}
+                        {message.planRequired ? <PlanRequiredNotice /> : message.content}
                       </div>
                       {message.role === "user" && (
                         <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
@@ -359,7 +369,7 @@ export const AIChatWidget = () => {
 
                             const history = updated
                               .slice(0, -1)
-                              .filter((m) => !m.isError)
+                              .filter((m) => !m.isError && !m.planRequired)
                               .map((m) => ({
                                 role: m.role,
                                 content: m.content,
@@ -379,7 +389,11 @@ export const AIChatWidget = () => {
                                   },
                                 ]);
                               })
-                              .catch(() => {
+                              .catch((error: unknown) => {
+                                if (isPlanRequiredError(error)) {
+                                  setMessages((prev) => [...prev, PLAN_REQUIRED_MESSAGE]);
+                                  return;
+                                }
                                 setMessages((prev) => [
                                   ...prev,
                                   {
