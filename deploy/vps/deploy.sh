@@ -15,10 +15,10 @@ $C up -d --wait
 # conteneurs, ni volumes ne sont touchés.
 sudo docker builder prune -f --filter until=168h >/dev/null
 
-# Contrôle de bout en bout (Caddy → nginx → API) sur le vrai domaine, résolu
-# localement : un simple `curl http://localhost` n'atteint aucun site Caddy
-# (réponse vide, que curl -f considère pourtant comme un succès).
-DOMAIN="$($C exec -T caddy printenv VPS_DOMAIN)"
+# Contrôle de bout en bout (proxy commun ~/vps-proxy → nginx → API) sur le vrai
+# domaine, résolu localement : un simple `curl http://localhost` n'atteint aucun
+# site Caddy (réponse vide, que curl -f considère pourtant comme un succès).
+DOMAIN="$(grep -E '^VPS_DOMAIN=' .env.docker | cut -d= -f2-)"
 curl -fsS --retry 5 --retry-delay 3 --retry-all-errors \
   --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/api/health/ready" \
   | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["status"], d.get("release_sha")); sys.exit(d["status"] != "healthy")'

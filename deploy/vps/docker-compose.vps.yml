@@ -9,7 +9,8 @@
 #
 # Différences avec docker-compose.yml (dev) :
 #   - images de prod (backend/Dockerfile) pour api + worker, sans montage du code source ;
-#   - aucun port exposé sur l'hôte sauf Caddy (80/443) ;
+#   - aucun port exposé sur l'hôte : le TLS est assuré par le proxy commun du serveur
+#     (projet ~/vps-proxy, indépendant), joint par le réseau externe « edge » ;
 #   - migrations = étape séparée (`run --rm api alembic upgrade head`), jamais au démarrage.
 services:
   postgres:
@@ -68,6 +69,11 @@ services:
   frontend:
     restart: always
     ports: !reset []
+    # Publié par le proxy commun du serveur (~/vps-proxy) sous l'alias gsp-frontend.
+    networks:
+      schoolflow-network:
+      edge:
+        aliases: [gsp-frontend]
 
   db-backup:
     restart: always
@@ -76,28 +82,6 @@ services:
       SCHEDULE: "@daily"
       HEALTHCHECK_PORT: "8080"
 
-  caddy:
-    image: caddy:2.10-alpine
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      # Lus par deploy/vps/Caddyfile ({$VPS_DOMAIN}, {$VPS_REDIRECT_HOSTS}, {$VPS_PUBLIC_IP}) ;
-      # à définir dans .env.docker.
-      VPS_DOMAIN: ${VPS_DOMAIN:?définir VPS_DOMAIN dans .env.docker}
-      VPS_PUBLIC_IP: ${VPS_PUBLIC_IP:?définir VPS_PUBLIC_IP dans .env.docker}
-      VPS_REDIRECT_HOSTS: ${VPS_REDIRECT_HOSTS:?définir VPS_REDIRECT_HOSTS dans .env.docker (ex. www.<domaine>)}
-    volumes:
-      - ./deploy/vps/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - frontend
-    networks:
-      - schoolflow-network
-    mem_limit: 128m
-
-volumes:
-  caddy_data:
-  caddy_config:
+networks:
+  edge:
+    external: true
