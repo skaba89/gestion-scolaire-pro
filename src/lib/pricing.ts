@@ -5,7 +5,9 @@
  * Pas d'offre gratuite : 30 jours d'essai, puis paiement. Toutes les
  * fonctionnalités dans toutes les offres ; seules les limites changent.
  * Prix en euros, payables en GNF au taux du jour (Mobile Money / virement).
+ * Les textes affichés sont dans les locales (plans.*), pas ici.
  */
+import type { TFunction } from "i18next";
 
 export const PLAN_SLUGS = ["standard", "medium", "premium", "enterprise"] as const;
 export type PlanSlug = (typeof PLAN_SLUGS)[number];
@@ -26,78 +28,43 @@ export const PLAN_WEIGHT: Record<string, number> = {
   institution: 4,
 };
 
-export const PLAN_LABELS: Record<string, string> = {
-  standard: "Standard",
-  medium: "Medium",
-  premium: "Premium",
-  enterprise: "Entreprise",
-  free: "Free (ancienne offre)",
-  starter: "Starter (ancienne offre)",
-  pro: "Pro (ancienne offre)",
-  institution: "Institution (ancienne offre)",
-};
+const LEGACY_SLUGS = ["free", "starter", "pro", "institution"];
+
+/** Libellé traduit d'une offre ; « (ancienne offre) » pour free/starter/pro/institution. */
+export function planLabel(t: TFunction, slug: string | null | undefined): string {
+  if (!slug) return "";
+  if ((PLAN_SLUGS as readonly string[]).includes(slug)) return t(`plans.names.${slug}`);
+  if (LEGACY_SLUGS.includes(slug)) return t("plans.legacy", { name: t(`plans.names.${slug}`) });
+  return slug;
+}
 
 export interface PublicPlan {
   slug: PlanSlug;
-  name: string;
   /** Prix mensuel en euros ; null = sur devis. */
   priceMonthly: number | null;
   priceYearly: number | null;
-  students: string;
-  description: string;
   highlight: boolean;
 }
 
+/** Textes : plans.names / plans.students / plans.description.<slug> (locales). */
 export const PUBLIC_PLANS: PublicPlan[] = [
-  {
-    slug: "standard",
-    name: "Standard",
-    priceMonthly: 49.99,
-    priceYearly: 499.9,
-    students: "Jusqu'à 500 élèves ou étudiants",
-    description: "Pour les écoles et établissements de taille moyenne.",
-    highlight: false,
-  },
-  {
-    slug: "medium",
-    name: "Medium",
-    priceMonthly: 99.99,
-    priceYearly: 999.9,
-    students: "De 501 à 999 élèves ou étudiants",
-    description: "Pour les établissements en croissance.",
-    highlight: true,
-  },
-  {
-    slug: "premium",
-    name: "Premium",
-    priceMonthly: 499.99,
-    priceYearly: 4999.9,
-    students: "1 000 élèves ou étudiants et plus",
-    description: "Pour les grands établissements (un établissement).",
-    highlight: false,
-  },
-  {
-    slug: "enterprise",
-    name: "Entreprise",
-    priceMonthly: null,
-    priceYearly: null,
-    students: "Plusieurs établissements, effectifs illimités",
-    description: "Pour les groupes scolaires, réseaux et universités multi-sites.",
-    highlight: false,
-  },
+  { slug: "standard", priceMonthly: 49.99, priceYearly: 499.9, highlight: false },
+  { slug: "medium", priceMonthly: 99.99, priceYearly: 999.9, highlight: true },
+  { slug: "premium", priceMonthly: 499.99, priceYearly: 4999.9, highlight: false },
+  { slug: "enterprise", priceMonthly: null, priceYearly: null, highlight: false },
 ];
 
-/** Fonctionnalités incluses dans toutes les offres. */
-export const INCLUDED_FEATURES = [
-  "Toutes les fonctionnalités incluses",
-  "Notes, bulletins et emplois du temps",
-  "Portails parents, élèves et enseignants",
-  "Assistant IA et import de données",
-  "Paiement Mobile Money ou virement",
-];
+/** Fonctionnalités incluses dans toutes les offres (clés plans.features.*). */
+export const INCLUDED_FEATURE_KEYS = [
+  "plans.features.all",
+  "plans.features.academics",
+  "plans.features.portals",
+  "plans.features.aiImport",
+  "plans.features.payment",
+] as const;
 
-export function formatEur(amount: number): string {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
+export function formatEur(amount: number, locale = "fr-FR", maximumFractionDigits = 2): string {
+  return new Intl.NumberFormat(locale, { style: "currency", currency: "EUR", maximumFractionDigits }).format(amount);
 }
 
 export function hasPlanAccess(plan: string | null | undefined, minPlan: PlanSlug): boolean {

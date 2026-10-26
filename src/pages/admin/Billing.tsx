@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   CreditCard, CheckCircle, AlertTriangle, Clock, XCircle,
   ArrowUpCircle, Shield, Star, Smartphone, Landmark, Hourglass,
@@ -10,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import apiClient from "@/api/client";
-import { PLAN_LABELS, SALES_EMAIL, TRIAL_DAYS, formatEur } from "@/lib/pricing";
+import { PLAN_SLUGS, SALES_EMAIL, TRIAL_DAYS, formatEur, planLabel } from "@/lib/pricing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,38 +62,48 @@ interface SubscribeResponse {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const PAYMENT_METHODS: { id: string; label: string; icon: React.ReactNode }[] = [
+// Noms de marque (non traduits), sauf le virement : billing.bankTransfer.
+const PAYMENT_METHODS: { id: string; label?: string; icon: React.ReactNode }[] = [
   { id: "orange_money", label: "Orange Money", icon: <Smartphone className="w-4 h-4" /> },
   { id: "mtn_momo", label: "MTN MoMo", icon: <Smartphone className="w-4 h-4" /> },
-  { id: "bank_transfer", label: "Virement bancaire", icon: <Landmark className="w-4 h-4" /> },
+  { id: "bank_transfer", icon: <Landmark className="w-4 h-4" /> },
 ];
 
-function formatPrice(amount: number, currency: string) {
-  // Pas d'offre gratuite : un prix nul est une offre sur devis.
-  if (!amount) return "Sur devis";
-  if (currency === "EUR") return formatEur(amount);
-  return `${new Intl.NumberFormat("fr-FR").format(amount)} ${currency}`;
+function methodLabel(t: TFunction, id: string) {
+  const method = PAYMENT_METHODS.find((m) => m.id === id);
+  if (!method) return id;
+  return method.label ?? t("billing.bankTransfer");
 }
 
-const GNF_NOTE = "Payable en GNF au taux du jour (Mobile Money ou virement).";
+// Offres du catalogue : textes traduits ; autre offre : ceux renvoyés par l'API.
+const isCatalogPlan = (slug: string) => (PLAN_SLUGS as readonly string[]).includes(slug);
+
+function formatPrice(t: TFunction, locale: string, amount: number, currency: string) {
+  // Pas d'offre gratuite : un prix nul est une offre sur devis.
+  if (!amount) return t("plans.onQuote");
+  if (currency === "EUR") return formatEur(amount, locale);
+  return `${new Intl.NumberFormat(locale).format(amount)} ${currency}`;
+}
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const configs: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
-    active:          { label: "Actif",                 className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",   icon: <CheckCircle className="w-3 h-3" /> },
-    trialing:        { label: "Essai gratuit",         className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",      icon: <Clock className="w-3 h-3" /> },
-    pending_payment: { label: "Paiement en attente",   className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: <Hourglass className="w-3 h-3" /> },
-    past_due:        { label: "Paiement en retard",    className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: <AlertTriangle className="w-3 h-3" /> },
-    expired:         { label: "Expiré",                className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: <AlertTriangle className="w-3 h-3" /> },
-    canceled:        { label: "Annulé",                className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",          icon: <XCircle className="w-3 h-3" /> },
-    rejected:        { label: "Demande rejetée",       className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",          icon: <XCircle className="w-3 h-3" /> },
+  const { t } = useTranslation();
+  const configs: Record<string, { className: string; icon: React.ReactNode }> = {
+    active:          { className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",   icon: <CheckCircle className="w-3 h-3" /> },
+    trialing:        { className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",      icon: <Clock className="w-3 h-3" /> },
+    pending_payment: { className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",  icon: <Hourglass className="w-3 h-3" /> },
+    past_due:        { className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: <AlertTriangle className="w-3 h-3" /> },
+    expired:         { className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400", icon: <AlertTriangle className="w-3 h-3" /> },
+    canceled:        { className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",          icon: <XCircle className="w-3 h-3" /> },
+    rejected:        { className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",          icon: <XCircle className="w-3 h-3" /> },
   };
-  const cfg = configs[status] ?? { label: status, className: "bg-gray-100 text-gray-700", icon: null };
+  const cfg = configs[status] ?? { className: "bg-gray-100 text-gray-700", icon: null };
+  const label = configs[status] ? t(`billing.status.${status}`) : status;
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${cfg.className}`}>
       {cfg.icon}
-      {cfg.label}
+      {label}
     </span>
   );
 }
@@ -99,6 +111,8 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Billing() {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
   const { toast } = useToast();
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("orange_money");
@@ -121,13 +135,13 @@ export default function Billing() {
     onSuccess: (data) => {
       setInstructions(data);
       setSelectedPlan(null);
-      toast({ title: "Demande enregistrée", description: data.message });
+      toast({ title: t("billing.requestSaved"), description: data.message });
       refetch();
     },
     onError: (err: any) => {
       toast({
-        title: "Erreur",
-        description: err?.response?.data?.detail ?? "Impossible d'enregistrer la demande d'abonnement.",
+        title: t("billing.error"),
+        description: err?.response?.data?.detail ?? t("billing.subscribeFailed"),
         variant: "destructive",
       });
     },
@@ -136,20 +150,20 @@ export default function Billing() {
   const cancel = useMutation({
     mutationFn: () => apiClient.post("/billing/cancel/").then((r) => r.data),
     onSuccess: () => {
-      toast({ title: "Abonnement annulé", description: "Il reste actif jusqu'à la fin de la période en cours." });
+      toast({ title: t("billing.canceledTitle"), description: t("billing.canceledDesc") });
       refetch();
     },
     onError: (err: any) => {
       toast({
-        title: "Erreur",
-        description: err?.response?.data?.detail ?? "Impossible d'annuler l'abonnement.",
+        title: t("billing.error"),
+        description: err?.response?.data?.detail ?? t("billing.cancelFailed"),
         variant: "destructive",
       });
     },
   });
 
   const handleCancelConfirm = () => {
-    if (!window.confirm("Confirmer l'annulation ? Votre accès restera actif jusqu'à la fin de la période en cours.")) return;
+    if (!window.confirm(t("billing.cancelConfirm"))) return;
     cancel.mutate();
   };
 
@@ -158,7 +172,7 @@ export default function Billing() {
       <div className="p-8 flex items-center justify-center min-h-[400px]">
         <div className="text-center text-gray-500">
           <CreditCard className="w-10 h-10 mx-auto mb-3 animate-pulse text-indigo-400" />
-          <p>Chargement de votre abonnement…</p>
+          <p>{t("billing.loading")}</p>
         </div>
       </div>
     );
@@ -176,10 +190,10 @@ export default function Billing() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <CreditCard className="w-6 h-6 text-indigo-600" />
-          Facturation & Abonnement
+          {t("billing.title")}
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-          Réglez votre abonnement par Mobile Money ou virement bancaire — activation après vérification du paiement.
+          {t("billing.subtitle")}
         </p>
       </div>
 
@@ -189,12 +203,14 @@ export default function Billing() {
           <Hourglass className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-              Demande d'abonnement en attente de validation
+              {t("billing.pendingTitle")}
             </p>
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-              Votre demande ({pendingRequest.plan_slug ?? "plan"} — {pendingRequest.billing_cycle === "yearly" ? "annuel" : "mensuel"},
-              via {PAYMENT_METHODS.find((m) => m.id === pendingRequest.payment_provider)?.label ?? pendingRequest.payment_provider})
-              sera activée dès que le paiement aura été vérifié par l'équipe Academy Guinéenne.
+              {t("billing.pendingText", {
+                plan: planLabel(t, pendingRequest.plan_slug) || "—",
+                cycle: t(pendingRequest.billing_cycle === "yearly" ? "billing.cycleYearly" : "billing.cycleMonthly"),
+                method: methodLabel(t, pendingRequest.payment_provider),
+              })}
             </p>
           </div>
         </div>
@@ -206,16 +222,16 @@ export default function Billing() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-indigo-500" />
-              Instructions de paiement
+              {t("billing.instructionsTitle")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>
-              Montant à régler :{" "}
-              <strong>{formatPrice(instructions.amount_due, instructions.currency)}</strong>
+              {t("billing.amountDue")}{" "}
+              <strong>{formatPrice(t, locale, instructions.amount_due, instructions.currency)}</strong>
             </p>
             {instructions.currency === "EUR" && (
-              <p className="text-xs text-gray-500">{instructions.conversion_note ?? GNF_NOTE}</p>
+              <p className="text-xs text-gray-500">{t("plans.gnfNote")}</p>
             )}
             <p className="text-gray-700 dark:text-gray-300">{instructions.payment_instructions.detail}</p>
             <p className="text-xs text-gray-500">{instructions.payment_instructions.note}</p>
@@ -229,11 +245,15 @@ export default function Billing() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <CardTitle className="text-lg capitalize flex items-center gap-2">
-                Offre {plans.find((p) => p.slug === currentPlan)?.name ?? PLAN_LABELS[currentPlan] ?? currentPlan}
+                {t("billing.planTitle", {
+                  name: isCatalogPlan(currentPlan) || !plans.some((p) => p.slug === currentPlan)
+                    ? planLabel(t, currentPlan)
+                    : plans.find((p) => p.slug === currentPlan)?.name,
+                })}
                 {currentPlan === "premium" && <Star className="w-4 h-4 text-yellow-500 fill-yellow-400" />}
               </CardTitle>
               <CardDescription className="mt-1">
-                {sub?.billing_email && <>Facturé à <strong>{sub.billing_email}</strong></>}
+                {sub?.billing_email && <>{t("billing.billedTo")} <strong>{sub.billing_email}</strong></>}
               </CardDescription>
             </div>
             <StatusBadge status={pendingRequest ? "pending_payment" : currentStatus} />
@@ -245,11 +265,11 @@ export default function Billing() {
             <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
               <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Essai gratuit en cours</p>
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-300">{t("billing.trialTitle")}</p>
                 <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
-                  Votre essai de {TRIAL_DAYS} jours expire le{" "}
-                  <strong>{new Date(sub.trial_ends_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</strong>.
-                  Il n'y a pas d'offre gratuite : souscrivez avant la fin pour garder l'accès.
+                  {t("billing.trialEnds", { days: TRIAL_DAYS })}{" "}
+                  <strong>{new Date(sub.trial_ends_at).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}</strong>.
+                  {" "}{t("billing.trialNoFree")}
                 </p>
               </div>
             </div>
@@ -265,7 +285,7 @@ export default function Billing() {
                 className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-2"
               >
                 <XCircle className="w-4 h-4" />
-                {cancel.isPending ? "Annulation…" : "Annuler l'abonnement"}
+                {cancel.isPending ? t("billing.canceling") : t("billing.cancelButton")}
               </Button>
             </div>
           )}
@@ -278,7 +298,7 @@ export default function Billing() {
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <ArrowUpCircle className="w-5 h-5 text-indigo-500" />
-          Choisir une offre
+          {t("billing.choosePlan")}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           {plans.map((plan) => {
@@ -286,6 +306,8 @@ export default function Billing() {
             const isSelected = selectedPlan === plan.slug;
             const price = billingCycle === "yearly" ? plan.price_yearly : plan.price_monthly;
             const onQuote = plan.features?.on_quote === true || price === 0;
+            const name = isCatalogPlan(plan.slug) ? planLabel(t, plan.slug) : plan.name;
+            const description = isCatalogPlan(plan.slug) ? t(`plans.description.${plan.slug}`) : plan.description;
 
             return (
               <Card
@@ -299,47 +321,57 @@ export default function Billing() {
                 {plan.slug === "medium" && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 text-xs px-3">
-                      Recommandé
+                      {t("pricing.recommended")}
                     </Badge>
                   </div>
                 )}
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center justify-between">
-                    {plan.name}
+                    {name}
                     {isCurrent && (
-                      <Badge variant="secondary" className="text-xs">Offre actuelle</Badge>
+                      <Badge variant="secondary" className="text-xs">{t("billing.currentPlan")}</Badge>
                     )}
                   </CardTitle>
                   <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-                    {formatPrice(price, plan.currency)}
-                    {price > 0 && <span className="text-xs text-gray-400"> / {billingCycle === "yearly" ? "an" : "mois"}</span>}
+                    {formatPrice(t, locale, price, plan.currency)}
+                    {price > 0 && (
+                      <span className="text-xs text-gray-400">
+                        {" "}{t(billingCycle === "yearly" ? "plans.perYear" : "plans.perMonth")}
+                      </span>
+                    )}
                   </p>
                   {!onQuote && plan.currency === "EUR" && (
-                    <p className="text-xs text-gray-400">{GNF_NOTE}</p>
+                    <p className="text-xs text-gray-400">{t("plans.gnfNote")}</p>
                   )}
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4 flex-1">
                   <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400 flex-1">
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                      {plan.max_students ? `${new Intl.NumberFormat("fr-FR").format(plan.max_students)} élèves max` : "Élèves illimités"}
+                      {plan.max_students
+                        ? t("billing.maxStudents", { n: new Intl.NumberFormat(locale).format(plan.max_students) })
+                        : t("billing.unlimitedStudents")}
                     </li>
                     <li className="flex items-center gap-2">
                       <CheckCircle className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                      {plan.max_campuses ? `${plan.max_campuses} campus` : "Campus illimités"}
+                      {plan.max_campuses
+                        ? t("billing.campuses", { n: new Intl.NumberFormat(locale).format(plan.max_campuses) })
+                        : t("billing.unlimitedCampuses")}
                     </li>
-                    {plan.description && (
-                      <li className="text-xs text-gray-400">{plan.description}</li>
+                    {description && (
+                      <li className="text-xs text-gray-400">{description}</li>
                     )}
                   </ul>
 
                   {isCurrent ? (
                     <Button variant="outline" size="sm" disabled className="w-full">
-                      Offre actuelle
+                      {t("billing.currentPlan")}
                     </Button>
                   ) : onQuote ? (
                     <Button variant="outline" size="sm" asChild className="w-full">
-                      <a href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent(`Offre ${plan.name}`)}`}>Nous contacter</a>
+                      <a href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent(t("billing.planTitle", { name }))}`}>
+                        {t("pricing.contactUs")}
+                      </a>
                     </Button>
                   ) : isSelected ? (
                     <div className="space-y-2">
@@ -352,7 +384,7 @@ export default function Billing() {
                             className="flex-1 text-xs"
                             onClick={() => setBillingCycle(cycle)}
                           >
-                            {cycle === "monthly" ? "Mensuel" : "Annuel"}
+                            {t(cycle === "monthly" ? "billing.monthly" : "billing.yearly")}
                           </Button>
                         ))}
                       </div>
@@ -366,7 +398,7 @@ export default function Billing() {
                             onClick={() => setPaymentMethod(m.id)}
                           >
                             {m.icon}
-                            {m.label}
+                            {methodLabel(t, m.id)}
                           </Button>
                         ))}
                       </div>
@@ -382,10 +414,10 @@ export default function Billing() {
                           })
                         }
                       >
-                        {subscribe.isPending ? "Envoi…" : "Confirmer la demande"}
+                        {subscribe.isPending ? t("billing.sending") : t("billing.confirmRequest")}
                       </Button>
                       <Button variant="ghost" size="sm" className="w-full" onClick={() => setSelectedPlan(null)}>
-                        Retour
+                        {t("billing.back")}
                       </Button>
                     </div>
                   ) : (
@@ -395,7 +427,7 @@ export default function Billing() {
                       disabled={!!pendingRequest}
                       onClick={() => setSelectedPlan(plan.slug)}
                     >
-                      {pendingRequest ? "Demande en cours…" : `Choisir ${plan.name}`}
+                      {pendingRequest ? t("billing.requestPending") : t("billing.choose", { name })}
                     </Button>
                   )}
                 </CardContent>
@@ -408,11 +440,7 @@ export default function Billing() {
       {/* Security note */}
       <div className="flex items-start gap-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 rounded-xl p-4 text-sm text-gray-500 dark:text-gray-400">
         <Shield className="w-5 h-5 flex-shrink-0 text-gray-400 mt-0.5" />
-        <p>
-          Les abonnements se règlent par <strong>Orange Money, MTN MoMo ou virement bancaire</strong>.
-          Chaque paiement est vérifié manuellement avant activation — conservez votre référence de transaction.
-          Academy Guinéenne ne stocke jamais vos coordonnées bancaires.
-        </p>
+        <p>{t("billing.securityNote")}</p>
       </div>
     </div>
   );

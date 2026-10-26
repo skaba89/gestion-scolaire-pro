@@ -21,7 +21,8 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { PLAN_LABELS, PLAN_SLUGS } from "@/lib/pricing";
+import i18n from "@/i18n/config";
+import { PLAN_SLUGS, planLabel } from "@/lib/pricing";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
   Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle, Settings,
@@ -46,9 +47,8 @@ interface TenantStat {
   subscription_status: string;
 }
 
-const SUBSCRIPTION_PLANS = PLAN_SLUGS.map((value) => ({ value, label: PLAN_LABELS[value] }));
-
-const getPlanLabel = (plan: string) => PLAN_LABELS[plan] || plan;
+// Libellés traduits à l'affichage (page encore en français en dur : i18n.t direct).
+const getPlanLabel = (plan: string) => planLabel(i18n.t, plan);
 
 const getTypeLabel = (type: string) => {
   const map: Record<string, string> = {
@@ -655,9 +655,9 @@ function TenantSubscriptionDialog({ tenant, onSuccess }: { tenant: TenantStat; o
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SUBSCRIPTION_PLANS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
+                {PLAN_SLUGS.map((slug) => (
+                  <SelectItem key={slug} value={slug}>
+                    {getPlanLabel(slug)}
                   </SelectItem>
                 ))}
               </SelectContent>
