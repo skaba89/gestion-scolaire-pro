@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 
 from app.models.saas import BillingEvent, SubscriptionPlan, TenantSubscription
 from app.models.tenant import Tenant
-from app.services.plan_catalog import apply_quota_limits
+from app.core.config import settings as app_settings
+from app.services.plan_catalog import (
+    ACCESS_FULL,
+    apply_quota_limits,
+    mark_subscription_ended,
+    subscription_access,
+    subscription_ended_at,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +99,8 @@ def expire_overdue_subscriptions(db: Session) -> dict:
                 # et ses limites sont conservées, seul le statut passe à
                 # « expired » (require_plan refuse alors l'accès).
                 tenant.subscription_status = "expired"
+                # Début du délai de lecture seule (subscription_access).
+                mark_subscription_ended(tenant, subscription.current_period_end)
                 expired_tenants.append(tenant.slug)
 
             db.add(BillingEvent(
@@ -129,3 +138,27 @@ def expire_overdue_subscriptions(db: Session) -> dict:
             switch_tenant_context(db, caller_tenant_id)
 
     return {"expired": expired_count, "tenants": expired_tenants}
+
+
+def stamp_lapsed_tenants(db: Session, now: datetime | None = None) -> dict:
+    """Horodate le début du délai de lecture seule des établissements échus
+    qui n'en ont pas (statut posé à la main, essai sans date de fin, données
+    antérieures) : sans date, subscription_access les laisse en lecture
+    seule indéfiniment. Idempotent ; `tenants` n'a pas de RLS.
+
+    Retourne {"stamped": n, "tenants": [slug, ...]}.
+    """
+    now = now or _now()
+    stamped: list[str] = []
+    for tenant in db.query(Tenant).filter(Tenant.is_active.is_(True)).all():
+        level, _ = subscription_access(tenant, now, app_settings.SUBSCRIPTION_READ_ONLY_DAYS)
+        if level == ACCESS_FULL or subscription_ended_at(tenant) is not None:
+            continue
+        if (tenant.subscription_status or "trialing").lower() == "trialing" and tenant.trial_ends_at:
+            continue  # la fin d'essai sert déjà de point de départ
+        mark_subscription_ended(tenant, now)
+        stamped.append(tenant.slug)
+    if stamped:
+        db.commit()
+        logger.info("subscription grace period started for %d tenant(s): %s", len(stamped), ", ".join(stamped))
+    return {"stamped": len(stamped), "tenants": stamped}

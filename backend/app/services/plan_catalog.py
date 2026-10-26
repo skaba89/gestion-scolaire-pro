@@ -144,3 +144,61 @@ def start_trial(tenant: Any, now: datetime | None = None) -> None:
     tenant.subscription_status = "trialing"
     tenant.trial_ends_at = now + timedelta(days=TRIAL_DAYS)
     apply_quota_limits(tenant, trial_plan["max_students"], trial_plan["max_storage_gb"])
+
+
+# ─── Accès selon l'état de l'abonnement ──────────────────────────────────────
+# Abonnement échu : lecture seule pendant SUBSCRIPTION_READ_ONLY_DAYS jours,
+# puis blocage (hors connexion et facturation) — get_current_user.
+
+ACCESS_FULL = "full"
+ACCESS_READ_ONLY = "read_only"
+ACCESS_BLOCKED = "blocked"
+
+# Fin de l'abonnement payé (ISO 8601), posée à l'expiration ou à l'annulation ;
+# retirée à la confirmation d'un paiement.
+ENDED_AT_KEY = "subscription_ended_at"
+
+
+def subscription_ended_at(tenant: Any) -> datetime | None:
+    raw = (tenant.settings or {}).get(ENDED_AT_KEY)
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return None
+
+
+def mark_subscription_ended(tenant: Any, ended_at: datetime) -> None:
+    settings_dict = dict(tenant.settings or {})
+    settings_dict.setdefault(ENDED_AT_KEY, ended_at.replace(tzinfo=None).isoformat())
+    tenant.settings = settings_dict
+
+
+def clear_subscription_ended(tenant: Any) -> None:
+    settings_dict = dict(tenant.settings or {})
+    if settings_dict.pop(ENDED_AT_KEY, None) is not None:
+        tenant.settings = settings_dict
+
+
+def subscription_access(tenant: Any, now: datetime, read_only_days: int) -> tuple[str, datetime | None]:
+    """(niveau d'accès, fin de la lecture seule) pour un établissement.
+
+    - abonnement payant actif ou essai en cours : accès complet ;
+    - sinon, lecture seule jusqu'à fin de l'accès + read_only_days, puis blocage.
+      Fin de l'accès : trial_ends_at pour un essai, sinon ENDED_AT_KEY (à défaut
+      trial_ends_at). Sans aucune date connue : lecture seule, et la tâche
+      quotidienne horodate le début du délai (stamp_lapsed_tenants).
+    """
+    status = (tenant.subscription_status or "trialing").lower()
+    if status == "active" and plan_weight(tenant.subscription_plan) > 0:
+        return ACCESS_FULL, None
+    if status == "trialing" and tenant.trial_ends_at and tenant.trial_ends_at > now:
+        return ACCESS_FULL, None
+
+    marked = subscription_ended_at(tenant)
+    ended = (tenant.trial_ends_at or marked) if status == "trialing" else (marked or tenant.trial_ends_at)
+    if ended is None:
+        return ACCESS_READ_ONLY, None
+    read_only_until = ended + timedelta(days=read_only_days)
+    return (ACCESS_READ_ONLY if now < read_only_until else ACCESS_BLOCKED), read_only_until

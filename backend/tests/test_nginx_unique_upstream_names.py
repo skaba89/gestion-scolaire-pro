@@ -18,7 +18,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 NGINX_CONF = REPO_ROOT / "docker" / "nginx.conf"
 COMPOSE = REPO_ROOT / "docker-compose.yml"
 
-pytestmark = pytest.mark.skipif(not NGINX_CONF.exists(), reason="dépôt complet requis (docker/nginx.conf)")
+pytestmark = pytest.mark.skipif(
+    not (NGINX_CONF.exists() and COMPOSE.exists()), reason="dépôt complet requis (docker/nginx.conf, docker-compose.yml)"
+)
 
 UPSTREAMS = {"api": "gsp-api", "minio": "gsp-minio"}
 

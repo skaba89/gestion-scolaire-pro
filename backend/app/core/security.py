@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -9,7 +10,13 @@ from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
 
 from app.core.config import settings
-from app.services.plan_catalog import PLAN_WEIGHT as _PLAN_WEIGHT
+from app.services.plan_catalog import (
+    ACCESS_BLOCKED,
+    ACCESS_FULL,
+    ACCESS_READ_ONLY,
+    PLAN_WEIGHT as _PLAN_WEIGHT,
+    subscription_access,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +61,61 @@ RESTRICTED_TOKEN_CLAIMS = ("mfa_pending", "mfa_setup")
 
 
 TENANT_DEACTIVATED_DETAIL = "Votre établissement est désactivé. Contactez un administrateur."
+
+# ─── Abonnement échu : lecture seule puis blocage ─────────────────────────────
+# Chemins (après API_V1_STR) toujours ouverts : se connecter, payer, gérer
+# son MFA. En blocage, seules quelques lectures nécessaires à l'interface
+# (profil, configuration de l'établissement) restent permises.
+_SUBSCRIPTION_EXEMPT_PREFIXES = ("/auth/", "/billing/", "/mfa/")
+_SUBSCRIPTION_BLOCKED_READABLE = re.compile(
+    r"^/(users/me/?|tenants/(settings|security-settings|slug/[^/]+|[0-9a-fA-F-]{36})/?)$"
+)
+_READ_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def _enforce_subscription_access(request: Request, tenant) -> None:
+    """402 si l'abonnement de l'établissement est échu (voir subscription_access).
+
+    Lecture seule : méthodes de lecture permises, écritures refusées.
+    Blocage : tout refusé hors chemins exemptés et lectures d'interface.
+    """
+    path = request.url.path
+    prefix = settings.API_V1_STR
+    sub_path = path[len(prefix):] if path.startswith(prefix) else path
+    if sub_path.startswith(_SUBSCRIPTION_EXEMPT_PREFIXES):
+        return
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    level, read_only_until = subscription_access(tenant, now, settings.SUBSCRIPTION_READ_ONLY_DAYS)
+    if level == ACCESS_FULL:
+        return
+    is_read = request.method.upper() in _READ_METHODS
+    if level == ACCESS_READ_ONLY and is_read:
+        return
+    if level == ACCESS_BLOCKED and is_read and _SUBSCRIPTION_BLOCKED_READABLE.match(sub_path):
+        return
+
+    until = read_only_until.date().isoformat() if read_only_until else None
+    if level == ACCESS_READ_ONLY:
+        code = "SUBSCRIPTION_READ_ONLY"
+        message = (
+            "L'abonnement de votre établissement a expiré : accès en lecture seule"
+            + (f" jusqu'au {until}" if until else "")
+            + ". Renouvelez l'abonnement pour modifier les données."
+        )
+    else:
+        code = "SUBSCRIPTION_EXPIRED"
+        message = "L'abonnement de votre établissement a expiré. Renouvelez-le pour retrouver l'accès."
+    raise HTTPException(
+        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+        detail={
+            "error_code": code,
+            "message": message,
+            "access": level,
+            "read_only_until": until,
+            "upgrade_url": "/admin/billing",
+        },
+    )
 
 
 def is_restricted_token(payload: dict) -> bool:
@@ -462,6 +524,14 @@ async def get_current_user(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=TENANT_DEACTIVATED_DETAIL,
                     )
+                # Abonnement échu : lecture seule puis blocage. SUPER_ADMIN et
+                # sessions d'impersonation (support plateforme) non concernés.
+                if (
+                    settings.SUBSCRIPTION_ENFORCEMENT
+                    and "SUPER_ADMIN" not in roles
+                    and not token.get("impersonated_by")
+                ):
+                    _enforce_subscription_access(request, tenant_obj)
 
         return {
             "id": str(user_db.id),

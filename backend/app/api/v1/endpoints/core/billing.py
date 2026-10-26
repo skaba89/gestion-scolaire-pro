@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import find_user_across_all_tenants, get_db
 from app.core.security import get_current_user
 from app.core.tenant_resolution import (
@@ -52,7 +53,12 @@ from app.services.subscription_maintenance import (
     apply_plan_quotas,
     expire_overdue_subscriptions,
 )
-from app.services.plan_catalog import TRIAL_PLAN_SLUG, is_on_quote
+from app.services.plan_catalog import (
+    TRIAL_PLAN_SLUG,
+    clear_subscription_ended,
+    is_on_quote,
+    subscription_access,
+)
 from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
@@ -204,8 +210,15 @@ async def get_subscription(
         .first()
     )
 
+    access, read_only_until = subscription_access(tenant, _now(), settings.SUBSCRIPTION_READ_ONLY_DAYS)
+    if not settings.SUBSCRIPTION_ENFORCEMENT:
+        access, read_only_until = "full", None
+
     return {
         "plan": tenant.subscription_plan or TRIAL_PLAN_SLUG,
+        # full | read_only | blocked (get_current_user) ; fin de la lecture seule
+        "access": access,
+        "read_only_until": read_only_until.isoformat() if read_only_until else None,
         "status": tenant.subscription_status or "trialing",
         "trial_active": trial_active,
         "trial_ends_at": trial_ends_at,
@@ -488,6 +501,7 @@ async def confirm_subscription_payment(
     tenant.subscription_plan = plan.slug
     tenant.subscription_status = "active"
     tenant.trial_ends_at = None
+    clear_subscription_ended(tenant)  # fin de la lecture seule / du blocage
     apply_plan_quotas(tenant, plan)
 
     _record_billing_event(

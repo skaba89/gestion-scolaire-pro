@@ -911,6 +911,26 @@ async def purge_expired_idempotency_keys(ctx: dict) -> dict:
     return {"deleted": deleted}
 
 
+async def expire_subscriptions_job(ctx: dict) -> dict:
+    """Tâche quotidienne de facturation (paiements locaux, pas de webhook) :
+    passe en « expired » les abonnements dont la période payée est écoulée,
+    puis horodate le début du délai de lecture seule des établissements
+    échus sans date (stamp_lapsed_tenants). Sans elle, un abonnement payé
+    une fois ne prenait jamais fin : app.scripts.expire_subscriptions
+    n'était planifié nulle part. Idempotente.
+    """
+    from app.services.subscription_maintenance import expire_overdue_subscriptions, stamp_lapsed_tenants
+
+    with platform_db_session() as db:
+        expired = expire_overdue_subscriptions(db)
+        stamped = stamp_lapsed_tenants(db)
+    logger.info(
+        "expire_subscriptions_job: %d expired, %d grace period(s) started",
+        expired["expired"], stamped["stamped"],
+    )
+    return {"expired": expired["expired"], "stamped": stamped["stamped"]}
+
+
 async def send_tenant_5xx_alert(
     ctx: dict, *, tenant_id: str, error_rate: float, sample_size: int, window_seconds: int,
 ) -> dict:
@@ -1210,6 +1230,7 @@ class WorkerSettings:
         purge_old_public_form_submissions,
         send_tenant_5xx_alert,
         check_inactive_tenants,
+        expire_subscriptions_job,
     ]
     # Runs once a day regardless of manual enqueue_job() calls — expired
     # idempotency keys / old public-form messages would otherwise only ever
@@ -1222,6 +1243,8 @@ class WorkerSettings:
         # is NOT listed here, it's only ever enqueued on-demand by
         # MetricsMiddleware when a tenant's error window actually trips.
         cron(check_inactive_tenants, hour=4, minute=0),
+        # Abonnements échus (lecture seule puis blocage, get_current_user).
+        cron(expire_subscriptions_job, hour=2, minute=30),
     ]
     redis_settings: RedisSettings = get_worker_redis_settings()
     max_jobs = 10
