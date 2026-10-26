@@ -99,7 +99,11 @@ class TestCatalog:
 
     def test_seed_activates_new_plans_and_retires_free_offers(self, as_user):
         with SessionLocal() as db:
-            db.add(SubscriptionPlan(slug="starter", name="Starter", currency="GNF", is_active=True))
+            starter = db.query(SubscriptionPlan).filter(SubscriptionPlan.slug == "starter").first()
+            if starter is None:  # SQLite ; sur PostgreSQL la ligne vient des migrations
+                db.add(SubscriptionPlan(slug="starter", name="Starter", currency="GNF", is_active=True))
+            else:
+                starter.is_active = True
             db.commit()
         seed_plans()
 
