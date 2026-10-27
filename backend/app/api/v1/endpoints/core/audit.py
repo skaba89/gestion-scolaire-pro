@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timezone
@@ -10,6 +10,7 @@ from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.schemas.audit import AuditLog
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -64,12 +65,56 @@ def list_audit_logs(
 
 # ─── Audit log creation (POST /audit/ and POST /audit/log) ────────────────────
 
+# Entrées envoyées par le navigateur : toujours préfixées CLIENT_ en base, pour
+# qu'un compte ayant audit:write ne puisse pas fabriquer une entrée qui se
+# confond avec celles du serveur (« LOGIN », « UPDATE_SETTINGS »…).
+CLIENT_ACTION_PREFIX = "CLIENT_"
+_MAX_DETAILS_BYTES = 10_000
+
+
 class AuditLogCreate(BaseModel):
-    action: str
-    severity: Optional[str] = "INFO"
-    resource_type: Optional[str] = None
-    resource_id: Optional[str] = None
+    action: str = Field(..., pattern=r"^[A-Z][A-Z0-9_]{1,40}$")
+    severity: Optional[str] = Field("INFO", pattern=r"^(INFO|WARNING|ERROR|CRITICAL)$")
+    # Colonne NOT NULL : sans valeur par défaut, une entrée sans type tombait en 500.
+    resource_type: str = Field("CLIENT", max_length=50)
+    resource_id: Optional[str] = Field(None, max_length=255)
     details: Optional[Dict[str, Any]] = None
+
+    @field_validator("details")
+    @classmethod
+    def _bound_details(cls, v):
+        import json
+
+        if v is not None and len(json.dumps(v, default=str)) > _MAX_DETAILS_BYTES:
+            raise ValueError("details trop volumineux (10 Ko max).")
+        return v
+
+
+def _insert_client_audit_log(body: AuditLogCreate, request: Request, db: Session, current_user: dict) -> dict:
+    import json
+
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    action = body.action if body.action.startswith(CLIENT_ACTION_PREFIX) else f"{CLIENT_ACTION_PREFIX}{body.action}"
+    row = db.execute(text("""
+        INSERT INTO audit_logs (id, tenant_id, user_id, action, severity, resource_type, resource_id, details, ip_address, user_agent, created_at, updated_at)
+        VALUES (:id, :tenant_id, :user_id, :action, :severity, :resource_type, :resource_id, :details, :ip_address, :user_agent, NOW(), NOW())
+        RETURNING id, tenant_id, user_id, action, COALESCE(severity, 'INFO') as severity, resource_type, resource_id, details, ip_address, user_agent, created_at
+    """), {
+        # audit_logs.id n'a pas de valeur par défaut en base : sans lui, chaque
+        # appel échouait en 500 (NotNullViolation) depuis l'origine.
+        "id": str(uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "user_id": current_user.get("id"),
+        "action": action[:50],
+        "severity": body.severity or "INFO",
+        "resource_type": body.resource_type,
+        "resource_id": body.resource_id,
+        "details": json.dumps(body.details) if body.details else None,
+        "ip_address": None,
+        "user_agent": None,
+    }).mappings().first()
+    db.commit()
+    return dict(row)
 
 
 @router.post("/", status_code=201)
@@ -80,26 +125,7 @@ def create_audit_log(
     current_user: dict = Depends(require_permission("audit:write")),
 ):
     """Create a new audit log entry. POST /audit/"""
-    import json
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    user_id = current_user.get("id")
-    row = db.execute(text("""
-        INSERT INTO audit_logs (tenant_id, user_id, action, severity, resource_type, resource_id, details, ip_address, user_agent, created_at)
-        VALUES (:tenant_id, :user_id, :action, :severity, :resource_type, :resource_id, :details, :ip_address, :user_agent, NOW())
-        RETURNING id, tenant_id, user_id, action, COALESCE(severity, 'INFO') as severity, resource_type, resource_id, details, ip_address, user_agent, created_at
-    """), {
-        "tenant_id": tenant_id,
-        "user_id": user_id,
-        "action": body.action,
-        "severity": body.severity or "INFO",
-        "resource_type": body.resource_type,
-        "resource_id": body.resource_id,
-        "details": json.dumps(body.details) if body.details else None,
-        "ip_address": None,
-        "user_agent": None,
-    }).mappings().first()
-    db.commit()
-    return dict(row)
+    return _insert_client_audit_log(body, request, db, current_user)
 
 
 # =============================================================================
@@ -283,23 +309,4 @@ def create_audit_log_alias(
     current_user: dict = Depends(require_permission("audit:write")),
 ):
     """Create a new audit log entry. POST /audit/log — alias for POST /audit/"""
-    import json
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    user_id = current_user.get("id")
-    row = db.execute(text("""
-        INSERT INTO audit_logs (tenant_id, user_id, action, severity, resource_type, resource_id, details, ip_address, user_agent, created_at)
-        VALUES (:tenant_id, :user_id, :action, :severity, :resource_type, :resource_id, :details, :ip_address, :user_agent, NOW())
-        RETURNING id, tenant_id, user_id, action, COALESCE(severity, 'INFO') as severity, resource_type, resource_id, details, ip_address, user_agent, created_at
-    """), {
-        "tenant_id": tenant_id,
-        "user_id": user_id,
-        "action": body.action,
-        "severity": body.severity or "INFO",
-        "resource_type": body.resource_type,
-        "resource_id": body.resource_id,
-        "details": json.dumps(body.details) if body.details else None,
-        "ip_address": None,
-        "user_agent": None,
-    }).mappings().first()
-    db.commit()
-    return dict(row)
+    return _insert_client_audit_log(body, request, db, current_user)
