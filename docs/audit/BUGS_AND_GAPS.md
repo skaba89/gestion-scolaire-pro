@@ -111,3 +111,20 @@ Groupes principaux :
 
 Chaque groupe doit être soit branché sur une route réelle, soit retiré de
 l'interface (« aucun bouton décoratif »).
+
+## H. Constats ajoutés pendant la CI de cette PR
+
+### BUG-RT-01 — Boucle WebSocket sans fin après déconnexion [V, R] — corrigé par #341
+- `backend/app/api/v1/endpoints/core/realtime.py` : la socket n'était jamais
+  lue (déconnexion invisible) et `pubsub.get_message()` était appelé sans
+  délai (retour immédiat) → une tâche à pleine vitesse par connexion fermée,
+  abonnement Redis jamais libéré. Vecteur d'épuisement CPU pour tout compte
+  authentifié sur le VPS unique.
+- Symptôme : `CancelledError` intermittent sur
+  `test_active_user_connection_is_accepted` (PostgreSQL), bloquant toutes les PR.
+- Reproduction déterministe : `tests/test_realtime_relay_disconnect.py`
+  (3/4 en échec avant correctif).
+
+### DEP-01 — follow-redirects 1.16.1 (GHSA-mrwp-f3q8-3g9p, HIGH) [V] — corrigé par #341
+- Avis publié après le dernier run de `main` ; Security Scan échouait sur
+  toute PR. Passage à 1.16.2 (lockfile seul).
