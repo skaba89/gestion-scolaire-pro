@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import jwt
 from fastapi import HTTPException
@@ -112,14 +113,56 @@ async def websocket_endpoint(
     pubsub = await redis_client.subscribe(f"tenant:{tenant_id}")
 
     try:
-        while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True)
-            if message:
-                await websocket.send_text(message["data"])
-    except WebSocketDisconnect:
-        logger.info("WebSocket disconnected: user=%s tenant=%s", user_id, tenant_id)
+        await _relay_tenant_events(websocket, pubsub, tenant_id=tenant_id, user_id=user_id)
     finally:
         try:
             await pubsub.unsubscribe(f"tenant:{tenant_id}")
-        except Exception:
-            pass
+            await pubsub.aclose()
+        except Exception as exc:
+            logger.warning("WebSocket: Redis unsubscribe failed (tenant=%s): %s", tenant_id, exc)
+
+
+# Attente maximale d'un message Redis par itération : borne le coût d'une
+# connexion inactive (quelques réveils par seconde au lieu d'une boucle à vide).
+_PUBSUB_POLL_TIMEOUT_SECONDS = 1.0
+
+
+async def _relay_tenant_events(websocket, pubsub, *, tenant_id: str, user_id: str) -> None:
+    """Relaie les événements Redis du tenant vers la socket jusqu'à la
+    déconnexion du client.
+
+    Deux tâches concurrentes : l'une lit la socket (seul moyen de voir la
+    déconnexion — l'endpoint ne reçoit rien d'autre du client), l'autre
+    relaie Redis avec une attente bornée. La première qui se termine arrête
+    l'autre. Auparavant la socket n'était jamais lue : une connexion fermée
+    laissait sa boucle tourner sans fin, à pleine vitesse.
+    """
+
+    async def _watch_client() -> None:
+        while True:
+            event = await websocket.receive()
+            if event.get("type") == "websocket.disconnect":
+                return
+
+    async def _forward_events() -> None:
+        while True:
+            message = await pubsub.get_message(
+                ignore_subscribe_messages=True, timeout=_PUBSUB_POLL_TIMEOUT_SECONDS
+            )
+            if message:
+                await websocket.send_text(message["data"])
+
+    watch = asyncio.create_task(_watch_client())
+    forward = asyncio.create_task(_forward_events())
+    try:
+        done, _ = await asyncio.wait({watch, forward}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        for task in (watch, forward):
+            task.cancel()
+        await asyncio.gather(watch, forward, return_exceptions=True)
+
+    for task in done:
+        exc = task.exception()
+        if exc is not None and not isinstance(exc, WebSocketDisconnect):
+            raise exc
+    logger.info("WebSocket disconnected: user=%s tenant=%s", user_id, tenant_id)
