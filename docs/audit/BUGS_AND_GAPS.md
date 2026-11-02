@@ -73,11 +73,22 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 
 ## D. Exploitation (P0/P1)
 
-### OPS-01 — Restauration non outillée [V]
-- Sauvegarde quotidienne + copie chiffrée B2 en place (`deploy/vps/`), mais
-  aucun script de restauration versionné ni exercice reproductible journalisé.
-- Correctif : script de restauration vers une base isolée + contrôles
-  (comptage par table, RLS active, migration à la head) + procédure datée.
+### OPS-01 — Restauration de la production non prouvée de bout en bout [V] (corrigé le 2026-11-02)
+- **Correction de la première version de ce document**, qui affirmait à tort
+  qu'aucun script de restauration n'était versionné. Existent bien :
+  `scripts/restore-database.sh` ; un exercice en CI (`ci.yml`, job PostgreSQL :
+  `backup-database.sh` → `restore-database.sh --target-db
+  schoolflow_restore_drill`) ; la procédure manuelle « Restaurer depuis
+  Backblaze B2 » de `deploy/vps/README.md`.
+- Manques réels : l'exercice CI restaure un dump `pg_dump -Fc` produit par
+  le script du dépôt, **pas** le format de production (`.sql.gz` du service
+  `db-backup`, chiffré par rclone sur B2) ; il ne vérifie que
+  `SELECT count(*) FROM alembic_version` (ni volumes par table, ni RLS, ni
+  rôle runtime) ; aucun exercice de restauration depuis B2 n'est journalisé
+  avec sa date et sa durée (RTO réel inconnu).
+- Correctif : exercice périodique depuis B2 sur base isolée, contrôles
+  (comptages, RLS `FORCE`, head Alembic, connexion sous `schoolflow_app`),
+  durée mesurée et consignée.
 
 ### OPS-02 — Mono-VPS [V]
 - Aucune redondance ; RPO ≈ 24 h (dump quotidien), RTO non mesuré.
