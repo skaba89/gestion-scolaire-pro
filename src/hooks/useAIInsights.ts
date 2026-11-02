@@ -1,220 +1,161 @@
 /**
- * useAIInsights Hook
- * Sovereign implementation — uses the FastAPI backend analytics endpoints
- * instead of direct Supabase queries.
+ * useAIInsights — indicateurs de la page « Insights IA », lus sur les
+ * endpoints d'analyse du backend.
+ *
+ * Règle (audit 2026-11-02, SIM-AI-01) : rien n'est inventé. Les anciennes
+ * versions fabriquaient des tendances sur 6 mois par tirage aléatoire, une
+ * présence de 100 % par élève, des « confiances » de 70 à 88 %, un taux de
+ * réussite plancher de 60 % et des impacts chiffrés (« +25 % ») sans aucune
+ * mesure. Une valeur que l'API ne fournit pas est null et s'affiche comme
+ * indisponible.
  */
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
-import { StudentRisk, Prediction, Recommendation, TrendData } from "@/types/ai";
-import { format, subMonths } from "date-fns";
-import { fr } from "date-fns/locale";
+import type { Prediction, Recommendation, SchoolKpis, StudentRisk } from "@/types/ai";
+
+/** Clés React Query de la page — « Actualiser » invalide exactement celles-ci. */
+export const AI_INSIGHTS_QUERY_KEYS = ["students-at-risk", "academic-kpis", "operational-kpis"] as const;
+
+interface AtRiskRow {
+    student_id: string;
+    first_name: string;
+    last_name: string;
+    avg_grade: number | null;
+    grade_count: number;
+    risk_level: "critical" | "high" | "moderate" | "low";
+}
+
+interface AtRiskResponse {
+    students: AtRiskRow[];
+    summary: { total: number; critical: number; high: number; moderate: number; low: number };
+}
+
+interface AcademicKpisResponse {
+    overallSuccessRate?: number;
+    totalStudents?: number;
+    averageGrade?: number;
+}
+
+interface OperationalKpisResponse {
+    studentAttendanceRate?: number;
+}
+
+const RISK_SCORE: Record<AtRiskRow["risk_level"], number> = { critical: 75, high: 55, moderate: 30, low: 10 };
+
+function numberOrNull(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
 
 export function useAIInsights() {
     const { tenant } = useTenant();
+    const { t } = useTranslation();
+    const enabled = !!tenant?.id;
 
-    // 1. Fetch students-at-risk from the sovereign analytics endpoint
-    const { data: riskData } = useQuery({
+    const riskQuery = useQuery({
         queryKey: ["students-at-risk", tenant?.id],
-        queryFn: async () => {
-            if (!tenant?.id) return { students: [], summary: { total: 0, critical: 0, high: 0, moderate: 0, low: 0 } };
-            const { data } = await apiClient.get("/analytics/students-at-risk/");
-            return data;
-        },
-        enabled: !!tenant?.id,
+        queryFn: async () => (await apiClient.get<AtRiskResponse>("/analytics/students-at-risk/")).data,
+        enabled,
     });
-
-    // 2. Fetch academic KPIs (overall avg grade, success rate, etc.)
-    const { data: academicKpis } = useQuery({
+    const academicQuery = useQuery({
         queryKey: ["academic-kpis", tenant?.id],
-        queryFn: async () => {
-            if (!tenant?.id) return null;
-            const { data } = await apiClient.get("/analytics/academic-kpis/");
-            return data;
-        },
-        enabled: !!tenant?.id,
+        queryFn: async () => (await apiClient.get<AcademicKpisResponse>("/analytics/academic-kpis/")).data,
+        enabled,
     });
-
-    // 3. Fetch operational KPIs (attendance rate, enrollment count, etc.)
-    const { data: operationalKpis } = useQuery({
+    const operationalQuery = useQuery({
         queryKey: ["operational-kpis", tenant?.id],
-        queryFn: async () => {
-            if (!tenant?.id) return null;
-            const { data } = await apiClient.get("/analytics/operational-kpis/");
-            return data;
-        },
-        enabled: !!tenant?.id,
+        queryFn: async () => (await apiClient.get<OperationalKpisResponse>("/analytics/operational-kpis/")).data,
+        enabled,
     });
 
-    // 4. Fetch dashboard KPIs for classrooms list
-    const { data: dashboardKpis } = useQuery({
-        queryKey: ["dashboard-kpis", tenant?.id],
-        queryFn: async () => {
-            if (!tenant?.id) return null;
-            const { data } = await apiClient.get("/analytics/dashboard-kpis/");
-            return data;
-        },
-        enabled: !!tenant?.id,
-    });
-
-    // 2. Derive Data
-    const calculateStudentRisks = (): StudentRisk[] => {
-        if (!riskData?.students) return [];
-        return riskData.students.map((s: any) => {
-            const riskLevel: "high" | "medium" | "low" =
-                s.risk_level === 'critical' ? "high" :
-                s.risk_level === 'high' ? "high" :
-                s.risk_level === 'moderate' ? "medium" : "low";
-
-            const riskScore =
-                s.risk_level === 'critical' ? 75 :
-                s.risk_level === 'high' ? 55 :
-                s.risk_level === 'moderate' ? 30 : 10;
-
+    const studentRisks: StudentRisk[] = (riskQuery.data?.students ?? [])
+        .map((s): StudentRisk => {
+            const avg = Math.round((s.avg_grade ?? 0) * 10) / 10;
             const factors: string[] = [];
-            if (s.avg_grade < 8) factors.push("Moyenne très faible");
-            else if (s.avg_grade < 10) factors.push("Moyenne insuffisante");
-            if (s.grade_count === 0) factors.push("Aucune note enregistrée");
-
+            if (s.grade_count === 0) factors.push(t("aiInsights.factors.noGrades"));
+            else if (avg < 8) factors.push(t("aiInsights.factors.veryLowAverage"));
+            else if (avg < 10) factors.push(t("aiInsights.factors.lowAverage"));
             return {
                 id: s.student_id,
                 name: `${s.first_name} ${s.last_name}`,
                 classroom: "",
-                riskLevel,
-                riskScore,
+                riskLevel: s.risk_level === "critical" || s.risk_level === "high" ? "high" : s.risk_level === "moderate" ? "medium" : "low",
+                riskScore: RISK_SCORE[s.risk_level] ?? 0,
                 factors,
-                avgGrade: Math.round(s.avg_grade || 0),
-                attendanceRate: 100, // Not provided by the students-at-risk endpoint; use operational KPI fallback
+                avgGrade: avg,
+                attendanceRate: null,
             };
-        }).sort((a: StudentRisk, b: StudentRisk) => b.riskScore - a.riskScore);
+        })
+        .sort((a, b) => b.riskScore - a.riskScore);
+
+    const kpis: SchoolKpis = {
+        averageGrade: numberOrNull(academicQuery.data?.averageGrade),
+        attendanceRate: numberOrNull(operationalQuery.data?.studentAttendanceRate),
+        successRate: numberOrNull(academicQuery.data?.overallSuccessRate),
+        totalStudents: numberOrNull(academicQuery.data?.totalStudents),
     };
 
-    const calculatePredictions = (risks: StudentRisk[]): Prediction[] => {
-        const avgGradeOverall = academicKpis?.averageGrade || 0;
-        const attendanceRateOverall = operationalKpis?.studentAttendanceRate || 0;
-        const atRiskCount = risks.filter((s) => s.riskLevel === "high").length;
+    const unavailable = t("aiInsights.unavailable");
+    const highRiskCount = studentRisks.filter((s) => s.riskLevel === "high").length;
 
-        return [
-            {
-                type: "grades",
-                title: "Moyenne générale prévue",
-                description: "Basé sur les tendances actuelles des notes",
-                confidence: 75,
-                trend: avgGradeOverall > 12 ? "up" : avgGradeOverall < 10 ? "down" : "stable",
-                value: `${Math.round(avgGradeOverall)}/20`,
-            },
-            {
-                type: "attendance",
-                title: "Taux de présence prévu",
-                description: "Projection pour le prochain mois",
-                confidence: 82,
-                trend: attendanceRateOverall > 85 ? "up" : attendanceRateOverall < 75 ? "down" : "stable",
-                value: `${Math.round(attendanceRateOverall)}%`,
-            },
-            {
-                type: "risk",
-                title: "Étudiants à risque",
-                description: "Nécessitant une attention particulière",
-                confidence: 88,
-                trend: atRiskCount > 5 ? "down" : "stable",
-                value: `${atRiskCount} étudiants`,
-            },
-            {
-                type: "success",
-                title: "Taux de réussite estimé",
-                description: "Projection de fin d'année",
-                confidence: 70,
-                trend: avgGradeOverall > 11 ? "up" : "stable",
-                value: `${Math.round(Math.max(academicKpis?.overallSuccessRate || 60, 60))}%`,
-            },
-        ];
-    };
+    const predictions: Prediction[] = [
+        {
+            type: "grades",
+            title: t("aiInsights.indicators.averageGrade"),
+            description: t("aiInsights.indicators.averageGradeHint"),
+            value: kpis.averageGrade === null ? unavailable : `${kpis.averageGrade.toFixed(1)}/20`,
+        },
+        {
+            type: "attendance",
+            title: t("aiInsights.indicators.attendance"),
+            description: t("aiInsights.indicators.attendanceHint"),
+            value: kpis.attendanceRate === null ? unavailable : `${Math.round(kpis.attendanceRate)} %`,
+        },
+        {
+            type: "risk",
+            title: t("aiInsights.indicators.atRisk"),
+            description: t("aiInsights.indicators.atRiskHint"),
+            value: riskQuery.data ? String(highRiskCount) : unavailable,
+        },
+        {
+            type: "success",
+            title: t("aiInsights.indicators.successRate"),
+            description: t("aiInsights.indicators.successRateHint"),
+            value: kpis.successRate === null ? unavailable : `${Math.round(kpis.successRate)} %`,
+        },
+    ];
 
-    const calculateRecommendations = (risks: StudentRisk[]): Recommendation[] => {
-        const highRiskCount = risks.filter((s) => s.riskLevel === "high").length;
-        const lowGradeStudents = risks.filter((s) => s.avgGrade < 50).length;
-
-        const recommendations: Recommendation[] = [];
-
-        if (highRiskCount > 0) {
-            recommendations.push({
-                id: "1",
-                category: "Intervention",
-                title: "Mettre en place un suivi personnalisé",
-                description: `${highRiskCount} étudiant(s) présentent des signes de difficulté. Envisagez des sessions de tutorat.`,
-                priority: "high",
-                impact: "Réduction du taux d'échec de 30%",
-            });
-        }
-
-        const lowAttendance = operationalKpis?.studentAttendanceRate || 100;
-        if (lowAttendance < 80) {
-            recommendations.push({
-                id: "2",
-                category: "Présence",
-                title: "Renforcer le suivi des absences",
-                description: `Le taux de présence global est de ${Math.round(lowAttendance)}%.`,
-                priority: "high",
-                impact: "Amélioration de 15% du taux de présence",
-            });
-        }
-
+    // Suggestions fondées uniquement sur les chiffres ci-dessus ; aucun
+    // impact chiffré n'est promis (rien ne le mesure).
+    const recommendations: Recommendation[] = [];
+    if (highRiskCount > 0) {
         recommendations.push({
-            id: "4",
-            category: "Engagement",
-            title: "Utiliser la gamification",
-            description: "Activez le système de points et badges pour motiver les étudiants.",
-            priority: "medium",
-            impact: "Augmentation de 25% de l'engagement",
+            id: "follow-up",
+            category: t("aiInsights.recommendations.interventionCategory"),
+            title: t("aiInsights.recommendations.followUpTitle"),
+            description: t("aiInsights.recommendations.followUpBody", { count: highRiskCount }),
+            priority: "high",
         });
-
-        return recommendations;
-    };
-
-    const calculateTrends = (risks: StudentRisk[]): TrendData[] => {
-        const months = [];
-        const baseGrade = academicKpis?.averageGrade || 10;
-        const baseAttendance = operationalKpis?.studentAttendanceRate || 85;
-
-        for (let i = 5; i >= 0; i--) {
-            const date = subMonths(new Date(), i);
-            months.push({
-                month: format(date, "MMM", { locale: fr }),
-                moyenne: Math.round(baseGrade + (Math.random() - 0.5) * 2 + (5 - i) * 0.3),
-                presence: Math.round(baseAttendance + (Math.random() - 0.5) * 3 + (5 - i) * 0.2),
-                risques: Math.max(0, Math.round(risks.filter(s => s.riskLevel === "high").length + (Math.random() - 0.7) * 3)),
-            });
-        }
-        return months;
-    };
-
-    const studentRisks = calculateStudentRisks();
-    const predictions = calculatePredictions(studentRisks);
-    const recommendations = calculateRecommendations(studentRisks);
-    const trendData = calculateTrends(studentRisks);
-
-    // Build raw shape for backward compatibility
-    const raw = {
-        students: riskData?.students?.map((s: any) => ({
-            id: s.student_id,
-            first_name: s.first_name,
-            last_name: s.last_name,
-            enrollments: [],
-        })) || [],
-        grades: [],
-        attendance: [],
-    };
-
-    // classrooms derived from dashboard KPIs
-    const classrooms: { id: string; name: string }[] = [];
+    }
+    if (kpis.attendanceRate !== null && kpis.attendanceRate < 80) {
+        recommendations.push({
+            id: "attendance",
+            category: t("aiInsights.recommendations.attendanceCategory"),
+            title: t("aiInsights.recommendations.attendanceTitle"),
+            description: t("aiInsights.recommendations.attendanceBody", { rate: Math.round(kpis.attendanceRate) }),
+            priority: "high",
+        });
+    }
 
     return {
         studentRisks,
         predictions,
         recommendations,
-        trendData,
-        classrooms,
-        raw,
+        kpis,
+        isLoading: riskQuery.isLoading || academicQuery.isLoading || operationalQuery.isLoading,
+        isError: riskQuery.isError || academicQuery.isError || operationalQuery.isError,
+        classrooms: [] as { id: string; name: string }[],
     };
 }

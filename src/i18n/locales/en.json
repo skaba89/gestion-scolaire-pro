@@ -1654,13 +1654,57 @@
     "refreshSuccess": "Analysis updated",
     "refreshError": "Error refreshing analysis",
     "pageTitle": "AI Insights",
-    "pageSubtitle": "Predictive analytics and smart recommendations",
+    "pageSubtitle": "Current school indicators and students in difficulty",
     "tabRisks": "Risks",
     "tabRecommendations": "Recommendations",
     "tabRecommendationsShort": "Tips",
     "tabAnalysis": "Analysis",
     "tabAssistant": "AI Assistant",
-    "tabAssistantShort": "AI"
+    "tabAssistantShort": "AI",
+    "unavailable": "Not available",
+    "loadError": "Some indicators could not be loaded: they are shown as not available.",
+    "factors": {
+      "noGrades": "No grade recorded",
+      "veryLowAverage": "Very low average",
+      "lowAverage": "Insufficient average"
+    },
+    "indicators": {
+      "averageGrade": "Overall average",
+      "averageGradeHint": "Current average of all recorded grades",
+      "attendance": "Attendance rate",
+      "attendanceHint": "Recorded student attendance",
+      "atRisk": "High-risk students",
+      "atRiskHint": "Average below 50% of the grading scale",
+      "successRate": "Pass rate",
+      "successRateHint": "Grades at least half of the grading scale"
+    },
+    "recommendations": {
+      "interventionCategory": "Follow-up",
+      "followUpTitle": "Set up individual follow-up",
+      "followUpBody": "High-risk students: {{count}}. Consider tutoring and talking with families.",
+      "attendanceCategory": "Attendance",
+      "attendanceTitle": "Strengthen absence follow-up",
+      "attendanceBody": "Overall attendance rate is {{rate}}%."
+    },
+    "priority": {
+      "high": "High priority",
+      "medium": "Medium priority",
+      "low": "Low priority"
+    },
+    "student": {
+      "average": "Average",
+      "attendance": "Attendance"
+    },
+    "charts": {
+      "empty": "No student flagged as in difficulty.",
+      "levelsTitle": "Flagged students by risk level",
+      "levelsDescription": "Students whose average is below 60% of the grading scale",
+      "levelHigh": "High risk",
+      "levelMedium": "Moderate risk",
+      "bandsTitle": "Averages of flagged students",
+      "bandsDescription": "Distribution by average band (out of 20)",
+      "studentsSeries": "Students"
+    }
   },
   "admissions": {
     "loadError": "Error loading applications",

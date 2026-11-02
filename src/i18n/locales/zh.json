@@ -1612,13 +1612,57 @@
     "refreshSuccess": "分析已更新",
     "refreshError": "刷新分析时出错",
     "pageTitle": "AI 洞察",
-    "pageSubtitle": "预测分析与智能建议",
+    "pageSubtitle": "本校当前指标及学习困难学生",
     "tabRisks": "风险",
     "tabRecommendations": "建议",
     "tabRecommendationsShort": "建议",
     "tabAnalysis": "分析",
     "tabAssistant": "AI 助手",
-    "tabAssistantShort": "AI"
+    "tabAssistantShort": "AI",
+    "unavailable": "暂无数据",
+    "loadError": "部分指标无法加载，显示为暂无数据。",
+    "factors": {
+      "noGrades": "尚无成绩记录",
+      "veryLowAverage": "平均分很低",
+      "lowAverage": "平均分不足"
+    },
+    "indicators": {
+      "averageGrade": "总平均分",
+      "averageGradeHint": "所有已录入成绩的当前平均分",
+      "attendance": "出勤率",
+      "attendanceHint": "已记录的学生出勤",
+      "atRisk": "高风险学生",
+      "atRiskHint": "平均分低于满分的 50%",
+      "successRate": "及格率",
+      "successRateHint": "不低于满分一半的成绩"
+    },
+    "recommendations": {
+      "interventionCategory": "跟进",
+      "followUpTitle": "建立个性化跟进",
+      "followUpBody": "高风险学生：{{count}} 名。可考虑辅导并与家长沟通。",
+      "attendanceCategory": "出勤",
+      "attendanceTitle": "加强缺勤跟进",
+      "attendanceBody": "总体出勤率为 {{rate}}%。"
+    },
+    "priority": {
+      "high": "高优先级",
+      "medium": "中优先级",
+      "low": "低优先级"
+    },
+    "student": {
+      "average": "平均分",
+      "attendance": "出勤"
+    },
+    "charts": {
+      "empty": "没有被标记为学习困难的学生。",
+      "levelsTitle": "按风险等级划分的被标记学生",
+      "levelsDescription": "平均分低于满分 60% 的学生",
+      "levelHigh": "高风险",
+      "levelMedium": "中等风险",
+      "bandsTitle": "被标记学生的平均分",
+      "bandsDescription": "按平均分区间分布（满分 20）",
+      "studentsSeries": "学生"
+    }
   },
   "admissions": {
     "loadError": "加载申请时出错",

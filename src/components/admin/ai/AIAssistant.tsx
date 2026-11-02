@@ -9,17 +9,30 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { useTenant } from "@/contexts/TenantContext";
-import { StudentRisk } from "@/types/ai";
+import type { SchoolKpis, StudentRisk } from "@/types/ai";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 interface AIAssistantProps {
     studentRisks: StudentRisk[];
-    totalStudents: number;
-    avgGrade: number;
-    attendanceRate: number;
+    kpis: SchoolKpis;
 }
 
-export function AIAssistant({ studentRisks, totalStudents, avgGrade, attendanceRate }: AIAssistantProps) {
+/** Contexte transmis au modèle : uniquement des chiffres réellement fournis
+ * par l'API ; une donnée absente est déclarée « non disponible », jamais 0. */
+function buildSchoolContext(studentRisks: StudentRisk[], kpis: SchoolKpis): string {
+    const na = "non disponible";
+    return `
+Données de l'établissement:
+- Nombre total d'étudiants inscrits: ${kpis.totalStudents ?? na}
+- Étudiants à risque élevé: ${studentRisks.filter(s => s.riskLevel === "high").length}
+- Moyenne générale: ${kpis.averageGrade === null ? na : `${kpis.averageGrade.toFixed(1)}/20`}
+- Taux de présence global: ${kpis.attendanceRate === null ? na : `${Math.round(kpis.attendanceRate)} %`}
+- Taux de réussite (notes ≥ moitié du barème): ${kpis.successRate === null ? na : `${Math.round(kpis.successRate)} %`}
+N'invente aucun chiffre absent de cette liste.
+    `;
+}
+
+export function AIAssistant({ studentRisks, kpis }: AIAssistantProps) {
     const { tenant } = useTenant();
     const { studentsLabel } = useStudentLabel();
     const [aiQuestion, setAiQuestion] = useState("");
@@ -31,14 +44,7 @@ export function AIAssistant({ studentRisks, totalStudents, avgGrade, attendanceR
     const handleAskAI = () => {
         if (!aiQuestion.trim() || isStreaming) return;
 
-        const context = `
-Données de l'établissement:
-- Nombre total d'étudiants: ${totalStudents}
-- Étudiants à risque élevé: ${studentRisks.filter(s => s.riskLevel === "high").length}
-- Moyenne générale: ${avgGrade}%
-- Taux de présence global: ${attendanceRate}%
-- Classes avec le plus de risques: ${studentRisks.filter(s => s.riskLevel === "high").map(s => s.classroom).filter((v, i, a) => a.indexOf(v) === i).slice(0, 3).join(", ") || "Aucune"}
-    `;
+        const context = buildSchoolContext(studentRisks, kpis);
 
         sendAIMessage(aiQuestion, {
             tenantId: tenant?.id,
@@ -57,13 +63,7 @@ Données de l'établissement:
 
         // Wait a microtask to let state update if we were relying on it, but here we pass value directly.
         // Re-using logic from handleAskAI but with param.
-        const context = `
-Données de l'établissement:
-- Nombre total d'étudiants: ${totalStudents}
-- Étudiants à risque élevé: ${studentRisks.filter(s => s.riskLevel === "high").length}
-- Moyenne générale: ${avgGrade}%
-- Taux de présence global: ${attendanceRate}%
-    `;
+        const context = buildSchoolContext(studentRisks, kpis);
 
         sendAIMessage(question, {
             tenantId: tenant?.id,

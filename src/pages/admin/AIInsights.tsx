@@ -1,7 +1,7 @@
 ﻿import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
-import { useAIInsights } from "@/hooks/useAIInsights";
+import { AI_INSIGHTS_QUERY_KEYS, useAIInsights } from "@/hooks/useAIInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Brain, AlertTriangle, Target, LineChart, Sparkles, Lightbulb } from "lucide-react";
 import { AIStats } from "@/components/admin/ai/AIStats";
@@ -19,33 +19,26 @@ export default function AIInsights() {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const { studentRisks, predictions, recommendations, classrooms, raw } = useAIInsights();
+  const { studentRisks, predictions, recommendations, classrooms, kpis, isError } = useAIInsights();
 
+  // Invalide les requêtes réellement utilisées par la page (les anciennes
+  // clés n'existaient pas : « Analyse mise à jour » s'affichait sans rien
+  // recharger).
   const handleRefresh = () => {
     setIsAnalyzing(true);
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["students-for-ai"] }),
-      queryClient.invalidateQueries({ queryKey: ["grades-for-ai"] }),
-      queryClient.invalidateQueries({ queryKey: ["attendance-for-ai"] }),
-      queryClient.invalidateQueries({ queryKey: ["classrooms"] }),
-    ]).then(() => {
-      setIsAnalyzing(false);
-      toast.success(t("aiInsights.refreshSuccess"));
-    }).catch(() => {
-      setIsAnalyzing(false);
-      toast.error(t("aiInsights.refreshError"));
-    });
+    Promise.all(
+      AI_INSIGHTS_QUERY_KEYS.map((key) => queryClient.refetchQueries({ queryKey: [key], type: "active" })),
+    )
+      .then(() => {
+        const failed = AI_INSIGHTS_QUERY_KEYS.some((key) =>
+          queryClient.getQueryCache().findAll({ queryKey: [key] }).some((q) => q.state.status === "error"),
+        );
+        if (failed) toast.error(t("aiInsights.refreshError"));
+        else toast.success(t("aiInsights.refreshSuccess"));
+      })
+      .catch(() => toast.error(t("aiInsights.refreshError")))
+      .finally(() => setIsAnalyzing(false));
   };
-
-  const avgGrade = raw.grades.length > 0
-    ? Math.round(raw.grades.reduce((sum: number, g: any) => sum + ((g.score / (g.assessment?.max_score || 20)) * 100), 0) / raw.grades.length)
-    : 0;
-
-  const presentCount = raw.attendance.filter((a: any) => a.status === "PRESENT" || a.status === "present").length;
-  const attendanceRate = raw.attendance.length > 0
-    ? Math.round((presentCount / raw.attendance.length) * 100)
-    : 0;
-
 
   return (
     <PlanGate minPlan="standard">
@@ -68,10 +61,14 @@ export default function AIInsights() {
         />
       </div>
 
+      {isError && (
+        <p role="alert" className="text-sm text-destructive">{t("aiInsights.loadError")}</p>
+      )}
+
       <AIStats predictions={predictions} />
 
       <Tabs defaultValue="risks" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="risks" className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
             <span className="hidden sm:inline">{t("aiInsights.tabRisks")}</span>
@@ -103,16 +100,11 @@ export default function AIInsights() {
         </TabsContent>
 
         <TabsContent value="analysis">
-          <AICharts studentRisks={studentRisks} classrooms={classrooms} />
+          <AICharts studentRisks={studentRisks} />
         </TabsContent>
 
         <TabsContent value="assistant">
-          <AIAssistant
-            studentRisks={studentRisks}
-            totalStudents={raw.students.length}
-            avgGrade={avgGrade}
-            attendanceRate={attendanceRate}
-          />
+          <AIAssistant studentRisks={studentRisks} kpis={kpis} />
         </TabsContent>
       </Tabs>
     </div>

@@ -529,3 +529,17 @@ ce fichier — pas d'un document de 2025 non révisé.
   écrits par le serveur, page branchée sur l'API et traduite (5 langues).
   Comportement modifié : un 6e appareil n'est plus refusé en 429. Voir
   `docs/SECURITY_MODEL.md` § 2 et § 6.
+- **2026-11-02 — « Insights IA » : plus aucune donnée inventée (SIM-AI-01 de
+  `docs/audit/`).** La page affichait des tendances sur 6 mois tirées au
+  hasard (non affichées mais calculées), deux axes de radar aléatoires, une
+  présence de 100 % pour chaque élève, des « confiances » de 70 à 88 %, un
+  taux de réussite plancher de 60 %, des impacts chiffrés (« +25 % de
+  l'engagement ») sans mesure, un bouton « Appliquer » sans action, des
+  moyennes sur 20 affichées en pourcentage, et « Actualiser » invalidait des
+  requêtes inexistantes avant d'annoncer « Analyse mise à jour ». L'assistant
+  IA recevait « moyenne 0 % / présence 0 % » comme faits. Désormais :
+  indicateurs actuels lus sur l'API (« Non disponible » sinon), graphiques
+  sur les seuls élèves signalés, contexte IA sans chiffre absent, 5 langues.
+  Reste (backend) : les endpoints `/analytics/*-kpis/` renvoient des zéros
+  en cas d'erreur au lieu d'échouer, et `students-at-risk` ne fournit ni
+  classe ni présence par élève.
