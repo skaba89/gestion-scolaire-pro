@@ -72,7 +72,7 @@ async def websocket_endpoint(
     # session, or a role since revoked in the DB kept authenticating here
     # with none of those checks applied.
     try:
-        await _evaluate_revocation(token_sub, payload.get("jti"), payload.get("tv", 0))
+        await _evaluate_revocation(token_sub, payload.get("jti"), payload.get("tv", 0), payload.get("sid"))
     except HTTPException:
         await websocket.close(code=4001, reason="Token has been revoked")
         return

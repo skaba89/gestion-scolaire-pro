@@ -714,6 +714,12 @@ async def verify_login_mfa(request: Request, body: MFALoginVerifyRequest, db: Se
                 code_ok = True
 
         if not code_ok:
+            from app.utils.audit import AUTH_MFA_FAILED, record_auth_event
+            record_auth_event(
+                db, request=request, user_id=str(user.id),
+                tenant_id=str(user.tenant_id) if user.tenant_id else None,
+                action=AUTH_MFA_FAILED, severity="WARNING", details={"step": "login"},
+            )
             return {"valid": False, "message": "Code invalide"}
     except HTTPException:
         raise
@@ -723,7 +729,7 @@ async def verify_login_mfa(request: Request, body: MFALoginVerifyRequest, db: Se
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
     roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
-    return await _issue_full_session_token(db, user, roles)
+    return await _issue_full_session_token(db, user, roles, request)
 
 
 # ─── Forced MFA enrollment at login ─────────────────────────────────────────
@@ -847,7 +853,7 @@ async def setup_verify_totp(request: Request, body: MFASetupVerifyRequest, db: S
 
     logger.info("MFA enabled through forced enrollment at login for user %s", user_id)
     roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user.id).all()]
-    return await _issue_full_session_token(db, user, roles)
+    return await _issue_full_session_token(db, user, roles, request)
 
 
 @router.get("/status/")

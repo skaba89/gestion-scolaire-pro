@@ -126,3 +126,93 @@ def log_platform_audit(
             db.flush()
     except Exception as e:
         _report_audit_failure(e, action, target_type)
+
+
+# ─── Événements d'authentification (source de vérité serveur) ──────────────
+#
+# Écrits par le serveur uniquement (jamais par le navigateur : les entrées
+# client sont préfixées CLIENT_, voir endpoints/core/audit.py). Validés
+# (commit) immédiatement : la trace d'un échec de connexion doit survivre à
+# la 401 levée juste après, que get_db() annule.
+AUTH_LOGIN_SUCCESS = "LOGIN_SUCCESS"
+AUTH_LOGIN_FAILED = "LOGIN_FAILED"
+AUTH_MFA_FAILED = "MFA_FAILED"
+AUTH_LOGOUT = "LOGOUT"
+AUTH_LOGOUT_ALL = "LOGOUT_ALL"
+AUTH_SESSION_REVOKED = "SESSION_REVOKED"
+AUTH_SESSION_EVICTED = "SESSION_EVICTED"
+AUTH_PASSWORD_CHANGED = "PASSWORD_CHANGED"
+
+AUTH_EVENT_ACTIONS = (
+    AUTH_LOGIN_SUCCESS, AUTH_LOGIN_FAILED, AUTH_MFA_FAILED, AUTH_LOGOUT,
+    AUTH_LOGOUT_ALL, AUTH_SESSION_REVOKED, AUTH_SESSION_EVICTED, AUTH_PASSWORD_CHANGED,
+)
+
+
+def record_auth_event(
+    db: Session,
+    *,
+    request,
+    user_id: str,
+    tenant_id: Optional[str],
+    action: str,
+    severity: str = "INFO",
+    details: Optional[dict] = None,
+    actor_user_id: Optional[str] = None,
+) -> None:
+    """Journalise un événement d'authentification et le valide aussitôt.
+
+    - ``user_id`` : le compte concerné (resource_id) ; ``actor_user_id`` :
+      qui agit, s'il diffère (administrateur révoquant la session d'un autre).
+    - Compte d'établissement → ``audit_logs`` sous le contexte RLS de son
+      tenant ; compte plateforme (tenant NULL) → ``platform_audit_logs``.
+    - Un échec d'écriture est signalé (ERROR + Sentry) sans bloquer
+      l'authentification : la sécurité du compte ne dépend pas du journal.
+    """
+    from app.core.client_ip import get_client_ip
+    from app.core.database import switch_tenant_context
+
+    ip = None
+    user_agent = None
+    if request is not None:
+        try:
+            ip = get_client_ip(request)
+        except Exception as exc:  # adresse indéterminable : l'événement reste utile
+            logger.warning("Auth audit: client IP unavailable: %s", exc)
+        user_agent = (request.headers.get("user-agent") or "")[:512] or None
+
+    actor = str(actor_user_id or user_id)
+    payload = dict(details or {})
+    try:
+        if tenant_id:
+            if not settings.is_sqlite:
+                switch_tenant_context(db, str(tenant_id))
+            log_audit(
+                db,
+                user_id=actor,
+                tenant_id=tenant_id,
+                action=action,
+                resource_type="AUTH",
+                resource_id=str(user_id),
+                details=payload or None,
+                ip_address=ip,
+                severity=severity,
+                user_agent=user_agent,
+            )
+        else:
+            payload.setdefault("severity", severity)
+            if user_agent:
+                payload.setdefault("user_agent", user_agent)
+            log_platform_audit(
+                db,
+                actor_user_id=actor,
+                action=action,
+                target_type="AUTH",
+                target_id=str(user_id),
+                details=payload,
+                ip_address=ip,
+            )
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        _report_audit_failure(exc, action, "AUTH")
