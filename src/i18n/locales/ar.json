@@ -1577,13 +1577,57 @@
     "refreshSuccess": "تم تحديث التحليل",
     "refreshError": "خطأ أثناء تحديث التحليل",
     "pageTitle": "رؤى الذكاء الاصطناعي",
-    "pageSubtitle": "التحليل التنبؤي والتوصيات الذكية",
+    "pageSubtitle": "المؤشرات الحالية للمؤسسة والتلاميذ المتعثرون",
     "tabRisks": "المخاطر",
     "tabRecommendations": "التوصيات",
     "tabRecommendationsShort": "نصائح",
     "tabAnalysis": "التحليل",
     "tabAssistant": "مساعد الذكاء الاصطناعي",
-    "tabAssistantShort": "ذكاء اصطناعي"
+    "tabAssistantShort": "ذكاء اصطناعي",
+    "unavailable": "غير متوفر",
+    "loadError": "تعذّر تحميل بعض المؤشرات: تظهر على أنها غير متوفرة.",
+    "factors": {
+      "noGrades": "لا توجد أي علامة مسجلة",
+      "veryLowAverage": "معدل ضعيف جدًا",
+      "lowAverage": "معدل غير كافٍ"
+    },
+    "indicators": {
+      "averageGrade": "المعدل العام",
+      "averageGradeHint": "المعدل الحالي لجميع العلامات المسجلة",
+      "attendance": "نسبة الحضور",
+      "attendanceHint": "حضور التلاميذ المسجل",
+      "atRisk": "تلاميذ في خطر مرتفع",
+      "atRiskHint": "معدل أقل من 50% من سلم التنقيط",
+      "successRate": "نسبة النجاح",
+      "successRateHint": "علامات تساوي نصف سلم التنقيط على الأقل"
+    },
+    "recommendations": {
+      "interventionCategory": "متابعة",
+      "followUpTitle": "وضع متابعة فردية",
+      "followUpBody": "عدد التلاميذ في خطر مرتفع: {{count}}. فكّر في الدعم المدرسي والتواصل مع الأسر.",
+      "attendanceCategory": "الحضور",
+      "attendanceTitle": "تعزيز متابعة الغيابات",
+      "attendanceBody": "نسبة الحضور العامة {{rate}}%."
+    },
+    "priority": {
+      "high": "أولوية عالية",
+      "medium": "أولوية متوسطة",
+      "low": "أولوية منخفضة"
+    },
+    "student": {
+      "average": "المعدل",
+      "attendance": "الحضور"
+    },
+    "charts": {
+      "empty": "لا يوجد أي تلميذ متعثر.",
+      "levelsTitle": "التلاميذ المرصودون حسب مستوى الخطر",
+      "levelsDescription": "التلاميذ الذين يقل معدلهم عن 60% من سلم التنقيط",
+      "levelHigh": "خطر مرتفع",
+      "levelMedium": "خطر متوسط",
+      "bandsTitle": "معدلات التلاميذ المرصودين",
+      "bandsDescription": "التوزيع حسب شريحة المعدل (من 20)",
+      "studentsSeries": "التلاميذ"
+    }
   },
   "admissions": {
     "loadError": "خطأ أثناء تحميل الطلبات",

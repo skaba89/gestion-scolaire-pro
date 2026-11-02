@@ -1577,13 +1577,57 @@
     "refreshSuccess": "Análisis actualizado",
     "refreshError": "Error al actualizar el análisis",
     "pageTitle": "Perspectivas IA",
-    "pageSubtitle": "Análisis predictivo y recomendaciones inteligentes",
+    "pageSubtitle": "Indicadores actuales del centro y alumnos con dificultades",
     "tabRisks": "Riesgos",
     "tabRecommendations": "Recomendaciones",
     "tabRecommendationsShort": "Consejos",
     "tabAnalysis": "Análisis",
     "tabAssistant": "Asistente IA",
-    "tabAssistantShort": "IA"
+    "tabAssistantShort": "IA",
+    "unavailable": "No disponible",
+    "loadError": "Algunos indicadores no se pudieron cargar: se muestran como no disponibles.",
+    "factors": {
+      "noGrades": "Ninguna nota registrada",
+      "veryLowAverage": "Media muy baja",
+      "lowAverage": "Media insuficiente"
+    },
+    "indicators": {
+      "averageGrade": "Media general",
+      "averageGradeHint": "Media actual de todas las notas registradas",
+      "attendance": "Tasa de asistencia",
+      "attendanceHint": "Asistencia registrada de los alumnos",
+      "atRisk": "Alumnos en riesgo alto",
+      "atRiskHint": "Media inferior al 50 % de la escala",
+      "successRate": "Tasa de aprobados",
+      "successRateHint": "Notas iguales o superiores a la mitad de la escala"
+    },
+    "recommendations": {
+      "interventionCategory": "Seguimiento",
+      "followUpTitle": "Establecer un seguimiento personalizado",
+      "followUpBody": "Alumnos en riesgo alto: {{count}}. Considere tutorías y una conversación con las familias.",
+      "attendanceCategory": "Asistencia",
+      "attendanceTitle": "Reforzar el seguimiento de las ausencias",
+      "attendanceBody": "La tasa de asistencia global es del {{rate}} %."
+    },
+    "priority": {
+      "high": "Prioridad alta",
+      "medium": "Prioridad media",
+      "low": "Prioridad baja"
+    },
+    "student": {
+      "average": "Media",
+      "attendance": "Asistencia"
+    },
+    "charts": {
+      "empty": "Ningún alumno señalado con dificultades.",
+      "levelsTitle": "Alumnos señalados por nivel de riesgo",
+      "levelsDescription": "Alumnos cuya media es inferior al 60 % de la escala",
+      "levelHigh": "Riesgo alto",
+      "levelMedium": "Riesgo moderado",
+      "bandsTitle": "Medias de los alumnos señalados",
+      "bandsDescription": "Distribución por tramo de media (sobre 20)",
+      "studentsSeries": "Alumnos"
+    }
   },
   "admissions": {
     "loadError": "Error al cargar las solicitudes",

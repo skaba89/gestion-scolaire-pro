@@ -1654,13 +1654,57 @@
         "refreshSuccess": "Analyse mise à jour",
         "refreshError": "Erreur lors du rafraîchissement",
         "pageTitle": "Insights IA",
-        "pageSubtitle": "Analyse prédictive et recommandations intelligentes",
+        "pageSubtitle": "Indicateurs actuels de l'établissement et élèves en difficulté",
         "tabRisks": "Risques",
         "tabRecommendations": "Recommandations",
         "tabRecommendationsShort": "Conseils",
         "tabAnalysis": "Analyse",
         "tabAssistant": "Assistant IA",
-        "tabAssistantShort": "IA"
+        "tabAssistantShort": "IA",
+        "unavailable": "Non disponible",
+        "loadError": "Certains indicateurs n'ont pas pu être chargés : ils sont affichés comme non disponibles.",
+        "factors": {
+            "noGrades": "Aucune note enregistrée",
+            "veryLowAverage": "Moyenne très faible",
+            "lowAverage": "Moyenne insuffisante"
+        },
+        "indicators": {
+            "averageGrade": "Moyenne générale",
+            "averageGradeHint": "Moyenne actuelle de toutes les notes saisies",
+            "attendance": "Taux de présence",
+            "attendanceHint": "Présences enregistrées des élèves",
+            "atRisk": "Élèves à risque élevé",
+            "atRiskHint": "Moyenne inférieure à 50 % du barème",
+            "successRate": "Taux de réussite",
+            "successRateHint": "Notes au moins égales à la moitié du barème"
+        },
+        "recommendations": {
+            "interventionCategory": "Suivi",
+            "followUpTitle": "Mettre en place un suivi personnalisé",
+            "followUpBody": "Élèves à risque élevé : {{count}}. Envisagez du tutorat et un échange avec les familles.",
+            "attendanceCategory": "Présence",
+            "attendanceTitle": "Renforcer le suivi des absences",
+            "attendanceBody": "Le taux de présence global est de {{rate}} %."
+        },
+        "priority": {
+            "high": "Priorité haute",
+            "medium": "Priorité moyenne",
+            "low": "Priorité basse"
+        },
+        "student": {
+            "average": "Moyenne",
+            "attendance": "Présence"
+        },
+        "charts": {
+            "empty": "Aucun élève signalé en difficulté.",
+            "levelsTitle": "Élèves signalés par niveau de risque",
+            "levelsDescription": "Élèves dont la moyenne est inférieure à 60 % du barème",
+            "levelHigh": "Risque élevé",
+            "levelMedium": "Risque modéré",
+            "bandsTitle": "Moyennes des élèves signalés",
+            "bandsDescription": "Répartition par tranche de moyenne (sur 20)",
+            "studentsSeries": "Élèves"
+        }
     },
     "admissions": {
         "loadError": "Erreur lors du chargement des candidatures",

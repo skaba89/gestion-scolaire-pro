@@ -1,24 +1,16 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { RiskLevelBadge } from "./RiskLevelBadge";
-
-interface StudentRisk {
-    id: string;
-    name: string;
-    classroom: string;
-    riskLevel: "high" | "medium" | "low";
-    riskScore: number;
-    factors: string[];
-    avgGrade: number;
-    attendanceRate: number;
-}
+import type { StudentRisk } from "@/types/ai";
 
 interface StudentRiskCardProps {
     student: StudentRisk;
 }
 
 export const StudentRiskCard = ({ student }: StudentRiskCardProps) => {
+    const { t } = useTranslation();
     return (
         <Card key={student.id}>
             <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-4">
@@ -38,13 +30,15 @@ export const StudentRiskCard = ({ student }: StudentRiskCardProps) => {
 
                 <div className="flex flex-wrap items-center gap-4 sm:gap-6 w-full sm:w-auto">
                     <div className="text-center min-w-[60px]">
-                        <p className="text-lg font-semibold">{student.avgGrade}%</p>
-                        <p className="text-xs text-muted-foreground">Moyenne</p>
+                        <p className="text-lg font-semibold">{student.avgGrade.toFixed(1)}/20</p>
+                        <p className="text-xs text-muted-foreground">{t("aiInsights.student.average")}</p>
                     </div>
-                    <div className="text-center min-w-[60px]">
-                        <p className="text-lg font-semibold">{student.attendanceRate}%</p>
-                        <p className="text-xs text-muted-foreground">Présence</p>
-                    </div>
+                    {student.attendanceRate !== null && (
+                        <div className="text-center min-w-[60px]">
+                            <p className="text-lg font-semibold">{Math.round(student.attendanceRate)} %</p>
+                            <p className="text-xs text-muted-foreground">{t("aiInsights.student.attendance")}</p>
+                        </div>
+                    )}
                     <div className="flex flex-wrap gap-1 max-w-[200px]">
                         {student.factors.map((factor, idx) => (
                             <Badge key={idx} variant="outline" className="text-[10px] h-5 px-1.5">
