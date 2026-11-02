@@ -518,3 +518,14 @@ ce fichier — pas d'un document de 2025 non révisé.
   jamais lancé) — tâche ARQ quotidienne `expire_subscriptions_job` (02:30), qui
   horodate aussi le début du délai des établissements échus sans date. Tout
   établissement créé reçoit par défaut 30 jours d'essai (`Tenant.trial_ends_at`).
+- **2026-11-02 — sessions serveur et audit des connexions (P0-1/P0-2 de
+  `docs/audit/`).** La page « Sécurité & sessions » affichait toujours zéro
+  session et « Session terminée » sans rien révoquer ; le serveur n'écrivait
+  aucun événement d'authentification et l'historique lisait un champ absent
+  (toujours vide). Désormais : registre serveur des sessions (`sid` stable au
+  refresh, révocation effective sur requêtes et refresh, 5 sessions max — la
+  plus ancienne est fermée), routes `GET/DELETE /auth/sessions/` et
+  `/users/{id}/sessions/` (`users:write`), 8 événements d'authentification
+  écrits par le serveur, page branchée sur l'API et traduite (5 langues).
+  Comportement modifié : un 6e appareil n'est plus refusé en 429. Voir
+  `docs/SECURITY_MODEL.md` § 2 et § 6.

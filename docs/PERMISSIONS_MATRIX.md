@@ -905,3 +905,21 @@ restent réservées à l'offre « pro » (`require_plan("pro")`).
 Frontend : `ai:audit` ajouté aux mêmes trois rôles dans `src/lib/permissions.ts`
 (aucun écran ne l'utilise encore : `AIAuditButton` n'est monté nulle part).
 Tests : `backend/tests/test_ai_routes_quota_rbac.py`.
+
+## Sessions et historique des connexions (2026-11-02)
+
+| Endpoint | Contrôle | Périmètre |
+|---|---|---|
+| `GET /auth/sessions/` | authentifié (`get_current_user`) | ses propres sessions uniquement |
+| `DELETE /auth/sessions/{sid}/` | authentifié | une session d'un autre compte ou inconnue → 404 |
+| `GET /users/{user_id}/sessions/` | `users:write` + `resolve_current_tenant_id` | compte d'un autre établissement → 404 |
+| `DELETE /users/{user_id}/sessions/{sid}/` | `users:write` + tenant | idem ; journalisé `SESSION_REVOKED` (acteur = administrateur) |
+| `GET /audit/?resource_type=AUTH` | `audit:read` (inchangé) | établissement courant |
+
+Aucune permission nouvelle : `users:write` est déjà celle qui permet de
+désactiver un compte (`PATCH /users/{id}/toggle-status/`), opération plus
+forte que la révocation d'une session. Le frontend n'affiche l'historique
+que si l'API l'autorise (403 → message explicite, pas de liste vide). Tests :
+`backend/tests/test_server_sessions.py` (403 rôle, 404 cross-tenant, 404 sur
+la session d'un autre compte).
+

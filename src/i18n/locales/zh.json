@@ -2964,5 +2964,88 @@
     "readOnlyUntil": "订阅已过期：只读访问至 {{date}}。",
     "renew": "续订",
     "signOut": "退出登录"
+  },
+  "securitySessions": {
+    "title": "安全与会话",
+    "subtitle": "已登录您账户的设备以及本机构的登录历史",
+    "refresh": "刷新",
+    "unknownIp": "未知 IP",
+    "unknownDevice": "未知设备",
+    "period": {
+      "label": "时间段",
+      "7d": "最近 7 天",
+      "30d": "最近 30 天",
+      "all": "全部"
+    },
+    "stats": {
+      "activeSessions": "我的活跃会话",
+      "successful": "成功登录",
+      "failed": "失败",
+      "successRate": "成功率"
+    },
+    "tabs": {
+      "sessions": "我的设备",
+      "history": "登录历史"
+    },
+    "sessions": {
+      "title": "已登录的设备",
+      "description": "当前登录您账户的所有设备。请退出您不认识的设备。",
+      "revokeOthers": "退出其他设备",
+      "loading": "正在加载会话…",
+      "error": "无法加载会话，请稍后重试。",
+      "empty": "没有活跃会话",
+      "current": "本设备",
+      "revoke": "退出",
+      "browserOn": "{{os}} 上的 {{browser}}",
+      "lastActivity": "最后活动：{{date}}"
+    },
+    "chart": {
+      "title": "每日登录",
+      "description": "服务器记录的成功与失败登录",
+      "success": "成功",
+      "failed": "失败"
+    },
+    "history": {
+      "title": "登录历史",
+      "description": "服务器为本机构记录的身份验证事件",
+      "search": "搜索（IP、账户、浏览器…）",
+      "loading": "正在加载历史…",
+      "error": "无法加载历史，请稍后重试。",
+      "forbidden": "您的角色无权查看本机构的登录历史。",
+      "empty": "该时间段内没有事件",
+      "date": "日期",
+      "event": "事件",
+      "account": "账户",
+      "device": "设备",
+      "ip": "IP"
+    },
+    "actions": {
+      "LOGIN_SUCCESS": "登录",
+      "LOGIN_FAILED": "登录失败",
+      "MFA_FAILED": "MFA 验证码被拒绝",
+      "LOGOUT": "退出登录",
+      "LOGOUT_ALL": "已退出所有设备",
+      "SESSION_REVOKED": "会话已撤销",
+      "SESSION_EVICTED": "会话已关闭（设备数上限）",
+      "PASSWORD_CHANGED": "密码已修改"
+    },
+    "suspicious": {
+      "title": "可疑活动",
+      "item": "来自 {{ip}} 的失败登录：{{count}} 次"
+    },
+    "confirmOthers": {
+      "title": "退出其他设备？",
+      "body": "涉及设备：{{count}} 台。它们需要使用密码重新登录。本设备保持登录。",
+      "cancel": "取消",
+      "confirm": "退出"
+    },
+    "toast": {
+      "revokedTitle": "会话已退出",
+      "revokedBody": "服务器已使该设备退出登录。",
+      "errorTitle": "失败",
+      "errorBody": "无法退出该会话，请重试。",
+      "othersRevokedTitle": "其他设备已退出",
+      "othersRevokedBody": "已退出：{{ok}} — 失败：{{failed}}"
+    }
   }
 }

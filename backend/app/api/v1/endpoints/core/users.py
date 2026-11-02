@@ -695,6 +695,81 @@ async def toggle_user_status(
     return {"message": f"User {action} successfully"}
 
 
+def _require_user_in_tenant(db: Session, user_id: str, tenant_id: str) -> None:
+    """Anti-IDOR : le compte visé appartient à l'établissement courant, sinon
+    404 (même réponse qu'un identifiant inexistant)."""
+    try:
+        UUID(str(user_id))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    found = (
+        db.query(User.id)
+        .filter(User.id == str(user_id), User.tenant_id == str(tenant_id))
+        .first()
+    )
+    if found is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+
+@router.get("/{user_id}/sessions/")
+async def list_user_sessions(
+    user_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:write")),
+):
+    """Appareils connectés d'un compte de l'établissement (administration)."""
+    from app.core.sessions import SessionStoreUnavailable, list_sessions
+    from app.core.tenant_resolution import resolve_current_tenant_id
+
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    _require_user_in_tenant(db, user_id, tenant_id)
+    try:
+        sessions = await list_sessions(str(user_id))
+    except SessionStoreUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La liste des sessions est momentanément indisponible. Réessayez plus tard.",
+            headers={"Retry-After": "5"},
+        )
+    return [s.to_public_dict(current_user.get("_session_id")) for s in sessions]
+
+
+@router.delete("/{user_id}/sessions/{session_id}/")
+async def revoke_user_session(
+    user_id: str,
+    session_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:write")),
+):
+    """Révoque une session d'un compte de l'établissement (appareil perdu,
+    compte compromis). Session d'un autre compte ou inconnue → 404."""
+    from app.core.sessions import SessionStoreUnavailable, revoke_session
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    from app.utils.audit import AUTH_SESSION_REVOKED, record_auth_event
+
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    _require_user_in_tenant(db, user_id, tenant_id)
+    try:
+        revoked = await revoke_session(str(user_id), session_id)
+    except SessionStoreUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La session n'a pas pu être révoquée (registre indisponible). Réessayez plus tard.",
+            headers={"Retry-After": "5"},
+        )
+    if not revoked:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session introuvable.")
+    record_auth_event(
+        db, request=request, user_id=str(user_id), tenant_id=tenant_id,
+        action=AUTH_SESSION_REVOKED, severity="WARNING",
+        actor_user_id=current_user.get("id"),
+        details={"session_id": session_id, "by": "admin"},
+    )
+    return {"message": "Session révoquée", "session_id": session_id}
+
+
 @router.put("/{user_id}/roles/")
 def update_user_roles(
     user_id: str,

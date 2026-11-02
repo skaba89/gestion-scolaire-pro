@@ -2929,5 +2929,88 @@
     "readOnlyUntil": "Suscripción caducada: acceso de solo lectura hasta el {{date}}.",
     "renew": "Renovar la suscripción",
     "signOut": "Cerrar sesión"
+  },
+  "securitySessions": {
+    "title": "Seguridad y sesiones",
+    "subtitle": "Dispositivos conectados a su cuenta e historial de conexiones del centro",
+    "refresh": "Actualizar",
+    "unknownIp": "IP desconocida",
+    "unknownDevice": "Dispositivo desconocido",
+    "period": {
+      "label": "Periodo",
+      "7d": "Últimos 7 días",
+      "30d": "Últimos 30 días",
+      "all": "Todo"
+    },
+    "stats": {
+      "activeSessions": "Mis sesiones activas",
+      "successful": "Conexiones correctas",
+      "failed": "Fallos",
+      "successRate": "Tasa de éxito"
+    },
+    "tabs": {
+      "sessions": "Mis dispositivos",
+      "history": "Historial de conexiones"
+    },
+    "sessions": {
+      "title": "Dispositivos conectados",
+      "description": "Cada dispositivo donde su cuenta está conectada. Desconecte los que no reconozca.",
+      "revokeOthers": "Desconectar los demás dispositivos",
+      "loading": "Cargando sesiones…",
+      "error": "No se pudieron cargar las sesiones. Inténtelo de nuevo en un momento.",
+      "empty": "Ninguna sesión activa",
+      "current": "Este dispositivo",
+      "revoke": "Desconectar",
+      "browserOn": "{{browser}} en {{os}}",
+      "lastActivity": "Última actividad: {{date}}"
+    },
+    "chart": {
+      "title": "Conexiones por día",
+      "description": "Conexiones correctas y fallidas registradas por el servidor",
+      "success": "Correctas",
+      "failed": "Fallidas"
+    },
+    "history": {
+      "title": "Historial de conexiones",
+      "description": "Eventos de autenticación registrados por el servidor para el centro",
+      "search": "Buscar (IP, cuenta, navegador…)",
+      "loading": "Cargando historial…",
+      "error": "No se pudo cargar el historial. Inténtelo de nuevo en un momento.",
+      "forbidden": "Su rol no permite consultar el historial de conexiones del centro.",
+      "empty": "Ningún evento en el periodo",
+      "date": "Fecha",
+      "event": "Evento",
+      "account": "Cuenta",
+      "device": "Dispositivo",
+      "ip": "IP"
+    },
+    "actions": {
+      "LOGIN_SUCCESS": "Conexión",
+      "LOGIN_FAILED": "Conexión fallida",
+      "MFA_FAILED": "Código MFA rechazado",
+      "LOGOUT": "Desconexión",
+      "LOGOUT_ALL": "Desconexión de todos los dispositivos",
+      "SESSION_REVOKED": "Sesión revocada",
+      "SESSION_EVICTED": "Sesión cerrada (límite de dispositivos)",
+      "PASSWORD_CHANGED": "Contraseña modificada"
+    },
+    "suspicious": {
+      "title": "Actividad sospechosa",
+      "item": "{{count}} conexiones fallidas desde {{ip}}"
+    },
+    "confirmOthers": {
+      "title": "¿Desconectar los demás dispositivos?",
+      "body": "Dispositivos afectados: {{count}}. Deberán volver a conectarse con la contraseña. Este dispositivo sigue conectado.",
+      "cancel": "Cancelar",
+      "confirm": "Desconectar"
+    },
+    "toast": {
+      "revokedTitle": "Sesión desconectada",
+      "revokedBody": "El servidor ha desconectado el dispositivo.",
+      "errorTitle": "Error",
+      "errorBody": "No se pudo desconectar la sesión. Inténtelo de nuevo.",
+      "othersRevokedTitle": "Dispositivos desconectados",
+      "othersRevokedBody": "Desconectados: {{ok}} — con error: {{failed}}"
+    }
   }
 }

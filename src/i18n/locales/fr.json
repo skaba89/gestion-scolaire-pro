@@ -2882,5 +2882,88 @@
         "readOnlyUntil": "Abonnement expiré : accès en lecture seule jusqu'au {{date}}.",
         "renew": "Renouveler l'abonnement",
         "signOut": "Se déconnecter"
+    },
+    "securitySessions": {
+        "title": "Sécurité & sessions",
+        "subtitle": "Appareils connectés à votre compte et historique des connexions de l'établissement",
+        "refresh": "Actualiser",
+        "unknownIp": "IP inconnue",
+        "unknownDevice": "Appareil inconnu",
+        "period": {
+            "label": "Période",
+            "7d": "7 derniers jours",
+            "30d": "30 derniers jours",
+            "all": "Tout"
+        },
+        "stats": {
+            "activeSessions": "Mes sessions actives",
+            "successful": "Connexions réussies",
+            "failed": "Échecs",
+            "successRate": "Taux de succès"
+        },
+        "tabs": {
+            "sessions": "Mes appareils",
+            "history": "Historique des connexions"
+        },
+        "sessions": {
+            "title": "Appareils connectés",
+            "description": "Chaque appareil où votre compte est actuellement connecté. Déconnectez ceux que vous ne reconnaissez pas.",
+            "revokeOthers": "Déconnecter les autres appareils",
+            "loading": "Chargement des sessions…",
+            "error": "Impossible de charger les sessions. Réessayez dans un instant.",
+            "empty": "Aucune session active",
+            "current": "Cet appareil",
+            "revoke": "Déconnecter",
+            "browserOn": "{{browser}} sur {{os}}",
+            "lastActivity": "Dernière activité : {{date}}"
+        },
+        "chart": {
+            "title": "Connexions par jour",
+            "description": "Connexions réussies et échouées enregistrées par le serveur",
+            "success": "Réussies",
+            "failed": "Échouées"
+        },
+        "history": {
+            "title": "Historique des connexions",
+            "description": "Événements d'authentification enregistrés par le serveur pour l'établissement",
+            "search": "Rechercher (IP, compte, navigateur…)",
+            "loading": "Chargement de l'historique…",
+            "error": "Impossible de charger l'historique. Réessayez dans un instant.",
+            "forbidden": "Votre rôle ne permet pas de consulter l'historique des connexions de l'établissement.",
+            "empty": "Aucun événement sur la période",
+            "date": "Date",
+            "event": "Événement",
+            "account": "Compte",
+            "device": "Appareil",
+            "ip": "IP"
+        },
+        "actions": {
+            "LOGIN_SUCCESS": "Connexion",
+            "LOGIN_FAILED": "Échec de connexion",
+            "MFA_FAILED": "Code MFA refusé",
+            "LOGOUT": "Déconnexion",
+            "LOGOUT_ALL": "Déconnexion de tous les appareils",
+            "SESSION_REVOKED": "Session révoquée",
+            "SESSION_EVICTED": "Session fermée (limite d'appareils)",
+            "PASSWORD_CHANGED": "Mot de passe modifié"
+        },
+        "suspicious": {
+            "title": "Activité suspecte",
+            "item": "{{count}} échecs de connexion depuis {{ip}}"
+        },
+        "confirmOthers": {
+            "title": "Déconnecter les autres appareils ?",
+            "body": "Appareils concernés : {{count}}. Ils devront se reconnecter avec le mot de passe. Cet appareil reste connecté.",
+            "cancel": "Annuler",
+            "confirm": "Déconnecter"
+        },
+        "toast": {
+            "revokedTitle": "Session déconnectée",
+            "revokedBody": "L'appareil a été déconnecté par le serveur.",
+            "errorTitle": "Échec",
+            "errorBody": "La session n'a pas pu être déconnectée. Réessayez.",
+            "othersRevokedTitle": "Appareils déconnectés",
+            "othersRevokedBody": "Déconnectés : {{ok}} — en échec : {{failed}}"
+        }
     }
 }

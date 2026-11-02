@@ -285,7 +285,9 @@ def _privileged_fail_closed() -> bool:
     return settings.AUTH_PRIVILEGED_FAIL_CLOSED
 
 
-async def _evaluate_revocation(user_id: str, token_jti: str | None, token_version: int) -> bool:
+async def _evaluate_revocation(
+    user_id: str, token_jti: str | None, token_version: int, session_id: str | None = None
+) -> bool:
     """Perform the two revocation checks (per-token blacklist + logout-all
     token-version) against Redis.
 
@@ -319,6 +321,28 @@ async def _evaluate_revocation(user_id: str, token_jti: str | None, token_versio
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # 1b) Session révoquée (app/core/sessions.py) : couvre tous les jetons
+    #     successifs d'un même appareil, y compris ceux émis par refresh.
+    #     Un jeton sans `sid` (émis avant ce mécanisme) n'est couvert que par
+    #     la blacklist et la déconnexion globale, jusqu'à son expiration.
+    if session_id:
+        from app.core.sessions import REVOKED_MARKER_UNPREFIXED
+        try:
+            from app.core.cache import redis_client
+            session_revoked = await redis_client.exists(REVOKED_MARKER_UNPREFIXED.format(sid=session_id))
+        except Exception as exc:
+            logger.warning(
+                "Redis unavailable during session revocation check (revocation status UNVERIFIED): %s", exc
+            )
+            reliable = False
+            session_revoked = False
+        if session_revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session révoquée. Reconnectez-vous.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
@@ -416,7 +440,7 @@ async def get_current_user(
     # taken AFTER roles are loaded, below. `token_version` (tv claim) is read
     # here so an outage on the version read is reflected in reliability.
     revocation_verified = await _evaluate_revocation(
-        user_id, token.get("jti"), token.get("tv", 0)
+        user_id, token.get("jti"), token.get("tv", 0), token.get("sid")
     )
 
     with SessionLocal() as db:
@@ -543,6 +567,8 @@ async def get_current_user(
             "tenant_id": resolved_tenant_id,
             "tenant_name": tenant_name,
             "_token_version": token.get("tv", 0),
+            "_session_id": token.get("sid"),
+            "_own_tenant_id": str(user_db.tenant_id) if user_db.tenant_id else None,
             # Whether the JWT revocation status was verified reliably this
             # request. Consumed by require_permission() to fail-close
             # SENSITIVE_PERMISSIONS operations regardless of the caller's role.

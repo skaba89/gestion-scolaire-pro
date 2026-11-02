@@ -1,231 +1,232 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { isAxiosError } from "axios";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Lock,
+  LogOut,
+  MapPin,
+  Monitor,
+  RefreshCw,
+  Search,
+  Shield,
+  Smartphone,
+  Tablet,
+  XCircle,
+} from "lucide-react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { 
-  Shield, 
-  Monitor, 
-  Smartphone, 
-  Tablet, 
-  Globe, 
-  Clock, 
-  CheckCircle, 
-  XCircle,
-  LogOut,
-  Search,
-  RefreshCw,
-  AlertTriangle,
-  MapPin,
-  Activity,
-  Lock,
-  Unlock
-} from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { getLoginHistory, getActiveSessions, terminateSession } from "@/hooks/useLoginTracking";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { format, subDays, isAfter } from "date-fns";
-import { fr } from "date-fns/locale";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
+import {
+  type ActiveSession,
+  type AuthEvent,
+  getActiveSessions,
+  getAuthHistory,
+  terminateSession,
+} from "@/hooks/useLoginTracking";
+
+type TimeFilter = "7d" | "30d" | "all";
+
+const DAY_MS = 86_400_000;
+const BRUTE_FORCE_THRESHOLD = 3;
+
+function DeviceIcon({ type }: { type: ActiveSession["device_type"] }) {
+  if (type === "mobile") return <Smartphone className="h-4 w-4" aria-hidden="true" />;
+  if (type === "tablet") return <Tablet className="h-4 w-4" aria-hidden="true" />;
+  return <Monitor className="h-4 w-4" aria-hidden="true" />;
+}
+
+function isForbidden(error: unknown): boolean {
+  return isAxiosError(error) && error.response?.status === 403;
+}
 
 const SecuritySessions = () => {
-  const { t } = useTranslation();
-  const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const [timeFilter, setTimeFilter] = useState<"7d" | "30d" | "all">("7d");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("7d");
+  const [confirmOthers, setConfirmOthers] = useState(false);
 
-  const { data: loginHistory = [], isLoading: historyLoading, refetch: refetchHistory } = useQuery({
-    queryKey: ["login-history"],
-    queryFn: () => getLoginHistory(),
+  const dateTime = useMemo(
+    () => new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" }),
+    [i18n.language],
+  );
+  const dayLabel = useMemo(
+    () => new Intl.DateTimeFormat(i18n.language, { day: "2-digit", month: "short" }),
+    [i18n.language],
+  );
+
+  const sessionsQuery = useQuery({ queryKey: ["auth-sessions"], queryFn: getActiveSessions });
+  const historyQuery = useQuery({
+    queryKey: ["auth-history"],
+    queryFn: getAuthHistory,
+    retry: (count, error) => !isForbidden(error) && count < 2,
   });
 
-  const { data: activeSessions = [], isLoading: sessionsLoading, refetch: refetchSessions } = useQuery({
-    queryKey: ["active-sessions"],
-    queryFn: () => getActiveSessions(),
-  });
+  const sessions = sessionsQuery.data ?? [];
+  const otherSessions = sessions.filter((s) => !s.is_current);
 
-  const terminateMutation = useMutation({
+  const revokeMutation = useMutation({
     mutationFn: terminateSession,
     onSuccess: () => {
-      toast({ title: "Session terminée", description: "La session a été déconnectée avec succès." });
-      queryClient.invalidateQueries({ queryKey: ["active-sessions"] });
+      toast({ title: t("securitySessions.toast.revokedTitle"), description: t("securitySessions.toast.revokedBody") });
     },
     onError: () => {
-      toast({ title: "Erreur", description: "Impossible de terminer la session.", variant: "destructive" });
+      toast({
+        title: t("securitySessions.toast.errorTitle"),
+        description: t("securitySessions.toast.errorBody"),
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["auth-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["auth-history"] });
     },
   });
 
-  const terminateAllOtherSessions = async () => {
-    const otherSessions = activeSessions.filter((s: any) => s.user_id !== user?.id);
-    for (const session of otherSessions) {
-      await terminateSession(session.id);
+  const revokeOthers = async () => {
+    setConfirmOthers(false);
+    const results = await Promise.allSettled(otherSessions.map((s) => terminateSession(s.id)));
+    const ok = results.filter((r) => r.status === "fulfilled").length;
+    const failed = results.length - ok;
+    queryClient.invalidateQueries({ queryKey: ["auth-sessions"] });
+    queryClient.invalidateQueries({ queryKey: ["auth-history"] });
+    toast({
+      title: failed === 0 ? t("securitySessions.toast.othersRevokedTitle") : t("securitySessions.toast.errorTitle"),
+      description: t("securitySessions.toast.othersRevokedBody", { ok, failed }),
+      variant: failed === 0 ? "default" : "destructive",
+    });
+  };
+
+  const history = useMemo(() => {
+    const all = historyQuery.data ?? [];
+    const since =
+      timeFilter === "7d" ? Date.now() - 7 * DAY_MS : timeFilter === "30d" ? Date.now() - 30 * DAY_MS : 0;
+    const term = searchTerm.trim().toLowerCase();
+    return all.filter((e) => {
+      if (new Date(e.created_at).getTime() < since) return false;
+      if (!term) return true;
+      return [e.ip_address, e.browser, e.os, e.login, e.action]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(term));
+    });
+  }, [historyQuery.data, timeFilter, searchTerm]);
+
+  const loginAttempts = history.filter((e) => e.success || e.failure);
+  const successCount = history.filter((e) => e.success).length;
+  const failureCount = history.filter((e) => e.failure).length;
+
+  const suspicious = useMemo(() => {
+    const byIp = new Map<string, number>();
+    history.filter((e) => e.failure).forEach((e) => {
+      const ip = e.ip_address || "?";
+      byIp.set(ip, (byIp.get(ip) ?? 0) + 1);
+    });
+    return [...byIp.entries()].filter(([, n]) => n >= BRUTE_FORCE_THRESHOLD);
+  }, [history]);
+
+  const chartData = useMemo(() => {
+    const days = timeFilter === "7d" ? 7 : 30;
+    const buckets = new Map<string, { date: string; success: number; failed: number }>();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(Date.now() - i * DAY_MS);
+      buckets.set(d.toDateString(), { date: dayLabel.format(d), success: 0, failed: 0 });
     }
-    queryClient.invalidateQueries({ queryKey: ["active-sessions"] });
-    toast({ title: "Sessions terminées", description: `${otherSessions.length} session(s) déconnectée(s).` });
-  };
-
-  const getDeviceIcon = (deviceType?: string) => {
-    switch (deviceType) {
-      case "mobile":
-        return <Smartphone className="h-4 w-4" />;
-      case "tablet":
-        return <Tablet className="h-4 w-4" />;
-      default:
-        return <Monitor className="h-4 w-4" />;
-    }
-  };
-
-  // Filter history based on time
-  const getFilteredHistory = () => {
-    let filtered = loginHistory;
-    if (timeFilter === "7d") {
-      filtered = loginHistory.filter((entry: any) => 
-        isAfter(new Date(entry.created_at), subDays(new Date(), 7))
-      );
-    } else if (timeFilter === "30d") {
-      filtered = loginHistory.filter((entry: any) => 
-        isAfter(new Date(entry.created_at), subDays(new Date(), 30))
-      );
-    }
-    return filtered.filter((entry: any) => 
-      entry.ip_address?.includes(searchTerm) ||
-      entry.browser?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.os?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  };
-
-  const filteredHistory = getFilteredHistory();
-
-  const successfulLogins = filteredHistory.filter((entry: any) => entry.success).length;
-  const failedLogins = filteredHistory.filter((entry: any) => !entry.success).length;
-
-  // Chart data: logins by day
-  const getLoginsByDay = () => {
-    const days: Record<string, { date: string; success: number; failed: number }> = {};
-    const daysToShow = timeFilter === "7d" ? 7 : timeFilter === "30d" ? 30 : 30;
-    
-    for (let i = daysToShow - 1; i >= 0; i--) {
-      const date = format(subDays(new Date(), i), "yyyy-MM-dd");
-      days[date] = { date: format(subDays(new Date(), i), "dd MMM", { locale: fr }), success: 0, failed: 0 };
-    }
-    
-    filteredHistory.forEach((entry: any) => {
-      const date = format(new Date(entry.created_at), "yyyy-MM-dd");
-      if (days[date]) {
-        if (entry.success) {
-          days[date].success++;
-        } else {
-          days[date].failed++;
-        }
-      }
+    history.forEach((e) => {
+      const bucket = buckets.get(new Date(e.created_at).toDateString());
+      if (!bucket) return;
+      if (e.success) bucket.success++;
+      if (e.failure) bucket.failed++;
     });
-    
-    return Object.values(days);
-  };
+    return [...buckets.values()];
+  }, [history, timeFilter, dayLabel]);
 
-  // Chart data: devices distribution
-  const getDeviceDistribution = () => {
-    const devices: Record<string, number> = { Desktop: 0, Mobile: 0, Tablet: 0 };
-    filteredHistory.forEach((entry: any) => {
-      if (entry.device_type === "mobile") devices.Mobile++;
-      else if (entry.device_type === "tablet") devices.Tablet++;
-      else devices.Desktop++;
-    });
-    return Object.entries(devices).map(([name, value]) => ({ name, value }));
-  };
+  const actionLabel = (e: AuthEvent) =>
+    t(`securitySessions.actions.${e.action}`, { defaultValue: e.action });
 
-  // Chart data: browsers distribution
-  const getBrowserDistribution = () => {
-    const browsers: Record<string, number> = {};
-    filteredHistory.forEach((entry: any) => {
-      const browser = entry.browser || "Inconnu";
-      browsers[browser] = (browsers[browser] || 0) + 1;
-    });
-    return Object.entries(browsers)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, value]) => ({ name, value }));
-  };
-
-  // Suspicious activity detection
-  const getSuspiciousActivities = () => {
-    const suspicious: any[] = [];
-    const ipFailures: Record<string, number> = {};
-    
-    filteredHistory.forEach((entry: any) => {
-      if (!entry.success) {
-        const ip = entry.ip_address || "unknown";
-        ipFailures[ip] = (ipFailures[ip] || 0) + 1;
-      }
-    });
-    
-    Object.entries(ipFailures).forEach(([ip, count]) => {
-      if (count >= 3) {
-        suspicious.push({
-          type: "brute_force",
-          ip,
-          count,
-          message: `${count} tentatives échouées depuis ${ip}`,
-        });
-      }
-    });
-    
-    return suspicious;
-  };
-
-  const suspiciousActivities = getSuspiciousActivities();
-  const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "#8884d8", "#82ca9d"];
+  const deviceLabel = (s: { browser: string | null; os: string | null }) =>
+    s.browser && s.os
+      ? t("securitySessions.sessions.browserOn", { browser: s.browser, os: s.os })
+      : t("securitySessions.unknownDevice");
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-            <Shield className="h-8 w-8 text-primary" />
-            Sécurité & Sessions
+            <Shield className="h-8 w-8 text-primary" aria-hidden="true" />
+            {t("securitySessions.title")}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Surveillez les connexions et gérez les sessions actives
-          </p>
+          <p className="text-muted-foreground mt-1">{t("securitySessions.subtitle")}</p>
         </div>
         <div className="flex gap-2">
           <select
+            aria-label={t("securitySessions.period.label")}
             className="px-3 py-2 border rounded-md bg-background text-sm"
             value={timeFilter}
-            onChange={(e) => setTimeFilter(e.target.value as "7d" | "30d" | "all")}
+            onChange={(e) => setTimeFilter(e.target.value as TimeFilter)}
           >
-            <option value="7d">7 derniers jours</option>
-            <option value="30d">30 derniers jours</option>
-            <option value="all">Tout</option>
+            <option value="7d">{t("securitySessions.period.7d")}</option>
+            <option value="30d">{t("securitySessions.period.30d")}</option>
+            <option value="all">{t("securitySessions.period.all")}</option>
           </select>
-          <Button onClick={() => { refetchHistory(); refetchSessions(); }} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Actualiser
+          <Button
+            variant="outline"
+            onClick={() => {
+              sessionsQuery.refetch();
+              historyQuery.refetch();
+            }}
+          >
+            <RefreshCw className="h-4 w-4 me-2" aria-hidden="true" />
+            {t("securitySessions.refresh")}
           </Button>
         </div>
       </div>
 
-      {/* Suspicious Activity Alert */}
-      {suspiciousActivities.length > 0 && (
-        <Card className="border-red-500/50 bg-red-500/5">
+      {suspicious.length > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
           <CardHeader className="pb-3">
-            <CardTitle className="text-red-600 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Activités suspectes détectées
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              {t("securitySessions.suspicious.title")}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {suspiciousActivities.map((activity, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-sm">
-                  <Lock className="h-4 w-4 text-red-500" />
-                  <span>{activity.message}</span>
+              {suspicious.map(([ip, count]) => (
+                <li key={ip} className="flex items-center gap-2 text-sm">
+                  <Lock className="h-4 w-4 text-destructive" aria-hidden="true" />
+                  <span>{t("securitySessions.suspicious.item", { count, ip })}</span>
                 </li>
               ))}
             </ul>
@@ -233,374 +234,220 @@ const SecuritySessions = () => {
         </Card>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: t("securitySessions.stats.activeSessions"), value: sessions.length, icon: Activity },
+          { label: t("securitySessions.stats.successful"), value: successCount, icon: CheckCircle },
+          { label: t("securitySessions.stats.failed"), value: failureCount, icon: XCircle },
+          {
+            label: t("securitySessions.stats.successRate"),
+            value: loginAttempts.length ? `${Math.round((successCount / loginAttempts.length) * 100)} %` : "—",
+            icon: Shield,
+          },
+        ].map(({ label, value, icon: Icon }) => (
+          <Card key={label}>
+            <CardContent className="pt-6 flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Sessions actives</p>
-                <p className="text-2xl font-bold">{activeSessions.length}</p>
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <p className="text-2xl font-bold">{value}</p>
               </div>
-              <div className="p-3 bg-primary/10 rounded-full">
-                <Activity className="h-6 w-6 text-primary" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Connexions réussies</p>
-                <p className="text-2xl font-bold text-green-600">{successfulLogins}</p>
-              </div>
-              <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-full">
-                <CheckCircle className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Tentatives échouées</p>
-                <p className="text-2xl font-bold text-red-600">{failedLogins}</p>
-              </div>
-              <div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-full">
-                <XCircle className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Taux de succès</p>
-                <p className="text-2xl font-bold">
-                  {filteredHistory.length > 0 
-                    ? Math.round((successfulLogins / filteredHistory.length) * 100) 
-                    : 0}%
-                </p>
-              </div>
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-full">
-                <Shield className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Alertes</p>
-                <p className="text-2xl font-bold text-yellow-600">{suspiciousActivities.length}</p>
-              </div>
-              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-full">
-                <AlertTriangle className="h-6 w-6 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              <Icon className="h-6 w-6 text-primary" aria-hidden="true" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
-
-      {/* Charts Row */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Historique des connexions</CardTitle>
-            <CardDescription>Connexions réussies vs échouées par jour</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={getLoginsByDay()}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--background))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }} 
-                  />
-                  <Legend />
-                  <Line type="monotone" dataKey="success" name="Réussies" stroke="hsl(142, 76%, 36%)" strokeWidth={2} />
-                  <Line type="monotone" dataKey="failed" name="Échouées" stroke="hsl(0, 84%, 60%)" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Appareils</CardTitle>
-            <CardDescription>Répartition par type</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={getDeviceDistribution()}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {getDeviceDistribution().map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Browsers Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Navigateurs utilisés</CardTitle>
-          <CardDescription>Top 5 des navigateurs les plus utilisés</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={getBrowserDistribution()} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis type="number" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis type="category" dataKey="name" width={100} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'hsl(var(--background))', 
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }} 
-                />
-                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
 
       <Tabs defaultValue="sessions" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="sessions">Sessions Actives</TabsTrigger>
-          <TabsTrigger value="history">Historique des Connexions</TabsTrigger>
+          <TabsTrigger value="sessions">{t("securitySessions.tabs.sessions")}</TabsTrigger>
+          <TabsTrigger value="history">{t("securitySessions.tabs.history")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sessions">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle>Sessions Actives</CardTitle>
-                  <CardDescription>
-                    Gérez les appareils connectés à votre compte
-                  </CardDescription>
+                  <CardTitle>{t("securitySessions.sessions.title")}</CardTitle>
+                  <CardDescription>{t("securitySessions.sessions.description")}</CardDescription>
                 </div>
-                {activeSessions.length > 1 && (
-                  <Button variant="destructive" size="sm" onClick={terminateAllOtherSessions}>
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Déconnecter toutes les autres
+                {otherSessions.length > 0 && (
+                  <Button variant="destructive" size="sm" onClick={() => setConfirmOthers(true)}>
+                    <LogOut className="h-4 w-4 me-2" aria-hidden="true" />
+                    {t("securitySessions.sessions.revokeOthers")}
                   </Button>
                 )}
               </div>
             </CardHeader>
             <CardContent>
-              {sessionsLoading ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Chargement des sessions...
-                </div>
-              ) : activeSessions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Aucune session active
-                </div>
+              {sessionsQuery.isLoading ? (
+                <p className="text-center py-8 text-muted-foreground">{t("securitySessions.sessions.loading")}</p>
+              ) : sessionsQuery.isError ? (
+                <p role="alert" className="text-center py-8 text-destructive">
+                  {t("securitySessions.sessions.error")}
+                </p>
+              ) : sessions.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">{t("securitySessions.sessions.empty")}</p>
               ) : (
-                <div className="space-y-4">
-                  {activeSessions.map((session: any) => (
-                    <div 
-                      key={session.id} 
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                <ul className="space-y-4">
+                  {sessions.map((session) => (
+                    <li
+                      key={session.id}
+                      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg"
                     >
                       <div className="flex items-center gap-4">
                         <div className="p-2 bg-muted rounded-full">
-                          {getDeviceIcon(session.device_type)}
+                          <DeviceIcon type={session.device_type} />
                         </div>
                         <div>
-                          <p className="font-medium">
-                            {session.browser} sur {session.os}
-                          </p>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            <span>{session.ip_address || "IP inconnue"}</span>
-                            <span>•</span>
-                            <Clock className="h-3 w-3" />
+                          <p className="font-medium">{deviceLabel(session)}</p>
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                            <MapPin className="h-3 w-3" aria-hidden="true" />
+                            <span>{session.ip_address || t("securitySessions.unknownIp")}</span>
+                            <span aria-hidden="true">•</span>
+                            <Clock className="h-3 w-3" aria-hidden="true" />
                             <span>
-                              Dernière activité: {format(new Date(session.last_activity_at), "Pp", { locale: fr })}
+                              {t("securitySessions.sessions.lastActivity", {
+                                date: dateTime.format(new Date(session.last_activity_at)),
+                              })}
                             </span>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {session.user_id === user?.id && (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                            <Unlock className="h-3 w-3 mr-1" />
-                            Session actuelle
-                          </Badge>
+                        {session.is_current ? (
+                          <Badge variant="secondary">{t("securitySessions.sessions.current")}</Badge>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => revokeMutation.mutate(session.id)}
+                            disabled={revokeMutation.isPending}
+                          >
+                            <LogOut className="h-4 w-4 me-1" aria-hidden="true" />
+                            {t("securitySessions.sessions.revoke")}
+                          </Button>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => terminateMutation.mutate(session.id)}
-                          disabled={terminateMutation.isPending}
-                        >
-                          <LogOut className="h-4 w-4 mr-1" />
-                          Déconnecter
-                        </Button>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="history">
+        <TabsContent value="history" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <CardTitle>{t("securitySessions.chart.title")}</CardTitle>
+              <CardDescription>{t("securitySessions.chart.description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="date" tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                    <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))" }} />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="success" name={t("securitySessions.chart.success")} stroke="hsl(142, 76%, 36%)" strokeWidth={2} />
+                    <Line type="monotone" dataKey="failed" name={t("securitySessions.chart.failed")} stroke="hsl(0, 84%, 60%)" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <CardTitle>Historique des Connexions</CardTitle>
-                  <CardDescription>
-                    Consultez toutes les tentatives de connexion
-                  </CardDescription>
+                  <CardTitle>{t("securitySessions.history.title")}</CardTitle>
+                  <CardDescription>{t("securitySessions.history.description")}</CardDescription>
                 </div>
-                <div className="relative w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <Input
-                    placeholder="Rechercher..."
+                    aria-label={t("securitySessions.history.search")}
+                    placeholder={t("securitySessions.history.search")}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="ps-10"
                   />
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              {historyLoading ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Chargement de l'historique...
-                </div>
+              {historyQuery.isLoading ? (
+                <p className="text-center py-8 text-muted-foreground">{t("securitySessions.history.loading")}</p>
+              ) : historyQuery.isError ? (
+                <p role="alert" className="text-center py-8 text-destructive">
+                  {isForbidden(historyQuery.error)
+                    ? t("securitySessions.history.forbidden")
+                    : t("securitySessions.history.error")}
+                </p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Appareil</TableHead>
-                      <TableHead>Navigateur</TableHead>
-                      <TableHead>Système</TableHead>
-                      <TableHead>IP</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredHistory.length === 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
-                          Aucun historique de connexion
-                        </TableCell>
+                        <TableHead>{t("securitySessions.history.date")}</TableHead>
+                        <TableHead>{t("securitySessions.history.event")}</TableHead>
+                        <TableHead>{t("securitySessions.history.account")}</TableHead>
+                        <TableHead>{t("securitySessions.history.device")}</TableHead>
+                        <TableHead>{t("securitySessions.history.ip")}</TableHead>
                       </TableRow>
-                    ) : (
-                      filteredHistory.slice(0, 50).map((entry: any) => (
-                        <TableRow key={entry.id}>
-                          <TableCell>
-                            {format(new Date(entry.created_at), "Pp", { locale: fr })}
-                          </TableCell>
-                          <TableCell>
-                            {entry.success ? (
-                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                Réussie
-                              </Badge>
-                            ) : (
-                              <Badge variant="destructive">
-                                <XCircle className="h-3 w-3 mr-1" />
-                                Échouée
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {getDeviceIcon(entry.device_type)}
-                              <span className="capitalize">{entry.device_type || "Desktop"}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{entry.browser || "Inconnu"}</TableCell>
-                          <TableCell>{entry.os || "Inconnu"}</TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {entry.ip_address || "N/A"}
+                    </TableHeader>
+                    <TableBody>
+                      {history.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground">
+                            {t("securitySessions.history.empty")}
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ) : (
+                        history.map((entry) => (
+                          <TableRow key={entry.id}>
+                            <TableCell>{dateTime.format(new Date(entry.created_at))}</TableCell>
+                            <TableCell>
+                              <Badge variant={entry.failure ? "destructive" : "secondary"}>{actionLabel(entry)}</Badge>
+                            </TableCell>
+                            <TableCell>{entry.login || "—"}</TableCell>
+                            <TableCell>
+                              <span className="flex items-center gap-2">
+                                <DeviceIcon type={entry.device_type} />
+                                {deviceLabel(entry)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{entry.ip_address || "—"}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Security Tips */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
-            Conseils de Sécurité
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                Vérifiez régulièrement les sessions actives et déconnectez les appareils non reconnus
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                Changez votre mot de passe si vous voyez des connexions suspectes
-              </li>
-            </ul>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                Utilisez un mot de passe fort et unique pour votre compte
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                Ne partagez jamais vos identifiants de connexion
-              </li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+      <AlertDialog open={confirmOthers} onOpenChange={setConfirmOthers}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("securitySessions.confirmOthers.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("securitySessions.confirmOthers.body", { count: otherSessions.length })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("securitySessions.confirmOthers.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={revokeOthers}>{t("securitySessions.confirmOthers.confirm")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

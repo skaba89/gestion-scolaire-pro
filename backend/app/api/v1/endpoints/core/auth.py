@@ -74,37 +74,6 @@ async def is_token_blacklisted(token_jti: str) -> bool:
         return False
 
 
-async def register_active_session(user_id: str, token_jti: str) -> None:
-    """Register a newly issued token as an active session, enforcing the
-    5-concurrent-sessions cap.
-
-    Previously this only happened in /auth/refresh/, so the very first
-    token issued by /auth/login/ was never tracked — a user could log in
-    on far more than 5 devices as long as they never called refresh from
-    the extra ones. Raises 429 if the user already has 5 active sessions.
-
-    Fails open (logs a warning, does not block login) if Redis is down —
-    consistent with every other Redis-optional check in this module.
-    """
-    try:
-        from app.core.cache import redis_client
-        client = await redis_client.client
-        session_key = f"sfp:active_sessions:{user_id}"
-        current_sessions = await client.smembers(session_key)
-        if len(current_sessions) >= 5:
-            logger.warning("Login blocked: user %s has too many active sessions (%d)", user_id, len(current_sessions))
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many active sessions. Please log out from other devices.",
-            )
-        await client.sadd(session_key, token_jti)
-        await client.expire(session_key, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.warning("Session tracking failed (Redis unavailable): %s", exc)
-
-
 async def blacklist_all_user_tokens(user_id: str, except_jti: str = None) -> int:
     """Blacklist all active tokens for a user by incrementing their token version.
 
@@ -125,10 +94,24 @@ async def blacklist_all_user_tokens(user_id: str, except_jti: str = None) -> int
         # Set a long expiry so it doesn't disappear
         await client.expire(f"sfp:{key}", 86400 * 30)  # 30 days
         logger.info("Token version for user %s bumped to %d", user_id, new_version)
+        await _revoke_registered_sessions(user_id)
         return new_version
     except Exception as exc:
         logger.warning("Failed to bump token version (Redis unavailable): %s", exc)
         return 0
+
+
+async def _revoke_registered_sessions(user_id: str) -> list[str]:
+    """Retire du registre toutes les sessions de l'utilisateur (déconnexion
+    globale, mot de passe changé, compte désactivé). Les jetons eux-mêmes
+    sont déjà invalidés par le changement de token_version ; ceci empêche
+    seulement qu'ils restent listés comme « connectés »."""
+    from app.core.sessions import SessionStoreUnavailable, revoke_all_sessions
+    try:
+        return await revoke_all_sessions(str(user_id))
+    except SessionStoreUnavailable as exc:
+        logger.error("Session registry unavailable, sessions of user %s still listed: %s", user_id, exc)
+        return []
 
 
 class Token(BaseModel):
@@ -150,12 +133,15 @@ class Token(BaseModel):
     mfa_setup_token: str | None = None
 
 
-async def _issue_full_session_token(db: Session, user: "User", roles: list[str]) -> Token:
-    """Register the session and mint the real access token for a login that
-    has fully completed (password, and MFA code if the account requires
-    one). Shared by login() and POST /mfa/login/verify/ so both paths keep
-    identical session/token semantics (concurrent-session cap, jti, token
-    version)."""
+async def _issue_full_session_token(db: Session, user: "User", roles: list[str], request: Request) -> Token:
+    """Open a server-side session and mint the real access token for a login
+    that has fully completed (password, and MFA code if the account requires
+    one). Shared by login() and the two MFA completion routes (mfa.py) so
+    every path keeps identical session/token semantics (session id, cap,
+    jti, token version, audit)."""
+    from app.core.sessions import create_session
+    from app.utils.audit import AUTH_LOGIN_SUCCESS, AUTH_SESSION_EVICTED, record_auth_event
+
     token_version = 0
     try:
         from app.core.cache import redis_client
@@ -163,15 +149,31 @@ async def _issue_full_session_token(db: Session, user: "User", roles: list[str])
         version_str = await client.get(f"sfp:user_token_version:{user.id}")
         if version_str:
             token_version = int(version_str)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Same fail-open as the revocation checks: a token minted with tv=0
+        # while a logout-all is in effect is refused by get_current_user()
+        # as soon as Redis answers again.
+        logger.warning("Redis unavailable while reading token version at login (tv=0 issued): %s", exc)
 
     import hashlib
     token_jti = hashlib.sha256(f"{user.id}:{datetime.now(timezone.utc).timestamp()}".encode()).hexdigest()[:16]
 
-    # SECURITY: Register this session and enforce the 5-concurrent-sessions
-    # cap at login time (previously only enforced on /auth/refresh/).
-    await register_active_session(str(user.id), token_jti)
+    tenant_id = str(user.tenant_id) if user.tenant_id else None
+    user_agent = request.headers.get("user-agent")
+    # Plafond de sessions simultanées : les plus anciennes sont fermées
+    # (jamais de refus de connexion), chacune journalisée.
+    session_id, evicted = await create_session(str(user.id), tenant_id, get_client_ip(request), user_agent)
+    for evicted_sid in evicted:
+        record_auth_event(
+            db, request=request, user_id=str(user.id), tenant_id=tenant_id,
+            action=AUTH_SESSION_EVICTED, severity="WARNING",
+            details={"session_id": evicted_sid, "reason": "max_concurrent_sessions"},
+        )
+    record_auth_event(
+        db, request=request, user_id=str(user.id), tenant_id=tenant_id,
+        action=AUTH_LOGIN_SUCCESS,
+        details={"session_id": session_id, "login": user.email, "mfa": bool(getattr(user, "mfa_enabled", False))},
+    )
 
     try:
         access_token = create_access_token(
@@ -182,6 +184,7 @@ async def _issue_full_session_token(db: Session, user: "User", roles: list[str])
                 "tenant_id": str(user.tenant_id) if user.tenant_id else None,
                 "roles": roles,
                 "jti": token_jti,
+                "sid": session_id,
                 "tv": token_version,
                 # Original login time, carried unchanged by every refresh:
                 # bounds the whole session to SESSION_MAX_AGE_DAYS.
@@ -276,6 +279,29 @@ async def _reset_login_attempts(user_id: str) -> None:
         pass
 
 
+def _own_tenant_id(current_user: dict) -> str | None:
+    """Tenant PROPRE du compte (jamais celui consulté par un SUPER_ADMIN via
+    X-Tenant-ID) : un événement d'authentification appartient au compte.
+    Repli sur tenant_id pour les dépendances simulées des tests."""
+    if "_own_tenant_id" in current_user:
+        return current_user["_own_tenant_id"]
+    return current_user.get("tenant_id")
+
+
+def _audit_login_failure(db: Session, request: Request, user: "User", reason: str, **extra) -> None:
+    """Échec de connexion d'un compte EXISTANT, journalisé dans son
+    établissement. Un identifiant inconnu n'a pas de tenant où l'écrire : il
+    reste dans les journaux applicatifs (WARNING ci-dessus)."""
+    from app.utils.audit import AUTH_LOGIN_FAILED, record_auth_event
+
+    record_auth_event(
+        db, request=request, user_id=str(user.id),
+        tenant_id=str(user.tenant_id) if user.tenant_id else None,
+        action=AUTH_LOGIN_FAILED, severity="WARNING",
+        details={"reason": reason, "login": user.email, **extra},
+    )
+
+
 @router.post("/login/", response_model=Token)
 @limiter.limit("5/minute")
 async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -318,6 +344,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         is_locked, remaining = await _check_account_lockout(str(user.id))
         if is_locked:
             logger.warning("Login blocked: account %s is locked due to too many failed attempts", user.email)
+            _audit_login_failure(db, request, user, "account_locked")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Account temporarily locked due to too many failed login attempts. Please try again later.",
@@ -327,6 +354,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         # Check user is active
         if not user.is_active:
             logger.warning("Login failed: user '%s' (id=%s) is inactive", user.email, user.id)
+            _audit_login_failure(db, request, user, "account_disabled")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Account is disabled. Contact an administrator.",
@@ -361,6 +389,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         if not password_ok:
             attempts = await _record_failed_login(str(user.id))
             logger.info("Login failed: wrong password for '%s' (attempt %d/%d)", user.email, attempts, MAX_LOGIN_ATTEMPTS)
+            _audit_login_failure(db, request, user, "invalid_password", attempts=attempts)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -458,7 +487,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             )
             return Token(mfa_required=True, mfa_token=mfa_pending_token)
 
-        return await _issue_full_session_token(db, user, roles)
+        return await _issue_full_session_token(db, user, roles, request)
 
     except HTTPException:
         raise
@@ -516,6 +545,15 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    # Session révoquée (par l'utilisateur, un administrateur ou l'éviction du
+    # plafond) : ne peut plus être prolongée, quel que soit le jeton présenté.
+    from app.core.sessions import is_session_revoked
+    if await is_session_revoked(payload.get("sid")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session révoquée. Reconnectez-vous.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -601,22 +639,22 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         version_str = await client.get(f"sfp:user_token_version:{user_id}")
         if version_str:
             token_version = int(version_str)
-        # SECURITY: Track active sessions — enforce max concurrent sessions (5)
-        session_key = f"sfp:active_sessions:{user_id}"
-        current_sessions = await client.smembers(session_key)
-        if len(current_sessions) >= 5:
-            logger.warning("Refresh blocked: user %s has too many active sessions (%d)", user_id, len(current_sessions))
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many active sessions. Please log out from other devices.",
-            )
-        # Register this session with 30-min TTL
-        await client.sadd(session_key, token_jti)
-        await client.expire(session_key, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-    except HTTPException:
-        raise
     except Exception as exc:
-        logger.warning("Session tracking failed (Redis unavailable): %s", exc)
+        logger.warning("Redis unavailable while reading token version at refresh: %s", exc)
+
+    # Session serveur : le sid est CONSERVÉ — tous les jetons successifs d'un
+    # appareil sont la même session (révoquée d'un coup, jamais comptée deux
+    # fois dans le plafond). Un jeton antérieur au registre (sans sid) reçoit
+    # sa session à son premier rafraîchissement.
+    from app.core.sessions import create_session, touch_session
+    session_tenant = str(user_db.tenant_id) if user_db.tenant_id else None
+    session_id = payload.get("sid")
+    if session_id:
+        await touch_session(session_id, user_id, session_tenant, get_client_ip(request), request.headers.get("user-agent"))
+    else:
+        session_id, _evicted = await create_session(
+            user_id, session_tenant, get_client_ip(request), request.headers.get("user-agent")
+        )
 
     access_token = create_access_token(
         {
@@ -626,6 +664,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
             "tenant_id": str(user_db.tenant_id) if user_db.tenant_id else None,
             "roles": all_roles,
             "jti": token_jti,
+            "sid": session_id,
             "tv": token_version,
             "auth_time": int(auth_time),
         }
@@ -641,7 +680,7 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/logout/")
 @limiter.limit("20/minute")
-async def logout(request: Request, current_user: dict = Depends(get_current_user)):
+async def logout(request: Request, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     # Blacklist the current token so it cannot be reused
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
@@ -667,14 +706,21 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
             token_jti = hashlib.sha256(token_str.encode()).hexdigest()[:16]
             await blacklist_token(token_jti, settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
 
-        # SECURITY: Clean up active session tracking to prevent slot accumulation
+    # Session serveur : révoquée, donc retirée de la liste des appareils et
+    # inutilisable par tout autre jeton de la même session (refresh compris).
+    from app.core.sessions import SessionStoreUnavailable, revoke_session
+    from app.utils.audit import AUTH_LOGOUT, record_auth_event
+    session_id = current_user.get("_session_id")
+    if session_id:
         try:
-            from app.core.cache import redis_client
-            client = await redis_client.client
-            session_key = f"sfp:active_sessions:{current_user.get('id', '')}"
-            await client.srem(session_key, token_jti)
-        except Exception as exc:
-            logger.warning("Failed to clean up active session on logout: %s", exc)
+            await revoke_session(current_user["id"], session_id)
+        except SessionStoreUnavailable as exc:
+            logger.error("Session %s could not be revoked at logout: %s", session_id, exc)
+    record_auth_event(
+        db, request=request, user_id=current_user["id"],
+        tenant_id=_own_tenant_id(current_user), action=AUTH_LOGOUT,
+        details={"session_id": session_id} if session_id else None,
+    )
 
     logger.info("User '%s' logged out (token blacklisted)", current_user.get("email"))
     return {"message": "Successfully logged out"}
@@ -769,13 +815,19 @@ async def change_password(
     # SECURITY: Invalidate all other sessions after password change
     await blacklist_all_user_tokens(str(user_id))
 
+    from app.utils.audit import AUTH_PASSWORD_CHANGED, record_auth_event
+    record_auth_event(
+        db, request=request, user_id=str(user_id), tenant_id=_own_tenant_id(current_user),
+        action=AUTH_PASSWORD_CHANGED, details={"method": "change_password"},
+    )
+
     logger.info("User '%s' changed their password", current_user.get("email"))
     return {"message": "Password changed successfully"}
 
 
 @router.post("/logout-all/")
 @limiter.limit("5/minute")
-async def logout_all_devices(request: Request, current_user: dict = Depends(get_current_user)):
+async def logout_all_devices(request: Request, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     """Logout from all devices by invalidating all tokens.
 
     Increments the user's token version in Redis. All future token
@@ -816,16 +868,68 @@ async def logout_all_devices(request: Request, current_user: dict = Depends(get_
     # Bump token version — invalidates all existing tokens for this user
     new_version = await blacklist_all_user_tokens(user_id)
 
-    # SECURITY: Clear all active sessions for this user
-    try:
-        from app.core.cache import redis_client
-        client = await redis_client.client
-        await client.delete(f"sfp:active_sessions:{user_id}")
-    except Exception:
-        pass
+    # blacklist_all_user_tokens() a aussi retiré toutes les sessions du registre.
+    from app.utils.audit import AUTH_LOGOUT_ALL, record_auth_event
+    record_auth_event(
+        db, request=request, user_id=user_id, tenant_id=_own_tenant_id(current_user),
+        action=AUTH_LOGOUT_ALL, details={"token_version": new_version},
+    )
 
     logger.info("User '%s' logged out from all devices (token version bumped to %d)", current_user.get("email"), new_version)
     return {"message": "Logged out from all devices", "token_version": new_version}
+
+
+@router.get("/sessions/")
+@limiter.limit("30/minute")
+async def list_my_sessions(request: Request, current_user: dict = Depends(get_current_user)):
+    """Appareils connectés au compte courant (session courante signalée).
+
+    Données propres au compte (comme /auth/logout/) : aucune permission
+    d'établissement requise. Registre indisponible → 503, jamais une liste
+    vide trompeuse."""
+    from app.core.sessions import SessionStoreUnavailable, list_sessions
+
+    try:
+        sessions = await list_sessions(current_user["id"])
+    except SessionStoreUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La liste des sessions est momentanément indisponible. Réessayez plus tard.",
+            headers={"Retry-After": "5"},
+        )
+    current_sid = current_user.get("_session_id")
+    return [s.to_public_dict(current_sid) for s in sessions]
+
+
+@router.delete("/sessions/{session_id}/")
+@limiter.limit("20/minute")
+async def revoke_my_session(
+    session_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Déconnecte l'un de MES appareils. Une session inconnue ou appartenant
+    à un autre compte → 404 (aucune information sur son existence)."""
+    from app.core.sessions import SessionStoreUnavailable, revoke_session
+    from app.utils.audit import AUTH_SESSION_REVOKED, record_auth_event
+
+    try:
+        revoked = await revoke_session(current_user["id"], session_id)
+    except SessionStoreUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La session n'a pas pu être révoquée (registre indisponible). Réessayez plus tard.",
+            headers={"Retry-After": "5"},
+        )
+    if not revoked:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session introuvable.")
+    record_auth_event(
+        db, request=request, user_id=current_user["id"], tenant_id=_own_tenant_id(current_user),
+        action=AUTH_SESSION_REVOKED,
+        details={"session_id": session_id, "by": "self", "current": session_id == current_user.get("_session_id")},
+    )
+    return {"message": "Session révoquée", "session_id": session_id}
 
 
 class ForcedPasswordChangeRequest(BaseModel):
