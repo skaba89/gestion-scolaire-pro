@@ -132,3 +132,21 @@ def store_idempotent_response(
     except Exception as exc:
         db.rollback()
         logger.warning("Failed to store idempotency record for key %s: %s", key, exc)
+
+
+def new_idempotency_record(
+    *, tenant_id: str, user_id: str, key: str, method: str, endpoint: str,
+    request_body: Any, response_body: Any, status_code: int, ttl_hours: int = DEFAULT_TTL_HOURS,
+) -> IdempotencyKey:
+    """Enregistrement à ajouter DANS la transaction de l'opération elle-même
+    (opérations financières) : un rejeu concurrent portant la même clé échoue
+    alors sur ux_idempotency_keys_tenant_user_key au commit et son effet est
+    annulé — contrairement à store_idempotent_response(), qui écrit après
+    coup et laisse une fenêtre où deux requêtes s'exécutent toutes deux."""
+    return IdempotencyKey(
+        key=key, tenant_id=tenant_id, user_id=user_id, method=method, endpoint=endpoint,
+        request_hash=_hash_request(request_body),
+        response_json=json.dumps(response_body, default=str),
+        status_code=status_code,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=ttl_hours),
+    )
