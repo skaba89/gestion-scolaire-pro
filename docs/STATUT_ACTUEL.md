@@ -557,5 +557,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   référence en double → 409. Côté client, une mutation n'est rejouée que si
   elle porte une clé ; l'écran d'encaissement en envoie une par paiement.
   Tests de concurrence sur PostgreSQL (`tests/test_payment_integrity.py`).
+  Trouvé par le parcours E2E : `X-Idempotency-Key` manquait dans
+  `allow_headers` CORS — depuis une autre origine (app Capacitor, front
+  séparé), le navigateur bloquait la requête au pré-vol, y compris les
+  présences de la file hors-ligne. Ajouté (`tests/test_cors_idempotency_header.py`).
   Non vérifié : écritures existantes en production déjà incohérentes
   (`paid_amount` ≠ somme des paiements) — aucune requête de contrôle lancée.
