@@ -41,7 +41,7 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
             // 1. Résumé Exécutif / Prédictions
             doc.setFontSize(14);
             doc.setTextColor(0);
-            doc.text("1. Résumé Exécutif & Prédictions", 14, 45);
+            doc.text("1. Indicateurs actuels", 14, 45);
 
             const predictionData = predictions.map(p => [p.title, p.value, p.description]);
 
@@ -63,8 +63,8 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
                 const riskData = highRiskStudents.map(s => [
                     s.name,
                     s.classroom,
-                    `${s.avgGrade}%`,
-                    `${s.attendanceRate}%`,
+                    `${s.avgGrade.toFixed(1)}/20`,
+                    s.attendanceRate === null ? "—" : `${Math.round(s.attendanceRate)} %`,
                     s.factors.join(", ")
                 ]);
 
@@ -91,12 +91,12 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
                 r.priority.toUpperCase(),
                 r.category,
                 r.title,
-                r.impact
+                r.description
             ]);
 
             autoTable(doc, {
                 startY: finalY + 5,
-                head: [['Validité', 'Catégorie', 'Action Suggérée', 'Impact Estimé']],
+                head: [['Priorité', 'Catégorie', 'Action suggérée', 'Constat']],
                 body: recData,
                 theme: 'striped',
                 headStyles: { fillColor: [142, 68, 173] }

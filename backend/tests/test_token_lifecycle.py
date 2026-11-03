@@ -25,7 +25,7 @@ client = get_test_client()
 # (fail-open)" warning, and test_blacklist_check_fails_open_when_redis_
 # unavailable below, which specifically covers that intentional degraded
 # mode. The tests marked here assert the *blocking* behavior itself (401
-# after blacklist, 429 on a 6th session), which can't be observed without a
+# after blacklist, eviction of the oldest of 6 sessions), which can't be observed without a
 # real Redis; skip cleanly instead of a misleading "assert 200 == 401".
 _needs_redis = pytest.mark.skipif(
     not redis_is_available(),
@@ -191,25 +191,11 @@ class TestActiveSessionsAtLogin:
         # (5 logins OK, 6e refusé) plutôt que de dupliquer la boucle ici.
 
     @_needs_redis
-    def test_sixth_concurrent_login_returns_429(self):
-        """2. Un 6e login concurrent (sans logout entre-temps) est refusé
-        avec 429 — la limite de 5 sessions s'applique désormais dès le
-        login, plus seulement au refresh."""
-        email = _fresh_super_admin()
-
-        for i in range(5):
-            resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-            assert resp.status_code == 200, f"login #{i+1} failed: {resp.text}"
-
-        sixth = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-        assert sixth.status_code == 429, sixth.text
-
-    @_needs_redis
-    def test_logout_removes_active_session(self):
-        """3. Le logout libère un slot de session : après avoir rempli les
-        5 sessions puis déconnecté l'une d'elles, un nouveau login doit
-        de nouveau réussir (sinon la session déconnectée compterait
-        encore, et ce 6e login échouerait en 429)."""
+    def test_sixth_concurrent_login_evicts_the_oldest_session(self):
+        """2. Plafond de 5 sessions (décision produit 2026-11-02) : un 6e
+        login n'est plus refusé (l'ancien 429 bloquait un utilisateur qui
+        n'avait pas pu se déconnecter d'un poste partagé) — la session la plus
+        ancienne est fermée à la place, et seulement elle."""
         email = _fresh_super_admin()
         tokens = []
         for i in range(5):
@@ -217,19 +203,36 @@ class TestActiveSessionsAtLogin:
             assert resp.status_code == 200, f"login #{i+1} failed: {resp.text}"
             tokens.append(resp.json()["access_token"])
 
-        # Sans logout, le 6e login est refusé (comportement déjà couvert
-        # par test_sixth_concurrent_login_returns_429 — revérifié ici pour
-        # que ce test soit indépendant et auto-descriptif).
-        blocked = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
-        assert blocked.status_code == 429, blocked.text
+        sixth = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+        assert sixth.status_code == 200, sixth.text
+
+        oldest = client.get(ME_URL, headers={"Authorization": f"Bearer {tokens[0]}"})
+        assert oldest.status_code == 401, oldest.text
+        for token in tokens[1:] + [sixth.json()["access_token"]]:
+            still = client.get(ME_URL, headers={"Authorization": f"Bearer {token}"})
+            assert still.status_code == 200, still.text
+
+    @_needs_redis
+    def test_logout_frees_a_session_slot(self):
+        """3. Le logout libère une place : après 5 sessions et un logout, un
+        nouveau login n'évince aucune des 4 sessions restantes."""
+        email = _fresh_super_admin()
+        tokens = []
+        for i in range(5):
+            resp = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
+            assert resp.status_code == 200, f"login #{i+1} failed: {resp.text}"
+            tokens.append(resp.json()["access_token"])
 
         logout_resp = client.post(LOGOUT_URL, headers={"Authorization": f"Bearer {tokens[0]}"})
         assert logout_resp.status_code == 200, logout_resp.text
 
-        # Un slot est libéré : le prochain login réussit.
         after_logout = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
         assert after_logout.status_code == 200, after_logout.text
+        for token in tokens[1:]:
+            still = client.get(ME_URL, headers={"Authorization": f"Bearer {token}"})
+            assert still.status_code == 200, still.text
 
+    @_needs_redis
     def test_logout_all_clears_all_active_sessions(self):
         """4. logout-all vide toutes les sessions actives : après avoir
         rempli les 5 slots puis appelé logout-all, 5 nouveaux logins
@@ -244,9 +247,15 @@ class TestActiveSessionsAtLogin:
         resp = client.post(LOGOUT_ALL_URL, headers={"Authorization": f"Bearer {last_token}"})
         assert resp.status_code == 200, resp.text
 
+        fresh_tokens = []
         for i in range(5):
             fresh = client.post(LOGIN_URL, data={"username": email, "password": STRONG_PASSWORD})
             assert fresh.status_code == 200, f"login #{i+1} after logout-all failed: {fresh.text}"
+            fresh_tokens.append(fresh.json()["access_token"])
+        # Les 5 anciennes sessions ne comptent plus : aucune des nouvelles
+        # n'a été évincée.
+        first = client.get(ME_URL, headers={"Authorization": f"Bearer {fresh_tokens[0]}"})
+        assert first.status_code == 200, first.text
 
 
 # ─── National audit Phase 1 — logout-all must actually invalidate old tokens ─

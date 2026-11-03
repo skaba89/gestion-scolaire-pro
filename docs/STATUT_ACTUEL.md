@@ -518,3 +518,28 @@ ce fichier — pas d'un document de 2025 non révisé.
   jamais lancé) — tâche ARQ quotidienne `expire_subscriptions_job` (02:30), qui
   horodate aussi le début du délai des établissements échus sans date. Tout
   établissement créé reçoit par défaut 30 jours d'essai (`Tenant.trial_ends_at`).
+- **2026-11-02 — sessions serveur et audit des connexions (P0-1/P0-2 de
+  `docs/audit/`).** La page « Sécurité & sessions » affichait toujours zéro
+  session et « Session terminée » sans rien révoquer ; le serveur n'écrivait
+  aucun événement d'authentification et l'historique lisait un champ absent
+  (toujours vide). Désormais : registre serveur des sessions (`sid` stable au
+  refresh, révocation effective sur requêtes et refresh, 5 sessions max — la
+  plus ancienne est fermée), routes `GET/DELETE /auth/sessions/` et
+  `/users/{id}/sessions/` (`users:write`), 8 événements d'authentification
+  écrits par le serveur, page branchée sur l'API et traduite (5 langues).
+  Comportement modifié : un 6e appareil n'est plus refusé en 429. Voir
+  `docs/SECURITY_MODEL.md` § 2 et § 6.
+- **2026-11-02 — « Insights IA » : plus aucune donnée inventée (SIM-AI-01 de
+  `docs/audit/`).** La page affichait des tendances sur 6 mois tirées au
+  hasard (non affichées mais calculées), deux axes de radar aléatoires, une
+  présence de 100 % pour chaque élève, des « confiances » de 70 à 88 %, un
+  taux de réussite plancher de 60 %, des impacts chiffrés (« +25 % de
+  l'engagement ») sans mesure, un bouton « Appliquer » sans action, des
+  moyennes sur 20 affichées en pourcentage, et « Actualiser » invalidait des
+  requêtes inexistantes avant d'annoncer « Analyse mise à jour ». L'assistant
+  IA recevait « moyenne 0 % / présence 0 % » comme faits. Désormais :
+  indicateurs actuels lus sur l'API (« Non disponible » sinon), graphiques
+  sur les seuls élèves signalés, contexte IA sans chiffre absent, 5 langues.
+  Reste (backend) : les endpoints `/analytics/*-kpis/` renvoient des zéros
+  en cas d'erreur au lieu d'échouer, et `students-at-risk` ne fournit ni
+  classe ni présence par élève.

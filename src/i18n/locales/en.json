@@ -1654,13 +1654,57 @@
     "refreshSuccess": "Analysis updated",
     "refreshError": "Error refreshing analysis",
     "pageTitle": "AI Insights",
-    "pageSubtitle": "Predictive analytics and smart recommendations",
+    "pageSubtitle": "Current school indicators and students in difficulty",
     "tabRisks": "Risks",
     "tabRecommendations": "Recommendations",
     "tabRecommendationsShort": "Tips",
     "tabAnalysis": "Analysis",
     "tabAssistant": "AI Assistant",
-    "tabAssistantShort": "AI"
+    "tabAssistantShort": "AI",
+    "unavailable": "Not available",
+    "loadError": "Some indicators could not be loaded: they are shown as not available.",
+    "factors": {
+      "noGrades": "No grade recorded",
+      "veryLowAverage": "Very low average",
+      "lowAverage": "Insufficient average"
+    },
+    "indicators": {
+      "averageGrade": "Overall average",
+      "averageGradeHint": "Current average of all recorded grades",
+      "attendance": "Attendance rate",
+      "attendanceHint": "Recorded student attendance",
+      "atRisk": "High-risk students",
+      "atRiskHint": "Average below 50% of the grading scale",
+      "successRate": "Pass rate",
+      "successRateHint": "Grades at least half of the grading scale"
+    },
+    "recommendations": {
+      "interventionCategory": "Follow-up",
+      "followUpTitle": "Set up individual follow-up",
+      "followUpBody": "High-risk students: {{count}}. Consider tutoring and talking with families.",
+      "attendanceCategory": "Attendance",
+      "attendanceTitle": "Strengthen absence follow-up",
+      "attendanceBody": "Overall attendance rate is {{rate}}%."
+    },
+    "priority": {
+      "high": "High priority",
+      "medium": "Medium priority",
+      "low": "Low priority"
+    },
+    "student": {
+      "average": "Average",
+      "attendance": "Attendance"
+    },
+    "charts": {
+      "empty": "No student flagged as in difficulty.",
+      "levelsTitle": "Flagged students by risk level",
+      "levelsDescription": "Students whose average is below 60% of the grading scale",
+      "levelHigh": "High risk",
+      "levelMedium": "Moderate risk",
+      "bandsTitle": "Averages of flagged students",
+      "bandsDescription": "Distribution by average band (out of 20)",
+      "studentsSeries": "Students"
+    }
   },
   "admissions": {
     "loadError": "Error loading applications",
@@ -2882,5 +2926,88 @@
     "readOnlyUntil": "Subscription expired: read-only access until {{date}}.",
     "renew": "Renew the subscription",
     "signOut": "Sign out"
+  },
+  "securitySessions": {
+    "title": "Security & sessions",
+    "subtitle": "Devices signed in to your account and the institution's sign-in history",
+    "refresh": "Refresh",
+    "unknownIp": "Unknown IP",
+    "unknownDevice": "Unknown device",
+    "period": {
+      "label": "Period",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "all": "All"
+    },
+    "stats": {
+      "activeSessions": "My active sessions",
+      "successful": "Successful sign-ins",
+      "failed": "Failures",
+      "successRate": "Success rate"
+    },
+    "tabs": {
+      "sessions": "My devices",
+      "history": "Sign-in history"
+    },
+    "sessions": {
+      "title": "Signed-in devices",
+      "description": "Every device where your account is currently signed in. Sign out the ones you don't recognise.",
+      "revokeOthers": "Sign out other devices",
+      "loading": "Loading sessions…",
+      "error": "Sessions could not be loaded. Try again in a moment.",
+      "empty": "No active session",
+      "current": "This device",
+      "revoke": "Sign out",
+      "browserOn": "{{browser}} on {{os}}",
+      "lastActivity": "Last activity: {{date}}"
+    },
+    "chart": {
+      "title": "Sign-ins per day",
+      "description": "Successful and failed sign-ins recorded by the server",
+      "success": "Successful",
+      "failed": "Failed"
+    },
+    "history": {
+      "title": "Sign-in history",
+      "description": "Authentication events recorded by the server for the institution",
+      "search": "Search (IP, account, browser…)",
+      "loading": "Loading history…",
+      "error": "History could not be loaded. Try again in a moment.",
+      "forbidden": "Your role does not allow viewing the institution's sign-in history.",
+      "empty": "No events in this period",
+      "date": "Date",
+      "event": "Event",
+      "account": "Account",
+      "device": "Device",
+      "ip": "IP"
+    },
+    "actions": {
+      "LOGIN_SUCCESS": "Sign-in",
+      "LOGIN_FAILED": "Failed sign-in",
+      "MFA_FAILED": "MFA code rejected",
+      "LOGOUT": "Sign-out",
+      "LOGOUT_ALL": "Signed out of all devices",
+      "SESSION_REVOKED": "Session revoked",
+      "SESSION_EVICTED": "Session closed (device limit)",
+      "PASSWORD_CHANGED": "Password changed"
+    },
+    "suspicious": {
+      "title": "Suspicious activity",
+      "item": "{{count}} failed sign-ins from {{ip}}"
+    },
+    "confirmOthers": {
+      "title": "Sign out other devices?",
+      "body": "Devices affected: {{count}}. They will need to sign in again with the password. This device stays signed in.",
+      "cancel": "Cancel",
+      "confirm": "Sign out"
+    },
+    "toast": {
+      "revokedTitle": "Session signed out",
+      "revokedBody": "The server signed the device out.",
+      "errorTitle": "Failed",
+      "errorBody": "The session could not be signed out. Try again.",
+      "othersRevokedTitle": "Devices signed out",
+      "othersRevokedBody": "Signed out: {{ok}} — failed: {{failed}}"
+    }
   }
 }

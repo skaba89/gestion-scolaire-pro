@@ -71,6 +71,24 @@ qui l'implémente.
   2026-07 après découverte que l'implémentation blacklistait par erreur un
   hash du token brut au lieu du `jti` réel (voir commit "fix(auth): corriger
   le jti de blacklist immédiat sur logout-all").
+- **Sessions serveur** (2026-11-02, `app/core/sessions.py`) : chaque
+  connexion complète (mot de passe + MFA si requise) ouvre une session
+  d'identifiant `sid`, porté par le JWT et **conservé** par
+  `/auth/refresh/`. Registre Redis : `sfp:session:{sid}` (appareil, IP,
+  création, dernière activité) et `sfp:user_sessions:{user_id}`. Révoquer une
+  session (`DELETE /auth/sessions/{sid}/` pour soi, `DELETE
+  /users/{id}/sessions/{sid}/` pour un administrateur `users:write` de
+  l'établissement) pose `sfp:session_revoked:{sid}`, vérifié à chaque requête
+  et au rafraîchissement : tous les jetons de cet appareil sont refusés.
+  Plafond de 5 sessions simultanées : la plus ancienne est fermée (jamais de
+  refus de connexion), événement `SESSION_EVICTED`. Une session inactive
+  depuis `SESSION_IDLE_TIMEOUT_HOURS` ne compte plus. Logout, logout-all,
+  changement / réinitialisation de mot de passe et désactivation de compte
+  retirent aussi les sessions du registre. Remplace l'ancien ensemble
+  `sfp:active_sessions` (TTL 30 min pour des sessions de 7 jours, jti
+  accumulés à chaque refresh, 429 possibles sur un refresh légitime). Les
+  jetons émis avant ce mécanisme (sans `sid`) restent couverts par la
+  blacklist et la version, et reçoivent un `sid` au premier refresh.
 - Chaque route authentifiée (`get_current_user()`) vérifie la blacklist ET
   la version de token AVANT toute requête base de données — un token révoqué
   ou périmé par logout-all ne peut jamais atteindre la logique métier.
@@ -196,6 +214,18 @@ dans les handlers.
 affectations enseignants, décisions RGPD, etc.) écrit une entrée d'audit
 avant le commit de la transaction métier — pas après, pour éviter une
 perte de trace en cas d'échec partiel.
+
+**Événements d'authentification** (2026-11-02, `record_auth_event`) :
+`LOGIN_SUCCESS`, `LOGIN_FAILED` (compte existant : mot de passe erroné,
+compte verrouillé ou désactivé), `MFA_FAILED`, `LOGOUT`, `LOGOUT_ALL`,
+`SESSION_REVOKED`, `SESSION_EVICTED`, `PASSWORD_CHANGED` — écrits **par le
+serveur uniquement**, `resource_type = "AUTH"`, avec IP (`get_client_ip`) et
+user-agent, validés immédiatement (la trace d'un échec survit à la 401).
+Compte d'établissement → `audit_logs` sous la RLS de son tenant ; compte
+plateforme → `platform_audit_logs`. Un identifiant inconnu n'a pas de tenant :
+il reste dans les journaux applicatifs. Les entrées envoyées par le navigateur
+sont préfixées `CLIENT_` et ne peuvent pas se faire passer pour ces
+événements. Lecture : `GET /audit/?resource_type=AUTH` (`audit:read`).
 
 ## 7. RGPD
 
