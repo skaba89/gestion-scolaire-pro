@@ -26,7 +26,7 @@ client = get_test_client()
 from app.core.database import SessionLocal, engine  # noqa: E402
 from app.core.security import create_access_token, get_current_user, get_password_hash  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models.payment import Invoice, InvoiceStatus, Payment  # noqa: E402
+from app.models.payment import Invoice, InvoiceStatus, Payment, PaymentMethod, PaymentStatus  # noqa: E402
 from app.models.student import Gender, Student, StudentStatus  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.models.user import User  # noqa: E402
@@ -228,6 +228,41 @@ class TestReversal:
         inv = _invoice(invoice_id)
         assert float(inv.paid_amount) == 0.0
         assert inv.status == InvoiceStatus.PENDING
+
+    @pytest.mark.parametrize("status", [PaymentStatus.PENDING, PaymentStatus.FAILED, PaymentStatus.REFUNDED])
+    def test_only_a_collected_payment_can_be_reversed(self, status):
+        """FIN-02 : annuler un paiement jamais encaissé (passerelle en attente
+        ou échouée) retirait de la facture un montant jamais reçu."""
+        _, invoice_id, headers = _setup(total=100000.0)
+        paid = client.post(REGISTER_URL, json={"invoice_id": invoice_id, "amount": 40000.0, "method": "CASH", "reference": _ref()}, headers=headers)
+        assert paid.status_code == 201, paid.text
+        with SessionLocal() as db:
+            inv = db.query(Invoice).filter(Invoice.id == invoice_id).one()
+            pending = Payment(id=str(uuid.uuid4()), tenant_id=inv.tenant_id, student_id=inv.student_id,
+                              invoice_id=invoice_id, amount=30000.0, payment_method=PaymentMethod.MOBILE_MONEY,
+                              reference=_ref(), status=status, payment_date=date.today())
+            db.add(pending)
+            db.commit()
+            pending_id = str(pending.id)
+
+        resp = client.post(REVERSE_URL.format(payment_id=pending_id), json={"notes": "test"}, headers=headers)
+
+        assert resp.status_code == 400, resp.text
+        assert status.value in resp.json()["detail"]
+        inv = _invoice(invoice_id)
+        assert float(inv.paid_amount) == 40000.0  # inchangé
+        assert inv.status == InvoiceStatus.PARTIAL
+        with SessionLocal() as db:
+            assert db.query(Payment).filter(Payment.id == pending_id).one().status == status
+
+    def test_collected_payment_is_still_reversible(self):
+        _, invoice_id, headers = _setup(total=100000.0)
+        paid = client.post(REGISTER_URL, json={"invoice_id": invoice_id, "amount": 40000.0, "method": "CASH", "reference": _ref()}, headers=headers)
+        resp = client.post(REVERSE_URL.format(payment_id=paid.json()["id"]), json={"notes": "erreur"}, headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert float(_invoice(invoice_id).paid_amount) == 0.0
+        again = client.post(REVERSE_URL.format(payment_id=paid.json()["id"]), json={"notes": "erreur"}, headers=headers)
+        assert again.status_code == 400 and "déjà annulé" in again.json()["detail"]
 
     def test_unknown_payment_is_404(self):
         _, _, headers = _setup()

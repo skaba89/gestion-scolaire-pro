@@ -30,7 +30,7 @@ Aucun calendrier n'est annoncé : l'ordre fait foi.
 | P1-5 | E2E | PARTIEL | `e2e-journeys` non obligatoire ; parcours manquants (révocation session, impayé, notification) | M | P0-1 | job requis sur `main` |
 | P1-6 | Passerelles | PARTIEL | initiation CinetPay/PayTech jamais jouée en sandbox | M | comptes sandbox (humain) | parcours sandbox enregistré |
 | P1-7 | Dette TS | PARTIEL | 184 erreurs strictes | L | — | plancher abaissé à chaque lot, sans `@ts-ignore` |
-| P1-8 | Finance | OUVERT | annulation d'un paiement non encaissé (FIN-02) | S | P0-5 | annulation d'un `PENDING` → 400, facture inchangée |
+| P1-8 | Finance | CORRIGÉ (2026-11-03) | annulation d'un paiement non encaissé (FIN-02) | S | P0-5 | `PENDING`/`FAILED`/`REFUNDED` → 400, facture inchangée (3 tests) |
 
 ## P2 — Compétitivité
 

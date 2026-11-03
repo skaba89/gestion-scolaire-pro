@@ -531,9 +531,12 @@ def reverse_payment(
     # Bascule ATOMIQUE vers REVERSED : deux annulations simultanées du même
     # paiement passaient toutes deux le contrôle de statut (lu puis écrit en
     # deux temps) et décrémentaient la facture deux fois.
+    # Seul un paiement ENCAISSÉ s'annule (FIN-02, audit 2026-11-03) : annuler
+    # un paiement PENDING/FAILED (passerelle) retirait de la facture un montant
+    # jamais reçu ; un REFUNDED a déjà été rendu.
     pay = db.execute(text("""
         UPDATE payments SET status = 'REVERSED', notes = :notes, updated_at = NOW()
-         WHERE id = :payment_id AND tenant_id = :tenant_id AND status <> 'REVERSED'
+         WHERE id = :payment_id AND tenant_id = :tenant_id AND status = 'COMPLETED'
      RETURNING id, amount, invoice_id
     """), {"payment_id": payment_id, "notes": body.notes, "tenant_id": tenant_id}).mappings().first()
 
@@ -544,7 +547,13 @@ def reverse_payment(
         db.rollback()
         if not exists:
             raise HTTPException(status_code=404, detail="Paiement introuvable")
-        raise HTTPException(status_code=400, detail="Ce paiement est déjà annulé")
+        current = getattr(exists[0], "value", exists[0])
+        if current == "REVERSED":
+            raise HTTPException(status_code=400, detail="Ce paiement est déjà annulé")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Seul un paiement encaissé peut être annulé (statut actuel : {current})",
+        )
 
     # Décrément atomique de la facture (jamais sous zéro), statut recalculé
     # sur la même valeur.
