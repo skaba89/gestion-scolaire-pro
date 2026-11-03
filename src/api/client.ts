@@ -9,6 +9,23 @@ const API_TIMEOUT_MS = 15_000;
 const RETRYABLE_STATUS_CODES = [502, 503, 504];
 const MAX_AUTO_RETRIES = 2;
 
+/** En-tête reconnu par le backend (core/idempotency.py) pour rejouer sans doublon. */
+export const IDEMPOTENCY_HEADER = 'X-Idempotency-Key';
+
+function hasIdempotencyKey(headers: unknown): boolean {
+  if (!headers || typeof headers !== 'object') return false;
+  const h = headers as { get?: (name: string) => unknown } & Record<string, unknown>;
+  const value = typeof h.get === 'function' ? h.get(IDEMPOTENCY_HEADER) : h[IDEMPOTENCY_HEADER];
+  return typeof value === 'string' && value.length > 0;
+}
+
+/** Clé d'idempotence d'une opération : la même pour chacun de ses rejeux. */
+export function newIdempotencyKey(): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
 /**
  * Render (plan gratuit) met le backend en veille après une période
  * d'inactivité — la toute première requête après une veille peut mettre
@@ -253,9 +270,17 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Une mutation n'est rejouée QUE si elle porte X-Idempotency-Key : le
+    // serveur reconnaît alors le rejeu et renvoie le premier résultat. Sans
+    // clé, un 502/504 peut arriver APRÈS que le serveur a validé l'opération
+    // (proxy qui expire pendant le commit) — la rejouer créait un second
+    // paiement (audit 2026-11-02, intégrité financière). Les GET restent
+    // rejoués librement.
+    const isReadOnly = requestMethod === 'GET' || requestMethod === 'HEAD' || requestMethod === undefined;
+    const replaySafe = isReadOnly || hasIdempotencyKey(originalRequest?.headers);
     const shouldRetry =
-      (httpStatus && RETRYABLE_STATUS_CODES.includes(httpStatus)) ||
-      (isNetworkError && requestMethod === 'GET');
+      replaySafe &&
+      ((httpStatus && RETRYABLE_STATUS_CODES.includes(httpStatus)) || isNetworkError);
 
     if (shouldRetry && originalRequest) {
       const retryCount = originalRequest._retryCount ?? 0;

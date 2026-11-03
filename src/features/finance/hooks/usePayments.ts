@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import { apiClient, IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/api/client";
 import { toast } from "sonner";
 
 export const usePayments = (tenantId?: string) => {
@@ -36,6 +36,10 @@ export const usePayments = (tenantId?: string) => {
                 // La date saisie dans l'écran n'était jamais transmise : tout
                 // paiement était daté du jour de saisie.
                 payment_date: params.payment_date || undefined,
+            }, {
+                // Une clé par encaissement, identique pour chacun de ses rejeux
+                // (réponse perdue, 502/504) : le serveur ne l'enregistre qu'une fois.
+                headers: { [IDEMPOTENCY_HEADER]: newIdempotencyKey() },
             });
             return data;
         },
