@@ -104,7 +104,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 
 ## E. Qualité
 
-### QA-01 — Suite pytest non hermétique [R]
+### QA-01 — Suite pytest non hermétique [R] — **CORRIGÉ** (`test/hermetic-pytest-db`, 2026-11-03)
 - Reproduction : lancer `python -m pytest tests/ -q` avec un
   `backend/test.db` préexistant → 21 échecs (`UNIQUE constraint failed:
   students.registration_number`, `tenants.slug`) ; base supprimée → 0 échec.
@@ -112,6 +112,13 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 - 2026-11-03 : 19 échecs à la 2e exécution sur `main` ; en PostgreSQL aussi,
   `test_payment_business_rules.py` (références fixes `REC-TEST-1`…) échoue
   en 409 à la 2e exécution sur la même base.
+- Cause unique : valeurs fixes soumises à une contrainte d'unicité
+  (`registration_number`, `tenants.slug`, `payments.reference`) dans 6
+  fichiers. Correctif : suffixe unique par exécution, assertions comparées à
+  la valeur générée (rien de ce que les tests vérifient n'a changé).
+- Preuve : SQLite, même base, 2 exécutions complètes : 1 596 passed / 0
+  failed puis 1 596 / 0. PostgreSQL, même base, 8 fichiers concernés : 74/74
+  puis 74/74.
 
 ### QA-02 — Dette TS/ESLint [V] — **OUVERT** (184 / 2 027 au 2026-11-03)
 - 184 erreurs `tsc` strictes, 2 048 avertissements ESLint (détail dans

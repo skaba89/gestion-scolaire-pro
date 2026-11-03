@@ -108,7 +108,7 @@ class TestSlugValidationNeverAppliesToReads:
         tenant_id = _make_tenant()
         with SessionLocal() as db:
             t = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-            t.slug = "Legacy_Slug.With.Dots"  # jamais accepté en écriture, mais déjà en base
+            t.slug = f"Legacy_Slug.With.Dots.{uuid.uuid4().hex[:8]}"  # jamais accepté en écriture, mais déjà en base
             db.commit()
 
         headers = _as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None})
@@ -127,11 +127,12 @@ class TestCreateTenantRejectsBadSlug:
 
     def test_create_tenant_accepts_valid_slug(self):
         headers = _as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None})
+        slug = f"udm-{uuid.uuid4().hex[:8]}"  # unique par exécution (QA-01)
         resp = client.post(f"{BASE}/", json={
-            "name": "UdM", "slug": "udm", "type": "university",
+            "name": "UdM", "slug": slug, "type": "university",
         }, headers=headers)
         assert resp.status_code == 201, resp.text
-        assert resp.json()["slug"] == "udm"
+        assert resp.json()["slug"] == slug
 
 
 class TestUpdateTenantSlugRepairPath:
@@ -144,13 +145,14 @@ class TestUpdateTenantSlugRepairPath:
         tenant_id = _make_tenant()
         with SessionLocal() as db:
             t = db.query(Tenant).filter(Tenant.id == tenant_id).first()
-            t.slug = "https://www.udm-repair-test.com"  # simule le slug déjà cassé en base
+            t.slug = f"https://www.udm-repair-{uuid.uuid4().hex[:8]}.com"  # simule le slug déjà cassé en base
             db.commit()
 
         headers = _as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None})
-        resp = client.patch(f"{BASE}/{tenant_id}/", json={"slug": "udm-repare"}, headers=headers)
+        repaired = f"udm-repare-{uuid.uuid4().hex[:8]}"
+        resp = client.patch(f"{BASE}/{tenant_id}/", json={"slug": repaired}, headers=headers)
         assert resp.status_code == 200, resp.text
-        assert resp.json()["slug"] == "udm-repare"
+        assert resp.json()["slug"] == repaired
 
     def test_update_endpoint_rejects_bad_slug_too(self):
         tenant_id = _make_tenant()
@@ -159,10 +161,11 @@ class TestUpdateTenantSlugRepairPath:
         assert resp.status_code == 400, resp.text
 
     def test_update_rejects_slug_collision_with_another_tenant(self):
-        _make_tenant(slug="deja-pris")
+        taken = f"deja-pris-{uuid.uuid4().hex[:8]}"
+        _make_tenant(slug=taken)
         tenant_id = _make_tenant()
         headers = _as({"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None})
-        resp = client.patch(f"{BASE}/{tenant_id}/", json={"slug": "deja-pris"}, headers=headers)
+        resp = client.patch(f"{BASE}/{tenant_id}/", json={"slug": taken}, headers=headers)
         assert resp.status_code == 409, resp.text
 
     def test_tenant_admin_cannot_change_slug(self):
