@@ -100,6 +100,9 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
   `backend/test.db` préexistant → 21 échecs (`UNIQUE constraint failed:
   students.registration_number`, `tenants.slug`) ; base supprimée → 0 échec.
 - Correctif : fixture de session qui recrée la base, ou identifiants uniques.
+- 2026-11-03 : 19 échecs à la 2e exécution sur `main` ; en PostgreSQL aussi,
+  `test_payment_business_rules.py` (références fixes `REC-TEST-1`…) échoue
+  en 409 à la 2e exécution sur la même base.
 
 ### QA-02 — Dette TS/ESLint [V] — **OUVERT** (184 / 2 027 au 2026-11-03)
 - 184 erreurs `tsc` strictes, 2 048 avertissements ESLint (détail dans
@@ -179,7 +182,22 @@ l'interface (« aucun bouton décoratif »).
   jamais reçu.
 - Correctif : n'annuler que `COMPLETED` ; test : annulation d'un `PENDING` → 400, facture inchangée.
 
-### API-02 — Export comptable cassé [V] — **OUVERT** — P1
+### API-02 — Export comptable cassé [V] — **CORRIGÉ** (`fix/accounting-export-route`) — P1
 - `src/pages/admin/AccountingExports.tsx:119` appelle `GET /payments/` (absent) ;
   la liste est `GET /payments/payments/`. Sous-ensemble prioritaire d'API-01.
+- Constaté en corrigeant (même écran, tous silencieux) : filtres de date des
+  factures ignorés par le serveur (50 premières factures, toutes dates) ;
+  montant recalculé depuis les lignes au lieu de `total_amount` ; champs
+  `invoice`/`student` au lieu de `invoices`/`students` ; factures datées par
+  création et non par émission ; brouillons, factures et paiements annulés
+  comptabilisés ; « 3 derniers mois » = 4 mois ; noms d'élèves écrits sans
+  protection dans des CSV ouverts par Excel (injection de formule).
+- Correctif : filtres `date_from`/`date_to` (+ `status` sur les paiements)
+  sur les deux listes, pagination complète côté écran (échec explicite
+  au-delà de 20 000 lignes plutôt que troncature), logique isolée et testée
+  (`src/features/finance/utils/accountingExport.ts`), message d'erreur au lieu
+  d'un export vide. Tests : `test_payment_list_period_filters.py` (9, PostgreSQL ;
+  7 en échec sur l'ancien code), `accountingExport.test.ts` (17).
+- Module mort retiré : `src/lib/paymentReference.ts` (appelait `GET /payments/`,
+  importé nulle part — l'écran Finances utilise `/payments/sequence/`).
 

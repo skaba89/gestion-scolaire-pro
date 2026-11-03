@@ -1,6 +1,6 @@
-# Appels frontend sans route backend — 2026-11-03 (commit `6540145`)
+# Appels frontend sans route backend — 2026-11-03 (branche `fix/accounting-export-route`)
 
-Généré par `scripts/audit/frontend-api-routes.mjs`. 1 027 appels `apiClient` littéraux analysés ; 21 URL entièrement dynamiques non vérifiables ; **77 chemins absents, 17 méthodes absentes (94 appels)**. Chaque ligne : appel, puis fichier:ligne.
+Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (79 clés distinctes). **75 chemins absents, 17 méthodes absentes (92 appels)** ; 21 URL entièrement dynamiques non vérifiables. Historique : 94 appels au commit `6540145`.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -33,8 +33,6 @@ GET /hr/staff  (src/pages/admin/AdvancedExports.tsx:201)
 GET /inventory/orders/X/items  (src/queries/admin.ts:594)
 GET /library/marketplace  (src/queries/admin.ts:652)
 GET /parents/enrollments  (src/pages/parent/ReportCards.tsx:74)
-GET /payments  (src/lib/paymentReference.ts:13)
-GET /payments  (src/pages/admin/AccountingExports.tsx:119)
 GET /school-life/badges/definitions  (src/lib/badge-api.ts:14)
 GET /school-life/badges/definitions/X  (src/lib/badge-api.ts:59)
 GET /school-life/badges/leaderboard  (src/lib/badge-api.ts:110)

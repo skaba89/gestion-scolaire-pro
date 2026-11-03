@@ -40,12 +40,18 @@ identifiées. Vrais positifs vérifiés à la main : export comptable
 ### 0.3 Reproduire
 
 ```bash
-# 1. opérations réelles (dans backend/, DEBUG=true)
-python -c "import json; from app.main import app; json.dump([[m.upper(),p] for p,i in app.openapi()['paths'].items() for m in i if m in ('get','post','put','patch','delete')], open('/tmp/ops.json','w'))"
+# 1. opérations réelles (depuis backend/, variables de démarrage DEBUG)
+DEBUG=true SECRET_KEY=… BOOTSTRAP_SECRET=… DATABASE_URL=sqlite:///./openapi-export.db \
+  python ../scripts/audit/export-openapi-ops.py /tmp/ops.json
 # 2. à la racine
-node scripts/audit/frontend-api-routes.mjs /tmp/ops.json src /tmp/route_gaps.txt
-node scripts/audit/feature-matrix.mjs /tmp/ops.json /tmp/matrix.json
+node scripts/audit/frontend-api-routes.mjs /tmp/ops.json src /tmp/route_gaps.txt \
+  --baseline scripts/audit/api-route-gaps-baseline.json        # contrôle CI (cliquet)
+node scripts/audit/feature-matrix.mjs /tmp/ops.json /tmp/matrix.json docs/audit/FEATURE_MATRIX.md <commit>
 ```
+
+Depuis 2026-11-03 (branche `fix/accounting-export-route`), le job CI
+`Backend` exécute le contrôle : tout **nouvel** appel sans route fait
+échouer la CI ; la référence ne peut que baisser (`--update-baseline`).
 
 ### 0.4 Défauts nouveaux (détail dans `BUGS_AND_GAPS.md`)
 
