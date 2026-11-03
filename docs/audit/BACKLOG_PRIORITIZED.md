@@ -25,7 +25,7 @@ Aucun calendrier n'est annoncé : l'ordre fait foi.
 |---|---|---|---|---|---|---|
 | P1-1 | Front ↔ API | DÉFECTUEUX | 94 appels sans route (§ G, `API_ROUTE_GAPS.md`) — commencer par l'export comptable (API-02) | L | — | contrôle CI qui échoue sur un appel sans route ; chaque groupe branché ou retiré |
 | P1-2 | Facturation | PARTIEL | quotas utilisateurs/IA/exports non bloquants (BILL-01) | M | décision produit | tests 402/429 par ressource ; préavis pour dépassements existants |
-| P1-3 | Qualité | DÉFECTUEUX | suite pytest non hermétique (QA-01) | S | — | 2 exécutions successives vertes |
+| P1-3 | Qualité | CORRIGÉ (2026-11-03) | suite pytest non hermétique (QA-01) | S | — | 2 exécutions successives vertes : SQLite 1 596/0 ×2, PostgreSQL 74/74 ×2 |
 | P1-4 | Jetons | RISQUE | jeton en `localStorage` (S4) | L | P0-1 | étude cookie HttpOnly + CSRF, plan validé |
 | P1-5 | E2E | PARTIEL | `e2e-journeys` non obligatoire ; parcours manquants (révocation session, impayé, notification) | M | P0-1 | job requis sur `main` |
 | P1-6 | Passerelles | PARTIEL | initiation CinetPay/PayTech jamais jouée en sandbox | M | comptes sandbox (humain) | parcours sandbox enregistré |

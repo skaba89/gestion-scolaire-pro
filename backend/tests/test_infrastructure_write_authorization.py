@@ -136,7 +136,7 @@ class TestLegitimateAccessKeepsWorking:
         ay_id = str(uuid.uuid4())
         with SessionLocal() as db:
             db.add(Student(
-                id=student_id, tenant_id=tenant_id, registration_number="INFRA-1",
+                id=student_id, tenant_id=tenant_id, registration_number=f"INFRA-{uuid.uuid4().hex[:8]}",  # unique par exécution (QA-01)
                 first_name="Aissatou", last_name="Bah",
                 date_of_birth=date(2011, 1, 1), gender=Gender.FEMALE,
                 status=StudentStatus.ACTIVE,
