@@ -32,6 +32,10 @@ Non exécutés dans cet audit (et donc **non vérifiés**) : suite PostgreSQL/RL
 E2E Playwright (smoke et parcours), build de production, tests de charge k6,
 restauration de sauvegarde, `npm run check:i18n`.
 
+*Erratum 2026-11-02* : la première version de ce document affirmait qu'aucun
+script de restauration n'était versionné — c'est faux (voir OPS-01 corrigé
+dans `BUGS_AND_GAPS.md`).
+
 ## 2. Architecture constatée
 
 ```
@@ -95,7 +99,7 @@ SIMULÉ · ABSENT · NON VÉRIFIÉ. Les preuves « E2E » renvoient aux 5 parcou
 | Hors-ligne (PWA, Dexie) | NON VÉRIFIÉ | aucun test de coupure réseau / synchronisation trouvé |
 | Ministère / tutelle | PARTIEL | `ministry.py` (2 routes, agrégats `tenants`) |
 | RGPD (export, suppression) | NON VÉRIFIÉ | 12 routes, 3 fichiers de tests |
-| Sauvegardes | PARTIEL | dump quotidien + copie chiffrée B2 + surveillance ; « restauration testée » affirmé dans `STATUT_ACTUEL.md` mais **aucun exercice reproductible versionné** ni test de restauration automatisé |
+| Sauvegardes | PARTIEL | dump quotidien + copie chiffrée B2 + surveillance ; script de restauration et exercice CI (dump du dépôt, contrôle `alembic_version` seul) ; **restauration du format de production depuis B2 non prouvée de bout en bout, RTO non mesuré** |
 
 La matrice exhaustive écran par écran (`FEATURE_MATRIX.md`) reste à produire :
 elle exige de jouer chaque page, ce qui n'a pas été fait dans cet audit.
@@ -144,7 +148,7 @@ Détails, scénarios et tests attendus : `BUGS_AND_GAPS.md`.
 | Isolation tenant | Solide (RLS forcée, rôle NOBYPASSRLS, tests dédiés) |
 | Authentification | Solide sauf gestion des sessions / audit des connexions (S1–S3) |
 | Disponibilité | Faible : un seul VPS, pas de bascule |
-| Sauvegarde / restauration | Partielle : sauvegardes en place, restauration non outillée |
+| Sauvegarde / restauration | Partielle : sauvegardes et exercice CI en place ; restauration depuis B2 non journalisée, RTO inconnu |
 | Observabilité | Partielle : logs JSON, `/metrics/`, surveillance par email toutes les 5 min, Sentry optionnel |
 | Facturation | Partielle : plans et blocage d'abonnement en place, quotas IA/exports/utilisateurs non appliqués |
 
