@@ -96,7 +96,7 @@ class TestOverpaymentIsRejected:
 
         resp = client.post(
             REGISTER_URL,
-            json={"invoice_id": invoice_id, "amount": 150000.0, "method": "CASH", "reference": "REC-TEST-1"},
+            json={"invoice_id": invoice_id, "amount": 150000.0, "method": "CASH", "reference": f"REC-TEST-1-{uuid.uuid4().hex[:8]}"},
             headers=_admin_headers(tenant_id),
         )
         assert resp.status_code == 400, resp.text
@@ -112,7 +112,7 @@ class TestOverpaymentIsRejected:
 
         resp = client.post(
             REGISTER_URL,
-            json={"invoice_id": invoice_id, "amount": 60000.0, "method": "CASH", "reference": "REC-TEST-2"},
+            json={"invoice_id": invoice_id, "amount": 60000.0, "method": "CASH", "reference": f"REC-TEST-2-{uuid.uuid4().hex[:8]}"},
             headers=_admin_headers(tenant_id),
         )
         assert resp.status_code == 201, resp.text
@@ -124,7 +124,7 @@ class TestOverpaymentIsRejected:
 
         resp = client.post(
             REGISTER_URL,
-            json={"invoice_id": invoice_id, "amount": 20000.0, "method": "CASH", "reference": "REC-TEST-3"},
+            json={"invoice_id": invoice_id, "amount": 20000.0, "method": "CASH", "reference": f"REC-TEST-3-{uuid.uuid4().hex[:8]}"},
             headers=_admin_headers(tenant_id),
         )
         assert resp.status_code == 400, resp.text

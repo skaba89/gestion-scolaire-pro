@@ -583,3 +583,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   Testé sur dumps au format du VPS (5 cas, dont 4 pannes détectées).
   **Pas encore exécuté sur le VPS** : la restauration de la production
   reste à démontrer (procédure : `deploy/vps/README.md`).
+- **2026-11-03 — suite pytest hermétique (QA-01 de `docs/audit/`).** Relancer
+  les tests sur la même base faisait échouer 19 tests (SQLite) et les règles
+  de paiement (PostgreSQL) : identifiants fixes soumis à une contrainte
+  d'unicité dans 6 fichiers de test. Suffixes uniques par exécution ; deux
+  exécutions successives sont vertes (SQLite 1 596/0, PostgreSQL 74/74).
+  Tests uniquement, aucun code applicatif modifié.
