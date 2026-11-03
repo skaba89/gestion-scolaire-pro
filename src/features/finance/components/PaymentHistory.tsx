@@ -29,6 +29,7 @@ import { useFinances } from "../hooks/useFinances";
 import { useTenant } from "@/contexts/TenantContext";
 import { cn } from "@/lib/utils";
 import { paymentMethodLabel } from "../utils/paymentMethod";
+import { isCollected, paymentStatusLabel } from "../utils/paymentStatus";
 
 interface PaymentHistoryProps {
     payments: Payment[];
@@ -109,7 +110,8 @@ export const PaymentHistory = ({ payments, isLoading }: PaymentHistoryProps) => 
                                         </TableCell>
                                         <TableCell className={cn(
                                             "font-semibold",
-                                            payment.status === 'REVERSED' ? "line-through text-muted-foreground" : "text-green-600"
+                                            payment.status === 'REVERSED' ? "line-through text-muted-foreground"
+                                                : isCollected(payment.status) ? "text-green-600" : "text-muted-foreground"
                                         )}>
                                             {formatCurrency(Number(payment.amount))}
                                         </TableCell>
@@ -117,8 +119,8 @@ export const PaymentHistory = ({ payments, isLoading }: PaymentHistoryProps) => 
                                             {paymentMethodLabel(payment.payment_method)}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant={payment.status === 'REVERSED' ? "destructive" : "secondary"}>
-                                                {payment.status === 'REVERSED' ? "Annulé" : "Validé"}
+                                            <Badge variant={paymentStatusLabel(payment.status).variant}>
+                                                {paymentStatusLabel(payment.status).label}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right">

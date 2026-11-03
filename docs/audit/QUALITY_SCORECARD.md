@@ -60,7 +60,7 @@ n'évalue que la première. Aucun benchmark concurrentiel sourcé n'existe encor
 | CORS-01 | P1 | PARTIEL — correctif #345 | `X-Idempotency-Key` refusé au pré-vol (app native, file hors-ligne) |
 | OPS-01 | **P0** | OUVERT | restauration B2 au format de production non démontrée |
 | API-01 | P1 | OUVERT | 94 appels sans route, dont export comptable |
-| FIN-02 | P1 | OUVERT | annulation acceptée sur un paiement non `COMPLETED` |
+| FIN-02 | P1 | CORRIGÉ (`fix/payment-reverse-completed-only`) | annulation acceptée sur un paiement non `COMPLETED` |
 | QA-01 | P1 | OUVERT (reproduit le 2026-11-03 : 19 échecs à la 2e exécution) | suite pytest non hermétique |
 | BILL-01 | P1 | OUVERT (décision produit) | quotas utilisateurs/IA/exports non bloquants |
 | S4 | P1 | OUVERT | jeton d'accès en `localStorage` |

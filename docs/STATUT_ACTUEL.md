@@ -583,3 +583,8 @@ ce fichier — pas d'un document de 2025 non révisé.
   Testé sur dumps au format du VPS (5 cas, dont 4 pannes détectées).
   **Pas encore exécuté sur le VPS** : la restauration de la production
   reste à démontrer (procédure : `deploy/vps/README.md`).
+- **2026-11-03 — annulation réservée aux paiements encaissés (FIN-02).**
+  Annuler un paiement en attente, échoué ou déjà remboursé retirait de la
+  facture un montant jamais reçu : refusé (400, statut cité). L'historique
+  des paiements affichait « Validé » pour tout paiement non annulé, y
+  compris en attente ou échoué : il affiche désormais le statut réel.

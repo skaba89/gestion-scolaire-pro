@@ -185,11 +185,17 @@ l'interface (« aucun bouton décoratif »).
   hors-ligne (`src/offline/outbox.ts`). Production web non affectée (même origine via `/api`).
 - Trouvé par le parcours E2E 04 de #345 ; test : `tests/test_cors_idempotency_header.py`.
 
-### FIN-02 — Annulation d'un paiement non encaissé [V code] — **OUVERT** — P1
+### FIN-02 — Annulation d'un paiement non encaissé [V code] — **CORRIGÉ** (`fix/payment-reverse-completed-only`) — P1
 - `reverse_payment` accepte tout statut sauf `REVERSED` : un paiement
   `PENDING`/`FAILED` (passerelle) annulé décrémente la facture d'un montant
   jamais reçu.
 - Correctif : n'annuler que `COMPLETED` ; test : annulation d'un `PENDING` → 400, facture inchangée.
+- 2026-11-03 : `PENDING`, `FAILED` et `REFUNDED` refusés (400, statut cité),
+  facture inchangée — 3 tests en échec sur l'ancien code.
+- Constaté au passage : l'historique des paiements affichait « Validé » pour
+  tout paiement non annulé, y compris en attente ou échoué ; libellés
+  réels (`features/finance/utils/paymentStatus.ts`) et montant en vert
+  seulement s'il est encaissé.
 
 ### API-02 — Export comptable cassé [V] — **CORRIGÉ** (`fix/accounting-export-route`) — P1
 - `src/pages/admin/AccountingExports.tsx:119` appelle `GET /payments/` (absent) ;
