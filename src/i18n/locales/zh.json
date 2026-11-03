@@ -2336,7 +2336,10 @@
     "exportSuccess": "导出成功",
     "exportCielSuccess": "已生成 Ciel Compta 导出文件",
     "exportSageSuccess": "已生成 Sage 导出文件",
-    "fileDownloaded": "文件已下载"
+    "fileDownloaded": "文件已下载",
+    "loadErrorTitle": "会计数据不可用",
+    "loadErrorDescription": "无法完整加载该期间的发票和付款。数据不完整时不提供导出。",
+    "loading": "正在加载会计数据…"
   },
   "analytics": {
     "title": "高级分析",

@@ -2236,7 +2236,10 @@
     "exportSuccess": "Export successful",
     "exportCielSuccess": "Ciel Compta export generated",
     "exportSageSuccess": "Sage export generated",
-    "fileDownloaded": "File downloaded"
+    "fileDownloaded": "File downloaded",
+    "loadErrorTitle": "Accounting data unavailable",
+    "loadErrorDescription": "The period's invoices and payments could not be fully loaded. No export is offered while the data is incomplete.",
+    "loading": "Loading accounting data…"
   },
   "analytics": {
     "title": "Advanced Analytics",

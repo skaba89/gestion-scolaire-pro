@@ -2301,7 +2301,10 @@
     "exportSuccess": "Exportación exitosa",
     "exportCielSuccess": "Exportación Ciel Compta generada",
     "exportSageSuccess": "Exportación Sage generada",
-    "fileDownloaded": "Archivo descargado"
+    "fileDownloaded": "Archivo descargado",
+    "loadErrorTitle": "Datos contables no disponibles",
+    "loadErrorDescription": "No se pudieron cargar por completo las facturas y los pagos del período. No se ofrece ninguna exportación mientras los datos estén incompletos.",
+    "loading": "Cargando datos contables…"
   },
   "analytics": {
     "title": "Analítica Avanzada",
