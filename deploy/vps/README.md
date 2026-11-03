@@ -111,6 +111,37 @@ Taper ces valeurs dans un terminal SSH (`rclone config` interactif évite
 de les laisser dans l'historique du shell). Restaurer **avant** de créer de
 nouvelles données ; vérifier ensuite `/api/health/ready` (`schema: up_to_date`).
 
+> ⚠️ Cette commande restaure **dans la base de production**. Le dump recrée
+> le schéma `public` : sur une base qui contient déjà des tables, `psql` sans
+> `-v ON_ERROR_STOP=1` affiche des erreurs (« already exists ») et continue —
+> le résultat est un mélange. En sinistre réel, repartir d'un volume
+> PostgreSQL **vide** (ou `DROP SCHEMA public CASCADE` après accord), recréer
+> d'abord le rôle `schoolflow_app` (`docs/POSTGRES_APP_ROLE.md`), puis
+> restaurer avec `-v ON_ERROR_STOP=1`. Jamais pour un simple test : utiliser
+> l'exercice ci-dessous.
+
+### Exercice de restauration (sans toucher la production)
+
+À faire **au moins une fois par trimestre**, et après tout changement de la
+chaîne de sauvegarde :
+
+```bash
+sudo deploy/vps/scripts/exercice-restauration.sh                  # dernier dump sur B2
+sudo deploy/vps/scripts/exercice-restauration.sh --comparer-prod  # + écarts avec la prod (lecture seule)
+sudo deploy/vps/scripts/exercice-restauration.sh --date 20261102  # un dump précis
+```
+
+Le script récupère le dump **depuis B2** (déchiffrement rclone), le restaure
+dans un PostgreSQL **jetable sans réseau**, recrée `schoolflow_app`
+(NOBYPASSRLS) et contrôle : révision Alembic, tables et politiques RLS
+(`ENABLE+FORCE` sur toute table à `tenant_id`), volumes, relations
+orphelines, cohérence `paid_amount` / paiements, et la RLS **sous le rôle
+restreint** (0 ligne sans contexte ; avec un établissement, ses lignes et
+aucune d'un autre). Il mesure le RPO (âge du dump) et le RTO technique.
+Rapport sans donnée personnelle : `/var/log/schoolflow-restore-drill/`.
+Code retour 0 = restauration démontrée. Conserver les rapports : ils sont
+la preuve demandée par `docs/audit/` (OPS-01).
+
 ## Contrôles utiles
 
 ```bash

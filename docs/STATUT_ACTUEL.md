@@ -563,3 +563,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   présences de la file hors-ligne. Ajouté (`tests/test_cors_idempotency_header.py`).
   Non vérifié : écritures existantes en production déjà incohérentes
   (`paid_amount` ≠ somme des paiements) — aucune requête de contrôle lancée.
+- **2026-11-03 — exercice de restauration outillé (OPS-01 / P0-3).**
+  `deploy/vps/scripts/exercice-restauration.sh` restaure le dernier dump de
+  B2 dans un PostgreSQL jetable sans réseau et contrôle révision, RLS
+  forcée, volumes, relations, cohérence des paiements et isolation sous le
+  rôle `schoolflow_app` ; mesure RPO/RTO ; rapport sans donnée personnelle.
+  Testé sur dumps au format du VPS (5 cas, dont 4 pannes détectées).
+  **Pas encore exécuté sur le VPS** : la restauration de la production
+  reste à démontrer (procédure : `deploy/vps/README.md`).

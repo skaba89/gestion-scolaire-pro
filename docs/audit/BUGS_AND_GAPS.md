@@ -73,7 +73,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 
 ## D. Exploitation (P0/P1)
 
-### OPS-01 — Restauration de la production non prouvée de bout en bout [V] — **OUVERT** (description corrigée le 2026-11-02, #344)
+### OPS-01 — Restauration de la production non prouvée de bout en bout [V] — **PARTIEL** : exercice outillé (`deploy/vps/scripts/exercice-restauration.sh`, 2026-11-03), **exécution sur le VPS en attente**
 - **Correction de la première version de ce document**, qui affirmait à tort
   qu'aucun script de restauration n'était versionné. Existent bien :
   `scripts/restore-database.sh` ; un exercice en CI (`ci.yml`, job PostgreSQL :
@@ -89,6 +89,15 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 - Correctif : exercice périodique depuis B2 sur base isolée, contrôles
   (comptages, RLS `FORCE`, head Alembic, connexion sous `schoolflow_app`),
   durée mesurée et consignée.
+- 2026-11-03 : script d'exercice livré. Validé sur un dump produit avec les
+  options exactes du service `db-backup` (`pg_dump -Z1 --schema=public
+  --blobs`) : cas fidèle → RÉUSSI ; archive corrompue, table tenant sans
+  `FORCE`, schéma sans `USAGE` pour `schoolflow_app`, politique ouverte
+  (`USING (true)`) → ÉCHEC détecté à chaque fois. Reste : l'exécuter sur le
+  VPS contre B2 et consigner le rapport (RTO/RPO réels).
+- Constaté en le développant : la procédure manuelle du README restaurait
+  dans la base existante sans `ON_ERROR_STOP` (erreurs « already exists »
+  ignorées) — avertissement ajouté dans `deploy/vps/README.md`.
 
 ### OPS-02 — Mono-VPS [V] — **OUVERT**
 - Aucune redondance ; RPO ≈ 24 h (dump quotidien), RTO non mesuré.
