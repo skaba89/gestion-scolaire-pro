@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 import uuid as _uuid
 import math, secrets
@@ -24,6 +25,7 @@ from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.services.payment_gateways import CinetPayGateway, get_gateway
 from app.utils.audit import log_audit
+from app.core.idempotency import get_idempotent_response_or_lock, new_idempotency_record
 
 limiter = Limiter(key_func=get_client_ip)
 from app.crud import payment as crud_payment
@@ -351,60 +353,98 @@ def register_payment(
     tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
 
-    # 1. Fetch invoice to validate (student_id est requis pour le paiement)
-    inv = db.execute(text("""
-        SELECT id, student_id, total_amount, paid_amount, status FROM invoices
-        WHERE id = :invoice_id AND tenant_id = :tenant_id
-    """), {"invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
+    # Idempotence (P0 intégrité financière, audit 2026-11-02) : un client qui
+    # renvoie la même requête — réponse perdue sur réseau mobile, double clic,
+    # rejeu automatique sur 502/504 — avec le même X-Idempotency-Key reçoit le
+    # résultat du premier envoi au lieu d'un second encaissement.
+    idem_key = request.headers.get("x-idempotency-key")
+    request_body = body.model_dump(mode="json")
+    replay = _idempotent_replay(db, tenant_id, user_id, idem_key, request_body)
+    if replay is not None:
+        return replay
 
-    if not inv:
-        raise HTTPException(status_code=404, detail="Facture introuvable")
+    # Mise à jour CONDITIONNELLE et ATOMIQUE de la facture, avant tout
+    # encaissement. Auparavant : lecture de paid_amount, calcul en Python,
+    # réécriture — deux encaissements simultanés lisaient le même solde,
+    # passaient tous deux le contrôle de trop-perçu et la facture ne comptait
+    # qu'un des deux paiements (mise à jour perdue). Ici, la ligne est
+    # verrouillée par l'UPDATE ; une requête concurrente attend puis réévalue
+    # la condition sur la valeur à jour (PostgreSQL, READ COMMITTED).
+    updated = db.execute(text("""
+        UPDATE invoices
+           SET paid_amount = COALESCE(paid_amount, 0) + :amount,
+               updated_at = NOW()
+         WHERE id = :invoice_id AND tenant_id = :tenant_id
+           AND status NOT IN ('PAID', 'CANCELLED')
+           AND COALESCE(paid_amount, 0) + :amount <= total_amount
+     RETURNING student_id, paid_amount, total_amount
+    """), {"amount": body.amount, "invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
 
-    if inv["status"] == "PAID":
-        raise HTTPException(status_code=400, detail="Cette facture est déjà soldée")
-
-    # SECURITY/BUSINESS-RULE FIX (institutional-readiness audit, 2026-09):
-    # body.amount was only bounded 0 < amount <= 10_000_000 — never checked
-    # against the invoice's own remaining balance. A payment larger than
-    # what's owed silently produced paid_amount > total_amount while still
-    # marking the invoice PAID, corrupting every downstream balance/
-    # analytics calculation that assumes paid_amount <= total_amount.
-    remaining = float(inv["total_amount"]) - float(inv["paid_amount"] or 0)
-    if body.amount > remaining:
+    if not updated:
+        inv = db.execute(text("""
+            SELECT total_amount, paid_amount, status FROM invoices
+            WHERE id = :invoice_id AND tenant_id = :tenant_id
+        """), {"invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
+        db.rollback()
+        # Rejeu concurrent d'une opération qui vient de solder la facture :
+        # c'est le résultat de cette opération qu'il faut renvoyer.
+        replay = _idempotent_replay(db, tenant_id, user_id, idem_key, request_body)
+        if replay is not None:
+            return replay
+        if not inv:
+            raise HTTPException(status_code=404, detail="Facture introuvable")
+        if inv["status"] == "PAID":
+            raise HTTPException(status_code=400, detail="Cette facture est déjà soldée")
+        if inv["status"] == "CANCELLED":
+            raise HTTPException(status_code=400, detail="Cette facture est annulée")
+        remaining = float(inv["total_amount"]) - float(inv["paid_amount"] or 0)
         raise HTTPException(
             status_code=400,
             detail=f"Le montant dépasse le solde restant dû ({remaining:.2f})",
         )
 
-    new_paid = float(inv["paid_amount"] or 0) + body.amount
-    new_status = "PAID" if new_paid >= float(inv["total_amount"]) else ("PARTIAL" if new_paid > 0 else "PENDING")
+    new_paid = float(updated["paid_amount"])
+    new_status = "PAID" if new_paid >= float(updated["total_amount"]) else "PARTIAL"
+    # La ligne est verrouillée par l'UPDATE ci-dessus jusqu'au commit : le
+    # statut est dérivé du montant qui vient d'être écrit.
+    db.execute(text("""
+        UPDATE invoices SET status = :status WHERE id = :invoice_id AND tenant_id = :tenant_id
+    """), {"status": new_status, "invoice_id": body.invoice_id, "tenant_id": tenant_id})
     reference = body.reference or _next_payment_reference(db, tenant_id)
 
-    # 2. Insert payment — colonnes alignées sur le modèle Payment
+    # Insert payment — colonnes alignées sur le modèle Payment
     # (pas de received_by dans le schéma ; l'auteur est tracé via l'audit log).
     # payment_method est un Enum PostgreSQL: CASH, BANK_TRANSFER, MOBILE_MONEY...
     method_value = (body.method or "CASH").upper().replace(" ", "_")
-    payment_id = db.execute(text("""
-        INSERT INTO payments (id, tenant_id, student_id, invoice_id, amount, payment_method,
-                              reference, notes, status, payment_date, created_at, updated_at)
-        VALUES (:id, :tenant_id, :student_id, :invoice_id, :amount, :method,
-                :reference, :notes, 'COMPLETED', COALESCE(:payment_date, CURRENT_DATE), NOW(), NOW())
-        RETURNING id
-    """), {
-        "id": str(_uuid.uuid4()),
-        "tenant_id": tenant_id, "student_id": str(inv["student_id"]),
-        "invoice_id": body.invoice_id,
-        "amount": body.amount, "method": method_value,
-        "reference": reference, "notes": body.notes, "payment_date": body.payment_date,
-    }).scalar()
+    try:
+        payment_id = db.execute(text("""
+            INSERT INTO payments (id, tenant_id, student_id, invoice_id, amount, payment_method,
+                                  reference, notes, status, payment_date, created_at, updated_at)
+            VALUES (:id, :tenant_id, :student_id, :invoice_id, :amount, :method,
+                    :reference, :notes, 'COMPLETED', COALESCE(:payment_date, CURRENT_DATE), NOW(), NOW())
+            RETURNING id
+        """), {
+            "id": str(_uuid.uuid4()),
+            "tenant_id": tenant_id, "student_id": str(updated["student_id"]),
+            "invoice_id": body.invoice_id,
+            "amount": body.amount, "method": method_value,
+            "reference": reference, "notes": body.notes, "payment_date": body.payment_date,
+        }).scalar()
+    except IntegrityError:
+        # payments.reference est unique : la même référence Mobile Money /
+        # bancaire saisie deux fois est un doublon d'encaissement, pas une
+        # erreur serveur. Rien n'est conservé (la facture est restaurée).
+        # Cas particulier : rejeu concurrent de la MÊME opération (même clé)
+        # — le premier envoi vient d'être validé, on renvoie son résultat.
+        db.rollback()
+        replay = _idempotent_replay(db, tenant_id, user_id, idem_key, request_body)
+        if replay is not None:
+            return replay
+        raise HTTPException(
+            status_code=409,
+            detail="Un paiement portant cette référence est déjà enregistré.",
+        )
 
-    # 3. Update invoice
-    db.execute(text("""
-        UPDATE invoices SET paid_amount = :paid, status = :status, updated_at = NOW()
-        WHERE id = :invoice_id AND tenant_id = :tenant_id
-    """), {"paid": new_paid, "status": new_status, "invoice_id": body.invoice_id, "tenant_id": tenant_id})
-
-    # 4. Audit log BEFORE commit
     log_audit(
         db,
         user_id=user_id,
@@ -415,8 +455,37 @@ def register_payment(
         details={"invoice_id": body.invoice_id, "amount": body.amount, "method": body.method, "reference": reference}
     )
 
-    db.commit()
-    return {"id": str(payment_id), "reference": reference, "status": new_status, "paid_amount": new_paid}
+    response = {"id": str(payment_id), "reference": reference, "status": new_status, "paid_amount": new_paid}
+
+    # La clé d'idempotence est écrite DANS la transaction du paiement : un
+    # rejeu concurrent portant la même clé échoue sur la contrainte unique au
+    # commit, son encaissement est annulé, et il reçoit la réponse du premier.
+    if idem_key:
+        db.add(new_idempotency_record(
+            tenant_id=tenant_id, user_id=user_id, key=idem_key, method="POST",
+            endpoint="/payments/register/", request_body=request_body,
+            response_body=response, status_code=201,
+        ))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        replay = _idempotent_replay(db, tenant_id, user_id, idem_key, request_body)
+        if replay is not None:
+            return replay
+        raise
+    return response
+
+
+def _idempotent_replay(db: Session, tenant_id: str, user_id: str, idem_key: Optional[str], request_body: dict):
+    """Réponse déjà enregistrée pour cette clé, ou None."""
+    if not idem_key:
+        return None
+    cached = get_idempotent_response_or_lock(
+        db, tenant_id=tenant_id, user_id=user_id, key=idem_key,
+        method="POST", endpoint="/payments/register/", request_body=request_body,
+    )
+    return cached[0] if cached is not None else None
 
 
 @router.post("/{payment_id}/reverse/")
@@ -434,35 +503,41 @@ def reverse_payment(
     """
     tenant_id = _get_tenant_id(request, current_user, db)
 
+    # Bascule ATOMIQUE vers REVERSED : deux annulations simultanées du même
+    # paiement passaient toutes deux le contrôle de statut (lu puis écrit en
+    # deux temps) et décrémentaient la facture deux fois.
     pay = db.execute(text("""
-        SELECT id, amount, invoice_id, status FROM payments
-        WHERE id = :payment_id AND tenant_id = :tenant_id
-    """), {"payment_id": payment_id, "tenant_id": tenant_id}).mappings().first()
+        UPDATE payments SET status = 'REVERSED', notes = :notes, updated_at = NOW()
+         WHERE id = :payment_id AND tenant_id = :tenant_id AND status <> 'REVERSED'
+     RETURNING id, amount, invoice_id
+    """), {"payment_id": payment_id, "notes": body.notes, "tenant_id": tenant_id}).mappings().first()
 
     if not pay:
-        raise HTTPException(status_code=404, detail="Paiement introuvable")
-    if pay["status"] == "REVERSED":
+        exists = db.execute(text("""
+            SELECT status FROM payments WHERE id = :payment_id AND tenant_id = :tenant_id
+        """), {"payment_id": payment_id, "tenant_id": tenant_id}).first()
+        db.rollback()
+        if not exists:
+            raise HTTPException(status_code=404, detail="Paiement introuvable")
         raise HTTPException(status_code=400, detail="Ce paiement est déjà annulé")
 
-    # Mark payment as reversed
-    db.execute(text("""
-        UPDATE payments SET status = 'REVERSED', notes = :notes, updated_at = NOW()
-        WHERE id = :payment_id AND tenant_id = :tenant_id
-    """), {"payment_id": payment_id, "notes": body.notes, "tenant_id": tenant_id})
-
-    # Revert invoice paid_amount
+    # Décrément atomique de la facture (jamais sous zéro), statut recalculé
+    # sur la même valeur.
     if pay["invoice_id"]:
         inv = db.execute(text("""
-            SELECT paid_amount, total_amount FROM invoices WHERE id = :inv_id AND tenant_id = :tenant_id
-        """), {"inv_id": str(pay["invoice_id"]), "tenant_id": tenant_id}).mappings().first()
+            UPDATE invoices
+               SET paid_amount = CASE WHEN COALESCE(paid_amount, 0) - :amount < 0 THEN 0
+                                      ELSE COALESCE(paid_amount, 0) - :amount END,
+                   updated_at = NOW()
+             WHERE id = :inv_id AND tenant_id = :tenant_id
+         RETURNING paid_amount, total_amount
+        """), {"amount": pay["amount"], "inv_id": str(pay["invoice_id"]), "tenant_id": tenant_id}).mappings().first()
         if inv:
-            new_paid = max(0.0, float(inv["paid_amount"] or 0) - float(pay["amount"]))
-            total = float(inv["total_amount"] or 0)
-            new_status = "PAID" if new_paid >= total else ("PARTIAL" if new_paid > 0 else "PENDING")
+            new_paid = float(inv["paid_amount"] or 0)
+            new_status = "PAID" if new_paid >= float(inv["total_amount"] or 0) else ("PARTIAL" if new_paid > 0 else "PENDING")
             db.execute(text("""
-                UPDATE invoices SET paid_amount = :paid, status = :status, updated_at = NOW()
-                WHERE id = :inv_id AND tenant_id = :tenant_id
-            """), {"paid": new_paid, "status": new_status, "inv_id": str(pay["invoice_id"]), "tenant_id": tenant_id})
+                UPDATE invoices SET status = :status WHERE id = :inv_id AND tenant_id = :tenant_id
+            """), {"status": new_status, "inv_id": str(pay["invoice_id"]), "tenant_id": tenant_id})
 
     # Audit log BEFORE commit
     log_audit(

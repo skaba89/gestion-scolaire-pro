@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AxiosError } from 'axios';
-import { apiClient } from '../client';
+import { apiClient, IDEMPOTENCY_HEADER, newIdempotencyKey } from '../client';
 
 /**
  * National audit Phase 6 (mobile-first / faible connexion) — the retry
@@ -122,21 +122,52 @@ describe('apiClient cold-start retry (POST /auth/login/)', () => {
     }
   }, 15_000);
 
-  it('does NOT extend the same long budget to an unrelated POST (regression guard)', async () => {
+  it('does NOT replay a POST without idempotency key on 503 (could duplicate a payment)', async () => {
     let callCount = 0;
     const adapter = vi.fn(async (config: any) => {
       callCount += 1;
       throw serverUnavailable(config);
     });
 
-    // /payments/register/ is a real mutation — must still be bounded by the
-    // generic 2-retry budget, not silently upgraded to 6 long retries just
-    // because it also happens to see a 503.
+    // Audit 2026-11-02 : un 502/504 peut arriver APRÈS le commit côté serveur ;
+    // rejouer une mutation sans clé créait un second encaissement.
     await expect(
       apiClient.post('/payments/register/', { amount: 1000 }, { adapter })
     ).rejects.toThrow();
 
-    expect(callCount).toBe(3); // 1 initial + 2 generic retries, not 7
+    expect(callCount).toBe(1);
+  }, 10_000);
+
+  it('replays a POST carrying X-Idempotency-Key with the SAME key, bounded by the generic budget', async () => {
+    const keys: string[] = [];
+    const adapter = vi.fn(async (config: any) => {
+      keys.push(config.headers.get(IDEMPOTENCY_HEADER));
+      throw serverUnavailable(config);
+    });
+
+    await expect(
+      apiClient.post('/payments/register/', { amount: 1000 }, { adapter, headers: { [IDEMPOTENCY_HEADER]: 'k-1' } })
+    ).rejects.toThrow();
+
+    expect(keys).toEqual(['k-1', 'k-1', 'k-1']); // 1 initial + 2 retries, not 7
+  }, 10_000);
+
+  it('replays a POST carrying X-Idempotency-Key after a dropped connection', async () => {
+    let callCount = 0;
+    const adapter = vi.fn(async (config: any) => {
+      callCount += 1;
+      if (callCount === 1) {
+        const err = new AxiosError('Network Error');
+        err.code = 'ERR_NETWORK';
+        err.config = config;
+        throw err;
+      }
+      return { data: { ok: true }, status: 201, statusText: 'Created', headers: {}, config };
+    });
+
+    const resp = await apiClient.post('/payments/register/', { amount: 1000 }, { adapter, headers: { [IDEMPOTENCY_HEADER]: 'k-2' } });
+    expect(callCount).toBe(2);
+    expect(resp.data).toEqual({ ok: true });
   }, 10_000);
 });
 
@@ -248,5 +279,14 @@ describe('apiClient error interceptor — non-JSON error body', () => {
       expect(err.response?.status).toBe(429);
       expect(err.response?.data).toBe('Too Many Requests\n');
     }
+  });
+});
+
+describe('newIdempotencyKey', () => {
+  it('produces a distinct key per operation', () => {
+    const a = newIdempotencyKey();
+    const b = newIdempotencyKey();
+    expect(a).not.toBe(b);
+    expect(a.length).toBeGreaterThan(10);
   });
 });

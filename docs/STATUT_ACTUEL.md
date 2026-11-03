@@ -543,3 +543,23 @@ ce fichier — pas d'un document de 2025 non révisé.
   Reste (backend) : les endpoints `/analytics/*-kpis/` renvoient des zéros
   en cas d'erreur au lieu d'échouer, et `students-at-risk` ne fournit ni
   classe ni présence par élève.
+- **2026-11-03 — encaissements atomiques et idempotents.** Deux encaissements
+  simultanés sur une facture lisaient le même solde : tous deux passaient le
+  contrôle de trop-perçu et la facture n'en comptait qu'un (mise à jour
+  perdue). Le client rejouait un `POST` sur 502/504 — y compris quand le
+  serveur avait déjà validé — et créait un second paiement. Deux annulations
+  simultanées décrémentaient la facture deux fois ; une référence Mobile
+  Money déjà saisie donnait une 500. Désormais : `POST /payments/register/`
+  met à jour la facture par un `UPDATE` conditionnel (verrou de ligne, jamais
+  au-delà du total, refus des factures annulées), accepte
+  `X-Idempotency-Key` (clé écrite dans la même transaction : un rejeu, même
+  simultané, reçoit la réponse du premier envoi) ; l'annulation est atomique ;
+  référence en double → 409. Côté client, une mutation n'est rejouée que si
+  elle porte une clé ; l'écran d'encaissement en envoie une par paiement.
+  Tests de concurrence sur PostgreSQL (`tests/test_payment_integrity.py`).
+  Trouvé par le parcours E2E : `X-Idempotency-Key` manquait dans
+  `allow_headers` CORS — depuis une autre origine (app Capacitor, front
+  séparé), le navigateur bloquait la requête au pré-vol, y compris les
+  présences de la file hors-ligne. Ajouté (`tests/test_cors_idempotency_header.py`).
+  Non vérifié : écritures existantes en production déjà incohérentes
+  (`paid_amount` ≠ somme des paiements) — aucune requête de contrôle lancée.

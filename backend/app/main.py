@@ -503,7 +503,11 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=allow_credentials,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "X-Tenant-ID", "Content-Type", "X-Request-ID", "Accept"],
+    # X-Idempotency-Key : envoyé par la file hors-ligne (présences) et par
+    # l'encaissement (core/idempotency.py). Absent d'ici, tout navigateur
+    # d'une autre origine (app Capacitor, front séparé) bloque la requête au
+    # pré-vol CORS — elle n'atteint jamais l'API.
+    allow_headers=["Authorization", "X-Tenant-ID", "Content-Type", "X-Request-ID", "Accept", "X-Idempotency-Key"],
     # X-Total-Count: pagination header on GET /tenants/ and /tenants/public/
     # (see tenants.py) — without it here, browsers strip the header from the
     # JS-visible response and the frontend can never read the real total.
