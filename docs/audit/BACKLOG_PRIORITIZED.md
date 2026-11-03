@@ -8,9 +8,9 @@ Aucun calendrier n'est annoncé : l'ordre fait foi.
 
 | ID | Domaine | Statut réel | Problème | Cx | Dépendances | Critères de validation |
 |---|---|---|---|---|---|---|
-| P0-1 | Sessions | SIMULÉ | révocation fictive, registre Redis incohérent (BUG-SESS-01/03/04) | M | — | test : session révoquée → 401 sur requête et refresh ; refresh multi-onglets jamais en 429 ; UI liste de vraies sessions |
-| P0-2 | Audit des connexions | DÉFECTUEUX | aucun événement serveur (BUG-SESS-02) | S | P0-1 (même PR) | tests : succès/échec/MFA/logout/révocation écrits par le serveur avec tenant, IP, UA ; historique visible côté admin |
-| P0-3 | Sauvegardes | PARTIEL | restauration non outillée (OPS-01) | M | accès VPS (humain) | script versionné + exercice journalisé sur base isolée |
+| P0-1 | Sessions | SIMULÉ → **PR #342** | révocation fictive, registre Redis incohérent (BUG-SESS-01/03/04) | M | — | test : session révoquée → 401 sur requête et refresh ; refresh multi-onglets jamais en 429 ; UI liste de vraies sessions |
+| P0-2 | Audit des connexions | DÉFECTUEUX → **PR #342** | aucun événement serveur (BUG-SESS-02) | S | P0-1 (même PR) | tests : succès/échec/MFA/logout/révocation écrits par le serveur avec tenant, IP, UA ; historique visible côté admin |
+| P0-3 | Sauvegardes | PARTIEL | restauration du format de production depuis B2 non prouvée, RTO inconnu (OPS-01) | M | accès VPS (humain) | exercice depuis B2 sur base isolée : comptages, RLS, head Alembic, durée consignée |
 | P0-4 | Données affichées | SIMULÉ | tendances IA aléatoires (SIM-AI-01) | S | — | plus aucun `Math.random()` dans une donnée affichée ; test Vitest |
 
 ## P1 — Stabilisation
