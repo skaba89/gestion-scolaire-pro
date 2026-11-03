@@ -1,11 +1,11 @@
-# Défauts et manques vérifiés — 2026-11-02 (commit `c28b482`)
+# Défauts et manques vérifiés — 2026-11-02 (commit `c28b482`), statuts au 2026-11-03 (`6540145`)
 
 Chaque entrée : constat, preuve, impact, correctif attendu, test de régression.
 **[V]** vérifié · **[R]** reproductible · **[P]** potentiel.
 
 ## A. Sessions et authentification (P0)
 
-### BUG-SESS-01 — Révocation de session simulée [V]
+### BUG-SESS-01 — Révocation de session simulée [V] — **CORRIGÉ** (#342)
 - `src/hooks/useLoginTracking.ts` : `getActiveSessions()` → `[]` en dur ;
   `terminateSession()` → `true` sans requête.
 - `src/pages/admin/SecuritySessions.tsx:53-71` affiche « Session terminée » /
@@ -16,7 +16,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 - Test : révoquer une session → toute requête et tout `/auth/refresh/` avec ce
   jeton → 401 ; les autres sessions restent valides.
 
-### BUG-SESS-02 — Aucun audit serveur des authentifications [V]
+### BUG-SESS-02 — Aucun audit serveur des authentifications [V] — **CORRIGÉ** (#342)
 - Aucun appel `log_audit` dans `backend/app/api/v1/endpoints/core/auth.py` ni
   `mfa.py` (connexion réussie/échouée, MFA, logout, logout-all, changement et
   réinitialisation de mot de passe).
@@ -29,7 +29,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
   `LOGIN_FAILED`, `MFA_FAILED`, `LOGOUT`, `LOGOUT_ALL`, `SESSION_REVOKED`,
   `PASSWORD_CHANGED`) avec IP et user-agent ; lecture front corrigée.
 
-### BUG-SESS-03 — Registre Redis des sessions incohérent [V code ; P impact]
+### BUG-SESS-03 — Registre Redis des sessions incohérent [V code ; P impact] — **CORRIGÉ** (#342)
 - `register_active_session()` (`auth.py:77-105`) et `/auth/refresh/`
   (`auth.py:603-620`) : ensemble `sfp:active_sessions:{user}` avec TTL
   `ACCESS_TOKEN_EXPIRE_MINUTES` (30 min), remis à zéro à chaque ajout.
@@ -43,13 +43,13 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
   registre indexé par `sid`, durée de vie = `SESSION_MAX_AGE_DAYS`, sessions
   inactives (> `SESSION_IDLE_TIMEOUT_HOURS`) non comptées.
 
-### BUG-SESS-04 — `except Exception: pass` dans l'émission de jeton [V]
+### BUG-SESS-04 — `except Exception: pass` dans l'émission de jeton [V] — **CORRIGÉ** (#342)
 - `_issue_full_session_token()` (`auth.py:160-167`) ignore silencieusement une
   panne Redis lors de la lecture de `token_version` (règle d'or n° 6).
 
 ## B. Fonctions simulées présentées comme réelles
 
-### SIM-AI-01 — Tendances IA fabriquées [V]
+### SIM-AI-01 — Tendances IA fabriquées [V] — **CORRIGÉ** (#343)
 - `src/hooks/useAIInsights.ts:178-190` : courbes « moyenne / présence / risques »
   des 6 derniers mois calculées avec `Math.random()` autour de la valeur
   courante ; `src/components/admin/ai/AICharts.tsx:30-31` : axes
@@ -61,7 +61,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 
 ## C. Facturation SaaS (P1)
 
-### BILL-01 — Quotas mesurés mais non appliqués [V]
+### BILL-01 — Quotas mesurés mais non appliqués [V] — **OUVERT** (décision produit)
 - `saas_quota_service.py` calcule utilisateurs, requêtes IA et exports/jour,
   sans blocage (`hard_enforce=False`) ; `middlewares/quota.py` ne bloque que
   élèves/enseignants/personnel.
@@ -73,7 +73,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 
 ## D. Exploitation (P0/P1)
 
-### OPS-01 — Restauration de la production non prouvée de bout en bout [V] (corrigé le 2026-11-02)
+### OPS-01 — Restauration de la production non prouvée de bout en bout [V] — **OUVERT** (description corrigée le 2026-11-02, #344)
 - **Correction de la première version de ce document**, qui affirmait à tort
   qu'aucun script de restauration n'était versionné. Existent bien :
   `scripts/restore-database.sh` ; un exercice en CI (`ci.yml`, job PostgreSQL :
@@ -90,7 +90,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
   (comptages, RLS `FORCE`, head Alembic, connexion sous `schoolflow_app`),
   durée mesurée et consignée.
 
-### OPS-02 — Mono-VPS [V]
+### OPS-02 — Mono-VPS [V] — **OUVERT**
 - Aucune redondance ; RPO ≈ 24 h (dump quotidien), RTO non mesuré.
 
 ## E. Qualité
@@ -101,11 +101,15 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
   students.registration_number`, `tenants.slug`) ; base supprimée → 0 échec.
 - Correctif : fixture de session qui recrée la base, ou identifiants uniques.
 
-### QA-02 — Dette TS/ESLint [V]
+### QA-02 — Dette TS/ESLint [V] — **OUVERT** (184 / 2 027 au 2026-11-03)
 - 184 erreurs `tsc` strictes, 2 048 avertissements ESLint (détail dans
   `AUDIT_GLOBAL.md` § 1).
 
-## G. Appels frontend vers des routes inexistantes [V statique, à confirmer]
+## G. Appels frontend vers des routes inexistantes [V statique, à confirmer] — **OUVERT** (API-01)
+
+Recensement du 2026-11-03 : **94 appels** (77 chemins, 17 méthodes) — liste
+complète et reproductible dans `API_ROUTE_GAPS.md`, effet par écran dans
+`FEATURE_MATRIX.md`.
 
 Méthode : OpenAPI de l'application comparée aux appels littéraux
 `apiClient.<verbe>("…")` de `src/` (hors tests). 91 appels sur 997 sans route.
@@ -139,3 +143,43 @@ l'interface (« aucun bouton décoratif »).
 ### DEP-01 — follow-redirects 1.16.1 (GHSA-mrwp-f3q8-3g9p, HIGH) [V] — corrigé par #341
 - Avis publié après le dernier run de `main` ; Security Scan échouait sur
   toute PR. Passage à 1.16.2 (lockfile seul).
+
+### RT-02 — Instabilité résiduelle du test WebSocket [NON VÉRIFIÉ]
+- `test_realtime_websocket_revocation_2026_09_28.py::TestWebSocketRejectsDeactivatedAccount::test_active_user_connection_is_accepted`
+  a échoué une fois sur `main` (`6540145`) dans une exécution PostgreSQL
+  locale, puis réussi sur la même suite à l'exécution suivante. CI de `main` verte.
+- À confirmer par exécutions répétées (`pytest --count`) avant toute conclusion.
+
+## I. Intégrité financière (ajouté le 2026-11-03)
+
+### FIN-01 — Encaissements non atomiques et rejouables [V, R] — **PARTIEL** (correctif #345, non fusionné) — P0
+- `POST /payments/register/` (`finance/payments.py`) lisait `paid_amount`,
+  calculait en Python puis réécrivait : deux encaissements simultanés passaient
+  tous deux le contrôle de trop-perçu ; la facture n'en comptait qu'un.
+- Le client rejouait tout `POST` sur 502/503/504 (`src/api/client.ts`), y
+  compris après validation serveur ; aucune clé d'idempotence côté paiements →
+  double encaissement.
+- `POST /payments/{id}/reverse/` : contrôle puis écriture en deux temps → double
+  décrément de la facture. Référence en double → 500.
+- Reproduction : `backend/tests/test_payment_integrity.py` — 9/12 en échec sur
+  l'ancien code, 12/12 verts après correctif (PostgreSQL, threads concurrents).
+- Non vérifié : factures de production déjà incohérentes (`paid_amount` ≠ somme
+  des paiements `COMPLETED`) — requête de contrôle à exécuter par l'administrateur.
+
+### CORS-01 — `X-Idempotency-Key` refusé au pré-vol [V, R] — **PARTIEL** (correctif #345) — P1
+- `allow_headers` (`backend/app/main.py`) ne contenait pas l'en-tête : depuis
+  une autre origine que l'API (application Capacitor, front séparé), le
+  navigateur bloquait la requête — y compris les présences de la file
+  hors-ligne (`src/offline/outbox.ts`). Production web non affectée (même origine via `/api`).
+- Trouvé par le parcours E2E 04 de #345 ; test : `tests/test_cors_idempotency_header.py`.
+
+### FIN-02 — Annulation d'un paiement non encaissé [V code] — **OUVERT** — P1
+- `reverse_payment` accepte tout statut sauf `REVERSED` : un paiement
+  `PENDING`/`FAILED` (passerelle) annulé décrémente la facture d'un montant
+  jamais reçu.
+- Correctif : n'annuler que `COMPLETED` ; test : annulation d'un `PENDING` → 400, facture inchangée.
+
+### API-02 — Export comptable cassé [V] — **OUVERT** — P1
+- `src/pages/admin/AccountingExports.tsx:119` appelle `GET /payments/` (absent) ;
+  la liste est `GET /payments/payments/`. Sous-ensemble prioritaire d'API-01.
+

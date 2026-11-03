@@ -1,6 +1,62 @@
-# Audit global — état réel au 2026-11-02
+# Audit global — état réel au 2026-11-02, actualisé le 2026-11-03
 
-**Commit audité : `c28b482` (`main`, 2026-10-27 07:19 +0100)** — « fix(audit): client
+## 0. Actualisation du 2026-11-03 — `main` à `6540145`
+
+Statuts utilisés : **CORRIGÉ** (correctif fusionné et testé) · **PARTIEL** ·
+**OUVERT** · **NON VÉRIFIÉ** · **RÉGRESSION**. Les sections 1 à 10 ci-dessous
+restent l'audit du 2026-11-02 (`c28b482`), annotées sans être réécrites.
+Score sur 100 et conditions du 99/100 : `QUALITY_SCORECARD.md`.
+
+### 0.1 PR vérifiées
+
+| PR | Objet | Statut sur `main` |
+|---|---|---|
+| #340 | socle d'audit | fusionnée |
+| #341 | boucle WebSocket (BUG-RT-01), follow-redirects (DEP-01) | CORRIGÉ — voir RT-02 (instabilité résiduelle NON VÉRIFIÉE) |
+| #342 | sessions serveur, audit des authentifications (BUG-SESS-01 à 04) | CORRIGÉ — `test_server_sessions.py` vert en CI PostgreSQL |
+| #343 | indicateurs IA inventés (SIM-AI-01) | CORRIGÉ |
+| #344 | description de la restauration (OPS-01) | CORRIGÉ (doc) ; le défaut OPS-01 lui-même reste **OUVERT** |
+| #345 | encaissements atomiques et idempotents (FIN-01), CORS (CORS-01) | ouverte, en attente de validation |
+
+### 0.2 Baseline mesurée
+
+| Contrôle | 2026-11-02 (`c28b482`) | 2026-11-03 (`6540145`) |
+|---|---|---|
+| Vitest | 399 tests | **416/416** (71 fichiers) |
+| TypeScript strict | 184 | **184** (plancher inchangé) |
+| ESLint (avertissements) | 2 048 | **2 027** (`any` 1 399, variables inutilisées 569) |
+| Opérations OpenAPI | 631 | **635** |
+| Appels front sans route | 91 / 997 (heuristique) | **94 / 1 027** — 77 chemins absents, 17 méthodes absentes ; 21 URL dynamiques non vérifiables |
+| Écrans | non mesuré | 171 pages : 22 DÉFECTUEUX, 35 À VÉRIFIER, 88 NON VÉRIFIÉ, 24 non routées (`FEATURE_MATRIX.md`) |
+| i18n | non exécuté | 0 clé FR bloquante |
+| pytest SQLite ×2 (même base) | 29 échecs à la 2e | **19 échecs à la 2e** (1re : 1 593/0) — QA-01 OUVERT |
+
+La hausse 91 → 94 vient d'un recensement plus complet (méthode HTTP
+comparée, génériques TypeScript gérés), pas de nouvelles régressions
+identifiées. Vrais positifs vérifiés à la main : export comptable
+(`AccountingExports.tsx:119` appelle `GET /payments/`, la liste est
+`GET /payments/payments/`), `DELETE /enrollments/{id}`, `DELETE /rooms/{id}`.
+
+### 0.3 Reproduire
+
+```bash
+# 1. opérations réelles (dans backend/, DEBUG=true)
+python -c "import json; from app.main import app; json.dump([[m.upper(),p] for p,i in app.openapi()['paths'].items() for m in i if m in ('get','post','put','patch','delete')], open('/tmp/ops.json','w'))"
+# 2. à la racine
+node scripts/audit/frontend-api-routes.mjs /tmp/ops.json src /tmp/route_gaps.txt
+node scripts/audit/feature-matrix.mjs /tmp/ops.json /tmp/matrix.json
+```
+
+### 0.4 Défauts nouveaux (détail dans `BUGS_AND_GAPS.md`)
+
+- **FIN-01 (P0)** — encaissements non atomiques et rejouables (§ I).
+- **CORS-01 (P1)** — `X-Idempotency-Key` refusé au pré-vol CORS (§ I).
+- **FIN-02 (P1)** — annulation d'un paiement non `COMPLETED` (§ I).
+- **RT-02 (P2, NON VÉRIFIÉ)** — test WebSocket instable résiduel (§ H).
+
+---
+
+**Commit audité (sections 1 à 10) : `c28b482` (`main`, 2026-10-27 07:19 +0100)** — « fix(audit): client
 audit entries work, are namespaced and bounded (#339) ». CI de `main` sur ce
 commit : verte (run 40460387357).
 
@@ -75,15 +131,15 @@ SIMULÉ · ABSENT · NON VÉRIFIÉ. Les preuves « E2E » renvoient aux 5 parcou
 | Domaine | Statut | Preuve / constat |
 |---|---|---|
 | Authentification (login, MFA TOTP/email/secours, reset) | COMPLET | `test_mfa_enforcement.py`, `test_token_lifecycle.py`, entrées 2026-10-24 de `STATUT_ACTUEL.md` |
-| **Sessions / appareils connectés** | **SIMULÉ** | `getActiveSessions()` renvoie `[]`, `terminateSession()` renvoie `true` sans appel serveur ; toast « Session terminée » affiché (`src/hooks/useLoginTracking.ts`, `src/pages/admin/SecuritySessions.tsx:53-71`) |
-| **Historique des connexions** | **DÉFECTUEUX** | Aucun audit serveur de connexion (aucun `log_audit` dans `auth.py`/`mfa.py`) ; `trackLogin()` jamais appelé ; `getLoginHistory()` lit `data.items` alors que `GET /audit/` renvoie un tableau → toujours vide |
+| **Sessions / appareils connectés** | **SIMULÉ** → CORRIGÉ (#342) | `getActiveSessions()` renvoie `[]`, `terminateSession()` renvoie `true` sans appel serveur ; toast « Session terminée » affiché (`src/hooks/useLoginTracking.ts`, `src/pages/admin/SecuritySessions.tsx:53-71`) |
+| **Historique des connexions** | **DÉFECTUEUX** → CORRIGÉ (#342) | Aucun audit serveur de connexion (aucun `log_audit` dans `auth.py`/`mfa.py`) ; `trackLogin()` jamais appelé ; `getLoginHistory()` lit `data.items` alors que `GET /audit/` renvoie un tableau → toujours vide |
 | Déconnexion / déconnexion globale | COMPLET (avec défaut) | `/auth/logout/`, `/auth/logout-all/` testés ; registre de sessions Redis incohérent (voir BUG-SESS-03) |
 | Multi-tenant / RLS | COMPLET (prod) | 117/117 tables `ENABLE+FORCE`, tests sous rôle restreint (`test_*_rls_restricted_role.py`) |
 | RBAC (16 rôles) | COMPLET | `ROLE_PERMISSIONS`, `docs/PERMISSIONS_MATRIX.md`, E2E 02 |
 | Élèves / inscriptions | COMPLET (parcours nominal) | E2E 01 ; imports CSV robustes (#301/#302) |
 | Notes, évaluations, bulletins PDF | COMPLET (parcours nominal) | E2E 03 (WeasyPrint) |
 | Présences | COMPLET (parcours nominal) | E2E 05 |
-| Frais, factures, paiement Mobile Money **reçu** | COMPLET (parcours nominal) | E2E 04 |
+| Frais, factures, paiement Mobile Money **reçu** | COMPLET (parcours nominal) → PARTIEL au 2026-11-03 : concurrence et rejeu non sûrs (FIN-01, #345) ; export comptable cassé | E2E 04 |
 | Paiement en ligne par passerelle (CinetPay/PayTech) | PARTIEL | webhook signé testé (`test_payment_webhook_events.py`) ; initiation jamais jouée contre un sandbox |
 | Facturation SaaS (plans, essai 30 j, lecture seule 15 j, blocage) | PARTIEL | élèves et campus appliqués ; **utilisateurs, requêtes IA, exports : mesurés mais non bloquants** (`saas_quota_service`, `hard_enforce=False`) |
 | Enseignement supérieur LMD | PARTIEL | facultés, départements, semestres, ECTS par matière, contrôle de progression (`services/progression.py`) ; **absents** : unités d'enseignement, compensation, jurys/délibérations, stages, mémoires |
@@ -94,7 +150,7 @@ SIMULÉ · ABSENT · NON VÉRIFIÉ. Les preuves « E2E » renvoient aux 5 parcou
 | Messagerie / communication | PARTIEL | recherche, participants, présence appelés côté front sans route |
 | Gamification / badges | DÉFECTUEUX | `src/lib/badge-api.ts` appelle ~15 routes `school-life/badges/*` inexistantes |
 | Visioconférences, signatures électroniques, parrainages, plans de réussite, alertes précoces | ABSENT (backend) | pages front sans API ; 4 d'entre elles retirées des routes le 2026-10-11 |
-| Tableau de bord IA (« insights ») | **SIMULÉ en partie** | tendances sur 6 mois générées par `Math.random()` (`src/hooks/useAIInsights.ts:184-186`) ; axes « Engagement » et « Progression » aléatoires (`src/components/admin/ai/AICharts.tsx:30-31`) |
+| Tableau de bord IA (« insights ») | **SIMULÉ en partie** → CORRIGÉ (#343) | tendances sur 6 mois générées par `Math.random()` (`src/hooks/useAIInsights.ts:184-186`) ; axes « Engagement » et « Progression » aléatoires (`src/components/admin/ai/AICharts.tsx:30-31`) |
 | Assistant IA (chat, audit) | COMPLET (borné) | permissions et limites du 2026-10-25 |
 | Hors-ligne (PWA, Dexie) | NON VÉRIFIÉ | aucun test de coupure réseau / synchronisation trouvé |
 | Ministère / tutelle | PARTIEL | `ministry.py` (2 routes, agrégats `tenants`) |
@@ -108,9 +164,9 @@ elle exige de jouer chaque page, ce qui n'a pas été fait dans cet audit.
 
 | # | Constat | Gravité | Type |
 |---|---|---|---|
-| S1 | Révocation de session individuelle impossible ; l'UI affiche un faux succès | **P0** | [V] |
-| S2 | Aucun événement d'authentification audité côté serveur (succès, échec, MFA, logout, changement de mot de passe) | **P0** | [V] |
-| S3 | Registre des sessions actives (Redis) : TTL 30 min alors qu'une session vit jusqu'à 7 jours ; chaque `/auth/refresh/` ajoute un jti sans retirer l'ancien → le plafond « 5 sessions » ne mesure rien de réel et peut refuser un rafraîchissement légitime (429) en usage multi-onglets/appareils | P1 | [V] code lu ; [P] impact utilisateur non mesuré |
+| S1 | Révocation de session individuelle impossible ; l'UI affiche un faux succès — **CORRIGÉ #342** | **P0** | [V] |
+| S2 | Aucun événement d'authentification audité côté serveur (succès, échec, MFA, logout, changement de mot de passe) — **CORRIGÉ #342** | **P0** | [V] |
+| S3 | **CORRIGÉ #342** — Registre des sessions actives (Redis) : TTL 30 min alors qu'une session vit jusqu'à 7 jours ; chaque `/auth/refresh/` ajoute un jti sans retirer l'ancien → le plafond « 5 sessions » ne mesure rien de réel et peut refuser un rafraîchissement légitime (429) en usage multi-onglets/appareils | P1 | [V] code lu ; [P] impact utilisateur non mesuré |
 | S4 | Jeton d'accès en `localStorage` (exposé à toute XSS) ; 5 `dangerouslySetInnerHTML` à revoir | P1 | [P] |
 | S5 | Quotas IA / exports non bloquants : coût fournisseur IA non plafonné par établissement | P1 | [V] |
 | S6 | Production mono-VPS : pas de redondance, RTO dépendant d'une remise en route manuelle | P1 | [V] |
