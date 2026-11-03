@@ -575,3 +575,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   eux, comportement inchangé). **Nouveau contrôle CI** : tout appel du
   frontend vers une route inexistante fait échouer le job `Backend`
   (référence `scripts/audit/api-route-gaps-baseline.json`, 79 connus).
+- **2026-11-03 — exercice de restauration outillé (OPS-01 / P0-3).**
+  `deploy/vps/scripts/exercice-restauration.sh` restaure le dernier dump de
+  B2 dans un PostgreSQL jetable sans réseau et contrôle révision, RLS
+  forcée, volumes, relations, cohérence des paiements et isolation sous le
+  rôle `schoolflow_app` ; mesure RPO/RTO ; rapport sans donnée personnelle.
+  Testé sur dumps au format du VPS (5 cas, dont 4 pannes détectées).
+  **Pas encore exécuté sur le VPS** : la restauration de la production
+  reste à démontrer (procédure : `deploy/vps/README.md`).
