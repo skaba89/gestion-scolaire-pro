@@ -120,6 +120,21 @@ class InvoiceReminderRequest(BaseModel):
 
 # ─── Payment endpoints ────────────────────────────────────────────────────────
 
+def _period_filter(column: str, date_from: Optional[date], date_to: Optional[date], params: dict) -> str:
+    """Fragment SQL de période (bornes incluses). `column` est une constante
+    du code appelant, jamais une valeur reçue ; les dates sont liées."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="La date de début est postérieure à la date de fin")
+    fragment = ""
+    if date_from:
+        fragment += f" AND {column} >= :date_from"
+        params["date_from"] = date_from
+    if date_to:
+        fragment += f" AND {column} <= :date_to"
+        params["date_to"] = date_to
+    return fragment
+
+
 @router.get("/payments/")
 def list_payments(
     request: Request,
@@ -128,8 +143,14 @@ def list_payments(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     student_id: Optional[str] = None,
+    pay_status: Optional[str] = Query(None, alias="status"),
+    date_from: Optional[date] = Query(None, description="payment_date >= (AAAA-MM-JJ)"),
+    date_to: Optional[date] = Query(None, description="payment_date <= (AAAA-MM-JJ)"),
 ):
-    """List payments with pagination — includes student info."""
+    """List payments with pagination — includes student info.
+
+    `date_from` / `date_to` / `status` : facultatifs (exports comptables par
+    période). Sans eux, comportement inchangé."""
     tenant_id = _get_tenant_id(request, current_user, db)
     offset = (page - 1) * page_size
     params: dict = {"tenant_id": tenant_id, "limit": page_size, "offset": offset}
@@ -141,6 +162,10 @@ def list_payments(
     if student_id:
         extra += " AND p.student_id = :student_id"
         params["student_id"] = student_id
+    extra += _period_filter("p.payment_date", date_from, date_to, params)
+    if pay_status:
+        extra += " AND p.status = :pay_status"
+        params["pay_status"] = pay_status
 
     sql = text(f"""
         SELECT p.id, p.amount, p.payment_date, p.payment_method, p.reference, p.notes, p.status,
@@ -577,6 +602,8 @@ def list_invoices(
     page_size: int = Query(50, ge=1, le=100),
     student_id: Optional[str] = None,
     inv_status: Optional[str] = Query(None, alias="status"),
+    date_from: Optional[date] = Query(None, description="issue_date >= (AAAA-MM-JJ)"),
+    date_to: Optional[date] = Query(None, description="issue_date <= (AAAA-MM-JJ)"),
 ):
     """List invoices with full student info — replaces Supabase join query."""
     tenant_id = _get_tenant_id(request, current_user, db)
@@ -594,6 +621,7 @@ def list_invoices(
     if inv_status:
         filters += " AND i.status = :inv_status"
         params["inv_status"] = inv_status
+    filters += _period_filter("i.issue_date", date_from, date_to, params)
 
     sql = text(f"""
         SELECT i.id, i.invoice_number, i.total_amount, i.paid_amount, i.status,

@@ -1,27 +1,26 @@
-# Matrice des écrans — statique, 2026-11-03 (commit `6540145`)
+# Matrice des écrans — statique, 2026-11-03 (commit `fix/accounting-export-route`)
 
-Générée par `scripts/audit/feature-matrix.mjs` (voir `docs/audit/AUDIT_GLOBAL.md` § 0.3 pour la méthode et la commande).
+Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
-**Ce que cette matrice prouve** : pour chaque page de `src/pages/`, si elle est routée, combien d’appels `apiClient` littéraux elle atteint par ses imports, et lesquels ne correspondent à **aucune opération OpenAPI** réelle (chemin + méthode).
-**Ce qu’elle ne prouve pas** : le comportement à l’exécution. Une page « NON VÉRIFIÉ » n’a aucun défaut statique détecté, mais n’est jouée par aucun test de parcours. Les appels à URL entièrement dynamique (21) ne sont pas vérifiés.
+**Ce que cette matrice prouve** : pour chaque page de `src/pages/`, si elle est routée, combien d'appels `apiClient` littéraux elle atteint par ses imports, et lesquels ne correspondent à **aucune opération OpenAPI** réelle (chemin + méthode).
+**Ce qu'elle ne prouve pas** : le comportement à l'exécution. Une page « NON VÉRIFIÉ » n'a aucun défaut statique détecté, mais n'est jouée par aucun test de parcours. Les URL entièrement dynamiques ne sont pas vérifiées.
 
-Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu’elle seule utilise · **À VÉRIFIER** = appel sans route dans un module partagé (la page n’utilise peut-être pas la fonction fautive) · **NON VÉRIFIÉ** = aucun défaut statique, aucun parcours · **COMPLET (parcours E2E)** = nom de page cité par un parcours `tests/e2e/journeys/` (détection par nom : sous-estime la couverture réelle des 5 parcours) · **NON ROUTÉE** = page sans route (code mort ou en attente de backend).
+Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'elle seule utilise · **À VÉRIFIER** = appel sans route dans un module partagé · **NON VÉRIFIÉ** = aucun défaut statique, aucun parcours · **COMPLET (parcours E2E)** = nom de page cité par `tests/e2e/journeys/` (détection par nom : sous-estime la couverture réelle) · **NON ROUTÉE** = page sans route.
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 22 |
+| DÉFECTUEUX | 21 |
 | À VÉRIFIER | 35 |
-| NON VÉRIFIÉ | 88 |
+| NON VÉRIFIÉ | 89 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (22)
+## DÉFECTUEUX (21)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
 | Admin | `admin/AcademicRules.tsx` | 15 | GET /tenants/settings/academic-rules (pages/admin/AcademicRules.tsx)<br>POST /tenants/settings/academic-rules (pages/admin/AcademicRules.tsx)<br>DELETE /tenants/settings/academic-rules/X (pages/admin/AcademicRules.tsx) |
-| Admin | `admin/AccountingExports.tsx` | 13 | GET /payments (pages/admin/AccountingExports.tsx) |
 | Admin | `admin/AdvancedExports.tsx` | 81 | GET /hr/staff (pages/admin/AdvancedExports.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/AlumniMentors.tsx` | 79 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Badges.tsx` | 85 | POST /school-life/badges (pages/admin/Badges.tsx)<br>PUT /school-life/badges/X (pages/admin/Badges.tsx)<br>DELETE /school-life/badges/X (pages/admin/Badges.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
@@ -83,11 +82,12 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu�
 | Teacher | `teacher/TeacherGrades.tsx` | 30 | (partagé) GET /assessments/X (features/grades/services/gradesService.ts) |
 | Teacher | `teacher/TeacherMessages.tsx` | 31 | (partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
 
-## NON VÉRIFIÉ (88)
+## NON VÉRIFIÉ (89)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
 | Admin | `admin/AcademicYears.tsx` | 15 | — |
+| Admin | `admin/AccountingExports.tsx` | 11 | — |
 | Admin | `admin/Admissions.tsx` | 15 | — |
 | Admin | `admin/AIInsights.tsx` | 14 | — |
 | Admin | `admin/Announcements.tsx` | 22 | — |

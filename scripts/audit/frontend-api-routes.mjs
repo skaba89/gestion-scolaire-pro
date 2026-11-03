@@ -1,6 +1,13 @@
 // Compare apiClient.<verb>(<littéral>) de src/ aux opérations OpenAPI réelles.
+// Usage : node frontend-api-routes.mjs <ops.json> <src> <rapport.txt> [--baseline <gaps.json>] [--update-baseline]
+// Avec --baseline : échoue (code 1) si un appel sans route n'est PAS dans la
+// référence — cliquet comme ts-baseline.json : la dette ne peut que baisser.
 import fs from 'fs'; import path from 'path';
-const [opsFile, srcDir] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const [opsFile, srcDir] = args;
+const baselineIdx = args.indexOf('--baseline');
+const baselineFile = baselineIdx >= 0 ? args[baselineIdx + 1] : null;
+const updateBaseline = args.includes('--update-baseline');
 const ops = JSON.parse(fs.readFileSync(opsFile, 'utf8')).map(([m, p]) => ({ m, re: new RegExp('^' + p.replace(/^\/api\/v1/, '').replace(/\/+$/, '').replace(/\{[^}]+\}/g, '[^/]+') + '$') }));
 const files = []; (function walk(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = path.join(d, e.name); if (e.isDirectory()) { if (!/__tests__|node_modules/.test(f)) walk(f); } else if (/\.(ts|tsx)$/.test(e.name) && !/\.test\./.test(e.name)) files.push(f); } })(srcDir);
 const callRe = /apiClient\s*\.\s*(get|post|put|patch|delete)\s*(?:<[^>()]*(?:<[^>]*>)?[^>()]*>)?\s*\(\s*(`[^`]*`|'[^']*'|"[^"]*")/g;
@@ -16,4 +23,25 @@ for (const f of files) { const s = fs.readFileSync(f, 'utf8'); let m; while ((m 
   else if (!pathHits.some(o => o.m === verb)) methodOnly.push(`${verb} ${url} [route existe: ${[...new Set(pathHits.map(o=>o.m))].join(',')}]  (${path.relative(process.cwd(), f)}:${line})`);
 } }
 console.log(JSON.stringify({ total, dynamic_unverifiable: dyn, missing_path: missing.length, wrong_method: methodOnly.length }));
-fs.writeFileSync(process.argv[4], ['## Chemin absent', ...missing.sort(), '', '## Méthode absente (chemin existe)', ...methodOnly.sort()].join('\n'));
+fs.writeFileSync(args[2], ['## Chemin absent', ...missing.sort(), '', '## Méthode absente (chemin existe)', ...methodOnly.sort()].join('\n'));
+
+if (baselineFile) {
+  // Clé stable : « VERBE /chemin » (sans numéro de ligne, qui bouge à chaque modification).
+  const key = (line) => line.split('  (')[0].replace(/ \[route existe.*$/, '');
+  const current = [...new Set([...missing, ...methodOnly].map(key))].sort();
+  if (updateBaseline) {
+    fs.writeFileSync(baselineFile, JSON.stringify(current, null, 2) + '\n');
+    console.log(`Référence mise à jour : ${current.length} appel(s) sans route.`);
+    process.exit(0);
+  }
+  const known = new Set(JSON.parse(fs.readFileSync(baselineFile, 'utf8')));
+  const added = current.filter((k) => !known.has(k));
+  const fixed = [...known].filter((k) => !current.includes(k));
+  if (fixed.length) console.log(`Corrigé(s) depuis la référence (${fixed.length}) — abaisser avec --update-baseline :\n  ${fixed.join('\n  ')}`);
+  if (added.length) {
+    console.error(`::error::${added.length} nouvel(s) appel(s) frontend sans route backend :`);
+    for (const k of added) console.error(`  ${[...missing, ...methodOnly].filter((l) => key(l) === k).join('\n  ')}`);
+    process.exit(1);
+  }
+  console.log(`OK : aucun nouvel appel sans route (${current.length} connus, référence ${known.size}).`);
+}

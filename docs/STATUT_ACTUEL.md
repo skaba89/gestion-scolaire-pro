@@ -563,6 +563,18 @@ ce fichier — pas d'un document de 2025 non révisé.
   présences de la file hors-ligne. Ajouté (`tests/test_cors_idempotency_header.py`).
   Non vérifié : écritures existantes en production déjà incohérentes
   (`paid_amount` ≠ somme des paiements) — aucune requête de contrôle lancée.
+- **2026-11-03 — exports comptables justes (API-02 de `docs/audit/`).**
+  L'écran « Exports comptables » (FEC, Sage, Ciel) appelait une route
+  inexistante pour les paiements et recevait, pour les factures, les 50
+  premières toutes dates confondues (filtres ignorés par le serveur) : les
+  journaux exportés étaient faux, sans message d'erreur. Corrigés aussi :
+  montant pris sur le total de la facture, dates d'émission, brouillons et
+  annulations exclus, période « 3 derniers mois », protection contre
+  l'injection de formule dans les CSV. Routes : `date_from` / `date_to`
+  facultatifs sur `GET /payments/payments/` et `/payments/invoices/` (sans
+  eux, comportement inchangé). **Nouveau contrôle CI** : tout appel du
+  frontend vers une route inexistante fait échouer le job `Backend`
+  (référence `scripts/audit/api-route-gaps-baseline.json`, 79 connus).
 - **2026-11-03 — exercice de restauration outillé (OPS-01 / P0-3).**
   `deploy/vps/scripts/exercice-restauration.sh` restaure le dernier dump de
   B2 dans un PostgreSQL jetable sans réseau et contrôle révision, RLS

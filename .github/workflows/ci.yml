@@ -284,6 +284,22 @@ jobs:
           fi
           echo "Migration chain OK (single head)"
 
+      - name: Frontend → API contract (no new call without a backend route)
+        # Cliquet (comme ts-baseline.json) : la référence liste les appels
+        # sans route connus ; tout NOUVEL appel vers une route inexistante
+        # échoue. Abaisser après correction :
+        #   node scripts/audit/frontend-api-routes.mjs <ops.json> src <rapport> --baseline scripts/audit/api-route-gaps-baseline.json --update-baseline
+        run: |
+          cd backend
+          DEBUG=true \
+          SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
+          BOOTSTRAP_SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
+          DATABASE_URL=sqlite:///./openapi-export.db \
+            python ../scripts/audit/export-openapi-ops.py "$RUNNER_TEMP/openapi-ops.json"
+          cd ..
+          node scripts/audit/frontend-api-routes.mjs "$RUNNER_TEMP/openapi-ops.json" src "$RUNNER_TEMP/api-route-gaps.txt" \
+            --baseline scripts/audit/api-route-gaps-baseline.json
+
       - name: Validate Python syntax (all app files)
         run: |
           ERRORS=0

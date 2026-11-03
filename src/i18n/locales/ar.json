@@ -2301,7 +2301,10 @@
     "exportSuccess": "تم التصدير بنجاح",
     "exportCielSuccess": "تم إنشاء تصدير Ciel Compta",
     "exportSageSuccess": "تم إنشاء تصدير Sage",
-    "fileDownloaded": "تم تنزيل الملف"
+    "fileDownloaded": "تم تنزيل الملف",
+    "loadErrorTitle": "البيانات المحاسبية غير متاحة",
+    "loadErrorDescription": "تعذّر تحميل جميع فواتير ومدفوعات الفترة. لا يُتاح أي تصدير ما دامت البيانات غير مكتملة.",
+    "loading": "جارٍ تحميل البيانات المحاسبية…"
   },
   "analytics": {
     "title": "التحليلات المتقدمة",
