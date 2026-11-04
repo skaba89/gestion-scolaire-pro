@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-03 (commit `fix/accounting-export-route`)
+# Matrice des écrans — statique, 2026-11-03 (commit `fix/parent-preregistration-routes`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -9,14 +9,14 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 21 |
+| DÉFECTUEUX | 20 |
 | À VÉRIFIER | 35 |
-| NON VÉRIFIÉ | 89 |
+| NON VÉRIFIÉ | 90 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (21)
+## DÉFECTUEUX (20)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -35,7 +35,6 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Parent | `parent/Appointments.tsx` | 18 | PUT /parents/appointment-slots/X (pages/parent/Appointments.tsx)<br>PUT /parents/appointments/X (pages/parent/Appointments.tsx) |
 | Parent | `parent/ChildDetail.tsx` | 24 | POST /parents/transcript/generate (pages/parent/ChildDetail.tsx)<br>(partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
 | Parent | `parent/ParentDashboard.tsx` | 41 | GET /students/terms/X (utils/riskAssessment.ts)<br>(partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts)<br>(partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
-| Parent | `parent/PreRegistration.tsx` | 16 | GET /admissions/public/academic-years (pages/parent/PreRegistration.tsx)<br>GET /admissions/public/levels (pages/parent/PreRegistration.tsx)<br>GET /admissions/public/apply (pages/parent/PreRegistration.tsx) |
 | Parent | `parent/ReportCards.tsx` | 29 | GET /parents/enrollments (pages/parent/ReportCards.tsx)<br>(partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
 | Student | `student/StudentHomework.tsx` | 19 | POST /homework-submissions (components/homework/HomeworkSubmissionDialog.tsx) |
 | Teacher | `teacher/AppointmentSlots.tsx` | 17 | PATCH /school-life/appointment-slots/appointments/X (pages/teacher/AppointmentSlots.tsx)<br>POST /school-life/appointment-slots/bulk (pages/teacher/AppointmentSlots.tsx) |
@@ -82,7 +81,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Teacher | `teacher/TeacherGrades.tsx` | 30 | (partagé) GET /assessments/X (features/grades/services/gradesService.ts) |
 | Teacher | `teacher/TeacherMessages.tsx` | 31 | (partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
 
-## NON VÉRIFIÉ (89)
+## NON VÉRIFIÉ (90)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -148,6 +147,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Department | `department/DepartmentStudents.tsx` | 0 | — |
 | Department | `department/DepartmentTeachers.tsx` | 0 | — |
 | Parent | `parent/Analytics.tsx` | 16 | — |
+| Parent | `parent/PreRegistration.tsx` | 16 | — |
 | Public | `admin/CreateTenant.tsx` | 12 | — |
 | Public | `Bootstrap.tsx` | 1 | — |
 | Public | `ChangePassword.tsx` | 9 | — |

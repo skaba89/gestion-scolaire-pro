@@ -59,11 +59,12 @@ n'évalue que la première. Aucun benchmark concurrentiel sourcé n'existe encor
 | FIN-01 | **P0** | PARTIEL — correctif #345 (non fusionné) | encaissements concurrents : mise à jour perdue, trop-perçu, double annulation, rejeu = double paiement |
 | CORS-01 | P1 | PARTIEL — correctif #345 | `X-Idempotency-Key` refusé au pré-vol (app native, file hors-ligne) |
 | OPS-01 | **P0** | OUVERT | restauration B2 au format de production non démontrée |
-| API-01 | P1 | OUVERT | 94 appels sans route, dont export comptable |
+| API-01 | P1 | PARTIEL | 94 → 89 appels sans route (export comptable #347, pré-inscription parent) ; cliquet CI actif |
 | FIN-02 | P1 | CORRIGÉ (`fix/payment-reverse-completed-only`) | annulation acceptée sur un paiement non `COMPLETED` |
 | QA-01 | P1 | CORRIGÉ (`test/hermetic-pytest-db`) — 2 exécutions successives vertes, SQLite et PostgreSQL | suite pytest non hermétique |
 | BILL-01 | P1 | OUVERT (décision produit) | quotas utilisateurs/IA/exports non bloquants |
 | S4 | P1 | OUVERT | jeton d'accès en `localStorage` |
+| SEC-ADM-01 | P1 | OUVERT | réinscription publique sans vérification du demandeur |
 | RT-02 | P2 | NON VÉRIFIÉ | `test_active_user_connection_is_accepted` a échoué une fois localement sur `main` après #341 (instabilité résiduelle possible) |
 
 Corrigés et vérifiés sur `main` : BUG-SESS-01 à 04 (#342), SIM-AI-01 (#343),

@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import text, bindparam
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import date, datetime
 import json
 from slowapi import Limiter
@@ -1172,4 +1172,156 @@ def public_tenant_info(slug: str, db: Session = Depends(get_db)):
             "start_date": str(academic_year["start_date"]) if academic_year["start_date"] else None,
             "end_date": str(academic_year["end_date"]) if academic_year["end_date"] else None,
         } if academic_year else None,
+    }
+
+
+# ─── Réinscription par un parent CONNECTÉ (2026-11-03, API-01) ────────────────
+# La page parent « Pré-inscription » appelait trois routes publiques
+# inexistantes (`/public/academic-years/`, `/public/levels/`, `GET
+# /public/apply/`) : le parcours était bloqué. Elle passe désormais par ces
+# routes authentifiées — et non par `/public/reenroll/`, qui n'exige aucune
+# authentification et ne vérifie pas que l'e-mail fourni est celui d'un
+# parent de l'élève (voir docs/audit/BUGS_AND_GAPS.md, SEC-ADM-01).
+# Les demandes ont la même forme que celles du portail public
+# (documents.type = REINSCRIPTION) : l'administration les traite au même
+# endroit (/admissions/).
+
+class ParentReenrollmentBody(BaseModel):
+    student_id: uuid.UUID
+    academic_year_id: uuid.UUID
+    level_id: Optional[uuid.UUID] = None
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
+def _own_children_ids(db: Session, tenant_id: str, user_id: str) -> list[str]:
+    rows = db.execute(text(
+        "SELECT student_id FROM parent_students WHERE tenant_id = CAST(:tid AS uuid) AND parent_id = CAST(:uid AS uuid)"
+    ), {"tid": str(tenant_id), "uid": str(user_id)}).fetchall()
+    return [str(r[0]) for r in rows]
+
+
+@router.get("/reenrollments/mine/")
+def list_my_reenrollments(
+    request: Request,
+    academic_year_id: Optional[uuid.UUID] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("admissions:reenroll")),
+):
+    """Demandes de réinscription des enfants du parent connecté (et d'eux seuls)."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    children = _own_children_ids(db, tenant_id, current_user.get("id"))
+    if not children:
+        return []
+    params: dict = {"tid": tenant_id, "children": children}
+    extra = ""
+    if academic_year_id:
+        extra = " AND a.academic_year_id = CAST(:ay AS uuid)"
+        params["ay"] = str(academic_year_id)
+    rows = db.execute(text(f"""
+        SELECT a.id, a.status, a.academic_year_id, a.level_id, a.submitted_at,
+               a.documents->>'student_id' AS student_id, l.name AS level_name
+          FROM admission_applications a
+          LEFT JOIN levels l ON l.id = a.level_id
+         WHERE a.tenant_id = CAST(:tid AS uuid)
+           AND a.documents->>'type' = 'REINSCRIPTION'
+           AND a.documents->>'student_id' = ANY(:children)
+           {extra}
+         ORDER BY a.submitted_at DESC
+    """), params).mappings().all()
+    return [{
+        "id": str(r["id"]),
+        "student_id": r["student_id"],
+        "academic_year_id": str(r["academic_year_id"]) if r["academic_year_id"] else None,
+        "level_id": str(r["level_id"]) if r["level_id"] else None,
+        "level_name": r["level_name"],
+        "status": r["status"],
+        "status_label": STATUS_LABELS.get(r["status"], r["status"]),
+        "submitted_at": _iso(r["submitted_at"]),
+    } for r in rows]
+
+
+@router.post("/reenrollments/", status_code=201)
+@limiter.limit("10/minute")
+def create_my_reenrollment(
+    request: Request,
+    body: ParentReenrollmentBody,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("admissions:reenroll")),
+):
+    """Demande de réinscription d'un enfant par son parent connecté."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    user_id = str(current_user.get("id"))
+    student_id = str(body.student_id)
+
+    # Appartenance : uniquement un enfant lié à CE parent (anti-IDOR).
+    if student_id not in _own_children_ids(db, tenant_id, user_id):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez réinscrire que vos propres enfants")
+    # Année et niveau : doivent appartenir à l'établissement courant.
+    ay = db.execute(text(
+        "SELECT 1 FROM academic_years WHERE id = CAST(:id AS uuid) AND tenant_id = CAST(:tid AS uuid)"
+    ), {"id": str(body.academic_year_id), "tid": tenant_id}).first()
+    if not ay:
+        raise HTTPException(status_code=404, detail="Année scolaire introuvable")
+    if body.level_id:
+        lvl = db.execute(text(
+            "SELECT 1 FROM levels WHERE id = CAST(:id AS uuid) AND tenant_id = CAST(:tid AS uuid)"
+        ), {"id": str(body.level_id), "tid": tenant_id}).first()
+        if not lvl:
+            raise HTTPException(status_code=404, detail="Niveau introuvable")
+
+    student = db.execute(text("""
+        SELECT first_name, last_name, date_of_birth, gender, address
+          FROM students WHERE id = CAST(:sid AS uuid) AND tenant_id = CAST(:tid AS uuid)
+    """), {"sid": student_id, "tid": tenant_id}).mappings().first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Élève introuvable")
+    # Coordonnées du parent : celles de SON compte, jamais celles envoyées par le client.
+    parent = db.execute(text(
+        "SELECT first_name, last_name, email, phone FROM users WHERE id = CAST(:uid AS uuid)"
+    ), {"uid": user_id}).mappings().first()
+    if not parent:
+        raise HTTPException(status_code=404, detail="Compte parent introuvable")
+
+    existing = db.execute(text("""
+        SELECT id FROM admission_applications
+         WHERE tenant_id = CAST(:tid AS uuid) AND academic_year_id = CAST(:ay AS uuid)
+           AND documents->>'student_id' = :sid
+           AND status NOT IN ('REJECTED', 'CONVERTED_TO_STUDENT')
+         LIMIT 1
+    """), {"tid": tenant_id, "ay": str(body.academic_year_id), "sid": student_id}).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Une demande de réinscription est déjà en cours pour cet élève.")
+
+    gender = student["gender"]
+    row = db.execute(text("""
+        INSERT INTO admission_applications (
+            id, tenant_id, academic_year_id, level_id,
+            student_first_name, student_last_name, student_date_of_birth, student_gender, student_address,
+            parent_first_name, parent_last_name, parent_email, parent_phone,
+            status, notes, documents, submitted_at, created_at, updated_at
+        ) VALUES (
+            gen_random_uuid(), CAST(:tid AS uuid), CAST(:ay AS uuid), CAST(:level AS uuid),
+            :sfn, :sln, :dob, :gender, :addr,
+            :pfn, :pln, :pemail, :pphone,
+            'SUBMITTED', :notes, CAST(:documents AS jsonb), NOW(), NOW(), NOW()
+        ) RETURNING id, status, submitted_at
+    """), {
+        "tid": tenant_id, "ay": str(body.academic_year_id),
+        "level": str(body.level_id) if body.level_id else None,
+        "sfn": student["first_name"], "sln": student["last_name"],
+        "dob": student["date_of_birth"], "gender": getattr(gender, "value", gender), "addr": student["address"],
+        "pfn": parent["first_name"] or "Parent", "pln": parent["last_name"] or student["last_name"],
+        "pemail": parent["email"], "pphone": parent["phone"] or "",
+        "notes": f"[RÉINSCRIPTION PARENT] {body.notes or ''}".strip(),
+        "documents": json.dumps({"type": "REINSCRIPTION", "student_id": student_id, "submitted_by": user_id}),
+    }).mappings().first()
+    log_audit(db, user_id=user_id, tenant_id=tenant_id,
+              action="ADMISSION_SUBMITTED", resource_type="ADMISSION", resource_id=str(row["id"]),
+              details={"from": None, "to": "SUBMITTED", "type": "REINSCRIPTION", "student_id": student_id})
+    db.commit()
+    return {
+        "id": str(row["id"]),
+        "status": row["status"],
+        "status_label": STATUS_LABELS.get(row["status"], row["status"]),
+        "submitted_at": _iso(row["submitted_at"]),
     }
