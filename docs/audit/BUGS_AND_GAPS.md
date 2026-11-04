@@ -324,3 +324,26 @@ l'interface (« aucun bouton décoratif »).
   50 résultats max). Tout est filtré par établissement. Tests :
   `test_messaging_presence_search.py` (13, PostgreSQL ; 9 en échec sur
   l'ancien code), `TypingIndicator.test.tsx` (2). Cliquet API : 76 → 70.
+
+## M. Badges (ajouté le 2026-11-04)
+
+Deux fonctions distinctes portent le nom « badge » dans le code.
+
+### GAME-01 — Gamification sans backend [V] — **RETIRÉE** (`chore/hide-badges`, décision du propriétaire : masquer) — P2
+- Badges de récompense, classement, journaux de déblocage, e-mails de badge :
+  `badge-api.ts`, `badge-notification-service.ts`, `useBadges.ts`,
+  `BadgeWidget`, `BadgeNotification`, `BadgeDisplay`,
+  `gamification-integration-examples.ts` (1 916 lignes) — ~19 appels vers
+  des routes inexistantes, **aucun écran affiché ne les importait**.
+- Supprimés ; 6 erreurs TypeScript retirées avec eux (plancher 184 → 178).
+  Reconstruction éventuelle : nouveau module avec backend (P2).
+
+### BADGE-01 — Badges QR des élèves : création, statut et suppression sans route [V] — **OUVERT** — P1
+- La page `/admin/badges` n'est **pas** de la gamification : ce sont les
+  cartes badges QR des élèves (impression, scan, pointages). La liste
+  fonctionne (`GET /school-life/badges/`), mais `POST /school-life/badges/`,
+  `PUT /school-life/badges/{id}/` et `DELETE /school-life/badges/{id}/`
+  n'existent pas : un badge ne peut être ni créé, ni suspendu, ni supprimé
+  depuis l'écran.
+- Correctif attendu : routes d'écriture (`students:write` ou équivalent),
+  élève du même établissement, audit ; test 403 et cross-tenant.

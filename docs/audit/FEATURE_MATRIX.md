@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-04 (commit `fix/messaging-routes`)
+# Matrice des écrans — statique, 2026-11-04 (commit `chore/hide-badges`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 

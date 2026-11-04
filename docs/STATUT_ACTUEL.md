@@ -633,3 +633,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   on ne voit la présence que des personnes avec qui l'on échange, et l'on ne
   cherche que dans ses propres conversations. Compteur de non-lus du parent
   réparé ; 732 lignes de code mort retirées.
+- **2026-11-04 — gamification retirée (GAME-01).** Badges de récompense,
+  classement et notifications de déblocage : aucun backend, aucun écran
+  affiché ne les utilisait — 1 916 lignes supprimées (décision du
+  propriétaire : masquer en attendant un vrai module). Distinct des **badges
+  QR des élèves** (`/admin/badges`), conservés : leur création, leur
+  suspension et leur suppression n'ont pas de route (BADGE-01, ouvert).
