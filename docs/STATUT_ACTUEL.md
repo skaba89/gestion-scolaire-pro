@@ -594,3 +594,14 @@ ce fichier — pas d'un document de 2025 non révisé.
   facture un montant jamais reçu : refusé (400, statut cité). L'historique
   des paiements affichait « Validé » pour tout paiement non annulé, y
   compris en attente ou échoué : il affiche désormais le statut réel.
+- **2026-11-03 — pré-inscription par les parents réparée (API-03).** La page
+  `/parent/pre-registration` appelait trois routes inexistantes : aucun
+  parent ne pouvait réinscrire son enfant. Elle proposait en outre l'année
+  scolaire **précédente** au lieu de la suivante (ordre de tri). Nouvelles
+  routes authentifiées `GET /admissions/reenrollments/mine/` et
+  `POST /admissions/reenrollments/` (permission `admissions:reenroll`, rôle
+  PARENT) : seulement ses propres enfants, année et niveau du même
+  établissement, une demande par enfant et par année, coordonnées prises
+  sur le compte du parent, audit. Les demandes arrivent dans la liste des
+  admissions comme celles du portail public. Constaté, non corrigé :
+  `POST /admissions/public/reenroll/` ne vérifie pas le demandeur (SEC-ADM-01).

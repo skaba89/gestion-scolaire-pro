@@ -1,6 +1,6 @@
-# Appels frontend sans route backend — 2026-11-03 (branche `fix/accounting-export-route`)
+# Appels frontend sans route backend — 2026-11-03 (branche `fix/parent-preregistration-routes`)
 
-Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (79 clés distinctes). **75 chemins absents, 17 méthodes absentes (92 appels)** ; 21 URL entièrement dynamiques non vérifiables. Historique : 94 appels au commit `6540145`.
+Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (**76** clés distinctes). 73 chemins absents, 16 méthodes absentes (89 appels) ; 21 URL entièrement dynamiques non vérifiables. Historique : 94 appels (`6540145`) → 92 (#347) → 89.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -15,8 +15,6 @@ DELETE /school-life/badges/unlock-logs  (src/lib/badge-notification-service.ts:2
 DELETE /school-life/sponsorships/X  (src/pages/admin/Sponsorships.tsx:141)
 DELETE /tenants/settings/academic-rules/X  (src/pages/admin/AcademicRules.tsx:105)
 GET /academic/subjects  (src/pages/admin/TeacherHours.tsx:84)
-GET /admissions/public/academic-years  (src/pages/parent/PreRegistration.tsx:89)
-GET /admissions/public/levels  (src/pages/parent/PreRegistration.tsx:106)
 GET /analytics/cash-flow-forecasts  (src/pages/admin/ExecutiveDashboard.tsx:167)
 GET /classroom-departments  (src/components/dashboard/DepartmentDashboardCharts.tsx:24)
 GET /communication/conversations/X/participants  (src/components/messages/MessagingInterface.tsx:117)
@@ -81,7 +79,6 @@ PUT /school-life/sponsorships/X  (src/pages/admin/Sponsorships.tsx:110)
 
 ## Méthode absente (chemin existe)
 DELETE /schedule [route existe: GET,POST]  (src/components/schedule/ScheduleGenerator.tsx:143)
-GET /admissions/public/apply [route existe: POST]  (src/pages/parent/PreRegistration.tsx:120)
 GET /assessments/X [route existe: DELETE,PUT]  (src/features/grades/services/gradesService.ts:66)
 GET /schedule/terms [route existe: PUT,DELETE]  (src/pages/admin/ExecutiveDashboard.tsx:140)
 GET /student-parents [route existe: POST,DELETE]  (src/components/reminders/ReminderSystem.tsx:166)

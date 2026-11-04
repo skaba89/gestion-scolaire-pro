@@ -82,6 +82,7 @@ export type Permission =
   | "admissions:read"
   | "admissions:manage"
   | "admissions:convert"
+  | "admissions:reenroll"
 
   // Settings
   | "settings:read"
@@ -256,6 +257,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "messages:read", "messages:send",
     "events:read",
     "dashboard:parent",
+    "admissions:reenroll",
     "guides:read",
   ],
 
