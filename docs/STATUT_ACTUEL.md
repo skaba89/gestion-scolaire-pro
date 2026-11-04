@@ -623,3 +623,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   ne contient encore aucun élève ; à refaire chaque trimestre et dès les
   premières données réelles. La 1re tentative avait échoué à cause du
   script (schéma `public`), corrigé.
+- **2026-11-04 — règles académiques réellement appliquées (RULES-01) ;
+  bulletin falsifiable supprimé (BUL-01).** L'établissement règle sa moyenne
+  de passage et ses seuils de mention (par niveau si besoin) dans un
+  formulaire ; bulletins (unitaires, PDF, par lot) et relevés les
+  appliquent. Sans réglage : 10/20 et mentions à 12, 14, 16, 18, comme
+  avant. Auparavant la page n'enregistrait rien et les seuils étaient
+  écrits en dur. Supprimé : `POST /school-life/generate-report-card/`, qui
+  produisait un bulletin d'apparence officielle à partir de notes saisies
+  par le navigateur, sans permission (aucun écran ne l'utilisait).

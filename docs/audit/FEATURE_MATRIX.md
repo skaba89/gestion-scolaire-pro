@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-03 (commit `fix/parent-preregistration-routes`)
+# Matrice des écrans — statique, 2026-11-04 (commit `fix/academic-rules-routes`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -9,18 +9,17 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 20 |
+| DÉFECTUEUX | 19 |
 | À VÉRIFIER | 35 |
-| NON VÉRIFIÉ | 90 |
+| NON VÉRIFIÉ | 91 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (20)
+## DÉFECTUEUX (19)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
-| Admin | `admin/AcademicRules.tsx` | 15 | GET /tenants/settings/academic-rules (pages/admin/AcademicRules.tsx)<br>POST /tenants/settings/academic-rules (pages/admin/AcademicRules.tsx)<br>DELETE /tenants/settings/academic-rules/X (pages/admin/AcademicRules.tsx) |
 | Admin | `admin/AdvancedExports.tsx` | 81 | GET /hr/staff (pages/admin/AdvancedExports.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/AlumniMentors.tsx` | 79 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Badges.tsx` | 85 | POST /school-life/badges (pages/admin/Badges.tsx)<br>PUT /school-life/badges/X (pages/admin/Badges.tsx)<br>DELETE /school-life/badges/X (pages/admin/Badges.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
@@ -81,10 +80,11 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Teacher | `teacher/TeacherGrades.tsx` | 30 | (partagé) GET /assessments/X (features/grades/services/gradesService.ts) |
 | Teacher | `teacher/TeacherMessages.tsx` | 31 | (partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
 
-## NON VÉRIFIÉ (90)
+## NON VÉRIFIÉ (91)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
+| Admin | `admin/AcademicRules.tsx` | 11 | — |
 | Admin | `admin/AcademicYears.tsx` | 15 | — |
 | Admin | `admin/AccountingExports.tsx` | 11 | — |
 | Admin | `admin/Admissions.tsx` | 15 | — |

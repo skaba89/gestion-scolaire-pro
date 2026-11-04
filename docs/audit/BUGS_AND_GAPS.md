@@ -300,3 +300,33 @@ l'interface (« aucun bouton décoratif »).
   mais le code est sans ambiguïté : le parcours ne pouvait aboutir.
 - Correctif : lien parent par `parent_students` → `users` (ou e-mails de la
   fiche élève), niveau actuel par l'inscription active → classe → niveau.
+
+## L. Règles académiques et bulletins (ajouté le 2026-11-04)
+
+### RULES-01 — Règles académiques jamais enregistrées ni appliquées [V] — **CORRIGÉ** (`fix/academic-rules-routes`) — P1
+- `/admin/academic-rules` appelait `GET/POST/DELETE /tenants/settings/academic-rules/`
+  (inexistants) et demandait du JSON à saisir ; la note de la page affirmait
+  que « les règles s'appliquent automatiquement » — faux. Moyenne de passage
+  (10/20) et seuils de mention écrits en dur, en double (`school_life.py`
+  ×2, `transcripts.py`).
+- Correctif : `services/academic_rules.py` (validation, règles par niveau,
+  revalidation à la lecture, valeurs par défaut = ancien comportement exact —
+  vérifié sur 201 moyennes) ; `GET/PUT /tenants/settings/academic-rules/`
+  (`settings:read` / `settings:write`, niveaux du même établissement, audit
+  `UPDATE_ACADEMIC_RULES`) ; `PATCH /tenants/settings/` refuse la clé
+  `academic_rules` (contournement de la validation) ; bulletins v2, PDF, lot
+  et relevés appliquent les règles ; page réécrite en formulaire (aperçu des
+  mentions, 5 langues). Tests : `test_academic_rules.py` (20, SQLite et
+  PostgreSQL), `academicRules.test.ts` (4).
+- Hors périmètre (décision produit) : barème /10 du primaire, règles de
+  passage de classe, assiduité — non proposés tant qu'aucun calcul ne les
+  applique (P2-1).
+
+### BUL-01 — Bulletin falsifiable par tout utilisateur connecté [V] — **CORRIGÉ** (même PR) — P1
+- `POST /school-life/generate-report-card/` (aucune permission, aucune base
+  de données) fabriquait un bulletin d'apparence officielle à partir de
+  l'établissement, de l'élève et des **notes envoyées par le navigateur** :
+  un élève pouvait produire un bulletin à 20/20 au nom de l'école. Aucun
+  écran ne l'appelait. Route, générateur et modèles supprimés (381 lignes) ;
+  test : la route répond 404/405.
+- Exploitation éventuelle non vérifiée (journaux non consultés).

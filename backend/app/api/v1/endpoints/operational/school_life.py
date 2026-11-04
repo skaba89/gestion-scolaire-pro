@@ -30,6 +30,9 @@ from app.schemas.school_life import (
 )
 from app.crud import school_life as crud_sl
 from app.utils.audit import log_audit
+from app.services.academic_rules import (
+    effective_rules, grade_color, mention_background, mention_for,
+)
 from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
 
 logger = logging.getLogger(__name__)
@@ -1820,25 +1823,8 @@ class CertificateRequest(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _grade_mention_v2(avg: float) -> str:
-    if avg >= 18: return "Excellent"
-    if avg >= 16: return "Très Bien"
-    if avg >= 14: return "Bien"
-    if avg >= 12: return "Assez Bien"
-    if avg >= 10: return "Passable"
-    return "Insuffisant"
 
-def _grade_color_v2(avg: float) -> str:
-    if avg >= 14: return "#166534"   # green-800
-    if avg >= 10: return "#1d4ed8"   # blue-700
-    if avg >= 8:  return "#92400e"   # amber-800
-    return "#991b1b"                 # red-800
 
-def _mention_bg(avg: float) -> str:
-    if avg >= 14: return "#dcfce7"
-    if avg >= 10: return "#dbeafe"
-    if avg >= 8:  return "#fef3c7"
-    return "#fee2e2"
 
 
 def _fetch_student_data(db, student_id: str, tenant_id: str) -> dict:
@@ -2108,6 +2094,8 @@ def _fetch_absences_batch(db, classroom_id: str, start_date, end_date, tenant_id
 
 def _build_bulletin_v2(
     *,
+    # Règles académiques de l'établissement / du niveau (services/academic_rules.py).
+    rules: Optional[dict] = None,
     # Tenant
     school_name: str,
     school_address: str = "",
@@ -2165,8 +2153,8 @@ def _build_bulletin_v2(
         if scores:
             subj_avg = sum(s / m * 20 for s, m in scores) / len(scores)
             avg_str = f"{subj_avg:.2f}"
-            color = _grade_color_v2(subj_avg)
-            appre = _grade_mention_v2(subj_avg)
+            color = grade_color(subj_avg, rules)
+            appre = mention_for(subj_avg, rules)
         else:
             subj_avg = -1
             avg_str = "—"
@@ -2186,9 +2174,9 @@ def _build_bulletin_v2(
     # ── Average & mention ──────────────────────────────────────────────────────
     if general_average >= 0:
         avg_display = f"{general_average:.2f}/20"
-        mention = _grade_mention_v2(general_average)
-        avg_color = _grade_color_v2(general_average)
-        mention_bg = _mention_bg(general_average)
+        mention = mention_for(general_average, rules)
+        avg_color = grade_color(general_average, rules)
+        mention_bg = mention_background(general_average, rules)
         avg_color_text = "#fff" if general_average < 10 or general_average >= 14 else "#1e3a8a"
         avg_box_bg = avg_color
     else:
@@ -2612,7 +2600,7 @@ def _build_report_card_html(db: Session, body: SmartReportCardRequest, tenant_id
 
     # Classroom + level
     cls_row = db.execute(text("""
-        SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
+        SELECT c.name AS class_name, l.name AS level_name, l.id AS level_id, ay.name AS year_name
         FROM classes c
         LEFT JOIN levels l ON c.level_id = l.id
         LEFT JOIN academic_years ay ON c.academic_year_id = ay.id
@@ -2651,6 +2639,7 @@ def _build_report_card_html(db: Session, body: SmartReportCardRequest, tenant_id
     dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
 
     html_content = _build_bulletin_v2(
+        rules=effective_rules(db, tenant_id, cls_row["level_id"] if cls_row else None),
         school_name=t["name"] if t else "École",
         school_address=t.get("address") or "" if t else "",
         school_phone=t.get("phone") or "" if t else "",
@@ -3078,13 +3067,15 @@ def _generate_batch_report_cards(
     t_row = db.execute(t_stmt, {"tid": tenant_id}).mappings().first()
 
     cls_stmt = text("""
-        SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
+        SELECT c.name AS class_name, l.name AS level_name, l.id AS level_id, ay.name AS year_name
         FROM classes c
         LEFT JOIN levels l ON c.level_id = l.id
         LEFT JOIN academic_years ay ON c.academic_year_id = ay.id
         WHERE c.id = :cid AND c.tenant_id = :tid
     """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
     cls_row = db.execute(cls_stmt, {"cid": classroom_id, "tid": tenant_id}).mappings().first()
+    # Règles de notation du niveau de la classe — une fois pour tout le lot.
+    class_rules = effective_rules(db, tenant_id, cls_row["level_id"] if cls_row else None)
 
     term_stmt = text("""
         SELECT name, start_date, end_date FROM terms
@@ -3129,6 +3120,7 @@ def _generate_batch_report_cards(
         dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
 
         bulletin_html = _build_bulletin_v2(
+            rules=class_rules,
             school_name=t_row["name"] if t_row else "École",
             school_address=t_row.get("address") or "" if t_row else "",
             school_phone=t_row.get("phone") or "" if t_row else "",
@@ -3291,374 +3283,23 @@ def get_school_life_job_status(
 
 # ─── Bulletin de notes (Report Card) — Legacy v1 ──────────────────────────────
 
-class ReportCardGrade(BaseModel):
-    subject_name: str
-    score: Optional[float] = None
-    max_score: float = 20
-    coefficient: float = 1
-    weight: float = 1
+# POST /school-life/generate-report-card/ et son générateur ont été supprimés le
+# 2026-11-04 : la route fabriquait un bulletin d'apparence officielle uniquement
+# à partir des données envoyées par le navigateur (établissement, élève, NOTES),
+# sans base de données ni permission — tout utilisateur connecté pouvait produire
+# un bulletin falsifié. Aucun écran ne l'appelait. Bulletins : /generate-report-
+# card/v2/, /generate-report-card/pdf/, /generate-report-cards/batch/.
 
 
-class ReportCardStudent(BaseModel):
-    firstName: str
-    lastName: str
-    registration_number: Optional[str] = None
 
 
-class ReportCardTenant(BaseModel):
-    name: str
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    logo_url: Optional[str] = None
 
 
-class ReportCardRequest(BaseModel):
-    tenant: ReportCardTenant
-    student: ReportCardStudent
-    classroom: Optional[str] = None
-    level: Optional[str] = None
-    term: Optional[str] = None
-    academicYear: Optional[str] = None
-    grades: List[ReportCardGrade] = []
-    average: Optional[str] = None
-    # Batch mode
-    reports: Optional[List[dict]] = None
 
 
-def _grade_mention(avg: float) -> str:
-    if avg >= 18: return "Excellent"
-    if avg >= 16: return "Très Bien"
-    if avg >= 14: return "Bien"
-    if avg >= 12: return "Assez Bien"
-    if avg >= 10: return "Passable"
-    return "Insuffisant"
 
 
-def _grade_color(avg: float) -> str:
-    if avg >= 14: return "#166534"   # green-800
-    if avg >= 10: return "#92400e"   # amber-800
-    return "#991b1b"                 # red-800
 
 
-def _build_bulletin_html(
-    tenant_name: str,
-    tenant_address: str,
-    tenant_phone: str,
-    tenant_email: str,
-    student_name: str,
-    registration_number: str,
-    classroom: str,
-    level: str,
-    term: str,
-    academic_year: str,
-    grades: list,
-    average: str,
-    logo_url: str = "",
-) -> str:
-    """Generate a professional bulletin HTML with inline CSS for print."""
-
-    # Compute subject averages from grades
-    by_subject: Dict[str, Dict] = {}
-    for g in grades:
-        name = html_mod.escape(str(g.get("subject_name", "Matière inconnue")))
-        score = g.get("score")
-        max_s = float(g.get("max_score", 20) or 20)
-        coeff = float(g.get("coefficient", 1) or 1)
-        if name not in by_subject:
-            by_subject[name] = {"scores": [], "max_score": max_s, "coefficient": coeff}
-        if score is not None:
-            by_subject[name]["scores"].append((float(score), max_s))
-
-    rows_html = ""
-    total_weighted = 0.0
-    total_coeff = 0.0
-    for subj_name, data in by_subject.items():
-        scores = data["scores"]
-        coeff = data["coefficient"]
-        max_s = data["max_score"]
-        if scores:
-            subj_avg = sum(s / m * 20 for s, m in scores) / len(scores)
-            avg_str = f"{subj_avg:.2f}/20"
-            total_weighted += subj_avg * coeff
-            total_coeff += coeff
-            color = _grade_color(subj_avg)
-        else:
-            subj_avg = -1
-            avg_str = "—"
-            color = "#6b7280"
-        rows_html += f"""
-        <tr>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">{subj_name}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">{coeff:.0f}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-weight:600;color:{color};">{avg_str}</td>
-        </tr>"""
-
-    # Compute or use provided average
-    computed_avg = -1.0
-    if total_coeff > 0:
-        computed_avg = total_weighted / total_coeff
-        avg_display = f"{computed_avg:.2f}/20"
-        mention = _grade_mention(computed_avg)
-        avg_color = _grade_color(computed_avg)
-    elif average and average != "-":
-        avg_display = average + "/20" if "/" not in average else average
-        mention = ""
-        avg_color = "#374151"
-    else:
-        avg_display = "—"
-        mention = ""
-        avg_color = "#374151"
-
-    logo_html = ""
-    if logo_url:
-        logo_html = f'<img src="{html_mod.escape(logo_url)}" alt="Logo" style="height:64px;object-fit:contain;" />'
-
-    esc = html_mod.escape
-    now = datetime.now().strftime("%d/%m/%Y")
-
-    return f"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Bulletin — {esc(student_name)}</title>
-<style>
-  @page {{ size: A4 portrait; margin: 15mm 20mm; }}
-  * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: "Arial", sans-serif; }}
-  body {{ background: #fff; color: #111; font-size: 13px; }}
-  .page {{ max-width: 794px; margin: 0 auto; padding: 0; }}
-
-  /* ─── Header ───────────────────────────── */
-  .header {{ display:flex; align-items:center; gap:16px; padding-bottom:12px;
-             border-bottom: 3px solid #1e40af; margin-bottom:16px; }}
-  .header-logo {{ width:80px; min-width:80px; }}
-  .header-center {{ flex:1; text-align:center; }}
-  .header-center h1 {{ font-size:18px; font-weight:800; color:#1e40af; text-transform:uppercase; }}
-  .header-center p {{ font-size:11px; color:#6b7280; margin-top:2px; }}
-  .header-right {{ text-align:right; font-size:11px; color:#6b7280; line-height:1.6; }}
-
-  /* ─── Doc title ─────────────────────────── */
-  .doc-title {{ text-align:center; padding:10px 0; margin-bottom:14px; }}
-  .doc-title h2 {{ font-size:16px; font-weight:800; color:#1e3a8a; text-transform:uppercase;
-                   letter-spacing:2px; border-top:2px solid #bfdbfe; border-bottom:2px solid #bfdbfe;
-                   padding:6px 0; display:inline-block; }}
-
-  /* ─── Info grid ─────────────────────────── */
-  .info-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px;
-                background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px; }}
-  .info-item {{ display:flex; flex-direction:column; gap:2px; }}
-  .info-label {{ font-size:10px; font-weight:700; color:#3b82f6; text-transform:uppercase; }}
-  .info-value {{ font-size:13px; font-weight:600; color:#111; }}
-
-  /* ─── Grades table ─────────────────────── */
-  table {{ width:100%; border-collapse:collapse; margin-bottom:16px; }}
-  thead tr {{ background:#1e40af; color:#fff; }}
-  thead th {{ padding:9px 12px; text-align:left; font-size:12px; font-weight:700; }}
-  thead th:not(:first-child) {{ text-align:center; }}
-  tbody tr:nth-child(even) {{ background:#f8fafc; }}
-
-  /* ─── Average box ─────────────────────── */
-  .avg-box {{ display:flex; align-items:center; justify-content:space-between;
-              background:#1e40af; color:#fff; border-radius:8px; padding:14px 20px;
-              margin-bottom:16px; }}
-  .avg-label {{ font-size:13px; font-weight:700; opacity:.9; }}
-  .avg-value {{ font-size:26px; font-weight:900; }}
-  .avg-mention {{ font-size:13px; font-weight:600; opacity:.85; }}
-
-  /* ─── Signature area ─────────────────── */
-  .sig-grid {{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px; margin-top:20px; }}
-  .sig-box {{ border:1px solid #d1d5db; border-radius:6px; padding:12px; min-height:90px; }}
-  .sig-title {{ font-size:11px; font-weight:700; color:#6b7280; text-transform:uppercase; margin-bottom:8px; }}
-
-  /* ─── Footer ──────────────────────────── */
-  .footer {{ margin-top:24px; padding-top:8px; border-top:1px solid #e5e7eb;
-             font-size:10px; color:#9ca3af; text-align:center; }}
-
-  @media print {{
-    body {{ print-color-adjust: exact; -webkit-print-color-adjust: exact; }}
-    .no-print {{ display:none !important; }}
-  }}
-</style>
-</head>
-<body>
-<div class="page">
-
-  <!-- Header -->
-  <div class="header">
-    <div class="header-logo">{logo_html}</div>
-    <div class="header-center">
-      <h1>{esc(tenant_name)}</h1>
-      <p>BULLETIN DE NOTES</p>
-    </div>
-    <div class="header-right">
-      {esc(tenant_address) if tenant_address else ""}<br>
-      {esc(tenant_phone) if tenant_phone else ""}<br>
-      {esc(tenant_email) if tenant_email else ""}
-    </div>
-  </div>
-
-  <!-- Document title -->
-  <div class="doc-title">
-    <h2>Bulletin Scolaire — {esc(term or "Période")} · {esc(academic_year or "")}</h2>
-  </div>
-
-  <!-- Student info -->
-  <div class="info-grid">
-    <div class="info-item">
-      <span class="info-label">Nom complet</span>
-      <span class="info-value">{esc(student_name)}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">Matricule</span>
-      <span class="info-value">{esc(registration_number or "—")}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">Classe</span>
-      <span class="info-value">{esc(classroom or "—")}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">Niveau</span>
-      <span class="info-value">{esc(level or "—")}</span>
-    </div>
-  </div>
-
-  <!-- Grades table -->
-  <table>
-    <thead>
-      <tr>
-        <th style="width:55%">Matière</th>
-        <th style="width:20%">Coefficient</th>
-        <th style="width:25%">Moyenne</th>
-      </tr>
-    </thead>
-    <tbody>
-      {rows_html if rows_html else '<tr><td colspan="3" style="padding:12px;text-align:center;color:#9ca3af;">Aucune note disponible</td></tr>'}
-    </tbody>
-  </table>
-
-  <!-- Average -->
-  <div class="avg-box">
-    <span class="avg-label">Moyenne Générale</span>
-    <span class="avg-value" style="color:{'#86efac' if computed_avg >= 10 else '#fca5a5' if computed_avg >= 0 else '#fff'}">{avg_display}</span>
-    <span class="avg-mention">{esc(mention)}</span>
-  </div>
-
-  <!-- Signature area -->
-  <div class="sig-grid">
-    <div class="sig-box">
-      <div class="sig-title">Appréciation du professeur principal</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-title">Signature du directeur</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-title">Signature des parents</div>
-    </div>
-  </div>
-
-  <div class="footer">
-    Bulletin généré le {now} · {esc(tenant_name)} · Confidentiel — Réservé aux parents et tuteurs légaux
-  </div>
-
-</div>
-
-<div class="no-print" style="text-align:center;padding:16px;">
-  <button onclick="window.print()" style="padding:10px 24px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;">
-    🖨️ Imprimer / Enregistrer en PDF
-  </button>
-</div>
-
-</body>
-</html>"""
 
 
-@router.post("/generate-report-card/")
-def generate_report_card_html(
-    body: ReportCardRequest,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    POST /school-life/generate-report-card/
-    Returns a base64-encoded professional HTML bulletin ready for printing / PDF.
-    Supports single student or batch (body.reports list).
-    """
-    # ── Single report ──────────────────────────────────────────────────────────
-    if not body.reports:
-        student_name = f"{body.student.firstName} {body.student.lastName}".strip()
-        html_content = _build_bulletin_html(
-            tenant_name=body.tenant.name,
-            tenant_address=body.tenant.address or "",
-            tenant_phone=body.tenant.phone or "",
-            tenant_email=body.tenant.email or "",
-            student_name=student_name,
-            registration_number=body.student.registration_number or "",
-            classroom=body.classroom or "",
-            level=body.level or "",
-            term=body.term or "",
-            academic_year=body.academicYear or "",
-            grades=[g.dict() for g in body.grades],
-            average=body.average or "",
-            logo_url=body.tenant.logo_url or "",
-        )
-        encoded = base64.b64encode(html_content.encode("utf-8")).decode("ascii")
-        return {"html": encoded, "format": "html", "count": 1}
-
-    # ── Batch: merge all bulletins into one printable HTML page ───────────────
-    all_html_parts = []
-    for rep in body.reports:
-        t = rep.get("tenant", {})
-        s = rep.get("student", {})
-        student_name = f"{s.get('firstName', '')} {s.get('lastName', '')}".strip()
-        part = _build_bulletin_html(
-            tenant_name=t.get("name", ""),
-            tenant_address=t.get("address", ""),
-            tenant_phone=t.get("phone", ""),
-            tenant_email=t.get("email", ""),
-            student_name=student_name,
-            registration_number=s.get("registration_number", "") or "",
-            classroom=rep.get("classroom", "") or "",
-            level=rep.get("level", "") or "",
-            term=rep.get("term", "") or "",
-            academic_year=rep.get("academicYear", "") or "",
-            grades=rep.get("grades", []),
-            average=str(rep.get("average", "")) or "",
-            logo_url=t.get("logo_url", "") or "",
-        )
-        # Strip the full HTML wrapper for merging — just keep body content
-        # Extract <body> content for each bulletin page
-        body_start = part.find("<body>") + len("<body>")
-        body_end = part.rfind("</body>")
-        body_content = part[body_start:body_end]
-        all_html_parts.append(
-            f'<div style="page-break-after:always;">{body_content}</div>'
-        )
-
-    # Wrap everything in a single HTML document
-    combined = f"""<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<title>Bulletins — Impression groupée ({len(body.reports)} élèves)</title>
-<style>
-  @page {{ size: A4 portrait; margin: 15mm 20mm; }}
-  * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }}
-  body {{ background: #fff; color: #111; font-size: 13px; }}
-  .page {{ max-width: 794px; margin: 0 auto; }}
-  @media print {{
-    body {{ print-color-adjust: exact; -webkit-print-color-adjust: exact; }}
-    .no-print {{ display: none !important; }}
-  }}
-</style>
-</head>
-<body>
-{"".join(all_html_parts)}
-<div class="no-print" style="text-align:center;padding:16px;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);">
-  <button onclick="window.print()" style="padding:10px 24px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;">
-    🖨️ Imprimer tous les bulletins ({len(body.reports)} élèves)
-  </button>
-</div>
-</body>
-</html>"""
-
-    encoded = base64.b64encode(combined.encode("utf-8")).decode("ascii")
-    return {"html": encoded, "format": "html", "count": len(body.reports)}
