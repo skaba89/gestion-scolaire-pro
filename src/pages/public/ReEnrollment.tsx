@@ -109,6 +109,8 @@ export default function ReEnrollment() {
       const r = await axios.post(`${getApiBase()}/api/v1/admissions/public/reenroll/`, {
         tenant_id: school.id,
         student_id: student.student_id,
+        // Le serveur revérifie matricule + e-mail parent (SEC-ADM-01).
+        registration_number: registrationNumber.trim(),
         academic_year_id: school.current_academic_year?.id,
         level_id: levelId,
         parent_email: parentEmail.trim(),

@@ -232,7 +232,7 @@ l'interface (« aucun bouton décoratif »).
 
 ## J. Admissions (ajouté le 2026-11-03)
 
-### SEC-ADM-01 — Réinscription publique sans vérification du demandeur [V code ; P exploitation] — **OUVERT** — P1
+### SEC-ADM-01 — Réinscription publique sans vérification du demandeur [V, R] — **CORRIGÉ** (`fix/public-reenroll-verify-requester`) — P1
 - `POST /admissions/public/reenroll/` (sans authentification) accepte tout
   `student_id` avec n'importe quel `parent_email` : il ne vérifie pas que
   l'e-mail est celui d'un parent de l'élève (contrairement à
@@ -244,6 +244,14 @@ l'interface (« aucun bouton décoratif »).
 - Correctif attendu : exiger le couple matricule + e-mail parent (comme
   `verify-student`) ou un jeton émis par `verify-student`. Test : e-mail non
   rattaché à l'élève → 404, aucune demande créée.
+- 2026-11-03 : reproduit (e-mail quelconque accepté) puis corrigé —
+  `registration_number` obligatoire, matricule + e-mail revérifiés par le
+  même critère que `verify-student` (`_find_student_for_requester`), même
+  404 quel que soit le critère manquant (pas d'oracle). Année et niveau de
+  `apply` et `reenroll` contrôlés comme appartenant à l'établissement (400).
+  Tests : `test_public_reenroll_requester.py` (10 ; 8 en échec sur l'ancien
+  code). `test_admission_reenroll_cast.py` validait le comportement
+  dangereux (élève sans parent, e-mail arbitraire) : adapté.
 - `POST /public/apply/` : `level_id` / `academic_year_id` reçus ne sont pas
   vérifiés comme appartenant à l'établissement (règle d'or n° 2) — même lot.
 
@@ -267,3 +275,14 @@ l'interface (« aucun bouton décoratif »).
   doublon 409, coordonnées du parent lues sur son compte, audit. Tests :
   `test_parent_reenrollment.py` (11, PostgreSQL, 11/11 en échec sur l'ancien
   code), `reenrollment.test.ts` (5). Cliquet API : 79 → 76.
+
+### ADM-02 — Vérification d'élève du portail public en erreur 500 [V, R] — **CORRIGÉ** (`fix/public-reenroll-verify-requester`) — P1
+- `POST /admissions/public/verify-student/` — 1re étape de la réinscription
+  publique (`/:slug/reinscription`) — joignait `students.parent_id` et
+  `students.level_id`, colonnes qui n'existent ni dans le modèle ni dans
+  aucune migration : `UndefinedColumn`, **500 pour tout parent**. Aucun test
+  n'exerçait cette route.
+- Exploitation réelle non vérifiée (journaux de production non consultés),
+  mais le code est sans ambiguïté : le parcours ne pouvait aboutir.
+- Correctif : lien parent par `parent_students` → `users` (ou e-mails de la
+  fiche élève), niveau actuel par l'inscription active → classe → niveau.
