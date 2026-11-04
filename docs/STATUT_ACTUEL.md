@@ -605,3 +605,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   sur le compte du parent, audit. Les demandes arrivent dans la liste des
   admissions comme celles du portail public. Constaté, non corrigé :
   `POST /admissions/public/reenroll/` ne vérifie pas le demandeur (SEC-ADM-01).
+- **2026-11-03 — réinscription publique : sécurisée et réparée (SEC-ADM-01,
+  ADM-02).** La 1re étape du portail public de réinscription
+  (`verify-student`) échouait en erreur 500 pour tout parent (jointure sur
+  deux colonnes inexistantes). La 2e (`reenroll`) acceptait n'importe quel
+  e-mail pour n'importe quel élève : elle exige désormais matricule +
+  e-mail d'un parent rattaché, revérifiés par le serveur. Les dossiers de
+  candidature n'acceptent plus une année ou un niveau d'un autre
+  établissement. Exploitation éventuelle non vérifiée (journaux de
+  production non consultés).
