@@ -27,11 +27,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.services.academic_rules import effective_rules
 from app.services.grading import compute_ects_weighted_average
 
 router = APIRouter()
 
-PASS_THRESHOLD = 10.0  # /20 — see module docstring
+PASS_THRESHOLD = 10.0  # /20 — valeur par défaut ; l'établissement peut la régler
+# (Paramètres → Règles académiques, services/academic_rules.py).
 
 
 def _can_view_transcript(db: Session, *, current_user: dict, student_id: str, tenant_id: str) -> bool:
@@ -93,7 +95,7 @@ def _fetch_grades_for_term_with_ects(db: Session, student_id: str, term_id: str,
     """), {"sid": student_id, "term_id": term_id, "tid": tenant_id}).mappings().all()
 
 
-def _summarize_subject_grades(grades: list) -> list:
+def _summarize_subject_grades(grades: list, pass_threshold: float = PASS_THRESHOLD) -> list:
     """Group raw grade rows by subject: {name, coefficient, ects, average, passed}."""
     by_subject: dict = {}
     for g in grades:
@@ -114,7 +116,7 @@ def _summarize_subject_grades(grades: list) -> list:
         scores = data.pop("_scores")
         average = round(sum(scores) / len(scores), 2) if scores else None
         data["average"] = average
-        data["passed"] = average is not None and average >= PASS_THRESHOLD
+        data["passed"] = average is not None and average >= pass_threshold
         summary.append(data)
     return summary
 
@@ -144,6 +146,8 @@ def get_student_transcript(
         raise HTTPException(status_code=403, detail="Accès non autorisé à ce relevé de notes")
 
     terms = _fetch_terms_for_year(db, str(academic_year_id), tenant_id)
+    # Moyenne de passage de l'établissement (règles académiques), 10/20 par défaut.
+    pass_threshold = effective_rules(db, tenant_id)["passing_grade"]
     if not terms:
         raise HTTPException(status_code=404, detail="Aucune période trouvée pour cette année académique")
 
@@ -155,7 +159,7 @@ def get_student_transcript(
 
     for term in terms:
         grades = _fetch_grades_for_term_with_ects(db, str(student_id), str(term["id"]), tenant_id)
-        subjects = _summarize_subject_grades(grades)
+        subjects = _summarize_subject_grades(grades, pass_threshold)
 
         for subj in subjects:
             total_ects_possible += subj["ects"]

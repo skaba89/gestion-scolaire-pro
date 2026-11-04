@@ -66,6 +66,8 @@ n'évalue que la première. Aucun benchmark concurrentiel sourcé n'existe encor
 | S4 | P1 | OUVERT | jeton d'accès en `localStorage` |
 | SEC-ADM-01 | P1 | CORRIGÉ (`fix/public-reenroll-verify-requester`) | réinscription publique sans vérification du demandeur |
 | ADM-02 | P1 | CORRIGÉ (même PR) | vérification d'élève du portail public en 500 (colonnes inexistantes) |
+| RULES-01 | P1 | CORRIGÉ (`fix/academic-rules-routes`) | règles académiques jamais enregistrées ni appliquées |
+| BUL-01 | P1 | CORRIGÉ (même PR) | bulletin falsifiable par tout utilisateur connecté (route supprimée) |
 | RT-02 | P2 | NON VÉRIFIÉ | `test_active_user_connection_is_accepted` a échoué une fois localement sur `main` après #341 (instabilité résiduelle possible) |
 
 Corrigés et vérifiés sur `main` : BUG-SESS-01 à 04 (#342), SIM-AI-01 (#343),
