@@ -554,7 +554,11 @@
     "tabBadges": "Insignias",
     "tabHistory": "Historial de Asistencia",
     "noBadgesFound": "No se encontraron insignias",
-    "scanQR": "Escanear QR"
+    "scanQR": "Escanear QR",
+    "actionReissue": "Perdida → nueva tarjeta",
+    "actionRevoke": "Retirar la tarjeta",
+    "cardReissued": "Nueva tarjeta emitida: la anterior ya no se acepta en el registro.",
+    "loadError": "No se pudieron cargar las tarjetas. Inténtelo más tarde."
   },
   "careers": {
     "tabOffers": "Ofertas",

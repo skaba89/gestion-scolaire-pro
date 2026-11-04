@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { apiClient } from "@/api/client";
+import { cardToBadge, issueStudentCards, listStudentCards, revokeStudentCard } from "@/features/students/utils/studentCards";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -137,19 +138,12 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
 
     // Get existing badges for these students
     if (studentList.length > 0) {
-      const studentIds = studentList.map((s) => s.id);
-      const { data: badges } = await apiClient.get<any[]>("/student-badges/", {
-        params: {
-          student_id__in: studentIds.join(","),
-          tenant_id: tenant.id,
-          status: "ACTIVE",
-        },
-      });
-
-      // Attach badges to students
+      // Code de carte de la fiche élève (lu par la borne et le scanner).
+      const cards = await listStudentCards(selectedClassroom);
+      const byStudent = new Map(cards.map((c) => [c.student_id, cardToBadge(c)]));
       const studentsWithBadges = studentList.map((student) => ({
         ...student,
-        badge: badges?.find((b) => b.student_id === student.id) || null,
+        badge: byStudent.get(student.id) ?? null,
       }));
 
       setStudents(studentsWithBadges);
@@ -158,15 +152,6 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
     }
 
     setLoading(false);
-  };
-
-  const generateBadgeCode = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let code = "";
-    for (let i = 0; i < 8; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
   };
 
   const handleGenerateMissingBadges = async () => {
@@ -184,24 +169,9 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
     setGenerating(true);
 
     try {
-      const newBadges = studentsWithoutBadge.map((student) => {
-        const badgeCode = generateBadgeCode();
-        return {
-          student_id: student.id,
-          tenant_id: tenant.id,
-          badge_code: badgeCode,
-          qr_code_data: JSON.stringify({
-            type: "student_badge",
-            tenant_id: tenant.id,
-            student_id: student.id,
-            badge_code: badgeCode,
-            version: 1,
-          }),
-          status: "ACTIVE" as const,
-        };
-      });
-
-      await apiClient.post("/student-badges/", newBadges);
+      // Le serveur attribue les codes (uniques, lus par la borne) ; auparavant
+      // la route appelée enregistrait un badge de récompense et jetait le code.
+      const newBadges = await issueStudentCards(studentsWithoutBadge.map((st) => st.id));
 
       toast({
         title: "Succès",
@@ -228,7 +198,7 @@ export default function BatchBadgePrint({ onBadgesCreated }: BatchBadgePrintProp
 
     setDeleting(badgeId);
     try {
-      await apiClient.delete(`/student-badges/${badgeId}/`);
+      await revokeStudentCard(badgeId); // badgeId = identifiant de l'élève
 
       toast({ title: "Succès", description: "Badge supprimé" });
       await fetchStudentsInClassroom();

@@ -631,7 +631,11 @@
         "tabBadges": "Badges",
         "tabHistory": "Historique Pointages",
         "noBadgesFound": "Aucun badge trouvé",
-        "scanQR": "Scanner QR"
+        "scanQR": "Scanner QR",
+        "actionReissue": "Perdue → nouvelle carte",
+        "actionRevoke": "Retirer la carte",
+        "cardReissued": "Nouvelle carte émise : l'ancienne n'est plus reconnue au pointage.",
+        "loadError": "Les cartes n'ont pas pu être chargées. Réessayez plus tard."
     },
     "careers": {
         "tabOffers": "Offres",

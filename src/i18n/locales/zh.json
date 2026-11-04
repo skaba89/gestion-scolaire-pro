@@ -589,7 +589,11 @@
     "tabBadges": "徽章",
     "tabHistory": "考勤历史",
     "noBadgesFound": "未找到任何徽章",
-    "scanQR": "扫描二维码"
+    "scanQR": "扫描二维码",
+    "actionReissue": "遗失 → 补发新卡",
+    "actionRevoke": "撤销该卡",
+    "cardReissued": "已补发新卡：旧卡在签到时将不再被识别。",
+    "loadError": "无法加载卡片，请稍后重试。"
   },
   "careers": {
     "tabOffers": "职位",

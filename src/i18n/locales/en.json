@@ -631,7 +631,11 @@
     "tabBadges": "Badges",
     "tabHistory": "Attendance History",
     "noBadgesFound": "No badges found",
-    "scanQR": "Scan QR"
+    "scanQR": "Scan QR",
+    "actionReissue": "Lost → new card",
+    "actionRevoke": "Withdraw the card",
+    "cardReissued": "New card issued: the old one is no longer accepted at check-in.",
+    "loadError": "The cards could not be loaded. Please try again later."
   },
   "careers": {
     "tabOffers": "Offers",

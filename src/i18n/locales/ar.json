@@ -554,7 +554,11 @@
     "tabBadges": "الشارات",
     "tabHistory": "سجل الحضور",
     "noBadgesFound": "لم يتم العثور على أي شارة",
-    "scanQR": "مسح رمز QR"
+    "scanQR": "مسح رمز QR",
+    "actionReissue": "مفقودة ← بطاقة جديدة",
+    "actionRevoke": "سحب البطاقة",
+    "cardReissued": "صدرت بطاقة جديدة: لم تعد البطاقة القديمة مقبولة عند التسجيل.",
+    "loadError": "تعذّر تحميل البطاقات. حاول لاحقًا."
   },
   "careers": {
     "tabOffers": "العروض",
