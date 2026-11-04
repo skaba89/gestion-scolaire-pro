@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-03 (commit `fix/parent-preregistration-routes`)
+# Matrice des écrans — statique, 2026-11-04 (commit `fix/messaging-routes`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -10,8 +10,8 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Statut | Pages |
 |---|---:|
 | DÉFECTUEUX | 20 |
-| À VÉRIFIER | 35 |
-| NON VÉRIFIÉ | 90 |
+| À VÉRIFIER | 31 |
+| NON VÉRIFIÉ | 94 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
@@ -33,15 +33,15 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/VideoMeetings.tsx` | 14 | GET /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>POST /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>PATCH /communication/video-meetings/X (pages/admin/VideoMeetings.tsx) |
 | Department | `department/DepartmentDashboard.tsx` | 16 | GET /classroom-departments (components/dashboard/DepartmentDashboardCharts.tsx) |
 | Parent | `parent/Appointments.tsx` | 18 | PUT /parents/appointment-slots/X (pages/parent/Appointments.tsx)<br>PUT /parents/appointments/X (pages/parent/Appointments.tsx) |
-| Parent | `parent/ChildDetail.tsx` | 24 | POST /parents/transcript/generate (pages/parent/ChildDetail.tsx)<br>(partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Parent | `parent/ParentDashboard.tsx` | 41 | GET /students/terms/X (utils/riskAssessment.ts)<br>(partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts)<br>(partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
-| Parent | `parent/ReportCards.tsx` | 29 | GET /parents/enrollments (pages/parent/ReportCards.tsx)<br>(partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/ChildDetail.tsx` | 24 | POST /parents/transcript/generate (pages/parent/ChildDetail.tsx)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/ParentDashboard.tsx` | 41 | GET /students/terms/X (utils/riskAssessment.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts)<br>(partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
+| Parent | `parent/ReportCards.tsx` | 29 | GET /parents/enrollments (pages/parent/ReportCards.tsx)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
 | Student | `student/StudentHomework.tsx` | 19 | POST /homework-submissions (components/homework/HomeworkSubmissionDialog.tsx) |
 | Teacher | `teacher/AppointmentSlots.tsx` | 17 | PATCH /school-life/appointment-slots/appointments/X (pages/teacher/AppointmentSlots.tsx)<br>POST /school-life/appointment-slots/bulk (pages/teacher/AppointmentSlots.tsx) |
 | Teacher | `teacher/ClassSessionAttendance.tsx` | 19 | PATCH /school-life/check-ins/sessions/${activeSession (pages/teacher/ClassSessionAttendance.tsx) |
 | Teacher | `teacher/TeacherHomework.tsx` | 19 | PATCH /homework/X (features/homework/services/homeworkService.ts)<br>POST /homework/submissions (features/homework/services/homeworkService.ts)<br>PATCH /homework/submissions/X (features/homework/services/homeworkService.ts) |
 
-## À VÉRIFIER (35)
+## À VÉRIFIER (31)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -58,7 +58,6 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Library.tsx` | 80 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/LiveAttendance.tsx` | 76 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Marketplace.tsx` | 76 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Messages.tsx` | 35 | (partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
 | Admin | `admin/MinistryDashboard.tsx` | 80 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/OrderHistory.tsx` | 78 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/OrderReception.tsx` | 79 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
@@ -67,21 +66,18 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Subjects.tsx` | 50 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Admin | `admin/Surveys.tsx` | 75 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Teachers.tsx` | 45 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
-| Alumni | `alumni/AlumniMessages.tsx` | 39 | (partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
-| Department | `department/DepartmentMessages.tsx` | 31 | (partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
-| Parent | `parent/Children.tsx` | 26 | (partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Parent | `parent/Invoices.tsx` | 27 | (partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Parent | `parent/Messages.tsx` | 43 | (partagé) GET /communication/unread-count (features/parents/services/parentsService.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts)<br>(partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
+| Parent | `parent/Children.tsx` | 26 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/Invoices.tsx` | 27 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/Messages.tsx` | 40 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
 | Student | `student/PreRegistration.tsx` | 35 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts) |
 | Student | `student/StudentCareers.tsx` | 38 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts) |
 | Student | `student/StudentDashboard.tsx` | 29 | (partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
-| Student | `student/StudentMessages.tsx` | 55 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts)<br>(partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
+| Student | `student/StudentMessages.tsx` | 53 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts) |
 | Teacher | `teacher/TeacherClasses.tsx` | 29 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Teacher | `teacher/TeacherDashboard.tsx` | 39 | (partagé) GET /assessments/X (features/grades/services/gradesService.ts) |
 | Teacher | `teacher/TeacherGrades.tsx` | 30 | (partagé) GET /assessments/X (features/grades/services/gradesService.ts) |
-| Teacher | `teacher/TeacherMessages.tsx` | 31 | (partagé) GET /communication/messages/search (components/messages/MessageSearchBar.tsx)<br>(partagé) GET /communication/presence/X (components/messages/OnlineStatus.tsx)<br>(partagé) GET /communication/conversations/X/participants (components/messages/TypingIndicator.tsx)<br>(partagé) GET /communication/presence (components/messages/TypingIndicator.tsx) |
 
-## NON VÉRIFIÉ (90)
+## NON VÉRIFIÉ (94)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -109,6 +105,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/KioskDevices.tsx` | 15 | — |
 | Admin | `admin/LandingPageEditor.tsx` | 15 | — |
 | Admin | `admin/Levels.tsx` | 15 | — |
+| Admin | `admin/Messages.tsx` | 33 | — |
 | Admin | `admin/Onboarding.tsx` | 17 | — |
 | Admin | `admin/ProfileSettings.tsx` | 28 | — |
 | Admin | `admin/Programs.tsx` | 15 | — |
@@ -129,6 +126,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Alumni | `alumni/AlumniCareers.tsx` | 8 | — |
 | Alumni | `alumni/AlumniDashboard.tsx` | 19 | — |
 | Alumni | `alumni/AlumniDocumentRequests.tsx` | 9 | — |
+| Alumni | `alumni/AlumniMessages.tsx` | 37 | — |
 | App | `NotFound.tsx` | 0 | — |
 | App | `public/PublicPageView.tsx` | 7 | — |
 | App | `superadmin/CreateTenantWithAdmin.tsx` | 9 | — |
@@ -142,6 +140,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Department | `department/DepartmentClassrooms.tsx` | 0 | — |
 | Department | `department/DepartmentExamCalendar.tsx` | 13 | — |
 | Department | `department/DepartmentExams.tsx` | 0 | — |
+| Department | `department/DepartmentMessages.tsx` | 29 | — |
 | Department | `department/DepartmentReports.tsx` | 16 | — |
 | Department | `department/DepartmentSchedule.tsx` | 0 | — |
 | Department | `department/DepartmentStudents.tsx` | 0 | — |
@@ -175,6 +174,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Student | `student/StudentGrades.tsx` | 17 | — |
 | Student | `student/StudentSchedule.tsx` | 17 | — |
 | Teacher | `teacher/TeacherAttendance.tsx` | 33 | — |
+| Teacher | `teacher/TeacherMessages.tsx` | 29 | — |
 
 ## COMPLET (parcours E2E) (2)
 

@@ -1,6 +1,6 @@
-# Appels frontend sans route backend — 2026-11-03 (branche `fix/parent-preregistration-routes`)
+# Appels frontend sans route backend — 2026-11-04 (branche `fix/messaging-routes`)
 
-Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (**76** clés distinctes). 73 chemins absents, 16 méthodes absentes (89 appels) ; 21 URL entièrement dynamiques non vérifiables. Historique : 94 appels (`6540145`) → 92 (#347) → 89.
+Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (**70** clés distinctes). 66 chemins absents, 16 méthodes absentes (82 appels) ; 21 URL entièrement dynamiques non vérifiables. Historique : 94 (`6540145`) → 92 (#347) → 89 (#351) → 82.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -17,13 +17,7 @@ DELETE /tenants/settings/academic-rules/X  (src/pages/admin/AcademicRules.tsx:10
 GET /academic/subjects  (src/pages/admin/TeacherHours.tsx:84)
 GET /analytics/cash-flow-forecasts  (src/pages/admin/ExecutiveDashboard.tsx:167)
 GET /classroom-departments  (src/components/dashboard/DepartmentDashboardCharts.tsx:24)
-GET /communication/conversations/X/participants  (src/components/messages/MessagingInterface.tsx:117)
-GET /communication/conversations/X/participants  (src/components/messages/TypingIndicator.tsx:19)
 GET /communication/electronic-documents  (src/pages/admin/ElectronicSignatures.tsx:71)
-GET /communication/messages/search  (src/components/messages/MessageSearchBar.tsx:83)
-GET /communication/presence  (src/components/messages/TypingIndicator.tsx:32)
-GET /communication/presence/X  (src/components/messages/OnlineStatus.tsx:24)
-GET /communication/unread-count  (src/features/parents/services/parentsService.ts:64)
 GET /communication/video-meetings  (src/pages/admin/VideoMeetings.tsx:62)
 GET /finance/invoices  (src/utils/cashFlowForecasting.ts:39)
 GET /finance/invoices  (src/utils/cashFlowForecasting.ts:79)
@@ -54,7 +48,6 @@ PATCH /school-life/badges/definitions/X  (src/lib/badge-api.ts:172)
 PATCH /school-life/check-ins/sessions/${activeSession  (src/pages/teacher/ClassSessionAttendance.tsx:163)
 PATCH /school-life/success-plans/X  (src/pages/admin/SuccessPlans.tsx:110)
 POST /academic/courses/lessons/quiz  (src/queries/admin.ts:642)
-POST /communication/conversations/X/mark-read  (src/components/messages/MessagingInterface.tsx:172)
 POST /communication/document-signatories  (src/pages/admin/ElectronicSignatures.tsx:106)
 POST /communication/electronic-documents  (src/pages/admin/ElectronicSignatures.tsx:85)
 POST /communication/send-badge-email  (src/lib/badge-notification-service.ts:124)

@@ -300,3 +300,27 @@ l'interface (« aucun bouton décoratif »).
   mais le code est sans ambiguïté : le parcours ne pouvait aboutir.
 - Correctif : lien parent par `parent_students` → `users` (ou e-mails de la
   fiche élève), niveau actuel par l'inscription active → classe → niveau.
+
+## K. Messagerie (ajouté le 2026-11-04)
+
+### MSG-01 — Présence, « en train d'écrire » et recherche sans route [V] — **CORRIGÉ** (`fix/messaging-routes`) — P1
+- La messagerie (`MessengerInterface`, toutes les pages Messages) appelait
+  `GET /communication/presence/{id}/`, `/communication/presence/`,
+  `…/conversations/{id}/participants/` et `/communication/messages/search/`,
+  inexistants. Effets : **chaque contact toujours affiché « hors ligne »**,
+  indicateur « en train d'écrire » jamais affiché (il appelait en plus
+  `GET /users/`, interdit aux élèves et aux parents), recherche toujours
+  « aucun résultat ». La présence était pourtant déjà enregistrée par
+  `PUT /presence/` (table `user_presence`, RLS).
+- Compteur de messages non lus du tableau de bord parent : mauvaise adresse
+  et mauvais champ → toujours 0.
+- `MessagingInterface.tsx` (732 lignes, appels `participants` et `mark-read`)
+  n'était importé nulle part : supprimé.
+- Correctif : `GET /communication/presence/{user_id}/` (seulement une
+  personne avec qui l'on partage une conversation, sinon 404),
+  `GET /communication/conversations/{id}/typing/` (participants seulement,
+  fenêtre de 8 s, prénoms inclus), `GET /communication/messages/search/`
+  (ses conversations seulement, motifs `LIKE` échappés, 2 à 100 caractères,
+  50 résultats max). Tout est filtré par établissement. Tests :
+  `test_messaging_presence_search.py` (13, PostgreSQL ; 9 en échec sur
+  l'ancien code), `TypingIndicator.test.tsx` (2). Cliquet API : 76 → 70.
