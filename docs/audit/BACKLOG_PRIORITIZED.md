@@ -9,7 +9,7 @@ Aucun calendrier n'est annoncé : l'ordre fait foi.
 | ID | Domaine | Statut | Problème | Cx | Dépendances | Critères de validation |
 |---|---|---|---|---|---|---|
 | P0-5 | Finance | PARTIEL — #345 | encaissements non atomiques / rejouables (FIN-01) + pré-vol CORS (CORS-01) | M | validation propriétaire | `test_payment_integrity.py` 12/12 PostgreSQL ; E2E 04 vert ; contrôle de cohérence des factures de production |
-| P0-3 | Sauvegardes | OUVERT | restauration B2 au format de production non démontrée (OPS-01) | M | accès VPS (humain) | exercice journalisé sur base isolée : déchiffrement, restauration, head Alembic, comptages, RLS `FORCE`, connexion `schoolflow_app`, RTO/RPO mesurés |
+| P0-3 | Sauvegardes | CORRIGÉ (2026-11-04) | restauration B2 au format de production (OPS-01) | M | — | exercice sur le VPS RÉUSSI : RPO 5 h, RTO technique 19 s, RLS identique à la prod (`docs/audit/preuves/`) ; à refaire chaque trimestre |
 
 ### Historique P0 (retirés du backlog actif)
 

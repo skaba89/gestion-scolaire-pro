@@ -73,7 +73,7 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 
 ## D. Exploitation (P0/P1)
 
-### OPS-01 — Restauration de la production non prouvée de bout en bout [V] — **PARTIEL** : exercice outillé (`deploy/vps/scripts/exercice-restauration.sh`, 2026-11-03), **exécution sur le VPS en attente**
+### OPS-01 — Restauration de la production non prouvée de bout en bout [V] — **CORRIGÉ** le 2026-11-04 (restauration B2 démontrée, réserves ci-dessous)
 - **Correction de la première version de ce document**, qui affirmait à tort
   qu'aucun script de restauration n'était versionné. Existent bien :
   `scripts/restore-database.sh` ; un exercice en CI (`ci.yml`, job PostgreSQL :
@@ -95,6 +95,20 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
   `FORCE`, schéma sans `USAGE` pour `schoolflow_app`, politique ouverte
   (`USING (true)`) → ÉCHEC détecté à chaque fois. Reste : l'exécuter sur le
   VPS contre B2 et consigner le rapport (RTO/RPO réels).
+- **2026-11-04 — exécution sur le VPS de production, depuis B2 : RÉUSSI**
+  (`docs/audit/preuves/restauration-b2-20261104.md`). Dump de la nuit
+  déchiffré (4 s), restauré sans erreur (5 s) : 133 tables, révision
+  `20261026_0001` = production, 122 tables RLS `ENABLE+FORCE` = production,
+  0 orphelin, rôle restreint fail-closed. **RPO 5 h, RTO technique 19 s.**
+- Réserves : la production ne contient encore aucun élève (1 établissement,
+  2 comptes) — le contrôle « un établissement ne voit que ses élèves » n'a
+  pu être joué que sur jeu d'essai ; RTO hors décision humaine et
+  reconstruction d'une machine ; exercice à refaire chaque trimestre et dès
+  que des données réelles existent ; mono-VPS (OPS-02) inchangé.
+- La 1re exécution (même jour) a échoué à cause du script : le dump de
+  production ne recrée pas le schéma `public`, que le script supprimait.
+  Corrigé (suppression seulement si le dump le recrée), testé sur les deux
+  variantes.
 - Constaté en le développant : la procédure manuelle du README restaurait
   dans la base existante sans `ON_ERROR_STOP` (erreurs « already exists »
   ignorées) — avertissement ajouté dans `deploy/vps/README.md`.
