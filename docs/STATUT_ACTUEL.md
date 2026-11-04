@@ -614,3 +614,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   candidature n'acceptent plus une année ou un niveau d'un autre
   établissement. Exploitation éventuelle non vérifiée (journaux de
   production non consultés).
+- **2026-11-04 — restauration de la production démontrée (P0-3 / OPS-01).**
+  Exercice exécuté sur le VPS depuis Backblaze B2 : dump de la nuit
+  déchiffré et restauré dans une base jetable sans réseau, révision et 122
+  tables RLS forcées identiques à la production, rôle restreint
+  fail-closed. **RPO 5 h, RTO technique 19 s.** Rapport :
+  `docs/audit/preuves/restauration-b2-20261104.md`. Réserve : la production
+  ne contient encore aucun élève ; à refaire chaque trimestre et dès les
+  premières données réelles. La 1re tentative avait échoué à cause du
+  script (schéma `public`), corrigé.

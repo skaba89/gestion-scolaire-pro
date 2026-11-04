@@ -153,9 +153,13 @@ done
 # production (docs/POSTGRES_APP_ROLE.md) — NOBYPASSRLS, non superutilisateur —
 # AVANT la restauration, pour que ses droits (GRANT du dump) s'appliquent.
 drill_sql -c "CREATE ROLE schoolflow_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;" >/dev/null
-# Le dump (pg_dump --schema=public) recrée le schéma public : la base cible
-# doit partir vide, sans lui — comme une base de secours neuve.
-drill_sql -c "DROP SCHEMA public CASCADE;" >/dev/null
+# Selon la version et les options de pg_dump, le dump recrée ou non le
+# schéma public. S'il le recrée (« CREATE SCHEMA public; »), la base cible
+# doit partir sans lui ; sinon il faut le garder (le dump de production du
+# 2026-11-04 ne le recrée pas : le supprimer faisait échouer l'exercice).
+if zcat "$WORK/$FILE" | grep -qx 'CREATE SCHEMA public;'; then
+  drill_sql -c "DROP SCHEMA public CASCADE;" >/dev/null
+fi
 # Autres rôles cités par le dump (GRANT … TO x, OWNER TO x) : recréés SANS
 # aucun privilège, uniquement pour que la restauration stricte aboutisse.
 EXTRA_ROLES="$(zcat "$WORK/$FILE" | grep -oE '(OWNER TO|TO) "?[a-z_][a-z0-9_]*"?;' | grep -oE '[a-z_][a-z0-9_]*"?;$' | tr -d '";' | sort -u \

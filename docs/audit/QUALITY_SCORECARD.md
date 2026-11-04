@@ -4,7 +4,7 @@
 |---|---|
 | **Commit évalué** | `6540145` (`main`, 2026-11-03) |
 | **Date** | 2026-11-03 |
-| **Score mesuré** | **47 / 100** |
+| **Score mesuré** | **49 / 100** (47 au 2026-11-03 ; +2 : restauration démontrée, 2026-11-04) |
 | **Cible** | 99 / 100 (conditions § 4) |
 | **Périmètre** | code de `main` ; production VPS **non inspectée** (aucun accès) |
 
@@ -23,11 +23,11 @@ nouvelle.
 | Architecture et qualité du code | 10 | **5** | couches API/services/CRUD, RLS centralisée (`database.py`) | 184 erreurs TS strictes, 2 027 avertissements ESLint (1 399 `any`) ; `aliases.py` ; 2 systèmes de quotas | P1-7, lots TS/ESLint |
 | UX/UI et accessibilité | 10 | **3** | 5 locales, aucune clé française bloquante manquante (`check:i18n`) | boutons sans effet (22 écrans) ; aucune mesure d'accessibilité ; matrice d'usage non jouée | Lot 8, axe-core en CI |
 | Performance et scalabilité | 10 | **2** | `docs/LOAD_TEST_PLAN.md` (plan) ; index opérationnels testés | **aucune mesure** P95/P99 ni de capacité | Lot 7 (k6 sur stack locale) |
-| Production, sauvegardes, supervision | 10 | **4** | dump quotidien + copie chiffrée B2 ; exercice de restauration CI ; surveillance email 5 min | restauration B2 au format de production **non démontrée**, RTO inconnu ; mono-VPS (RPO ≈ 24 h) | P0-3 (humain sur VPS) |
+| Production, sauvegardes, supervision | 10 | **6** | dump quotidien + copie chiffrée B2 ; **restauration B2 démontrée sur le VPS le 2026-11-04 (RPO 5 h, RTO technique 19 s, RLS identique)** ; surveillance email 5 min | mono-VPS (RPO ≈ 24 h max) ; exercice non planifié ; isolation restaurée non testée sur données réelles (production vide) | trimestrialiser l'exercice, 2e nœud |
 | Mobile et hors connexion | 5 | **2** | PWA, file hors-ligne Dexie avec clé d'idempotence (présences) | pré-vol CORS bloquait `X-Idempotency-Key` hors même origine (corrigé dans #345, non fusionné) ; aucun test de coupure | Lot 6 |
 | Finance et SaaS | 5 | **2** | facture → Mobile Money reçu (E2E 04) ; webhooks signés testés | **encaissements non atomiques / rejouables sur `main`** (#345 en attente) ; export comptable cassé (`GET /payments/`) ; passerelles jamais jouées en sandbox ; quotas SaaS partiels | #345, Lot 5 |
 | Adaptation aux marchés africains | 5 | **3** | Mobile Money (Wave, OM, MTN, CinetPay, PayTech), GNF, 5 langues dont arabe | aucune validation terrain documentée ; règles de notation non paramétrables par pays | Lot 4, pilotes |
-| **Total** | **100** | **47** | | | |
+| **Total** | **100** | **49** | | | |
 
 Comparaison : l'audit du 2026-11-02 notait 2,5 / 5 sur 8 axes non pondérés ;
 les deux barèmes ne sont pas convertibles — 47 / 100 est la nouvelle référence.
@@ -58,7 +58,7 @@ n'évalue que la première. Aucun benchmark concurrentiel sourcé n'existe encor
 |---|---|---|---|
 | FIN-01 | **P0** | PARTIEL — correctif #345 (non fusionné) | encaissements concurrents : mise à jour perdue, trop-perçu, double annulation, rejeu = double paiement |
 | CORS-01 | P1 | PARTIEL — correctif #345 | `X-Idempotency-Key` refusé au pré-vol (app native, file hors-ligne) |
-| OPS-01 | **P0** | OUVERT | restauration B2 au format de production non démontrée |
+| OPS-01 | **P0** | CORRIGÉ (2026-11-04) | restauration B2 démontrée sur le VPS : RPO 5 h, RTO technique 19 s (`preuves/restauration-b2-20261104.md`) ; production encore sans élèves |
 | API-01 | P1 | PARTIEL | 94 → 89 appels sans route (export comptable #347, pré-inscription parent) ; cliquet CI actif |
 | FIN-02 | P1 | CORRIGÉ (`fix/payment-reverse-completed-only`) | annulation acceptée sur un paiement non `COMPLETED` |
 | QA-01 | P1 | CORRIGÉ (`test/hermetic-pytest-db`) — 2 exécutions successives vertes, SQLite et PostgreSQL | suite pytest non hermétique |
