@@ -923,3 +923,18 @@ que si l'API l'autorise (403 → message explicite, pas de liste vide). Tests :
 `backend/tests/test_server_sessions.py` (403 rôle, 404 cross-tenant, 404 sur
 la session d'un autre compte).
 
+
+## Réinscription par un parent connecté (2026-11-03)
+
+| Route | Permission | Rôles | Contrôles |
+|---|---|---|---|
+| `GET /admissions/reenrollments/mine/` | `admissions:reenroll` | PARENT | ne renvoie que les demandes des enfants liés au parent (`parent_students`) |
+| `POST /admissions/reenrollments/` | `admissions:reenroll` | PARENT | enfant lié au parent (sinon 403) ; année et niveau du même établissement (sinon 404) ; une seule demande en cours par enfant et par année (409) ; coordonnées du parent lues sur son compte, jamais dans la requête ; audit `ADMISSION_SUBMITTED` |
+
+- Sources synchronisées : `ROLE_PERMISSIONS["PARENT"]` (`backend/app/core/security.py`),
+  `PARENT` (`src/lib/permissions.ts`), ce document.
+- La page `/parent/pre-registration` lit les années et niveaux par
+  `GET /academic-years/` et `GET /levels/` (`settings:read`, déjà détenu par PARENT).
+- Écart préexistant **non corrigé ici** : le frontend déclare
+  `admissions:manage` / `admissions:convert` là où le backend n'a que
+  `admissions:write` (règle d'or n° 3) — voir `docs/audit/BUGS_AND_GAPS.md` (RBAC-01).

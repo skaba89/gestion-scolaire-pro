@@ -816,7 +816,10 @@ ROLE_PERMISSIONS: dict = {
     "STUDENT": ["me:read", "grades:read", "attendance:read", "schedule:read", "settings:read",
                 "homework:read"],
     "PARENT": ["me:read", "students:read", "grades:read", "attendance:read", "settings:read",
-               "payments:read", "homework:read"],
+               "payments:read", "homework:read",
+               # Réinscription de SES enfants uniquement (contrôle d'appartenance
+               # dans admissions.create_my_reenrollment) — 2026-11-03.
+               "admissions:reenroll"],
     # SECURITY FIX (institutional-readiness audit, 2026-09): "students:read"
     # and "attendance:read" removed — neither was ever granted to ALUMNI on
     # the frontend (src/lib/permissions.ts), no legitimate ALUMNI workflow

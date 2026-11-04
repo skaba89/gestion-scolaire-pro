@@ -2,6 +2,12 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import {
+  fetchMyReenrollments,
+  nextAcademicYear,
+  submitReenrollment,
+  type AcademicYearLite,
+} from "@/features/parents/utils/reenrollment";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,7 +65,7 @@ interface StudentWithEnrollments {
 
 const ParentPreRegistration = () => {
   const { t } = useTranslation();
-  const { user, tenant, profile } = useAuth();
+  const { user, tenant } = useAuth();
   const queryClient = useQueryClient();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedChild, setSelectedChild] = useState<StudentWithEnrollments | null>(null);
@@ -82,80 +88,48 @@ const ParentPreRegistration = () => {
     enabled: !!user?.id && !!tenant?.id,
   });
 
-  const { data: nextAcademicYear } = useQuery({
+  // Années et niveaux de l'établissement : routes authentifiées
+  // (settings:read, détenu par PARENT) — les routes « publiques » appelées
+  // auparavant n'existaient pas.
+  const { data: nextYear } = useQuery({
     queryKey: ["next-academic-year", tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return null;
-      const { data } = await apiClient.get('/admissions/public/academic-years/', {
-        params: { tenant_id: tenant.id },
-      });
-      const years = Array.isArray(data) ? data : [];
-      if (years.length === 0) return null;
-      const currentYear = years.find((y: any) => y.is_current);
-      if (!currentYear) return years[years.length - 1];
-      const currentIndex = years.findIndex((y: any) => y.id === currentYear.id);
-      return years[currentIndex + 1] || null;
+      const { data } = await apiClient.get<AcademicYearLite[]>("/academic-years/");
+      return nextAcademicYear(Array.isArray(data) ? data : []);
     },
     enabled: !!tenant?.id,
   });
+  const nextAcademicYearRow = nextYear ?? null;
 
   const { data: levels } = useQuery({
     queryKey: ["levels", tenant?.id],
     queryFn: async () => {
-      if (!tenant?.id) return [];
-      const { data } = await apiClient.get('/admissions/public/levels/', {
-        params: { tenant_id: tenant.id },
-      });
+      const { data } = await apiClient.get("/levels/");
       return Array.isArray(data) ? data : [];
     },
     enabled: !!tenant?.id,
   });
 
+  // Demandes déjà déposées pour les enfants du parent (route authentifiée,
+  // limitée par le serveur à SES enfants).
   const { data: existingApplications } = useQuery({
-    queryKey: ["pre-registrations", children?.map(c => c.id), nextAcademicYear?.id],
-    queryFn: async () => {
-      if (!children || children.length === 0 || !nextAcademicYear?.id || !tenant?.id) return {};
-      const applications: Record<string, any> = {};
-      for (const child of children) {
-        const { data } = await apiClient.get('/admissions/public/apply/', {
-          params: {
-            tenant_id: tenant.id,
-            academic_year_id: nextAcademicYear.id,
-            student_first_name: child.first_name,
-            student_last_name: child.last_name,
-          },
-        });
-        const results = Array.isArray(data) ? data : (data ? [data] : []);
-        if (results.length > 0) {
-          applications[child.id] = results[0];
-        }
-      }
-      return applications;
-    },
-    enabled: !!children && children.length > 0 && !!nextAcademicYear?.id && !!tenant?.id,
+    queryKey: ["pre-registrations", nextAcademicYearRow?.id],
+    queryFn: () => fetchMyReenrollments(nextAcademicYearRow!.id),
+    enabled: !!children && children.length > 0 && !!nextAcademicYearRow?.id,
   });
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedChild || !tenant?.id || !nextAcademicYear?.id || !profile) {
+      if (!selectedChild || !nextAcademicYearRow?.id) {
         throw new Error("Données manquantes");
       }
-      await apiClient.post('/admissions/public/apply/', {
-        tenant_id: tenant.id,
-        academic_year_id: nextAcademicYear.id,
-        level_id: selectedLevelId || null,
-        student_first_name: selectedChild.first_name,
-        student_last_name: selectedChild.last_name,
-        student_date_of_birth: selectedChild.date_of_birth,
-        student_gender: selectedChild.gender,
-        student_address: selectedChild.address,
-        parent_first_name: profile.first_name || "Parent",
-        parent_last_name: profile.last_name || "",
-        parent_email: profile.email,
-        parent_phone: profile.phone || "N/A",
-        notes: `[PRÉ-RÉINSCRIPTION PARENT] ${notes}`.trim(),
-        status: "SUBMITTED",
-        submitted_at: new Date().toISOString(),
+      // Le serveur vérifie que l'enfant est bien celui du parent et prend
+      // les coordonnées du parent sur son compte.
+      await submitReenrollment({
+        studentId: selectedChild.id,
+        academicYearId: nextAcademicYearRow.id,
+        levelId: selectedLevelId || null,
+        notes,
       });
     },
     onSuccess: () => {
@@ -166,8 +140,11 @@ const ParentPreRegistration = () => {
       setSelectedLevelId("");
       queryClient.invalidateQueries({ queryKey: ["pre-registrations"] });
     },
-    onError: (error) => {
-      toast.error(t("preRegistration.error"));
+    onError: (error: unknown) => {
+      // Message du serveur quand il y en a un (demande déjà en cours, enfant
+      // non rattaché…) plutôt qu'une erreur générique.
+      const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      toast.error(typeof detail === "string" && detail ? detail : t("preRegistration.error"));
     },
   });
 
@@ -208,7 +185,7 @@ const ParentPreRegistration = () => {
     );
   }
 
-  if (!nextAcademicYear) {
+  if (!nextAcademicYearRow) {
     return (
       <div className="space-y-6">
         <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">Inscrivez vos {studentsLabel} pour l'année suivante</p></div>
@@ -219,7 +196,7 @@ const ParentPreRegistration = () => {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">Inscrivez vos {studentsLabel} pour l'année {nextAcademicYear.name}</p></div>
+      <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">Inscrivez vos {studentsLabel} pour l'année {nextAcademicYearRow.name}</p></div>
       <Card className="bg-blue-500/5 border-blue-500/20"><CardContent className="p-4"><div className="flex items-start gap-3"><RefreshCw className="w-5 h-5 text-blue-600 mt-0.5" /><div><p className="font-medium text-foreground">{t("preRegistration.onlineTitle")}</p><p className="text-sm text-muted-foreground">{t("preRegistration.onlineDesc", { studentsLabel })}</p></div></div></CardContent></Card>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {children.map((child) => {
@@ -238,9 +215,9 @@ const ParentPreRegistration = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-2 text-sm"><div><span className="text-muted-foreground">{t("preRegistration.currentLevel")}</span><p className="font-medium">{currentEnrollment?.levels?.name || t("preRegistration.notEnrolled")}</p></div><div><span className="text-muted-foreground">{t("preRegistration.suggestedLevel")}</span><p className="font-medium">{nextLevel?.name || t("preRegistration.tbd")}</p></div></div>
                 {existingApp ? (
-                  <div className="bg-muted/50 rounded-lg p-3"><div className="flex items-center gap-2 text-sm">{existingApp.status === "ACCEPTED" ? <CheckCircle className="w-4 h-4 text-green-600" /> : existingApp.status === "REJECTED" ? <AlertCircle className="w-4 h-4 text-red-600" /> : <Clock className="w-4 h-4 text-blue-600" />}<span>{t("preRegistration.submittedOn")} {new Date(existingApp.submitted_at || existingApp.created_at).toLocaleDateString('fr-FR')}</span></div></div>
+                  <div className="bg-muted/50 rounded-lg p-3"><div className="flex items-center gap-2 text-sm">{existingApp.status === "ACCEPTED" ? <CheckCircle className="w-4 h-4 text-green-600" /> : existingApp.status === "REJECTED" ? <AlertCircle className="w-4 h-4 text-red-600" /> : <Clock className="w-4 h-4 text-blue-600" />}<span>{t("preRegistration.submittedOn")} {(existingApp.submitted_at ? new Date(existingApp.submitted_at).toLocaleDateString('fr-FR') : "—")}</span></div></div>
                 ) : (
-                  <Button onClick={() => handlePreRegister(child)} className="w-full"><RefreshCw className="w-4 w-4 mr-2" />{t("preRegistration.enrollForYear", { year: nextAcademicYear.name })}</Button>
+                  <Button onClick={() => handlePreRegister(child)} className="w-full"><RefreshCw className="w-4 w-4 mr-2" />{t("preRegistration.enrollForYear", { year: nextAcademicYearRow.name })}</Button>
                 )}
               </CardContent>
             </Card>
@@ -249,7 +226,7 @@ const ParentPreRegistration = () => {
       </div>
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Pré-Réinscription</DialogTitle><DialogDescription>Confirmez la pré-réinscription de {selectedChild?.first_name} {selectedChild?.last_name} pour l'année {nextAcademicYear?.name}.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Pré-Réinscription</DialogTitle><DialogDescription>Confirmez la pré-réinscription de {selectedChild?.first_name} {selectedChild?.last_name} pour l'année {nextAcademicYearRow?.name}.</DialogDescription></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label htmlFor="level">{t("preRegistration.desiredLevelLabel")}</Label><Select value={selectedLevelId} onValueChange={setSelectedLevelId}><SelectTrigger><SelectValue placeholder={t("preRegistration.selectLevel")} /></SelectTrigger><SelectContent>{levels?.map((level) => (<SelectItem key={level.id} value={level.id}>{level.name}{selectedChild && level.id === getNextLevel(selectedChild)?.id && ` (${t("preRegistration.suggested")})`}</SelectItem>))}</SelectContent></Select></div>
             <div className="space-y-2"><Label htmlFor="notes">{t("preRegistration.notesOptional")}</Label><Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("preRegistration.additionalInfo")} rows={3} maxLength={500} /><p className="text-xs text-muted-foreground text-right">{notes.length}/500</p></div>

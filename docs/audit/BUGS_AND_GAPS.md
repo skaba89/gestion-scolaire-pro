@@ -119,6 +119,13 @@ Chaque entrée : constat, preuve, impact, correctif attendu, test de régression
 - Preuve : SQLite, même base, 2 exécutions complètes : 1 596 passed / 0
   failed puis 1 596 / 0. PostgreSQL, même base, 8 fichiers concernés : 74/74
   puis 74/74.
+- **Précision (2026-11-03, mesure ultérieure)** : la PR #349 indiquait
+  « SQLite et PostgreSQL » ; en PostgreSQL, seuls les 8 fichiers ci-dessus
+  avaient été rejoués. Mesure contrôlée sur base vierge, 2 exécutions d'un
+  sous-ensemble de 345 tests (admissions, parents, permissions, sécurité) :
+  un seul test échoue à la 2e — `test_bootstrap.py`, par construction (la
+  création du premier administrateur ne fonctionne qu'une fois par base).
+  Résiduel connu ; la suite PostgreSQL complète n'a pas été rejouée deux fois.
 
 ### QA-02 — Dette TS/ESLint [V] — **OUVERT** (184 / 2 027 au 2026-11-03)
 - 184 erreurs `tsc` strictes, 2 048 avertissements ESLint (détail dans
@@ -223,3 +230,40 @@ l'interface (« aucun bouton décoratif »).
 - Module mort retiré : `src/lib/paymentReference.ts` (appelait `GET /payments/`,
   importé nulle part — l'écran Finances utilise `/payments/sequence/`).
 
+## J. Admissions (ajouté le 2026-11-03)
+
+### SEC-ADM-01 — Réinscription publique sans vérification du demandeur [V code ; P exploitation] — **OUVERT** — P1
+- `POST /admissions/public/reenroll/` (sans authentification) accepte tout
+  `student_id` avec n'importe quel `parent_email` : il ne vérifie pas que
+  l'e-mail est celui d'un parent de l'élève (contrairement à
+  `/public/verify-student/`, qui exige matricule + e-mail).
+- Effet : une personne disposant de l'identifiant (UUID) d'un élève dépose
+  une demande à son nom avec sa propre adresse ; `GET /public/status/` lui
+  renvoie ensuite le nom de l'élève et le niveau demandé. L'UUID est difficile
+  à deviner : risque potentiel, non démontré.
+- Correctif attendu : exiger le couple matricule + e-mail parent (comme
+  `verify-student`) ou un jeton émis par `verify-student`. Test : e-mail non
+  rattaché à l'élève → 404, aucune demande créée.
+- `POST /public/apply/` : `level_id` / `academic_year_id` reçus ne sont pas
+  vérifiés comme appartenant à l'établissement (règle d'or n° 2) — même lot.
+
+### RBAC-01 — Permissions d'admissions désynchronisées front / back [V] — **OUVERT** — P2
+- `src/lib/permissions.ts` déclare `admissions:manage` et `admissions:convert` ;
+  le backend ne connaît que `admissions:write` (règle d'or n° 3). Effet :
+  l'affichage des actions d'admission ne reflète pas exactement les droits
+  réels (le backend reste l'autorité). À aligner avec un test de parité.
+
+### API-03 — Pré-inscription parent bloquée [V] — **CORRIGÉ** (`fix/parent-preregistration-routes`) — P1
+- `/parent/pre-registration` appelait `GET /admissions/public/academic-years/`,
+  `/public/levels/` et `GET /public/apply/` (inexistants) : aucune
+  réinscription possible par le parent.
+- Constaté en corrigeant : « l'année suivante » était calculée par position
+  dans une liste triée de la plus récente à la plus ancienne → la page
+  proposait l'année **précédente**.
+- Correctif : années et niveaux via les routes authentifiées existantes
+  (`settings:read`) ; nouvelles routes `GET /admissions/reenrollments/mine/`
+  et `POST /admissions/reenrollments/` (permission `admissions:reenroll`,
+  PARENT) avec contrôle d'appartenance, année/niveau du même établissement,
+  doublon 409, coordonnées du parent lues sur son compte, audit. Tests :
+  `test_parent_reenrollment.py` (11, PostgreSQL, 11/11 en échec sur l'ancien
+  code), `reenrollment.test.ts` (5). Cliquet API : 79 → 76.
