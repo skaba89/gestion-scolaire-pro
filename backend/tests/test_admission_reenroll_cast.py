@@ -44,6 +44,9 @@ def _make_student(tenant_id: str) -> str:
         db.add(Student(
             id=student_id, tenant_id=tenant_id,
             registration_number=f"REG-{student_id[:8]}",
+            # SEC-ADM-01 : la réinscription publique exige matricule + e-mail
+            # parent de la fiche (auparavant, n'importe quel e-mail passait).
+            parent_email="parent@example.com",
             first_name="Fatoumata", last_name="Bah",
             date_of_birth=date(2010, 6, 15), gender=Gender.FEMALE,
             status=StudentStatus.ACTIVE,
@@ -81,6 +84,7 @@ class TestPublicReenroll:
         resp = client.post(f"{BASE}/public/reenroll/", json={
             "tenant_id": tenant_id,
             "student_id": student_id,
+            "registration_number": f"REG-{student_id[:8]}",
             "academic_year_id": ay_id,
             "level_id": level_id,
             "parent_email": "parent@example.com",
@@ -100,6 +104,7 @@ class TestPublicReenroll:
         payload = {
             "tenant_id": tenant_id,
             "student_id": student_id,
+            "registration_number": f"REG-{student_id[:8]}",
             "academic_year_id": ay_id,
             "level_id": level_id,
             "parent_email": "parent@example.com",

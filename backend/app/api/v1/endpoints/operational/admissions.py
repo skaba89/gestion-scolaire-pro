@@ -709,6 +709,25 @@ async def public_upload_document(
     }
 
 
+def _assert_year_and_level_in_tenant(db: Session, tenant_id, academic_year_id, level_id) -> None:
+    """400 si l'année ou le niveau reçus n'appartiennent pas à l'établissement.
+    `table` est une constante de ce module, jamais une valeur reçue."""
+    for table, value, label in (("academic_years", academic_year_id, "Année scolaire"), ("levels", level_id, "Niveau")):
+        if not value:
+            continue
+        try:
+            value = str(uuid.UUID(str(value)))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"{label} invalide")
+        found = db.execute(
+            text(f"SELECT 1 FROM {table} WHERE id = :id AND tenant_id = :tid").bindparams(
+                bindparam("id", type_=GUID()), bindparam("tid", type_=GUID())),
+            {"id": value, "tid": str(tenant_id)},
+        ).first()
+        if not found:
+            raise HTTPException(status_code=400, detail=f"{label} invalide pour cet établissement")
+
+
 @router.post("/public/apply/", status_code=201)
 def public_apply(
     payload: dict,
@@ -732,6 +751,9 @@ def public_apply(
     # as an invalid UUID. Normalize blank strings to NULL.
     academic_year_id = payload.get("academic_year_id") or None
     level_id = payload.get("level_id") or None
+    # Règle d'or n° 2 : une FK reçue du client doit appartenir à
+    # l'établissement (SEC-ADM-01, même lot).
+    _assert_year_and_level_in_tenant(db, tenant_id, academic_year_id, level_id)
     documents = payload.get("documents") or None
 
     row = db.execute(text("""
@@ -901,35 +923,58 @@ class VerifyStudentPayload(BaseModel):
     parent_email: str
 
 
+def _find_student_for_requester(db: Session, *, tenant_id: str, registration_number: str,
+                                parent_email: str, student_id: Optional[str] = None):
+    """Élève dont le demandeur prouve le lien : matricule ET e-mail d'un parent
+    rattaché (`parent_students` → `users`), ou l'e-mail parent / élève de la
+    fiche. Critère UNIQUE pour /public/verify-student/ et /public/reenroll/.
+
+    Remplace une jointure sur `students.parent_id` et `students.level_id`,
+    colonnes qui n'existent pas (erreur 500 à la 1re étape du parcours).
+    Niveau actuel : inscription active la plus récente → classe → niveau.
+    """
+    params = {"tenant_id": tenant_id, "reg_no": registration_number.strip(),
+              "parent_email": parent_email.strip().lower()}
+    extra = ""
+    if student_id:
+        extra = " AND s.id = :student_id"
+        params["student_id"] = student_id
+    return db.execute(text(f"""
+        SELECT s.id, s.first_name, s.last_name, s.registration_number,
+               COALESCE(pu.email, s.parent_email, s.email) AS contact_email,
+               COALESCE(pu.phone, s.parent_phone)          AS contact_phone,
+               cur.level_name                               AS current_level
+          FROM students s
+          LEFT JOIN LATERAL (
+                SELECT u.email, u.phone
+                  FROM parent_students ps JOIN users u ON u.id = ps.parent_id
+                 WHERE ps.student_id = s.id AND ps.tenant_id = s.tenant_id
+                   AND LOWER(u.email) = :parent_email
+                 LIMIT 1) pu ON TRUE
+          LEFT JOIN LATERAL (
+                SELECT l.name AS level_name
+                  FROM enrollments e JOIN classes c ON c.id = e.class_id
+                  LEFT JOIN levels l ON l.id = c.level_id
+                 WHERE e.student_id = s.id AND e.tenant_id = s.tenant_id AND e.status = 'ACTIVE'
+                 ORDER BY e.enrollment_date DESC NULLS LAST
+                 LIMIT 1) cur ON TRUE
+         WHERE s.tenant_id = :tenant_id{extra}
+           AND UPPER(s.registration_number) = UPPER(:reg_no)
+           AND (pu.email IS NOT NULL
+                OR LOWER(s.parent_email) = :parent_email
+                OR LOWER(s.email) = :parent_email)
+    """), params).mappings().first()
+
+
 @router.post("/public/verify-student/")
 def public_verify_student(payload: VerifyStudentPayload, db: Session = Depends(get_db)):
     """Verify that a student exists for re-enrollment (returns masked data)."""
     # Public portal (middleware-exempt): read under the tenant's RLS context.
     enter_tenant_context_or_404(db, payload.tenant_id)
-    row = db.execute(text("""
-        SELECT
-            s.id,
-            s.first_name,
-            s.last_name,
-            s.registration_number,
-            s.email    AS student_email,
-            u.email    AS parent_email,
-            u.phone    AS parent_phone,
-            l.name     AS current_level
-        FROM students s
-        LEFT JOIN users u ON u.id = s.parent_id
-        LEFT JOIN levels l ON l.id = s.level_id
-        WHERE s.tenant_id = :tenant_id
-          AND UPPER(s.registration_number) = UPPER(:reg_no)
-          AND (
-              LOWER(u.email) = LOWER(:parent_email)
-              OR LOWER(s.email) = LOWER(:parent_email)
-          )
-    """), {
-        "tenant_id": payload.tenant_id,
-        "reg_no": payload.registration_number.strip(),
-        "parent_email": payload.parent_email.strip().lower(),
-    }).mappings().first()
+    row = _find_student_for_requester(
+        db, tenant_id=payload.tenant_id, registration_number=payload.registration_number,
+        parent_email=payload.parent_email,
+    )
 
     if not row:
         raise HTTPException(
@@ -938,8 +983,8 @@ def public_verify_student(payload: VerifyStudentPayload, db: Session = Depends(g
         )
 
     # Mask sensitive data before returning
-    email = row["parent_email"] or ""
-    phone = row["parent_phone"] or ""
+    email = row["contact_email"] or ""
+    phone = row["contact_phone"] or ""
     masked_email = email[:2] + "***@" + email.split("@")[-1] if "@" in email else "***"
     masked_phone = "****" + phone[-4:] if len(phone) >= 4 else "****"
 
@@ -957,6 +1002,10 @@ def public_verify_student(payload: VerifyStudentPayload, db: Session = Depends(g
 class ReEnrollPayload(BaseModel):
     tenant_id: str
     student_id: str
+    # SEC-ADM-01 (2026-11-03) : même preuve que /public/verify-student/,
+    # revérifiée ici — auparavant, tout student_id était accepté avec
+    # n'importe quel e-mail.
+    registration_number: str
     academic_year_id: str
     level_id: str
     parent_email: str
@@ -977,15 +1026,21 @@ def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
     # Public portal (middleware-exempt): read/write under the tenant's RLS context.
     enter_tenant_context_or_404(db, tenant.id)
 
-    # Verify student belongs to this tenant
-    student = db.execute(text("""
-        SELECT s.id, s.first_name, s.last_name, s.registration_number
-        FROM students s
-        WHERE s.id = :student_id AND s.tenant_id = :tenant_id
-    """), {"student_id": payload.student_id, "tenant_id": payload.tenant_id}).mappings().first()
+    # Le demandeur doit prouver le lien avec l'élève : matricule ET e-mail
+    # du parent (ou de l'élève) — exactement le critère de
+    # /public/verify-student/ (SEC-ADM-01). Même réponse 404 quel que soit le
+    # critère manquant : aucun indice sur l'existence de l'élève.
+    student = _find_student_for_requester(
+        db, tenant_id=payload.tenant_id, registration_number=payload.registration_number,
+        parent_email=payload.parent_email, student_id=payload.student_id,
+    )
 
     if not student:
-        raise HTTPException(status_code=404, detail="Étudiant introuvable.")
+        raise HTTPException(
+            status_code=404,
+            detail="Aucun étudiant trouvé avec ce numéro d'immatriculation et cet e-mail parent.",
+        )
+    _assert_year_and_level_in_tenant(db, payload.tenant_id, payload.academic_year_id, payload.level_id)
 
     # admission_applications.parent_first_name/parent_last_name are NOT
     # NULL, but ReEnrollPayload only collects the parent's email/phone (the
