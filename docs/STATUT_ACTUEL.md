@@ -642,6 +642,15 @@ ce fichier — pas d'un document de 2025 non révisé.
   écrits en dur. Supprimé : `POST /school-life/generate-report-card/`, qui
   produisait un bulletin d'apparence officielle à partir de notes saisies
   par le navigateur, sans permission (aucun écran ne l'utilisait).
+- **2026-11-04 — cartes QR des élèves reconnues au pointage (BADGE-01).**
+  La page « Badges », l'impression par lot et la présence en direct
+  fabriquaient un code que ni la borne ni le scanner enseignant ne lisaient,
+  et l'enregistraient à des adresses inexistantes ou qui le jetaient :
+  aucune carte imprimée ne fonctionnait. Désormais un seul code, celui de la
+  fiche élève : émission, réémission en cas de perte (l'ancienne carte cesse
+  de fonctionner) et retrait, réservés au personnel (`students:write`). Les
+  listes de badges n'étaient protégées que par la connexion : réservées au
+  personnel.
 - **2026-11-04 — gamification retirée (GAME-01).** Badges de récompense,
   classement et notifications de déblocage : aucun backend, aucun écran
   affiché ne les utilisait — 1 916 lignes supprimées (décision du

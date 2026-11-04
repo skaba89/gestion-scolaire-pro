@@ -272,24 +272,6 @@ export const adminQueries = {
         },
     }),
 
-    // Badge Queries
-    studentBadgesDetailed: (tenantId: string) => ({
-        queryKey: ["admin-student-badges", tenantId] as const,
-        queryFn: async () => {
-            if (!tenantId) return [];
-            const response = await apiClient.get("/school-life/badges/");
-            return response.data || [];
-        },
-    }),
-
-    studentsWithoutBadges: (tenantId: string) => ({
-        queryKey: ["admin-students-without-badges", tenantId] as const,
-        queryFn: async () => {
-            if (!tenantId) return [];
-            const response = await apiClient.get("/school-life/students-without-badges/");
-            return response.data || [];
-        },
-    }),
 
     studentCheckInHistory: (tenantId: string, startDate?: string, endDate?: string) => ({
         queryKey: ["admin-student-check-ins", tenantId, startDate, endDate] as const,

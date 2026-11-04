@@ -354,6 +354,32 @@ l'interface (« aucun bouton décoratif »).
   test : la route répond 404/405.
 - Exploitation éventuelle non vérifiée (journaux non consultés).
 
+## N. Cartes QR des élèves (ajouté le 2026-11-04)
+
+### BADGE-01 — Cartes QR jamais reconnues au pointage [V, R] — **CORRIGÉ** (`fix/student-qr-badges`) — P1
+- Deux systèmes incompatibles : la borne (`kiosk.py`) et le scanner enseignant
+  (`GET /check-ins/badges/`) lisent `students.card_uid` ; la page
+  `/admin/badges`, l'impression par lot et la présence en direct fabriquaient
+  leur propre code (QR JSON) et l'envoyaient à des routes inexistantes
+  (`POST/PUT/DELETE /school-life/badges/`) ou à `/student-badges/`, qui
+  enregistre un badge de **récompense** et jette le code (puis renvoie une
+  liste vide en avalant l'erreur). « N badges créés » s'affichait sans
+  qu'aucun code exploitable ne soit enregistré ; aucune carte imprimée n'était
+  reconnue.
+- Décision du propriétaire : un seul code, celui de la fiche élève.
+- Correctif : `GET /school-life/student-cards/`, `POST …/issue/` (attribution
+  ou réémission — l'ancienne carte cesse de fonctionner), `DELETE …/{id}/`
+  (retrait) — `students:write`, élèves du même établissement (404 sinon, rien
+  modifié), audit. Page admin, impression par lot et présence en direct
+  émettent et lisent ce code ; le scan est résolu par le serveur.
+- Sécurité, même PR : `GET /school-life/badges/` et
+  `/students-without-badges/` n'exigeaient qu'une connexion (tout élève ou
+  parent listait les élèves de l'établissement) → `students:write`.
+- Tests : `test_student_qr_cards.py` (13, SQLite + PostgreSQL ; 12 en échec
+  sur l'ancien code), `studentCards.test.ts` (4).
+- Reste : le filtre « sans classe » de la page n'a plus d'effet (le filtre de
+  classe est appliqué par le serveur) ; état « suspendu » non proposé
+  (décision : retirer ou réémettre).
 ## M. Badges (ajouté le 2026-11-04)
 
 Deux fonctions distinctes portent le nom « badge » dans le code.
@@ -367,12 +393,4 @@ Deux fonctions distinctes portent le nom « badge » dans le code.
 - Supprimés ; 6 erreurs TypeScript retirées avec eux (plancher 184 → 178).
   Reconstruction éventuelle : nouveau module avec backend (P2).
 
-### BADGE-01 — Badges QR des élèves : création, statut et suppression sans route [V] — **OUVERT** — P1
-- La page `/admin/badges` n'est **pas** de la gamification : ce sont les
-  cartes badges QR des élèves (impression, scan, pointages). La liste
-  fonctionne (`GET /school-life/badges/`), mais `POST /school-life/badges/`,
-  `PUT /school-life/badges/{id}/` et `DELETE /school-life/badges/{id}/`
-  n'existent pas : un badge ne peut être ni créé, ni suspendu, ni supprimé
-  depuis l'écran.
-- Correctif attendu : routes d'écriture (`students:write` ou équivalent),
-  élève du même établissement, audit ; test 403 et cross-tenant.
+### BADGE-01 — Badges QR des élèves — voir § N (**CORRIGÉ**, #357)
