@@ -657,3 +657,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   propriétaire : masquer en attendant un vrai module). Distinct des **badges
   QR des élèves** (`/admin/badges`), conservés : leur création, leur
   suspension et leur suppression n'ont pas de route (BADGE-01, ouvert).
+- **2026-11-04 — score qualité recalculé : 57 / 100** (47 le 2026-11-03).
+  Mesures sur `a9c17a8` : aucun P0 ouvert ; appels du frontend vers une route
+  inexistante 94 → 53 (contrôle CI bloquant) ; écrans défectueux 22 → 18 ;
+  PostgreSQL en CI 2 433 tests, couverture 72 % ; suite SQLite hermétique
+  (1 629 ×2) ; TypeScript 184 → 178 ; ESLint 2 027 → 1 949. Détail et preuves
+  par axe : `docs/audit/QUALITY_SCORECARD.md`. Restent bloquants pour 99 :
+  E2E non obligatoires, charge non mesurée, hors-ligne non testé, recette pilote.
+
