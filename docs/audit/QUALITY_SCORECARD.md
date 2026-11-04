@@ -59,7 +59,7 @@ n'évalue que la première. Aucun benchmark concurrentiel sourcé n'existe encor
 | FIN-01 | **P0** | PARTIEL — correctif #345 (non fusionné) | encaissements concurrents : mise à jour perdue, trop-perçu, double annulation, rejeu = double paiement |
 | CORS-01 | P1 | PARTIEL — correctif #345 | `X-Idempotency-Key` refusé au pré-vol (app native, file hors-ligne) |
 | OPS-01 | **P0** | CORRIGÉ (2026-11-04) | restauration B2 démontrée sur le VPS : RPO 5 h, RTO technique 19 s (`preuves/restauration-b2-20261104.md`) ; production encore sans élèves |
-| API-01 | P1 | PARTIEL | 94 → 89 appels sans route (export comptable #347, pré-inscription parent) ; cliquet CI actif |
+| API-01 | P1 | PARTIEL | 94 → 82 appels sans route (export comptable, pré-inscription parent, messagerie) ; cliquet CI actif (70 clés) |
 | FIN-02 | P1 | CORRIGÉ (`fix/payment-reverse-completed-only`) | annulation acceptée sur un paiement non `COMPLETED` |
 | QA-01 | P1 | CORRIGÉ (`test/hermetic-pytest-db`) — 2 exécutions successives vertes, SQLite et PostgreSQL | suite pytest non hermétique |
 | BILL-01 | P1 | OUVERT (décision produit) | quotas utilisateurs/IA/exports non bloquants |

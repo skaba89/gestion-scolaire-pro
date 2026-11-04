@@ -1253,3 +1253,131 @@ async def send_notification_email(
         ),
         "type": payload.type,
     }
+
+
+# ─── Lecture de la présence, « en train d'écrire », recherche (2026-11-04) ─────
+# La messagerie appelait GET /communication/presence/…, …/participants/ et
+# /communication/messages/search/ : routes inexistantes. Conséquences :
+# chaque contact apparaissait toujours « hors ligne », l'indicateur « en train
+# d'écrire » ne s'affichait jamais, la recherche répondait « aucun résultat ».
+# La présence est déjà ÉCRITE par PUT /presence/ (table user_presence, RLS).
+#
+# Confidentialité (utilisateurs mineurs) : on ne lit la présence que des
+# personnes avec qui l'on partage une conversation, et la recherche ne porte
+# que sur SES conversations. Toujours filtré par l'établissement courant.
+
+ONLINE_WINDOW_SECONDS = 120   # comme OnlineStatus.tsx : « vu il y a moins de 2 min »
+TYPING_WINDOW_SECONDS = 8     # un indicateur « en train d'écrire » plus vieux est périmé
+
+
+def _is_participant(db: Session, conversation_id: str, user_id: str, tenant_id: str) -> bool:
+    return db.execute(text("""
+        SELECT 1 FROM conversation_participants cp
+          JOIN conversations c ON c.id = cp.conversation_id
+         WHERE cp.conversation_id = CAST(:cid AS uuid) AND cp.user_id = CAST(:uid AS uuid)
+           AND c.tenant_id = CAST(:tid AS uuid)
+    """), {"cid": conversation_id, "uid": user_id, "tid": tenant_id}).first() is not None
+
+
+@router.get("/presence/{user_id}/")
+def get_user_presence(
+    request: Request,
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Présence d'un contact — seulement si l'on partage une conversation avec lui."""
+    me = str(current_user.get("id"))
+    target = str(user_id)
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if target != me:
+        shared = db.execute(text("""
+            SELECT 1
+              FROM conversation_participants a
+              JOIN conversation_participants b ON b.conversation_id = a.conversation_id
+              JOIN conversations c ON c.id = a.conversation_id
+             WHERE a.user_id = CAST(:me AS uuid) AND b.user_id = CAST(:target AS uuid)
+               AND c.tenant_id = CAST(:tid AS uuid)
+             LIMIT 1
+        """), {"me": me, "target": target, "tid": tenant_id}).first()
+        if not shared:
+            # Même réponse qu'un utilisateur inexistant : pas d'énumération.
+            raise HTTPException(status_code=404, detail="Contact introuvable")
+    row = db.execute(text("""
+        SELECT status, updated_at,
+               (status = 'online' AND updated_at > NOW() - make_interval(secs => :win)) AS online
+          FROM user_presence
+         WHERE user_id = CAST(:target AS uuid) AND tenant_id = CAST(:tid AS uuid)
+    """), {"target": target, "tid": tenant_id, "win": ONLINE_WINDOW_SECONDS}).mappings().first()
+    if not row:
+        return {"user_id": target, "is_online": False, "last_seen_at": None}
+    return {
+        "user_id": target,
+        "is_online": bool(row["online"]),
+        "last_seen_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+    }
+
+
+@router.get("/conversations/{conversation_id}/typing/")
+def get_typing_participants(
+    request: Request,
+    conversation_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Participants (autres que moi) en train d'écrire dans cette conversation."""
+    me = str(current_user.get("id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not _is_participant(db, str(conversation_id), me, tenant_id):
+        raise HTTPException(status_code=404, detail="Conversation introuvable")
+    rows = db.execute(text("""
+        SELECT u.id, u.first_name
+          FROM conversation_participants cp
+          JOIN user_presence p ON p.user_id = cp.user_id AND p.tenant_id = CAST(:tid AS uuid)
+          JOIN users u ON u.id = cp.user_id
+         WHERE cp.conversation_id = CAST(:cid AS uuid)
+           AND cp.user_id <> CAST(:me AS uuid)
+           AND p.is_typing
+           AND p.current_conversation_id = CAST(:cid AS uuid)
+           AND p.updated_at > NOW() - make_interval(secs => :win)
+         ORDER BY u.first_name
+    """), {"cid": str(conversation_id), "me": me, "tid": tenant_id, "win": TYPING_WINDOW_SECONDS}).mappings().all()
+    return [{"user_id": str(r["id"]), "first_name": r["first_name"]} for r in rows]
+
+
+def _escape_like(term: str) -> str:
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+@router.get("/messages/search/")
+def search_my_messages(
+    request: Request,
+    q: str = Query(..., min_length=2, max_length=100),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Recherche dans les messages des conversations dont je suis participant."""
+    me = str(current_user.get("id"))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    rows = db.execute(text(r"""
+        SELECT m.id, m.content, m.created_at, m.conversation_id, m.sender_id,
+               u.first_name, u.last_name, c.title AS conversation_subject
+          FROM messages m
+          JOIN conversations c ON c.id = m.conversation_id AND c.tenant_id = CAST(:tid AS uuid)
+          JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id
+                                           AND cp.user_id = CAST(:me AS uuid)
+          LEFT JOIN users u ON u.id = m.sender_id
+         WHERE m.content ILIKE :pattern ESCAPE '\'
+         ORDER BY m.created_at DESC
+         LIMIT :limit
+    """), {"tid": tenant_id, "me": me, "pattern": f"%{_escape_like(q.strip())}%", "limit": limit}).mappings().all()
+    return [{
+        "id": str(r["id"]),
+        "content": r["content"],
+        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+        "conversation_id": str(r["conversation_id"]),
+        "sender": {"id": str(r["sender_id"]) if r["sender_id"] else None,
+                   "first_name": r["first_name"], "last_name": r["last_name"]},
+        "conversation_subject": r["conversation_subject"],
+    } for r in rows]
