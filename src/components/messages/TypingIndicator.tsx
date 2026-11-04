@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTenant } from "@/contexts/TenantContext";
 
 interface TypingIndicatorProps {
   conversationId: string;
@@ -10,54 +8,22 @@ interface TypingIndicatorProps {
 
 export function TypingIndicator({ conversationId }: TypingIndicatorProps) {
   const { user } = useAuth();
-  const { tenant } = useTenant();
-  const [typingUsers, setTypingUsers] = useState<{ first_name: string; last_name: string }[]>([]);
 
-  const { data: participants } = useQuery({
-    queryKey: ["conversation-participants", conversationId],
+  // Une seule requête : le serveur renvoie les participants (autres que moi)
+  // qui écrivent en ce moment, avec leur prénom. Auparavant : routes
+  // « participants » et « presence » inexistantes, puis GET /users/ (interdit
+  // aux élèves et aux parents) — l'indicateur ne s'affichait jamais.
+  const { data: typingUsers = [] } = useQuery({
+    queryKey: ["typing-presence", conversationId],
     queryFn: async () => {
-      const response = await apiClient.get<any[]>(`/communication/conversations/${conversationId}/participants/`);
-      return response.data
-        ?.map((p: any) => p.user_id)
-        .filter((id: string) => id !== user?.id) || [];
+      const { data } = await apiClient.get<{ user_id: string; first_name: string }[]>(
+        `/communication/conversations/${conversationId}/typing/`,
+      );
+      return (data || []).filter((u) => u.user_id !== user?.id);
     },
     enabled: !!conversationId && !!user?.id,
-  });
-
-  const { data: typingPresence } = useQuery({
-    queryKey: ["typing-presence", conversationId, participants],
-    queryFn: async () => {
-      if (!conversationId || !participants?.length) return null;
-
-      const response = await apiClient.get<any[]>("/communication/presence/", {
-        params: {
-          conversation_id: conversationId,
-          is_typing: true,
-          user_ids: participants,
-        }
-      });
-      const presenceData = response.data || [];
-
-      if (presenceData.length) {
-        const userIds = presenceData.map((d: any) => d.user_id);
-        const profilesRes = await apiClient.get<any[]>("/users/", {
-          params: { ids: userIds }
-        });
-        return profilesRes.data || [];
-      }
-      return [];
-    },
-    enabled: !!conversationId && !!participants?.length,
     refetchInterval: 3000,
   });
-
-  useEffect(() => {
-    if (typingPresence) {
-      setTypingUsers(typingPresence);
-    } else {
-      setTypingUsers([]);
-    }
-  }, [typingPresence]);
 
   if (typingUsers.length === 0) return null;
 

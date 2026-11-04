@@ -61,10 +61,10 @@ export const parentsService = {
     async getUnreadMessagesCount(userId: string) {
         if (!userId) return 0;
         try {
-            const { data } = await apiClient.get<{ count: number }>("/communication/unread-count/", {
-                params: { user_id: userId },
-            });
-            return data?.count || 0;
+            // Route réelle : /communication/messaging/unread-count/ → { unread }
+            // (l'ancienne adresse n'existait pas : toujours 0 message non lu).
+            const { data } = await apiClient.get<{ unread: number }>("/communication/messaging/unread-count/");
+            return data?.unread || 0;
         } catch {
             return 0;
         }

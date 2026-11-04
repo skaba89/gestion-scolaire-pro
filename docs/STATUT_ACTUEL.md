@@ -623,6 +623,16 @@ ce fichier — pas d'un document de 2025 non révisé.
   ne contient encore aucun élève ; à refaire chaque trimestre et dès les
   premières données réelles. La 1re tentative avait échoué à cause du
   script (schéma `public`), corrigé.
+- **2026-11-04 — messagerie : présence, « en train d'écrire » et recherche
+  fonctionnent (MSG-01).** Chaque contact apparaissait toujours « hors
+  ligne », l'indicateur de saisie ne s'affichait jamais et la recherche ne
+  trouvait rien : ces fonctions appelaient des routes inexistantes. Trois
+  routes de lecture ajoutées (`/communication/presence/{id}/`,
+  `/communication/conversations/{id}/typing/`,
+  `/communication/messages/search/`) avec une règle de confidentialité :
+  on ne voit la présence que des personnes avec qui l'on échange, et l'on ne
+  cherche que dans ses propres conversations. Compteur de non-lus du parent
+  réparé ; 732 lignes de code mort retirées.
 - **2026-11-04 — règles académiques réellement appliquées (RULES-01) ;
   bulletin falsifiable supprimé (BUL-01).** L'établissement règle sa moyenne
   de passage et ses seuils de mention (par niveau si besoin) dans un
