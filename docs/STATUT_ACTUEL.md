@@ -633,6 +633,15 @@ ce fichier — pas d'un document de 2025 non révisé.
   on ne voit la présence que des personnes avec qui l'on échange, et l'on ne
   cherche que dans ses propres conversations. Compteur de non-lus du parent
   réparé ; 732 lignes de code mort retirées.
+- **2026-11-04 — règles académiques réellement appliquées (RULES-01) ;
+  bulletin falsifiable supprimé (BUL-01).** L'établissement règle sa moyenne
+  de passage et ses seuils de mention (par niveau si besoin) dans un
+  formulaire ; bulletins (unitaires, PDF, par lot) et relevés les
+  appliquent. Sans réglage : 10/20 et mentions à 12, 14, 16, 18, comme
+  avant. Auparavant la page n'enregistrait rien et les seuils étaient
+  écrits en dur. Supprimé : `POST /school-life/generate-report-card/`, qui
+  produisait un bulletin d'apparence officielle à partir de notes saisies
+  par le navigateur, sans permission (aucun écran ne l'utilisait).
 - **2026-11-04 — gamification retirée (GAME-01).** Badges de récompense,
   classement et notifications de déblocage : aucun backend, aucun écran
   affiché ne les utilisait — 1 916 lignes supprimées (décision du

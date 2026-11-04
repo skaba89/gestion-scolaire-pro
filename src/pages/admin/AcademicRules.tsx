@@ -1,293 +1,210 @@
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Loader2, Plus, Save, Trash2, Settings, AlertTriangle } from "lucide-react";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
+import { AlertCircle, Info, Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { useTerminology } from "@/hooks/useTerminology";
-import { toList } from "@/lib/api-list";
+import {
+  type AcademicRules as Rules,
+  type AcademicRulesResponse,
+  MENTION_LABELS,
+  cloneRules,
+  firstRuleProblem,
+  mentionBands,
+} from "@/features/academic/academicRules";
 
-type AcademicRuleType = 'PASSING_GRADE' | 'HONOR_ROLL_THRESHOLD' | 'COEFFICIENT_POLICY' | 'ATTENDANCE_LIMIT' | 'PROMOTION_RULE';
+const URL = "/tenants/settings/academic-rules/";
 
-interface AcademicRule {
-    id: string;
-    type: AcademicRuleType;
-    level_id?: string;
-    program_id?: string;
-    value: any;
-    is_active: boolean;
-    levels?: { name: string };
+/**
+ * Règles académiques de l'établissement : moyenne de passage et seuils de
+ * mention, appliqués par les bulletins et les relevés. Avant le 2026-11-04,
+ * cette page appelait des routes inexistantes et demandait du JSON à saisir.
+ */
+function RulesEditor({ rules, onChange, idPrefix }: { rules: Rules; onChange: (r: Rules) => void; idPrefix: string }) {
+  const { t } = useTranslation();
+  const problem = firstRuleProblem(rules);
+  const setMention = (label: string, value: number) =>
+    onChange({ ...rules, mentions: rules.mentions.map((m) => (m.label === label ? { ...m, min: value } : m)) });
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="space-y-1">
+          <Label htmlFor={`${idPrefix}-passing`}>{t("academicRules.passingGrade")}</Label>
+          <Input id={`${idPrefix}-passing`} type="number" inputMode="decimal" min={0} max={20} step={0.25}
+            value={rules.passing_grade}
+            onChange={(e) => onChange({ ...rules, passing_grade: Number(e.target.value) })} />
+        </div>
+        {MENTION_LABELS.map((label) => (
+          <div className="space-y-1" key={label}>
+            <Label htmlFor={`${idPrefix}-${label}`}>{t("academicRules.mentionFrom", { label })}</Label>
+            <Input id={`${idPrefix}-${label}`} type="number" inputMode="decimal" min={0} max={20} step={0.25}
+              value={rules.mentions.find((m) => m.label === label)?.min ?? ""}
+              onChange={(e) => setMention(label, Number(e.target.value))} />
+          </div>
+        ))}
+      </div>
+      {problem ? (
+        <p className="text-sm text-destructive" role="alert">{t(problem.key, problem.values)}</p>
+      ) : (
+        <ul className="flex flex-wrap gap-2 text-xs" aria-label={t("academicRules.preview")}>
+          {mentionBands(rules).map((b) => (
+            <li key={b.label} className="rounded-full bg-muted px-3 py-1">
+              <span className="font-medium">{b.label}</span>{" "}
+              {b.from === null ? `< ${b.to}` : b.to === null ? `≥ ${b.from}` : `${b.from} – ${b.to}`}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export default function AcademicRules() {
-    const { t } = useTranslation();
-    const { termLabel, coefficientLabel, levelLabel, gradeLabel } = useTerminology();
-    const queryClient = useQueryClient();
-    const [isCreateOpen, setIsCreateOpen] = useState(false);
-    const [newRule, setNewRule] = useState<Partial<AcademicRule> & { valueStr: string }>({
-        type: 'PASSING_GRADE',
-        is_active: true,
-        valueStr: '{"min": 10}',
-    });
+  const { t } = useTranslation();
+  const { levelLabel } = useTerminology();
+  const queryClient = useQueryClient();
 
-    // Fetch rules
-    const { data: rules, isLoading } = useQuery({
-        queryKey: ["academic-rules"],
-        queryFn: async () => {
-            const { data } = await apiClient.get("/tenants/settings/academic-rules/", {
-                params: { ordering: "-created_at" },
-            });
-            return (data as any[] || []) as AcademicRule[];
-        },
-    });
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["academic-rules"],
+    queryFn: async () => (await apiClient.get<AcademicRulesResponse>(URL)).data,
+  });
 
-    // Fetch levels for dropdown
-    const { data: levels } = useQuery({
-        queryKey: ["levels"],
-        queryFn: async (): Promise<{ id: string; name: string }[]> => {
-            const { data } = await apiClient.get("/students/levels/", {
-                params: { ordering: "name" },
-            });
-            return toList<{ id: string; name: string }>(data);
-        },
-    });
+  const [schoolRules, setSchoolRules] = useState<Rules | null>(null);
+  const [levelRules, setLevelRules] = useState<Record<string, Rules>>({});
+  const [levelToAdd, setLevelToAdd] = useState<string>("");
 
-    // Create mutation
-    const createMutation = useMutation({
-        mutationFn: async (rule: any) => {
-            // Parse value string to JSON
-            let valueJson;
-            try {
-                valueJson = JSON.parse(rule.valueStr);
-            } catch (e) {
-                throw new Error(t("academicRules.invalidJson"));
-            }
+  useEffect(() => {
+    if (!data) return;
+    setSchoolRules(cloneRules(data.default ?? data.defaults));
+    setLevelRules(Object.fromEntries(data.levels.map((l) => [l.level_id, cloneRules(l.rules)])));
+  }, [data]);
 
-            const { data } = await apiClient.post("/tenants/settings/academic-rules/", {
-                type: rule.type,
-                level_id: rule.level_id === "all" ? null : rule.level_id,
-                value: valueJson,
-                is_active: rule.is_active,
-            });
+  const save = useMutation({
+    mutationFn: async () => {
+      const isDefault = JSON.stringify(schoolRules) === JSON.stringify(data?.defaults);
+      const { data: saved } = await apiClient.put<AcademicRulesResponse>(URL, {
+        default: isDefault ? null : schoolRules,
+        levels: levelRules,
+      });
+      return saved;
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["academic-rules"], saved);
+      toast.success(t("academicRules.saved"));
+    },
+    onError: (error: unknown) => {
+      const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : t("academicRules.saveError"));
+    },
+  });
 
-            return data;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["academic-rules"] });
-            setIsCreateOpen(false);
-            setNewRule({ type: 'PASSING_GRADE', is_active: true, valueStr: '{"min": 10}' });
-            toast.success(t("academicRules.createSuccess"));
-        },
-        onError: (error: any) => {
-            toast.error(error?.response?.data?.detail || error.message || t("academicRules.createError"));
-        },
-    });
-
-    // Delete mutation
-    const deleteMutation = useMutation({
-        mutationFn: async (id: string) => {
-            await apiClient.delete(`/tenants/settings/academic-rules/${id}/`);
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["academic-rules"] });
-            toast.success(t("academicRules.deleteSuccess"));
-        },
-    });
-
-    const handleSubmit = () => {
-        createMutation.mutate(newRule);
-    };
-
-    const getRuleDescription = (type: AcademicRuleType) => {
-        switch (type) {
-            case 'PASSING_GRADE': return t("academicRules.rulePassingGrade", { label: gradeLabel });
-            case 'HONOR_ROLL_THRESHOLD': return t("academicRules.ruleHonorRoll");
-            case 'COEFFICIENT_POLICY': return t("academicRules.ruleCoefficientPolicy", { label: coefficientLabel });
-            case 'ATTENDANCE_LIMIT': return t("academicRules.ruleAttendanceLimit");
-            case 'PROMOTION_RULE': return t("academicRules.rulePromotion", { label: levelLabel });
-            default: return type;
-        }
-    };
-
-    const getDefaultValueForType = (type: AcademicRuleType) => {
-        switch (type) {
-            case 'PASSING_GRADE': return '{"min": 10}';
-            case 'HONOR_ROLL_THRESHOLD': return '{"honors": 12, "high_honors": 14, "highest_honors": 16}';
-            case 'ATTENDANCE_LIMIT': return '{"max_unexcused": 10}';
-            default: return '{}';
-        }
-    };
-
+  if (isLoading || (!schoolRules && !isError)) {
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight">{t("academicRules.pageTitle")}</h2>
-                    <p className="text-muted-foreground">
-                        {t("academicRules.pageSubtitle")}
-                    </p>
-                </div>
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" />
-                            {t("academicRules.newRule")}
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>{t("academicRules.dialogTitle")}</DialogTitle>
-                            <DialogDescription>
-                                {t("academicRules.dialogDescription")}
-                            </DialogDescription>
-                        </DialogHeader>
-
-                        <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                                <Label>{t("academicRules.ruleType")}</Label>
-                                <Select
-                                    value={newRule.type}
-                                    onValueChange={(val: AcademicRuleType) =>
-                                        setNewRule({ ...newRule, type: val, valueStr: getDefaultValueForType(val) })
-                                    }
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="PASSING_GRADE">{t("academicRules.typePassingGrade")}</SelectItem>
-                                        <SelectItem value="HONOR_ROLL_THRESHOLD">{t("academicRules.typeHonorRoll")}</SelectItem>
-                                        <SelectItem value="ATTENDANCE_LIMIT">{t("academicRules.typeAttendanceLimit")}</SelectItem>
-                                        <SelectItem value="PROMOTION_RULE">{t("academicRules.typePromotion")}</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>{levelLabel} ({t("academicRules.optional")})</Label>
-                                <Select
-                                    value={newRule.level_id || "all"}
-                                    onValueChange={(val) => setNewRule({ ...newRule, level_id: val })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder={t("academicRules.allLevels")} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">{t("academicRules.allLevelsGlobal")}</SelectItem>
-                                        {levels?.map((l) => (
-                                            <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    {t("academicRules.levelHint")}
-                                </p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>{t("academicRules.valueJson")}</Label>
-                                <Input
-                                    value={newRule.valueStr}
-                                    onChange={(e) => setNewRule({ ...newRule, valueStr: e.target.value })}
-                                    className="font-mono"
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    {t("academicRules.jsonHint")}
-                                </p>
-                            </div>
-                        </div>
-
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>{t("academicRules.cancel")}</Button>
-                            <Button onClick={handleSubmit} disabled={createMutation.isPending}>
-                                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {t("academicRules.save")}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {isLoading ? (
-                    <div className="col-span-3 text-center py-10">
-                        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                    </div>
-                ) : rules?.length === 0 ? (
-                    <div className="col-span-3 text-center py-12 border rounded-lg bg-muted/10">
-                        <Settings className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                        <h3 className="text-lg font-medium">{t("academicRules.emptyTitle")}</h3>
-                        <p className="text-muted-foreground mb-4">{t("academicRules.emptySubtitle")}</p>
-                        <Button onClick={() => setIsCreateOpen(true)} variant="outline">{t("academicRules.createRule")}</Button>
-                    </div>
-                ) : (
-                    rules?.map((rule) => (
-                        <Card key={rule.id}>
-                            <CardHeader className="pb-2">
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
-                                        <CardTitle className="text-base font-semibold">
-                                            {getRuleDescription(rule.type)}
-                                        </CardTitle>
-                                        <CardDescription>
-                                            {rule.levels ? t("academicRules.levelApplied", { name: rule.levels.name }) : t("academicRules.globalApplication")}
-                                        </CardDescription>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-destructive opacity-50 hover:opacity-100"
-                                        onClick={() => deleteMutation.mutate(rule.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="bg-muted p-3 rounded-md font-mono text-xs overflow-x-auto">
-                                    {JSON.stringify(rule.value, null, 2)}
-                                </div>
-                                <div className="mt-4 flex items-center justify-between">
-                                    <div className="flex items-center space-x-2">
-                                        <Switch checked={rule.is_active} disabled />
-                                        <span className="text-xs text-muted-foreground">
-                                            {rule.is_active ? t("academicRules.active") : t("academicRules.inactive")}
-                                        </span>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))
-                )}
-            </div>
-
-            <Card className="bg-amber-50 border-amber-200">
-                <CardContent className="flex items-start p-4 space-x-4">
-                    <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                    <div className="space-y-1">
-                        <h4 className="font-semibold text-amber-800">{t("academicRules.noteTitle")}</h4>
-                        <p className="text-sm text-amber-700">
-                            {t("academicRules.noteContent")}
-                        </p>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+      <div className="py-10 text-center" role="status">
+        <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+      </div>
     );
+  }
+  if (isError || !data || !schoolRules) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>{t("academicRules.loadErrorTitle")}</AlertTitle>
+        <AlertDescription>{t("academicRules.loadErrorDescription")}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const levelName = (id: string) => data.available_levels.find((l) => l.id === id)?.name ?? id;
+  const addable = data.available_levels.filter((l) => !levelRules[l.id]);
+  const hasProblem = !!firstRuleProblem(schoolRules) || Object.values(levelRules).some((r) => !!firstRuleProblem(r));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">{t("academicRules.pageTitle")}</h2>
+          <p className="text-muted-foreground">{t("academicRules.pageSubtitleApplied")}</p>
+        </div>
+        <Button onClick={() => save.mutate()} disabled={save.isPending || hasProblem}>
+          {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+          {t("academicRules.save")}
+        </Button>
+      </div>
+
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertTitle>{t("academicRules.whereAppliedTitle")}</AlertTitle>
+        <AlertDescription>{t("academicRules.whereAppliedDescription")}</AlertDescription>
+      </Alert>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <div>
+            <CardTitle>{t("academicRules.schoolRulesTitle")}</CardTitle>
+            <CardDescription>{t("academicRules.schoolRulesDescription")}</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => setSchoolRules(cloneRules(data.defaults))}>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            {t("academicRules.resetDefaults")}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <RulesEditor rules={schoolRules} onChange={setSchoolRules} idPrefix="school" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("academicRules.levelRulesTitle", { label: levelLabel })}</CardTitle>
+          <CardDescription>{t("academicRules.levelRulesDescription", { label: levelLabel })}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {Object.keys(levelRules).length === 0 && (
+            <p className="text-sm text-muted-foreground">{t("academicRules.noLevelRules")}</p>
+          )}
+          {Object.entries(levelRules).map(([id, rules]) => (
+            <div key={id} className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">{levelName(id)}</h3>
+                <Button variant="ghost" size="sm" className="text-destructive"
+                  aria-label={t("academicRules.removeLevelRules", { name: levelName(id) })}
+                  onClick={() => setLevelRules(Object.fromEntries(Object.entries(levelRules).filter(([k]) => k !== id)))}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <RulesEditor rules={rules} idPrefix={`level-${id}`}
+                onChange={(r) => setLevelRules({ ...levelRules, [id]: r })} />
+            </div>
+          ))}
+          {addable.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="space-y-1 sm:w-64">
+                <Label>{levelLabel}</Label>
+                <Select value={levelToAdd} onValueChange={setLevelToAdd}>
+                  <SelectTrigger><SelectValue placeholder={t("academicRules.chooseLevel")} /></SelectTrigger>
+                  <SelectContent>
+                    {addable.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" disabled={!levelToAdd}
+                onClick={() => { setLevelRules({ ...levelRules, [levelToAdd]: cloneRules(schoolRules) }); setLevelToAdd(""); }}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t("academicRules.addLevelRules")}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }

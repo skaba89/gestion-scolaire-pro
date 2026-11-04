@@ -1,4 +1,5 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
 from slowapi import Limiter
 from app.core.client_ip import get_client_ip
@@ -57,6 +58,10 @@ from app.schemas.tenants import (
 )
 from app.models import Tenant, AcademicYear, Campus, Level, Subject, User, UserRole
 from app.services.plan_catalog import TRIAL_PLAN_SLUG, start_trial
+from app.services.academic_rules import (
+    DEFAULT_RULES as DEFAULT_ACADEMIC_RULES, MENTION_LABELS, SETTINGS_KEY as ACADEMIC_RULES_KEY,
+    InvalidRules as InvalidAcademicRules, validate_rules as validate_academic_rules,
+)
 
 router = APIRouter()
 
@@ -446,6 +451,10 @@ async def update_tenant_settings(
     # too, so the write itself is rejected (422) rather than silently
     # storing the payload and only catching it — by blanking the whole
     # landing object — the next time it's read back.
+    # Les règles académiques s'appliquent aux bulletins : elles ne passent que
+    # par leur route dédiée, qui les valide (PUT /settings/academic-rules/).
+    if ACADEMIC_RULES_KEY in settings_update:
+        raise HTTPException(status_code=422, detail="Utiliser /tenants/settings/academic-rules/ pour les règles académiques")
     landing_update = settings_update.get("landing")
     if isinstance(landing_update, dict):
         try:
@@ -482,6 +491,87 @@ async def update_tenant_settings(
     db.refresh(tenant)
 
     return updated_settings
+
+
+# ─── Règles académiques (moyenne de passage, mentions) — 2026-11-04 ───────────
+# La page « Règles académiques » appelait ces routes, qui n'existaient pas : rien
+# n'était enregistré, et les seuils étaient écrits en dur dans les bulletins.
+# Désormais appliqués par services/academic_rules.py (bulletins, relevés).
+
+class AcademicRulesBody(BaseModel):
+    # null = valeurs par défaut (10/20 ; mentions 12, 14, 16, 18).
+    default: Optional[Dict[str, Any]] = None
+    # level_id → règles propres à ce niveau.
+    levels: Dict[str, Dict[str, Any]] = {}
+
+
+def _academic_rules_response(db: Session, tenant: Tenant) -> dict:
+    stored = (tenant.settings or {}).get(ACADEMIC_RULES_KEY) or {}
+    levels = {str(l.id): l.name for l in db.query(Level).filter(Level.tenant_id == tenant.id).order_by(Level.order_index)}
+    return {
+        "defaults": DEFAULT_ACADEMIC_RULES,
+        "mention_labels": list(MENTION_LABELS),
+        "default": stored.get("default"),
+        "levels": [
+            {"level_id": lid, "level_name": levels[lid], "rules": rules}
+            for lid, rules in (stored.get("levels") or {}).items() if lid in levels
+        ],
+        "available_levels": [{"id": lid, "name": name} for lid, name in levels.items()],
+    }
+
+
+@router.get("/settings/academic-rules/")
+def get_academic_rules(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:read")),
+):
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    enter_tenant_context_or_404(db, tid_uuid)
+    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+    return _academic_rules_response(db, tenant)
+
+
+@router.put("/settings/academic-rules/")
+def update_academic_rules(
+    body: AcademicRulesBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    tid_uuid = resolve_current_tenant_id(request, current_user, db)
+    tenant_id = enter_tenant_context_or_404(db, tid_uuid)
+    tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+    try:
+        default = validate_academic_rules(body.default) if body.default is not None else None
+        levels: dict = {}
+        if body.levels:
+            own = {str(l.id) for l in db.query(Level.id).filter(Level.tenant_id == tenant.id)}
+            for level_id, raw in body.levels.items():
+                try:
+                    key = str(UUID(str(level_id)))
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Niveau invalide")
+                if key not in own:  # anti-IDOR : un niveau d'un autre établissement
+                    raise HTTPException(status_code=404, detail="Niveau introuvable")
+                levels[key] = validate_academic_rules(raw)
+    except InvalidAcademicRules as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    new_value = {"default": default, "levels": levels}
+    tenant.settings = {**(tenant.settings or {}), ACADEMIC_RULES_KEY: new_value}
+    tenant.updated_at = datetime.now()
+    flag_modified(tenant, "settings")
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="UPDATE_ACADEMIC_RULES", resource_type="TENANT", resource_id=tenant_id,
+              details=new_value)
+    db.commit()
+    db.refresh(tenant)
+    return _academic_rules_response(db, tenant)
 
 
 @router.get("/security-settings/")

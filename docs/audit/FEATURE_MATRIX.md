@@ -9,18 +9,17 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 20 |
+| DÉFECTUEUX | 19 |
 | À VÉRIFIER | 31 |
-| NON VÉRIFIÉ | 94 |
+| NON VÉRIFIÉ | 95 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (20)
+## DÉFECTUEUX (19)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
-| Admin | `admin/AcademicRules.tsx` | 15 | GET /tenants/settings/academic-rules (pages/admin/AcademicRules.tsx)<br>POST /tenants/settings/academic-rules (pages/admin/AcademicRules.tsx)<br>DELETE /tenants/settings/academic-rules/X (pages/admin/AcademicRules.tsx) |
 | Admin | `admin/AdvancedExports.tsx` | 81 | GET /hr/staff (pages/admin/AdvancedExports.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/AlumniMentors.tsx` | 79 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Badges.tsx` | 85 | POST /school-life/badges (pages/admin/Badges.tsx)<br>PUT /school-life/badges/X (pages/admin/Badges.tsx)<br>DELETE /school-life/badges/X (pages/admin/Badges.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
@@ -77,10 +76,11 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Teacher | `teacher/TeacherDashboard.tsx` | 39 | (partagé) GET /assessments/X (features/grades/services/gradesService.ts) |
 | Teacher | `teacher/TeacherGrades.tsx` | 30 | (partagé) GET /assessments/X (features/grades/services/gradesService.ts) |
 
-## NON VÉRIFIÉ (94)
+## NON VÉRIFIÉ (95)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
+| Admin | `admin/AcademicRules.tsx` | 11 | — |
 | Admin | `admin/AcademicYears.tsx` | 15 | — |
 | Admin | `admin/AccountingExports.tsx` | 11 | — |
 | Admin | `admin/Admissions.tsx` | 15 | — |

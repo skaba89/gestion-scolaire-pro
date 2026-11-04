@@ -1,6 +1,6 @@
-# Appels frontend sans route backend — 2026-11-04 (branche `chore/hide-badges`)
+# Appels frontend sans route backend — 2026-11-04 (branche `chore/hide-badges`, fusionnée avec `main`)
 
-Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (**59** clés distinctes). 50 chemins absents, 14 méthodes absentes ; 21 URL entièrement dynamiques non vérifiables. Historique : 94 (`6540145`) → … → 59 clés.
+Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json`. 21 URL entièrement dynamiques non vérifiables.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -10,7 +10,6 @@ DELETE /inventory/orders/X  (src/queries/admin.ts:615)
 DELETE /rooms/X  (src/components/classrooms/RoomsManager.tsx:124)
 DELETE /school-life/badges/X  (src/pages/admin/Badges.tsx:129)
 DELETE /school-life/sponsorships/X  (src/pages/admin/Sponsorships.tsx:141)
-DELETE /tenants/settings/academic-rules/X  (src/pages/admin/AcademicRules.tsx:105)
 GET /academic/subjects  (src/pages/admin/TeacherHours.tsx:84)
 GET /analytics/cash-flow-forecasts  (src/pages/admin/ExecutiveDashboard.tsx:167)
 GET /classroom-departments  (src/components/dashboard/DepartmentDashboardCharts.tsx:24)
@@ -29,7 +28,6 @@ GET /students/X/enrollment  (src/features/parents/services/parentsService.ts:136
 GET /students/X/enrollment  (src/features/students/services/studentsService.ts:93)
 GET /students/terms/X  (src/utils/riskAssessment.ts:124)
 GET /teachers/X/schedule  (src/hooks/queries/useTeachers.ts:121)
-GET /tenants/settings/academic-rules  (src/pages/admin/AcademicRules.tsx:53)
 PATCH /communication/video-meetings/X  (src/pages/admin/VideoMeetings.tsx:102)
 PATCH /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:85)
 PATCH /course-lessons/X  (src/components/admin/elearning/CourseContent.tsx:54)
@@ -44,7 +42,6 @@ POST /parents/transcript/generate  (src/pages/parent/ChildDetail.tsx:200)
 POST /school-life/sponsorships  (src/pages/admin/Sponsorships.tsx:118)
 POST /school-life/success-plans  (src/pages/admin/SuccessPlans.tsx:86)
 POST /students/term-results/bulk  (src/utils/pedagogicalEngine.ts:169)
-POST /tenants/settings/academic-rules  (src/pages/admin/AcademicRules.tsx:82)
 PUT /hr/mentorship-requests/X  (src/pages/admin/AlumniMentors.tsx:93)
 PUT /infrastructure/classrooms/X  (src/queries/classrooms.ts:128)
 PUT /parents/appointment-slots/X  (src/pages/parent/Appointments.tsx:128)
