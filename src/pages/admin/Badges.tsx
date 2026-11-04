@@ -10,6 +10,14 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { QrCode, History } from "lucide-react";
 
 import { adminQueries } from "@/queries/admin";
+import {
+  type CardBadge,
+  cardToBadge,
+  issueStudentCards,
+  listStudentCards,
+  resolveScannedCard,
+  revokeStudentCard,
+} from "@/features/students/utils/studentCards";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 // Modular components
@@ -34,11 +42,13 @@ const STATUS_COLORS: Record<string, string> = {
 export default function BadgesPage() {
   const { t } = useTranslation();
 
+  // Une carte existe (ACTIVE) ou n'existe pas. Les autres entrées du sélecteur
+  // sont des ACTIONS réelles : déclarer perdue = nouveau code (l'ancienne carte
+  // ne fonctionne plus), retirer = plus de code.
   const STATUS_LABELS: Record<string, string> = {
     ACTIVE: t("badges.statusActive"),
-    INACTIVE: t("badges.statusInactive"),
-    LOST: t("badges.statusLost"),
-    EXPIRED: t("badges.statusExpired"),
+    LOST: t("badges.actionReissue"),
+    INACTIVE: t("badges.actionRevoke"),
   };
 
   const { user } = useAuth();
@@ -54,141 +64,111 @@ export default function BadgesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Queries
-  const { data: badges = [], isLoading: isBadgesLoading, refetch: refetchBadges } = useQuery({
-    ...adminQueries.studentBadgesDetailed(tenant?.id || ""),
+  // Queries — cartes = code de la fiche élève (students.card_uid)
+  const { data: cards = [], isLoading: isBadgesLoading, isError: isCardsError } = useQuery({
+    queryKey: ["student-cards", tenant?.id, classroomFilter],
+    queryFn: () => listStudentCards(classroomFilter !== "all" && classroomFilter !== "none" ? classroomFilter : undefined),
     enabled: !!tenant?.id,
   });
+  const badges = useMemo(() => cards.map(cardToBadge).filter((b): b is CardBadge => b !== null), [cards]);
+  const studentsWithoutBadge = useMemo(
+    () => cards.filter((c) => !c.card_uid).map((c) => ({
+      id: c.student_id, first_name: c.first_name, last_name: c.last_name, registration_number: c.registration_number,
+    })),
+    [cards],
+  );
+  const refreshCards = () => queryClient.invalidateQueries({ queryKey: ["student-cards"] });
 
   const { data: classrooms = [] } = useQuery({
     ...adminQueries.classrooms(tenant?.id || ""),
     enabled: !!tenant?.id,
   });
 
-  const { data: studentsWithoutBadge = [] } = useQuery({
-    ...adminQueries.studentsWithoutBadges(tenant?.id || ""),
-    enabled: !!tenant?.id,
-  });
 
   // Handlers
   const handleCreateBadge = async (selectedStudent: string) => {
     if (!selectedStudent || !tenant) return;
-
-    const generateBadgeCode = () => {
-      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-      let code = "";
-      for (let i = 0; i < 8; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return code;
-    };
-
-    const badgeCode = generateBadgeCode();
-    const qrCodeData = JSON.stringify({
-      type: "student_badge",
-      tenant_id: tenant.id,
-      student_id: selectedStudent,
-      badge_code: badgeCode,
-      version: 1,
-    });
-
     try {
-      await apiClient.post("/school-life/badges/", {
-        student_id: selectedStudent,
-        tenant_id: tenant.id,
-        badge_code: badgeCode,
-        qr_code_data: qrCodeData,
-        status: "ACTIVE",
-      });
+      await issueStudentCards([selectedStudent]);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || t("badges.badgeCreateError"));
       return;
     }
     toast.success(t("badges.badgeCreated"));
-      setIsCreateDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["admin-student-badges", tenant.id] });
-      queryClient.invalidateQueries({ queryKey: ["admin-students-without-badges", tenant.id] });
+    setIsCreateDialogOpen(false);
+    refreshCards();
   };
 
-  const handleUpdateStatus = async (badgeId: string, newStatus: string) => {
+  const handleUpdateStatus = async (studentId: string, action: string) => {
+    if (action === "ACTIVE") return;
     try {
-      await apiClient.put(`/school-life/badges/${badgeId}/`, { status: newStatus });
+      if (action === "LOST") {
+        const [card] = await issueStudentCards([studentId], true);
+        if (selectedBadge?.id === studentId && card) setSelectedBadge(cardToBadge(card));
+        toast.success(t("badges.cardReissued"));
+      } else {
+        await revokeStudentCard(studentId);
+        if (selectedBadge?.id === studentId) setSelectedBadge(null);
+        toast.success(t("badges.badgeDeleted"));
+      }
     } catch (error: any) {
       toast.error(error.response?.data?.detail || t("badges.statusUpdateError"));
       return;
     }
-    toast.success(t("badges.statusUpdated"));
-      queryClient.invalidateQueries({ queryKey: ["admin-student-badges", tenant?.id] });
-      if (selectedBadge && selectedBadge.id === badgeId) {
-        setSelectedBadge({ ...selectedBadge, status: newStatus });
-      }
+    refreshCards();
   };
 
-  const handleDeleteBadge = async (badgeId: string) => {
+  const handleDeleteBadge = async (studentId: string) => {
     try {
-      await apiClient.delete(`/school-life/badges/${badgeId}/`);
+      await revokeStudentCard(studentId);
     } catch (error: any) {
       toast.error(error.response?.data?.detail || t("badges.badgeDeleteError"));
       return;
     }
     toast.success(t("badges.badgeDeleted"));
-      setSelectedBadge(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-student-badges", tenant?.id] });
-      queryClient.invalidateQueries({ queryKey: ["admin-students-without-badges", tenant?.id] });
+    setSelectedBadge(null);
+    refreshCards();
   };
 
   const handleScanResult = async (qrData: string) => {
+    // Le serveur résout le code — comme le scanner enseignant et la borne.
+    let student: Awaited<ReturnType<typeof resolveScannedCard>>;
     try {
-      const data = JSON.parse(qrData);
-
-      if (data.type !== "student_badge" || data.tenant_id !== tenant?.id) {
-        toast.error(t("badges.invalidQR"));
-        return;
-      }
-
-      const badge = badges.find((b: any) => b.badge_code === data.badge_code);
-      if (!badge) {
-        toast.error(t("badges.badgeNotFound"));
-        return;
-      }
-
-      if (badge.status !== "ACTIVE") {
-        toast.error(`Ce badge est ${STATUS_LABELS[badge.status].toLowerCase()}`);
-        return;
-      }
-
-      let checkInType = "ENTRY";
-      try {
-        const { data: lastCheckIns } = await apiClient.get<any[]>("/school-life/check-ins/", {
-          params: { student_ids: [badge.student_id], limit: 1 }
-        });
-        const lastCheckIn = lastCheckIns?.[0];
-        checkInType = lastCheckIn?.check_in_type === "ENTRY" ? "EXIT" : "ENTRY";
-      } catch {
-        // No previous check-ins found, default to ENTRY
-      }
-
-      try {
-        await apiClient.post("/school-life/check-ins/", {
-          student_id: badge.student_id,
-          badge_id: badge.id,
-          tenant_id: tenant?.id,
-          check_in_type: checkInType,
-          checked_by: user?.id,
-        });
-      } catch (error: any) {
-        toast.error(error.response?.data?.detail || t("badges.checkError"));
-        return;
-      }
-      toast.success(
-        checkInType === "ENTRY" ? t("badges.checkInRecorded") : t("badges.checkOutRecorded"),
-        { description: `${badge.student?.first_name} ${badge.student?.last_name}` }
-      );
-    } catch (e) {
-      if (e instanceof SyntaxError) {
-        toast.error(t("badges.qrReadError"));
-      }
+      student = await resolveScannedCard(qrData);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || t("badges.qrReadError"));
+      return;
     }
+    if (!student) {
+      toast.error(t("badges.badgeNotFound"));
+      return;
+    }
+
+    let checkInType = "ENTRY";
+    try {
+      const { data: lastCheckIns } = await apiClient.get<any[]>("/school-life/check-ins/", {
+        params: { student_ids: [student.student_id], limit: 1 }
+      });
+      checkInType = lastCheckIns?.[0]?.check_in_type === "ENTRY" ? "EXIT" : "ENTRY";
+    } catch {
+      // Aucun pointage précédent : entrée par défaut
+    }
+
+    try {
+      await apiClient.post("/school-life/check-ins/", {
+        student_id: student.student_id,
+        tenant_id: tenant?.id,
+        check_in_type: checkInType,
+        checked_by: user?.id,
+      });
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || t("badges.checkError"));
+      return;
+    }
+    toast.success(
+      checkInType === "ENTRY" ? t("badges.checkInRecorded") : t("badges.checkOutRecorded"),
+      { description: `${student.first_name} ${student.last_name}` }
+    );
   };
 
   const downloadBadge = async (badge: any) => {
@@ -287,11 +267,8 @@ export default function BadgesPage() {
         badge.student?.registration_number?.toLowerCase().includes(search) ||
         badge.classroomName?.toLowerCase().includes(search);
 
-      const matchesClassroom = classroomFilter === "all" ||
-        badge.classroomId === classroomFilter ||
-        (classroomFilter === "none" && !badge.classroomName);
-
-      return matchesSearch && matchesClassroom;
+      // Le filtre de classe est appliqué par le serveur (paramètre classroom_id).
+      return matchesSearch;
     });
   }, [badges, searchTerm, classroomFilter]);
 
@@ -317,24 +294,26 @@ export default function BadgesPage() {
   if (isBadgesLoading) {
     return <div className="flex items-center justify-center py-12">{t("common.loading")}</div>;
   }
+  if (isCardsError) {
+    return (
+      <div className="py-12 text-center text-destructive" role="alert">{t("badges.loadError")}</div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <BadgeHeader
         studentsLabel={studentsLabel}
         studentLabel={studentLabel}
-        onRefresh={() => {
-          queryClient.invalidateQueries({ queryKey: ["admin-student-badges"] });
-          queryClient.invalidateQueries({ queryKey: ["admin-students-without-badges"] });
-        }}
+        onRefresh={refreshCards}
         onShowScanner={() => setShowScanner(true)}
         onOpenCreateDialog={() => setIsCreateDialogOpen(true)}
       />
 
       <BadgeStats
         totalBadges={badges.length}
-        activeBadges={badges.filter((b: any) => b.status === "ACTIVE").length}
-        inactiveBadges={badges.filter((b: any) => b.status !== "ACTIVE").length}
+        activeBadges={badges.length}
+        inactiveBadges={0}
         withoutBadge={studentsWithoutBadge.length}
       />
 

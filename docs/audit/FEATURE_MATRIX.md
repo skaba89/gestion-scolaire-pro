@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-04 (commit `fix/academic-rules-routes`)
+# Matrice des écrans — statique, 2026-11-04 (commit `fix/student-qr-badges`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -9,22 +9,21 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 19 |
-| À VÉRIFIER | 31 |
+| DÉFECTUEUX | 18 |
+| À VÉRIFIER | 32 |
 | NON VÉRIFIÉ | 95 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (19)
+## DÉFECTUEUX (18)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
-| Admin | `admin/AdvancedExports.tsx` | 81 | GET /hr/staff (pages/admin/AdvancedExports.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/AlumniMentors.tsx` | 79 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Badges.tsx` | 85 | POST /school-life/badges (pages/admin/Badges.tsx)<br>PUT /school-life/badges/X (pages/admin/Badges.tsx)<br>DELETE /school-life/badges/X (pages/admin/Badges.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/AdvancedExports.tsx` | 79 | GET /hr/staff (pages/admin/AdvancedExports.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/AlumniMentors.tsx` | 77 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Classrooms.tsx` | 53 | DELETE /rooms/X (components/classrooms/RoomsManager.tsx)<br>(partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
-| Admin | `admin/Elearning.tsx` | 79 | PATCH /course-lessons/X (components/admin/elearning/CourseContent.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Elearning.tsx` | 77 | PATCH /course-lessons/X (components/admin/elearning/CourseContent.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Enrollments.tsx` | 36 | DELETE /enrollments/X (hooks/queries/useEnrollments.ts)<br>(partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Admin | `admin/ReportCards.tsx` | 22 | POST /students/term-results/bulk (utils/pedagogicalEngine.ts) |
 | Admin | `admin/Schedule.tsx` | 47 | DELETE /schedule (components/schedule/ScheduleGenerator.tsx)<br>(partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
@@ -40,30 +39,31 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Teacher | `teacher/ClassSessionAttendance.tsx` | 19 | PATCH /school-life/check-ins/sessions/${activeSession (pages/teacher/ClassSessionAttendance.tsx) |
 | Teacher | `teacher/TeacherHomework.tsx` | 19 | PATCH /homework/X (features/homework/services/homeworkService.ts)<br>POST /homework/submissions (features/homework/services/homeworkService.ts)<br>PATCH /homework/submissions/X (features/homework/services/homeworkService.ts) |
 
-## À VÉRIFIER (31)
+## À VÉRIFIER (32)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
-| Admin | `admin/AlumniRequestsManagement.tsx` | 79 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Analytics.tsx` | 80 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Careers.tsx` | 82 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Clubs.tsx` | 79 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Events.tsx` | 75 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Forums.tsx` | 75 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Gamification.tsx` | 90 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Incidents.tsx` | 77 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/InventoryDashboard.tsx` | 75 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/InventoryManagement.tsx` | 75 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Library.tsx` | 80 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/LiveAttendance.tsx` | 76 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Marketplace.tsx` | 76 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/MinistryDashboard.tsx` | 80 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/OrderHistory.tsx` | 78 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/OrderReception.tsx` | 79 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/StudentDetail.tsx` | 116 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/AlumniRequestsManagement.tsx` | 77 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Analytics.tsx` | 78 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Badges.tsx` | 81 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Careers.tsx` | 80 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Clubs.tsx` | 77 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Events.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Forums.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Gamification.tsx` | 88 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Incidents.tsx` | 75 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/InventoryDashboard.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/InventoryManagement.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Library.tsx` | 78 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/LiveAttendance.tsx` | 78 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Marketplace.tsx` | 74 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/MinistryDashboard.tsx` | 78 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/OrderHistory.tsx` | 76 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/OrderReception.tsx` | 77 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/StudentDetail.tsx` | 114 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Students.tsx` | 58 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts) |
 | Admin | `admin/Subjects.tsx` | 50 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
-| Admin | `admin/Surveys.tsx` | 75 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Surveys.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Teachers.tsx` | 45 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Parent | `parent/Children.tsx` | 26 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
 | Parent | `parent/Invoices.tsx` | 27 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
@@ -189,7 +189,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 |---|---|---:|---|
 | — | `admin/EarlyWarnings.tsx` | 13 | GET /school-life/early-warnings (pages/admin/EarlyWarnings.tsx)<br>PUT /school-life/early-warnings/X (pages/admin/EarlyWarnings.tsx) |
 | — | `admin/ElectronicSignatures.tsx` | 14 | GET /communication/electronic-documents (pages/admin/ElectronicSignatures.tsx)<br>POST /communication/electronic-documents (pages/admin/ElectronicSignatures.tsx)<br>POST /communication/document-signatories (pages/admin/ElectronicSignatures.tsx) |
-| — | `admin/ExecutiveDashboard.tsx` | 87 | GET /schedule/terms (pages/admin/ExecutiveDashboard.tsx)<br>GET /analytics/cash-flow-forecasts (pages/admin/ExecutiveDashboard.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| — | `admin/ExecutiveDashboard.tsx` | 85 | GET /schedule/terms (pages/admin/ExecutiveDashboard.tsx)<br>GET /analytics/cash-flow-forecasts (pages/admin/ExecutiveDashboard.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | — | `admin/GamificationTest.tsx` | 17 | — |
 | — | `admin/Sponsorships.tsx` | 17 | GET /school-life/sponsorships (pages/admin/Sponsorships.tsx)<br>PUT /school-life/sponsorships/X (pages/admin/Sponsorships.tsx)<br>POST /school-life/sponsorships (pages/admin/Sponsorships.tsx)<br>DELETE /school-life/sponsorships/X (pages/admin/Sponsorships.tsx) |
 | — | `admin/SuccessPlans.tsx` | 15 | GET /school-life/success-plans (pages/admin/SuccessPlans.tsx)<br>POST /school-life/success-plans (pages/admin/SuccessPlans.tsx)<br>PATCH /school-life/success-plans/X (pages/admin/SuccessPlans.tsx) |

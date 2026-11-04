@@ -12,6 +12,7 @@ import { fr } from "date-fns/locale";
 import { Users, UserCheck, UserX, Clock, Search, Activity, Scan } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import QRScanner from "@/components/badges/QRScanner";
+import { resolveScannedCard } from "@/features/students/utils/studentCards";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { adminQueries } from "@/queries/admin";
@@ -58,10 +59,6 @@ export default function LiveAttendancePage() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanMode, setScanMode] = useState<"AUTO" | "ENTRY" | "EXIT">("AUTO");
 
-  const { data: badges = [] } = useQuery({
-    ...adminQueries.studentBadgesDetailed(tenant?.id || ""),
-    enabled: !!tenant?.id,
-  });
 
   const today = new Date();
   const dayStart = startOfDay(today).toISOString();
@@ -140,36 +137,32 @@ export default function LiveAttendancePage() {
 
   const handleScanResult = async (qrData: string) => {
     try {
-      const data = JSON.parse(qrData);
-      if (data.type !== "student_badge" || data.tenant_id !== tenant?.id) {
-        toast.error(t("liveAttendance.badgeInvalid"));
-        return;
-      }
-
-      const badge = badges.find((b: any) => b.badge_code === data.badge_code);
-      if (!badge) {
+      // Code de la fiche élève, résolu par le serveur — comme la borne et le
+      // scanner enseignant. Auparavant : QR JSON cherché dans une liste chargée
+      // dans le navigateur, qu'aucune carte réelle ne pouvait satisfaire.
+      const student = await resolveScannedCard(qrData);
+      if (!student) {
         toast.error(t("liveAttendance.badgeNotFound"));
         return;
       }
 
       let type: "ENTRY" | "EXIT" = "ENTRY";
       if (scanMode === "AUTO") {
-        const lastCheck = await adminQueries.getStudentLastCheckIn(badge.student_id, tenant!.id);
+        const lastCheck = await adminQueries.getStudentLastCheckIn(student.student_id, tenant!.id);
         type = lastCheck?.check_in_type === "ENTRY" ? "EXIT" : "ENTRY";
       } else {
         type = scanMode as "ENTRY" | "EXIT";
       }
 
       await checkInMutation.mutateAsync({
-        student_id: badge.student_id,
-        badge_id: badge.id,
+        student_id: student.student_id,
         tenant_id: tenant!.id,
         check_in_type: type,
         checked_by: user?.id,
       });
 
       toast.success(type === "ENTRY" ? t("liveAttendance.entryRecorded") : t("liveAttendance.exitRecorded"), {
-        description: `${badge.student?.first_name} ${badge.student?.last_name}`,
+        description: `${student.first_name} ${student.last_name}`,
       });
     } catch (e) {
       toast.error(t("liveAttendance.scanError"));

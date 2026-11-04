@@ -63,7 +63,6 @@
   "PUT /parents/appointment-slots/X",
   "PUT /parents/appointments/X",
   "PUT /push-subscriptions/upsert",
-  "PUT /school-life/badges/X",
   "PUT /school-life/early-warnings/X",
   "PUT /school-life/sponsorships/X"
 ]

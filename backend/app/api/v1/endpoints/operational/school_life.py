@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.models.base import GUID
 from app.models.job import Job
-from app.models.student import Student as StudentModel
+from app.models.student import Student as StudentModel, StudentStatus
 from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.user import User as UserModel
 from app.core.database import get_db
@@ -1575,7 +1575,9 @@ def list_badges(
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # Était get_current_user : tout élève ou parent listait les badges de tous
+    # les élèves de l'établissement (nom, matricule, photo) — 2026-11-04.
+    current_user: dict = Depends(require_permission("students:write")),
 ):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -1601,7 +1603,8 @@ def list_badges(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/students-without-badges/")
-def students_without_badges(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def students_without_badges(request: Request, db: Session = Depends(get_db),
+                            current_user: dict = Depends(require_permission("students:write"))):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
@@ -3303,3 +3306,120 @@ def get_school_life_job_status(
 
 
 
+
+
+# ─── Cartes QR des élèves (2026-11-04, BADGE-01) ──────────────────────────────
+# Un seul identifiant scannable : `students.card_uid`, déjà lu par la borne
+# (kiosk.py) et le scanner enseignant (GET /check-ins/badges/). La page admin
+# « Badges » fabriquait son propre code, l'envoyait à des routes inexistantes
+# (/school-life/badges/ en écriture) ou à /student-badges/, qui enregistre un
+# badge de récompense et jette le code : aucune carte imprimée n'était
+# reconnue au pointage. Décision du propriétaire : le code de la fiche élève.
+#
+# Le code est un identifiant d'accès (pointage) : réservé à `students:write`.
+# Réémettre invalide l'ancienne carte (perte, vol).
+
+import secrets as _secrets
+from sqlalchemy.exc import IntegrityError as _IntegrityError
+
+CARD_PREFIX = "SF-"
+MAX_CARDS_PER_REQUEST = 500
+
+
+class StudentCardIssueBody(BaseModel):
+    student_ids: List[UUID]
+    # False : n'attribue un code qu'aux élèves qui n'en ont pas.
+    # True  : nouveau code pour chacun — l'ancienne carte cesse de fonctionner.
+    reissue: bool = False
+
+
+def _new_card_uid() -> str:
+    return CARD_PREFIX + _secrets.token_hex(10).upper()   # 23 caractères, colonne String(64)
+
+
+def _card_row(s: StudentModel) -> dict:
+    return {
+        "student_id": str(s.id),
+        "first_name": s.first_name,
+        "last_name": s.last_name,
+        "registration_number": s.registration_number,
+        "photo_url": getattr(s, "photo_url", None),
+        "card_uid": s.card_uid,
+    }
+
+
+@router.get("/student-cards/")
+def list_student_cards(
+    request: Request,
+    classroom_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("students:write")),
+):
+    """Élèves actifs de l'établissement (ou d'une classe) avec leur code de carte."""
+    from app.models.enrollment import Enrollment
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    q = db.query(StudentModel).filter(StudentModel.tenant_id == tenant_id, StudentModel.status == StudentStatus.ACTIVE)
+    if classroom_id:
+        q = q.join(Enrollment, Enrollment.student_id == StudentModel.id).filter(
+            Enrollment.tenant_id == tenant_id, Enrollment.class_id == str(classroom_id), Enrollment.status == "ACTIVE")
+    return [_card_row(s) for s in q.order_by(StudentModel.last_name, StudentModel.first_name).limit(2000)]
+
+
+@router.post("/student-cards/issue/")
+def issue_student_cards(
+    request: Request,
+    body: StudentCardIssueBody,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("students:write")),
+):
+    """Attribue (ou réémet) le code de carte d'un ou plusieurs élèves."""
+    if not body.student_ids:
+        raise HTTPException(status_code=400, detail="Aucun élève sélectionné")
+    if len(body.student_ids) > MAX_CARDS_PER_REQUEST:
+        raise HTTPException(status_code=400, detail=f"{MAX_CARDS_PER_REQUEST} élèves au plus par demande")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    wanted = {str(i) for i in body.student_ids}
+    students = db.query(StudentModel).filter(StudentModel.tenant_id == tenant_id,
+                                             StudentModel.id.in_(list(wanted))).all()
+    if len(students) != len(wanted):
+        # Un identifiant d'un autre établissement (ou inexistant) : rien n'est modifié.
+        raise HTTPException(status_code=404, detail="Élève introuvable dans cet établissement")
+
+    changed = []
+    for s in students:
+        if s.card_uid and not body.reissue:
+            continue
+        s.card_uid = _new_card_uid()
+        changed.append(str(s.id))
+    try:
+        db.flush()
+    except _IntegrityError:
+        # Collision de code (probabilité négligeable) : on n'écrit rien, le client réessaie.
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Conflit de code de carte, veuillez réessayer")
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="STUDENT_CARD_REISSUED" if body.reissue else "STUDENT_CARD_ISSUED",
+              resource_type="STUDENT", resource_id=None,
+              details={"count": len(changed), "student_ids": changed})
+    db.commit()
+    return {"changed": len(changed), "cards": [_card_row(s) for s in students]}
+
+
+@router.delete("/student-cards/{student_id}/")
+def revoke_student_card(
+    request: Request,
+    student_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("students:write")),
+):
+    """Retire le code de carte : la carte n'est plus reconnue au pointage."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    s = db.query(StudentModel).filter(StudentModel.tenant_id == tenant_id, StudentModel.id == str(student_id)).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Élève introuvable")
+    had_card = s.card_uid is not None
+    s.card_uid = None
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id, action="STUDENT_CARD_REVOKED",
+              resource_type="STUDENT", resource_id=str(student_id), details={"had_card": had_card})
+    db.commit()
+    return _card_row(s)
