@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-04 (commit `main`)
+# Matrice des écrans — statique, 2026-11-04 (commit `a9c17a8`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 

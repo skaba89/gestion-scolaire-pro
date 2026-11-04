@@ -1,6 +1,6 @@
-# Appels frontend sans route backend — 2026-11-04 (après #355, #357 et retrait de la gamification)
+# Appels frontend sans route backend — 2026-11-04 (`main` = `a9c17a8`)
 
-Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json`. 21 URL entièrement dynamiques non vérifiables.
+Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (**53** clés). 21 URL entièrement dynamiques non vérifiables. Historique : 94 appels au commit `6540145`.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
