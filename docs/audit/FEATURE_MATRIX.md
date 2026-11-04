@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-04 (commit `fix/student-qr-badges`)
+# Matrice des écrans — statique, 2026-11-04 (commit `main`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 

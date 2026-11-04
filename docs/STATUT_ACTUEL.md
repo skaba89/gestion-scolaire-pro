@@ -651,3 +651,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   de fonctionner) et retrait, réservés au personnel (`students:write`). Les
   listes de badges n'étaient protégées que par la connexion : réservées au
   personnel.
+- **2026-11-04 — gamification retirée (GAME-01).** Badges de récompense,
+  classement et notifications de déblocage : aucun backend, aucun écran
+  affiché ne les utilisait — 1 916 lignes supprimées (décision du
+  propriétaire : masquer en attendant un vrai module). Distinct des **badges
+  QR des élèves** (`/admin/badges`), conservés : leur création, leur
+  suspension et leur suppression n'ont pas de route (BADGE-01, ouvert).

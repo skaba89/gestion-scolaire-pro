@@ -380,3 +380,17 @@ l'interface (« aucun bouton décoratif »).
 - Reste : le filtre « sans classe » de la page n'a plus d'effet (le filtre de
   classe est appliqué par le serveur) ; état « suspendu » non proposé
   (décision : retirer ou réémettre).
+## M. Badges (ajouté le 2026-11-04)
+
+Deux fonctions distinctes portent le nom « badge » dans le code.
+
+### GAME-01 — Gamification sans backend [V] — **RETIRÉE** (`chore/hide-badges`, décision du propriétaire : masquer) — P2
+- Badges de récompense, classement, journaux de déblocage, e-mails de badge :
+  `badge-api.ts`, `badge-notification-service.ts`, `useBadges.ts`,
+  `BadgeWidget`, `BadgeNotification`, `BadgeDisplay`,
+  `gamification-integration-examples.ts` (1 916 lignes) — ~19 appels vers
+  des routes inexistantes, **aucun écran affiché ne les importait**.
+- Supprimés ; 6 erreurs TypeScript retirées avec eux (plancher 184 → 178).
+  Reconstruction éventuelle : nouveau module avec backend (P2).
+
+### BADGE-01 — Badges QR des élèves — voir § N (**CORRIGÉ**, #357)

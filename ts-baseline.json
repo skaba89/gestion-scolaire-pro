@@ -35,7 +35,6 @@
   "src/hooks/queries/useParentData.ts": 2,
   "src/hooks/useAbsenceNotifications.ts": 1,
   "src/hooks/useAuditLog.ts": 2,
-  "src/lib/badge-notification-service.ts": 6,
   "src/lib/gdpr-service.ts": 1,
   "src/lib/offlineDb.ts": 2,
   "src/lib/permissions.ts": 3,
