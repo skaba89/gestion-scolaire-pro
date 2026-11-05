@@ -21,7 +21,7 @@ def compute_weighted_average(grade_rows: list[dict]) -> Optional[float]:
     """Moyenne pondérée /20, groupée par matière puis pondérée par
     coefficient de matière.
 
-    `grade_rows` : liste de dicts avec au minimum `subject_name`,
+    `grade_rows` : liste de dicts avec `subject_id` (identité stable), `subject_name`,
     `coefficient`, `score`, `max_score` (voir les requêtes SQL dans
     crud/grade.py, school_life.py:_fetch_grades_for_term et
     transcripts.py:_fetch_grades_for_term_with_ects — toutes les trois
@@ -37,16 +37,20 @@ def compute_weighted_average(grade_rows: list[dict]) -> Optional[float]:
     d'une moyenne de 0/20, qui est une vraie moyenne) — chaque appelant
     décide de la valeur de repli adaptée à son contrat d'API.
     """
-    by_subject: dict[str, dict] = {}
+    by_subject: dict[tuple[str, str], dict] = {}
     for g in grade_rows:
         name = g.get("subject_name") or "Matière inconnue"
+        # Deux matières peuvent porter le même nom. Le repli par nom ne
+        # concerne que les anciennes lignes sans identifiant de matière.
+        key = (("id", str(g["subject_id"])) if g.get("subject_id")
+               else ("name", name))
         score = g.get("score")
         max_s = float(g.get("max_score") or 20)
         coeff = float(g.get("coefficient") or 1)
-        if name not in by_subject:
-            by_subject[name] = {"scores": [], "coefficient": coeff}
+        if key not in by_subject:
+            by_subject[key] = {"scores": [], "coefficient": coeff}
         if score is not None:
-            by_subject[name]["scores"].append((float(score), max_s))
+            by_subject[key]["scores"].append((float(score), max_s))
 
     total_weighted = 0.0
     total_coeff = 0.0

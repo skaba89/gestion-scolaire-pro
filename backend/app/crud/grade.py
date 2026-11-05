@@ -110,6 +110,7 @@ def get_student_average(
     guid_params = [p for p in ("sid", "tid", "ay") if p in params]
     stmt = text(f"""
         SELECT
+            a.subject_id AS subject_id,
             COALESCE(subj.name, 'Matière inconnue') AS subject_name,
             COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
             g.score,

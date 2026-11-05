@@ -1,91 +1,65 @@
 # Scorecard qualité — Gestion Scolaire Pro
 
-| | |
-|---|---|
-| **Commit évalué** | `a9c17a8` (`main`, 2026-11-04) |
-| **Date** | 2026-11-04 |
-| **Score mesuré** | **57 / 100** |
-| **Historique** | 47 (2026-11-03, `6540145`) → 49 (restauration démontrée) → **57** (2026-11-04, PR #345 à #357) |
-| **Cible** | 99 / 100 (conditions § 4) |
-| **Périmètre** | code de `main` ; production VPS : exercice de restauration exécuté (2026-11-04), journaux applicatifs **non consultés** |
+Évaluation de reprise du **2026-11-05**, sur `main` à
+`3ba915af9e7de796736f49dbf8d65309efc485de` (PR #379).
+**Score argumenté : 60/100. Ce score interne n'est pas une certification.**
+Le lot de correction proposé dans cette branche n'est pas comptabilisé comme livré.
 
-Règle : un point n'est accordé que sur une preuve citée (commande, test, CI,
-fichier:ligne). Sans preuve, le critère est noté comme non acquis — pas
-« probablement bon ». Toute hausse cite le commit et la preuve nouvelle ;
-la colonne « Δ » renvoie aux PR qui la justifient.
+## Barème conservé et recalcul
 
-## 1. Barème et notes
+| Axe | Maximum | 2026-11-04 | 2026-11-05 | Justification / limite |
+|---|---:|---:|---:|---|
+| Fonctions scolaires et universitaires | 15 | 9 | 11 | +2 : contrats photos/devoirs/évaluations/inscriptions (#359–365), notes et relevés (#366–379), tests associés. Incohérence des matières homonymes encore ouverte sur main ; compensation/jurys complets non validés. |
+| Sécurité et isolation | 15 | 12 | 12 | #367 et #369 renforcent les contrôles de propriété ; pas de point sans audit transversal complémentaire. Tokens localStorage et revue ASVS restent ouverts. |
+| Tests et fiabilité | 15 | 10 | 11 | +1 : 2 500 tests PostgreSQL, 473 Vitest, tests de précision/erreurs SQL/classement ajoutés. Seulement 5 contrôles obligatoires ; aucun résultat de charge ni essai offline sur appareil. |
+| Architecture et qualité | 10 | 6 | 6 | 175 erreurs TS (178 avant), 1 944 warnings ESLint ; dette encore importante. |
+| UX et accessibilité | 10 | 4 | 4 | 17 pages statiquement défectueuses ; aucune campagne accessibilité ni recette pilote attestée. |
+| Performance | 10 | 2 | 2 | Plan existant ; P50/P95/P99 et capacité non mesurés. |
+| Production, sauvegarde et supervision | 10 | 6 | 6 | Exercice B2 du 04/11 documenté ; état actuel du VPS et sauvegarde récente non vérifiés dans cette session. |
+| Mobile et offline | 5 | 2 | 2 | PWA/Dexie présentes ; réseau intermittent et appareils non validés. |
+| Finance et SaaS | 5 | 3 | 3 | Tests financiers existants ; sandbox fournisseurs et quotas incomplets. |
+| Marchés africains | 5 | 3 | 3 | GNF/Mobile Money/langues ; validation terrain non démontrée. |
+| **Total** | **100** | **57** | **60** | **+3 avec preuves, aucun point pour une fonctionnalité non testée.** |
 
-| Axe | Max | Note | Δ | Preuve principale | Défaut bloquant | Pour progresser |
-|---|---:|---:|---:|---|---|---|
-| Fonctionnalités scolaires et universitaires | 15 | **9** | +2 | 5 parcours E2E nominaux ; réparés et testés : pré-inscription parent (#351), réinscription publique (#352), messagerie (#354), règles de notation appliquées aux bulletins (#355), cartes QR reconnues au pointage (#357), exports comptables (#347) ; écrans DÉFECTUEUX 22 → **18**, appels sans route 94 → **53** | délibérations, passage/redoublement, UE/compensation/jurys LMD absents ; barème /10 absent ; 18 écrans défectueux | lots API-01 restants, Lot 4–5 |
-| Sécurité et isolation multi-tenant | 15 | **12** | +1 | RLS `ENABLE+FORCE` (122 tables, identique après restauration), rôle runtime NOBYPASSRLS testé en CI ; MFA ; sessions révocables (#342) ; corrigés avec test de régression : réinscription publique sans vérification (#352), bulletin falsifiable (#355), listes de badges ouvertes à tout connecté (#357), pré-vol CORS (#345) | jeton en `localStorage` (P1-4) ; quotas IA/exports non bloquants ; pas d'audit ASVS formel ; exploitation passée des failles corrigées non vérifiée (journaux non consultés) | `SECURITY_AUDIT.md`, P1-4 |
-| Tests et fiabilité | 15 | **10** | +2 | PostgreSQL en CI : **2 433 passed, 1 skipped, couverture 72 %** (seuil 43 %) ; SQLite **1 629 passed ×2 sur la même base** (hermétique, #349) ; cliquet CI frontend → API (#347) ; ≈ 120 tests de régression ajoutés, chacun en échec sur l'ancien code | `E2E Journeys` **non obligatoire** sur `main` (ruleset : 5 contrôles requis) ; aucun test hors-ligne, accessibilité, charge, migration descendante | P1-5 |
-| Architecture et qualité du code | 10 | **6** | +1 | TS strict **184 → 178** (plancher abaissé) ; ESLint **2 027 → 1 949** ; ≈ 2 650 lignes de code mort retirées (#354, #355, #356) ; seuils de notation dédupliqués en un service (#355) | 178 erreurs TS ; 1 327 `any` ; `aliases.py` (dont `/student-badges/` qui avale ses erreurs) ; 2 systèmes de quotas | P1-7, lots TS/ESLint |
-| UX/UI et accessibilité | 10 | **4** | +1 | écrans réparés avec états d'erreur explicites au lieu de résultats vides (exports, règles, pré-inscription, cartes) ; affichages trompeurs corrigés (« Validé » pour un paiement en attente #350, contacts toujours « hors ligne » #354) ; 5 locales, 0 clé FR bloquante | aucune mesure d'accessibilité ; 18 écrans défectueux ; matrice d'usage non jouée | Lot 8, axe-core en CI |
-| Performance et scalabilité | 10 | **2** | 0 | `docs/LOAD_TEST_PLAN.md` (plan) ; index opérationnels testés | **aucune mesure** P95/P99 ni de capacité | Lot 7 (k6 sur stack locale) |
-| Production, sauvegardes, supervision | 10 | **6** | 0 | restauration B2 démontrée sur le VPS (RPO 5 h, RTO technique 19 s, RLS identique — `preuves/restauration-b2-20261104.md`) ; surveillance email 5 min | mono-VPS ; exercice non planifié ; production encore sans données réelles | trimestrialiser l'exercice, 2e nœud |
-| Mobile et hors connexion | 5 | **2** | 0 | PWA, file hors-ligne Dexie avec clé d'idempotence ; en-tête autorisé au pré-vol CORS (#345) | **aucun test de coupure** ni sur appareil | Lot 6 |
-| Finance et SaaS | 5 | **3** | +1 | encaissements atomiques et idempotents (#345, tests de concurrence PostgreSQL) ; annulation réservée aux encaissés (#350) ; exports comptables justes (#347) | passerelles jamais jouées en sandbox ; quotas SaaS partiels (BILL-01) | P1-6, P1-2 |
-| Adaptation aux marchés africains | 5 | **3** | 0 | Mobile Money (Wave, OM, MTN, CinetPay, PayTech), GNF, 5 langues dont arabe ; règles de passage/mention réglables par établissement et niveau (#355) | barème /10 du primaire absent ; aucune validation terrain documentée | Lot 4, pilotes |
-| **Total** | **100** | **57** | **+8** | | | |
+## Mesures vérifiées
 
-Excellence technique et position commerciale sont distinctes : ce score
-n'évalue que la première. Aucun benchmark concurrentiel sourcé n'existe encore
-(`COMPETITOR_BENCHMARK.md` : non produit).
+CI du **commit exact de main** :
+[run 41993016973](https://github.com/skaba89/gestion-scolaire-pro/actions/runs/41993016973).
+Les six jobs sont SUCCESS, journaux consultés. Ne pas réutiliser ces résultats
+pour valider le nouveau HEAD de la branche.
 
-## 2. Mesures (`a9c17a8`, 2026-11-04)
-
-| Mesure | 2026-11-03 (`6540145`) | 2026-11-04 (`a9c17a8`) | Commande |
-|---|---|---|---|
-| Opérations OpenAPI | 635 | 644 | `scripts/audit/export-openapi-ops.py` |
-| Appels front sans route (clés du cliquet) | 94 appels | **53** clés | `scripts/audit/frontend-api-routes.mjs --baseline` (CI, job `Backend`) |
-| Écrans DÉFECTUEUX / À VÉRIFIER / NON VÉRIFIÉ | 22 / 35 / 88 | **18 / 32 / 95** (171 pages, 24 non routées) | `scripts/audit/feature-matrix.mjs` |
-| Vitest | 416/416 | **452/452** (77 fichiers) | `npx vitest run` |
-| TypeScript strict | 184 | **178** | `npm run type-check` |
-| ESLint (avertissements) | 2 027 | **1 949** (`any` 1 327, inutilisés 562) | `npx eslint .` |
-| pytest SQLite, 2 exécutions même base | 1 593/0 puis **19 failed** | **1 629/0 puis 1 629/0** | `python -m pytest tests/ -q` ×2 |
-| pytest PostgreSQL + RLS (CI) | vert | **2 433 passed, 1 skipped, couverture 72 %** | job `Backend Tests (PostgreSQL)`, run 41827709344 |
-| Contrôles requis sur `main` | 5 | 5 (`E2E Journeys` non requis) | ruleset `protect-main` |
-
-## 3. Défauts ouverts — voir `BUGS_AND_GAPS.md`
-
-| ID | Gravité | Statut | Objet |
-|---|---|---|---|
-| API-01 | P1 | PARTIEL | 53 appels sans route (94 au départ) ; cliquet CI actif |
-| P1-5 | P1 | OUVERT | parcours E2E non obligatoires sur `main` |
-| BILL-01 | P1 | OUVERT (décision produit) | quotas utilisateurs/IA/exports non bloquants |
-| S4 | P1 | OUVERT | jeton d'accès en `localStorage` |
-| RBAC-01 | P2 | OUVERT | `admissions:manage/convert` (front) ≠ `admissions:write` (back) |
-| OPS-02 | P1 | OUVERT | mono-VPS |
-| RT-02 | P2 | NON VÉRIFIÉ | test WebSocket instable résiduel possible |
-
-**Aucun P0 ouvert.** Corrigés et vérifiés sur `main` depuis l'audit :
-FIN-01, CORS-01 (#345) · API-02 (#347) · OPS-01 (#348, #353) · QA-01 (#349) ·
-FIN-02 (#350) · API-03 (#351) · SEC-ADM-01, ADM-02 (#352) · MSG-01 (#354) ·
-RULES-01, BUL-01 (#355) · GAME-01 (#356) · BADGE-01 (#357) — plus, avant :
-BUG-SESS-01 à 04 (#342), SIM-AI-01 (#343), BUG-RT-01 et DEP-01 (#341).
-
-## 4. Conditions pour 99/100
-
-| # | Condition | État |
+| Indicateur | Résultat | Source |
 |---|---|---|
-| 1 | Aucun P0 ouvert | ✅ (2026-11-04) |
-| 2 | 0 appel sans route sur les écrans proposés au client (contrôle CI bloquant) | contrôle CI en place ; **53 restants** |
-| 3 | Parcours E2E critiques obligatoires sur `main` | ❌ non requis |
-| 4 | Suite pytest hermétique ; aucun test instable connu | hermétique ✅ ; RT-02 non vérifié |
-| 5 | Charge mesurée contre des objectifs écrits | ❌ |
-| 6 | Hors-ligne annoncé = testé | ❌ |
-| 7 | Dette TS ramenée à 0 sur les modules livrés | ❌ (178) |
-| 8 | Recette utilisateur sur un établissement pilote, consignée | ❌ (production sans élèves) |
+| Backend PostgreSQL | 2 500 passed, 1 skipped ; couverture 72 % | job 127129499639 |
+| Backend SQLite | 1 686 passed, 815 skipped ; couverture 56 % | job 127129499299 |
+| Vitest | 473 passed, 82 fichiers | job 127129499230 ; reproduit localement |
+| Browser Smoke | 3 passed | job 127129499471 |
+| E2E Journeys | 15 passed | job 127129499360 |
+| Sécurité CI | SUCCESS ; ne vaut pas audit de sécurité exhaustif | job 127129499292 |
+| TypeScript strict | 175 erreurs ; référence 178 ; aucune nouvelle erreur | CI et `npm run type-check` local |
+| ESLint | 0 erreur, 1 944 avertissements | CI et ESLint JSON local |
+| Opérations OpenAPI | 645 | export local de l'application |
+| Appels front sans opération | 52 occurrences, **49 clés distinctes** | 45 chemins absents + 7 méthodes ; `API_ROUTE_GAPS.md` |
+| Appels entièrement dynamiques | 21 NON VÉRIFIÉS | même analyse statique |
+| Écrans | 171 : 17 défectueux, 30 à vérifier, 98 non vérifiés, 2 détectés E2E, 24 non routés | `FEATURE_MATRIX.md` ; heuristique, pas recette utilisateur |
+| i18n | 0 clé FR bloquante ; 4 clés secondaires manquantes | `npm run check:i18n` local |
+| Build | Réussi | `npm run build` local |
+| Migrations | Application et restauration CI réussies ; une head | run main ; aucune migration nouvelle dans ce lot |
+| Contrôles requis | **5/6** | ruleset protect-main 24558312 lu le 05/11 |
 
-Le 100/100 exige en plus une revue indépendante sur un périmètre et une date
-définis.
+La baisse des écarts 53 → 49 est celle des clés distinctes du cliquet ; ne pas
+la comparer aux 52 occurrences brutes comme s'il s'agissait du même indicateur.
+La référence est abaissée à 49 dans cette branche, sans suppression de fonction.
 
-## 5. Prochaines PR (ordre)
+## Livraison et conditions restantes
 
-1. Lots API-01 restants par domaine (règles d'inscription, ressources humaines, vie scolaire, e-learning…), chaque écran branché ou retiré.
-2. P1-5 — rendre `E2E Journeys` obligatoire sur `main` (décision du propriétaire : ruleset).
-3. RBAC-01 — aligner les permissions d'admissions + test de parité back/front.
-4. P1-4 / S4 — étude jeton en cookie HttpOnly + CSRF (plan à valider).
-5. Lot 6 — test de coupure réseau de la file hors-ligne (Playwright, mode hors-ligne).
+**NO-GO production** pour ce lot : pas de fusion autorisée dans cette session,
+CI du lot à vérifier sur son HEAD, prévol VPS/sauvegarde récente non effectué,
+recette métier exhaustive et performances non démontrées.
+
+Priorités : intégrité des moyennes homonymes (GRADE-ID-01), sixième contrôle
+obligatoire, 49 écarts API, règles académiques par niveau et rattrapages,
+tokens/sessions, paiements sandbox/quotas, offline, charge, accessibilité et
+pilote terrain. Voir `BACKLOG_PRIORITIZED.md`.
+L'objectif 99/100 exige des preuves sur tous ces axes. Le 100/100 requiert
+une revue indépendante, un périmètre et une date explicites.

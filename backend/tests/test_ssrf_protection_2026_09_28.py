@@ -7,11 +7,12 @@ by the backend itself with no validation of the target host, giving a
 TENANT_ADMIN a blind SSRF primitive against cloud metadata endpoints and
 internal services.
 
-These tests exercise the shared helper directly (fast, no network — every
-case below uses a literal IP or an address that fails DNS resolution, so
-no real lookup is required). Call-site coverage (webhooks.py,
+These tests exercise the shared helper directly (fast, controlled DNS for
+domain-name cases). Call-site coverage (webhooks.py,
 school_life.py) lives in their own test files.
 """
+import socket
+
 import pytest
 
 from app.core.ssrf_protection import (
@@ -49,9 +50,24 @@ class TestAssertSafeExternalUrlRejectsInternalTargets:
         with pytest.raises(UnsafeUrlError):
             assert_safe_external_url(url)
 
-    def test_rejects_hostname_that_fails_to_resolve(self):
+    def test_rejects_hostname_that_fails_to_resolve(self, monkeypatch):
+        def unavailable(*args):
+            raise socket.gaierror("DNS indisponible")
+        monkeypatch.setattr("app.core.ssrf_protection.socket.getaddrinfo", unavailable)
         with pytest.raises(UnsafeUrlError):
             assert_safe_external_url("http://this-host-does-not-exist.invalid/")
+
+    @pytest.mark.parametrize("addresses", [
+        ["93.184.216.34", "127.0.0.1"],
+        ["127.0.0.1", "93.184.216.34"],
+    ])
+    def test_rejects_mixed_public_and_private_dns_answers(self, monkeypatch, addresses):
+        monkeypatch.setattr(
+            "app.core.ssrf_protection.socket.getaddrinfo",
+            lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0)) for ip in addresses],
+        )
+        with pytest.raises(UnsafeUrlError):
+            assert_safe_external_url("https://example.com/logo.png")
 
 
 class TestAssertSafeExternalUrlAcceptsPublicTargets:
@@ -60,7 +76,12 @@ class TestAssertSafeExternalUrlAcceptsPublicTargets:
         "http://93.184.216.34/logo.png",  # public IP literal, no DNS needed
         "https://8.8.8.8/",
     ])
-    def test_accepts_public_http_https_urls(self, url):
+    def test_accepts_public_http_https_urls(self, url, monkeypatch):
+        if "example.com" in url:
+            monkeypatch.setattr(
+                "app.core.ssrf_protection.socket.getaddrinfo",
+                lambda *args: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))],
+            )
         assert_safe_external_url(url)  # must not raise
 
 

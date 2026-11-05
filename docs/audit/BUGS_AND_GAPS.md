@@ -1,3 +1,20 @@
+## Actualisation prioritaire — 2026-11-05, `3ba915af9e7de796736f49dbf8d65309efc485de`
+
+| ID | Sévérité | État au HEAD de main | Preuve / suite |
+|---|---|---|---|
+| GRADE-ID-01 | P1 | OUVERT, correctif proposé dans cette branche | Bulletin et moyenne élève regroupés par nom ; 10/14 tests nouveaux échouent avant correction ; rang potentiellement inversé. `test_grading_subject_identity.py`. |
+| API-01 | P1 | PARTIEL | 49 clés distinctes, 52 occurrences sans opération, 21 dynamiques non vérifiées. |
+| P1-5 | P1 | OUVERT | Ruleset 24558312 impose 5 checks, manque E2E Journeys. |
+| S4 / BILL-01 / OPS-02 | P1 | OUVERT | Tokens localStorage, quotas partiels et mono-VPS : aucun nouveau contrôle permettant de clore. |
+| RT-02 | P2 | NON VÉRIFIÉ en répétition | #377 isole le PubSub des tests ; CI actuelle verte, pas de campagne de stabilité répétée ici. |
+| FIN-01 / CORS-01 | P0/P1 historiques | CORRIGÉS sur main (#345) | Tests CI actuels ; cohérence des données réelles en production non revérifiée. |
+
+Aucun nouveau P0 démontré par cette reprise ciblée ; cela ne prouve pas
+l'absence de défaut critique sur tout le produit. Les états PARTIEL/non
+fusionné des anciennes sections sont historiques ; voir la scorecard datée.
+
+---
+
 # Défauts et manques vérifiés — 2026-11-02 (commit `c28b482`), statuts au 2026-11-03 (`6540145`)
 
 Chaque entrée : constat, preuve, impact, correctif attendu, test de régression.

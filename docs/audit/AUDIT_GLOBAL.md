@@ -1,3 +1,37 @@
+## Reprise du 2026-11-05 — les mesures ci-dessous remplacent les anciens instantanés
+
+`main` = `3ba915af9e7de796736f49dbf8d65309efc485de`. Les 21 PR #359 à #379
+sont fusionnées ; aucune PR ultérieure ou ouverte n'a été trouvée à la reprise.
+Le run 41993016973 du commit exact de main comporte les six jobs SUCCESS.
+Score interne recalculé : **60/100, non certifié** ; voir `QUALITY_SCORECARD.md`.
+
+Lecture de code et reprise ciblée : calculs de notes/bulletins/relevés/progression,
+contrats API statiques, CI, migrations et procédures VPS. Il ne s'agit pas
+d'une validation exhaustive des phases 1 à 11 de la mission.
+
+Mesures : 645 opérations, 49 écarts API distincts (52 occurrences), 175 erreurs
+TS, 1 944 warnings ESLint, 473 Vitest verts. Les documents API_ROUTE_GAPS et
+FEATURE_MATRIX ont été régénérés. PostgreSQL/RLS/migrations sont attestés
+par la CI de main ; pas exécutés sur un serveur local dans cette session.
+
+Nouvelle anomalie **GRADE-ID-01 (P1, reproduite)** : le relevé utilise subject_id,
+mais le calcul commun des bulletins/moyenne élève regroupe par nom et ses trois
+requêtes ne sélectionnent pas subject_id. Deux UE Projet à 10/20 coefficient 3
+et 20/20 coefficient 1 donnent 15 au lieu de 12,5, et peuvent inverser le rang.
+Correction proposée dans cette branche : identifiant stable dans les trois
+requêtes et agrégateur ; 14 tests, dont 10 en échec avant correction.
+
+La protection de main impose encore 5 contrôles ; E2E Journeys n'est pas requis.
+VPS, production actuelle, comptes Mobile Money sandbox, appareils offline,
+charge nationale, revue ASVS et restauration récente : **NON VÉRIFIÉS**.
+Le rapport B2 du 04/11 reste une preuve historique, pas un nouveau contrôle.
+Aucun déploiement, aucune fusion, aucune migration ou modification de production.
+
+Les sections historiques suivantes conservent leur date d'origine ; leurs
+statuts et chiffres anciens ne décrivent pas le HEAD actuel.
+
+---
+
 # Audit global — état réel au 2026-11-02, actualisé le 2026-11-03
 
 ## 0. Actualisation du 2026-11-03 — `main` à `6540145`

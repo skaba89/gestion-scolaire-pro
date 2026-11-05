@@ -1,6 +1,13 @@
-# Appels frontend sans route backend — 2026-11-04 (`main` = `a9c17a8`)
+# Appels frontend sans route backend — 2026-11-05
 
-Généré par `scripts/audit/frontend-api-routes.mjs`. Référence du cliquet CI : `scripts/audit/api-route-gaps-baseline.json` (**53** clés). 21 URL entièrement dynamiques non vérifiables. Historique : 94 appels au commit `6540145`.
+Référence : `main` à `3ba915af9e7de796736f49dbf8d65309efc485de`.
+645 opérations OpenAPI, 986 appels détectés, 21 entièrement dynamiques non
+vérifiables. **52 occurrences sans opération : 49 clés distinctes** (la
+référence CI précédente contenait 53 clés). L'analyse statique ne vérifie
+ni les corps, ni les réponses, ni les permissions ; chaque correction
+nécessite un test de contrat et les contrôles serveur correspondants.
+
+Commande : `node scripts/audit/frontend-api-routes.mjs <ops.json> src <rapport.txt> --baseline scripts/audit/api-route-gaps-baseline.json`.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -51,15 +58,9 @@ PUT /school-life/sponsorships/X  (src/pages/admin/Sponsorships.tsx:110)
 
 ## Méthode absente (chemin existe)
 DELETE /schedule [route existe: GET,POST]  (src/components/schedule/ScheduleGenerator.tsx:143)
-GET /assessments/X [route existe: DELETE,PUT]  (src/features/grades/services/gradesService.ts:66)
 GET /schedule/terms [route existe: PUT,DELETE]  (src/pages/admin/ExecutiveDashboard.tsx:140)
 GET /student-parents [route existe: POST,DELETE]  (src/components/reminders/ReminderSystem.tsx:166)
-PATCH /homework/X [route existe: GET,PUT,DELETE]  (src/features/homework/services/homeworkService.ts:59)
-PATCH /homework/submissions/X [route existe: GET]  (src/features/homework/services/homeworkService.ts:97)
-PATCH /students/X [route existe: GET,PUT,DELETE]  (src/components/students/StudentPhotoUpload.tsx:60)
-PATCH /students/X [route existe: GET,PUT,DELETE]  (src/components/students/StudentPhotoUpload.tsx:82)
 PATCH /students/X [route existe: GET,PUT,DELETE]  (src/lib/optimisticUpdate.ts:8)
 POST /homework-submissions [route existe: GET]  (src/components/homework/HomeworkSubmissionDialog.tsx:56)
-POST /homework/submissions [route existe: GET,PUT,DELETE]  (src/features/homework/services/homeworkService.ts:79)
 POST /school-life/appointment-slots/bulk [route existe: DELETE]  (src/pages/teacher/AppointmentSlots.tsx:148)
 PUT /push-subscriptions/upsert [route existe: POST]  (src/hooks/useNativePushNotifications.ts:97)

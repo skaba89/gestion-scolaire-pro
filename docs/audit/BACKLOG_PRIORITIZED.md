@@ -1,3 +1,25 @@
+## Priorités de reprise — 2026-11-05
+
+Référence : `3ba915af9e7de796736f49dbf8d65309efc485de`, PR #379 fusionnée.
+Les listes anciennes plus bas sont historiques. Les règles de livraison
+restent : six jobs SUCCESS sur le HEAD, accord du propriétaire pour fusion,
+puis dossier GO/NO-GO et accord distinct pour production.
+
+| Ordre | Lot | État | Critère de sortie |
+|---|---|---|---|
+| 1 | GRADE-ID-01 : moyenne/rang des matières homonymes | correctif proposé dans cette branche | Tests rouges avant, verts après ; SQLite + PostgreSQL ; cohérence bulletin/relevé et filtrage tenant. |
+| 2 | P1-5 : sixième check obligatoire | OUVERT | Ajouter E2E Journeys au ruleset sans retirer aucun des cinq contrôles existants. |
+| 3 | API-01, 49 clés | PARTIEL | Par domaine : méthodes, paramètres, corps, réponses, erreurs et autorisations testés ; réduire la référence sans retirer de fonction utile. |
+| 4 | Règles niveau, rattrapages et progression | À AUDITER | Tests croisés sur données identiques et années/périodes distinctes ; pas de validation par arrondi ni double crédit. |
+| 5 | S4, RBAC-01, sessions et audit ASVS | OUVERT | Analyse cookies HttpOnly/CSRF, parité permissions et tests IDOR/inter-tenant ; ne pas élargir les droits. |
+| 6 | Finance/SaaS | PARTIEL | Comptes sandbox fournisseurs et définition du périmètre utilisateurs pour quotas ; concurrence, timeout, doublons et rapprochement. |
+| 7 | Offline, appareils et accessibilité | NON VALIDÉ | Coupures/reconnexion/conflits/session expirée + essais appareils ; axe et recette. |
+| 8 | Performance et livraison | NON VALIDÉ | Objectifs de capacité/budget, mesures P50/P95/P99 ; prévol VPS, sauvegarde récente/restauration, rollback et recette pilote. |
+
+Pas de déploiement national déclaré prêt à partir des tests existants.
+
+---
+
 # Backlog priorisé — 2026-11-02 (commit `c28b482`), actualisé le 2026-11-03 (`6540145`)
 
 Statuts réels issus de `AUDIT_GLOBAL.md` / `BUGS_AND_GAPS.md`. Complexité :
