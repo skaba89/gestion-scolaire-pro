@@ -45,4 +45,29 @@ describe("department exam status contract", () => {
     }, "2026-11-01", "2026-11-30").map(item => item.value)).toEqual([0, 0, 0]);
   });
 
+  it("accepts exams only when the API department matches the selected department", () => {
+    const response = {
+      department: { id: "dept-a" },
+      exams: [{ status: "scheduled", exam_date: "2026-11-05" }],
+    };
+    expect(summarize(response, "2026-11-01", "2026-11-30", "dept-a")
+      .map(item => item.value)).toEqual([1, 0, 0]);
+  });
+
+  it("rejects exams from a different department rather than mislabelling totals", () => {
+    const response = {
+      department: { id: "dept-a" },
+      exams: [{ status: "scheduled", exam_date: "2026-11-05" }],
+    };
+    expect(() => summarize(response, "2026-11-01", "2026-11-30", "dept-b"))
+      .toThrow("Les examens ne correspondent pas au département sélectionné");
+  });
+
+  it("fails closed when the response has no department identity", () => {
+    expect(() => summarize({ exams: [] }, "2026-11-01", "2026-11-30", "dept-a"))
+      .toThrow("Les examens ne correspondent pas au département sélectionné");
+    expect(() => summarize({ department: {}, exams: [] }, "2026-11-01", "2026-11-30", "dept-a"))
+      .toThrow("Les examens ne correspondent pas au département sélectionné");
+  });
+
 });
