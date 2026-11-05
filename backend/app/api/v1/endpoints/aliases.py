@@ -937,20 +937,21 @@ def upsert_push_subscription(
 @push_subscriptions_router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_push_subscription(
     request: Request,
-    endpoint: Optional[str] = Query(None),
+    endpoint: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """DELETE /push-subscriptions/ — mirrors DELETE /notifications/subscriptions/"""
+    """Delete only this device's subscription, never all user devices."""
     from app.models import PushSubscription
+    if not endpoint.strip():
+        raise HTTPException(status_code=422, detail="Device endpoint is required")
     user_id = current_user.get("id")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     query = db.query(PushSubscription).filter(
         PushSubscription.user_id == user_id,
         PushSubscription.tenant_id == tenant_id,
+        PushSubscription.endpoint == endpoint,
     )
-    if endpoint:
-        query = query.filter(PushSubscription.endpoint == endpoint)
     query.delete()
     db.commit()
     return None

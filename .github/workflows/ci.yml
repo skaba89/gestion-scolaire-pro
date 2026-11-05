@@ -105,6 +105,8 @@ jobs:
   browser-smoke:
     name: Browser Smoke (Playwright)
     runs-on: ubuntu-24.04
+    # Do not let browser installation or smoke checks hang indefinitely.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -119,9 +121,13 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Install Chromium
+        # Browser downloads and apt mirrors may stall on hosted runners.
+        # Fail with an explicit timeout instead of leaving the PR pending.
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
 
       - name: Run critical browser smoke tests
+        timeout-minutes: 8
         run: npm run test:e2e:smoke
         env:
           CI: true
