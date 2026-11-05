@@ -20,19 +20,24 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.services.academic_rules import effective_rules
+from app.api.v1.endpoints.academic.transcripts import _summarize_subject_grades
+
 PASS_THRESHOLD = 10.0  # /20 — kept in sync with transcripts.py's own constant
 
 
 def _fetch_grades_for_semester(db: Session, *, tenant_id: str, student_id: str, semester_id: str) -> list:
     return db.execute(text("""
         SELECT
+            a.subject_id AS subject_id,
             COALESCE(subj.name, 'Matière inconnue') AS subject_name,
             COALESCE(subj.ects, 0) AS ects,
+            COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
             g.score,
             g.max_score
         FROM grades g
-        JOIN assessments a ON g.assessment_id = a.id
-        JOIN subjects subj ON a.subject_id = subj.id
+        JOIN assessments a ON g.assessment_id = a.id AND a.tenant_id = g.tenant_id
+        JOIN subjects subj ON a.subject_id = subj.id AND subj.tenant_id = g.tenant_id
         WHERE g.student_id = :sid
           AND g.tenant_id = :tid
           AND subj.semester_id = :semester_id
@@ -46,22 +51,11 @@ def compute_earned_ects_for_semester(
     this semester, using the same by-subject-average/PASS_THRESHOLD rule
     as transcripts.py::_summarize_subject_grades."""
     grades = _fetch_grades_for_semester(db, tenant_id=tenant_id, student_id=student_id, semester_id=semester_id)
-    by_subject: dict[str, dict] = {}
-    for g in grades:
-        name = g["subject_name"]
-        if name not in by_subject:
-            by_subject[name] = {"ects": float(g["ects"] or 0), "scores": []}
-        if g["score"] is not None:
-            max_s = float(g["max_score"] or 20)
-            by_subject[name]["scores"].append(float(g["score"]) / max_s * 20)
-
-    ects_earned = 0.0
-    ects_possible = 0.0
-    for data in by_subject.values():
-        ects_possible += data["ects"]
-        scores = data["scores"]
-        if scores and (sum(scores) / len(scores)) >= PASS_THRESHOLD:
-            ects_earned += data["ects"]
+    # Match the transcript's stable UE grouping and tenant-specific threshold.
+    threshold = effective_rules(db, tenant_id)["passing_grade"]
+    subjects = _summarize_subject_grades(grades, pass_threshold=threshold)
+    ects_earned = sum(subject["ects"] for subject in subjects if subject["passed"])
+    ects_possible = sum(subject["ects"] for subject in subjects)
     return ects_earned, ects_possible
 
 
