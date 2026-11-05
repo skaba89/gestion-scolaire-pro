@@ -19,13 +19,18 @@ Référence : `main` à `828a6f7158e555290c4c71b6beee28e7c213dc0c`
 Reproduction avant correctif : 3/7 nouveaux tests frontend et 9/11 premiers
 nouveaux tests backend échouent (fixtures corrigées et authentifiées).
 Les cas de refus/non-régression qui passent avant correction restent conservés.
+Trois tests supplémentaires ont ensuite reproduit la duplication par POST
+(remise non notée, note 0 et note 15), tous en échec avant le verrou/contrôle.
 
 ## Comportement proposé
 
 Création : route existante `POST /homework/{homework_id}/submit/` ; corps
 `{homework_id, student_id, content}`. Vérifie propriété (élève lié, parent lié
 ou homework:write), devoir et élève du tenant courant, concordance URL/corps.
-La date est celle du serveur. Le contenu seul n'accorde aucun droit de notation.
+La date est celle du serveur. Un POST supplémentaire pour le même élève/devoir
+renvoie 409 (y compris après une note zéro) au lieu de créer une nouvelle remise.
+Un verrou de ligne sur l'élève sérialise les créations PostgreSQL ; le contrôle
+d'existence est effectué après acquisition du verrou et avant insertion. Le contenu seul n'accorde aucun droit de notation.
 
 Modification : nouvelle route `PUT /homework/{homework_id}/submissions/{id}/`
 avec `{content}`. Permission homework:read existante, même propriété et contrôle des références, identité de remise
@@ -42,11 +47,12 @@ texte quand le devoir change et invalide student-submissions après réussite.
 
 ## Validation
 
-- 20 nouveaux tests HTTP backend, exécutables sur SQLite isolé et sur PostgreSQL
+- 24 nouveaux tests HTTP backend, exécutables sur SQLite isolé et sur PostgreSQL
   avec les tables migrées : contenu, identité/note non falsifiables, propriétaire,
   parent lié, établissement, mauvais devoir, grade 0/15, métadonnées de notation,
   corps invalide, concurrence lecture/notation/écriture, panne SQL, création,
-  références inter-tenant et absence d'authentification.
+  références inter-tenant, absence d'authentification, doublons avant/après notation
+  et deux créations simultanées (ce dernier test exige PostgreSQL).
 - 7 nouveaux tests de dialogue : création, modification, erreurs 403/409/500,
   note zéro et changement de devoir. Le service de création conserve ses
   tests de contrat existants.
@@ -71,7 +77,9 @@ rôle. Les routes de notation des enseignants restent distinctes.
 Rollback applicatif : revenir au commit de référence, sans rollback de schéma.
 La nouvelle route doit être disponible avant de servir le nouveau frontend.
 
-L'idempotence de création, la déduplication des remises historiques et la
+La création protège des doublons sur cette route et renvoie un conflit sur un
+rejeu ; elle ne fournit pas un protocole de clé d'idempotence et de récupération
+d'une réponse perdue. La déduplication des remises historiques et la
 politique d'affectation des devoirs par classe ne sont pas certifiées par ce lot.
 Le schéma SQLite de test ne démontre pas la RLS : cette preuve dépend de la CI
 PostgreSQL et des tests RLS existants. Offline/appareils/charge/sandbox paiements

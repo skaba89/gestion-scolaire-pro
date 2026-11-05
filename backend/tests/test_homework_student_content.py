@@ -152,8 +152,13 @@ def test_submission_cannot_target_unknown_homework(ctx):
 
 
 def test_creation_uses_server_time_and_valid_references(ctx):
-    response = client.post(f"/api/v1/homework/{ctx['hid']}/submit/", json={
-        "homework_id": ctx["hid"], "student_id": ctx["sid"], "content": "Nouveau travail",
+    homework_id = str(uuid.uuid4())
+    with ctx["factory"]() as db:
+        db.execute(text("INSERT INTO homework (id,tenant_id,title) VALUES (:id,:tid,'Nouveau devoir')"),
+                   {"id": homework_id, "tid": ctx["tid"]})
+        db.commit()
+    response = client.post(f"/api/v1/homework/{homework_id}/submit/", json={
+        "homework_id": homework_id, "student_id": ctx["sid"], "content": "Nouveau travail",
         "submitted_at": "1999-01-01T00:00:00Z", "grade": 20,
     }, headers=_headers(ctx))
     assert response.status_code == 201, response.text
@@ -162,6 +167,44 @@ def test_creation_uses_server_time_and_valid_references(ctx):
                          {"id": response.json()["id"]}).mappings().one()
     assert row["content"] == "Nouveau travail" and row["grade"] is None
     assert not str(row["submitted_at"]).startswith("1999")
+
+
+@pytest.mark.parametrize("grade", [None, 0, 15])
+def test_new_post_cannot_duplicate_or_replace_an_existing_submission(ctx, grade):
+    with ctx["factory"]() as db:
+        db.execute(text("UPDATE homework_submissions SET grade=:grade WHERE id=:id"), {"id": ctx["id"], "grade": grade})
+        db.commit()
+    response = client.post(f"/api/v1/homework/{ctx['hid']}/submit/", json={
+        "homework_id": ctx["hid"], "student_id": ctx["sid"], "content": "Remplacement",
+    }, headers=_headers(ctx))
+    assert response.status_code == 409, response.text
+    with ctx["factory"]() as db:
+        assert db.execute(text("SELECT count(*) FROM homework_submissions WHERE tenant_id=:tid"), {"tid": ctx["tid"]}).scalar() == 1
+    assert _saved(ctx)["content"] == "Réponse initiale"
+
+
+@pytest.mark.skipif(engine.dialect.name != "postgresql", reason="Verrou de ligne PostgreSQL réel requis")
+def test_concurrent_creation_only_inserts_one_submission(ctx):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    homework_id = str(uuid.uuid4())
+    with ctx["factory"]() as db:
+        db.execute(text("INSERT INTO homework (id,tenant_id,title) VALUES (:id,:tid,'Devoir concurrent')"),
+                   {"id": homework_id, "tid": ctx["tid"]})
+        db.commit()
+    barrier = Barrier(2)
+    headers = _headers(ctx)
+    def submit():
+        barrier.wait(timeout=10)
+        return client.post(f"/api/v1/homework/{homework_id}/submit/", json={
+            "homework_id": homework_id, "student_id": ctx["sid"], "content": "Travail",
+        }, headers=headers).status_code
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: submit(), range(2)))
+    assert sorted(results) == [201, 409]
+    with ctx["factory"]() as db:
+        assert db.execute(text("SELECT count(*) FROM homework_submissions WHERE tenant_id=:tid AND homework_id=:hid"),
+                          {"tid": ctx["tid"], "hid": homework_id}).scalar() == 1
 
 
 def test_foreign_homework_is_rejected_before_insert(ctx):

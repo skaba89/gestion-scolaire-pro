@@ -55,7 +55,8 @@ class SubmissionContentUpdate(BaseModel):
     content: str = Field(min_length=1)
 
 
-def _validate_submission_targets(db: Session, *, tenant_id: str, homework_id: str, student_id: str) -> None:
+def _validate_submission_targets(db: Session, *, tenant_id: str, homework_id: str, student_id: str,
+                                 lock_student: bool = False) -> None:
     # Ces deux colonnes de homework_submissions n'ont pas de FK SQL.
     from app.models.student import Student
     try:
@@ -66,7 +67,10 @@ def _validate_submission_targets(db: Session, *, tenant_id: str, homework_id: st
     homework = db.execute(text(
         "SELECT id FROM homework WHERE id = :hid AND tenant_id = :tid"
     ), {"hid": homework_id, "tid": tenant_id}).first()
-    student = db.query(Student.id).filter(Student.id == student_id, Student.tenant_id == tenant_id).first()
+    query = db.query(Student.id).filter(Student.id == student_id, Student.tenant_id == tenant_id)
+    # Le verrou reste détenu jusqu'au commit : deux créations pour le même
+    # élève voient les remises déjà validées avant de décider d'insérer.
+    student = (query.with_for_update() if lock_student else query).first()
     if not homework or not student:
         raise HTTPException(status_code=404, detail="Devoir ou élève introuvable dans cet établissement")
 
@@ -472,9 +476,18 @@ def submit_homework(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not _can_submit_for_student(db, current_user=current_user, student_id=body.student_id, tenant_id=tenant_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas soumettre un devoir pour cet élève")
-    _validate_submission_targets(db, tenant_id=tenant_id, homework_id=homework_id, student_id=body.student_id)
+    _validate_submission_targets(db, tenant_id=tenant_id, homework_id=homework_id,
+                                 student_id=body.student_id, lock_student=True)
     if body.homework_id != homework_id:
         raise HTTPException(status_code=422, detail="Le devoir du corps doit correspondre à celui de l'URL")
+    existing = db.execute(text("""
+        SELECT id FROM homework_submissions
+        WHERE tenant_id = :tid AND homework_id = :hid AND student_id = :sid
+        LIMIT 1
+    """), {"tid": tenant_id, "hid": homework_id, "sid": body.student_id}).first()
+    if existing:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Une remise existe déjà pour ce devoir ; modifiez-la si elle n'est pas notée")
     try:
         result = db.execute(text("""
             INSERT INTO homework_submissions (tenant_id, homework_id, student_id, content, submitted_at)
