@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from '@capacitor/push-notifications';
 import { apiClient } from '@/api/client';
@@ -28,7 +28,6 @@ export interface NativePushState {
 export const useNativePushNotifications = () => {
   const { user } = useAuth();
   const { currentTenant } = useTenant();
-  const listenerCleanupRef = useRef<(() => void) | null>(null);
   const [state, setState] = useState<NativePushState>({
     isSupported: Capacitor.isNativePlatform(),
     isRegistered: false,
@@ -151,17 +150,14 @@ export const useNativePushNotifications = () => {
     let active = true;
     let dispose: (() => void) | undefined;
     void registerListeners(() => active).then(cleanup => {
-      if (active) {
-        dispose = cleanup;
-        listenerCleanupRef.current = cleanup;
-      } else cleanup(); // Async registrations may finish after unmount.
+      if (active) dispose = cleanup;
+      else cleanup(); // Async registrations may finish after unmount.
     }).catch(error => {
       console.warn('Unable to register native push listeners:', error);
     });
     return () => {
       active = false;
       dispose?.();
-      if (listenerCleanupRef.current === dispose) listenerCleanupRef.current = null;
     };
   }, [registerListeners]);
 
@@ -169,15 +165,14 @@ export const useNativePushNotifications = () => {
     if (!Capacitor.isNativePlatform()) return;
 
     try {
-      // Remove only listeners owned by this hook; other components may also
-      // subscribe to Capacitor push events.
-      listenerCleanupRef.current?.();
-      listenerCleanupRef.current = null;
+      // Keep this hook's listeners active. Explicit unsubscribe removes the
+      // device token from the backend, but the same mounted hook must be able
+      // to register again after the user grants permission later.
+      // Listener disposal remains owned by the effect cleanup on unmount.
       
       if (user?.id && state.token) {
         await apiClient.delete("/push-subscriptions/", {
           params: {
-            user_id: user.id,
             endpoint: state.token,
           },
         });
