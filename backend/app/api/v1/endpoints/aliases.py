@@ -35,18 +35,29 @@ def list_enrollments_alias(
     class_id: Optional[UUID] = Query(None),
     academic_year_id: Optional[UUID] = Query(None),
     status: Optional[str] = Query(None),
+    class_ids: Optional[str] = Query(None, description="Comma-separated class UUIDs (max 100)"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:read")),
 ):
     """GET /enrollments/ — apply classroom and academic-year filters server-side."""
     from app.crud import academic as crud
     from app.schemas.academic import Enrollment as EnrollmentSchema
+    parsed_class_ids = None
+    if class_ids is not None:
+        tokens = [part.strip() for part in class_ids.split(",")]
+        if not tokens or len(tokens) > 100 or any(not token for token in tokens):
+            raise HTTPException(status_code=422, detail="class_ids doit contenir entre 1 et 100 UUID")
+        try:
+            parsed_class_ids = [UUID(token) for token in tokens]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="class_ids contient un UUID invalide")
     rows = crud.get_enrollments(
         db,
         tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
         class_id=class_id,
         academic_year_id=academic_year_id,
         status=status,
+        class_ids=parsed_class_ids,
     )
     return [EnrollmentSchema.model_validate(r).model_dump(mode="json") for r in rows]
 
