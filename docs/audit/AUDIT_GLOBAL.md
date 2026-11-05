@@ -14,12 +14,21 @@ TS, 1 944 warnings ESLint, 473 Vitest verts. Les documents API_ROUTE_GAPS et
 FEATURE_MATRIX ont été régénérés. PostgreSQL/RLS/migrations sont attestés
 par la CI de main ; pas exécutés sur un serveur local dans cette session.
 
-Nouvelle anomalie **GRADE-ID-01 (P1, reproduite)** : le relevé utilise subject_id,
+**GRADE-ID-01 (P2, cohérence interne)** : le relevé utilise subject_id,
 mais le calcul commun des bulletins/moyenne élève regroupe par nom et ses trois
-requêtes ne sélectionnent pas subject_id. Deux UE Projet à 10/20 coefficient 3
-et 20/20 coefficient 1 donnent 15 au lieu de 12,5, et peuvent inverser le rang.
-Correction proposée dans cette branche : identifiant stable dans les trois
-requêtes et agrégateur ; 14 tests, dont 10 en échec avant correction.
+requêtes ne sélectionnent pas subject_id. Sur des entrées homonymes fournies
+au calcul pur, deux UE à 10/20 coefficient 3 et 20/20 coefficient 1 donnent
+15 au lieu de 12,5. **Le schéma PostgreSQL migré impose cependant
+`uq_subjects_tenant_name` : ce scénario n'est pas démontré sur des données
+persistées conformes au schéma actuel.** Le lot satisfait l'exigence d'identité
+stable et prépare une évolution sûre du catalogue, sans annoncer un incident
+avéré sur les bulletins de production.
+
+La première CI du lot a révélé cette différence de schéma : quatre fixtures
+homonymes passaient sur SQLite mais violaient la contrainte PostgreSQL.
+Fixtures corrigées avec noms distincts, sans supprimer la contrainte ; les
+cas homonymes sont testés au niveau du calcul pur. Les trois lectures SQL
+sont vérifiées sur des données valides avec leurs identifiants réels.
 
 La protection de main impose encore 5 contrôles ; E2E Journeys n'est pas requis.
 VPS, production actuelle, comptes Mobile Money sandbox, appareils offline,

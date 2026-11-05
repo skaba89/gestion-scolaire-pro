@@ -9,7 +9,7 @@ Le lot de correction proposé dans cette branche n'est pas comptabilisé comme l
 
 | Axe | Maximum | 2026-11-04 | 2026-11-05 | Justification / limite |
 |---|---:|---:|---:|---|
-| Fonctions scolaires et universitaires | 15 | 9 | 11 | +2 : contrats photos/devoirs/évaluations/inscriptions (#359–365), notes et relevés (#366–379), tests associés. Incohérence des matières homonymes encore ouverte sur main ; compensation/jurys complets non validés. |
+| Fonctions scolaires et universitaires | 15 | 9 | 11 | +2 : contrats photos/devoirs/évaluations/inscriptions (#359–365), notes et relevés (#366–379), tests associés. Identité stable à harmoniser entre calculs (P2) ; compensation/jurys complets non validés. |
 | Sécurité et isolation | 15 | 12 | 12 | #367 et #369 renforcent les contrôles de propriété ; pas de point sans audit transversal complémentaire. Tokens localStorage et revue ASVS restent ouverts. |
 | Tests et fiabilité | 15 | 10 | 11 | +1 : 2 500 tests PostgreSQL, 473 Vitest, tests de précision/erreurs SQL/classement ajoutés. Seulement 5 contrôles obligatoires ; aucun résultat de charge ni essai offline sur appareil. |
 | Architecture et qualité | 10 | 6 | 6 | 175 erreurs TS (178 avant), 1 944 warnings ESLint ; dette encore importante. |

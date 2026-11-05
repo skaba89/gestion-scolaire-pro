@@ -7,9 +7,9 @@ puis dossier GO/NO-GO et accord distinct pour production.
 
 | Ordre | Lot | État | Critère de sortie |
 |---|---|---|---|
-| 1 | GRADE-ID-01 : moyenne/rang des matières homonymes | correctif proposé dans cette branche | Tests rouges avant, verts après ; SQLite + PostgreSQL ; cohérence bulletin/relevé et filtrage tenant. |
-| 2 | P1-5 : sixième check obligatoire | OUVERT | Ajouter E2E Journeys au ruleset sans retirer aucun des cinq contrôles existants. |
-| 3 | API-01, 49 clés | PARTIEL | Par domaine : méthodes, paramètres, corps, réponses, erreurs et autorisations testés ; réduire la référence sans retirer de fonction utile. |
+| En revue | GRADE-ID-01 (P2) : identité stable du calcul de moyenne | correctif proposé dans cette branche | Tests purs homonymes et lectures SQL sur données conformes à uq_subjects_tenant_name ; SQLite + PostgreSQL. |
+| 1 | P1-5 : sixième check obligatoire | OUVERT | Ajouter E2E Journeys au ruleset sans retirer aucun des cinq contrôles existants. |
+| 2 | API-01, 49 clés | PARTIEL | Par domaine : méthodes, paramètres, corps, réponses, erreurs et autorisations testés ; réduire la référence sans retirer de fonction utile. |
 | 4 | Règles niveau, rattrapages et progression | À AUDITER | Tests croisés sur données identiques et années/périodes distinctes ; pas de validation par arrondi ni double crédit. |
 | 5 | S4, RBAC-01, sessions et audit ASVS | OUVERT | Analyse cookies HttpOnly/CSRF, parité permissions et tests IDOR/inter-tenant ; ne pas élargir les droits. |
 | 6 | Finance/SaaS | PARTIEL | Comptes sandbox fournisseurs et définition du périmètre utilisateurs pour quotas ; concurrence, timeout, doublons et rapprochement. |

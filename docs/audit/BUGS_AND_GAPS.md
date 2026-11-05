@@ -2,7 +2,7 @@
 
 | ID | Sévérité | État au HEAD de main | Preuve / suite |
 |---|---|---|---|
-| GRADE-ID-01 | P1 | OUVERT, correctif proposé dans cette branche | Bulletin et moyenne élève regroupés par nom ; 10/14 tests nouveaux échouent avant correction ; rang potentiellement inversé. `test_grading_subject_identity.py`. |
+| GRADE-ID-01 | P2 | Cohérence interne, correctif proposé | Agrégateur regroupé par nom ; entrées homonymes incorrectes dans le calcul pur. PostgreSQL impose `uq_subjects_tenant_name`, donc incident sur données conformes non démontré. Tests purs + vérification des identifiants dans les trois lectures réelles. |
 | API-01 | P1 | PARTIEL | 49 clés distinctes, 52 occurrences sans opération, 21 dynamiques non vérifiées. |
 | P1-5 | P1 | OUVERT | Ruleset 24558312 impose 5 checks, manque E2E Journeys. |
 | S4 / BILL-01 / OPS-02 | P1 | OUVERT | Tokens localStorage, quotas partiels et mono-VPS : aucun nouveau contrôle permettant de clore. |

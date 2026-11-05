@@ -1,5 +1,6 @@
 """Bulletins, classement et relevés doivent distinguer les UE homonymes."""
 import uuid
+from unittest.mock import patch
 
 import pytest
 
@@ -75,21 +76,19 @@ def test_same_named_subjects_do_not_reverse_class_ranking():
 
 
 @pytest.fixture
-def homonymous_subjects():
+def academic_subjects():
     # Réutilise un jeu ORM réel (deux matières, coefficients 3 et 1,
-    # notes 10 et 20) et ne change que leurs noms pour reproduire le défaut.
+    # notes 10 et 20). PostgreSQL impose uq_subjects_tenant_name : les cas
+    # homonymes restent des entrées du calcul pur, sans violer le schéma.
     from test_crud_grade import _make_tenant, _make_two_subject_fixture
     from app.core.database import SessionLocal
     from app.models.classroom import Classroom
     from app.models.enrollment import Enrollment
-    from app.models.subject import Subject
 
     tid = _make_tenant()
     ctx = _make_two_subject_fixture(tid)
     ctx.update(tenant_id=tid, classroom_id=str(uuid.uuid4()))
     with SessionLocal() as db:
-        for subject in db.query(Subject).filter(Subject.tenant_id == tid).all():
-            subject.name = "Projet"
         db.add(Classroom(id=ctx["classroom_id"], tenant_id=tid, name="Classe test",
                          academic_year_id=ctx["year_id"]))
         db.flush()
@@ -101,38 +100,41 @@ def homonymous_subjects():
 
 
 @pytest.mark.parametrize("source", ["student-average", "bulletin", "batch-bulletin"])
-def test_database_paths_preserve_subject_identity(homonymous_subjects, source):
+def test_database_paths_preserve_subject_identity(academic_subjects, source):
     from app.core.database import SessionLocal
     from app.crud.grade import get_student_average
     from app.api.v1.endpoints.operational.school_life import (
         _compute_average, _fetch_grades_for_term, _fetch_grades_for_term_batch,
     )
 
-    ctx = homonymous_subjects
+    ctx = academic_subjects
     with SessionLocal() as db:
         if source == "student-average":
-            result = get_student_average(db, ctx["student_id"], ctx["tenant_id"],
-                                         academic_year=ctx["year_id"], semester=1)
+            with patch("app.services.grading.compute_weighted_average", wraps=compute_weighted_average) as compute:
+                result = get_student_average(db, ctx["student_id"], ctx["tenant_id"],
+                                             academic_year=ctx["year_id"], semester=1)
             assert result == {"average": 12.5, "count": 2}
+            rows = compute.call_args.args[0]
         else:
             if source == "bulletin":
                 rows = _fetch_grades_for_term(db, ctx["student_id"], ctx["term_id"], ctx["tenant_id"])
             else:
                 groups = _fetch_grades_for_term_batch(db, ctx["classroom_id"], ctx["term_id"], ctx["tenant_id"])
                 rows = next(iter(groups.values()))
-            assert len(rows) == 2
-            assert len({str(row["subject_id"]) for row in rows}) == 2
-            assert _compute_average(rows) == pytest.approx(12.5)
+        assert len(rows) == 2
+        assert all(row["subject_id"] is not None for row in rows)
+        assert len({str(row["subject_id"]) for row in rows}) == 2
+        assert _compute_average(rows) == pytest.approx(12.5)
 
 
-def test_another_tenant_gets_no_grades(homonymous_subjects):
+def test_another_tenant_gets_no_grades(academic_subjects):
     from app.core.database import SessionLocal
     from app.crud.grade import get_student_average
     from app.api.v1.endpoints.operational.school_life import (
         _fetch_grades_for_term, _fetch_grades_for_term_batch,
     )
 
-    ctx = homonymous_subjects
+    ctx = academic_subjects
     other_tenant = str(uuid.uuid4())
     with SessionLocal() as db:
         assert get_student_average(db, ctx["student_id"], other_tenant) == {"average": 0.0, "count": 0}
