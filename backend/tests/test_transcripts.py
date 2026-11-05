@@ -337,14 +337,11 @@ class TestDistinctSubjectIdentity:
         engine.dialect.name != "postgresql",
         reason="Transcript SQL fixture uses PostgreSQL UUID storage.",
     )
-    def test_transcript_keeps_duplicate_named_subjects_distinct(self):
+    def test_transcript_exposes_distinct_subject_ids_and_ects(self):
+        # PostgreSQL enforces uq_subjects_tenant_name: identical names within
+        # a tenant cannot be inserted. Check the real endpoint with two
+        # separate subjects, while the pure tests cover same-name inputs.
         ctx = _build_transcript_fixture(ects_math=8, ects_french=2)
-        with SessionLocal() as db:
-            db.query(Subject).filter(
-                Subject.tenant_id == ctx["tenant_id"],
-                Subject.name == "Français",
-            ).update({"name": "Mathématiques"})
-            db.commit()
         headers = _as({
             "id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"],
             "tenant_id": ctx["tenant_id"],
