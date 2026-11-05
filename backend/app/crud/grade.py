@@ -27,10 +27,15 @@ def get_grades(
     academic_year: Optional[str] = None,
     assessment_id: Optional[UUID] = None,
     class_id: Optional[UUID] = None,
+    student_ids: Optional[set[UUID]] = None,
 ) -> tuple[list[Grade], int]:
-    """Get grades with pagination and filters"""
+    """Get grades with pagination and filters, including a parent-owned set."""
     query = db.query(Grade).filter(Grade.tenant_id == tenant_id)
-    
+
+    if student_ids is not None:
+        if not student_ids:
+            return [], 0
+        query = query.filter(Grade.student_id.in_(student_ids))
     if student_id:
         query = query.filter(Grade.student_id == student_id)
     
