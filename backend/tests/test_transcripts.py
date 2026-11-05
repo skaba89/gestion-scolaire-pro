@@ -301,3 +301,66 @@ class TestTranscriptOwnership:
             headers=headers,
         )
         assert resp.status_code == 200, resp.text
+
+
+class TestDistinctSubjectIdentity:
+    """Two UEs can share a title without sharing grades or ECTS."""
+
+    def test_same_name_different_ids_keeps_separate_subject_averages(self):
+        from app.api.v1.endpoints.academic.transcripts import _summarize_subject_grades
+        rows = [
+            {"subject_id": "ue-1", "subject_name": "Projet", "coefficient": 3,
+             "ects": 6, "score": 15, "max_score": 20},
+            {"subject_id": "ue-2", "subject_name": "Projet", "coefficient": 2,
+             "ects": 4, "score": 6, "max_score": 20},
+        ]
+        subjects = _summarize_subject_grades(rows)
+        assert len(subjects) == 2
+        assert {s["subject_id"]: s["average"] for s in subjects} == {
+            "ue-1": 15.0, "ue-2": 6.0,
+        }
+        assert {s["subject_id"]: s["ects"] for s in subjects} == {
+            "ue-1": 6.0, "ue-2": 4.0,
+        }
+
+    def test_ects_weighted_average_uses_subject_identity(self):
+        from app.services.grading import compute_ects_weighted_average
+        rows = [
+            {"subject_id": "ue-1", "subject_name": "Projet", "ects": 8,
+             "score": 15, "max_score": 20},
+            {"subject_id": "ue-2", "subject_name": "Projet", "ects": 2,
+             "score": 6, "max_score": 20},
+        ]
+        assert compute_ects_weighted_average(rows) == 13.2
+
+    @pytest.mark.skipif(
+        engine.dialect.name != "postgresql",
+        reason="Transcript SQL fixture uses PostgreSQL UUID storage.",
+    )
+    def test_transcript_keeps_duplicate_named_subjects_distinct(self):
+        ctx = _build_transcript_fixture(ects_math=8, ects_french=2)
+        with SessionLocal() as db:
+            db.query(Subject).filter(
+                Subject.tenant_id == ctx["tenant_id"],
+                Subject.name == "Français",
+            ).update({"name": "Mathématiques"})
+            db.commit()
+        headers = _as({
+            "id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"],
+            "tenant_id": ctx["tenant_id"],
+        })
+        response = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        subjects = result["periods"][0]["subjects"]
+        assert len(subjects) == 2
+        assert subjects[0]["subject_id"] != subjects[1]["subject_id"]
+        assert sorted(s["average"] for s in subjects) == [6.0, 15.0]
+        assert result["ects_earned"] == 8.0
+        assert result["ects_possible"] == 10.0
+        assert result["annual_average"] == 11.4
+        assert result["annual_average_ects_weighted"] == 13.2
