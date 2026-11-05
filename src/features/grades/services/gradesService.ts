@@ -51,15 +51,8 @@ export const gradesService = {
     if (filters?.subjectId) params.append("subjectId", filters.subjectId);
     if (filters?.termId) params.append("termId", filters.termId);
 
-    try {
-      // Temporary: if no assessment API exists, we might need to rely on returning empty array or hitting a generic endpoint
-      // We assume /assessments exists on FastAPI
-      const response = await apiClient.get(`/assessments/?${params.toString()}`);
-      return (response.data?.items || response.data || []) as unknown as Assessment[];
-    } catch (error) {
-      console.error("No assessment API, fallback returning empty", error);
-      return [];
-    }
+    const response = await apiClient.get(`/assessments/?${params.toString()}`);
+    return (response.data?.items || response.data || []) as unknown as Assessment[];
   },
 
   async getAssessment(id: string) {
@@ -97,42 +90,19 @@ export const gradesService = {
   },
 
   async getStudentGrades(studentId: string) {
-    try {
-      // List all grades for student
-      const response = await apiClient.get(`/grades/?student_id=${studentId}`);
-      const listRes = response.data;
-      const grades = (listRes?.items || listRes || []) as unknown as (Grade & { assessments: Assessment })[];
+    // A network/authentication failure must never be displayed as a zero average.
+    const response = await apiClient.get(`/grades/?student_id=${studentId}`);
+    const listRes = response.data;
+    const grades = (listRes?.items || listRes || []) as unknown as (Grade & { assessments: Assessment })[];
+    const validScores = grades.filter((g) => g.score !== undefined && g.score !== null).map((g) => g.score);
 
-      const validGrades = grades.filter((g) => g.score !== undefined && g.score !== null);
-      const validScores = validGrades.map((g) => g.score);
-
-      if (validScores.length === 0) {
-        return {
-          student_id: studentId,
-          grades,
-          average: 0,
-          highest: 0,
-          lowest: 0,
-        };
-      }
-
-      return {
-        student_id: studentId,
-        grades,
-        average: validScores.reduce((a, b) => a + b, 0) / validScores.length,
-        highest: Math.max(...validScores),
-        lowest: Math.min(...validScores),
-      };
-    } catch (error) {
-      console.error(error);
-      return {
-        student_id: studentId,
-        grades: [],
-        average: 0,
-        highest: 0,
-        lowest: 0,
-      };
-    }
+    return {
+      student_id: studentId,
+      grades,
+      average: validScores.length ? validScores.reduce((a, b) => a + b, 0) / validScores.length : 0,
+      highest: validScores.length ? Math.max(...validScores) : 0,
+      lowest: validScores.length ? Math.min(...validScores) : 0,
+    };
   },
 
   async createGrade(tenantId: string, data: GradeFormData) {
@@ -146,20 +116,15 @@ export const gradesService = {
   },
 
   async upsertGrade(tenantId: string, data: GradeFormData) {
-    try {
-      // We don't have a direct upsert on FastAPI, try to list grades first to see if it exists
-      const response = await apiClient.get(`/grades/?student_id=${data.student_id}`);
-      const list = response.data?.items || response.data || [];
-      const existing = list.find((g: any) => g.assessment_id === data.assessment_id);
-
-      if (existing && existing.id) {
-        return this.updateGrade(existing.id, data);
-      } else {
-        return this.createGrade(tenantId, data);
-      }
-    } catch (error) {
-      return this.createGrade(tenantId, data);
+    // Only a successful lookup may authorize a create. A failed lookup
+    // (network outage / 403 / 500) is NOT proof the grade is absent.
+    const response = await apiClient.get(`/grades/?student_id=${data.student_id}`);
+    const list = response.data?.items || response.data || [];
+    const existing = list.find((g: Grade) => g.assessment_id === data.assessment_id);
+    if (existing?.id) {
+      return this.updateGrade(existing.id, data);
     }
+    return this.createGrade(tenantId, data);
   },
 
   async deleteGrade(id: string) {
