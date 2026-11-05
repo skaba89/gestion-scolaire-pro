@@ -1916,62 +1916,28 @@ def _compute_average(grades: list) -> float:
 
 
 def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, student_id: str) -> Tuple[int, int]:
-    """Return (rank, total) for the student in this class/term. rank=0 if not computable.
-
-    Fix (found writing tests for the batch endpoint, 2026-08-22), two
-    independent SQLite-only bugs, both silently swallowed by the
-    except-and-return-(0,0) below — production, on real PostgreSQL, was
-    never affected by either:
-    1. `g.score::float` is PostgreSQL-only cast syntax, a SQLite syntax
-       error. Replaced with the portable `CAST(g.score AS FLOAT)`.
-    2. classroom_id/tenant_id/term_id were bound as plain strings — a
-       dashed UUID string compared against SQLite's dash-less GUID
-       storage (see app/models/base.py's TypeDecorator) silently matches
-       zero rows there. Now bound through that same TypeDecorator via
-       bindparam(type_=GUID()), same fix already applied elsewhere in
-       this codebase (crud/grade.py, workers/tasks.py, notifications.py).
+    """Use the same period-filtered grades, weighted average, and tie rules
+    as the classroom batch bulletin, so individual and batch ranks agree.
+    Missing grades produce rank 0, not a fabricated position.
     """
-    try:
-        stmt = text("""
-            SELECT
-                e.student_id,
-                CASE WHEN SUM(COALESCE(subj.coefficient, g.coefficient, 1)) > 0
-                     THEN SUM((CAST(g.score AS FLOAT) / NULLIF(g.max_score,0)) * 20
-                              * COALESCE(subj.coefficient, g.coefficient, 1))
-                          / SUM(COALESCE(subj.coefficient, g.coefficient, 1))
-                     ELSE -1
-                END AS avg
-            FROM enrollments e
-            LEFT JOIN grades g
-                ON g.student_id = e.student_id AND g.tenant_id = :tid
-            LEFT JOIN assessments a
-                ON g.assessment_id = a.id AND a.term_id = :term_id
-            LEFT JOIN subjects subj ON a.subject_id = subj.id
-            WHERE e.class_id   = :cid
-              AND e.tenant_id  = :tid
-              AND e.status     = 'ACTIVE'
-            GROUP BY e.student_id
-            ORDER BY avg DESC NULLS LAST
-        """).bindparams(
-            bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()),
-        )
-        rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
+    stmt = text("""
+        SELECT e.student_id
+        FROM enrollments e
+        WHERE e.class_id = :cid AND e.tenant_id = :tid AND e.status = 'ACTIVE'
+        ORDER BY e.student_id
+    """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
+    rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id}).mappings().all()
+    student_ids = [str(UUID(str(row["student_id"]))) for row in rows]
+    target_id = str(UUID(str(student_id)))
+    if target_id not in student_ids:
+        return 0, len(student_ids)
 
-        total = len(rows)
-        # Normalize through UUID parsing, not a plain string compare: a raw
-        # text() query's output column isn't decoded by the GUID
-        # TypeDecorator (that only applies to ORM-mapped columns), so on
-        # SQLite r["student_id"] comes back dash-less while the caller's
-        # student_id is a normal dashed string — UUID(...) parses either
-        # form to the same value, on both dialects.
-        target = UUID(str(student_id))
-        for idx, r in enumerate(rows, 1):
-            if UUID(str(r["student_id"])) == target:
-                return idx, total
-        return 0, total
-    except Exception as exc:
-        logger.warning("Class rank computation failed: %s", exc)
-        return 0, 0
+    grades_by_student = _fetch_grades_for_term_batch(db, classroom_id, term_id, tenant_id)
+    # Normalize UUIDs for SQLite (32-char hex) and PostgreSQL (UUID objects).
+    normalized_grades = {
+        str(UUID(str(sid))): grades for sid, grades in grades_by_student.items()
+    }
+    return _rank_batch_from_bulletin_grades(student_ids, normalized_grades)[target_id]
 
 
 def _compute_class_ranks_batch(db, classroom_id: str, term_id: str, tenant_id: str) -> dict:
