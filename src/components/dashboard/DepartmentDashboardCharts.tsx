@@ -6,7 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
-import { filterDepartmentClassrooms } from "@/utils/departmentClassrooms";
+import { parseDepartmentClassrooms } from "@/utils/departmentClassrooms";
 import { useClassrooms } from "@/queries/classrooms";
 import { buildDepartmentEnrollmentCounts, parseDepartmentEnrollmentResponse } from "@/utils/departmentEnrollmentCounts";
 import { buildDepartmentAttendanceTrends } from "@/utils/departmentAttendanceTrends";
@@ -22,16 +22,16 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardChartsProps) {
   const { tenant } = useTenant();
   const { StudentsLabel } = useStudentLabel();
-  const { data: tenantClassrooms = [] } = useClassrooms(tenant?.id || "");
+  const { data: tenantClassrooms = [], isError: tenantClassroomsError } = useClassrooms(tenant?.id || "");
 
   // Get classrooms for this department
-  const { data: departmentClassrooms } = useQuery({
+  const { data: departmentClassrooms, isError: departmentClassroomsError } = useQuery({
     queryKey: ['department-classrooms-ids', departmentId, tenant?.id],
     queryFn: async () => {
       // The infrastructure endpoint returns all departments of the authenticated tenant.
       // Filter by department here; it does not accept department_id as a filter.
       const { data: cdData } = await apiClient.get('/infrastructure/classroom-departments/');
-      return filterDepartmentClassrooms(cdData, departmentId);
+      return parseDepartmentClassrooms(cdData, departmentId);
     },
     enabled: !!departmentId && !!tenant?.id,
   });
@@ -150,6 +150,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">{StudentsLabel} par classe</CardTitle>
+          {(departmentClassroomsError || tenantClassroomsError) && <p role="alert" className="text-sm text-destructive">Impossible de charger les classes du département</p>}
           {studentsPerClassroomError && <p role="alert" className="text-sm text-destructive">Impossible de charger les effectifs</p>}
         </CardHeader>
         <CardContent>

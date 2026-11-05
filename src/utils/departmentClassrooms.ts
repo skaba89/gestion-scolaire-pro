@@ -23,3 +23,20 @@ export function filterDepartmentClassrooms(
       entry.department_id === departmentId
   );
 }
+
+
+/** Strict parser for the dashboard. An invalid server response is not an empty department. */
+export function parseDepartmentClassrooms(
+  response: unknown,
+  departmentId: string,
+): ClassroomDepartmentAssociation[] {
+  if (!Array.isArray(response) || response.some(entry =>
+    !entry ||
+    typeof entry !== 'object' ||
+    typeof entry.class_id !== 'string' ||
+    typeof entry.department_id !== 'string'
+  )) {
+    throw new Error('Format des associations classes-départements inattendu');
+  }
+  return filterDepartmentClassrooms(response, departmentId);
+}
