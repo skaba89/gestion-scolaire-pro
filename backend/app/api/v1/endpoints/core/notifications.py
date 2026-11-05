@@ -141,6 +141,7 @@ def delete_subscription(
 
 @router.get("/")
 def read_notifications(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     limit: int = Query(50, ge=1, le=100),
@@ -148,9 +149,10 @@ def read_notifications(
 ):
     """Get notification history for current user (raw SQL, avoids ORM UUID type issues)."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
-        where = "user_id = :user_id"
-        params: dict = {"user_id": user_id, "limit": limit}
+        where = "user_id = :user_id AND tenant_id = :tenant_id"
+        params: dict = {"user_id": user_id, "tenant_id": tenant_id, "limit": limit}
         if unread_only:
             where += " AND is_read = FALSE"
         rows = db.execute(text(f"""
@@ -163,8 +165,8 @@ def read_notifications(
         """), params).mappings().all()
         return [dict(r) for r in rows]
     except Exception as e:
-        logging.getLogger(__name__).warning("read_notifications failed: %s", e)
-        return []
+        logging.getLogger(__name__).error("read_notifications failed: %s", e)
+        raise HTTPException(status_code=500, detail="Unable to read notifications")
 
 @router.post("/", response_model=NotificationResponse)
 def create_notification(
@@ -375,6 +377,7 @@ async def send_whatsapp_test_message(
 
 @router.patch("/{notification_id}/", response_model=NotificationResponse)
 def update_notification(
+    request: Request,
     notification_id: UUID,
     update_in: NotificationUpdate,
     db: Session = Depends(get_db),
@@ -382,9 +385,11 @@ def update_notification(
 ):
     """Update notification status (mark as read)."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     notification = db.query(Notification).filter(
         Notification.id == notification_id,
-        Notification.user_id == user_id
+        Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
     ).first()
     
     if not notification:
@@ -399,13 +404,16 @@ def update_notification(
 
 @router.post("/mark-all-read/")
 def mark_all_as_read(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Mark all notifications as read for current user."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.query(Notification).filter(
-        Notification.user_id == user_id, 
+        Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
         Notification.is_read == False
     ).update({"is_read": True})
     db.commit()
@@ -413,28 +421,34 @@ def mark_all_as_read(
 
 @router.delete("/{notification_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_notification(
+    request: Request,
     notification_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Delete a specific notification."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.query(Notification).filter(
         Notification.id == notification_id,
-        Notification.user_id == user_id
+        Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
     ).delete()
     db.commit()
     return None
 
 @router.delete("/clear-read/", status_code=status.HTTP_204_NO_CONTENT)
 def clear_read_notifications(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Delete all read notifications for current user."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.query(Notification).filter(
         Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
         Notification.is_read == True
     ).delete()
     db.commit()
