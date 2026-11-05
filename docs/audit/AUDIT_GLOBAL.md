@@ -1,3 +1,15 @@
+## Lot relevé officiel parent — 2026-11-05, après #382
+
+PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : la fiche enfant ne calcule
+plus un relevé modifiable côté navigateur et n'appelle plus une route absente.
+Le PDF multi-années est produit par le serveur à partir du calcul académique
+commun, après contrôle famille/tenant. Détail : `PARENT_TRANSCRIPT_20261105.md`.
+Mesures proposées : 46 écarts API distincts (47 avant), 174 erreurs TypeScript
+préexistantes (référence 178), 0 erreur et 1 899 avertissements ESLint. Score interne conservé
+à 60/100, non certifié ; CI de la PR à confirmer, aucun déploiement.
+
+---
+
 ## Lot bulletins parents — 2026-11-05, après #381
 
 PARENT-BUL-01 / PARENT-NOTES-01 (P1), **correctif proposé** : bulletin PDF

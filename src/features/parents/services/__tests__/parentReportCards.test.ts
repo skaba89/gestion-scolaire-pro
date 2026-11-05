@@ -51,4 +51,16 @@ describe("Notes et bulletins du parent", () => {
     post.mockResolvedValue({ data: new Blob(['{"error":true}'], { type: "application/json" }) });
     await expect(parentsService.generateReportCard("s1", "term-1")).rejects.toThrow();
   });
+  it("demande le relevé officiel avec le seul identifiant élève", async () => {
+    const pdf = new Blob(["%PDF-transcript"], { type: "application/pdf" });
+    post.mockResolvedValue({ data: pdf });
+    expect(await parentsService.generateTranscript("s1")).toBe(pdf);
+    expect(post).toHaveBeenCalledExactlyOnceWith("/parents/transcript/generate/", {
+      student_id: "s1",
+    }, { responseType: "blob" });
+  });
+  it("rejette un faux relevé JSON", async () => {
+    post.mockResolvedValue({ data: new Blob(['{"html":"fake"}'], { type: "application/json" }) });
+    await expect(parentsService.generateTranscript("s1")).rejects.toThrow();
+  });
 });

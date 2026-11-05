@@ -25,6 +25,8 @@ from app.models.subject import Subject
 from app.models.assessment import Assessment
 from app.models.grade import Grade
 from app.api.v1.endpoints.operational import school_life
+from app.api.v1.endpoints.academic import transcripts
+from app.api.v1.endpoints.operational import parents
 
 
 @pytest.fixture
@@ -249,3 +251,85 @@ def test_real_parent_pdf_uses_same_weighted_average_as_school_bulletin(ctx):
     assert response.status_code == 200, response.text
     assert response.content.startswith(b"%PDF-")
     assert metadata[0]["average"] == "11.40"
+
+
+def _transcript(ctx, **extra):
+    return client.post(
+        "/api/v1/parents/transcript/generate/",
+        json={"student_id": ctx["sid"], **extra},
+        headers=_headers(ctx),
+    )
+
+
+def test_parent_transcript_uses_server_years_and_ignores_forged_academic_data(ctx):
+    def build_data(*, academic_year_id, **_kwargs):
+        return {
+            "student": {"id": ctx["sid"], "first_name": "Awa", "last_name": "Bah"},
+            "academic_year_id": academic_year_id,
+            "periods": [],
+            "annual_average": None,
+            "annual_average_ects_weighted": None,
+            "ects_earned": 0,
+            "ects_possible": 0,
+        }
+
+    with patch.object(transcripts, "build_transcript_data", side_effect=build_data, create=True) as build, \
+         patch.object(parents, "_render_parent_transcript_pdf", return_value=b"%PDF-server", create=True) as render:
+        response = _transcript(ctx, academic_years=[{"average": 20}], tenant={"name": "Faux"})
+
+    assert response.status_code == 200, response.text
+    assert response.content == b"%PDF-server"
+    assert response.headers["content-type"] == "application/pdf"
+    assert [call.kwargs["academic_year_id"] for call in build.call_args_list] == [ctx["year"], ctx["current_year"]]
+    rendered_years = render.call_args.kwargs["academic_years"]
+    assert [row["year_name"] for row in rendered_years] == ["2025-2026", "2026-2027"]
+    assert all("average" not in row for row in rendered_years)
+
+
+def test_parent_transcript_refuses_unlinked_student_before_calculation(ctx):
+    with patch.object(transcripts, "build_transcript_data", create=True) as build:
+        response = _transcript(ctx, student_id=ctx["stranger"])
+    assert response.status_code == 403
+    build.assert_not_called()
+
+
+def test_parent_transcript_requires_real_enrollment_history(ctx):
+    with SessionLocal() as db:
+        db.query(Enrollment).filter(Enrollment.tenant_id == ctx["tid"], Enrollment.student_id == ctx["sid"]).delete()
+        db.commit()
+    with patch.object(transcripts, "build_transcript_data", create=True) as build:
+        response = _transcript(ctx)
+    assert response.status_code == 404
+    build.assert_not_called()
+
+
+def test_parent_transcript_database_failure_is_not_a_fake_document(ctx):
+    with patch("sqlalchemy.orm.Session.query", side_effect=SQLAlchemyError("outage")), \
+         patch.object(parents, "_render_parent_transcript_pdf", create=True) as render:
+        response = _transcript(ctx)
+    assert response.status_code == 503
+    render.assert_not_called()
+
+
+def test_parent_transcript_requires_identity_and_grade_permission(ctx):
+    assert client.post("/api/v1/parents/transcript/generate/", json={"student_id": ctx["sid"]}).status_code == 401
+    assert client.post("/api/v1/parents/transcript/generate/", json={}, headers=_headers(ctx)).status_code == 422
+    ctx["user"]["roles"] = []
+    assert _transcript(ctx).status_code == 403
+
+
+@pytest.mark.skipif(engine.dialect.name != "postgresql", reason="Relevé et rendu PDF avec UUID PostgreSQL réels")
+def test_real_parent_transcript_pdf_reuses_authoritative_academic_calculations(ctx):
+    captured = []
+    original = parents._render_parent_transcript_pdf
+
+    def capture(**kwargs):
+        captured.extend(kwargs["academic_years"])
+        return original(**kwargs)
+
+    with patch.object(parents, "_render_parent_transcript_pdf", side_effect=capture):
+        response = _transcript(ctx)
+    assert response.status_code == 200, response.text
+    assert response.content.startswith(b"%PDF-")
+    historical = next(row for row in captured if row["academic_year_id"] == ctx["year"])
+    assert historical["annual_average"] == 11.4

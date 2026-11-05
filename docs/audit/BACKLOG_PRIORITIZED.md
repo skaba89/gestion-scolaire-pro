@@ -1,3 +1,16 @@
+## Lot relevé officiel parent — 2026-11-05, après #382
+
+PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : PDF multi-années calculé
+exclusivement par le serveur, rattachement famille/tenant obligatoire, vrai
+fichier PDF et erreurs visibles. Tests locaux ciblés verts ; test PostgreSQL
+réel et six jobs du HEAD à confirmer par CI. Détail :
+`PARENT_TRANSCRIPT_20261105.md`. Écarts API proposés : 46 (47 avant).
+
+Restent hors lot : consentement des élèves majeurs, archivage/signature du
+document, route partagée d'inscription, offline, charge et recette pilote.
+
+---
+
 ## Lot bulletins parents — 2026-11-05, après #381
 
 PARENT-BUL-01 / PARENT-NOTES-01 (P1), **correctif proposé** : bulletin PDF

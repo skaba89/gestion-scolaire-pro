@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-05 (commit `feature/parent-report-cards-server-data-20261105`)
+# Matrice des écrans — statique, 2026-11-05 (commit `feature/parent-authoritative-transcript-pdf-20261105`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -9,14 +9,14 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 15 |
-| À VÉRIFIER | 31 |
+| DÉFECTUEUX | 14 |
+| À VÉRIFIER | 32 |
 | NON VÉRIFIÉ | 99 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (15)
+## DÉFECTUEUX (14)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -31,12 +31,11 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/VideoMeetings.tsx` | 14 | GET /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>POST /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>PATCH /communication/video-meetings/X (pages/admin/VideoMeetings.tsx) |
 | Department | `department/DepartmentDashboard.tsx` | 16 | GET /classroom-departments (components/dashboard/DepartmentDashboardCharts.tsx) |
 | Parent | `parent/Appointments.tsx` | 18 | PUT /parents/appointment-slots/X (pages/parent/Appointments.tsx)<br>PUT /parents/appointments/X (pages/parent/Appointments.tsx) |
-| Parent | `parent/ChildDetail.tsx` | 26 | POST /parents/transcript/generate (pages/parent/ChildDetail.tsx)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Parent | `parent/ParentDashboard.tsx` | 43 | GET /students/terms/X (utils/riskAssessment.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts)<br>(partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
+| Parent | `parent/ParentDashboard.tsx` | 44 | GET /students/terms/X (utils/riskAssessment.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts)<br>(partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
 | Teacher | `teacher/AppointmentSlots.tsx` | 17 | PATCH /school-life/appointment-slots/appointments/X (pages/teacher/AppointmentSlots.tsx)<br>POST /school-life/appointment-slots/bulk (pages/teacher/AppointmentSlots.tsx) |
 | Teacher | `teacher/ClassSessionAttendance.tsx` | 19 | PATCH /school-life/check-ins/sessions/${activeSession (pages/teacher/ClassSessionAttendance.tsx) |
 
-## À VÉRIFIER (31)
+## À VÉRIFIER (32)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -62,10 +61,11 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Subjects.tsx` | 50 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Admin | `admin/Surveys.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Teachers.tsx` | 45 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
-| Parent | `parent/Children.tsx` | 28 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Parent | `parent/Invoices.tsx` | 29 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Parent | `parent/Messages.tsx` | 42 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Parent | `parent/ReportCards.tsx` | 27 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/ChildDetail.tsx` | 26 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/Children.tsx` | 29 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/Invoices.tsx` | 30 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/Messages.tsx` | 43 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
+| Parent | `parent/ReportCards.tsx` | 28 | (partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
 | Student | `student/PreRegistration.tsx` | 35 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts) |
 | Student | `student/StudentCareers.tsx` | 38 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts) |
 | Student | `student/StudentDashboard.tsx` | 29 | (partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |

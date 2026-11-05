@@ -187,31 +187,26 @@ def _capitalized_ects(periods: list[dict]) -> tuple[float, float]:
     return earned, possible
 
 
-@router.get("/{student_id}/")
-def get_student_transcript(
-    request: Request,
-    student_id: UUID,
-    academic_year_id: UUID = Query(..., description="Année académique à couvrir"),
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("grades:read")),
-):
-    """Relevé de notes complet pour une année académique : détail par
-    période (trimestre/semestre) et par matière/UE, avec ECTS acquis.
-    """
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        raise HTTPException(status_code=403, detail="Contexte établissement requis")
+def build_transcript_data(
+    *, db: Session, current_user: dict, tenant_id: str,
+    student_id: str, academic_year_id: str,
+) -> dict:
+    """Build the authoritative transcript payload used by every renderer.
 
+    Keeping the API response and official PDF on this single calculation path
+    prevents the parent portal from recomputing marks, coefficients or ECTS in
+    the browser from client-controlled data.
+    """
     student = db.execute(text("""
         SELECT first_name, last_name, registration_number
         FROM students WHERE id = :sid AND tenant_id = :tid
-    """), {"sid": str(student_id), "tid": tenant_id}).mappings().first()
+    """), {"sid": student_id, "tid": tenant_id}).mappings().first()
     if not student:
         raise HTTPException(status_code=404, detail="Élève/étudiant introuvable")
-    if not _can_view_transcript(db, current_user=current_user, student_id=str(student_id), tenant_id=tenant_id):
+    if not _can_view_transcript(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id):
         raise HTTPException(status_code=403, detail="Accès non autorisé à ce relevé de notes")
 
-    terms = _fetch_terms_for_year(db, str(academic_year_id), tenant_id)
+    terms = _fetch_terms_for_year(db, academic_year_id, tenant_id)
     # Moyenne de passage de l'établissement (règles académiques), 10/20 par défaut.
     pass_threshold = effective_rules(db, tenant_id)["passing_grade"]
     if not terms:
@@ -223,7 +218,7 @@ def get_student_transcript(
     annual_ects_denominator = 0.0
 
     for term in terms:
-        grades = _fetch_grades_for_term_with_ects(db, str(student_id), str(term["id"]), tenant_id)
+        grades = _fetch_grades_for_term_with_ects(db, student_id, str(term["id"]), tenant_id)
         subjects = _summarize_subject_grades(grades, pass_threshold)
 
         # Aggregate unrounded subject means, using stable subject IDs.
@@ -265,12 +260,12 @@ def get_student_transcript(
 
     return {
         "student": {
-            "id": str(student_id),
+            "id": student_id,
             "first_name": student["first_name"],
             "last_name": student["last_name"],
             "registration_number": student["registration_number"],
         },
-        "academic_year_id": str(academic_year_id),
+        "academic_year_id": academic_year_id,
         "periods": periods,
         "annual_average": (
             round(sum(term_averages_raw) / len(term_averages_raw), 2)
@@ -283,3 +278,26 @@ def get_student_transcript(
         "ects_earned": total_ects_earned,
         "ects_possible": total_ects_possible,
     }
+
+
+@router.get("/{student_id}/")
+def get_student_transcript(
+    request: Request,
+    student_id: UUID,
+    academic_year_id: UUID = Query(..., description="Année académique à couvrir"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """Relevé de notes complet pour une année académique : détail par
+    période (trimestre/semestre) et par matière/UE, avec ECTS acquis.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Contexte établissement requis")
+    return build_transcript_data(
+        db=db,
+        current_user=current_user,
+        tenant_id=tenant_id,
+        student_id=str(student_id),
+        academic_year_id=str(academic_year_id),
+    )

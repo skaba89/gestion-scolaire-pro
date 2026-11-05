@@ -1,11 +1,11 @@
-# Appels frontend sans route backend — lot bulletins parents, 2026-11-05
+# Appels frontend sans route backend — lot relevé officiel parent, 2026-11-05
 
-Base : `c32225ce1a26f5be5640a2014a1ecdb052664dbf` (main après #381).
-Mesures du code proposé : **647 opérations**, 984 appels, 21 URL dynamiques
-non vérifiables, **50 occurrences = 47 clés distinctes** sans opération
-(48 avant). La route d'inscription parent inexistante est remplacée par une
-résolution serveur lors de la génération du PDF ; aucune fonction supprimée.
-Voir `PARENT_REPORT_CARDS_20261105.md` et la PR pour les preuves d'exécution.
+Base : `5e89d7089be21215203d0f46cedf0c660e575fd1` (`main` après #382).
+Mesures du code proposé : **648 opérations**, 984 appels, 21 URL dynamiques
+non vérifiables, **49 occurrences = 46 clés distinctes** sans opération
+(47 avant). `POST /parents/transcript/generate` est désormais une opération
+réelle ; aucune fonction métier n'a été supprimée pour réduire la mesure.
+Voir `PARENT_TRANSCRIPT_20261105.md` et la PR pour les preuves d'exécution.
 L'analyse statique seule ne valide ni corps, ni réponses, ni permissions.
 
 ## Chemin absent
@@ -28,7 +28,7 @@ GET /library/marketplace  (src/queries/admin.ts:634)
 GET /school-life/early-warnings  (src/pages/admin/EarlyWarnings.tsx:51)
 GET /school-life/sponsorships  (src/pages/admin/Sponsorships.tsx:60)
 GET /school-life/success-plans  (src/pages/admin/SuccessPlans.tsx:77)
-GET /students/X/enrollment  (src/features/parents/services/parentsService.ts:169)
+GET /students/X/enrollment  (src/features/parents/services/parentsService.ts:178)
 GET /students/X/enrollment  (src/features/students/services/studentsService.ts:93)
 GET /students/terms/X  (src/utils/riskAssessment.ts:124)
 GET /teachers/X/schedule  (src/hooks/queries/useTeachers.ts:121)
@@ -42,7 +42,6 @@ POST /academic/courses/lessons/quiz  (src/queries/admin.ts:624)
 POST /communication/document-signatories  (src/pages/admin/ElectronicSignatures.tsx:106)
 POST /communication/electronic-documents  (src/pages/admin/ElectronicSignatures.tsx:85)
 POST /communication/video-meetings  (src/pages/admin/VideoMeetings.tsx:73)
-POST /parents/transcript/generate  (src/pages/parent/ChildDetail.tsx:200)
 POST /school-life/sponsorships  (src/pages/admin/Sponsorships.tsx:118)
 POST /school-life/success-plans  (src/pages/admin/SuccessPlans.tsx:86)
 POST /students/term-results/bulk  (src/utils/pedagogicalEngine.ts:169)

@@ -34,7 +34,6 @@
   "POST /communication/document-signatories",
   "POST /communication/electronic-documents",
   "POST /communication/video-meetings",
-  "POST /parents/transcript/generate",
   "POST /school-life/appointment-slots/bulk",
   "POST /school-life/sponsorships",
   "POST /school-life/success-plans",
