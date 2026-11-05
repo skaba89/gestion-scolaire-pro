@@ -2055,8 +2055,11 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
             by_student.setdefault(str(r["student_id"]), []).append(dict(r))
         return by_student
     except Exception as exc:
-        logger.warning("Batch grades fetch failed: %s", exc)
-        return {}
+        # Returning an empty mapping silently prints every report card as
+        # "no grades", even when the database query actually failed.
+        # Fail closed so no incomplete bulletins are issued.
+        logger.error("Batch grades fetch failed: %s", exc, exc_info=True)
+        raise
 
 
 def _fetch_absences_batch(db, classroom_id: str, start_date, end_date, tenant_id: str) -> dict:
