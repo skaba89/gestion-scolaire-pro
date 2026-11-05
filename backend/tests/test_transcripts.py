@@ -361,3 +361,63 @@ class TestDistinctSubjectIdentity:
         assert result["ects_possible"] == 10.0
         assert result["annual_average"] == 11.4
         assert result["annual_average_ects_weighted"] == 13.2
+
+
+class TestAlumniTranscriptOwnership:
+    """ALUMNI has grades:read and can only access their own record."""
+
+    @pytest.mark.skipif(
+        engine.dialect.name != "postgresql",
+        reason="Raw transcript SQL uses PostgreSQL UUID columns.",
+    )
+    def test_alumni_can_read_own_transcript(self):
+        ctx = _build_transcript_fixture()
+        user_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(User(
+                id=user_id, tenant_id=ctx["tenant_id"],
+                email=f"{user_id[:8]}@example.com",
+                username=f"alumni-{user_id[:8]}", is_active=True,
+            ))
+            db.commit()
+            student = db.query(Student).filter(
+                Student.id == ctx["student_id"],
+                Student.tenant_id == ctx["tenant_id"],
+            ).one()
+            student.user_id = user_id
+            db.commit()
+
+        response = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=_as({
+                "id": user_id, "roles": ["ALUMNI"],
+                "tenant_id": ctx["tenant_id"],
+            }),
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["student"]["id"] == ctx["student_id"]
+
+    @pytest.mark.skipif(
+        engine.dialect.name != "postgresql",
+        reason="Raw transcript SQL uses PostgreSQL UUID columns.",
+    )
+    def test_alumni_cannot_read_other_students_transcript(self):
+        ctx = _build_transcript_fixture()
+        user_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(User(
+                id=user_id, tenant_id=ctx["tenant_id"],
+                email=f"{user_id[:8]}@example.com",
+                username=f"alumni-other-{user_id[:8]}", is_active=True,
+            ))
+            db.commit()
+        response = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=_as({
+                "id": user_id, "roles": ["ALUMNI"],
+                "tenant_id": ctx["tenant_id"],
+            }),
+        )
+        assert response.status_code == 403, response.text
