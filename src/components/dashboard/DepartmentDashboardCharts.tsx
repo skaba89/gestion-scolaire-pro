@@ -41,12 +41,17 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
         const { data: enrollData } = await apiClient.get('/enrollments/', {
           params: { tenant_id: tenant?.id || '', status: 'active', class_ids: classroomIds.join(',') },
         });
-        const enrollmentsList = enrollData.data || enrollData || [];
+        if (!Array.isArray(enrollData)) {
+          throw new Error('Format des inscriptions inattendu');
+        }
+        const enrollmentsList = enrollData;
 
         // Count per classroom
         const counts: Record<string, { name: string; count: number }> = {};
+        const allowedClassIds = new Set(classroomIds);
         enrollmentsList.forEach((e: any) => {
           const id = e.class_id;
+          if (!allowedClassIds.has(id)) return;
           const name = e.classrooms?.name || 'Non défini';
           if (!counts[id]) counts[id] = { name, count: 0 };
           counts[id].count++;
