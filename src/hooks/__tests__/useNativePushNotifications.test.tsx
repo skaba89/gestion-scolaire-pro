@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
+  delete: vi.fn(),
 }));
 
 vi.mock('@capacitor/core', () => ({
@@ -31,7 +32,7 @@ vi.mock('@/api/client', () => ({
   apiClient: {
     post: mocks.post,
     put: mocks.put,
-    delete: vi.fn(),
+    delete: mocks.delete,
   },
 }));
 
@@ -48,6 +49,7 @@ describe('native push subscription API contract', () => {
     vi.clearAllMocks();
     mocks.addListener.mockResolvedValue({ remove: mocks.remove });
     mocks.post.mockResolvedValue({ data: {} });
+    mocks.delete.mockResolvedValue({ data: {} });
   });
 
   it('uses POST /push-subscriptions/upsert/ with the registered device token', async () => {
@@ -105,13 +107,53 @@ describe('native push subscription API contract', () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
-  it('unregister removes its own listeners without clearing other plugin listeners', async () => {
+  it('keeps mounted listeners alive after unsubscribe so registration still works', async () => {
     const { result, unmount } = renderHook(() => useNativePushNotifications());
     await waitFor(() => expect(mocks.addListener).toHaveBeenCalledTimes(4));
+
+    const registration = mocks.addListener.mock.calls.find(
+      ([event]) => event === 'registration',
+    )?.[1] as ((token: { value: string }) => Promise<void>) | undefined;
+    expect(registration).toBeDefined();
+
+    await act(async () => {
+      await registration!({ value: 'first-token' });
+    });
+    expect(result.current.token).toBe('first-token');
+
     await act(async () => {
       await result.current.unregister();
     });
-    expect(mocks.remove).toHaveBeenCalledTimes(4);
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(result.current.token).toBeNull();
+
+    await act(async () => {
+      await registration!({ value: 'second-token' });
+    });
+    expect(mocks.post).toHaveBeenCalledWith('/push-subscriptions/upsert/', expect.objectContaining({
+      endpoint: 'second-token',
+    }));
+    expect(result.current.token).toBe('second-token');
+
+    unmount();
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledTimes(4));
+  });
+
+  it('deletes only the active token, keeping other device subscriptions intact', async () => {
+    const { result, unmount } = renderHook(() => useNativePushNotifications());
+    await waitFor(() => expect(mocks.addListener).toHaveBeenCalledTimes(4));
+    const registration = mocks.addListener.mock.calls.find(
+      ([event]) => event === 'registration',
+    )?.[1] as ((token: { value: string }) => Promise<void>) | undefined;
+    await act(async () => {
+      await registration!({ value: 'current-device' });
+    });
+    await act(async () => {
+      await result.current.unregister();
+    });
+    expect(mocks.delete).toHaveBeenCalledWith('/push-subscriptions/', {
+      params: { endpoint: 'current-device' },
+    });
     unmount();
   });
 
