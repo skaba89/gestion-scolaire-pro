@@ -87,13 +87,14 @@ def compute_ects_weighted_average(grade_rows: list[dict]) -> Optional[float]:
     by_subject: dict[str, dict] = {}
     for g in grade_rows:
         name = g.get("subject_name") or "Matière inconnue"
+        key = str(g["subject_id"]) if g.get("subject_id") else name
         score = g.get("score")
         max_s = float(g.get("max_score") or 20)
         ects = float(g.get("ects") or 0)
-        if name not in by_subject:
-            by_subject[name] = {"scores": [], "ects": ects}
+        if key not in by_subject:
+            by_subject[key] = {"scores": [], "ects": ects}
         if score is not None:
-            by_subject[name]["scores"].append((float(score), max_s))
+            by_subject[key]["scores"].append((float(score), max_s))
 
     total_weighted = 0.0
     total_ects = 0.0
