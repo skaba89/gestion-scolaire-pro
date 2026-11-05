@@ -542,12 +542,15 @@ def get_enrollments(
     tenant_id: UUID,
     class_id: Optional[UUID] = None,
     status: Optional[str] = None,
+    academic_year_id: Optional[UUID] = None,
 ) -> List[Enrollment]:
     query = db.query(Enrollment).options(joinedload(Enrollment.student)).filter(
         Enrollment.tenant_id == tenant_id
     )
     if class_id is not None:
         query = query.filter(Enrollment.class_id == class_id)
+    if academic_year_id is not None:
+        query = query.filter(Enrollment.academic_year_id == academic_year_id)
     if status is not None:
         # Enrollment.status is stored uppercase (e.g. "ACTIVE") but callers
         # (useAttendance.ts) send lowercase — compare case-insensitively.
