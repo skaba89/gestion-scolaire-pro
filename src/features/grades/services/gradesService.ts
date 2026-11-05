@@ -95,11 +95,16 @@ export const gradesService = {
     const listRes = response.data;
     const grades = (listRes?.items || listRes || []) as unknown as (Grade & { assessments: Assessment })[];
     const validScores = grades.filter((g) => g.score !== undefined && g.score !== null).map((g) => g.score);
+    // Use the authoritative coefficient-weighted /20 average also used by
+    // report cards and transcripts. Raw grade scores can use other maxima.
+    const { data: averageData } = await apiClient.get<{ average: number; count: number }>(
+      `/grades/student/${encodeURIComponent(studentId)}/average/`
+    );
 
     return {
       student_id: studentId,
       grades,
-      average: validScores.length ? validScores.reduce((a, b) => a + b, 0) / validScores.length : 0,
+      average: averageData.average,
       highest: validScores.length ? Math.max(...validScores) : 0,
       lowest: validScores.length ? Math.min(...validScores) : 0,
     };
