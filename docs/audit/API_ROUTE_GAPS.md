@@ -1,13 +1,12 @@
-# Appels frontend sans route backend — lot devoirs du 2026-11-05
+# Appels frontend sans route backend — lot bulletins parents, 2026-11-05
 
-Référence de départ : `828a6f7158e555290c4c71b6beee28e7c213dc0c` (main après #380).
-Mesures du code proposé : **646 opérations**, 985 appels détectés,
-21 URL dynamiques non vérifiables, **51 occurrences = 48 clés distinctes**
-sans opération (49 clés avant). Le POST /homework-submissions/ de l'élève
-est remplacé par la route de remise existante ; la modification utilise
-une nouvelle route de contenu, distincte de la notation. Voir
-`HOMEWORK_SUBMISSIONS_20261105.md` et la PR pour les tests.
-L'analyse statique seule ne valide ni les permissions ni les corps/réponses.
+Base : `c32225ce1a26f5be5640a2014a1ecdb052664dbf` (main après #381).
+Mesures du code proposé : **647 opérations**, 984 appels, 21 URL dynamiques
+non vérifiables, **50 occurrences = 47 clés distinctes** sans opération
+(48 avant). La route d'inscription parent inexistante est remplacée par une
+résolution serveur lors de la génération du PDF ; aucune fonction supprimée.
+Voir `PARENT_REPORT_CARDS_20261105.md` et la PR pour les preuves d'exécution.
+L'analyse statique seule ne valide ni corps, ni réponses, ni permissions.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -26,11 +25,10 @@ GET /finance/invoices  (src/utils/cashFlowForecasting.ts:79)
 GET /hr/staff  (src/pages/admin/AdvancedExports.tsx:201)
 GET /inventory/orders/X/items  (src/queries/admin.ts:576)
 GET /library/marketplace  (src/queries/admin.ts:634)
-GET /parents/enrollments  (src/pages/parent/ReportCards.tsx:74)
 GET /school-life/early-warnings  (src/pages/admin/EarlyWarnings.tsx:51)
 GET /school-life/sponsorships  (src/pages/admin/Sponsorships.tsx:60)
 GET /school-life/success-plans  (src/pages/admin/SuccessPlans.tsx:77)
-GET /students/X/enrollment  (src/features/parents/services/parentsService.ts:136)
+GET /students/X/enrollment  (src/features/parents/services/parentsService.ts:169)
 GET /students/X/enrollment  (src/features/students/services/studentsService.ts:93)
 GET /students/terms/X  (src/utils/riskAssessment.ts:124)
 GET /teachers/X/schedule  (src/hooks/queries/useTeachers.ts:121)
