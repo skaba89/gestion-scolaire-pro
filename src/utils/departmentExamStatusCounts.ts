@@ -30,7 +30,7 @@ export function buildDepartmentExamStatusCounts(
       const date = item?.exam_date;
       // Compare ISO calendar dates, not timestamps; invalid/missing exam
       // dates cannot be counted as exams during a given month.
-      if (typeof date !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) continue;
+      if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
       if (startDate && date < startDate) continue;
       if (endDate && date > endDate) continue;
     }
