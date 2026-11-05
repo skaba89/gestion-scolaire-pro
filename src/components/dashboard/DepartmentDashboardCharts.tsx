@@ -8,7 +8,7 @@ import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { filterDepartmentClassrooms } from "@/utils/departmentClassrooms";
 import { useClassrooms } from "@/queries/classrooms";
-import { buildDepartmentEnrollmentCounts } from "@/utils/departmentEnrollmentCounts";
+import { buildDepartmentEnrollmentCounts, parseDepartmentEnrollmentResponse } from "@/utils/departmentEnrollmentCounts";
 import { buildDepartmentAttendanceTrends } from "@/utils/departmentAttendanceTrends";
 import { buildDepartmentGradeDistribution } from "@/utils/departmentGradeDistribution";
 import { buildDepartmentExamStatusCounts } from "@/utils/departmentExamStatusCounts";
@@ -39,25 +39,18 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
   const classroomIds = departmentClassrooms?.map(cd => cd.class_id) || [];
 
   // Students per classroom
-  const { data: studentsPerClassroom } = useQuery({
+  const { data: studentsPerClassroom, isError: studentsPerClassroomError } = useQuery({
     queryKey: ['students-per-classroom', classroomIds, tenant?.id, tenantClassrooms],
     queryFn: async () => {
       if (classroomIds.length === 0) return [];
-      try {
-        const { data: enrollData } = await apiClient.get('/enrollments/', {
-          params: { tenant_id: tenant?.id || '', status: 'active', class_ids: classroomIds.join(',') },
-        });
-        if (!Array.isArray(enrollData)) {
-          throw new Error('Format des inscriptions inattendu');
-        }
-        const enrollmentsList = enrollData;
+      const { data: enrollData } = await apiClient.get('/enrollments/', {
+        params: { status: 'active', class_ids: classroomIds.join(',') },
+      });
+      const enrollmentsList = parseDepartmentEnrollmentResponse(enrollData);
 
-        // Enrollment responses have student info but no classroom name.
-        // Resolve labels from the canonical tenant-scoped classrooms query.
-        return buildDepartmentEnrollmentCounts(enrollmentsList, classroomIds, tenantClassrooms);
-      } catch {
-        return [];
-      }
+      // Enrollment responses have student info but no classroom name.
+      // Resolve labels from the canonical tenant-scoped classrooms query.
+      return buildDepartmentEnrollmentCounts(enrollmentsList, classroomIds, tenantClassrooms);
     },
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
@@ -157,6 +150,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">{StudentsLabel} par classe</CardTitle>
+          {studentsPerClassroomError && <p role="alert" className="text-sm text-destructive">Impossible de charger les effectifs</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
