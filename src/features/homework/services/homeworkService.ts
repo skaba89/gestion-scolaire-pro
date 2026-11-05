@@ -16,8 +16,8 @@ export const homeworkService = {
     if (filters?.subjectId) params.subject_id = filters.subjectId;
     if (filters?.search) params.search = filters.search;
     if (filters?.dateRange) {
-      params.due_date_start = filters.dateRange[0];
-      params.due_date_end = filters.dateRange[1];
+      params.due_date_from = filters.dateRange[0];
+      params.due_date_to = filters.dateRange[1];
     }
 
     const { data } = await apiClient.get<any>("/homework/", { params });
@@ -56,7 +56,7 @@ export const homeworkService = {
    * Update homework
    */
   async updateHomework(id: string, data: Partial<HomeworkFormData>) {
-    const { data: result } = await apiClient.patch<Homework>(`/homework/${id}/`, data);
+    const { data: result } = await apiClient.put<Homework>(`/homework/${id}/`, data);
     return result;
   },
 
@@ -76,11 +76,9 @@ export const homeworkService = {
     tenantId: string,
     submissionData: Partial<HomeworkSubmission>
   ) {
-    const { data } = await apiClient.post<HomeworkSubmission>("/homework/submissions/", {
+    const { data } = await apiClient.post<HomeworkSubmission>(`/homework/${homeworkId}/submit/`, {
       homework_id: homeworkId,
       student_id: studentId,
-      tenant_id: tenantId,
-      submitted_at: new Date().toISOString(),
       ...submissionData,
     });
     return data;
@@ -94,10 +92,9 @@ export const homeworkService = {
     grade: number,
     feedback?: string
   ) {
-    const { data } = await apiClient.patch<HomeworkSubmission>(`/homework/submissions/${submissionId}/`, {
+    const { data } = await apiClient.post<HomeworkSubmission>(`/homework/submissions/${submissionId}/grade/`, {
       grade,
       feedback,
-      graded_at: new Date().toISOString(),
     });
     return data;
   },
