@@ -15,7 +15,6 @@
   "GET /hr/staff",
   "GET /inventory/orders/X/items",
   "GET /library/marketplace",
-  "GET /parents/enrollments",
   "GET /schedule/terms",
   "GET /school-life/early-warnings",
   "GET /school-life/sponsorships",

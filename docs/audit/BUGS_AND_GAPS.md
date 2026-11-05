@@ -1,3 +1,16 @@
+## Lot bulletins parents — 2026-11-05, après #381
+
+PARENT-BUL-01 / PARENT-NOTES-01 (P1), **correctif proposé** : bulletin PDF
+commun calculé sur le serveur, classe liée à l'année de la période, notes
+paginées par famille/période, métadonnées réelles et cache par établissement.
+Détail, tests et limites : `PARENT_REPORT_CARDS_20261105.md`.
+Mesures proposées : 47 écarts API distincts (48 avant), 175 erreurs TS
+préexistantes, 1 916 warnings ESLint (1 944 avant), 0 erreur ESLint.
+Score interne conservé à 60/100, non certifié ; pas d'annonce de déploiement.
+Les instantanés historiques suivants conservent leurs dates d'origine.
+
+---
+
 ## Lot remises de devoirs — 2026-11-05 (après #380)
 
 **HW-SUB-01, P1, correctif proposé** : POST élève sans route, édition envoyée

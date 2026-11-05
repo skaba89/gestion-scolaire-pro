@@ -14,6 +14,20 @@ export interface ParentInvoice {
 
 const UNPAID_STATUSES = new Set(["PENDING", "PARTIAL", "OVERDUE"]);
 
+export interface ParentGrade {
+    id: string;
+    student_id: string;
+    score: number | null;
+    max_score: number;
+    coefficient: number;
+    students: { id: string; first_name: string; last_name: string };
+    assessments: {
+        id: string; name: string; date: string | null; max_score: number; term_id: string | null;
+        subjects: { id: string | null; name: string; coefficient: number };
+        terms: { id: string; name: string } | null;
+    };
+}
+
 export const parentsService = {
     async getChildren(parentId: string) {
         if (!parentId) return [];
@@ -112,16 +126,35 @@ export const parentsService = {
         return data || [];
     },
 
-    async getGrades(studentIds: string[], selectedStudentId?: string) {
+    async getGrades(studentIds: string[], selectedStudentId?: string, termId?: string): Promise<ParentGrade[]> {
         if (!studentIds.length) return [];
-        const params: Record<string, string> = { limit: "100" };
+        const params: Record<string, string | number> = { page_size: 100 };
         if (selectedStudentId && selectedStudentId !== "all") {
+            if (!studentIds.includes(selectedStudentId)) throw new Error("Élève non rattaché à ce compte");
             params.student_id = selectedStudentId;
-        } else {
-            params.student_id = studentIds.join(",");
         }
-        const { data } = await apiClient.get<any>("/grades/", { params });
-        return Array.isArray(data) ? data : (data?.items ?? []);
+        if (termId) params.term_id = termId;
+        const items: ParentGrade[] = [];
+        for (let page = 1; page <= 200; page++) {
+            const { data } = await apiClient.get<{ items: ParentGrade[]; page: number; pages: number }>(
+                "/parents/grades/", { params: { ...params, page } },
+            );
+            if (!Array.isArray(data?.items) || data.page !== page || !Number.isInteger(data.pages) || data.pages < page) {
+                throw new Error("Réponse de notes invalide");
+            }
+            if (data.pages > 200) throw new Error("Volume de notes trop important ; sélectionnez un enfant et une période");
+            items.push(...data.items);
+            if (page === data.pages) return items;
+        }
+        throw new Error("Volume de notes trop important ; sélectionnez un enfant et une période");
+    },
+
+    async generateReportCard(studentId: string, termId: string): Promise<Blob> {
+        const { data } = await apiClient.post<Blob>("/parents/report-cards/generate/", {
+            student_id: studentId, term_id: termId,
+        }, { responseType: "blob" });
+        if (data?.type !== "application/pdf" || !data.size) throw new Error("Format de bulletin invalide");
+        return data;
     },
 
     async getStudentDetails(studentId: string) {

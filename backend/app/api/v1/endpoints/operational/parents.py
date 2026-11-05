@@ -1,9 +1,9 @@
 import logging
 import uuid
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from typing import List, Optional, Any
 from uuid import UUID
 from datetime import datetime
@@ -500,9 +500,10 @@ def get_parent_dashboard(
 
     # Fetch children IDs for this parent
     children_res = db.execute(text("""
-        SELECT student_id, students.first_name, students.last_name, students.registration_number, students.photo_url
+        SELECT student_id, students.first_name, students.last_name, students.registration_number, students.photo_url,
+               students.date_of_birth
         FROM parent_students
-        JOIN students ON parent_students.student_id = students.id
+        JOIN students ON parent_students.student_id = students.id AND students.tenant_id = parent_students.tenant_id
         WHERE parent_id = :parent_id AND parent_students.tenant_id = :tenant_id
     """), {"parent_id": parent_id, "tenant_id": tenant_id}).fetchall()
 
@@ -631,27 +632,23 @@ def list_parent_terms(
     current_user: dict = Depends(get_current_user),
 ):
     """List all terms for the tenant — parent portal alias."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        return []
     try:
-        rows = db.execute(text(
-            "SELECT id, name, start_date, end_date, academic_year_id, sequence_number, "
-            "is_active, created_at, updated_at "
-            "FROM terms WHERE tenant_id = :tid ORDER BY start_date"
-        ), {"tid": tenant_id}).fetchall()
-        result = []
-        for r in rows:
-            d = dict(r._mapping)
-            # Annotate academic year name
-            ay = db.execute(text(
-                "SELECT name FROM academic_years WHERE id = :ayid"
-            ), {"ayid": d.get("academic_year_id")}).first()
-            d["academic_year"] = {"name": ay.name} if ay else None
-            result.append(d)
-        return result
-    except Exception:
-        return []
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        from app.models.term import Term
+        from app.models.academic_year import AcademicYear
+        rows = db.query(Term, AcademicYear.name).outerjoin(
+            AcademicYear, and_(AcademicYear.id == Term.academic_year_id, AcademicYear.tenant_id == tenant_id),
+        ).filter(Term.tenant_id == tenant_id).order_by(Term.start_date, Term.id).all()
+        return [{
+            "id": str(term.id), "name": term.name, "start_date": term.start_date,
+            "end_date": term.end_date, "academic_year_id": str(term.academic_year_id),
+            "sequence_number": term.sequence_number, "is_active": term.is_active,
+            "created_at": term.created_at, "updated_at": term.updated_at,
+            "academic_year": {"name": year_name} if year_name else None,
+        } for term, year_name in rows]
+    except SQLAlchemyError as exc:
+        logger.error("Parent term lookup failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Impossible de charger les périodes pour le moment")
 
 
 # --- GET /parents/risk-scores/ --- Student risk scores for parent dashboard ---
@@ -1234,114 +1231,117 @@ def payment_return(
     }
 
 
-# --- POST /parents/report-cards/generate/ --- Generate report card (stub) ---
+# --- Notes et bulletins du portail parent ---
+
+def _parent_student_ids(db: Session, *, tenant_id: str, user_id: str) -> set[str]:
+    from app.models.student import Student
+    return {str(row[0]) for row in db.query(ParentStudentModel.student_id).join(
+        Student, and_(Student.id == ParentStudentModel.student_id, Student.tenant_id == tenant_id),
+    ).filter(ParentStudentModel.tenant_id == tenant_id, ParentStudentModel.parent_id == user_id).all()}
+
+
+@router.get("/grades/")
+def list_parent_grades(
+    request: Request,
+    student_id: Optional[UUID] = None,
+    term_id: Optional[UUID] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """Notes paginées de ses enfants avec les métadonnées réellement affichées."""
+    from app.models.grade import Grade
+    from app.models.assessment import Assessment
+    from app.models.subject import Subject
+    from app.models.student import Student
+    from app.models.term import Term
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        allowed = _parent_student_ids(db, tenant_id=tenant_id, user_id=current_user["id"])
+        if student_id and str(student_id) not in allowed:
+            raise HTTPException(status_code=404, detail="Élève introuvable")
+        if term_id and not db.query(Term.id).filter(Term.id == term_id, Term.tenant_id == tenant_id).first():
+            raise HTTPException(status_code=404, detail="Période introuvable")
+        selected = [str(student_id)] if student_id else list(allowed)
+        query = db.query(Grade, Assessment, Subject, Student, Term).join(
+            Assessment, and_(Assessment.id == Grade.assessment_id, Assessment.tenant_id == tenant_id),
+        ).join(Student, and_(Student.id == Grade.student_id, Student.tenant_id == tenant_id)).outerjoin(
+            Subject, and_(Subject.id == Assessment.subject_id, Subject.tenant_id == tenant_id),
+        ).outerjoin(Term, and_(Term.id == Assessment.term_id, Term.tenant_id == tenant_id)).filter(
+            Grade.tenant_id == tenant_id, Grade.student_id.in_(selected),
+        )
+        if term_id:
+            query = query.filter(Assessment.term_id == term_id)
+        total = query.count()
+        rows = query.order_by(Grade.created_at.desc(), Grade.id).offset((page - 1) * page_size).limit(page_size).all()
+        items = [{
+            "id": str(grade.id), "student_id": str(grade.student_id),
+            "score": grade.score, "max_score": grade.max_score, "coefficient": grade.coefficient,
+            "created_at": grade.created_at,
+            "students": {"id": str(student.id), "first_name": student.first_name, "last_name": student.last_name},
+            "assessments": {
+                "id": str(assessment.id), "name": assessment.name, "date": assessment.date,
+                "max_score": assessment.max_score,
+                "term_id": str(assessment.term_id) if assessment.term_id else None,
+                "subjects": {"id": str(subject.id) if subject else None,
+                             "name": subject.name if subject else "Matière inconnue",
+                             "coefficient": subject.coefficient if subject else 1},
+                "terms": {"id": str(period.id), "name": period.name} if period else None,
+            },
+        } for grade, assessment, subject, student, period in rows]
+        return {"items": items, "total": total, "page": page, "page_size": page_size,
+                "pages": max(1, math.ceil(total / page_size))}
+    except SQLAlchemyError as exc:
+        logger.error("Parent grade lookup failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Impossible de charger les notes pour le moment")
+
 
 class ReportCardGenerateRequest(BaseModel):
-    student_id: str
-    term_id: Optional[str] = None
+    student_id: UUID
+    term_id: UUID
 
 
-@router.post("/report-cards/generate/")
+@router.post("/report-cards/generate/", response_class=Response,
+             responses={200: {"content": {"application/pdf": {}}}})
 def generate_report_card(
     request: Request,
     body: ReportCardGenerateRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("grades:read")),
 ):
-    """Generate a report card for a student (parent portal stub).
-    Returns aggregated grades and attendance data for the requested term."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    user_id = current_user.get("id")
-    if not tenant_id or not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    # Verify the student belongs to this parent
-    link = db.execute(text(
-        "SELECT 1 FROM parent_students "
-        "WHERE parent_id = :uid AND student_id = :sid AND tenant_id = :tid"
-    ), {"uid": user_id, "sid": body.student_id, "tid": tenant_id}).first()
-    if not link:
-        raise HTTPException(status_code=403, detail="Student not linked to your account")
-
-    # Fetch student info
-    student = db.execute(text(
-        "SELECT s.id, s.first_name, s.last_name, s.registration_number, c.name as classroom_name "
-        "FROM students s LEFT JOIN classrooms c ON c.id = s.classroom_id "
-        "WHERE s.id = :sid AND s.tenant_id = :tid"
-    ), {"sid": body.student_id, "tid": tenant_id}).mappings().first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-
-    # Fetch grades with assessment/subject info
-    params: dict = {"student_id": body.student_id, "tenant_id": tenant_id}
-    term_filter = ""
-    if body.term_id:
-        term_filter = " AND a.term_id = :term_id"
-        params["term_id"] = body.term_id
-
-    grades = db.execute(text(f"""
-        SELECT g.score, g.created_at,
-               a.name as assessment_name, a.max_score, a.assessment_type,
-               s.name as subject_name
-        FROM grades g
-        JOIN assessments a ON g.assessment_id = a.id
-        LEFT JOIN subjects s ON a.subject_id = s.id
-        WHERE g.student_id = :student_id AND g.tenant_id = :tenant_id
-        AND g.score IS NOT NULL {term_filter}
-        ORDER BY s.name, a.name
-    """), params).fetchall()
-
-    # Fetch attendance summary
-    att_params: dict = {"student_id": body.student_id, "tenant_id": tenant_id}
-    att_term_filter = ""
-    if body.term_id:
-        att_term_filter = " AND a.term_id = :term_id"
-        att_params["term_id"] = body.term_id
-
-    attendance_summary = db.execute(text(f"""
-        SELECT a.status, COUNT(*) as count
-        FROM attendance a
-        WHERE a.student_id = :student_id AND a.tenant_id = :tenant_id
-        {att_term_filter}
-        GROUP BY a.status
-    """), att_params).fetchall()
-
-    # Build report card
-    subjects_data = {}
-    for g in grades:
-        subj = g.subject_name or "Unknown"
-        if subj not in subjects_data:
-            subjects_data[subj] = {"grades": [], "average": 0.0, "count": 0}
-        score = float(g.score or 0)
-        max_score = float(g.max_score or 20)
-        subjects_data[subj]["grades"].append({
-            "assessment": g.assessment_name,
-            "score": score,
-            "max_score": max_score,
-            "percentage": round((score / max_score * 100), 1) if max_score > 0 else 0,
-        })
-        subjects_data[subj]["count"] += 1
-
-    # Compute averages
-    for subj in subjects_data.values():
-        if subj["grades"]:
-            subj["average"] = round(
-                sum(g["percentage"] for g in subj["grades"]) / len(subj["grades"]), 1
-            )
-
-    return {
-        "student": {
-            "id": str(student["id"]),
-            "first_name": student["first_name"],
-            "last_name": student["last_name"],
-            "registration_number": student["registration_number"],
-            "classroom": student["classroom_name"],
-        },
-        "term_id": body.term_id,
-        "generated_at": datetime.now().isoformat(),
-        "subjects": subjects_data,
-        "attendance_summary": {row.status: row.count for row in attendance_summary},
-    }
+    """PDF commun aux bulletins scolaires ; aucun calcul transmis par le client."""
+    from app.models.term import Term
+    from app.models.enrollment import Enrollment
+    from app.models.classroom import Classroom
+    from app.api.v1.endpoints.operational import school_life
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        allowed = _parent_student_ids(db, tenant_id=tenant_id, user_id=current_user["id"])
+        if str(body.student_id) not in allowed:
+            raise HTTPException(status_code=403, detail="Cet élève n'est pas rattaché à votre compte")
+        period = db.query(Term).filter(Term.id == body.term_id, Term.tenant_id == tenant_id).first()
+        if not period:
+            raise HTTPException(status_code=404, detail="Période introuvable")
+        classrooms = db.query(Enrollment.class_id).join(
+            Classroom, and_(Classroom.id == Enrollment.class_id, Classroom.tenant_id == tenant_id),
+        ).filter(Enrollment.tenant_id == tenant_id, Enrollment.student_id == body.student_id,
+                 Enrollment.academic_year_id == period.academic_year_id,
+                 or_(Classroom.academic_year_id == period.academic_year_id, Classroom.academic_year_id.is_(None)),
+                 Enrollment.status == "ACTIVE").distinct().limit(2).all()
+        if not classrooms:
+            raise HTTPException(status_code=404, detail="Aucune inscription active pour l'année de cette période")
+        if len(classrooms) != 1:
+            raise HTTPException(status_code=409, detail="Plusieurs classes correspondent à cette période ; contactez l'établissement")
+        return school_life.generate_report_card_pdf(
+            request=request,
+            body=school_life.SmartReportCardRequest(student_id=str(body.student_id), term_id=str(body.term_id),
+                                                   classroom_id=str(classrooms[0][0])),
+            db=db, current_user=current_user,
+        )
+    except SQLAlchemyError as exc:
+        logger.error("Parent report card lookup failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Impossible de générer le bulletin pour le moment")
 
 
 # --- POST /parents/invoices/pdf/ --- Generate invoice PDF (stub) ---
