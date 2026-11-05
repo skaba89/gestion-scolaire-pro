@@ -71,9 +71,22 @@ def test_detail_unknown_assessment_is_404():
 
 def test_detail_requires_settings_read():
     school = _make_tenant()
+    # STUDENT has settings:read: test access to a real assessment.
+    subject = _make_subject(school)
+    created = client.post(
+        f"{BASE}/", json=_payload(subject), headers=_as(_admin(school)),
+    )
+    assert created.status_code == 200, created.text
+    assessment_id = created.json()["id"]
+
     student = {"id": str(uuid.uuid4()), "tenant_id": school, "roles": ["STUDENT"]}
-    response = client.get(f"{BASE}/{uuid.uuid4()}/", headers=_as(student))
-    assert response.status_code == 403
+    allowed = client.get(f"{BASE}/{assessment_id}/", headers=_as(student))
+    assert allowed.status_code == 200, allowed.text
+
+    # A user without settings:read must be refused.
+    no_permissions = {"id": str(uuid.uuid4()), "tenant_id": school, "roles": []}
+    denied = client.get(f"{BASE}/{assessment_id}/", headers=_as(no_permissions))
+    assert denied.status_code == 403, denied.text
 
 
 def test_list_database_error_is_not_reported_as_empty_success(monkeypatch):
