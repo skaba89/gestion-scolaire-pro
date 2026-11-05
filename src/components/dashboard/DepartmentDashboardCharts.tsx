@@ -10,6 +10,7 @@ import { filterDepartmentClassrooms } from "@/utils/departmentClassrooms";
 import { useClassrooms } from "@/queries/classrooms";
 import { buildDepartmentEnrollmentCounts } from "@/utils/departmentEnrollmentCounts";
 import { buildDepartmentAttendanceTrends } from "@/utils/departmentAttendanceTrends";
+import { buildDepartmentGradeDistribution } from "@/utils/departmentGradeDistribution";
 
 interface DepartmentDashboardChartsProps {
   departmentId: string;
@@ -102,42 +103,33 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
 
-  // Grade distribution
-  const { data: gradeDistribution } = useQuery({
+  // The grade API accepts one class_id and returns paginated {items, pages}.
+  // Fetch the whole series; do not silently report zero on API failures.
+  const { data: gradeDistribution, isError: gradeDistributionError } = useQuery({
     queryKey: ['grade-distribution', classroomIds, tenant?.id],
     queryFn: async () => {
       if (classroomIds.length === 0) return [];
-      try {
-        const { data: gradesData } = await apiClient.get('/grades/', {
-          params: { tenant_id: tenant?.id || '', class_ids: classroomIds.join(',') },
-        });
-        const gradesList = gradesData.data || gradesData || [];
-
-        // Categorize grades
-        const categories = {
-          'Excellent (16-20)': 0,
-          'Bien (14-16)': 0,
-          'Assez bien (12-14)': 0,
-          'Passable (10-12)': 0,
-          'Insuffisant (<10)': 0,
-        };
-
-        gradesList.forEach((g: any) => {
-          const score = Number(g.score) || 0;
-          const maxScore = Number(g.assessments?.max_score) || 20;
-          const normalized = maxScore > 0 ? (score / maxScore) * 20 : 0;
-
-          if (normalized >= 16) categories['Excellent (16-20)']++;
-          else if (normalized >= 14) categories['Bien (14-16)']++;
-          else if (normalized >= 12) categories['Assez bien (12-14)']++;
-          else if (normalized >= 10) categories['Passable (10-12)']++;
-          else categories['Insuffisant (<10)']++;
-        });
-
-        return Object.entries(categories).map(([name, value]) => ({ name, value }));
-      } catch {
-        return [];
+      const grades: Array<{ score: number; max_score: number; id: string }> = [];
+      const seen = new Set<string>();
+      for (const classroomId of new Set(classroomIds)) {
+        for (let page = 1; page <= 100; page++) {
+          const { data } = await apiClient.get('/grades/', {
+            params: { class_id: classroomId, page, page_size: 100 },
+          });
+          if (!data || !Array.isArray(data.items) || !Number.isInteger(data.pages)) {
+            throw new Error('Réponse des notes non conforme');
+          }
+          for (const grade of data.items) {
+            if (grade && typeof grade.id === 'string' && !seen.has(grade.id)) {
+              seen.add(grade.id);
+              grades.push(grade);
+            }
+          }
+          if (page >= data.pages) break;
+          if (page === 100) throw new Error('Trop de notes pour le graphique');
+        }
       }
+      return buildDepartmentGradeDistribution(grades);
     },
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
@@ -225,6 +217,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Distribution des notes</CardTitle>
+          {gradeDistributionError && <p role="alert" className="text-sm text-destructive">Impossible de charger les notes</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
