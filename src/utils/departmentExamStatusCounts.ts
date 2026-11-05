@@ -13,7 +13,24 @@ export function buildDepartmentExamStatusCounts(
   response: unknown,
   startDate?: string,
   endDate?: string,
+  expectedDepartmentId?: string,
 ): ExamStatusCount[] {
+  // /department-portal/exams/ scopes to the authenticated user's department,
+  // not the departmentId supplied by the surrounding dashboard. Never
+  // misattribute one department's exams to another.
+  if (expectedDepartmentId) {
+    if (
+      !response ||
+      typeof response !== 'object' ||
+      !('department' in response) ||
+      !response.department ||
+      typeof response.department !== 'object' ||
+      !('id' in response.department) ||
+      response.department.id !== expectedDepartmentId
+    ) {
+      throw new Error('Les examens ne correspondent pas au département sélectionné');
+    }
+  }
   let records: unknown;
   if (Array.isArray(response)) records = response;
   else if (response !== null && typeof response === 'object' && 'exams' in response) {
