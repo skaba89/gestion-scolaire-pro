@@ -76,10 +76,11 @@ export const homeworkService = {
     tenantId: string,
     submissionData: Partial<HomeworkSubmission>
   ) {
+    if (!tenantId) throw new Error("No tenant selected");
     const { data } = await apiClient.post<HomeworkSubmission>(`/homework/${homeworkId}/submit/`, {
       homework_id: homeworkId,
       student_id: studentId,
-      ...submissionData,
+      content: submissionData.content,
     });
     return data;
   },
