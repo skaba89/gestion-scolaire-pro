@@ -86,6 +86,17 @@ export const homeworkService = {
   },
 
   /**
+   * Update submission content without using the teacher grading endpoint.
+   */
+  async updateSubmission(homeworkId: string, submissionId: string, tenantId: string, content: string) {
+    if (!tenantId) throw new Error("No tenant selected");
+    const { data } = await apiClient.put<{ id: string; message: string }>(
+      `/homework/${homeworkId}/submissions/${submissionId}/`, { content },
+    );
+    return data;
+  },
+
+  /**
    * Grade a homework submission
    */
   async gradeSubmission(

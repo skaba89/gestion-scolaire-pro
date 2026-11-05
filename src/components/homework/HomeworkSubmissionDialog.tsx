@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import { homeworkService } from "@/features/homework/services/homeworkService";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -45,21 +45,16 @@ const HomeworkSubmissionDialog = ({
   const queryClient = useQueryClient();
   const [content, setContent] = useState(existingSubmission?.content || "");
 
+  useEffect(() => {
+    setContent(existingSubmission?.content || "");
+  }, [homework.id, existingSubmission?.id, existingSubmission?.content, open]);
+
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (existingSubmission) {
-        await apiClient.put(`/homework-submissions/${existingSubmission.id}`, {
-          content,
-          submitted_at: new Date().toISOString(),
-        });
+        await homeworkService.updateSubmission(homework.id, existingSubmission.id, tenantId, content);
       } else {
-        await apiClient.post("/homework-submissions/", {
-          homework_id: homework.id,
-          student_id: studentId,
-          tenant_id: tenantId,
-          content,
-          submitted_at: new Date().toISOString(),
-        });
+        await homeworkService.submitHomework(homework.id, studentId, tenantId, { content });
       }
     },
     onSuccess: () => {
@@ -99,8 +94,9 @@ const HomeworkSubmissionDialog = ({
           )}
 
           <div className="space-y-2">
-            <Label>Votre travail</Label>
+            <Label htmlFor="homework-submission-content">Votre travail</Label>
             <Textarea
+              id="homework-submission-content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="Rédigez votre travail ici..."
