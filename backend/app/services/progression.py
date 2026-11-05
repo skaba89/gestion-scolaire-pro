@@ -32,6 +32,7 @@ def _fetch_grades_for_semester(db: Session, *, tenant_id: str, student_id: str, 
             a.subject_id AS subject_id,
             COALESCE(subj.name, 'Matière inconnue') AS subject_name,
             COALESCE(subj.ects, 0) AS ects,
+            COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
             g.score,
             g.max_score
         FROM grades g
