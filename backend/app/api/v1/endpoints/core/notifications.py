@@ -76,13 +76,18 @@ def update_notification_preferences(
 
 @router.get("/subscriptions/", response_model=List[PushSubscriptionInDB])
 def read_subscriptions(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all push subscriptions for the current user."""
+    """List only the authenticated user's devices in the active establishment."""
     user_id = current_user.get("id")
-    subscriptions = db.query(PushSubscription).filter(PushSubscription.user_id == user_id).all()
-    return subscriptions
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    return db.query(PushSubscription).filter(
+        PushSubscription.user_id == user_id,
+        PushSubscription.tenant_id == tenant_id,
+    ).all()
+
 
 @router.post("/subscriptions/", response_model=PushSubscriptionInDB)
 def create_subscription(
@@ -91,51 +96,53 @@ def create_subscription(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Create or update a push subscription."""
+    """Register or update a device in the authenticated establishment."""
     user_id = current_user.get("id")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to a tenant to subscribe to notifications"
-        )
-
     existing = db.query(PushSubscription).filter(
         PushSubscription.user_id == user_id,
-        PushSubscription.endpoint == subscription_in.endpoint
+        PushSubscription.tenant_id == tenant_id,
+        PushSubscription.endpoint == subscription_in.endpoint,
     ).first()
 
     if existing:
-        for field, value in subscription_in.dict(exclude_unset=True).items():
+        for field, value in subscription_in.model_dump(exclude_unset=True).items():
             setattr(existing, field, value)
         db.commit()
         db.refresh(existing)
         return existing
 
     new_subscription = PushSubscription(
-        **subscription_in.dict(),
+        **subscription_in.model_dump(),
         user_id=user_id,
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
     )
     db.add(new_subscription)
     db.commit()
     db.refresh(new_subscription)
     return new_subscription
 
+
 @router.delete("/subscriptions/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_subscription(
-    endpoint: str = None,
+    request: Request,
+    endpoint: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete push subscriptions."""
+    """Delete only one device; a missing endpoint must not delete all devices."""
+    if not endpoint.strip():
+        raise HTTPException(status_code=422, detail="Device endpoint is required")
     user_id = current_user.get("id")
-    query = db.query(PushSubscription).filter(PushSubscription.user_id == user_id)
-    if endpoint:
-        query = query.filter(PushSubscription.endpoint == endpoint)
-    query.delete()
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    db.query(PushSubscription).filter(
+        PushSubscription.user_id == user_id,
+        PushSubscription.tenant_id == tenant_id,
+        PushSubscription.endpoint == endpoint,
+    ).delete()
     db.commit()
     return None
+
 
 # ─── Notifications History ───────────────────────────────────────────────────
 
