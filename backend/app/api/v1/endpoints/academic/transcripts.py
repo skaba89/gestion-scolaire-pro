@@ -160,7 +160,8 @@ def get_student_transcript(
     total_ects_earned = 0.0
     total_ects_possible = 0.0
     term_averages = []
-    term_averages_ects = []
+    annual_ects_numerator = 0.0
+    annual_ects_denominator = 0.0
 
     for term in terms:
         grades = _fetch_grades_for_term_with_ects(db, str(student_id), str(term["id"]), tenant_id)
@@ -186,8 +187,16 @@ def get_student_transcript(
         # `subjects` qui a déjà perdu le détail par note individuelle.
         term_average_ects_raw = compute_ects_weighted_average(grades)
         term_average_ects = round(term_average_ects_raw, 2) if term_average_ects_raw is not None else None
-        if term_average_ects is not None:
-            term_averages_ects.append(term_average_ects)
+        if term_average_ects_raw is not None:
+            # Annual university average must weight each term by its graded
+            # ECTS, not treat a 5-credit and a 30-credit term equally.
+            # Use unrounded term averages to avoid cascading rounding error.
+            graded_ects = sum(
+                subj["ects"] for subj in subjects
+                if subj["average"] is not None and subj["ects"] > 0
+            )
+            annual_ects_numerator += term_average_ects_raw * graded_ects
+            annual_ects_denominator += graded_ects
 
         periods.append({
             "term_id": str(term["id"]),
@@ -208,7 +217,8 @@ def get_student_transcript(
         "periods": periods,
         "annual_average": round(sum(term_averages) / len(term_averages), 2) if term_averages else None,
         "annual_average_ects_weighted": (
-            round(sum(term_averages_ects) / len(term_averages_ects), 2) if term_averages_ects else None
+            round(annual_ects_numerator / annual_ects_denominator, 2)
+            if annual_ects_denominator > 0 else None
         ),
         "ects_earned": total_ects_earned,
         "ects_possible": total_ects_possible,

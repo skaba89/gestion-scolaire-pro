@@ -421,3 +421,118 @@ class TestAlumniTranscriptOwnership:
             }),
         )
         assert response.status_code == 403, response.text
+
+
+class TestAnnualEctsWeightingAcrossTerms:
+    """An academic year must be weighted by awarded module credit weights,
+    not by the number of semesters with marks."""
+
+    @pytest.mark.skipif(
+        engine.dialect.name != "postgresql",
+        reason="Transcript SQL fixture requires PostgreSQL UUID binding.",
+    )
+    def test_annual_ects_average_respects_unequal_term_credits(self):
+        # First term: Maths 15 (8 ECTS), French 6 (2 ECTS)
+        # -> 13.2/20 across 10 ECTS.
+        ctx = _build_transcript_fixture(ects_math=8, ects_french=2)
+        term_id = str(uuid.uuid4())
+        subject_id = str(uuid.uuid4())
+        assessment_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(Term(
+                id=term_id, tenant_id=ctx["tenant_id"],
+                academic_year_id=ctx["year_id"],
+                name="Semestre 2", start_date=date(2027, 2, 1),
+                end_date=date(2027, 6, 30), sequence_number=2,
+                is_active=True,
+            ))
+            db.add(Subject(
+                id=subject_id, tenant_id=ctx["tenant_id"],
+                name="Projet de fin d'année", coefficient=1, ects=2,
+            ))
+            db.commit()
+            db.add(Assessment(
+                id=assessment_id, tenant_id=ctx["tenant_id"],
+                name="Projet final", max_score=20.0,
+                date=date(2027, 5, 10), assessment_type="EXAM",
+                weight=1, subject_id=subject_id,
+                academic_year_id=ctx["year_id"], term_id=term_id,
+            ))
+            db.commit()
+            db.add(Grade(
+                id=str(uuid.uuid4()), tenant_id=ctx["tenant_id"],
+                student_id=ctx["student_id"], assessment_id=assessment_id,
+                subject_id=subject_id, academic_year_id=ctx["year_id"],
+                score=20, max_score=20, coefficient=1,
+            ))
+            db.commit()
+
+        response = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=_as({
+                "id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"],
+                "tenant_id": ctx["tenant_id"],
+            }),
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert len(result["periods"]) == 2
+        assert [p["term_average_ects_weighted"] for p in result["periods"]] == [13.2, 20.0]
+        # (13.2*10 + 20*2) / 12 = 14.33; not (13.2+20)/2 = 16.6.
+        assert result["annual_average_ects_weighted"] == 14.33
+        # Existing classic annual average remains an equal term average.
+        assert result["annual_average"] == 15.7
+        assert result["ects_possible"] == 12
+        assert result["ects_earned"] == 10
+
+    @pytest.mark.skipif(
+        engine.dialect.name != "postgresql",
+        reason="Transcript SQL fixture requires PostgreSQL UUID binding.",
+    )
+    def test_annual_ects_average_ignores_zero_credit_term(self):
+        ctx = _build_transcript_fixture(ects_math=8, ects_french=2)
+        term_id = str(uuid.uuid4())
+        subject_id = str(uuid.uuid4())
+        assessment_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(Term(
+                id=term_id, tenant_id=ctx["tenant_id"],
+                academic_year_id=ctx["year_id"], name="Semestre sans ECTS",
+                start_date=date(2027, 2, 1), end_date=date(2027, 6, 30),
+                sequence_number=2, is_active=True,
+            ))
+            db.add(Subject(
+                id=subject_id, tenant_id=ctx["tenant_id"],
+                name="Activité sans crédit", coefficient=1, ects=0,
+            ))
+            db.commit()
+            db.add(Assessment(
+                id=assessment_id, tenant_id=ctx["tenant_id"],
+                name="Activité", max_score=20, date=date(2027, 5, 10),
+                assessment_type="EXAM", weight=1,
+                subject_id=subject_id, academic_year_id=ctx["year_id"],
+                term_id=term_id,
+            ))
+            db.commit()
+            db.add(Grade(
+                id=str(uuid.uuid4()), tenant_id=ctx["tenant_id"],
+                student_id=ctx["student_id"], assessment_id=assessment_id,
+                subject_id=subject_id, academic_year_id=ctx["year_id"],
+                score=2, max_score=20, coefficient=1,
+            ))
+            db.commit()
+
+        response = client.get(
+            f"/api/v1/transcripts/{ctx['student_id']}/",
+            params={"academic_year_id": ctx["year_id"]},
+            headers=_as({
+                "id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"],
+                "tenant_id": ctx["tenant_id"],
+            }),
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert result["annual_average_ects_weighted"] == 13.2
+        assert result["periods"][1]["term_average_ects_weighted"] is None
+        assert result["ects_possible"] == 10
