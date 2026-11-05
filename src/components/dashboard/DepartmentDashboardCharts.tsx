@@ -9,6 +9,7 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { filterDepartmentClassrooms } from "@/utils/departmentClassrooms";
 import { useClassrooms } from "@/queries/classrooms";
 import { buildDepartmentEnrollmentCounts } from "@/utils/departmentEnrollmentCounts";
+import { buildDepartmentAttendanceTrends } from "@/utils/departmentAttendanceTrends";
 
 interface DepartmentDashboardChartsProps {
   departmentId: string;
@@ -59,40 +60,44 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
 
-  // Attendance trends (last 7 days)
-  const { data: attendanceTrends } = useQuery({
+  // Attendance trend API supports a single classroom_id, date_from/date_to,
+  // and paginated {items}; it does not support class_ids or date_range.
+  const { data: attendanceTrends, isError: attendanceTrendsError } = useQuery({
     queryKey: ['attendance-trends', classroomIds, tenant?.id],
     queryFn: async () => {
       if (classroomIds.length === 0) return [];
-      try {
-        const days = Array.from({ length: 7 }, (_, i) => {
-          const date = subDays(new Date(), 6 - i);
-          return format(date, 'yyyy-MM-dd');
-        });
-
-        const { data: attendData } = await apiClient.get('/attendance/', {
-          params: { tenant_id: tenant?.id || '', class_ids: classroomIds.join(','), date_range: days.join(',') },
-        });
-        const attendList = attendData.data || attendData || [];
-
-        // Group by date
-        const grouped: Record<string, { date: string; present: number; absent: number; late: number }> = {};
-        days.forEach(d => {
-          grouped[d] = { date: format(new Date(d), 'EEE', { locale: fr }), present: 0, absent: 0, late: 0 };
-        });
-
-        attendList.forEach((a: any) => {
-          if (grouped[a.date]) {
-            if (a.status === 'PRESENT') grouped[a.date].present++;
-            else if (a.status === 'ABSENT') grouped[a.date].absent++;
-            else if (a.status === 'LATE') grouped[a.date].late++;
+      const now = new Date();
+      const dayDates = Array.from({ length: 7 }, (_, i) => subDays(now, 6 - i));
+      const days = dayDates.map(day => ({
+        date: format(day, 'yyyy-MM-dd'),
+        label: format(day, 'EEE', { locale: fr }),
+      }));
+      const attendance = [];
+      // Scope every request at the API using classroom_id and tenant auth.
+      // Paginate instead of silently truncating to the default 100 records.
+      for (const classroomId of new Set(classroomIds)) {
+        let offset = 0;
+        const limit = 500;
+        for (let page = 0; page < 100; page++) {
+          const { data } = await apiClient.get('/attendance/', {
+            params: {
+              classroom_id: classroomId,
+              date_from: days[0].date,
+              date_to: days[days.length - 1].date,
+              limit,
+              offset,
+            },
+          });
+          if (!data || !Array.isArray(data.items)) {
+            throw new Error('Réponse des présences non conforme');
           }
-        });
-
-        return Object.values(grouped);
-      } catch {
-        return [];
+          attendance.push(...data.items);
+          if (data.items.length < limit) break;
+          if (page === 99) throw new Error('Trop de présences pour le graphique');
+          offset += limit;
+        }
       }
+      return buildDepartmentAttendanceTrends(attendance, days, classroomIds);
     },
     enabled: classroomIds.length > 0 && !!tenant?.id,
   });
@@ -196,6 +201,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Tendances de présence (7 jours)</CardTitle>
+          {attendanceTrendsError && <p role="alert" className="text-sm text-destructive">Impossible de charger les présences</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
