@@ -11,6 +11,7 @@ import { useClassrooms } from "@/queries/classrooms";
 import { buildDepartmentEnrollmentCounts } from "@/utils/departmentEnrollmentCounts";
 import { buildDepartmentAttendanceTrends } from "@/utils/departmentAttendanceTrends";
 import { buildDepartmentGradeDistribution } from "@/utils/departmentGradeDistribution";
+import { buildDepartmentExamStatusCounts } from "@/utils/departmentExamStatusCounts";
 
 interface DepartmentDashboardChartsProps {
   departmentId: string;
@@ -144,28 +145,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       const { data: examsData } = await apiClient.get('/department-portal/exams/', {
         params: { tenant_id: tenant?.id || '', department_id: departmentId, date_from: startDate, date_to: endDate },
       });
-      const examsList = Array.isArray(examsData) ? examsData : examsData?.items;
-      if (!Array.isArray(examsList)) {
-        throw new Error('Réponse des examens non conforme');
-      }
-
-      const statusCounts = {
-        scheduled: 0,
-        completed: 0,
-        cancelled: 0,
-      };
-
-      examsList.forEach((e: any) => {
-        if (e.status === 'scheduled') statusCounts.scheduled++;
-        else if (e.status === 'completed') statusCounts.completed++;
-        else if (e.status === 'cancelled') statusCounts.cancelled++;
-      });
-
-      return [
-        { name: 'Programmés', value: statusCounts.scheduled, color: '#3b82f6' },
-        { name: 'Terminés', value: statusCounts.completed, color: '#10b981' },
-        { name: 'Annulés', value: statusCounts.cancelled, color: '#ef4444' },
-      ];
+      return buildDepartmentExamStatusCounts(examsData);
     },
     enabled: !!departmentId && !!tenant?.id,
   });
