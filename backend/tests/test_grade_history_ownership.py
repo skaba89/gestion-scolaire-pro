@@ -25,19 +25,19 @@ def _run(db, **kwargs):
 
 
 def test_parent_without_children_cannot_read_tenant_history(db, monkeypatch):
-    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda **_: set())
+    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda *_args, **_kwargs: set())
     assert _run(db) == []
     db.execute.assert_not_called()
 
 
 def test_parent_cannot_query_other_students_history(db, monkeypatch):
-    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda **_: {"child-1"})
+    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda *_args, **_kwargs: {"child-1"})
     assert _run(db, student_id="other-student") == []
     db.execute.assert_not_called()
 
 
 def test_grade_id_filter_is_still_scoped_to_owned_students(db, monkeypatch):
-    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda **_: {"child-1", "child-2"})
+    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda *_args, **_kwargs: {"child-1", "child-2"})
     assert _run(db, grade_id="foreign-grade") == []
     statement, params = db.execute.call_args.args
     query = str(statement)
@@ -49,7 +49,7 @@ def test_grade_id_filter_is_still_scoped_to_owned_students(db, monkeypatch):
 
 
 def test_student_history_is_restricted_to_own_student_id(db, monkeypatch):
-    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda **_: {"own-student"})
+    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda *_args, **_kwargs: {"own-student"})
     grades.list_grade_history(
         request=object(), db=db, current_user={"id": "student-user", "roles": ["STUDENT"]},
     )
@@ -59,7 +59,7 @@ def test_student_history_is_restricted_to_own_student_id(db, monkeypatch):
 
 
 def test_staff_with_unrestricted_read_retains_tenant_scoped_history(db, monkeypatch):
-    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda **_: None)
+    monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda *_args, **_kwargs: None)
     grades.list_grade_history(
         request=object(), db=db, current_user={"id": "admin", "roles": ["TENANT_ADMIN"]},
     )
