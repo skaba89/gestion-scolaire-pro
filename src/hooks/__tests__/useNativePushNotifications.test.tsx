@@ -105,4 +105,14 @@ describe('native push subscription API contract', () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
+  it('unregister removes its own listeners without clearing other plugin listeners', async () => {
+    const { result, unmount } = renderHook(() => useNativePushNotifications());
+    await waitFor(() => expect(mocks.addListener).toHaveBeenCalledTimes(4));
+    await act(async () => {
+      await result.current.unregister();
+    });
+    expect(mocks.remove).toHaveBeenCalledTimes(4);
+    unmount();
+  });
+
 });
