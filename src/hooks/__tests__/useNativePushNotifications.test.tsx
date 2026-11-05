@@ -69,11 +69,10 @@ describe('native push subscription API contract', () => {
     });
 
     expect(mocks.post).toHaveBeenCalledWith('/push-subscriptions/upsert/', {
-      user_id: 'user-1',
-      tenant_id: 'tenant-1',
       endpoint: 'test-fcm-token',
       auth: 'fcm',
       p256dh: 'test-fcm-token',
+      platform: 'android',
     });
     expect(mocks.put).not.toHaveBeenCalled();
   });
