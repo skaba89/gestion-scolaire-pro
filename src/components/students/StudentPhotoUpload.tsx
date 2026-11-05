@@ -57,11 +57,11 @@ export function StudentPhotoUpload({
       const publicUrl = uploadData.url;
 
       // Update student record
-      await apiClient.patch(`/students/${studentId}/`, { photo_url: publicUrl });
+      await apiClient.put(`/students/${studentId}/`, { photo_url: publicUrl });
 
       onPhotoUpdated(publicUrl);
       toast.success("Photo mise à jour avec succès");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error uploading photo:", error);
       toast.error("Erreur lors du téléchargement de la photo");
     } finally {
@@ -79,7 +79,7 @@ export function StudentPhotoUpload({
 
     try {
       // Update student record
-      await apiClient.patch(`/students/${studentId}/`, { photo_url: null });
+      await apiClient.put(`/students/${studentId}/`, { photo_url: null });
 
       onPhotoUpdated(null);
       toast.success("Photo supprimée");
