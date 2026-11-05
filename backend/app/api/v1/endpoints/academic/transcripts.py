@@ -129,7 +129,7 @@ def _summarize_subject_grades(grades: list, pass_threshold: float = PASS_THRESHO
 
 
 
-def _compute_term_average_from_grades(grades: list) -> Optional[float]:
+def _compute_term_average_from_grades(grades: list, *, round_result: bool = True) -> Optional[float]:
     """Return coefficient-weighted term average from unrounded subject means.
 
     Group by stable subject ID, not display name. Round only the final
@@ -156,7 +156,10 @@ def _compute_term_average_from_grades(grades: list) -> Optional[float]:
                 * subject["coefficient"]
             )
             total_weight += subject["coefficient"]
-    return round(weighted_sum / total_weight, 2) if total_weight > 0 else None
+    if total_weight <= 0:
+        return None
+    result = weighted_sum / total_weight
+    return round(result, 2) if round_result else result
 
 
 def _capitalized_ects(periods: list[dict]) -> tuple[float, float]:
@@ -215,7 +218,7 @@ def get_student_transcript(
         raise HTTPException(status_code=404, detail="Aucune période trouvée pour cette année académique")
 
     periods = []
-    term_averages = []
+    term_averages_raw = []
     annual_ects_numerator = 0.0
     annual_ects_denominator = 0.0
 
@@ -225,9 +228,10 @@ def get_student_transcript(
 
         # Aggregate unrounded subject means, using stable subject IDs.
         # The rounded values in subjects[] are strictly for presentation.
-        term_average = _compute_term_average_from_grades(grades)
-        if term_average is not None:
-            term_averages.append(term_average)
+        term_average_raw = _compute_term_average_from_grades(grades, round_result=False)
+        term_average = round(term_average_raw, 2) if term_average_raw is not None else None
+        if term_average_raw is not None:
+            term_averages_raw.append(term_average_raw)
 
         # Module université (2026-09) : moyenne pondérée par crédits ECTS,
         # distincte de term_average (pondérée par coefficient) — voir
@@ -268,7 +272,10 @@ def get_student_transcript(
         },
         "academic_year_id": str(academic_year_id),
         "periods": periods,
-        "annual_average": round(sum(term_averages) / len(term_averages), 2) if term_averages else None,
+        "annual_average": (
+            round(sum(term_averages_raw) / len(term_averages_raw), 2)
+            if term_averages_raw else None
+        ),
         "annual_average_ects_weighted": (
             round(annual_ects_numerator / annual_ects_denominator, 2)
             if annual_ects_denominator > 0 else None
