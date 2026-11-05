@@ -2092,8 +2092,10 @@ def _fetch_absences_batch(db, classroom_id: str, start_date, end_date, tenant_id
             for r in rows
         }
     except Exception as exc:
-        logger.warning("Batch absences fetch failed: %s", exc)
-        return {}
+        # An SQL failure is not evidence that every pupil has zero absences.
+        # Propagate the failure so batch reports cannot publish false data.
+        logger.error("Batch absences fetch failed: %s", exc, exc_info=True)
+        raise
 
 
 # ── HTML template v2 — Format officiel Guinée ──────────────────────────────────
