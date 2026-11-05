@@ -128,6 +128,37 @@ def _summarize_subject_grades(grades: list, pass_threshold: float = PASS_THRESHO
     return summary
 
 
+
+def _compute_term_average_from_grades(grades: list) -> Optional[float]:
+    """Return coefficient-weighted term average from unrounded subject means.
+
+    Group by stable subject ID, not display name. Round only the final
+    result: rounding each subject first can shift a semester's official mark.
+    """
+    subjects: dict[str, dict] = {}
+    for grade in grades:
+        key = (str(grade["subject_id"]) if grade.get("subject_id")
+               else grade.get("subject_name") or "Matière inconnue")
+        if key not in subjects:
+            subjects[key] = {
+                "coefficient": float(grade.get("coefficient") or 1),
+                "scores": [],
+            }
+        if grade.get("score") is not None:
+            max_score = float(grade.get("max_score") or 20)
+            subjects[key]["scores"].append(float(grade["score"]) / max_score * 20)
+    weighted_sum = 0.0
+    total_weight = 0.0
+    for subject in subjects.values():
+        if subject["scores"] and subject["coefficient"] > 0:
+            weighted_sum += (
+                sum(subject["scores"]) / len(subject["scores"])
+                * subject["coefficient"]
+            )
+            total_weight += subject["coefficient"]
+    return round(weighted_sum / total_weight, 2) if total_weight > 0 else None
+
+
 def _capitalized_ects(periods: list[dict]) -> tuple[float, float]:
     """Capitalise each identified UE once across terms and retakes.
 
@@ -192,11 +223,9 @@ def get_student_transcript(
         grades = _fetch_grades_for_term_with_ects(db, str(student_id), str(term["id"]), tenant_id)
         subjects = _summarize_subject_grades(grades, pass_threshold)
 
-        averages_with_coeff = [(s["average"], s["coefficient"]) for s in subjects if s["average"] is not None]
-        term_average = (
-            round(sum(avg * coeff for avg, coeff in averages_with_coeff) / sum(c for _, c in averages_with_coeff), 2)
-            if averages_with_coeff else None
-        )
+        # Aggregate unrounded subject means, using stable subject IDs.
+        # The rounded values in subjects[] are strictly for presentation.
+        term_average = _compute_term_average_from_grades(grades)
         if term_average is not None:
             term_averages.append(term_average)
 

@@ -110,9 +110,41 @@ def _token(user_id: str, tenant_id: str, *, roles=None, jti: str | None = None, 
     return create_access_token(data)
 
 
+
+@pytest.fixture
+def _isolated_websocket_pubsub(monkeypatch):
+    """Keep real Redis auth/revocation, but isolate the streaming subscription.
+
+    The module-level redis.asyncio client is shared across TestClient event
+    loops in the full suite. Its PubSub connection can retain a Future from a
+    preceding loop, causing the *accepted connection* test to fail on
+    get_message() despite successful authentication. Relay forwarding and
+    disconnect logic have separate dedicated tests.
+    """
+    import asyncio
+    from app.api.v1.endpoints.core import realtime
+
+    class _PubSub:
+        async def get_message(self, **kwargs):
+            await asyncio.sleep(0.05)
+            return None
+
+        async def unsubscribe(self, *args):
+            return None
+
+        async def aclose(self):
+            return None
+
+    async def subscribe(channel):
+        return _PubSub()
+
+    monkeypatch.setattr(realtime.redis_client, "subscribe", subscribe)
+
+
+
 class TestWebSocketRejectsDeactivatedAccount:
     @_needs_redis
-    def test_active_user_connection_is_accepted(self):
+    def test_active_user_connection_is_accepted(self, _isolated_websocket_pubsub):
         tenant_id = _make_tenant()
         user_id = _make_user(tenant_id)
         token = _token(user_id, tenant_id)
@@ -185,7 +217,7 @@ class TestWebSocketRevokedSuperAdminRoleLosesCrossTenantAccess:
                 pass
 
     @_needs_redis
-    def test_super_admin_role_still_in_db_can_cross_tenant(self):
+    def test_super_admin_role_still_in_db_can_cross_tenant(self, _isolated_websocket_pubsub):
         """Positive control: a genuinely current SUPER_ADMIN is unaffected."""
         own_tenant = _make_tenant()
         other_tenant = _make_tenant()
