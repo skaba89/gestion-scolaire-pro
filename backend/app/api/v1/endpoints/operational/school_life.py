@@ -2020,6 +2020,29 @@ def _compute_class_ranks_batch(db, classroom_id: str, term_id: str, tenant_id: s
         return {}
 
 
+
+def _rank_batch_from_bulletin_grades(student_ids: list[str], grades_by_student: dict) -> dict:
+    """Rank by the very same per-subject weighted averages shown on the bulletin.
+
+    A student with no computable grades has rank 0, not an artificial last
+    place. Equal displayed averages share a rank (competition ranking).
+    The class total includes every active enrolled student.
+    """
+    total = len(student_ids)
+    scores = {}
+    for student_id in student_ids:
+        average = _compute_average(grades_by_student.get(student_id, []))
+        if average >= 0:
+            scores[student_id] = round(average, 2)
+    higher_counts = {average: sum(other > average for other in scores.values())
+                     for average in set(scores.values())}
+    return {
+        student_id: (higher_counts[scores[student_id]] + 1, total)
+        if student_id in scores else (0, total)
+        for student_id in student_ids
+    }
+
+
 def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id: str) -> dict:
     """Same shape/filtering as _fetch_grades_for_term (one INNER JOIN to
     assessments, so a grade without one is excluded exactly like the
@@ -3105,7 +3128,11 @@ def _generate_batch_report_cards(
     # (generate-report-card/v2/) are untouched — they still use the
     # original functions, no behavior change there.
     grades_by_student = _fetch_grades_for_term_batch(db, classroom_id, term_id, tenant_id)
-    ranks_by_student = _compute_class_ranks_batch(db, classroom_id, term_id, tenant_id)
+    # Rank from the same subject-weighted averages and term-filtered grades
+    # printed on the report cards, not a second query with different maths.
+    ranks_by_student = _rank_batch_from_bulletin_grades(
+        [str(row["student_id"]) for row in student_rows], grades_by_student,
+    )
     absences_by_student: dict = {}
     if term_row and term_row["start_date"] and term_row["end_date"]:
         absences_by_student = _fetch_absences_batch(
