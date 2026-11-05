@@ -543,19 +543,22 @@ def get_enrollments(
     class_id: Optional[UUID] = None,
     status: Optional[str] = None,
     academic_year_id: Optional[UUID] = None,
+    class_ids: Optional[List[UUID]] = None,
 ) -> List[Enrollment]:
     query = db.query(Enrollment).options(joinedload(Enrollment.student)).filter(
         Enrollment.tenant_id == tenant_id
     )
     if class_id is not None:
         query = query.filter(Enrollment.class_id == class_id)
+    if class_ids is not None:
+        query = query.filter(Enrollment.class_id.in_(class_ids))
     if academic_year_id is not None:
         query = query.filter(Enrollment.academic_year_id == academic_year_id)
     if status is not None:
         # Enrollment.status is stored uppercase (e.g. "ACTIVE") but callers
         # (useAttendance.ts) send lowercase — compare case-insensitively.
         query = query.filter(func.upper(Enrollment.status) == status.upper())
-    if class_id is None:
+    if class_id is None and class_ids is None:
         # Institutional-readiness audit (2026-09, Phase 3): unlike the
         # per-class call (naturally bounded to one classroom's size), the
         # unfiltered tenant-wide call had no bound at all — every
