@@ -20,6 +20,7 @@ import { fr } from "date-fns/locale";
 import { Clock, Plus, CalendarIcon, Users, BookOpen, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStaff } from "@/features/staff/hooks/useStaff";
+import { useSubjects } from "@/queries/subjects";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Teacher {
@@ -77,15 +78,8 @@ export default function TeacherHoursPage() {
   // Data Fetching
   const { staff: teachers, isLoading: loadingTeachers } = useStaff({ role: "TEACHER" });
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ["subjects", tenant?.id],
-    queryFn: async () => {
-      if (!tenant) return [];
-      const response = await apiClient.get<{ id: string; name: string }[]>("/academic/subjects/");
-      return response.data;
-    },
-    enabled: !!tenant,
-  });
+  // Reuse the canonical tenant-scoped subject query and its real /subjects/ route.
+  const { data: subjects = [] } = useSubjects(tenant?.id);
 
   const { data: classrooms = [] } = useQuery({
     queryKey: ["classrooms", tenant?.id],
