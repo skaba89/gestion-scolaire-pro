@@ -80,6 +80,45 @@ def create_enrollment_alias(
         raise HTTPException(status_code=409, detail=str(exc))
 
 
+
+@enrollments_alias_router.delete("/{enrollment_id}/", status_code=status.HTTP_204_NO_CONTENT)
+def withdraw_enrollment_alias(
+    enrollment_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("enrollments:write")),
+):
+    """Withdraw an active enrollment without deleting school history.
+
+    A tenant-scoped conditional UPDATE makes concurrent withdrawal attempts safe.
+    Nonexistent or cross-tenant IDs are indistinguishable (404).
+    """
+    from sqlalchemy import update
+    from app.models.enrollment import Enrollment
+
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    result = db.execute(
+        update(Enrollment)
+        .where(
+            Enrollment.id == enrollment_id,
+            Enrollment.tenant_id == tenant_id,
+            Enrollment.status == "ACTIVE",
+        )
+        .values(status="WITHDRAWN")
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        exists = db.query(Enrollment.id).filter(
+            Enrollment.id == enrollment_id,
+            Enrollment.tenant_id == tenant_id,
+        ).first()
+        if exists:
+            raise HTTPException(status_code=409, detail="Inscription déjà inactive")
+        raise HTTPException(status_code=404, detail="Inscription introuvable")
+    db.commit()
+    return None
+
+
 @enrollments_alias_router.get("/counts/")
 def enrollment_counts_alias(
     request: Request,
