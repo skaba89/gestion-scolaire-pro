@@ -142,10 +142,11 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       const startDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
       const endDate = format(endOfMonth(new Date()), 'yyyy-MM-dd');
 
-      const { data: examsData } = await apiClient.get('/department-portal/exams/', {
-        params: { tenant_id: tenant?.id || '', department_id: departmentId, date_from: startDate, date_to: endDate },
-      });
-      return buildDepartmentExamStatusCounts(examsData);
+      // Backend authenticates the tenant and current user's department.
+      // This endpoint returns {exams, classrooms, subjects, terms}, and
+      // does not implement date_from/date_to query filters.
+      const { data: examsData } = await apiClient.get('/department-portal/exams/');
+      return buildDepartmentExamStatusCounts(examsData, startDate, endDate);
     },
     enabled: !!departmentId && !!tenant?.id,
   });

@@ -3,16 +3,22 @@ export interface ExamStatusCount {
   value: number;
   color: string;
 }
-type Exam = { status?: unknown };
+type Exam = { status?: unknown; exam_date?: unknown };
 
 /**
- * Accept the API's array response or a paginated {items} response.
+ * Accept the department API's {exams} response, arrays or paginated {items}.
  * An invalid result throws instead of reporting zero exams.
  */
-export function buildDepartmentExamStatusCounts(response: unknown): ExamStatusCount[] {
+export function buildDepartmentExamStatusCounts(
+  response: unknown,
+  startDate?: string,
+  endDate?: string,
+): ExamStatusCount[] {
   let records: unknown;
   if (Array.isArray(response)) records = response;
-  else if (response !== null && typeof response === 'object' && 'items' in response) {
+  else if (response !== null && typeof response === 'object' && 'exams' in response) {
+    records = (response as { exams: unknown }).exams;
+  } else if (response !== null && typeof response === 'object' && 'items' in response) {
     records = (response as { items: unknown }).items;
   }
   if (!Array.isArray(records)) {
@@ -20,6 +26,14 @@ export function buildDepartmentExamStatusCounts(response: unknown): ExamStatusCo
   }
   const counts = { scheduled: 0, completed: 0, cancelled: 0 };
   for (const item of records as Exam[]) {
+    if (startDate || endDate) {
+      const date = item?.exam_date;
+      // Compare ISO calendar dates, not timestamps; invalid/missing exam
+      // dates cannot be counted as exams during a given month.
+      if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      if (startDate && date < startDate) continue;
+      if (endDate && date > endDate) continue;
+    }
     const status = item?.status;
     if (status === 'scheduled' || status === 'completed' || status === 'cancelled') {
       counts[status]++;
