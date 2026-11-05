@@ -32,13 +32,22 @@ enrollments_alias_router = APIRouter()
 @enrollments_alias_router.get("/")
 def list_enrollments_alias(
     request: Request,
+    class_id: Optional[UUID] = Query(None),
+    academic_year_id: Optional[UUID] = Query(None),
+    status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:read")),
 ):
-    """GET /enrollments/ — mirrors GET /infrastructure/enrollments/"""
+    """GET /enrollments/ — apply classroom and academic-year filters server-side."""
     from app.crud import academic as crud
     from app.schemas.academic import Enrollment as EnrollmentSchema
-    rows = crud.get_enrollments(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    rows = crud.get_enrollments(
+        db,
+        tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
+        class_id=class_id,
+        academic_year_id=academic_year_id,
+        status=status,
+    )
     return [EnrollmentSchema.model_validate(r).model_dump(mode="json") for r in rows]
 
 
