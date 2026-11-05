@@ -139,7 +139,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       // This endpoint returns {exams, classrooms, subjects, terms}, and
       // does not implement date_from/date_to query filters.
       const { data: examsData } = await apiClient.get('/department-portal/exams/');
-      return buildDepartmentExamStatusCounts(examsData, startDate, endDate);
+      return buildDepartmentExamStatusCounts(examsData, startDate, endDate, departmentId);
     },
     enabled: !!departmentId && !!tenant?.id,
   });
