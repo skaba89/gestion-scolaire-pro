@@ -132,19 +132,13 @@ export const gradesService = {
   },
 
   async bulkCreateGrades(tenantId: string, grades: GradeFormData[]) {
-    // If backend doesn't support bulk, we simulate it
-    try {
-      const response = await apiClient.post(`/grades/bulk/`, { grades });
-      return response.data as unknown as Grade[];
-    } catch (error) {
-      // fallback: loop
-      console.warn("Bulk grade fallback triggered");
-      const results = [];
-      for (const grade of grades) {
-        const res = await this.createGrade(tenantId, grade as any);
-        results.push(res);
-      }
-      return results;
-    }
+    // The backend implements an atomic POST /grades/bulk transaction.
+    // Never retry as individual writes after an HTTP failure: the server may
+    // already have committed the batch, resulting in duplicate grades.
+    const response = await apiClient.post<{ created: number; grades: Grade[] }>(
+      "/grades/bulk",
+      { grades }
+    );
+    return response.data.grades;
   },
 };
