@@ -95,11 +95,10 @@ export const useNativePushNotifications = () => {
 
           // The backend exposes POST for idempotent subscription upsert.
           await apiClient.post("/push-subscriptions/upsert/", {
-            user_id: user.id,
-            tenant_id: currentTenant.id,
             endpoint: token.value,
             auth,
             p256dh: token.value,
+            platform,
           });
 
           // Register user's external ID with OneSignal so the backend can
