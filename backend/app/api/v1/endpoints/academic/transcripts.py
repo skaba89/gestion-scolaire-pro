@@ -50,7 +50,7 @@ def _can_view_transcript(db: Session, *, current_user: dict, student_id: str, te
     if privileged:
         return True
     user_id = current_user.get("id")
-    if "STUDENT" in roles:
+    if roles & {"STUDENT", "ALUMNI"}:
         row = db.execute(text(
             "SELECT id FROM students WHERE id = :sid AND tenant_id = :tid "
             "AND (user_id = :uid OR email = (SELECT email FROM users WHERE id = :uid))"
