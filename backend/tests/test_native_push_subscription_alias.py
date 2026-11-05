@@ -4,6 +4,8 @@ The ORM has non-nullable auth/p256dh. Previously the alias ignored the
 native client's credentials and attempted an INSERT without these columns.
 """
 from unittest.mock import MagicMock, patch
+import inspect
+from fastapi import HTTPException
 from uuid import uuid4
 
 import pytest
@@ -91,5 +93,26 @@ def test_deletion_is_limited_to_authenticated_tenant():
     expressions = " ".join(str(c) for c in criteria)
     assert "push_subscriptions.tenant_id" in expressions
     assert "push_subscriptions.user_id" in expressions
-    db.query.return_value.filter.return_value.filter.return_value.delete.assert_called_once()
+    assert "push_subscriptions.endpoint" in expressions
+    db.query.return_value.filter.return_value.delete.assert_called_once()
     db.commit.assert_called_once()
+
+
+def test_delete_route_requires_device_endpoint_query_parameter():
+    from fastapi.params import Query
+    param = inspect.signature(delete_push_subscription).parameters["endpoint"]
+    assert isinstance(param.default, Query)
+    assert param.default.is_required()
+
+
+@pytest.mark.parametrize("endpoint", ["", "  "])
+def test_delete_rejects_blank_endpoint_without_db_write(endpoint):
+    db = MagicMock()
+    with pytest.raises(HTTPException) as exc:
+        delete_push_subscription(
+            request=MagicMock(), endpoint=endpoint, db=db,
+            current_user={"id": str(uuid4())},
+        )
+    assert exc.value.status_code == 422
+    db.query.assert_not_called()
+    db.commit.assert_not_called()
