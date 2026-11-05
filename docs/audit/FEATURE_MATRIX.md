@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-05 (commit `3ba915af9e7de796736f49dbf8d65309efc485de`)
+# Matrice des écrans — statique, 2026-11-05 (commit `feature/homework-student-submission-contract-20261105`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -9,14 +9,14 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 17 |
+| DÉFECTUEUX | 16 |
 | À VÉRIFIER | 30 |
-| NON VÉRIFIÉ | 98 |
+| NON VÉRIFIÉ | 99 |
 | COMPLET (parcours E2E) | 2 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (17)
+## DÉFECTUEUX (16)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -34,7 +34,6 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Parent | `parent/ChildDetail.tsx` | 24 | POST /parents/transcript/generate (pages/parent/ChildDetail.tsx)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
 | Parent | `parent/ParentDashboard.tsx` | 41 | GET /students/terms/X (utils/riskAssessment.ts)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts)<br>(partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
 | Parent | `parent/ReportCards.tsx` | 29 | GET /parents/enrollments (pages/parent/ReportCards.tsx)<br>(partagé) GET /students/X/enrollment (features/parents/services/parentsService.ts) |
-| Student | `student/StudentHomework.tsx` | 19 | POST /homework-submissions (components/homework/HomeworkSubmissionDialog.tsx) |
 | Teacher | `teacher/AppointmentSlots.tsx` | 17 | PATCH /school-life/appointment-slots/appointments/X (pages/teacher/AppointmentSlots.tsx)<br>POST /school-life/appointment-slots/bulk (pages/teacher/AppointmentSlots.tsx) |
 | Teacher | `teacher/ClassSessionAttendance.tsx` | 19 | PATCH /school-life/check-ins/sessions/${activeSession (pages/teacher/ClassSessionAttendance.tsx) |
 
@@ -73,7 +72,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Student | `student/StudentMessages.tsx` | 53 | (partagé) GET /students/X/enrollment (features/students/services/studentsService.ts) |
 | Teacher | `teacher/TeacherClasses.tsx` | 29 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 
-## NON VÉRIFIÉ (98)
+## NON VÉRIFIÉ (99)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -169,11 +168,12 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Public | `public/Terms.tsx` | 0 | — |
 | Public | `ResetPassword.tsx` | 2 | — |
 | Student | `student/StudentGrades.tsx` | 17 | — |
+| Student | `student/StudentHomework.tsx` | 26 | — |
 | Student | `student/StudentSchedule.tsx` | 17 | — |
 | Teacher | `teacher/TeacherAttendance.tsx` | 33 | — |
 | Teacher | `teacher/TeacherDashboard.tsx` | 40 | — |
 | Teacher | `teacher/TeacherGrades.tsx` | 31 | — |
-| Teacher | `teacher/TeacherHomework.tsx` | 19 | — |
+| Teacher | `teacher/TeacherHomework.tsx` | 20 | — |
 | Teacher | `teacher/TeacherMessages.tsx` | 29 | — |
 
 ## COMPLET (parcours E2E) (2)

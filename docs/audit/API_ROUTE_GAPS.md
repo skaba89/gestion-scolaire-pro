@@ -1,13 +1,13 @@
-# Appels frontend sans route backend — 2026-11-05
+# Appels frontend sans route backend — lot devoirs du 2026-11-05
 
-Référence : `main` à `3ba915af9e7de796736f49dbf8d65309efc485de`.
-645 opérations OpenAPI, 986 appels détectés, 21 entièrement dynamiques non
-vérifiables. **52 occurrences sans opération : 49 clés distinctes** (la
-référence CI précédente contenait 53 clés). L'analyse statique ne vérifie
-ni les corps, ni les réponses, ni les permissions ; chaque correction
-nécessite un test de contrat et les contrôles serveur correspondants.
-
-Commande : `node scripts/audit/frontend-api-routes.mjs <ops.json> src <rapport.txt> --baseline scripts/audit/api-route-gaps-baseline.json`.
+Référence de départ : `828a6f7158e555290c4c71b6beee28e7c213dc0c` (main après #380).
+Mesures du code proposé : **646 opérations**, 985 appels détectés,
+21 URL dynamiques non vérifiables, **51 occurrences = 48 clés distinctes**
+sans opération (49 clés avant). Le POST /homework-submissions/ de l'élève
+est remplacé par la route de remise existante ; la modification utilise
+une nouvelle route de contenu, distincte de la notation. Voir
+`HOMEWORK_SUBMISSIONS_20261105.md` et la PR pour les tests.
+L'analyse statique seule ne valide ni les permissions ni les corps/réponses.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -61,6 +61,5 @@ DELETE /schedule [route existe: GET,POST]  (src/components/schedule/ScheduleGene
 GET /schedule/terms [route existe: PUT,DELETE]  (src/pages/admin/ExecutiveDashboard.tsx:140)
 GET /student-parents [route existe: POST,DELETE]  (src/components/reminders/ReminderSystem.tsx:166)
 PATCH /students/X [route existe: GET,PUT,DELETE]  (src/lib/optimisticUpdate.ts:8)
-POST /homework-submissions [route existe: GET]  (src/components/homework/HomeworkSubmissionDialog.tsx:56)
 POST /school-life/appointment-slots/bulk [route existe: DELETE]  (src/pages/teacher/AppointmentSlots.tsx:148)
 PUT /push-subscriptions/upsert [route existe: POST]  (src/hooks/useNativePushNotifications.ts:97)

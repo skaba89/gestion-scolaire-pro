@@ -2,7 +2,8 @@
 import logging
 from typing import Optional, List, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from uuid import UUID
@@ -48,6 +49,26 @@ class SubmissionCreate(BaseModel):
 class GradeSubmission(BaseModel):
     grade: Optional[float] = None
     feedback: Optional[str] = None
+
+
+class SubmissionContentUpdate(BaseModel):
+    content: str = Field(min_length=1)
+
+
+def _validate_submission_targets(db: Session, *, tenant_id: str, homework_id: str, student_id: str) -> None:
+    # Ces deux colonnes de homework_submissions n'ont pas de FK SQL.
+    from app.models.student import Student
+    try:
+        UUID(homework_id)
+        UUID(student_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Identifiant de devoir ou d'élève invalide")
+    homework = db.execute(text(
+        "SELECT id FROM homework WHERE id = :hid AND tenant_id = :tid"
+    ), {"hid": homework_id, "tid": tenant_id}).first()
+    student = db.query(Student.id).filter(Student.id == student_id, Student.tenant_id == tenant_id).first()
+    if not homework or not student:
+        raise HTTPException(status_code=404, detail="Devoir ou élève introuvable dans cet établissement")
 
 
 def _validate_homework_fks(db: Session, *, tenant_id: str, class_id: Optional[str], subject_id: Optional[str]) -> None:
@@ -451,10 +472,13 @@ def submit_homework(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not _can_submit_for_student(db, current_user=current_user, student_id=body.student_id, tenant_id=tenant_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas soumettre un devoir pour cet élève")
+    _validate_submission_targets(db, tenant_id=tenant_id, homework_id=homework_id, student_id=body.student_id)
+    if body.homework_id != homework_id:
+        raise HTTPException(status_code=422, detail="Le devoir du corps doit correspondre à celui de l'URL")
     try:
         result = db.execute(text("""
             INSERT INTO homework_submissions (tenant_id, homework_id, student_id, content, submitted_at)
-            VALUES (:tenant_id, :homework_id, :student_id, :content, NOW())
+            VALUES (:tenant_id, :homework_id, :student_id, :content, CURRENT_TIMESTAMP)
             RETURNING id
         """), {
             "tenant_id": tenant_id,
@@ -469,6 +493,52 @@ def submit_homework(
         db.rollback()
         logger.error("submit_homework failed: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail="Operation failed. Please try again.")
+
+
+@router.put("/{homework_id}/submissions/{submission_id}/")
+def update_student_submission_content(
+    request: Request,
+    homework_id: UUID,
+    submission_id: UUID,
+    body: SubmissionContentUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("homework:read")),
+):
+    """Modifie uniquement le contenu d'une remise autorisée et non notée."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    params = {"hid": str(homework_id), "id": str(submission_id), "tid": tenant_id}
+    try:
+        submission = db.execute(text("""
+            SELECT student_id FROM homework_submissions
+            WHERE id = :id AND homework_id = :hid AND tenant_id = :tid
+        """), params).mappings().first()
+        if not submission:
+            raise HTTPException(status_code=404, detail="Remise introuvable")
+        student_id = str(submission["student_id"])
+        _validate_submission_targets(db, tenant_id=tenant_id, homework_id=str(homework_id), student_id=student_id)
+        if not _can_submit_for_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id):
+            raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier la remise de cet élève")
+        # Le prédicat est revérifié dans l'écriture : une note ajoutée après
+        # la lecture interdit également la modification (y compris 0/20).
+        result = db.execute(text("""
+            UPDATE homework_submissions SET content = :content, submitted_at = CURRENT_TIMESTAMP
+            WHERE id = :id AND homework_id = :hid AND tenant_id = :tid
+              AND grade IS NULL AND graded_at IS NULL AND graded_by IS NULL
+            RETURNING id
+        """), {**params, "content": body.content}).scalar()
+        if result is None:
+            raise HTTPException(status_code=409, detail="Cette remise a déjà été notée ou n'est plus modifiable")
+        log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                  action="UPDATE", resource_type="HOMEWORK_SUBMISSION", resource_id=str(submission_id))
+        db.commit()
+        return {"id": str(result), "message": "Remise modifiée"}
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Student submission content update failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Impossible d'enregistrer la remise pour le moment")
 
 
 # ─── POST /homework/submissions/{submission_id}/grade ───────────────────────

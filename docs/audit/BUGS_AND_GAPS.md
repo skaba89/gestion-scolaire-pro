@@ -1,3 +1,13 @@
+## Lot remises de devoirs — 2026-11-05 (après #380)
+
+**HW-SUB-01, P1, correctif proposé** : POST élève sans route, édition envoyée
+à la notation enseignant, état de saisie réutilisé entre devoirs, références
+non validées à la création. Preuves, contrôles, tests et limites dans
+`HOMEWORK_SUBMISSIONS_20261105.md`. Les six checks du nouveau HEAD doivent
+réussir avant fusion ; le lot n'est pas annoncé comme déployé.
+
+---
+
 ## Actualisation prioritaire — 2026-11-05, `3ba915af9e7de796736f49dbf8d65309efc485de`
 
 | ID | Sévérité | État au HEAD de main | Preuve / suite |

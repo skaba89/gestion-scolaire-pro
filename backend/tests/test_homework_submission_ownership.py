@@ -92,6 +92,17 @@ def _link_parent(tenant_id: str, *, parent_id: str, student_id: str) -> None:
         db.commit()
 
 
+def _make_homework(tenant_id: str) -> str:
+    # Les tests nominaux doivent cibler un vrai devoir du même établissement.
+    from sqlalchemy import text
+    homework_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.execute(text("INSERT INTO homework (id, tenant_id, title) VALUES (:id, :tid, 'Devoir')"),
+                   {"id": homework_id, "tid": tenant_id})
+        db.commit()
+    return homework_id
+
+
 class TestHomeworkSubmissionOwnership:
     def test_student_cannot_submit_for_another_student(self):
         tenant_id = _make_tenant()
@@ -111,11 +122,12 @@ class TestHomeworkSubmissionOwnership:
         tenant_id = _make_tenant()
         user_id = _make_user(tenant_id)
         student_id = _make_student(tenant_id, user_id=user_id)
+        homework_id = _make_homework(tenant_id)
 
         resp = client.post(
-            SUBMIT_URL.format(homework_id=str(uuid.uuid4())),
+            SUBMIT_URL.format(homework_id=homework_id),
             headers=_as({"id": user_id, "roles": ["STUDENT"], "tenant_id": tenant_id}),
-            json={"homework_id": str(uuid.uuid4()), "student_id": student_id, "content": "Ma réponse"},
+            json={"homework_id": homework_id, "student_id": student_id, "content": "Ma réponse"},
         )
         assert resp.status_code == 201, resp.text
 
@@ -125,11 +137,12 @@ class TestHomeworkSubmissionOwnership:
         parent_id = _make_user(tenant_id)
         student_id = _make_student(tenant_id)
         _link_parent(tenant_id, parent_id=parent_id, student_id=student_id)
+        homework_id = _make_homework(tenant_id)
 
         resp = client.post(
-            SUBMIT_URL.format(homework_id=str(uuid.uuid4())),
+            SUBMIT_URL.format(homework_id=homework_id),
             headers=_as({"id": parent_id, "roles": ["PARENT"], "tenant_id": tenant_id}),
-            json={"homework_id": str(uuid.uuid4()), "student_id": student_id, "content": "Réponse de mon enfant"},
+            json={"homework_id": homework_id, "student_id": student_id, "content": "Réponse de mon enfant"},
         )
         assert resp.status_code == 201, resp.text
 
@@ -150,10 +163,11 @@ class TestHomeworkSubmissionOwnership:
         tenant_id = _make_tenant()
         teacher_id = str(uuid.uuid4())
         student_id = _make_student(tenant_id)
+        homework_id = _make_homework(tenant_id)
 
         resp = client.post(
-            SUBMIT_URL.format(homework_id=str(uuid.uuid4())),
+            SUBMIT_URL.format(homework_id=homework_id),
             headers=_as({"id": teacher_id, "roles": ["TEACHER"], "tenant_id": tenant_id}),
-            json={"homework_id": str(uuid.uuid4()), "student_id": student_id, "content": "Soumis en présentiel"},
+            json={"homework_id": homework_id, "student_id": student_id, "content": "Soumis en présentiel"},
         )
         assert resp.status_code == 201, resp.text
