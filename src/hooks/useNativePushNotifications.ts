@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from '@capacitor/push-notifications';
 import { apiClient } from '@/api/client';
@@ -28,6 +28,7 @@ export interface NativePushState {
 export const useNativePushNotifications = () => {
   const { user } = useAuth();
   const { currentTenant } = useTenant();
+  const listenerCleanupRef = useRef<(() => void) | null>(null);
   const [state, setState] = useState<NativePushState>({
     isSupported: Capacitor.isNativePlatform(),
     isRegistered: false,
@@ -76,86 +77,102 @@ export const useNativePushNotifications = () => {
     }
   }, []);
 
-  const registerListeners = useCallback(async () => {
-    if (!Capacitor.isNativePlatform()) return;
+  // Every render/session owns only the listeners it registered. Disposing
+  // those handles prevents duplicate callbacks and stale-tenant API calls.
+  const registerListeners = useCallback(async (isActive: () => boolean) => {
+    if (!Capacitor.isNativePlatform()) return () => {};
+    const handles: Array<{ remove: () => Promise<void> }> = [];
+    const dispose = () => {
+      void Promise.all(handles.map(handle => handle.remove())).catch(error => {
+        console.warn('Unable to remove native push listener:', error);
+      });
+    };
 
-    // On success, we should be able to receive notifications
-    await PushNotifications.addListener('registration', async (token: Token) => {
-      setState(prev => ({
-        ...prev,
-        isRegistered: true,
-        token: token.value
-      }));
-
-      // Save token to backend (FCM/APNs push subscription)
-      if (user?.id && currentTenant?.id) {
-        try {
-          const platform = Capacitor.getPlatform();
-          const auth = platform === 'ios' ? 'apns' : 'fcm';
-
-          // The backend exposes POST for idempotent subscription upsert.
-          await apiClient.post("/push-subscriptions/upsert/", {
-            endpoint: token.value,
-            auth,
-            p256dh: token.value,
-            platform,
-          });
-
-          // Register user's external ID with OneSignal so the backend can
-          // target them by user_id via the OneSignal REST API.
-          // The OneSignal Capacitor/JS SDK running in the app picks up the
-          // VITE_ONESIGNAL_APP_ID env var and handles device subscription
-          // automatically — we only need to link the external user ID here.
+    try {
+      handles.push(await PushNotifications.addListener('registration', async (token: Token) => {
+        if (!isActive()) return;
+        setState(prev => ({ ...prev, isRegistered: true, token: token.value }));
+        if (user?.id && currentTenant?.id) {
           try {
-            await apiClient.post("/push-subscriptions/onesignal-link/", {
-              user_id: user.id,
-              tenant_id: currentTenant.id,
-              fcm_token: token.value,
+            const platform = Capacitor.getPlatform();
+            const auth = platform === 'ios' ? 'apns' : 'fcm';
+            await apiClient.post('/push-subscriptions/upsert/', {
+              endpoint: token.value,
+              auth,
+              p256dh: token.value,
+              platform,
             });
-          } catch {
-            // Non-fatal: OneSignal linking is best-effort
+            if (!isActive()) return;
+            try {
+              await apiClient.post('/push-subscriptions/onesignal-link/', {
+                user_id: user.id,
+                tenant_id: currentTenant.id,
+                fcm_token: token.value,
+              });
+            } catch {
+              // Non-fatal: OneSignal linking is best-effort.
+            }
+          } catch (error) {
+            console.error('Error saving push token:', error);
           }
-        } catch (error) {
-          console.error('Error saving push token:', error);
         }
-      }
-    });
-
-    await PushNotifications.addListener('registrationError', (error) => {
-      console.error('Push registration error:', error);
-      setState(prev => ({
-        ...prev,
-        isRegistered: false,
-        token: null
       }));
-    });
 
-    await PushNotifications.addListener('pushNotificationReceived', (_notification: PushNotificationSchema) => {
-      // Handle foreground notification
-    });
+      handles.push(await PushNotifications.addListener('registrationError', (error) => {
+        if (!isActive()) return;
+        console.error('Push registration error:', error);
+        setState(prev => ({ ...prev, isRegistered: false, token: null }));
+      }));
 
-    await PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
-      // Handle notification tap
-      const data = notification.notification.data;
-      if (data?.url) {
-        if (isSafeRedirect(data.url)) {
-          window.location.href = data.url;
-        } else {
-          console.warn('Blocked unsafe redirect:', data.url);
+      handles.push(await PushNotifications.addListener('pushNotificationReceived', (_notification: PushNotificationSchema) => {
+        if (!isActive()) return;
+        // Handle foreground notification.
+      }));
+
+      handles.push(await PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
+        if (!isActive()) return;
+        const data = notification.notification.data;
+        if (data?.url) {
+          if (isSafeRedirect(data.url)) {
+            window.location.href = data.url;
+          } else {
+            console.warn('Blocked unsafe redirect:', data.url);
+          }
         }
-      }
-    });
+      }));
+    } catch (error) {
+      dispose();
+      throw error;
+    }
+    return dispose;
   }, [user?.id, currentTenant?.id]);
 
   useEffect(() => {
-    registerListeners();
+    let active = true;
+    let dispose: (() => void) | undefined;
+    void registerListeners(() => active).then(cleanup => {
+      if (active) {
+        dispose = cleanup;
+        listenerCleanupRef.current = cleanup;
+      } else cleanup(); // Async registrations may finish after unmount.
+    }).catch(error => {
+      console.warn('Unable to register native push listeners:', error);
+    });
+    return () => {
+      active = false;
+      dispose?.();
+      if (listenerCleanupRef.current === dispose) listenerCleanupRef.current = null;
+    };
   }, [registerListeners]);
 
   const unregister = useCallback(async () => {
     if (!Capacitor.isNativePlatform()) return;
 
     try {
-      await PushNotifications.removeAllListeners();
+      // Remove only listeners owned by this hook; other components may also
+      // subscribe to Capacitor push events.
+      listenerCleanupRef.current?.();
+      listenerCleanupRef.current = null;
       
       if (user?.id && state.token) {
         await apiClient.delete("/push-subscriptions/", {
