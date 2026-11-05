@@ -122,20 +122,20 @@ def list_grades(
         elif not allowed_ids:
             return GradeList(items=[], total=0, page=page, page_size=page_size, pages=1)
         else:
-            # Parent de plusieurs enfants sans filtre explicite : agréger
-            all_items, all_total = [], 0
-            for sid in allowed_ids:
-                g, t = crud_grade.get_grades(
-                    db=db, tenant_id=tenant_id, skip=0, limit=page_size,
-                    student_id=UUID(sid), subject=subject,
-                    academic_year=academic_year, assessment_id=assessment_id,
-                    class_id=class_id,
-                )
-                all_items.extend(g)
-                all_total += t
-            return GradeList(items=all_items[:page_size], total=all_total,
-                             page=page, page_size=page_size,
-                             pages=math.ceil(all_total / page_size) if all_total else 1)
+            # Apply a single paginated query across all authorized children.
+            # The previous per-child skip=0 calls returned first-page rows
+            # again for page > 1 and could starve another child's grades.
+            grades, total = crud_grade.get_grades(
+                db=db, tenant_id=tenant_id,
+                skip=(page - 1) * page_size, limit=page_size,
+                student_ids={UUID(sid) for sid in allowed_ids},
+                subject=subject, academic_year=academic_year,
+                assessment_id=assessment_id, class_id=class_id,
+            )
+            return GradeList(
+                items=grades, total=total, page=page, page_size=page_size,
+                pages=math.ceil(total / page_size) if total else 1,
+            )
 
     skip = (page - 1) * page_size
     grades, total = crud_grade.get_grades(
