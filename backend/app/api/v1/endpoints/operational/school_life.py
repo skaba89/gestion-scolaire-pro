@@ -1864,6 +1864,7 @@ def _fetch_grades_for_term(db, student_id: str, term_id: str, tenant_id: str) ->
     """
     stmt = text("""
         SELECT
+            a.subject_id AS subject_id,
             COALESCE(subj.name, 'Matière inconnue') AS subject_name,
             COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
             g.score,
@@ -2020,6 +2021,7 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
         stmt = text("""
             SELECT
                 e.student_id AS student_id,
+                a.subject_id AS subject_id,
                 COALESCE(subj.name, 'Matière inconnue') AS subject_name,
                 COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
                 g.score,
