@@ -7,6 +7,8 @@ import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { filterDepartmentClassrooms } from "@/utils/departmentClassrooms";
+import { useClassrooms } from "@/queries/classrooms";
+import { buildDepartmentEnrollmentCounts } from "@/utils/departmentEnrollmentCounts";
 
 interface DepartmentDashboardChartsProps {
   departmentId: string;
@@ -17,6 +19,7 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'
 export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardChartsProps) {
   const { tenant } = useTenant();
   const { StudentsLabel } = useStudentLabel();
+  const { data: tenantClassrooms = [] } = useClassrooms(tenant?.id || "");
 
   // Get classrooms for this department
   const { data: departmentClassrooms } = useQuery({
@@ -34,7 +37,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
 
   // Students per classroom
   const { data: studentsPerClassroom } = useQuery({
-    queryKey: ['students-per-classroom', classroomIds, tenant?.id],
+    queryKey: ['students-per-classroom', classroomIds, tenant?.id, tenantClassrooms],
     queryFn: async () => {
       if (classroomIds.length === 0) return [];
       try {
@@ -46,18 +49,9 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
         }
         const enrollmentsList = enrollData;
 
-        // Count per classroom
-        const counts: Record<string, { name: string; count: number }> = {};
-        const allowedClassIds = new Set(classroomIds);
-        enrollmentsList.forEach((e: any) => {
-          const id = e.class_id;
-          if (!allowedClassIds.has(id)) return;
-          const name = e.classrooms?.name || 'Non défini';
-          if (!counts[id]) counts[id] = { name, count: 0 };
-          counts[id].count++;
-        });
-
-        return Object.values(counts);
+        // Enrollment responses have student info but no classroom name.
+        // Resolve labels from the canonical tenant-scoped classrooms query.
+        return buildDepartmentEnrollmentCounts(enrollmentsList, classroomIds, tenantClassrooms);
       } catch {
         return [];
       }
