@@ -122,6 +122,7 @@ def read_enrollments(
     request: Request,
     class_id: Optional[UUID] = Query(None),
     status: Optional[str] = Query(None),
+    academic_year_id: Optional[UUID] = Query(None),
     db: Session = Depends(get_db),
     # SECURITY FIX (institutional-readiness audit, 2026-09): had NO
     # permission check at all (get_current_user only), unlike its own
@@ -152,6 +153,7 @@ def read_enrollments(
         tenant_id=tenant_id,
         class_id=class_id,
         status=status,
+        academic_year_id=academic_year_id,
     )
 
 @router.post("/enrollments/", response_model=Enrollment)
