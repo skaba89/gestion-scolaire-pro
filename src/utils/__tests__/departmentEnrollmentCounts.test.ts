@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDepartmentEnrollmentCounts } from "../departmentEnrollmentCounts";
+import { buildDepartmentEnrollmentCounts, parseDepartmentEnrollmentResponse } from "../departmentEnrollmentCounts";
 
 describe("department enrollment chart", () => {
   const classrooms = [
@@ -38,4 +38,22 @@ describe("department enrollment chart", () => {
   it("returns an empty series when no department classes exist", () => {
     expect(buildDepartmentEnrollmentCounts([{ class_id: "a" }], [], classrooms)).toEqual([]);
   });
+  it("accepts a valid empty enrollment response as genuinely empty data", () => {
+    expect(parseDepartmentEnrollmentResponse([])).toEqual([]);
+    expect(buildDepartmentEnrollmentCounts(parseDepartmentEnrollmentResponse([]), ["a"], classrooms))
+      .toEqual([{ name: "6e A", count: 0 }]);
+  });
+
+  it("rejects invalid API responses rather than presenting false zero enrollment", () => {
+    expect(() => parseDepartmentEnrollmentResponse({ results: [] })).toThrow("Format des inscriptions inattendu");
+    expect(() => parseDepartmentEnrollmentResponse(null)).toThrow("Format des inscriptions inattendu");
+    expect(() => parseDepartmentEnrollmentResponse([{ student_id: "x" }])).toThrow("Format des inscriptions inattendu");
+  });
+
+  it("accepts the actual enrollment API array shape", () => {
+    expect(parseDepartmentEnrollmentResponse([
+      { id: "e-1", class_id: "a", student_id: "s-1" },
+    ])).toEqual([{ id: "e-1", class_id: "a", student_id: "s-1" }]);
+  });
+
 });

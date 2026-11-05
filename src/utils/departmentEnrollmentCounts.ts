@@ -4,6 +4,22 @@ export interface EnrollmentClassRef { class_id: string }
 export interface ClassroomCount { name: string; count: number }
 
 /**
+ * GET /enrollments/ is a plain array, unlike other paginated endpoints.
+ * Reject malformed payloads instead of silently treating an API failure as
+ * a legitimate empty enrollment list in charts and decisions.
+ */
+export function parseDepartmentEnrollmentResponse(data: unknown): EnrollmentClassRef[] {
+  if (!Array.isArray(data) || !data.every(row =>
+    row !== null &&
+    typeof row === "object" &&
+    typeof row.class_id === "string"
+  )) {
+    throw new Error("Format des inscriptions inattendu");
+  }
+  return data as EnrollmentClassRef[];
+}
+
+/**
  * The /enrollments/ response does not include classrooms.name.
  * Use the canonical /infrastructure/classrooms/ data to label each class.
  * Include empty classes instead of silently omitting them from the chart.
