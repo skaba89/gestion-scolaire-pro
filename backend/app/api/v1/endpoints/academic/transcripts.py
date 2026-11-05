@@ -81,14 +81,15 @@ def _fetch_grades_for_term_with_ects(db: Session, student_id: str, term_id: str,
     one, so the proven bulletin-generation path is never touched."""
     return db.execute(text("""
         SELECT
+            a.subject_id AS subject_id,
             COALESCE(subj.name, 'Matière inconnue') AS subject_name,
             COALESCE(subj.coefficient, g.coefficient, 1.0) AS coefficient,
             COALESCE(subj.ects, 0) AS ects,
             g.score,
             g.max_score
         FROM grades g
-        JOIN assessments a ON g.assessment_id = a.id
-        LEFT JOIN subjects subj ON a.subject_id = subj.id
+        JOIN assessments a ON g.assessment_id = a.id AND a.tenant_id = g.tenant_id
+        LEFT JOIN subjects subj ON a.subject_id = subj.id AND subj.tenant_id = g.tenant_id
         WHERE g.student_id = :sid
           AND g.tenant_id = :tid
           AND a.term_id = :term_id
@@ -100,8 +101,12 @@ def _summarize_subject_grades(grades: list, pass_threshold: float = PASS_THRESHO
     by_subject: dict = {}
     for g in grades:
         name = g["subject_name"]
-        if name not in by_subject:
-            by_subject[name] = {
+        # Different subjects / UEs may have the same display name.
+        # Group by stable subject UUID, not by title, to avoid merging ECTS.
+        key = str(g.get("subject_id")) if g.get("subject_id") else name
+        if key not in by_subject:
+            by_subject[key] = {
+                "subject_id": str(g["subject_id"]) if g.get("subject_id") else None,
                 "subject_name": name,
                 "coefficient": float(g["coefficient"] or 1),
                 "ects": float(g["ects"] or 0),
@@ -109,7 +114,7 @@ def _summarize_subject_grades(grades: list, pass_threshold: float = PASS_THRESHO
             }
         if g["score"] is not None:
             max_s = float(g["max_score"] or 20)
-            by_subject[name]["_scores"].append(float(g["score"]) / max_s * 20)
+            by_subject[key]["_scores"].append(float(g["score"]) / max_s * 20)
 
     summary = []
     for data in by_subject.values():
