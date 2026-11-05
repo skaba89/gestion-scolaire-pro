@@ -5,6 +5,7 @@ import { useNativePushNotifications } from '../useNativePushNotifications';
 
 const mocks = vi.hoisted(() => ({
   addListener: vi.fn(),
+  remove: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
 }));
@@ -45,12 +46,12 @@ vi.mock('@/contexts/TenantContext', () => ({
 describe('native push subscription API contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.addListener.mockResolvedValue({ remove: vi.fn() });
+    mocks.addListener.mockResolvedValue({ remove: mocks.remove });
     mocks.post.mockResolvedValue({ data: {} });
   });
 
   it('uses POST /push-subscriptions/upsert/ with the registered device token', async () => {
-    renderHook(() => useNativePushNotifications());
+    const { unmount } = renderHook(() => useNativePushNotifications());
 
     await waitFor(() => {
       expect(mocks.addListener).toHaveBeenCalledWith(
@@ -75,5 +76,33 @@ describe('native push subscription API contract', () => {
       platform: 'android',
     });
     expect(mocks.put).not.toHaveBeenCalled();
+    unmount();
   });
+  it('removes exactly the four listeners belonging to this hook on unmount', async () => {
+    const { unmount } = renderHook(() => useNativePushNotifications());
+    await waitFor(() => {
+      expect(mocks.addListener).toHaveBeenCalledTimes(4);
+    });
+    unmount();
+    await waitFor(() => {
+      expect(mocks.remove).toHaveBeenCalledTimes(4);
+    });
+  });
+
+  it('ignores stale registration callbacks after the hook unmounts', async () => {
+    const { unmount } = renderHook(() => useNativePushNotifications());
+    await waitFor(() => {
+      expect(mocks.addListener).toHaveBeenCalledWith('registration', expect.any(Function));
+    });
+    const registration = mocks.addListener.mock.calls.find(
+      ([event]) => event === 'registration',
+    )?.[1] as ((token: { value: string }) => Promise<void>) | undefined;
+    expect(registration).toBeDefined();
+    unmount();
+    await act(async () => {
+      await registration!({ value: 'stale-fcm-token' });
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
 });
