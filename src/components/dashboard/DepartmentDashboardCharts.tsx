@@ -135,7 +135,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
   });
 
   // Exams this month
-  const { data: examsThisMonth } = useQuery({
+  const { data: examsThisMonth, isError: examsThisMonthError } = useQuery({
     queryKey: ['exams-this-month', departmentId, tenant?.id],
     queryFn: async () => {
       const startDate = format(startOfMonth(new Date()), 'yyyy-MM-dd');
@@ -143,8 +143,11 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
 
       const { data: examsData } = await apiClient.get('/department-portal/exams/', {
         params: { tenant_id: tenant?.id || '', department_id: departmentId, date_from: startDate, date_to: endDate },
-      }).catch(() => ({ data: [] }));
-      const examsList = examsData.data || examsData || [];
+      });
+      const examsList = Array.isArray(examsData) ? examsData : examsData?.items;
+      if (!Array.isArray(examsList)) {
+        throw new Error('Réponse des examens non conforme');
+      }
 
       const statusCounts = {
         scheduled: 0,
@@ -249,6 +252,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Examens ce mois</CardTitle>
+          {examsThisMonthError && <p role="alert" className="text-sm text-destructive">Impossible de charger les examens</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
