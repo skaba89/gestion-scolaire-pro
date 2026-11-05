@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { filterDepartmentClassrooms } from "@/utils/departmentClassrooms";
 
 interface DepartmentDashboardChartsProps {
   departmentId: string;
@@ -21,10 +22,10 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
   const { data: departmentClassrooms } = useQuery({
     queryKey: ['department-classrooms-ids', departmentId, tenant?.id],
     queryFn: async () => {
-      const { data: cdData } = await apiClient.get('/classroom-departments/', {
-        params: { department_id: departmentId, tenant_id: tenant?.id || '' },
-      });
-      return cdData.data || cdData || [];
+      // The infrastructure endpoint returns all departments of the authenticated tenant.
+      // Filter by department here; it does not accept department_id as a filter.
+      const { data: cdData } = await apiClient.get('/infrastructure/classroom-departments/');
+      return filterDepartmentClassrooms(cdData, departmentId);
     },
     enabled: !!departmentId && !!tenant?.id,
   });
