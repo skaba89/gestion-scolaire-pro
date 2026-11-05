@@ -883,10 +883,11 @@ push_subscriptions_router = APIRouter()
 
 
 class PushSubscriptionUpsert(BaseModel):
+    """Persist native push registration fields used by the actual ORM model."""
     endpoint: str
-    keys_auth: Optional[str] = None
-    keys_p256dh: Optional[str] = None
-    keys: Optional[dict] = None
+    auth: str
+    p256dh: str
+    platform: str = "web"
 
 
 @push_subscriptions_router.post("/upsert/", status_code=status.HTTP_200_OK)
@@ -896,7 +897,7 @@ def upsert_push_subscription(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /push-subscriptions/upsert/ — mirrors POST /notifications/subscriptions/"""
+    """Idempotently register a push device for the authenticated tenant/user."""
     from app.models import PushSubscription
     user_id = current_user.get("id")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -904,28 +905,29 @@ def upsert_push_subscription(
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
 
     existing = db.query(PushSubscription).filter(
+        PushSubscription.tenant_id == tenant_id,
         PushSubscription.user_id == user_id,
-        PushSubscription.endpoint == subscription_in.endpoint
+        PushSubscription.endpoint == subscription_in.endpoint,
     ).first()
 
     if existing:
-        # Update
-        update_data = subscription_in.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            if hasattr(existing, field):
-                setattr(existing, field, value)
+        existing.auth = subscription_in.auth
+        existing.p256dh = subscription_in.p256dh
+        existing.platform = subscription_in.platform
+        existing.is_active = True
         db.commit()
         db.refresh(existing)
         return existing
 
-    # Create new
     new_sub = PushSubscription(
         endpoint=subscription_in.endpoint,
+        auth=subscription_in.auth,
+        p256dh=subscription_in.p256dh,
+        platform=subscription_in.platform,
         user_id=user_id,
         tenant_id=tenant_id,
+        is_active=True,
     )
-    if subscription_in.keys:
-        new_sub.keys = subscription_in.keys
     db.add(new_sub)
     db.commit()
     db.refresh(new_sub)
@@ -942,7 +944,11 @@ def delete_push_subscription(
     """DELETE /push-subscriptions/ — mirrors DELETE /notifications/subscriptions/"""
     from app.models import PushSubscription
     user_id = current_user.get("id")
-    query = db.query(PushSubscription).filter(PushSubscription.user_id == user_id)
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    query = db.query(PushSubscription).filter(
+        PushSubscription.user_id == user_id,
+        PushSubscription.tenant_id == tenant_id,
+    )
     if endpoint:
         query = query.filter(PushSubscription.endpoint == endpoint)
     query.delete()
