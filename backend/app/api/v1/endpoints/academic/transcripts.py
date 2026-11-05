@@ -119,9 +119,11 @@ def _summarize_subject_grades(grades: list, pass_threshold: float = PASS_THRESHO
     summary = []
     for data in by_subject.values():
         scores = data.pop("_scores")
-        average = round(sum(scores) / len(scores), 2) if scores else None
-        data["average"] = average
-        data["passed"] = average is not None and average >= pass_threshold
+        raw_average = sum(scores) / len(scores) if scores else None
+        # Display rounded marks, but credit validation must use the original
+        # precision: 9.996/20 is below 10/20 even if rendered as 10.00.
+        data["average"] = round(raw_average, 2) if raw_average is not None else None
+        data["passed"] = raw_average is not None and raw_average >= pass_threshold
         summary.append(data)
     return summary
 
