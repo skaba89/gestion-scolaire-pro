@@ -128,6 +128,31 @@ def _summarize_subject_grades(grades: list, pass_threshold: float = PASS_THRESHO
     return summary
 
 
+def _capitalized_ects(periods: list[dict]) -> tuple[float, float]:
+    """Capitalise each identified UE once across terms and retakes.
+
+    A previously failed UE can become earned in a later term, without its
+    credits being counted twice. Missing subject IDs are kept term-local:
+    titles alone are not reliable UE identifiers.
+    """
+    credits_by_ue: dict[tuple, dict] = {}
+    for period in periods:
+        for index, subject in enumerate(period["subjects"]):
+            sid = subject.get("subject_id")
+            key = ("subject", str(sid)) if sid else ("unidentified", period["term_id"], index)
+            credits = max(0.0, float(subject.get("ects") or 0))
+            if key not in credits_by_ue:
+                credits_by_ue[key] = {"ects": credits, "passed": False}
+            else:
+                # Prefer the largest declared credit count if historical
+                # term snapshots disagree; never double-count the same UE.
+                credits_by_ue[key]["ects"] = max(credits_by_ue[key]["ects"], credits)
+            credits_by_ue[key]["passed"] |= bool(subject.get("passed"))
+    possible = sum(item["ects"] for item in credits_by_ue.values())
+    earned = sum(item["ects"] for item in credits_by_ue.values() if item["passed"])
+    return earned, possible
+
+
 @router.get("/{student_id}/")
 def get_student_transcript(
     request: Request,
@@ -159,8 +184,6 @@ def get_student_transcript(
         raise HTTPException(status_code=404, detail="Aucune période trouvée pour cette année académique")
 
     periods = []
-    total_ects_earned = 0.0
-    total_ects_possible = 0.0
     term_averages = []
     annual_ects_numerator = 0.0
     annual_ects_denominator = 0.0
@@ -168,11 +191,6 @@ def get_student_transcript(
     for term in terms:
         grades = _fetch_grades_for_term_with_ects(db, str(student_id), str(term["id"]), tenant_id)
         subjects = _summarize_subject_grades(grades, pass_threshold)
-
-        for subj in subjects:
-            total_ects_possible += subj["ects"]
-            if subj["passed"]:
-                total_ects_earned += subj["ects"]
 
         averages_with_coeff = [(s["average"], s["coefficient"]) for s in subjects if s["average"] is not None]
         term_average = (
@@ -207,6 +225,10 @@ def get_student_transcript(
             "term_average": term_average,
             "term_average_ects_weighted": term_average_ects,
         })
+
+    # Subjects repeated for resits or cross-term teaching must only earn
+    # their credits once over the academic year.
+    total_ects_earned, total_ects_possible = _capitalized_ects(periods)
 
     return {
         "student": {
