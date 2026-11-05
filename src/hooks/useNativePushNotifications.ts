@@ -93,8 +93,8 @@ export const useNativePushNotifications = () => {
           const platform = Capacitor.getPlatform();
           const auth = platform === 'ios' ? 'apns' : 'fcm';
 
-          // Use PUT (upsert) to create or update the subscription
-          await apiClient.put("/push-subscriptions/upsert/", {
+          // The backend exposes POST for idempotent subscription upsert.
+          await apiClient.post("/push-subscriptions/upsert/", {
             user_id: user.id,
             tenant_id: currentTenant.id,
             endpoint: token.value,
