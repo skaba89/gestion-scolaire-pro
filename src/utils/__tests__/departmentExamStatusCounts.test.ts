@@ -24,4 +24,25 @@ describe("department exam status contract", () => {
   it("ignores unknown statuses without incrementing a category", () => {
     expect(summarize([{ status: "draft" }, {}, null]).map(item => item.value)).toEqual([0, 0, 0]);
   });
+  it("reads the real department portal {exams} response and filters by calendar month", () => {
+    const response = { department: { id: "department-a" }, exams: [
+      { status: "scheduled", exam_date: "2026-11-01" },
+      { status: "completed", exam_date: "2026-11-30" },
+      { status: "cancelled", exam_date: "2026-10-31" },
+      { status: "scheduled", exam_date: "2026-12-01" },
+      { status: "completed", exam_date: null },
+    ], classrooms: [], subjects: [], terms: [] };
+    expect(summarize(response, "2026-11-01", "2026-11-30").map(item => item.value)).toEqual([1, 1, 0]);
+  });
+
+  it("reports malformed {exams} payloads instead of displaying zeroes", () => {
+    expect(() => summarize({ exams: null }, "2026-11-01", "2026-11-30")).toThrow("Réponse des examens non conforme");
+  });
+
+  it("treats an empty but valid month as zero exams", () => {
+    expect(summarize({
+      exams: [{ status: "scheduled", exam_date: "2026-10-10" }],
+    }, "2026-11-01", "2026-11-30").map(item => item.value)).toEqual([0, 0, 0]);
+  });
+
 });
