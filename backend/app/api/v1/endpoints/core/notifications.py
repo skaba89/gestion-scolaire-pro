@@ -426,6 +426,24 @@ def mark_all_as_read(
     db.commit()
     return {"status": "ok"}
 
+# Static route must precede /{notification_id}/ to avoid a UUID validation 422.
+@router.delete("/clear-read/", status_code=status.HTTP_204_NO_CONTENT)
+def clear_read_notifications(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete all read notifications for current user."""
+    user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    db.query(Notification).filter(
+        Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
+        Notification.is_read == True
+    ).delete()
+    db.commit()
+    return None
+
 @router.delete("/{notification_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_notification(
     request: Request,
@@ -440,23 +458,6 @@ def delete_notification(
         Notification.id == notification_id,
         Notification.user_id == user_id,
         Notification.tenant_id == tenant_id,
-    ).delete()
-    db.commit()
-    return None
-
-@router.delete("/clear-read/", status_code=status.HTTP_204_NO_CONTENT)
-def clear_read_notifications(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete all read notifications for current user."""
-    user_id = current_user.get("id")
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    db.query(Notification).filter(
-        Notification.user_id == user_id,
-        Notification.tenant_id == tenant_id,
-        Notification.is_read == True
     ).delete()
     db.commit()
     return None
