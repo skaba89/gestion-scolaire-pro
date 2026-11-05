@@ -142,9 +142,9 @@ def get_assessments(
 
     try:
         results = db.execute(text(query_str), params).mappings().all()
-    except Exception as e:
-        logger.error("Error fetching assessments: %s", e)
-        return {"items": []}
+    except Exception:
+        logger.exception("Error fetching assessments")
+        raise HTTPException(status_code=500, detail="Unable to load assessments")
 
     formatted_results = []
     for r in results:
@@ -170,6 +170,50 @@ def get_assessments(
             "terms": {"name": r.get("term_name")},
         })
     return {"items": formatted_results}
+
+
+@router.get("/{id}/")
+def get_assessment_detail(
+    request: Request,
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:read")),
+):
+    """Read one assessment within the current establishment.
+
+    Match the list endpoint's authorization and response field names.
+    Unknown identifiers and identifiers from another tenant both return 404.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    row = db.execute(text("""
+        SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id,
+               a.class_id, a.name, a.assessment_type, a.date, a.max_score,
+               a.weight, a.description, a.created_at, a.updated_at,
+               s.name AS subject_name, s.code AS subject_code,
+               t.name AS term_name
+        FROM assessments a
+        LEFT JOIN subjects s ON a.subject_id = s.id AND s.tenant_id = a.tenant_id
+        LEFT JOIN terms t ON a.term_id = t.id AND t.tenant_id = a.tenant_id
+        WHERE a.id = :id AND a.tenant_id = :tenant_id
+    """), {"id": str(id), "tenant_id": tenant_id}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    return {
+        "id": str(row["id"]),
+        "tenant_id": str(row["tenant_id"]),
+        "subject_id": str(row["subject_id"]) if row["subject_id"] else None,
+        "term_id": str(row["term_id"]) if row["term_id"] else None,
+        "academic_year_id": str(row["academic_year_id"]) if row["academic_year_id"] else None,
+        "class_id": str(row["class_id"]) if row["class_id"] else None,
+        "name": row["name"],
+        "type": row["assessment_type"],
+        "date": row["date"].isoformat() if hasattr(row["date"], "isoformat") else str(row["date"]) if row["date"] else None,
+        "max_score": float(row["max_score"]) if row["max_score"] is not None else None,
+        "weight": float(row["weight"]) if row["weight"] is not None else None,
+        "description": row["description"],
+        "subjects": {"name": row["subject_name"], "code": row["subject_code"]},
+        "terms": {"name": row["term_name"]},
+    }
 
 
 @router.post("/")
