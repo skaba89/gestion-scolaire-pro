@@ -1,3 +1,16 @@
+## Lot relevé officiel parent — 2026-11-05, après #382
+
+PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : l'appel absent et le calcul
+client falsifiable sont remplacés par un PDF serveur fondé sur le moteur de
+relevé existant. Le parent ne transmet plus ni notes, ni moyenne, ni identité,
+ni années. Les contrôles famille, tenant, permission, erreurs SQL et format PDF
+sont testés. Voir `PARENT_TRANSCRIPT_20261105.md`.
+
+Mesure proposée : 46 écarts API distincts, 14 pages DÉFECTUEUSES au lieu de 15.
+La page reste À VÉRIFIER à cause d'une méthode partagée hors périmètre.
+
+---
+
 ## Lot bulletins parents — 2026-11-05, après #381
 
 PARENT-BUL-01 / PARENT-NOTES-01 (P1), **correctif proposé** : bulletin PDF

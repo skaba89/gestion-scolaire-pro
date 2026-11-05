@@ -11,6 +11,8 @@ from pydantic import BaseModel, EmailStr, Field
 import math
 import secrets
 import json
+import html
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -1342,6 +1344,174 @@ def generate_report_card(
     except SQLAlchemyError as exc:
         logger.error("Parent report card lookup failed (%s)", type(exc).__name__)
         raise HTTPException(status_code=503, detail="Impossible de générer le bulletin pour le moment")
+
+
+class TranscriptGenerateRequest(BaseModel):
+    student_id: UUID
+
+
+def _document_value(value: Any) -> str:
+    """Escape every database value before inserting it in official HTML."""
+    if value is None:
+        return "—"
+    return html.escape(str(value))
+
+
+def _document_number(value: Any) -> str:
+    if value is None:
+        return "—"
+    try:
+        return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return _document_value(value)
+
+
+def _render_parent_transcript_pdf(*, tenant: Any, academic_years: List[dict]) -> bytes:
+    """Render server-computed transcript years to one archival PDF."""
+    from weasyprint import HTML
+    from app.core.ssrf_protection import get_weasyprint_safe_url_fetcher
+
+    student = academic_years[0]["student"]
+    year_sections = []
+    for year in academic_years:
+        period_sections = []
+        for period in year["periods"]:
+            subject_rows = []
+            for subject in period["subjects"]:
+                decision = "Validée" if subject.get("passed") else "Non validée"
+                subject_rows.append(
+                    "<tr>"
+                    f"<td>{_document_value(subject.get('subject_name'))}</td>"
+                    f"<td>{_document_number(subject.get('coefficient'))}</td>"
+                    f"<td>{_document_number(subject.get('average'))}</td>"
+                    f"<td>{_document_number(subject.get('ects'))}</td>"
+                    f"<td>{decision}</td>"
+                    "</tr>"
+                )
+            if not subject_rows:
+                subject_rows.append('<tr><td colspan="5" class="empty">Aucune note enregistrée</td></tr>')
+            ects_average = period.get("term_average_ects_weighted")
+            ects_summary = (
+                f" · Moyenne pondérée ECTS : <strong>{_document_number(ects_average)}/20</strong>"
+                if ects_average is not None else ""
+            )
+            period_sections.append(
+                f"<h3>{_document_value(period.get('term_name'))}</h3>"
+                '<table><thead><tr><th>Matière / UE</th><th>Coefficient</th>'
+                '<th>Moyenne /20</th><th>ECTS</th><th>Décision</th></tr></thead>'
+                f"<tbody>{''.join(subject_rows)}</tbody></table>"
+                '<div class="period-summary">'
+                f"Moyenne de la période : <strong>{_document_number(period.get('term_average'))}/20</strong>"
+                f"{ects_summary}"
+                "</div>"
+            )
+        annual_ects_average = year.get("annual_average_ects_weighted")
+        annual_ects_summary = (
+            f" · Moyenne annuelle pondérée ECTS : <strong>{_document_number(annual_ects_average)}/20</strong>"
+            if annual_ects_average is not None else ""
+        )
+        year_sections.append(
+            '<section class="year">'
+            f"<h2>Année académique {_document_value(year.get('year_name'))}</h2>"
+            '<div class="year-summary">'
+            f"Moyenne annuelle : <strong>{_document_number(year.get('annual_average'))}/20</strong> · "
+            f"ECTS acquis : <strong>{_document_number(year.get('ects_earned'))}/"
+            f"{_document_number(year.get('ects_possible'))}</strong>"
+            f"{annual_ects_summary}"
+            "</div>"
+            f"{''.join(period_sections)}"
+            "</section>"
+        )
+
+    document = f"""<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><style>
+@page {{ size: A4; margin: 18mm 14mm; @bottom-center {{ content: "Page " counter(page) " / " counter(pages); font-size: 8pt; color: #64748b; }} }}
+body {{ font-family: Arial, sans-serif; color: #172033; font-size: 10pt; }}
+header {{ border-bottom: 3px solid #1d4ed8; padding-bottom: 10px; margin-bottom: 16px; }}
+h1 {{ color: #1d4ed8; font-size: 20pt; margin: 14px 0 4px; text-align: center; }}
+h2 {{ color: #1e3a8a; font-size: 14pt; margin: 18px 0 8px; }}
+h3 {{ font-size: 11pt; margin: 14px 0 6px; }}
+.school {{ font-size: 15pt; font-weight: bold; }} .muted {{ color: #64748b; }}
+.identity, .year-summary {{ background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 9px; margin: 9px 0; }}
+.year {{ break-inside: avoid; }} table {{ width: 100%; border-collapse: collapse; margin-bottom: 6px; }}
+th {{ background: #1e3a8a; color: white; text-align: left; }} th, td {{ border: 1px solid #cbd5e1; padding: 5px; }}
+.empty {{ text-align: center; color: #64748b; }} .period-summary {{ text-align: right; margin-bottom: 10px; }}
+</style></head><body>
+<header><div class="school">{_document_value(tenant.name)}</div><div class="muted">{_document_value(tenant.address)}</div></header>
+<h1>Relevé complet de notes</h1>
+<div class="identity"><strong>{_document_value(student.get('first_name'))} {_document_value(student.get('last_name'))}</strong><br>
+Matricule : {_document_value(student.get('registration_number'))}</div>
+{''.join(year_sections)}
+</body></html>"""
+    return HTML(string=document, url_fetcher=get_weasyprint_safe_url_fetcher()).write_pdf()
+
+
+@router.post("/transcript/generate/", response_class=Response,
+             responses={200: {"content": {"application/pdf": {}}}})
+def generate_parent_transcript(
+    request: Request,
+    body: TranscriptGenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """Generate one authoritative PDF from all enrolled academic years.
+
+    The client supplies only the child identifier. Years, periods, grades,
+    coefficients, validation decisions and ECTS all come from the database.
+    """
+    from app.models.tenant import Tenant
+    from app.models.academic_year import AcademicYear
+    from app.models.enrollment import Enrollment
+    from app.models.term import Term
+    from app.api.v1.endpoints.academic import transcripts
+
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        allowed = _parent_student_ids(db, tenant_id=tenant_id, user_id=current_user["id"])
+        if str(body.student_id) not in allowed:
+            raise HTTPException(status_code=403, detail="Cet élève n'est pas rattaché à votre compte")
+
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        years = db.query(AcademicYear).join(
+            Enrollment,
+            and_(Enrollment.academic_year_id == AcademicYear.id, Enrollment.tenant_id == tenant_id),
+        ).join(
+            Term,
+            and_(Term.academic_year_id == AcademicYear.id, Term.tenant_id == tenant_id),
+        ).filter(
+            AcademicYear.tenant_id == tenant_id,
+            Enrollment.student_id == body.student_id,
+        ).distinct().order_by(AcademicYear.start_date, AcademicYear.id).all()
+        if not tenant or not years:
+            raise HTTPException(status_code=404, detail="Aucun historique académique disponible")
+
+        academic_years = []
+        for year in years:
+            data = transcripts.build_transcript_data(
+                db=db,
+                current_user=current_user,
+                tenant_id=tenant_id,
+                student_id=str(body.student_id),
+                academic_year_id=str(year.id),
+            )
+            academic_years.append({**data, "year_name": year.name})
+
+        pdf_bytes = _render_parent_transcript_pdf(tenant=tenant, academic_years=academic_years)
+        student = academic_years[0]["student"]
+        safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", f"{student.get('last_name', '')}_{student.get('first_name', '')}").strip("_") or "eleve"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="Releve_notes_{safe_name}.pdf"'},
+        )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        logger.error("Parent transcript lookup failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Impossible de générer le relevé pour le moment")
+    except Exception as exc:
+        logger.error("Parent transcript rendering failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="Impossible de générer le relevé")
 
 
 # --- POST /parents/invoices/pdf/ --- Generate invoice PDF (stub) ---

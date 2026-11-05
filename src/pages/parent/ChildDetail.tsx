@@ -1,10 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  User,
   Calendar,
   Phone,
   MapPin,
@@ -22,19 +20,15 @@ import {
   ClipboardCheck,
   FileText,
   TrendingUp,
-  TrendingDown,
-  Minus,
   CheckCircle2,
   XCircle,
   Clock,
   AlertCircle,
   Download
 } from "lucide-react";
-import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -53,7 +47,6 @@ const ChildDetail = () => {
   const { t } = useTranslation();
   const { studentId } = useParams<{ studentId: string }>();
   const { user } = useAuth();
-  const { tenant } = useTenant();
   const { getTenantUrl } = useTenantUrl();
 
   // Verify parent has access to this student
@@ -92,136 +85,27 @@ const ChildDetail = () => {
     enabled: !!studentId && !!relation,
   });
 
-  // Fetch all enrollments via parentsService
-  const { data: allEnrollments } = useQuery({
-    queryKey: ["student-all-enrollments", studentId],
-    queryFn: () => parentsService.getStudentAllEnrollments(studentId || ""),
-    enabled: !!studentId && !!relation,
-  });
-
   const handleDownloadTranscript = async () => {
     try {
       setIsGeneratingTranscript(true);
 
-      if (!grades || !allEnrollments || !student) {
+      if (!studentId) {
         toast.error(t("childDetail.incompleteData"));
         return;
       }
 
-      // Group grades by Academic Year -> Subject
-      const yearsMap = new Map();
-
-      const getLevelForYear = (yearId: string) => {
-        const enrollment = allEnrollments.find((e: any) => e.academic_year_id === yearId);
-        return (enrollment?.levels as any)?.name || (enrollment?.classrooms as any)?.name || "N/A";
-      };
-
-      grades.forEach((grade: any) => {
-        const term = grade.assessments?.terms;
-        const year = term?.academic_years;
-        const subject = grade.assessments?.subjects;
-
-        if (!year || !subject) return;
-
-        if (!yearsMap.has(year.id)) {
-          yearsMap.set(year.id, {
-            id: year.id,
-            name: year.name,
-            level: getLevelForYear(year.id),
-            subjects: new Map(),
-          });
-        }
-
-        const yearData = yearsMap.get(year.id);
-
-        if (!yearData.subjects.has(subject.name)) {
-          yearData.subjects.set(subject.name, {
-            totalScore: 0,
-            totalMax: 0,
-            coefficient: subject.coefficient || 1,
-            gradesCount: 0
-          });
-        }
-
-        const subData = yearData.subjects.get(subject.name);
-        const max = grade.assessments?.max_score || 20;
-        const score = grade.score || 0;
-        const normalized = (score / max) * 20;
-
-        subData.totalScore += normalized;
-        subData.totalMax += 20;
-        subData.gradesCount++;
-      });
-
-      const academicYears = Array.from(yearsMap.values()).map((year: any) => {
-        let yearTotal = 0;
-        let yearCoeffs = 0;
-
-        const subjects = Array.from(year.subjects.entries()).map(([name, data]: any) => {
-          const avg = data.totalScore / data.gradesCount;
-          yearTotal += avg * data.coefficient;
-          yearCoeffs += data.coefficient;
-
-          return {
-            name,
-            average: avg.toFixed(2),
-            coefficient: data.coefficient,
-            appreciation: getAppreciation(avg)
-          };
-        });
-
-        const annualAverage = yearCoeffs > 0 ? yearTotal / yearCoeffs : 0;
-
-        return {
-          name: year.name,
-          level: year.level,
-          average: annualAverage.toFixed(2),
-          status: annualAverage >= 10 ? "ADMIS(E)" : "AJOURNÉ(E)",
-          appreciation: getGeneralAppreciation(annualAverage),
-          subjects: subjects.sort((a: any, b: any) => a.name.localeCompare(b.name))
-        };
-      }).sort((a: any, b: any) => b.name.localeCompare(a.name));
-
-      const transcriptData = {
-        tenant: {
-          name: tenant?.name || 'École',
-          address: tenant?.address || "Adresse de l'établissement"
-        },
-        student: {
-          firstName: student.first_name,
-          lastName: student.last_name,
-          matricule: student.registration_number,
-          dateOfBirth: student.date_of_birth ? format(new Date(student.date_of_birth), "dd/MM/yyyy") : "",
-          gender: student.gender
-        },
-        academicYears
-      };
-
-      const { data } = await apiClient.post('/parents/transcript/generate/', transcriptData);
-
-      if (data?.html) {
-        const printWindow = window.open("", "_blank");
-        if (printWindow) {
-          printWindow.document.write(data.html);
-          printWindow.document.close();
-          printWindow.focus();
-          setTimeout(() => {
-            printWindow.print();
-          }, 500);
-        } else {
-          // Popup blocked — fallback: offer HTML as a downloadable file
-          const blob = new Blob([data.html], { type: "text/html;charset=utf-8" });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = `dossier-scolaire-${student?.last_name || "eleve"}.html`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-          toast.info(t("childDetail.popupBlocked"));
-        }
-      }
+      const pdf = await parentsService.generateTranscript(studentId);
+      const url = URL.createObjectURL(pdf);
+      const link = document.createElement("a");
+      link.href = url;
+      const safeName = `${student?.last_name || "eleve"}-${student?.first_name || ""}`
+        .replace(/[^a-zA-Z0-9_-]+/g, "-");
+      link.download = `releve-notes-${safeName}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success(t("childDetail.downloadRecord"));
 
     } catch (error: any) {
       toast.error(t("childDetail.recordError"), {
@@ -231,19 +115,6 @@ const ChildDetail = () => {
       setIsGeneratingTranscript(false);
     }
   };
-
-  const getAppreciation = useMemo(() => (note: number) => {
-    if (note >= 16) return t("childDetail.decisionExcellent");
-    if (note >= 14) return t("childDetail.decisionVeryGood");
-    if (note >= 12) return t("childDetail.decisionGood");
-    if (note >= 10) return t("childDetail.decisionFair");
-    return t("childDetail.decisionInsufficient");
-  }, [t]);
-
-  const getGeneralAppreciation = useMemo(() => (note: number) => {
-    if (note >= 10) return t("childDetail.decisionPromotion");
-    return t("childDetail.decisionRepeat");
-  }, [t]);
 
   // Fetch attendance history via parentsService
   const { data: attendance } = useQuery({
@@ -296,12 +167,6 @@ const ChildDetail = () => {
       : 100;
     return stats;
   })();
-
-  const currentMonth = new Date();
-  const monthlyAttendance = attendance?.filter(a => {
-    const date = new Date(a.date);
-    return date >= startOfMonth(currentMonth) && date <= endOfMonth(currentMonth);
-  }) || [];
 
   const getAverageColor = (avg: number) => {
     if (avg >= 14) return "text-success";

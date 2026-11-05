@@ -1,3 +1,17 @@
+## Lot relevé officiel parent — 2026-11-05, après #382
+
+PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : relevé PDF multi-années
+calculé côté serveur, données client non fiables supprimées du contrat et
+contrôle de propriété familiale. Détail : `PARENT_TRANSCRIPT_20261105.md`.
+
+Mesures proposées : 46 écarts API distincts (47 avant), 14 pages statiquement
+défectueuses (15 avant), 174 erreurs TypeScript préexistantes contre la
+référence 178. Le score reste **60/100**, non certifié : un correctif ciblé et
+ses tests ne justifient pas à eux seuls un point supplémentaire. CI en attente ;
+aucun déploiement de production.
+
+---
+
 ## Lot bulletins parents — 2026-11-05, après #381
 
 PARENT-BUL-01 / PARENT-NOTES-01 (P1), **correctif proposé** : bulletin PDF

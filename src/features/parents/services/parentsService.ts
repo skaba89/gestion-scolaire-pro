@@ -157,6 +157,15 @@ export const parentsService = {
         return data;
     },
 
+    async generateTranscript(studentId: string): Promise<Blob> {
+        if (!studentId) throw new Error("Identifiant élève requis");
+        const { data } = await apiClient.post<Blob>("/parents/transcript/generate/", {
+            student_id: studentId,
+        }, { responseType: "blob" });
+        if (data?.type !== "application/pdf" || !data.size) throw new Error("Format de relevé invalide");
+        return data;
+    },
+
     async getStudentDetails(studentId: string) {
         if (!studentId) return null;
         const { data } = await apiClient.get<any>(`/students/${studentId}/`);
