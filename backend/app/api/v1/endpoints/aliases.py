@@ -35,18 +35,29 @@ def list_enrollments_alias(
     class_id: Optional[UUID] = Query(None),
     academic_year_id: Optional[UUID] = Query(None),
     status: Optional[str] = Query(None),
+    class_ids: Optional[str] = Query(None, description="Comma-separated class UUIDs (max 100)"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:read")),
 ):
     """GET /enrollments/ — apply classroom and academic-year filters server-side."""
     from app.crud import academic as crud
     from app.schemas.academic import Enrollment as EnrollmentSchema
+    parsed_class_ids = None
+    if class_ids is not None:
+        tokens = [part.strip() for part in class_ids.split(",")]
+        if not tokens or len(tokens) > 100 or any(not token for token in tokens):
+            raise HTTPException(status_code=422, detail="class_ids doit contenir entre 1 et 100 UUID")
+        try:
+            parsed_class_ids = [UUID(token) for token in tokens]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="class_ids contient un UUID invalide")
     rows = crud.get_enrollments(
         db,
         tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
         class_id=class_id,
         academic_year_id=academic_year_id,
         status=status,
+        class_ids=parsed_class_ids,
     )
     return [EnrollmentSchema.model_validate(r).model_dump(mode="json") for r in rows]
 
@@ -78,6 +89,45 @@ def create_enrollment_alias(
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+
+
+@enrollments_alias_router.delete("/{enrollment_id}/", status_code=status.HTTP_204_NO_CONTENT)
+def withdraw_enrollment_alias(
+    enrollment_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("enrollments:write")),
+):
+    """Withdraw an active enrollment without deleting school history.
+
+    A tenant-scoped conditional UPDATE makes concurrent withdrawal attempts safe.
+    Nonexistent or cross-tenant IDs are indistinguishable (404).
+    """
+    from sqlalchemy import update
+    from app.models.enrollment import Enrollment
+
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    result = db.execute(
+        update(Enrollment)
+        .where(
+            Enrollment.id == enrollment_id,
+            Enrollment.tenant_id == tenant_id,
+            Enrollment.status == "ACTIVE",
+        )
+        .values(status="WITHDRAWN")
+    )
+    if result.rowcount != 1:
+        db.rollback()
+        exists = db.query(Enrollment.id).filter(
+            Enrollment.id == enrollment_id,
+            Enrollment.tenant_id == tenant_id,
+        ).first()
+        if exists:
+            raise HTTPException(status_code=409, detail="Inscription déjà inactive")
+        raise HTTPException(status_code=404, detail="Inscription introuvable")
+    db.commit()
+    return None
 
 
 @enrollments_alias_router.get("/counts/")
@@ -833,10 +883,11 @@ push_subscriptions_router = APIRouter()
 
 
 class PushSubscriptionUpsert(BaseModel):
+    """Persist native push registration fields used by the actual ORM model."""
     endpoint: str
-    keys_auth: Optional[str] = None
-    keys_p256dh: Optional[str] = None
-    keys: Optional[dict] = None
+    auth: str
+    p256dh: str
+    platform: str = "web"
 
 
 @push_subscriptions_router.post("/upsert/", status_code=status.HTTP_200_OK)
@@ -846,7 +897,7 @@ def upsert_push_subscription(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """POST /push-subscriptions/upsert/ — mirrors POST /notifications/subscriptions/"""
+    """Idempotently register a push device for the authenticated tenant/user."""
     from app.models import PushSubscription
     user_id = current_user.get("id")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -854,28 +905,29 @@ def upsert_push_subscription(
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
 
     existing = db.query(PushSubscription).filter(
+        PushSubscription.tenant_id == tenant_id,
         PushSubscription.user_id == user_id,
-        PushSubscription.endpoint == subscription_in.endpoint
+        PushSubscription.endpoint == subscription_in.endpoint,
     ).first()
 
     if existing:
-        # Update
-        update_data = subscription_in.model_dump(exclude_unset=True)
-        for field, value in update_data.items():
-            if hasattr(existing, field):
-                setattr(existing, field, value)
+        existing.auth = subscription_in.auth
+        existing.p256dh = subscription_in.p256dh
+        existing.platform = subscription_in.platform
+        existing.is_active = True
         db.commit()
         db.refresh(existing)
         return existing
 
-    # Create new
     new_sub = PushSubscription(
         endpoint=subscription_in.endpoint,
+        auth=subscription_in.auth,
+        p256dh=subscription_in.p256dh,
+        platform=subscription_in.platform,
         user_id=user_id,
         tenant_id=tenant_id,
+        is_active=True,
     )
-    if subscription_in.keys:
-        new_sub.keys = subscription_in.keys
     db.add(new_sub)
     db.commit()
     db.refresh(new_sub)
@@ -885,16 +937,21 @@ def upsert_push_subscription(
 @push_subscriptions_router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_push_subscription(
     request: Request,
-    endpoint: Optional[str] = Query(None),
+    endpoint: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """DELETE /push-subscriptions/ — mirrors DELETE /notifications/subscriptions/"""
+    """Delete only this device's subscription, never all user devices."""
     from app.models import PushSubscription
+    if not endpoint.strip():
+        raise HTTPException(status_code=422, detail="Device endpoint is required")
     user_id = current_user.get("id")
-    query = db.query(PushSubscription).filter(PushSubscription.user_id == user_id)
-    if endpoint:
-        query = query.filter(PushSubscription.endpoint == endpoint)
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    query = db.query(PushSubscription).filter(
+        PushSubscription.user_id == user_id,
+        PushSubscription.tenant_id == tenant_id,
+        PushSubscription.endpoint == endpoint,
+    )
     query.delete()
     db.commit()
     return None

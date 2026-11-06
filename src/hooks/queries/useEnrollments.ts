@@ -27,6 +27,7 @@ export const useEnrollments = (tenantId: string, academicYearId?: string, classr
 
             const params: Record<string, any> = {
                 academic_year_id: academicYearId,
+                status: "ACTIVE",
             };
 
             if (classroomId && classroomId !== "all") {
@@ -87,12 +88,12 @@ export const useEnrollments = (tenantId: string, academicYearId?: string, classr
             if (context?.previousEnrollments) {
                 queryClient.setQueryData(["enrollments", tenantId, academicYearId, classroomId || "all"], context.previousEnrollments);
             }
-            toast.error("Erreur lors de la suppression: " + (error.response?.data?.detail || error.message));
+            toast.error("Erreur lors de l’annulation: " + (error.response?.data?.detail || error.message));
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["enrollments", tenantId] });
             queryClient.invalidateQueries({ queryKey: ["students", tenantId] });
-            toast.success("Inscription supprimée");
+            toast.success("Inscription annulée (historique conservé)");
         },
     });
 

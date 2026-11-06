@@ -76,13 +76,18 @@ def update_notification_preferences(
 
 @router.get("/subscriptions/", response_model=List[PushSubscriptionInDB])
 def read_subscriptions(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all push subscriptions for the current user."""
+    """List only the authenticated user's devices in the active establishment."""
     user_id = current_user.get("id")
-    subscriptions = db.query(PushSubscription).filter(PushSubscription.user_id == user_id).all()
-    return subscriptions
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    return db.query(PushSubscription).filter(
+        PushSubscription.user_id == user_id,
+        PushSubscription.tenant_id == tenant_id,
+    ).all()
+
 
 @router.post("/subscriptions/", response_model=PushSubscriptionInDB)
 def create_subscription(
@@ -91,56 +96,59 @@ def create_subscription(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Create or update a push subscription."""
+    """Register or update a device in the authenticated establishment."""
     user_id = current_user.get("id")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must belong to a tenant to subscribe to notifications"
-        )
-
     existing = db.query(PushSubscription).filter(
         PushSubscription.user_id == user_id,
-        PushSubscription.endpoint == subscription_in.endpoint
+        PushSubscription.tenant_id == tenant_id,
+        PushSubscription.endpoint == subscription_in.endpoint,
     ).first()
 
     if existing:
-        for field, value in subscription_in.dict(exclude_unset=True).items():
+        for field, value in subscription_in.model_dump(exclude_unset=True).items():
             setattr(existing, field, value)
         db.commit()
         db.refresh(existing)
         return existing
 
     new_subscription = PushSubscription(
-        **subscription_in.dict(),
+        **subscription_in.model_dump(),
         user_id=user_id,
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
     )
     db.add(new_subscription)
     db.commit()
     db.refresh(new_subscription)
     return new_subscription
 
+
 @router.delete("/subscriptions/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_subscription(
-    endpoint: str = None,
+    request: Request,
+    endpoint: str = Query(..., min_length=1),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete push subscriptions."""
+    """Delete only one device; a missing endpoint must not delete all devices."""
+    if not endpoint.strip():
+        raise HTTPException(status_code=422, detail="Device endpoint is required")
     user_id = current_user.get("id")
-    query = db.query(PushSubscription).filter(PushSubscription.user_id == user_id)
-    if endpoint:
-        query = query.filter(PushSubscription.endpoint == endpoint)
-    query.delete()
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    db.query(PushSubscription).filter(
+        PushSubscription.user_id == user_id,
+        PushSubscription.tenant_id == tenant_id,
+        PushSubscription.endpoint == endpoint,
+    ).delete()
     db.commit()
     return None
+
 
 # ─── Notifications History ───────────────────────────────────────────────────
 
 @router.get("/")
 def read_notifications(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     limit: int = Query(50, ge=1, le=100),
@@ -148,9 +156,10 @@ def read_notifications(
 ):
     """Get notification history for current user (raw SQL, avoids ORM UUID type issues)."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
-        where = "user_id = :user_id"
-        params: dict = {"user_id": user_id, "limit": limit}
+        where = "user_id = :user_id AND tenant_id = :tenant_id"
+        params: dict = {"user_id": user_id, "tenant_id": tenant_id, "limit": limit}
         if unread_only:
             where += " AND is_read = FALSE"
         rows = db.execute(text(f"""
@@ -163,8 +172,8 @@ def read_notifications(
         """), params).mappings().all()
         return [dict(r) for r in rows]
     except Exception as e:
-        logging.getLogger(__name__).warning("read_notifications failed: %s", e)
-        return []
+        logging.getLogger(__name__).error("read_notifications failed: %s", e)
+        raise HTTPException(status_code=500, detail="Unable to read notifications")
 
 @router.post("/", response_model=NotificationResponse)
 def create_notification(
@@ -220,24 +229,36 @@ def create_bulk_notifications(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID missing")
         
-    # SECURITY: Validate that all target user_ids belong to the current tenant
+    # Match the single-notification authorization rule: non-admin writers
+    # may only create notifications addressed to themselves. Validate the
+    # entire batch before adding any ORM rows (no partial changes).
+    user_id = str(current_user.get("id"))
+    user_roles = current_user.get("roles", [])
+    is_admin = any(r in ("SUPER_ADMIN", "ADMIN", "MANAGER") for r in user_roles)
     for n in bulk_in.notifications:
-        if n.user_id:
+        if not is_admin and str(n.user_id) != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous ne pouvez créer des notifications que pour vous-même.",
+            )
+        # Admins may target other users within their own tenant only.
+        if is_admin and str(n.user_id) != user_id:
             target_user = db.query(User).filter(User.id == n.user_id).first()
-            # str() both sides: target_user.tenant_id is a uuid.UUID from the
-            # ORM, tenant_id comes from the JWT as a plain string — comparing
-            # them directly is always unequal even for the same tenant.
-            if target_user and str(target_user.tenant_id) != str(tenant_id):
+            if not target_user or str(target_user.tenant_id) != str(tenant_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"L'utilisateur cible {n.user_id} n'appartient pas à votre tenant.",
+                    detail="Le destinataire n'appartient pas à cet établissement.",
                 )
+    # All recipients are authorized: only now stage the batch for commit.
+    # Do not add ORM objects inside the authorization loop: a rejected
+    # second recipient must not leave a first notification staged.
+    for n in bulk_in.notifications:
         db_obj = Notification(
-            **n.dict(),
-            tenant_id=tenant_id
+            **n.model_dump(),
+            tenant_id=tenant_id,
         )
         db.add(db_obj)
-    
+
     db.commit()
     return {"status": "ok", "count": len(bulk_in.notifications)}
 
@@ -375,6 +396,7 @@ async def send_whatsapp_test_message(
 
 @router.patch("/{notification_id}/", response_model=NotificationResponse)
 def update_notification(
+    request: Request,
     notification_id: UUID,
     update_in: NotificationUpdate,
     db: Session = Depends(get_db),
@@ -382,9 +404,11 @@ def update_notification(
 ):
     """Update notification status (mark as read)."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     notification = db.query(Notification).filter(
         Notification.id == notification_id,
-        Notification.user_id == user_id
+        Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
     ).first()
     
     if not notification:
@@ -399,43 +423,53 @@ def update_notification(
 
 @router.post("/mark-all-read/")
 def mark_all_as_read(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Mark all notifications as read for current user."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.query(Notification).filter(
-        Notification.user_id == user_id, 
+        Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
         Notification.is_read == False
     ).update({"is_read": True})
     db.commit()
     return {"status": "ok"}
 
+# Static route must precede /{notification_id}/ to avoid a UUID validation 422.
+@router.delete("/clear-read/", status_code=status.HTTP_204_NO_CONTENT)
+def clear_read_notifications(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete all read notifications for current user."""
+    user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    db.query(Notification).filter(
+        Notification.user_id == user_id,
+        Notification.tenant_id == tenant_id,
+        Notification.is_read == True
+    ).delete()
+    db.commit()
+    return None
+
 @router.delete("/{notification_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_notification(
+    request: Request,
     notification_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """Delete a specific notification."""
     user_id = current_user.get("id")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     db.query(Notification).filter(
         Notification.id == notification_id,
-        Notification.user_id == user_id
-    ).delete()
-    db.commit()
-    return None
-
-@router.delete("/clear-read/", status_code=status.HTTP_204_NO_CONTENT)
-def clear_read_notifications(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete all read notifications for current user."""
-    user_id = current_user.get("id")
-    db.query(Notification).filter(
         Notification.user_id == user_id,
-        Notification.is_read == True
+        Notification.tenant_id == tenant_id,
     ).delete()
     db.commit()
     return None

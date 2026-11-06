@@ -11,6 +11,10 @@
 
 name: CI
 
+# Pin the runner image: ubuntu-latest moved to 26.04, where Playwright 1.57
+# cannot install Chromium. Ubuntu 24.04 also provides PostgreSQL 16 client
+# tools matching the postgres:16 database used by restore tests.
+
 on:
   push:
     branches: [main]
@@ -24,7 +28,7 @@ concurrency:
 jobs:
   frontend:
     name: Frontend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,7 +104,9 @@ jobs:
 
   browser-smoke:
     name: Browser Smoke (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # Do not let browser installation or smoke checks hang indefinitely.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -115,9 +121,13 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Install Chromium
+        # Browser downloads and apt mirrors may stall on hosted runners.
+        # Fail with an explicit timeout instead of leaving the PR pending.
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
 
       - name: Run critical browser smoke tests
+        timeout-minutes: 8
         run: npm run test:e2e:smoke
         env:
           CI: true
@@ -134,7 +144,7 @@ jobs:
     # Parcours métier de bout en bout contre une vraie stack (docs/E2E_JOURNEYS.md).
     # PAS encore un contrôle obligatoire de main : on mesure d'abord sa stabilité.
     name: E2E Journeys (real stack)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -249,7 +259,7 @@ jobs:
 
   backend:
     name: Backend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -398,7 +408,7 @@ jobs:
 
   backend-tests:
     name: Backend Tests (PostgreSQL)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -573,7 +583,7 @@ jobs:
 
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
