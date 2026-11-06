@@ -249,12 +249,16 @@ def create_bulk_notifications(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Le destinataire n'appartient pas à cet établissement.",
                 )
+    # All recipients are authorized: only now stage the batch for commit.
+    # Do not add ORM objects inside the authorization loop: a rejected
+    # second recipient must not leave a first notification staged.
+    for n in bulk_in.notifications:
         db_obj = Notification(
-            **n.dict(),
-            tenant_id=tenant_id
+            **n.model_dump(),
+            tenant_id=tenant_id,
         )
         db.add(db_obj)
-    
+
     db.commit()
     return {"status": "ok", "count": len(bulk_in.notifications)}
 
