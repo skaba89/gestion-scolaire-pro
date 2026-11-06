@@ -229,17 +229,25 @@ def create_bulk_notifications(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID missing")
         
-    # SECURITY: Validate that all target user_ids belong to the current tenant
+    # Match the single-notification authorization rule: non-admin writers
+    # may only create notifications addressed to themselves. Validate the
+    # entire batch before adding any ORM rows (no partial changes).
+    user_id = str(current_user.get("id"))
+    user_roles = current_user.get("roles", [])
+    is_admin = any(r in ("SUPER_ADMIN", "ADMIN", "MANAGER") for r in user_roles)
     for n in bulk_in.notifications:
-        if n.user_id:
+        if not is_admin and str(n.user_id) != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous ne pouvez créer des notifications que pour vous-même.",
+            )
+        # Admins may target other users within their own tenant only.
+        if is_admin and str(n.user_id) != user_id:
             target_user = db.query(User).filter(User.id == n.user_id).first()
-            # str() both sides: target_user.tenant_id is a uuid.UUID from the
-            # ORM, tenant_id comes from the JWT as a plain string — comparing
-            # them directly is always unequal even for the same tenant.
-            if target_user and str(target_user.tenant_id) != str(tenant_id):
+            if not target_user or str(target_user.tenant_id) != str(tenant_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail=f"L'utilisateur cible {n.user_id} n'appartient pas à votre tenant.",
+                    detail="Le destinataire n'appartient pas à cet établissement.",
                 )
         db_obj = Notification(
             **n.dict(),
