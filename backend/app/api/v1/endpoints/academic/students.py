@@ -3,6 +3,8 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, func, or_
+from sqlalchemy.exc import SQLAlchemyError
 from uuid import UUID
 import math
 
@@ -247,6 +249,138 @@ def get_student_messaging_recipients(
         "email": r.get("email", ""),
         "info": r.get("info", ""),
     } for r in rows]
+
+def _can_read_enrollment(*, db: Session, current_user: dict, student, tenant_id: str) -> bool:
+    """Restrict individual enrollment metadata to staff, self or family."""
+    roles = set(current_user.get("roles") or [])
+    privileged = roles & {
+        "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+        "DEPARTMENT_HEAD", "SECRETARY", "STAFF",
+    }
+    if privileged:
+        return True
+    user_id = str(current_user.get("id") or "")
+    if roles & {"STUDENT", "ALUMNI"}:
+        return bool(
+            (student.user_id and str(student.user_id) == user_id)
+            or (student.email and current_user.get("email") and student.email == current_user.get("email"))
+        )
+    if "PARENT" in roles:
+        from app.models.parent_student import ParentStudent
+        return db.query(ParentStudent.id).filter(
+            ParentStudent.tenant_id == tenant_id,
+            ParentStudent.parent_id == user_id,
+            ParentStudent.student_id == student.id,
+        ).first() is not None
+    return False
+
+
+@router.get("/{student_id}/enrollment/")
+def get_student_enrollment(
+    student_id: UUID,
+    request: Request,
+    enrollment_status: str = Query("active", alias="status", min_length=1, max_length=50),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the most relevant enrollment for one authorized student.
+
+    The route precedes ``/{student_id}/`` deliberately. It returns the nested
+    class, level and academic-year fields consumed by the parent portal and
+    never exposes another family's or another tenant's enrollment.
+    """
+    from app.models.student import Student as StudentModel
+    from app.models.enrollment import Enrollment as EnrollmentModel
+    from app.models.classroom import Classroom
+    from app.models.level import Level
+    from app.models.academic_year import AcademicYear
+
+    try:
+        allowed_roles = {
+            "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+            "DEPARTMENT_HEAD", "SECRETARY", "STAFF", "PARENT",
+            "STUDENT", "ALUMNI",
+        }
+        if not set(current_user.get("roles") or []).intersection(allowed_roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied",
+            )
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        student = db.query(StudentModel).filter(
+            StudentModel.id == student_id,
+            StudentModel.tenant_id == tenant_id,
+        ).first()
+        if not student or not _can_read_enrollment(
+            db=db, current_user=current_user, student=student, tenant_id=tenant_id,
+        ):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+
+        row = db.query(EnrollmentModel, Classroom, Level, AcademicYear).join(
+            Classroom,
+            and_(
+                Classroom.id == EnrollmentModel.class_id,
+                Classroom.tenant_id == tenant_id,
+                or_(
+                    Classroom.academic_year_id == EnrollmentModel.academic_year_id,
+                    Classroom.academic_year_id.is_(None),
+                ),
+            ),
+        ).outerjoin(
+            Level,
+            and_(Level.id == Classroom.level_id, Level.tenant_id == tenant_id),
+        ).join(
+            AcademicYear,
+            and_(AcademicYear.id == EnrollmentModel.academic_year_id, AcademicYear.tenant_id == tenant_id),
+        ).filter(
+            EnrollmentModel.tenant_id == tenant_id,
+            EnrollmentModel.student_id == student_id,
+            func.upper(EnrollmentModel.status) == enrollment_status.upper(),
+        ).order_by(
+            AcademicYear.is_current.desc(),
+            AcademicYear.start_date.desc(),
+            EnrollmentModel.enrollment_date.desc(),
+            EnrollmentModel.created_at.desc(),
+            EnrollmentModel.id,
+        ).first()
+        if not row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enrollment not found")
+
+        enrollment, classroom, level, academic_year = row
+        return {
+            "id": enrollment.id,
+            "tenant_id": enrollment.tenant_id,
+            "student_id": enrollment.student_id,
+            "class_id": enrollment.class_id,
+            "academic_year_id": enrollment.academic_year_id,
+            "enrollment_date": enrollment.enrollment_date,
+            "status": enrollment.status,
+            "created_at": enrollment.created_at,
+            "updated_at": enrollment.updated_at,
+            "classrooms": {
+                "id": classroom.id,
+                "name": classroom.name,
+                "level_id": classroom.level_id,
+                "academic_year_id": classroom.academic_year_id,
+            },
+            "levels": ({"id": level.id, "name": level.name, "code": level.code, "label": level.label}
+                       if level else None),
+            "academic_years": {
+                "id": academic_year.id,
+                "name": academic_year.name,
+                "code": academic_year.code,
+                "start_date": academic_year.start_date,
+                "end_date": academic_year.end_date,
+                "is_current": academic_year.is_current,
+            },
+        }
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        logger.error("Student enrollment lookup failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="Enrollment temporarily unavailable")
+
 
 @router.get("/{student_id}/", response_model=Student)
 def get_student(

@@ -1,3 +1,17 @@
+## Lot inscription individuelle élève — 2026-11-05, après #383
+
+ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : les deux appels frontend
+vers la route absente disposent désormais d'un contrat réel, cloisonné par
+tenant et propriété. Un 503 n'est plus transformé en fausse absence, et la
+fiche enfant signale l'indisponibilité. Voir
+`STUDENT_ENROLLMENT_DETAIL_20261105.md`.
+
+Mesure proposée : 45 écarts API distincts (46 avant), 14 pages DÉFECTUEUSES,
+23 À VÉRIFIER et 107 NON VÉRIFIÉES. La baisse statique n'est pas une recette
+fonctionnelle des neuf pages reclassées.
+
+---
+
 ## Lot relevé officiel parent — 2026-11-05, après #382
 
 PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : l'appel absent et le calcul

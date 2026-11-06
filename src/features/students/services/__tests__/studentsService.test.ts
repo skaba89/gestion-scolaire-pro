@@ -165,6 +165,16 @@ describe("studentsService", () => {
         { params: { status: "active" } }
       );
     });
+
+    it("returns null for a real 404", async () => {
+      mocks.get.mockRejectedValue({ response: { status: 404 } });
+      await expect(studentsService.getEnrollment("student-1")).resolves.toBeNull();
+    });
+
+    it("propagates infrastructure failures", async () => {
+      mocks.get.mockRejectedValue({ response: { status: 503 } });
+      await expect(studentsService.getEnrollment("student-1")).rejects.toBeTruthy();
+    });
   });
 
   describe("getGrades", () => {

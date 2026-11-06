@@ -20,7 +20,6 @@
   "GET /school-life/sponsorships",
   "GET /school-life/success-plans",
   "GET /student-parents",
-  "GET /students/X/enrollment",
   "GET /students/terms/X",
   "GET /teachers/X/schedule",
   "PATCH /communication/video-meetings/X",

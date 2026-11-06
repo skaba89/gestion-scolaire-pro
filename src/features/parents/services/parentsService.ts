@@ -179,8 +179,10 @@ export const parentsService = {
                 params: { status: "active" },
             });
             return data || null;
-        } catch {
-            return null;
+        } catch (error: unknown) {
+            const status = (error as { response?: { status?: number } })?.response?.status;
+            if (status === 404) return null;
+            throw error;
         }
     },
 

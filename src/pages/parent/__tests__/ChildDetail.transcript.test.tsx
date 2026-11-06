@@ -2,14 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
 
-const { get, generateTranscript, success, error, createUrl, revokeUrl, click } = vi.hoisted(() => ({
-  get: vi.fn(), generateTranscript: vi.fn(), success: vi.fn(), error: vi.fn(),
+const { get, getStudentEnrollment, generateTranscript, success, error, createUrl, revokeUrl, click } = vi.hoisted(() => ({
+  get: vi.fn(), getStudentEnrollment: vi.fn(), generateTranscript: vi.fn(), success: vi.fn(), error: vi.fn(),
   createUrl: vi.fn(), revokeUrl: vi.fn(), click: vi.fn(),
 }));
 vi.mock("@/api/client", () => ({ apiClient: { get } }));
 vi.mock("@/features/parents/services/parentsService", () => ({ parentsService: {
   getStudentDetails: vi.fn().mockResolvedValue({ id: "s1", first_name: "Awa", last_name: "Bah" }),
-  getStudentEnrollment: vi.fn().mockResolvedValue(null),
+  getStudentEnrollment,
   getStudentAllGradesDetailed: vi.fn().mockResolvedValue([]),
   getStudentAllEnrollments: vi.fn().mockResolvedValue([]),
   getStudentAllAttendance: vi.fn().mockResolvedValue([]),
@@ -45,6 +45,7 @@ import ChildDetail from "../ChildDetail";
 beforeEach(() => {
   vi.clearAllMocks();
   get.mockResolvedValue({ data: [{ id: "relation-1", student_id: "s1" }] });
+  getStudentEnrollment.mockResolvedValue(null);
   generateTranscript.mockResolvedValue(new Blob(["%PDF-transcript"], { type: "application/pdf" }));
   createUrl.mockReturnValue("blob:transcript");
   Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createUrl });
@@ -79,4 +80,10 @@ it("n'annonce pas de succès lorsque le serveur refuse le relevé", async () => 
   await waitFor(() => expect(error).toHaveBeenCalled());
   expect(success).not.toHaveBeenCalled();
   expect(createUrl).not.toHaveBeenCalled();
+});
+
+it("affiche l'indisponibilité de l'inscription au lieu de la masquer", async () => {
+  getStudentEnrollment.mockRejectedValue(new Error("HTTP 503"));
+  setup();
+  expect(await screen.findByRole("alert")).toHaveTextContent("common.error");
 });
