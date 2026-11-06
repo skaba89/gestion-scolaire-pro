@@ -63,4 +63,17 @@ describe("Notes et bulletins du parent", () => {
     post.mockResolvedValue({ data: new Blob(['{"html":"fake"}'], { type: "application/json" }) });
     await expect(parentsService.generateTranscript("s1")).rejects.toThrow();
   });
+  it("lit l'inscription active via le contrat élève réel", async () => {
+    get.mockResolvedValue({ data: { id: "enr-1", status: "ACTIVE" } });
+    await expect(parentsService.getStudentEnrollment("s1")).resolves.toEqual({ id: "enr-1", status: "ACTIVE" });
+    expect(get).toHaveBeenCalledWith("/students/s1/enrollment/", { params: { status: "active" } });
+  });
+  it("retourne null uniquement pour une inscription réellement absente", async () => {
+    get.mockRejectedValue({ response: { status: 404 } });
+    await expect(parentsService.getStudentEnrollment("s1")).resolves.toBeNull();
+  });
+  it("propage une panne d'inscription au lieu d'afficher un faux vide", async () => {
+    get.mockRejectedValue({ response: { status: 503 } });
+    await expect(parentsService.getStudentEnrollment("s1")).rejects.toBeTruthy();
+  });
 });

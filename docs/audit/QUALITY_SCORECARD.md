@@ -1,3 +1,19 @@
+## Lot inscription individuelle élève — 2026-11-05, après #383
+
+ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : contrat d'inscription
+individuelle créé, isolation tenant/famille/élève testée, erreurs serveur
+visibles et cache de la fiche enfant séparé par établissement. Détail :
+`STUDENT_ENROLLMENT_DETAIL_20261105.md`.
+
+Mesures proposées : 45 écarts API distincts (46 avant), 14 pages statiquement
+défectueuses, 23 À VÉRIFIER, 107 NON VÉRIFIÉES, 174 erreurs TypeScript avec
+référence abaissée à 174, 0 erreur et 1 899 avertissements ESLint. Le score
+reste **60/100**, non certifié : aucun point n'est ajouté pour ce correctif
+ciblé avant validation plus large. CI en attente ; aucun déploiement de
+production.
+
+---
+
 ## Lot relevé officiel parent — 2026-11-05, après #382
 
 PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : relevé PDF multi-années

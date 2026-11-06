@@ -1,12 +1,13 @@
-# Appels frontend sans route backend — lot relevé officiel parent, 2026-11-05
+# Appels frontend sans route backend — lot inscription individuelle, 2026-11-05
 
-Base : `5e89d7089be21215203d0f46cedf0c660e575fd1` (`main` après #382).
-Mesures du code proposé : **648 opérations**, 984 appels, 21 URL dynamiques
-non vérifiables, **49 occurrences = 46 clés distinctes** sans opération
-(47 avant). `POST /parents/transcript/generate` est désormais une opération
-réelle ; aucune fonction métier n'a été supprimée pour réduire la mesure.
-Voir `PARENT_TRANSCRIPT_20261105.md` et la PR pour les preuves d'exécution.
-L'analyse statique seule ne valide ni corps, ni réponses, ni permissions.
+Base : `038b42a6c3d1928422df0a2e3ce557093025e2cc` (`main` après #383).
+Mesures du code proposé : **649 opérations**, 984 appels, 21 URL dynamiques
+non vérifiables, **47 occurrences = 45 clés distinctes** sans opération
+(46 avant). `GET /students/{student_id}/enrollment/` est désormais une
+opération réelle ; aucune fonction métier n'a été supprimée pour réduire la
+mesure. Voir `STUDENT_ENROLLMENT_DETAIL_20261105.md` et la PR pour les preuves
+d'exécution. L'analyse statique seule ne valide ni corps, ni réponses, ni
+permissions.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -28,8 +29,6 @@ GET /library/marketplace  (src/queries/admin.ts:634)
 GET /school-life/early-warnings  (src/pages/admin/EarlyWarnings.tsx:51)
 GET /school-life/sponsorships  (src/pages/admin/Sponsorships.tsx:60)
 GET /school-life/success-plans  (src/pages/admin/SuccessPlans.tsx:77)
-GET /students/X/enrollment  (src/features/parents/services/parentsService.ts:178)
-GET /students/X/enrollment  (src/features/students/services/studentsService.ts:93)
 GET /students/terms/X  (src/utils/riskAssessment.ts:124)
 GET /teachers/X/schedule  (src/hooks/queries/useTeachers.ts:121)
 PATCH /communication/video-meetings/X  (src/pages/admin/VideoMeetings.tsx:102)

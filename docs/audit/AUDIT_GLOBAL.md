@@ -1,3 +1,16 @@
+## Lot inscription individuelle élève — 2026-11-05, après #383
+
+ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : la route partagée absente
+est créée avec isolation tenant/famille/élève, relations académiques
+cohérentes, distinction 404/503, erreur visible et cache par établissement.
+Détail : `STUDENT_ENROLLMENT_DETAIL_20261105.md`. Mesures proposées : 649
+opérations, 45 écarts API distincts (46 avant), 14 pages DÉFECTUEUSES, 23 À
+VÉRIFIER, 174 erreurs TypeScript avec référence abaissée à 174, 0 erreur et
+1 899 avertissements ESLint. Score interne conservé à 60/100, non certifié ;
+CI de la PR à confirmer, aucun déploiement.
+
+---
+
 ## Lot relevé officiel parent — 2026-11-05, après #382
 
 PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : la fiche enfant ne calcule

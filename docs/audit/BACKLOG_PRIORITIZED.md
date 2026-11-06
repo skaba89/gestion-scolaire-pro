@@ -1,3 +1,15 @@
+## Lot inscription individuelle élève — 2026-11-05, après #383
+
+ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : contrat backend manquant,
+scopes tenant/famille/élève et gestion d'erreur frontend corrigés. Tests locaux
+ciblés verts ; six jobs du HEAD à confirmer par CI. Détail :
+`STUDENT_ENROLLMENT_DETAIL_20261105.md`. Écarts API proposés : 45 (46 avant).
+
+Restent prioritaires : sixième check obligatoire, dette API restante, sécurité
+transversale, offline/appareils, charge et prévol production.
+
+---
+
 ## Lot relevé officiel parent — 2026-11-05, après #382
 
 PARENT-TRANSCRIPT-01 (P1), **correctif proposé** : PDF multi-années calculé

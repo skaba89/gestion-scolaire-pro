@@ -4,6 +4,7 @@ import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,11 +48,12 @@ const ChildDetail = () => {
   const { t } = useTranslation();
   const { studentId } = useParams<{ studentId: string }>();
   const { user } = useAuth();
+  const { tenant } = useTenant();
   const { getTenantUrl } = useTenantUrl();
 
   // Verify parent has access to this student
   const { data: relation } = useQuery({
-    queryKey: ["parent-student-relation", user?.id, studentId],
+    queryKey: ["parent-student-relation", tenant?.id, user?.id, studentId],
     queryFn: async () => {
       if (!user?.id || !studentId) return null;
       const { data } = await apiClient.get('/parents/children/', {
@@ -64,14 +66,14 @@ const ChildDetail = () => {
 
   // Fetch student details via parentsService
   const { data: student, isLoading: isLoadingStudent } = useQuery({
-    queryKey: ["student-details", studentId],
+    queryKey: ["student-details", tenant?.id, studentId],
     queryFn: () => parentsService.getStudentDetails(studentId || ""),
     enabled: !!studentId && !!relation,
   });
 
   // Fetch enrollment via parentsService
-  const { data: enrollment } = useQuery({
-    queryKey: ["student-enrollment-detail", studentId],
+  const { data: enrollment, isError: isEnrollmentError } = useQuery({
+    queryKey: ["student-enrollment-detail", tenant?.id, studentId],
     queryFn: () => parentsService.getStudentEnrollment(studentId || ""),
     enabled: !!studentId && !!relation,
   });
@@ -80,7 +82,7 @@ const ChildDetail = () => {
 
   // Fetch all grades via parentsService
   const { data: grades } = useQuery({
-    queryKey: ["student-all-grades-detailed", studentId],
+    queryKey: ["student-all-grades-detailed", tenant?.id, studentId],
     queryFn: () => parentsService.getStudentAllGradesDetailed(studentId || ""),
     enabled: !!studentId && !!relation,
   });
@@ -118,14 +120,14 @@ const ChildDetail = () => {
 
   // Fetch attendance history via parentsService
   const { data: attendance } = useQuery({
-    queryKey: ["student-all-attendance", studentId],
+    queryKey: ["student-all-attendance", tenant?.id, studentId],
     queryFn: () => parentsService.getStudentAllAttendance(studentId || ""),
     enabled: !!studentId && !!relation,
   });
 
   // Fetch detailed check-in history (scans) via parentsService
   const { data: checkInHistory, isLoading: isLoadingCheckIns } = useQuery({
-    queryKey: ["child-check-ins", studentId],
+    queryKey: ["child-check-ins", tenant?.id, studentId],
     queryFn: () => parentsService.getChildCheckInHistory([studentId || ""]),
     enabled: !!studentId && !!relation,
   });
@@ -227,6 +229,9 @@ const ChildDetail = () => {
                 {student?.registration_number && <Badge variant="outline">{student.registration_number}</Badge>}
                 {enrollment && <Badge variant="secondary">{(enrollment.classrooms as any)?.name || (enrollment.levels as any)?.name}</Badge>}
                 {enrollment && <Badge variant="outline" className="bg-muted">{(enrollment.academic_years as any)?.name}</Badge>}
+                {isEnrollmentError && (
+                  <Badge variant="destructive" role="alert">{t("common.error")}</Badge>
+                )}
               </div>
             </div>
             <div className="flex gap-4">
