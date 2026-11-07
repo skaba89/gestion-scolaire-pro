@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from app.models.base import GUID
 from app.models.job import Job
+from app.models.assessment import Assessment as AssessmentModel
+from app.models.grade import Grade as GradeModel
 from app.models.student import Student as StudentModel, StudentStatus
 from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.user import User as UserModel
@@ -105,9 +107,16 @@ def delete_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
-    assessment = crud_sl.get_assessment(db, assessment_id=assessment_id, tenant_id=tenant_id)
+    assessment = db.query(AssessmentModel).filter(
+        AssessmentModel.id == assessment_id,
+        AssessmentModel.tenant_id == tenant_id,
+    ).with_for_update().first()
     if not assessment:
+        db.rollback()
         raise HTTPException(status_code=404, detail="Assessment not found")
+    if db.query(GradeModel.id).filter(GradeModel.assessment_id == assessment_id).first():
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Assessment has recorded grades; deletion is not allowed")
     db.delete(assessment)
     log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
               action="DELETE_SCHOOL_LIFE_ASSESSMENT", resource_type="ASSESSMENT",
