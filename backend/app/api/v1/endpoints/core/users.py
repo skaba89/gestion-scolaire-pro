@@ -1029,11 +1029,30 @@ def delete_user(
     from app.core.tenant_resolution import resolve_current_tenant_id
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
-    if user_id == current_user.get("id"):
+    if str(user_id) == str(current_user.get("id")):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete your own account"
         )
+
+    # Protect platform/tenant administrators from deletion by tenant-level
+    # operators, even when those operators have users:delete permission.
+    # The tenant-scoped lookup prevents probing roles in other institutions.
+    if "SUPER_ADMIN" not in (current_user.get("roles") or []):
+        privileged = db.execute(
+            text("""
+                SELECT 1 FROM user_roles
+                WHERE user_id = :user_id AND tenant_id = :tenant_id
+                  AND role IN ('SUPER_ADMIN', 'TENANT_ADMIN')
+                LIMIT 1
+            """),
+            {"user_id": user_id, "tenant_id": tenant_id},
+        ).fetchone()
+        if privileged:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only SUPER_ADMIN can delete privileged accounts",
+            )
 
     result = db.execute(
         text("DELETE FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
