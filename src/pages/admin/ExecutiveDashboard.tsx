@@ -8,6 +8,7 @@ import { financialKPIs, academicKPIs, operationalKPIs } from "@/queries/dashboar
 import { toastService } from "@/utils/toast";
 import { academicYearQueries } from "@/queries/academic-years";
 import { exportToCSV } from "@/utils/exportUtils";
+import { selectActiveAcademicTerm } from "@/utils/activeAcademicTerm";
 import { adminQueries } from "@/queries/admin";
 
 // Modular components
@@ -137,11 +138,15 @@ export default function ExecutiveDashboard() {
     const { data: riskScoresData, refetch: refetchRiskScores, isLoading: isLoadingRisk } = useQuery({
         queryKey: ["dashboard-risk-scores", tenant?.id, academicYearId],
         queryFn: async () => {
-            const { data: currentTerm } = await apiClient.get("/schedule/terms/", {
-                params: { is_current: true },
-            });
-
-            const termData = (currentTerm as any[])?.[0];
+            // Academic terms are exposed under /terms/, not /schedule/terms/.
+            // The API exposes is_active; choose the active term belonging to
+            // the current academic year rather than the first arbitrary row.
+            const { data: terms } = await apiClient.get<Array<{
+                id: string;
+                academic_year_id: string;
+                is_active: boolean;
+            }>>("/terms/");
+            const termData = selectActiveAcademicTerm(terms, academicYearId);
             if (!termData) return { total: 0, critical: 0, high: 0, moderate: 0, low: 0 };
 
             const { data } = await apiClient.get("/analytics/risk-scores/", {
