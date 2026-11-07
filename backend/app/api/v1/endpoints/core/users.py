@@ -1073,6 +1073,24 @@ def delete_user(
             detail="Account is linked to a student record; deactivate instead",
         )
 
+    # parent_students.parent_id has ON DELETE CASCADE. Deleting a guardian
+    # account would silently remove parent/child relationships from the
+    # permanent school record. Keep those relationships and deactivate the
+    # account instead until a dedicated retention-aware workflow exists.
+    linked_parent = db.execute(
+        text("""
+            SELECT 1 FROM parent_students
+            WHERE parent_id = :user_id AND tenant_id = :tenant_id
+            LIMIT 1
+        """),
+        {"user_id": user_id, "tenant_id": tenant_id},
+    ).fetchone()
+    if linked_parent:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account is linked to a parent-student relationship; deactivate instead",
+        )
+
     result = db.execute(
         text("DELETE FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
         {"user_id": user_id, "tenant_id": tenant_id}
