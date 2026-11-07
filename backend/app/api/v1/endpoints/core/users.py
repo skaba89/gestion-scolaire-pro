@@ -824,6 +824,23 @@ def update_user_roles(
     if not check:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+    # A tenant admin may edit ordinary roles, but must not silently strip
+    # an existing privileged role by replacing the whole role list.
+    if "SUPER_ADMIN" not in current_roles_set:
+        existing_privileged = db.execute(
+            text("""
+                SELECT role FROM user_roles
+                WHERE user_id = :user_id AND tenant_id = :tenant_id
+                  AND role IN ('SUPER_ADMIN', 'TENANT_ADMIN')
+            """),
+            {"user_id": user_id, "tenant_id": tenant_id},
+        ).fetchall()
+        if existing_privileged:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only SUPER_ADMIN can modify privileged role assignments",
+            )
+
     # Replace roles
     db.execute(
         text("DELETE FROM user_roles WHERE user_id = :user_id AND tenant_id = :tenant_id"),
@@ -933,6 +950,14 @@ def remove_role(
     """Remove a single role from a user."""
     from app.core.tenant_resolution import resolve_current_tenant_id
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+
+    # Match the checks on the other role endpoints: an administrator cannot
+    # remove a privileged assignment merely by using the alternate URL.
+    if role in {"SUPER_ADMIN", "TENANT_ADMIN"} and "SUPER_ADMIN" not in current_user.get("roles", []):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only SUPER_ADMIN can remove privileged roles",
+        )
 
     result = db.execute(
         text("DELETE FROM user_roles WHERE user_id = :user_id AND tenant_id = :tenant_id AND role = :role"),
