@@ -434,6 +434,7 @@ def create_student(
 
 
 @router.put("/{student_id}/", response_model=Student)
+@router.patch("/{student_id}/", response_model=Student)
 def update_student(
     student_id: UUID,
     student_update: StudentUpdate,
