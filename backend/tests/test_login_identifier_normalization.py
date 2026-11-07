@@ -8,8 +8,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from app.api.v1.endpoints.core import auth
+
+
+def _request():
+    return Request({
+        "type": "http", "method": "POST", "path": "/auth/login/",
+        "root_path": "", "scheme": "http", "query_string": b"",
+        "headers": [], "client": ("127.0.0.1", 12345),
+        "server": ("testserver", 80),
+    })
 
 
 @pytest.mark.asyncio
@@ -33,7 +43,7 @@ async def test_login_trims_identifier_for_owner_lookup_and_sql(
     with patch.object(auth, "find_user_in_owner_tenant", owner_lookup), patch.object(
         auth, "verify_password", return_value=False,
     ), pytest.raises(HTTPException) as err:
-        await auth.login(request=MagicMock(), form_data=form, db=db)
+        await auth.login(request=_request(), form_data=form, db=db)
 
     assert err.value.status_code == 401
     assert owner_lookup.call_args.kwargs["value"] == entered.strip()
