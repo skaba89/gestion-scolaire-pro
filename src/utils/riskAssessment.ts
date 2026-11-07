@@ -37,7 +37,7 @@ export const riskAssessment = {
      */
     async calculateAcademicRisk(studentId: string, termId: string, tenantId: string): Promise<RiskFactor> {
         // 1. Get current term results
-        let currentAverage = 0;
+        let currentAverage: number | null = null;
         try {
             const { data: currentResults } = await apiClient.get("/students/term-results/", {
                 params: {
@@ -46,9 +46,24 @@ export const riskAssessment = {
                     subject_id: 'null',
                 },
             });
-            currentAverage = currentResults?.score || 0;
+            // Zero is a legitimate score. A missing, null, malformed or
+            // non-finite score is NOT an academic average of 0/20.
+            const score = currentResults?.score;
+            if (typeof score === "number" && Number.isFinite(score) &&
+                score >= 0 && score <= 20) {
+                currentAverage = score;
+            }
         } catch {
-            // no results found
+            // Unavailable grade data must not be interpreted as a failing grade.
+        }
+
+        if (currentAverage === null) {
+            return {
+                category: "Academic Performance",
+                score: 0,
+                weight: 0.4,
+                details: "Insufficient academic data"
+            };
         }
 
         // 2. Get tenant passing grade
