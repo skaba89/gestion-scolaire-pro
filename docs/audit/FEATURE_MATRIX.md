@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-07 (commit `7c62be2ef499bd1699d834861678366b9e1b1719`)
+# Matrice des écrans — statique, 2026-11-07 (commit `07530de094dafa782b99b3bd614c9d5b55d6bca0`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -9,23 +9,21 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 11 |
+| DÉFECTUEUX | 9 |
 | À VÉRIFIER | 19 |
-| NON VÉRIFIÉ | 114 |
+| NON VÉRIFIÉ | 116 |
 | COMPLET (parcours E2E) | 3 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (11)
+## DÉFECTUEUX (9)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
 | Admin | `admin/AdvancedExports.tsx` | 79 | GET /hr/staff (pages/admin/AdvancedExports.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/AlumniMentors.tsx` | 77 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Classrooms.tsx` | 53 | DELETE /rooms/X (components/classrooms/RoomsManager.tsx) |
 | Admin | `admin/Elearning.tsx` | 77 | PATCH /course-lessons/X (components/admin/elearning/CourseContent.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/ReportCards.tsx` | 22 | POST /students/term-results/bulk (utils/pedagogicalEngine.ts) |
-| Admin | `admin/Schedule.tsx` | 47 | DELETE /schedule (components/schedule/ScheduleGenerator.tsx) |
 | Admin | `admin/VideoMeetings.tsx` | 14 | GET /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>POST /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>PATCH /communication/video-meetings/X (pages/admin/VideoMeetings.tsx) |
 | Parent | `parent/Appointments.tsx` | 18 | PUT /parents/appointment-slots/X (pages/parent/Appointments.tsx)<br>PUT /parents/appointments/X (pages/parent/Appointments.tsx) |
 | Parent | `parent/ParentDashboard.tsx` | 44 | GET /students/terms/X (utils/riskAssessment.ts) |
@@ -56,7 +54,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/StudentDetail.tsx` | 114 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Surveys.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 
-## NON VÉRIFIÉ (114)
+## NON VÉRIFIÉ (116)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -72,6 +70,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Campuses.tsx` | 15 | — |
 | Admin | `admin/Certificates.tsx` | 15 | — |
 | Admin | `admin/ClassLists.tsx` | 20 | — |
+| Admin | `admin/Classrooms.tsx` | 53 | — |
 | Admin | `admin/Dashboard.tsx` | 30 | — |
 | Admin | `admin/DataImport.tsx` | 4 | — |
 | Admin | `admin/DataQuality.tsx` | 14 | — |
@@ -94,6 +93,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/PublicPagesManager.tsx` | 19 | — |
 | Admin | `admin/QrScanPage.tsx` | 13 | — |
 | Admin | `admin/RGPDPanel.tsx` | 22 | — |
+| Admin | `admin/Schedule.tsx` | 47 | — |
 | Admin | `admin/SchoolCalendar.tsx` | 15 | — |
 | Admin | `admin/SecuritySessions.tsx` | 3 | — |
 | Admin | `admin/Semesters.tsx` | 20 | — |

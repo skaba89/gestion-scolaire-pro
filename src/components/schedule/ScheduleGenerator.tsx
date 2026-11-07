@@ -21,6 +21,10 @@ import {
 } from "@/components/ui/select";
 import { Wand2, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  replaceClassSchedule,
+  type ScheduleReplacementSlot,
+} from "./scheduleReplacement";
 
 const DAYS = [
   { value: 1, label: "Lundi" },
@@ -140,8 +144,6 @@ export const ScheduleGenerator = ({
         throw new Error("Configuration incomplète ou aucune matière chargée");
       }
 
-      await apiClient.delete("/schedule/", { params: { class_id: config.class_id } });
-
       const slotsToCreate: any[] = [];
 
       // Initialize grid
@@ -221,13 +223,18 @@ export const ScheduleGenerator = ({
         }
       }
 
-      const finalSlots = slotsToCreate.map(({ slot_index, ...rest }: any) => rest);
+      const finalSlots: ScheduleReplacementSlot[] = slotsToCreate.map((slot) => ({
+        subject_id: slot.subject_id,
+        teacher_id: slot.teacher_id ?? null,
+        day_of_week: slot.day_of_week,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        room_id: slot.room_id ?? null,
+      }));
 
       if (finalSlots.length === 0) throw new Error("Impossible de générer des créneaux");
 
-      await apiClient.post("/schedule/", finalSlots);
-
-      return { count: finalSlots.length };
+      return replaceClassSchedule(config.class_id, finalSlots);
     },
     onSuccess: (data) => {
       toast.success(`${data.count} créneaux générés avec succès`);

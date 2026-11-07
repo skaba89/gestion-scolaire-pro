@@ -1,18 +1,17 @@
-# Appels frontend sans route backend — lot emploi du temps enseignant, 2026-11-07
+# Appels frontend sans route backend — lot planning atomique, 2026-11-07
 
-Base : `7c62be2ef499bd1699d834861678366b9e1b1719` (`main` après #407).
-Mesures du code proposé : **654 opérations**, 984 appels, 21 URL dynamiques
-non vérifiables, **39 occurrences = 37 clés distinctes** sans opération
-(38 avant). `GET /teachers/{teacher_id}/schedule/` est désormais un contrat
-réel et le hook actif consulte bien l'enseignant sélectionné ; aucune fonction
-frontend n'a été supprimée pour réduire la mesure. Voir
-`TEACHER_SCHEDULE_READ_20261107.md`. L'analyse statique ne valide ni les corps,
-ni les réponses, ni les permissions.
+Base : `07530de094dafa782b99b3bd614c9d5b55d6bca0` (`main` après #420).
+Mesures du code proposé : **657 opérations**, 983 appels, 21 URL dynamiques
+non vérifiables, **37 occurrences = 35 clés distinctes** sans opération
+(36 sur `main`, 37 dans l'ancienne référence CI). Le double appel destructif
+`DELETE` puis `POST /schedule/` est remplacé par un contrat atomique réel ;
+aucune fonction utilisateur n'a été retirée. Voir
+`SCHEDULE_ATOMIC_REPLACE_20261107.md`. L'analyse statique ne valide ni les
+corps, ni les réponses, ni les permissions.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
 DELETE /inventory/orders/X  (src/queries/admin.ts:597)
-DELETE /rooms/X  (src/components/classrooms/RoomsManager.tsx:124)
 DELETE /school-life/sponsorships/X  (src/pages/admin/Sponsorships.tsx:141)
 GET /analytics/cash-flow-forecasts  (src/pages/admin/ExecutiveDashboard.tsx:167)
 GET /communication/electronic-documents  (src/pages/admin/ElectronicSignatures.tsx:71)
@@ -47,7 +46,6 @@ PUT /school-life/early-warnings/X  (src/pages/admin/EarlyWarnings.tsx:60)
 PUT /school-life/sponsorships/X  (src/pages/admin/Sponsorships.tsx:110)
 
 ## Méthode absente (chemin existe)
-DELETE /schedule [route existe: GET,POST]  (src/components/schedule/ScheduleGenerator.tsx:143)
 GET /schedule/terms [route existe: PUT,DELETE]  (src/pages/admin/ExecutiveDashboard.tsx:140)
 PATCH /students/X [route existe: GET,PUT,DELETE]  (src/lib/optimisticUpdate.ts:8)
 POST /school-life/appointment-slots/bulk [route existe: DELETE]  (src/pages/teacher/AppointmentSlots.tsx:148)

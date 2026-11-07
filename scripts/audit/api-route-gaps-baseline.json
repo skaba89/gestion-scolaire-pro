@@ -1,8 +1,6 @@
 [
   "DELETE /course-discussions/X",
   "DELETE /inventory/orders/X",
-  "DELETE /rooms/X",
-  "DELETE /schedule",
   "DELETE /school-life/sponsorships/X",
   "GET /analytics/cash-flow-forecasts",
   "GET /communication/electronic-documents",

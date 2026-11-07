@@ -1,3 +1,16 @@
+## Lot remplacement atomique du planning — 2026-11-07, après #420
+
+SCHEDULE-REPLACE-01 (P1), **correctif proposé** : génération persistée dans
+une seule transaction, validation tenant/conflits et conservation de l'ancien
+planning sur erreur. Détail : `SCHEDULE_ATOMIC_REPLACE_20261107.md`.
+
+Mesures proposées : 35 écarts API distincts (36 sur `main`), 9 pages
+statiquement défectueuses, 19 À VÉRIFIER et 116 NON VÉRIFIÉES. Le score reste
+**60/100**, non certifié : ce lot ciblé ne valide ni offline sur appareil, ni
+charge, ni production. CI en attente ; aucun déploiement.
+
+---
+
 ## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
 
 TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : consultation ciblée,
