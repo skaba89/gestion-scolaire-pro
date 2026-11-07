@@ -62,12 +62,9 @@ export const riskAssessment = {
         // 3. Get previous term for trend analysis
         let trend = 0;
         try {
-            const { data: terms } = await apiClient.get("/students/terms/", {
-                params: {
-                    tenant_id: tenantId,
-                    limit: 2,
-                },
-            });
+            // GET /terms/ is tenant-scoped on the server; /students/terms/
+            // has no backend route and silently disabled the trend component.
+            const { data: terms } = await apiClient.get("/terms/");
 
             if (terms && terms.length >= 2) {
                 const previousTermId = terms[1].id;
@@ -121,7 +118,7 @@ export const riskAssessment = {
         // 1. Get term dates
         let term: any = null;
         try {
-            const { data } = await apiClient.get(`/students/terms/${termId}/`);
+            const { data } = await apiClient.get(`/terms/${termId}/`);
             term = data;
         } catch {
             return {
