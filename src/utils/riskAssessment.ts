@@ -1,19 +1,22 @@
 import { apiClient } from "@/api/client";
 import { findPreviousAcademicTerm } from "./academicTermOrder";
 
-export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL" | "UNKNOWN";
 
 export interface RiskFactor {
     category: string;
     score: number;
     weight: number;
     details: string;
+    /** false when this factor has no reliable observations. */
+    available?: boolean;
 }
 
 export interface StudentRiskProfile {
     student_id: string;
-    risk_score: number;
+    risk_score: number | null;
     risk_level: RiskLevel;
+    assessment_status: "COMPLETE" | "INCOMPLETE";
     factors: RiskFactor[];
     calculated_at: string;
 }
@@ -62,7 +65,8 @@ export const riskAssessment = {
                 category: "Academic Performance",
                 score: 0,
                 weight: 0.4,
-                details: "Insufficient academic data"
+                details: "Insufficient academic data",
+                available: false
             };
         }
 
@@ -143,7 +147,8 @@ export const riskAssessment = {
                 category: "Attendance",
                 score: 0,
                 weight: 0.4,
-                details: "No term data"
+                details: "No term data",
+                available: false
             };
         }
 
@@ -152,7 +157,8 @@ export const riskAssessment = {
                 category: "Attendance",
                 score: 0,
                 weight: 0.4,
-                details: "No term data"
+                details: "No term data",
+                available: false
             };
         }
 
@@ -174,7 +180,8 @@ export const riskAssessment = {
                 category: "Attendance",
                 score: 0,
                 weight: 0.4,
-                details: "No attendance data"
+                details: "No attendance data",
+                available: false
             };
         }
 
@@ -189,7 +196,8 @@ export const riskAssessment = {
                 category: "Attendance",
                 score: 0,
                 weight: 0.4,
-                details: "No attendance data"
+                details: "No attendance data",
+                available: false
             };
         }
 
@@ -240,7 +248,8 @@ export const riskAssessment = {
                 category: "Recent Trend",
                 score: 0,
                 weight: 0.2,
-                details: "Insufficient recent data"
+                details: "Insufficient recent data",
+                available: false
             };
         }
 
@@ -249,7 +258,8 @@ export const riskAssessment = {
                 category: "Recent Trend",
                 score: 0,
                 weight: 0.2,
-                details: "Insufficient recent data"
+                details: "Insufficient recent data",
+                available: false
             };
         }
 
@@ -302,15 +312,18 @@ export const riskAssessment = {
 
         const factors = [academicRisk, attendanceRisk, trendRisk];
 
-        // Calculate weighted overall score
-        const overallScore = factors.reduce((sum, factor) =>
-            sum + (factor.score * factor.weight), 0
-        );
+        // Insufficient observations cannot be interpreted as a low-risk
+        // student. Preserve factor details but withhold the aggregate score.
+        const complete = factors.every(factor => factor.available !== false);
+        const overallScore = complete
+            ? factors.reduce((sum, factor) => sum + (factor.score * factor.weight), 0)
+            : null;
 
         return {
             student_id: studentId,
-            risk_score: Math.round(overallScore),
-            risk_level: this.getRiskLevel(overallScore),
+            risk_score: overallScore === null ? null : Math.round(overallScore),
+            risk_level: overallScore === null ? "UNKNOWN" : this.getRiskLevel(overallScore),
+            assessment_status: complete ? "COMPLETE" : "INCOMPLETE",
             factors,
             calculated_at: new Date().toISOString()
         };
@@ -355,6 +368,6 @@ export const riskAssessment = {
             }
         }
 
-        return riskProfiles.sort((a, b) => b.risk_score - a.risk_score);
+        return riskProfiles.sort((a, b) => (b.risk_score ?? -1) - (a.risk_score ?? -1));
     }
 };
