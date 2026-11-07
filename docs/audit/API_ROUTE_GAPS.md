@@ -1,17 +1,15 @@
-# Appels frontend sans route backend — lot liens parent-enfant, 2026-11-07
+# Appels frontend sans route backend — lot CRUD classes, 2026-11-07
 
-Base : `73726d91fdcbd989fb52bd071eb41087931b0899` (`main` après #405).
-Mesures du code proposé : **651 opérations**, 983 appels, 21 URL dynamiques
-non vérifiables, **42 occurrences = 40 clés distinctes** sans opération
-(41 avant). `GET /student-parents/` est désormais une opération réelle ;
-aucune fonction métier n'a été supprimée pour réduire la mesure. Le cliquet
-passe de 45 à 40 car quatre autres écarts étaient déjà corrigés sur `main`.
-Voir `STUDENT_PARENT_LINKS_READ_20261107.md`. L'analyse statique seule ne
-valide ni corps, ni réponses, ni permissions.
+Base : `298d18382b072bc049867d34ca5914466ba43b17` (`main` après #406).
+Mesures du code proposé : **653 opérations**, 983 appels, 21 URL dynamiques
+non vérifiables, **40 occurrences = 38 clés distinctes** sans opération
+(40 avant). `PUT` et `DELETE /infrastructure/classrooms/{id}/` sont désormais
+des contrats réels ; aucune fonction frontend n'a été supprimée pour réduire
+la mesure. Voir `CLASSROOM_CRUD_20261107.md`. L'analyse statique ne valide ni
+les corps, ni les réponses, ni les permissions.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
-DELETE /infrastructure/classrooms/X  (src/queries/classrooms.ts:154)
 DELETE /inventory/orders/X  (src/queries/admin.ts:597)
 DELETE /rooms/X  (src/components/classrooms/RoomsManager.tsx:124)
 DELETE /school-life/sponsorships/X  (src/pages/admin/Sponsorships.tsx:141)
@@ -42,7 +40,6 @@ POST /school-life/sponsorships  (src/pages/admin/Sponsorships.tsx:118)
 POST /school-life/success-plans  (src/pages/admin/SuccessPlans.tsx:86)
 POST /students/term-results/bulk  (src/utils/pedagogicalEngine.ts:169)
 PUT /hr/mentorship-requests/X  (src/pages/admin/AlumniMentors.tsx:93)
-PUT /infrastructure/classrooms/X  (src/queries/classrooms.ts:128)
 PUT /parents/appointment-slots/X  (src/pages/parent/Appointments.tsx:128)
 PUT /parents/appointment-slots/X  (src/pages/parent/Appointments.tsx:154)
 PUT /parents/appointments/X  (src/pages/parent/Appointments.tsx:146)

@@ -1,3 +1,15 @@
+## Lot modification/suppression des classes — 2026-11-07, après #406
+
+CLASSROOM-CRUD-01 (P1), **correctif proposé** : les actions déjà visibles dans
+l'administration disposent enfin de leurs contrats PUT/DELETE. Les références
+inter-tenant sont refusées et une classe utilisée ne peut pas être supprimée
+avec son historique. Détail : `CLASSROOM_CRUD_20261107.md`. Mesures proposées :
+653 opérations, 38 écarts API distincts (40 avant), 11 pages DÉFECTUEUSES,
+19 À VÉRIFIER et 114 NON VÉRIFIÉES. Score conservé à 60/100, non certifié ;
+CI à confirmer, aucun déploiement.
+
+---
+
 ## Lot lecture des liens parent-enfant — 2026-11-07, après #405
 
 PARENT-LINKS-READ-01 (P1), **correctif proposé** : la route GET absente des
