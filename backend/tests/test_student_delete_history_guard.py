@@ -11,10 +11,11 @@ from app.crud import student as crud
 from app.models.attendance import Attendance
 from app.models.enrollment import Enrollment
 from app.models.grade import Grade
-from app.models.payment import Payment
+from app.models.payment import Payment, Invoice
+from app.models.parent_student import ParentStudent
 
 
-@pytest.mark.parametrize("dependent_model", [Grade, Enrollment, Attendance, Payment])
+@pytest.mark.parametrize("dependent_model", [Grade, Enrollment, Attendance, Payment, Invoice, ParentStudent])
 def test_delete_student_with_history_never_deletes(dependent_model):
     student_id, tenant_id = uuid4(), uuid4()
     db = MagicMock()
