@@ -57,23 +57,22 @@ def test_generic_patch_can_update_own_profile_without_status_change():
     db.commit.assert_called_once()
 
 
-def test_generic_patch_can_deactivate_another_account():
+@pytest.mark.parametrize("new_status", [True, False])
+def test_generic_patch_requires_dedicated_status_endpoint(new_status):
     admin_id, target_id, tenant = str(uuid4()), str(uuid4()), str(uuid4())
     db = MagicMock()
-    db.execute.return_value.rowcount = 1
     with patch(
         "app.core.tenant_resolution.resolve_current_tenant_id",
         return_value=tenant,
-    ), patch.object(users, "log_audit"):
-        response = users.update_user(
+    ), pytest.raises(HTTPException) as exc:
+        users.update_user(
             user_id=target_id,
-            body=users.UserUpdate(is_active=False),
+            body=users.UserUpdate(is_active=new_status),
             request=_request(),
             db=db,
-            current_user={"id":admin_id, "tenant_id":tenant, "roles":["TENANT_ADMIN"]},
+            current_user={"id": admin_id, "tenant_id": tenant, "roles": ["TENANT_ADMIN"]},
         )
-    assert response["message"] == "User updated successfully"
-    params = db.execute.call_args.args[1]
-    assert params["tenant_id"] == tenant
-    assert params["is_active"] is False
-    db.commit.assert_called_once()
+    assert exc.value.status_code == 422
+    assert "toggle-status" in str(exc.value.detail)
+    db.execute.assert_not_called()
+    db.commit.assert_not_called()

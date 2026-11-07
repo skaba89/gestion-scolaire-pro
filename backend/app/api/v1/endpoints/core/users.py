@@ -638,6 +638,15 @@ def update_user(
             detail="Cannot deactivate your own account",
         )
 
+    # Profile PATCH cannot safely revoke authentication sessions itself.
+    # All status changes must use toggle-status, which invalidates tokens and
+    # registered sessions after the database update is committed.
+    if "is_active" in updates:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Use /users/{user_id}/toggle-status/ to change account status",
+        )
+
     # SECURITY: Whitelist allowed column names to prevent SQL injection
     ALLOWED_USER_UPDATE_FIELDS = {"first_name", "last_name", "email", "username", "avatar_url", "is_active", "phone", "bio"}
     updates = {k: v for k, v in updates.items() if k in ALLOWED_USER_UPDATE_FIELDS}
