@@ -2059,6 +2059,7 @@
     "twoFADisabled": "2FA not enabled",
     "twoFADisabledDesc": "We strongly recommend enabling 2FA to protect your sensitive school data.",
     "passwordLabel": "Password",
+    "currentPassword": "Current password",
     "changePassword": "Change password",
     "privacyTitle": "Privacy & Data",
     "privacyDesc": "Manage your personal data and exercise your rights (GDPR)",

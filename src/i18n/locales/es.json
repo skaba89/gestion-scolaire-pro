@@ -1984,6 +1984,7 @@
     "twoFADisabled": "2FA no activado",
     "twoFADisabledDesc": "Te recomendamos activar el 2FA para proteger tus datos escolares sensibles.",
     "passwordLabel": "Contraseña",
+    "currentPassword": "Contraseña actual",
     "changePassword": "Cambiar contraseña",
     "privacyTitle": "Privacidad y Datos",
     "privacyDesc": "Gestiona tus datos personales y ejerce tus derechos (RGPD)",

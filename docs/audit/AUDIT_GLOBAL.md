@@ -1,3 +1,15 @@
+## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
+
+TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : l'administration ne
+consulte plus le tableau de bord du compte connecté à la place de l'enseignant
+sélectionné. Le nouveau contrat est cloisonné par tenant et par rôle, et les
+pannes SQL restent visibles. Détail : `TEACHER_SCHEDULE_READ_20261107.md`.
+Mesures proposées : 654 opérations, 37 écarts API distincts (38 avant),
+11 pages DÉFECTUEUSES, 19 À VÉRIFIER et 114 NON VÉRIFIÉES. Score conservé à
+60/100, non certifié ; CI à confirmer, aucun déploiement.
+
+---
+
 ## Lot modification/suppression des classes — 2026-11-07, après #406
 
 CLASSROOM-CRUD-01 (P1), **correctif proposé** : les actions déjà visibles dans

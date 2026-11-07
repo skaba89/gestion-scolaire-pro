@@ -86,8 +86,10 @@ export const useTeacherData = (teacherId?: string) => {
         queryKey: ["teacher-dashboard", currentTenant?.id, targetId],
         queryFn: async () => {
             if (!currentTenant?.id || !targetId) return null;
-            // Note: If targetId != current_user, might need to pass it as query param, 
-            // but usually this is used for the logged-in teacher.
+            if (teacherId) {
+                const { data } = await apiClient.get(`/teachers/${targetId}/schedule/`);
+                return { assignments: [], schedule: data ?? [], assessments: [] };
+            }
             const { data } = await apiClient.get('/teachers/dashboard/', {
                 params: { teacher_id: targetId }
             });

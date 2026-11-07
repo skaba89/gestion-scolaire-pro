@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-07 (commit `298d18382b072bc049867d34ca5914466ba43b17`)
+# Matrice des écrans — statique, 2026-11-07 (commit `7c62be2ef499bd1699d834861678366b9e1b1719`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -100,8 +100,8 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Settings.tsx` | 65 | — |
 | Admin | `admin/Subjects.tsx` | 50 | — |
 | Admin | `admin/SuperAdminTenants.tsx` | 0 | — |
-| Admin | `admin/TeacherHours.tsx` | 33 | — |
-| Admin | `admin/Teachers.tsx` | 45 | — |
+| Admin | `admin/TeacherHours.tsx` | 34 | — |
+| Admin | `admin/Teachers.tsx` | 46 | — |
 | Admin | `admin/Terms.tsx` | 19 | — |
 | Admin | `admin/TestingGuide.tsx` | 11 | — |
 | Admin | `admin/UniversityGuide.tsx` | 0 | — |
@@ -168,10 +168,10 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Student | `student/StudentHomework.tsx` | 26 | — |
 | Student | `student/StudentMessages.tsx` | 53 | — |
 | Student | `student/StudentSchedule.tsx` | 17 | — |
-| Teacher | `teacher/TeacherAttendance.tsx` | 33 | — |
-| Teacher | `teacher/TeacherClasses.tsx` | 29 | — |
-| Teacher | `teacher/TeacherDashboard.tsx` | 40 | — |
-| Teacher | `teacher/TeacherGrades.tsx` | 31 | — |
+| Teacher | `teacher/TeacherAttendance.tsx` | 34 | — |
+| Teacher | `teacher/TeacherClasses.tsx` | 30 | — |
+| Teacher | `teacher/TeacherDashboard.tsx` | 41 | — |
+| Teacher | `teacher/TeacherGrades.tsx` | 32 | — |
 | Teacher | `teacher/TeacherHomework.tsx` | 20 | — |
 | Teacher | `teacher/TeacherMessages.tsx` | 29 | — |
 

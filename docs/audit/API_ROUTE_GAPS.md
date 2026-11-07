@@ -1,12 +1,13 @@
-# Appels frontend sans route backend — lot CRUD classes, 2026-11-07
+# Appels frontend sans route backend — lot emploi du temps enseignant, 2026-11-07
 
-Base : `298d18382b072bc049867d34ca5914466ba43b17` (`main` après #406).
-Mesures du code proposé : **653 opérations**, 983 appels, 21 URL dynamiques
-non vérifiables, **40 occurrences = 38 clés distinctes** sans opération
-(40 avant). `PUT` et `DELETE /infrastructure/classrooms/{id}/` sont désormais
-des contrats réels ; aucune fonction frontend n'a été supprimée pour réduire
-la mesure. Voir `CLASSROOM_CRUD_20261107.md`. L'analyse statique ne valide ni
-les corps, ni les réponses, ni les permissions.
+Base : `7c62be2ef499bd1699d834861678366b9e1b1719` (`main` après #407).
+Mesures du code proposé : **654 opérations**, 984 appels, 21 URL dynamiques
+non vérifiables, **39 occurrences = 37 clés distinctes** sans opération
+(38 avant). `GET /teachers/{teacher_id}/schedule/` est désormais un contrat
+réel et le hook actif consulte bien l'enseignant sélectionné ; aucune fonction
+frontend n'a été supprimée pour réduire la mesure. Voir
+`TEACHER_SCHEDULE_READ_20261107.md`. L'analyse statique ne valide ni les corps,
+ni les réponses, ni les permissions.
 
 ## Chemin absent
 DELETE /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:96)
@@ -25,7 +26,6 @@ GET /school-life/early-warnings  (src/pages/admin/EarlyWarnings.tsx:51)
 GET /school-life/sponsorships  (src/pages/admin/Sponsorships.tsx:60)
 GET /school-life/success-plans  (src/pages/admin/SuccessPlans.tsx:77)
 GET /students/terms/X  (src/utils/riskAssessment.ts:124)
-GET /teachers/X/schedule  (src/hooks/queries/useTeachers.ts:121)
 PATCH /communication/video-meetings/X  (src/pages/admin/VideoMeetings.tsx:102)
 PATCH /course-discussions/X  (src/components/elearning/CourseDiscussions.tsx:85)
 PATCH /course-lessons/X  (src/components/admin/elearning/CourseContent.tsx:54)

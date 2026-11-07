@@ -64,10 +64,9 @@ export const staffService = {
     /**
      * Get teacher schedule (via teacher-specific dashboard or separate endpoint)
      */
-    async getTeacherSchedule(_teacherId: string) {
-        // Our backend has a specific dashboard for teachers that includes schedule
-        const { data } = await apiClient.get("/teachers/dashboard/");
-        return data.schedule;
+    async getTeacherSchedule(teacherId: string) {
+        const { data } = await apiClient.get(`/teachers/${teacherId}/schedule/`);
+        return data;
     },
 
     /**

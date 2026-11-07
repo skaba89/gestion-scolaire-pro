@@ -2,7 +2,8 @@ import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import and_, text
+from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
 from pydantic import BaseModel
 from uuid import UUID
@@ -10,10 +11,77 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.teacher_scope import PRIVILEGED_SCOPE_ROLES
+from app.models import Classroom, Room, ScheduleSlot, Subject, User
 from app.utils.audit import log_audit
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+@router.get("/{teacher_id}/schedule/")
+def get_teacher_schedule(
+    teacher_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return one teacher's schedule without widening schedule access.
+
+    A teacher may read only their own schedule. Tenant administration roles
+    may inspect another teacher from the same institution. Roles such as
+    STUDENT/PARENT also hold broad schedule/settings read permissions for
+    unrelated portals, so an explicit staff/self rule is required here.
+    """
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        roles = set(current_user.get("roles") or [])
+        caller_id = str(current_user.get("id") or "")
+        is_self_teacher = "TEACHER" in roles and caller_id == str(teacher_id)
+        if not (roles & PRIVILEGED_SCOPE_ROLES) and not is_self_teacher:
+            raise HTTPException(status_code=403, detail="Accès non autorisé à cet emploi du temps")
+
+        target_exists = db.query(User.id).filter(
+            User.id == teacher_id, User.tenant_id == tenant_id
+        ).first()
+        if not target_exists:
+            raise HTTPException(status_code=404, detail="Enseignant introuvable")
+
+        rows = (
+            db.query(ScheduleSlot, Subject, Classroom, Room)
+            .outerjoin(Subject, and_(
+                Subject.id == ScheduleSlot.subject_id,
+                Subject.tenant_id == tenant_id,
+            ))
+            .outerjoin(Classroom, and_(
+                Classroom.id == ScheduleSlot.class_id,
+                Classroom.tenant_id == tenant_id,
+            ))
+            .outerjoin(Room, and_(
+                Room.id == ScheduleSlot.room_id,
+                Room.tenant_id == tenant_id,
+            ))
+            .filter(
+                ScheduleSlot.teacher_id == teacher_id,
+                ScheduleSlot.tenant_id == tenant_id,
+            )
+            .order_by(ScheduleSlot.day_of_week, ScheduleSlot.start_time, ScheduleSlot.id)
+            .all()
+        )
+        return [{
+            "id": str(slot.id),
+            "day_of_week": int(slot.day_of_week),
+            "start_time": str(slot.start_time),
+            "end_time": str(slot.end_time),
+            "room_name": room.name if room else None,
+            "classrooms": {"id": str(classroom.id), "name": classroom.name} if classroom else None,
+            "subjects": {"id": str(subject.id), "name": subject.name} if subject else None,
+        } for slot, subject, classroom, room in rows]
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        logger.error("Teacher schedule lookup failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Emploi du temps temporairement indisponible")
 
 
 def _validate_assignment_fks(db: Session, *, tenant_id: str, teacher_id: Optional[str],

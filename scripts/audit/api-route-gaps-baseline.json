@@ -16,7 +16,6 @@
   "GET /school-life/sponsorships",
   "GET /school-life/success-plans",
   "GET /students/terms/X",
-  "GET /teachers/X/schedule",
   "PATCH /communication/video-meetings/X",
   "PATCH /course-discussions/X",
   "PATCH /course-lessons/X",

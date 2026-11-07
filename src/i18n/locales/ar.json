@@ -1984,6 +1984,7 @@
     "twoFADisabled": "2FA غير مفعّل",
     "twoFADisabledDesc": "نوصي بشدة بتفعيل 2FA لحماية بياناتك المدرسية الحساسة.",
     "passwordLabel": "كلمة المرور",
+    "currentPassword": "كلمة المرور الحالية",
     "changePassword": "تغيير كلمة المرور",
     "privacyTitle": "الخصوصية والبيانات",
     "privacyDesc": "إدارة بياناتك الشخصية وممارسة حقوقك (GDPR)",
