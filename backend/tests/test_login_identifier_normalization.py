@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy.sql.elements import BinaryExpression
 
 from app.api.v1.endpoints.core import auth
 
