@@ -8,6 +8,7 @@ import { financialKPIs, academicKPIs, operationalKPIs } from "@/queries/dashboar
 import { toastService } from "@/utils/toast";
 import { academicYearQueries } from "@/queries/academic-years";
 import { exportToCSV } from "@/utils/exportUtils";
+import { selectActiveAcademicTerm } from "@/utils/activeAcademicTerm";
 import { adminQueries } from "@/queries/admin";
 
 // Modular components
@@ -145,10 +146,7 @@ export default function ExecutiveDashboard() {
                 academic_year_id: string;
                 is_active: boolean;
             }>>("/terms/");
-            const termData = terms.find(term =>
-                term.is_active &&
-                (academicYearId === "current" || term.academic_year_id === academicYearId)
-            );
+            const termData = selectActiveAcademicTerm(terms, academicYearId);
             if (!termData) return { total: 0, critical: 0, high: 0, moderate: 0, low: 0 };
 
             const { data } = await apiClient.get("/analytics/risk-scores/", {
