@@ -55,3 +55,45 @@ def test_foreign_assessment_is_hidden_and_preserved(school_db):
         remove(db, assessment)
     assert exc.value.status_code == 404
     assert db.execute(text("SELECT count(*) FROM assessments")).scalar_one() == 1
+
+
+@pytest.mark.parametrize("graded,foreign,expected", [(True, False, 409), (False, False, 200), (True, True, 404)])
+def test_school_life_mirror_preserves_history(monkeypatch, graded, foreign, expected):
+    from datetime import date, datetime
+    from app.api.v1.endpoints.operational import school_life
+    from app.models.base import Base
+    from app.models.tenant import Tenant
+    from app.models.subject import Subject
+    from app.models.student import Student, Gender
+    from app.models.assessment import Assessment
+    from app.models.grade import Grade
+
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    tenant, other, assessment_id, grade_id = (uuid4() for _ in range(4))
+    monkeypatch.setattr(school_life, "resolve_current_tenant_id", lambda *args: other if foreign else tenant)
+    with Session(engine) as db:
+        db.add(Tenant(id=tenant, name="History", slug=f"history-{tenant}", type="secondary", country="GN"))
+        db.flush()
+        subject = Subject(tenant_id=tenant, name="Math")
+        student = Student(tenant_id=tenant, registration_number=str(uuid4()), first_name="A",
+                          last_name="B", date_of_birth=date(2010, 1, 1), gender=Gender.FEMALE)
+        db.add_all([subject, student])
+        db.flush()
+        db.add(Assessment(id=assessment_id, tenant_id=tenant, subject_id=subject.id,
+                          name="Exam", date=datetime(2026, 11, 1)))
+        db.flush()
+        if graded:
+            db.add(Grade(id=grade_id, tenant_id=tenant, student_id=student.id,
+                         assessment_id=assessment_id, score=17, max_score=20))
+        db.commit()
+        if expected == 200:
+            assert school_life.delete_assessment(None, assessment_id, db, {"id": str(uuid4())}) == {"status": "success"}
+            assert db.get(Assessment, assessment_id) is None
+        else:
+            with pytest.raises(HTTPException) as exc:
+                school_life.delete_assessment(None, assessment_id, db, {})
+            assert exc.value.status_code == expected
+            assert db.get(Assessment, assessment_id) is not None
+            assert db.get(Grade, grade_id).score == 17
+    engine.dispose()

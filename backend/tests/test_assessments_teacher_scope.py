@@ -124,8 +124,8 @@ def test_admin_unchanged(school):
     assert resp.status_code == 200, resp.text
 
 
-@pytest.mark.parametrize("actor", ["teacher", "admin"])
-def test_recorded_grades_block_assessment_deletion(school, actor):
+@pytest.mark.parametrize("actor,route", [("teacher", BASE), ("admin", BASE), ("admin", "/api/v1/school-life/assessments")])
+def test_recorded_grades_block_assessment_deletion(school, actor, route):
     from datetime import date
     from app.models.student import Student, Gender
     from app.models.grade import Grade
@@ -143,7 +143,7 @@ def test_recorded_grades_block_assessment_deletion(school, actor):
         db.commit()
         grade_id = grade.id
 
-    resp = client.delete(f"{BASE}/{own}/", headers=_as(school[actor]))
+    resp = client.delete(f"{route}/{own}/", headers=_as(school[actor]))
     assert resp.status_code == 409, resp.text
     with SessionLocal() as db:
         assert db.get(Grade, grade_id).score == 17

@@ -34,13 +34,20 @@ possible pour une évaluation vide ; 404 pour un identifiant étranger.
 Rollback sur refus pour libérer le verrou. Les contrôles enseignant existants
 sont conservés. Aucun changement de schéma ni de permissions.
 
+La route miroir `DELETE /school-life/assessments/{id}/` utilisait aussi
+une suppression ORM en cascade ; elle est protégée par le même contrôle
+d'historique et un verrou ORM, avec conservation de son audit de suppression.
+
 Fichiers : `backend/app/api/v1/endpoints/academic/assessments.py`,
+`backend/app/api/v1/endpoints/operational/school_life.py`,
 `backend/tests/test_assessment_delete_history.py`,
 `backend/tests/test_assessments_teacher_scope.py`.
 
-Validation locale : trois tests SQLite ciblés réussis après correction.
-Trois scénarios HTTP PostgreSQL ajoutés : administrateur, enseignant,
-autre établissement. Docker local indisponible ; validation PostgreSQL et
+Validation locale : six tests SQLite ciblés réussis après correction,
+dont trois sur le miroir ORM réel (409, suppression vide, tenant étranger).
+Vitest : 98 fichiers et 551 tests réussis. Build réussi.
+Quatre scénarios HTTP PostgreSQL ajoutés : administrateur sur les deux routes,
+enseignant et autre établissement. Docker local indisponible ; validation PostgreSQL et
 concurrence réelle non annoncées avant résultats CI.
 
 Impact interface : le contrat d'erreur existant reçoit 409 au lieu d'un faux
@@ -56,7 +63,7 @@ La priorité P0 du premier lot repose sur la perte reproduite d'une note.
 | Chantier | Fonctionnalité / priorité | Diagnostic | Correction / tests | PR / CI / fusion | Production | Risque résiduel / dépendances |
 |---|---|---|---|---|---|---|
 | 1 | RBAC et tenants / P0 | Audit transversal à reprendre | Lot 2 conserve les contrôles et ajoute test étranger | Non validé globalement | Non déployée | Revue routes, fichiers, sessions et rôles |
-| 2 | Suppression évaluations / P0 | Perte de notes reproduite | ASSESSMENT-DELETE-01 ; 3 tests SQLite verts, tests PostgreSQL ajoutés | PR à publier ; CI nouveau HEAD en attente | Non déployée | Autres cascades, concurrence et rétention à examiner |
+| 2 | Suppression évaluations / P0 | Perte de notes reproduite | ASSESSMENT-DELETE-01 ; 6 tests SQLite verts, tests PostgreSQL ajoutés | [#426](https://github.com/skaba89/gestion-scolaire-pro/pull/426), brouillon ; six jobs du dernier HEAD à confirmer | Non déployée | Autres cascades, concurrence et rétention à examiner |
 | 3 | Contrats API / P0 | 33 clés statiques encore ouvertes | Recalcul 658 opérations / 983 appels | Aucun correctif dans ce lot | Non déployée | Vérification manuelle des 21 URL dynamiques |
 | 4 | Comptes et menus / P1 | Correctifs #424 déjà présents ; cycle complet à vérifier | Aucun nouveau test de recette | À auditer | Non vérifiée | Matrice rôle × action requise |
 | 5 | Scolarité / P1 | #425 protège des liens et factures | Ne pas redévelopper ce correctif | Déjà fusionné ; CI base verte | Non vérifiée | Inscriptions, transferts, doublons |
