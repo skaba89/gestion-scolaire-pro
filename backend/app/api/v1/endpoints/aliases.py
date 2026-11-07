@@ -1272,6 +1272,18 @@ def create_room_alias(
     return crud.create_room(db, obj_in=RoomCreate(**obj_in.model_dump()), tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
 
+@rooms_alias_router.delete("/{room_id}/", status_code=status.HTTP_204_NO_CONTENT)
+def delete_room_alias(
+    room_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("rooms:write")),
+):
+    """DELETE /rooms/{id}/ — same safety rules as /infrastructure/rooms/{id}/."""
+    from app.api.v1.endpoints.operational.infrastructure import delete_room
+    return delete_room(room_id=room_id, request=request, db=db, current_user=current_user)
+
+
 @rooms_alias_router.get("/count/")
 def count_rooms_alias(
     request: Request,

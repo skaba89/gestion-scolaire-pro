@@ -475,6 +475,54 @@ def create_room(db: Session, obj_in: RoomCreate, tenant_id: UUID) -> Room:
     db.refresh(db_obj)
     return db_obj
 
+class RoomInUseError(ValueError):
+    """A room with attached teaching or kiosk resources cannot be deleted."""
+
+
+def delete_room(db: Session, room_id: UUID, tenant_id: UUID) -> bool:
+    """Delete an unused room without cascading/detaching operational links.
+
+    The row lock prevents concurrent foreign-key references from being
+    inserted between dependency verification and deletion on PostgreSQL.
+    """
+    from app.models import KioskDevice
+
+    room = db.query(Room).filter(
+        Room.id == room_id,
+        Room.tenant_id == tenant_id,
+    ).with_for_update().first()
+    if room is None:
+        return False
+
+    is_used = (
+        db.query(ScheduleSlot.id).filter(
+            ScheduleSlot.tenant_id == tenant_id,
+            ScheduleSlot.room_id == room_id,
+        ).first() is not None
+        or db.query(Classroom.id).filter(
+            Classroom.tenant_id == tenant_id,
+            Classroom.main_room_id == room_id,
+        ).first() is not None
+        or db.query(KioskDevice.id).filter(
+            KioskDevice.tenant_id == tenant_id,
+            KioskDevice.room_id == room_id,
+        ).first() is not None
+        or db.query(SubjectPreferredRoom.id).filter(
+            SubjectPreferredRoom.tenant_id == tenant_id,
+            SubjectPreferredRoom.room_id == room_id,
+        ).first() is not None
+    )
+    if is_used:
+        raise RoomInUseError(
+            "Impossible de supprimer une salle utilisée par un emploi du temps, "
+            "une classe, une borne ou une préférence de matière"
+        )
+
+    db.delete(room)
+    db.commit()
+    return True
+
+
 # --- Classroom (Classes) ---
 def get_classrooms(db: Session, tenant_id: UUID) -> List[Classroom]:
     return db.query(Classroom).filter(Classroom.tenant_id == tenant_id).all()

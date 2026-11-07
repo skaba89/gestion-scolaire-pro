@@ -51,6 +51,29 @@ def create_room(
 ):
     return crud.create_room(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
 
+@router.delete("/rooms/{room_id}/", status_code=status.HTTP_204_NO_CONTENT)
+def delete_room(
+    room_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("rooms:write")),
+):
+    """Only remove an unused room in the authenticated establishment."""
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        if not crud.delete_room(db, room_id=room_id, tenant_id=tenant_id):
+            raise HTTPException(status_code=404, detail="Salle introuvable")
+    except HTTPException:
+        raise
+    except crud.RoomInUseError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Room deletion failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Gestion des salles temporairement indisponible")
+
+
 # --- Programs ---
 @router.get("/programs/", response_model=List[Program])
 def read_programs(
