@@ -112,12 +112,42 @@ def update_student(
     return db_student
 
 
+class StudentHasProtectedHistory(Exception):
+    """The student has school or financial records that must be retained."""
+
+
 def delete_student(db: Session, student_id: UUID, tenant_id: UUID) -> bool:
-    """Delete a student"""
-    db_student = get_student(db, student_id, tenant_id)
+    """Delete only an empty student record; never cascade school history.
+
+    The grade, enrollment, attendance and payment tables all reference students
+    with ON DELETE CASCADE, so deleting a populated record could irreversibly
+    remove academic or financial evidence. A separate retention/erasure
+    workflow is required for those records.
+    """
+    from app.models.grade import Grade
+    from app.models.enrollment import Enrollment
+    from app.models.attendance import Attendance
+    from app.models.payment import Payment
+
+    # Lock the student row until commit to serialize concurrent changes to
+    # its child records on PostgreSQL. SQLite ignores FOR UPDATE.
+    db_student = db.query(Student).filter(
+        Student.id == student_id,
+        Student.tenant_id == tenant_id,
+    ).with_for_update().first()
     if not db_student:
         return False
-    
+
+    for model in (Grade, Enrollment, Attendance, Payment):
+        exists = db.query(model.id).filter(
+            model.student_id == student_id,
+            model.tenant_id == tenant_id,
+        ).first()
+        if exists is not None:
+            raise StudentHasProtectedHistory(
+                "Student has academic or financial history; archive instead"
+            )
+
     db.delete(db_student)
     db.commit()
     return True
