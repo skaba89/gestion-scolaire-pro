@@ -23,7 +23,10 @@ test('RH : désactiver conserve la paie et la suppression est refusée', async (
   const row = page.getByRole('row').filter({ hasText: number });
   await row.getByRole('button', { name: 'Modifier', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('switch', { name: 'Employé actif' }).uncheck();
+  const active = dialog.getByRole('switch', { name: 'Employé actif' });
+  await expect(active).toHaveAttribute('aria-checked', 'true');
+  await active.click();
+  await expect(active).toHaveAttribute('aria-checked', 'false');
   const updated = page.waitForResponse(r => r.url().endsWith(`/hr/employees/${employee.id}/`) && r.request().method() === 'PUT');
   await dialog.getByRole('button', { name: 'Mettre à jour' }).click();
   expect((await updated).ok()).toBeTruthy();
