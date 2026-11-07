@@ -1,6 +1,5 @@
 [
   "DELETE /course-discussions/X",
-  "DELETE /infrastructure/classrooms/X",
   "DELETE /inventory/orders/X",
   "DELETE /rooms/X",
   "DELETE /schedule",
@@ -34,7 +33,6 @@
   "POST /school-life/success-plans",
   "POST /students/term-results/bulk",
   "PUT /hr/mentorship-requests/X",
-  "PUT /infrastructure/classrooms/X",
   "PUT /parents/appointment-slots/X",
   "PUT /parents/appointments/X",
   "PUT /school-life/early-warnings/X",

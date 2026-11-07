@@ -7,6 +7,7 @@ from datetime import datetime
 from app.models import (
     AcademicYear, Term, Campus, Level, Subject,
     Department, Room, Program, Classroom, Enrollment,
+    Assessment, Attendance, ScheduleSlot,
     SubjectPreferredRoom, Faculty, Semester,
     subject_levels, subject_departments, classroom_departments, class_subjects,
     subject_prerequisites,
@@ -532,6 +533,90 @@ def create_classroom(db: Session, obj_in: ClassroomCreate, tenant_id: UUID) -> C
         db.commit()
         db.refresh(db_obj)
     return db_obj
+
+
+class ClassroomInUseError(ValueError):
+    """Raised when deleting a classroom would erase or detach school history."""
+
+
+def update_classroom(
+    db: Session, class_id: UUID, obj_in: ClassroomUpdate, tenant_id: UUID
+) -> Optional[Classroom]:
+    db_obj = get_classroom(db, class_id, tenant_id)
+    if not db_obj:
+        return None
+
+    update_data = obj_in.model_dump(exclude_unset=True)
+    department_ids = update_data.pop("department_ids", None)
+    if department_ids is not None:
+        department_ids = list(dict.fromkeys(department_ids))
+    _validate_classroom_fks(
+        db,
+        tenant_id=tenant_id,
+        level_id=update_data.get("level_id"),
+        campus_id=update_data.get("campus_id"),
+        program_id=update_data.get("program_id"),
+        academic_year_id=update_data.get("academic_year_id"),
+        main_room_id=update_data.get("main_room_id"),
+        department_ids=department_ids,
+    )
+
+    for field, value in update_data.items():
+        setattr(db_obj, field, value)
+
+    if department_ids is not None:
+        db.execute(classroom_departments.delete().where(
+            (classroom_departments.c.tenant_id == tenant_id)
+            & (classroom_departments.c.class_id == class_id)
+        ))
+        for department_id in department_ids:
+            db.execute(classroom_departments.insert().values(
+                tenant_id=tenant_id,
+                class_id=class_id,
+                department_id=department_id,
+            ))
+
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+
+def delete_classroom(db: Session, class_id: UUID, tenant_id: UUID) -> bool:
+    # Lock the class while checking its history. On PostgreSQL this prevents a
+    # concurrent enrollment from being inserted between the checks and the
+    # DELETE (which would otherwise cascade that new enrollment).
+    db_obj = db.query(Classroom).filter(
+        Classroom.id == class_id, Classroom.tenant_id == tenant_id
+    ).with_for_update().first()
+    if not db_obj:
+        return False
+
+    # Enrollments use ON DELETE CASCADE while assessments/attendance use
+    # SET NULL. Both behaviours would silently destroy historical context.
+    # A class that has ever been used must be archived/renamed, not deleted.
+    history_exists = (
+        db.query(Enrollment.id).filter(
+            Enrollment.tenant_id == tenant_id, Enrollment.class_id == class_id
+        ).first() is not None
+        or db.query(ScheduleSlot.id).filter(
+            ScheduleSlot.tenant_id == tenant_id, ScheduleSlot.class_id == class_id
+        ).first() is not None
+        or db.query(Assessment.id).filter(
+            Assessment.tenant_id == tenant_id, Assessment.class_id == class_id
+        ).first() is not None
+        or db.query(Attendance.id).filter(
+            Attendance.tenant_id == tenant_id, Attendance.classroom_id == class_id
+        ).first() is not None
+    )
+    if history_exists:
+        raise ClassroomInUseError(
+            "Impossible de supprimer une classe contenant un historique scolaire"
+        )
+
+    db.delete(db_obj)
+    db.commit()
+    return True
 
 # --- Enrollment ---
 ENROLLMENTS_UNFILTERED_SAFETY_LIMIT = 5000

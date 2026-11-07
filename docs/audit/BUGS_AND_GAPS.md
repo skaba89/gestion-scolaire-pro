@@ -1,3 +1,15 @@
+## Lot modification/suppression des classes — 2026-11-07, après #406
+
+CLASSROOM-CRUD-01 (P1), **correctif proposé** : l'écran des classes ne reçoit
+plus 404 sur modifier/supprimer. Les écritures sont limitées au tenant, les
+références étrangères sont refusées et la suppression d'un historique
+scolaire retourne 409. Voir `CLASSROOM_CRUD_20261107.md`.
+
+Mesure proposée : 38 écarts API distincts (40 avant), 11 pages DÉFECTUEUSES,
+19 À VÉRIFIER et 114 NON VÉRIFIÉES. Ces statuts restent statiques.
+
+---
+
 ## Lot lecture des liens parent-enfant — 2026-11-07, après #405
 
 PARENT-LINKS-READ-01 (P1), **correctif proposé** : le système de rappels ne

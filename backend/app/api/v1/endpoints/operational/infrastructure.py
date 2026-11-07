@@ -12,6 +12,7 @@ from fastapi import Query
 from app.crud import academic as crud
 from app.models.associations import subject_levels, classroom_departments, class_subjects
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,56 @@ def create_classroom(
         return crud.create_classroom(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.put("/classrooms/{class_id}/", response_model=Classroom)
+def update_classroom(
+    class_id: UUID,
+    obj_in: ClassroomUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("classrooms:write")),
+):
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        updated = crud.update_classroom(
+            db, class_id=class_id, obj_in=obj_in, tenant_id=tenant_id
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Classe introuvable")
+        return updated
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Classroom update failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Gestion des classes temporairement indisponible")
+
+
+@router.delete("/classrooms/{class_id}/", status_code=status.HTTP_204_NO_CONTENT)
+def delete_classroom(
+    class_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("classrooms:write")),
+):
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        deleted = crud.delete_classroom(db, class_id=class_id, tenant_id=tenant_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Classe introuvable")
+    except HTTPException:
+        raise
+    except crud.ClassroomInUseError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.error("Classroom deletion failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Gestion des classes temporairement indisponible")
 
 # --- Enrollments ---
 @router.get("/enrollments/", response_model=List[Enrollment])

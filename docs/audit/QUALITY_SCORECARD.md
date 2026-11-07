@@ -1,3 +1,16 @@
+## Lot modification/suppression des classes — 2026-11-07, après #406
+
+CLASSROOM-CRUD-01 (P1), **correctif proposé** : contrats de modification et de
+suppression des classes, isolation tenant et conservation de l'historique.
+Détail : `CLASSROOM_CRUD_20261107.md`.
+
+Mesures proposées : 38 écarts API distincts (40 avant), 11 pages statiquement
+défectueuses, 19 À VÉRIFIER, 114 NON VÉRIFIÉES et référence TypeScript inchangée
+à 173. Le score reste **60/100**, non certifié ; ce lot ne valide ni offline,
+ni charge, ni production. CI en attente ; aucun déploiement.
+
+---
+
 ## Lot lecture des liens parent-enfant — 2026-11-07, après #405
 
 PARENT-LINKS-READ-01 (P1), **correctif proposé** : contrat GET des liens

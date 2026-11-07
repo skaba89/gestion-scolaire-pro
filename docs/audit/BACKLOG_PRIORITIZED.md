@@ -1,3 +1,16 @@
+## Lot modification/suppression des classes — 2026-11-07, après #406
+
+CLASSROOM-CRUD-01 (P1), **correctif proposé** : contrats PUT/DELETE manquants,
+validation tenant de toutes les références et protection de l'historique à la
+suppression. Tests ciblés et régressions locales verts ; CI du HEAD à
+confirmer. Détail : `CLASSROOM_CRUD_20261107.md`. Écarts API proposés : 38
+(40 avant).
+
+Restent prioritaires : sixième check obligatoire, 38 contrats API, sécurité
+transversale, offline/appareils, charge et prévol production.
+
+---
+
 ## Lot lecture des liens parent-enfant — 2026-11-07, après #405
 
 PARENT-LINKS-READ-01 (P1), **correctif proposé** : lecture familiale manquante
