@@ -1,3 +1,16 @@
+## Lot remplacement atomique du planning — 2026-11-07, après #420
+
+SCHEDULE-REPLACE-01 (P1), **correctif proposé** : le générateur ne détruit
+plus le planning avant de savoir si son remplacement est valide et
+persistable. Les conflits donnent 409, les références étrangères 404 et les
+pannes SQL 503 avec rollback. Voir `SCHEDULE_ATOMIC_REPLACE_20261107.md`.
+
+Mesure proposée : 35 écarts API distincts (36 sur `main`), 9 pages
+DÉFECTUEUSES, 19 À VÉRIFIER et 116 NON VÉRIFIÉES. Ces statuts restent
+statiques.
+
+---
+
 ## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
 
 TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : le paramètre ignoré du

@@ -1,3 +1,15 @@
+## Lot remplacement atomique du planning — 2026-11-07, après #420
+
+SCHEDULE-REPLACE-01 (P1), **correctif proposé** : l'assistant ne tente plus
+une suppression absente suivie d'un POST au mauvais format. Validation des
+références/conflits puis remplacement dans une transaction unique avec
+rollback. Détail : `SCHEDULE_ATOMIC_REPLACE_20261107.md`. Mesures proposées :
+657 opérations, 35 écarts API distincts (36 sur `main`), 9 pages
+DÉFECTUEUSES, 19 À VÉRIFIER et 116 NON VÉRIFIÉES. Score conservé à 60/100,
+non certifié ; CI à confirmer, aucun déploiement.
+
+---
+
 ## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
 
 TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : l'administration ne

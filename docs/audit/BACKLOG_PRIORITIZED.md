@@ -1,3 +1,15 @@
+## Lot remplacement atomique du planning — 2026-11-07, après #420
+
+SCHEDULE-REPLACE-01 (P1), **correctif proposé** : contrat unique, validation
+tenant/références/conflits, verrou de classe, audit et rollback sans perte de
+l'ancien planning. Tests ciblés verts ; CI du HEAD à confirmer. Détail :
+`SCHEDULE_ATOMIC_REPLACE_20261107.md`. Écarts API proposés : 35 (36 sur main).
+
+Restent prioritaires : sixième check obligatoire, 35 contrats API, sécurité
+transversale, offline/appareils, charge et prévol production.
+
+---
+
 ## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
 
 TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : contrat de lecture
