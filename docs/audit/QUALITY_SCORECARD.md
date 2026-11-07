@@ -1,3 +1,16 @@
+## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
+
+TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : consultation ciblée,
+isolation tenant/rôle et erreurs serveur visibles. Détail :
+`TEACHER_SCHEDULE_READ_20261107.md`.
+
+Mesures proposées : 37 écarts API distincts (38 avant), 11 pages statiquement
+défectueuses, 19 À VÉRIFIER, 114 NON VÉRIFIÉES. Le score reste **60/100**,
+non certifié : ce lot ciblé ne valide ni offline, ni charge, ni production.
+CI en attente ; aucun déploiement.
+
+---
+
 ## Lot modification/suppression des classes — 2026-11-07, après #406
 
 CLASSROOM-CRUD-01 (P1), **correctif proposé** : contrats de modification et de

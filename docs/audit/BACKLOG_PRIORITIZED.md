@@ -1,3 +1,15 @@
+## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
+
+TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : contrat de lecture
+ciblée créé, sélection frontend réparée, accès personnel/administratif et
+isolation tenant testés. Tests ciblés verts ; CI du HEAD à confirmer. Détail :
+`TEACHER_SCHEDULE_READ_20261107.md`. Écarts API proposés : 37 (38 avant).
+
+Restent prioritaires : sixième check obligatoire, 37 contrats API, sécurité
+transversale, offline/appareils, charge et prévol production.
+
+---
+
 ## Lot modification/suppression des classes — 2026-11-07, après #406
 
 CLASSROOM-CRUD-01 (P1), **correctif proposé** : contrats PUT/DELETE manquants,

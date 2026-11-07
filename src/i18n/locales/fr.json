@@ -2059,6 +2059,7 @@
         "twoFADisabled": "2FA non activé",
         "twoFADisabledDesc": "Nous vous conseillons vivement d'activer le 2FA pour protéger vos données scolaires sensibles.",
         "passwordLabel": "Mot de passe",
+        "currentPassword": "Mot de passe actuel",
         "changePassword": "Modifier le mot de passe",
         "privacyTitle": "Confidentialité et Données",
         "privacyDesc": "Gérez vos données personnelles et exercez vos droits (RGPD)",

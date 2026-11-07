@@ -2019,6 +2019,7 @@
     "twoFADisabled": "未启用2FA",
     "twoFADisabledDesc": "我们强烈建议启用2FA以保护您的敏感学校数据。",
     "passwordLabel": "密码",
+    "currentPassword": "当前密码",
     "changePassword": "更改密码",
     "privacyTitle": "隐私与数据",
     "privacyDesc": "管理您的个人数据并行使您的权利（GDPR）",

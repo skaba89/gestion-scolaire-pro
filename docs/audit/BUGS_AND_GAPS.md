@@ -1,3 +1,16 @@
+## Lot lecture de l'emploi du temps enseignant — 2026-11-07, après #407
+
+TEACHER-SCHEDULE-READ-01 (P1), **correctif proposé** : le paramètre ignoré du
+tableau de bord ne masque plus l'enseignant choisi. La nouvelle route refuse
+les rôles non concernés, limite l'enseignant à lui-même, masque les comptes
+inter-tenant et propage les pannes SQL. Voir
+`TEACHER_SCHEDULE_READ_20261107.md`.
+
+Mesure proposée : 37 écarts API distincts (38 avant), 11 pages DÉFECTUEUSES,
+19 À VÉRIFIER et 114 NON VÉRIFIÉES. Ces statuts restent statiques.
+
+---
+
 ## Lot modification/suppression des classes — 2026-11-07, après #406
 
 CLASSROOM-CRUD-01 (P1), **correctif proposé** : l'écran des classes ne reçoit
