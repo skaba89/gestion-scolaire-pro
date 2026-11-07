@@ -37,7 +37,9 @@ test('une matière notée reste intacte après un refus de suppression', async (
   const refused = page.waitForResponse(r => r.url().endsWith(`/subjects/${subject.id}/`) && r.request().method() === 'DELETE');
   await row.getByRole('button', { name: 'Supprimer la matière' }).click();
   expect((await refused).status()).toBe(409);
-  await expect(page.getByText(/Cette matière est utilisée/)).toBeVisible();
+  // Toast has both a visible description and an aria-live announcement.
+  // Scope the assertion to the notification content to avoid strict-mode ambiguity.
+  await expect(page.getByLabel('Notifications (F8)').getByText(/Cette matière est utilisée/).first()).toBeVisible();
   await expect(row).toBeVisible();
   const saved = await admin.get(`/subjects/${subject.id}/`);
   expect(saved.status()).toBe(200);
