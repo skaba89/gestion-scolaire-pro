@@ -53,6 +53,7 @@ def test_unlinked_student_guard_only_scopes_to_authorized_tenant():
     db.execute.side_effect = [
         MagicMock(fetchone=MagicMock(return_value=None)),
         MagicMock(fetchone=MagicMock(return_value=None)),
+        MagicMock(fetchone=MagicMock(return_value=None)),
         MagicMock(rowcount=0),
     ]
     with patch(
@@ -64,6 +65,6 @@ def test_unlinked_student_guard_only_scopes_to_authorized_tenant():
             current_user={"id": admin, "tenant_id": tenant, "roles": ["TENANT_ADMIN"]},
         )
     assert err.value.status_code == 404
-    assert db.execute.call_count == 3
+    assert db.execute.call_count == 4
     assert "tenant_id = :tenant_id" in str(db.execute.call_args_list[1].args[0])
     db.commit.assert_not_called()
