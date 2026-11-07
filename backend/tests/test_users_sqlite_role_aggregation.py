@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from starlette.requests import Request
 
@@ -95,9 +96,9 @@ def test_get_user_sqlite_distinct_roles_and_tenant_boundary(sqlite_users_db):
         )
         assert set(result["roles"]) == {"TEACHER", "TENANT_ADMIN"}
         assert len(result["roles"]) == 2
-        with pytest.raises(Exception) as exc:
+        with pytest.raises(HTTPException) as exc:
             users.get_user(
                 user_id=foreign_id, request=_request(), db=db,
                 current_user={"tenant_id": tenant, "roles": ["TENANT_ADMIN"]},
             )
-    assert getattr(exc.value, "status_code", None) == 404
+    assert exc.value.status_code == 404
