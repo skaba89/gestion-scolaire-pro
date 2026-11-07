@@ -319,6 +319,27 @@ def delete_assessment(
                                   targets=[(current["class_id"], current["subject_id"])])
 
     try:
+        # PostgreSQL FK inserts take a key-share lock on the assessment.
+        # Lock it before checking history so a concurrent grade cannot be
+        # inserted between this check and the cascading DELETE.
+        lock = " FOR UPDATE" if db.get_bind().dialect.name == "postgresql" else ""
+        existing = db.execute(
+            text("SELECT id FROM assessments WHERE id = :id AND tenant_id = :tenant_id" + lock),
+            {"id": str(id), "tenant_id": tenant_id},
+        ).first()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+        # Do not erase academic history, even if an inconsistent grade has
+        # another tenant_id. The assessment itself is always tenant-scoped.
+        has_grades = db.execute(
+            text("SELECT 1 FROM grades WHERE assessment_id = :id LIMIT 1"),
+            {"id": str(id)},
+        ).first()
+        if has_grades:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Assessment has recorded grades; deletion is not allowed",
+            )
         query = text("DELETE FROM assessments WHERE id = :id AND tenant_id = :tenant_id")
         result = db.execute(query, {"id": str(id), "tenant_id": tenant_id})
         db.commit()
@@ -326,6 +347,7 @@ def delete_assessment(
             raise HTTPException(status_code=404, detail="Assessment not found")
         return {"status": "success"}
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
         db.rollback()

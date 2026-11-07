@@ -122,3 +122,40 @@ def test_student_role_is_still_refused(school):
 def test_admin_unchanged(school):
     resp = _create(school["admin"], _payload(school["subject"], class_id=school["other"]))
     assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.parametrize("actor", ["teacher", "admin"])
+def test_recorded_grades_block_assessment_deletion(school, actor):
+    from datetime import date
+    from app.models.student import Student, Gender
+    from app.models.grade import Grade
+
+    own = _create(school["admin"], _payload(school["subject"], class_id=school["mine"])).json()["id"]
+    with SessionLocal() as db:
+        student = Student(tenant_id=school["tenant_id"], registration_number=uuid.uuid4().hex,
+                          first_name="Test", last_name="History", date_of_birth=date(2010, 1, 1),
+                          gender=Gender.FEMALE)
+        db.add(student)
+        db.flush()
+        grade = Grade(tenant_id=school["tenant_id"], student_id=student.id,
+                      assessment_id=own, score=17, max_score=20)
+        db.add(grade)
+        db.commit()
+        grade_id = grade.id
+
+    resp = client.delete(f"{BASE}/{own}/", headers=_as(school[actor]))
+    assert resp.status_code == 409, resp.text
+    with SessionLocal() as db:
+        assert db.get(Grade, grade_id).score == 17
+        assert db.execute(text("SELECT 1 FROM assessments WHERE id=:id"), {"id": own}).first()
+
+
+def test_admin_cannot_delete_foreign_assessment(school):
+    tenant_b = _make_tenant()
+    subject_b = _make_subject(tenant_b)
+    admin_b = {"id": str(uuid.uuid4()), "tenant_id": tenant_b, "roles": ["TENANT_ADMIN"]}
+    foreign = _create(admin_b, _payload(subject_b)).json()["id"]
+    resp = client.delete(f"{BASE}/{foreign}/", headers=_as(school["admin"]))
+    assert resp.status_code == 404, resp.text
+    with SessionLocal() as db:
+        assert db.execute(text("SELECT 1 FROM assessments WHERE id=:id"), {"id": foreign}).first()
