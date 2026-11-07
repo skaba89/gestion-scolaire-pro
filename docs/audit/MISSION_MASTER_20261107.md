@@ -1,5 +1,21 @@
 # Mission master — reprise du 7 novembre 2026
 
+## Deuxième lot — dossiers salariés (base après #426)
+
+La PR #426 est fusionnée (`ac5d12a2`), avec six jobs réussis sur son dernier
+HEAD `5136563`. Le premier lot est validé en CI, sans déploiement effectué.
+
+EMPLOYEE-DELETE-01 : perte de contrats, paies et congés reproduite sur les
+cascades de salariés. Protection 409, verrou PostgreSQL, désactivation par
+formulaire et tests proposés dans le lot suivant.
+
+| Chantier | Fonctionnalité | Priorité | Diagnostic / correction | Tests | PR / CI / fusion | Production | Risque résiduel |
+|---|---|---|---|---|---|---|---|
+| 2 / 9 / 11 | Historique salariés | P0 | Cascade destructive reproduite ; blocage des dossiers renseignés, désactivation conservatrice | 33 SQLite, 2 Vitest ciblés réussis ; concurrence PG et parcours réel ajoutés | PR à ouvrir ; six jobs HEAD à confirmer | Non déployée | Rétention et suppression directe des documents RH hors lot |
+
+Fichiers, politique, rollback et limites : [EMPLOYEE_HISTORY_20261107.md](EMPLOYEE_HISTORY_20261107.md).
+Les sections initiales ci-dessous conservent les états du premier diagnostic.
+
 ## Référence vérifiée
 
 - Base : `0ae32f79a012ac9d654fc23af2b33bb7b5fc6155` (main, PR #425).

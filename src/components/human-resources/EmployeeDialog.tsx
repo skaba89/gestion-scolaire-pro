@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Employee } from "@/types/humanResources";
 import { useHumanResources } from "@/hooks/useHumanResources";
@@ -153,6 +154,20 @@ export function EmployeeDialog({ open, onOpenChange, employee, onSubmit, isSubmi
                             value={form.department || ""}
                             onChange={(e) => setForm({ ...form, department: e.target.value })}
                         />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                        <div className="flex items-center gap-3">
+                            <Switch
+                                id="employee_active"
+                                checked={form.is_active ?? true}
+                                onCheckedChange={(is_active) => setForm({ ...form, is_active })}
+                                disabled={isSubmitting}
+                            />
+                            <Label htmlFor="employee_active">Employé actif</Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                            Désactivez le dossier pour conserver ses contrats, bulletins de paie et congés.
+                        </p>
                     </div>
                 </div>
                 <DialogFooter>

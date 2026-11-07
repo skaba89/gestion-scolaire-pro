@@ -98,7 +98,13 @@ def delete_employee(
     current_user: dict = Depends(require_permission("hr:write")),
 ):
     """Delete an employee."""
-    success = crud_hr.delete_employee(db, employee_id=employee_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    try:
+        success = crud_hr.delete_employee(db, employee_id=employee_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    except crud_hr.EmployeeHasProtectedHistory:
+        raise HTTPException(
+            status_code=409,
+            detail="Cet employé possède un historique de contrats, de paie ou de congés ; désactivez son dossier au lieu de le supprimer.",
+        )
     if not success:
         raise HTTPException(status_code=404, detail="Employee not found")
     return {"status": "success"}
