@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const get = vi.hoisted(() => vi.fn());
-vi.mock("@/api/client", () => ({ apiClient: { get } }));
-
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { apiClient } from "@/api/client";
 import { riskAssessment } from "./riskAssessment";
+
+// Spy on the same axios instance used by riskAssessment. Avoid replacing the
+// whole client module, which breaks other imports in the full Vitest suite.
+const get = vi.spyOn(apiClient, "get");
 
 describe("risk assessment academic term API", () => {
     beforeEach(() => get.mockReset());
+    afterEach(() => get.mockReset());
 
     it("loads the actual /terms/{id}/ route for attendance risk", async () => {
         get.mockImplementation(async (url: string) => {
