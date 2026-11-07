@@ -63,7 +63,7 @@ async def test_invalid_login_still_uses_dummy_password_verification():
         auth, "find_user_in_owner_tenant",
         side_effect=lambda db, lookup, **kwargs: lookup(db),
     ), patch.object(auth, "verify_password", return_value=False) as verify, pytest.raises(HTTPException) as err:
-        await auth.login(request=MagicMock(), form_data=form, db=db)
+        await auth.login(request=_request(), form_data=form, db=db)
     assert err.value.status_code == 401
     verify.assert_called_once()
     assert verify.call_args.args[0] == "secret"
