@@ -1,14 +1,11 @@
 [
   "DELETE /course-discussions/X",
-  "DELETE /enrollments/X",
   "DELETE /infrastructure/classrooms/X",
   "DELETE /inventory/orders/X",
   "DELETE /rooms/X",
   "DELETE /schedule",
   "DELETE /school-life/sponsorships/X",
-  "GET /academic/subjects",
   "GET /analytics/cash-flow-forecasts",
-  "GET /classroom-departments",
   "GET /communication/electronic-documents",
   "GET /communication/video-meetings",
   "GET /finance/invoices",
@@ -19,7 +16,6 @@
   "GET /school-life/early-warnings",
   "GET /school-life/sponsorships",
   "GET /school-life/success-plans",
-  "GET /student-parents",
   "GET /students/terms/X",
   "GET /teachers/X/schedule",
   "PATCH /communication/video-meetings/X",
@@ -41,7 +37,6 @@
   "PUT /infrastructure/classrooms/X",
   "PUT /parents/appointment-slots/X",
   "PUT /parents/appointments/X",
-  "PUT /push-subscriptions/upsert",
   "PUT /school-life/early-warnings/X",
   "PUT /school-life/sponsorships/X"
 ]

@@ -1,3 +1,16 @@
+## Lot lecture des liens parent-enfant — 2026-11-07, après #405
+
+PARENT-LINKS-READ-01 (P1), **correctif proposé** : le système de rappels ne
+reçoit plus un 405 sur `/student-parents/`. La nouvelle lecture refuse les
+listings non filtrés, limite le parent à ses liens et propage les pannes SQL.
+Le portail étudiant ne demande plus les factures familiales. Voir
+`STUDENT_PARENT_LINKS_READ_20261107.md`.
+
+Mesure proposée : 40 écarts API distincts (41 avant), 11 pages DÉFECTUEUSES,
+24 À VÉRIFIER et 109 NON VÉRIFIÉES. Ces statuts restent statiques.
+
+---
+
 ## Lot inscription individuelle élève — 2026-11-05, après #383
 
 ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : les deux appels frontend

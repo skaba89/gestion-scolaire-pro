@@ -1,3 +1,15 @@
+## Lot lecture des liens parent-enfant — 2026-11-07, après #405
+
+PARENT-LINKS-READ-01 (P1), **correctif proposé** : lecture familiale manquante
+des rappels, filtrage obligatoire et scopes tenant/parent, avec garde de rôle
+frontend. Tests ciblés verts ; CI du HEAD à confirmer. Détail :
+`STUDENT_PARENT_LINKS_READ_20261107.md`. Écarts API proposés : 40 (41 avant).
+
+Restent prioritaires : sixième check obligatoire, 40 contrats API, sécurité
+transversale, offline/appareils, charge et prévol production.
+
+---
+
 ## Lot inscription individuelle élève — 2026-11-05, après #383
 
 ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : contrat backend manquant,
