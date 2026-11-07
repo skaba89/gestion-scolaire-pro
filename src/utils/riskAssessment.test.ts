@@ -71,6 +71,40 @@ describe("risk assessment academic term API", () => {
         expect(result.details).toContain("Unexcused absences: 50.0%");
     });
 
+    it("does not subtract justified absences from distinct ABSENT statuses", async () => {
+        mockHttp((url) => {
+            if (url === "/terms/term-1/") {
+                return { data: { start_date: "2026-09-01", end_date: "2026-09-30" } };
+            }
+            if (url === "/attendance/stats/") {
+                // The endpoint counts ABSENT and EXCUSED separately.
+                return { data: { total: 20, present: 13, absent: 4, late: 1, excused: 2 } };
+            }
+            throw new Error("Unexpected URL: " + url);
+        });
+        const result = await riskAssessment.calculateAttendanceRisk("student-1", "term-1");
+        // 4/20 unexcused = 20%, not (4-2)/20 = 10%.
+        expect(result.score).toBe(65);
+        expect(result.details).toContain("Unexcused absences: 20.0%");
+        expect(result.details).toContain("Excused: 10.0%");
+    });
+
+    it("uses the complete aggregate rather than a paginated record list", async () => {
+        mockHttp((url) => {
+            if (url === "/terms/term-1/") {
+                return { data: { start_date: "2026-09-01", end_date: "2026-09-30" } };
+            }
+            if (url === "/attendance/stats/") {
+                return { data: { total: 150, present: 112, absent: 30, late: 5, excused: 3 } };
+            }
+            throw new Error("Unexpected URL: " + url);
+        });
+        const result = await riskAssessment.calculateAttendanceRisk("student-1", "term-1");
+        expect(result.details).toContain("Unexcused absences: 20.0%");
+        expect(requests.some(r => r.url === "/attendance/")).toBe(false);
+        expect(requests.some(r => r.url === "/attendance/stats/")).toBe(true);
+    });
+
     it("loads tenant-scoped /terms/ without unsupported client filters for trends", async () => {
         mockHttp((url, config) => {
             if (url === "/students/term-results/") {
