@@ -629,6 +629,15 @@ def update_user(
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
 
+    # The dedicated toggle-status route already prevents self-deactivation.
+    # The generic profile PATCH must enforce the same rule, otherwise an
+    # admin can accidentally disable their own account via this alternate URL.
+    if updates.get("is_active") is False and str(user_id) == str(current_user.get("id")):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate your own account",
+        )
+
     # SECURITY: Whitelist allowed column names to prevent SQL injection
     ALLOWED_USER_UPDATE_FIELDS = {"first_name", "last_name", "email", "username", "avatar_url", "is_active", "phone", "bio"}
     updates = {k: v for k, v in updates.items() if k in ALLOWED_USER_UPDATE_FIELDS}
