@@ -109,9 +109,9 @@ const Subjects = () => {
     setFormDialogOpen(true);
   };
 
-  const handleDeleteClick = async (id: string) => {
+  const handleDeleteClick = (id: string) => {
     if (confirm(t("subjects.deleteConfirm"))) {
-      await deleteMutation.mutateAsync(id);
+      deleteMutation.mutate(id);
     }
   };
 

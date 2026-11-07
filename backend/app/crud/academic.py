@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, inspect, table, column, select, literal
 from uuid import UUID
 from datetime import datetime
 
@@ -325,10 +325,42 @@ def update_subject(db: Session, subject_id: UUID, obj_in: SubjectUpdate, tenant_
     db.refresh(db_obj)
     return db_obj
 
+class SubjectInUseError(ValueError):
+    """Deleting the subject would erase or detach academic records."""
+
+
 def delete_subject(db: Session, subject_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_subject(db, subject_id, tenant_id)
+    # FK writers take KEY SHARE on this row. FOR UPDATE serializes the
+    # dependency check with new assessments/grades/registrations on PostgreSQL.
+    db_obj = db.query(Subject).filter(
+        Subject.id == subject_id, Subject.tenant_id == tenant_id,
+    ).with_for_update().first()
     if not db_obj:
+        db.rollback()
         return False
+    # Inspect real FKs, including migrated operational tables that have no
+    # ORM model (homework, teacher assignments, exams, check-in sessions...).
+    # Only disposable subject configuration may cascade; academic use may not.
+    disposable_configuration = {"subject_levels", "subject_departments", "subject_preferred_rooms"}
+    inspector = inspect(db.connection())
+    for (schema, name), foreign_keys in inspector.get_multi_foreign_keys().items():
+        if name in disposable_configuration:
+            continue
+        for fk in foreign_keys:
+            if fk["referred_table"] != "subjects" or fk.get("referred_schema") not in (None, inspector.default_schema_name):
+                continue
+            for local, remote in zip(fk["constrained_columns"], fk["referred_columns"]):
+                if remote != "id":
+                    continue
+                # SQLAlchemy quotes catalog identifiers and binds the UUID;
+                # no identifier or value comes from request interpolation.
+                dependent = table(name, column(local, Subject.id.type), schema=schema)
+                exists = db.execute(select(literal(1)).select_from(dependent).where(
+                    dependent.c[local] == subject_id,
+                ).limit(1)).first()
+                if exists is not None:
+                    db.rollback()
+                    raise SubjectInUseError("Subject has academic records or assignments")
     db.delete(db_obj)
     db.commit()
     return True

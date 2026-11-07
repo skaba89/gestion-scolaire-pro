@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from uuid import UUID
 
 from app.core.database import get_db
@@ -98,7 +99,17 @@ def delete_subject(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
-    success = crud_academic.delete_subject(db, subject_id, tenant_id=tenant_id)
+    try:
+        success = crud_academic.delete_subject(db, subject_id, tenant_id=tenant_id)
+    except crud_academic.SubjectInUseError:
+        raise HTTPException(
+            status_code=409,
+            detail="Cette matière est utilisée par des dossiers ou affectations pédagogiques et ne peut pas être supprimée.",
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Could not verify subject deletion dependencies")
+        raise HTTPException(status_code=503, detail="Vérification des dépendances indisponible ; aucune suppression effectuée.")
     if not success:
         raise HTTPException(status_code=404, detail="Subject not found")
     return None
