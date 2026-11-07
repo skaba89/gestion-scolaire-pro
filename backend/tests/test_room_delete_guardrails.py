@@ -17,6 +17,13 @@ def _db(*, exists=True, blocked=None):
     db = MagicMock()
     room = Room(id=uuid4(), tenant_id=uuid4(), name="Room A") if exists else None
 
+    dependency_columns = {
+        ScheduleSlot: ScheduleSlot.id,
+        Classroom: Classroom.id,
+        KioskDevice: KioskDevice.id,
+        SubjectPreferredRoom: SubjectPreferredRoom.id,
+    }
+
     def lookup(model):
         query = MagicMock()
         query.filter.return_value = query
@@ -24,7 +31,12 @@ def _db(*, exists=True, blocked=None):
         if model is Room:
             query.first.return_value = room
         else:
-            query.first.return_value = (uuid4(),) if blocked is model else None
+            # CRUD queries a dependency's primary-key column, not its model.
+            query.first.return_value = (
+                (uuid4(),)
+                if blocked is not None and model is dependency_columns[blocked]
+                else None
+            )
         return query
 
     db.query.side_effect = lookup
@@ -68,9 +80,10 @@ def test_room_lookup_is_limited_to_tenant_and_row_locked():
     db, _ = _db(exists=False)
     room_id, tenant_id = uuid4(), uuid4()
     assert _delete(db, room_id=room_id, tenant_id=tenant_id) is False
-    query = db.query.return_value
-    # query uses a side-effect in _db; inspect the returned first query separately
+    # A missing cross-tenant room never triggers dependent queries or DELETE.
     assert db.query.call_args.args == (Room,)
+    db.delete.assert_not_called()
+    db.commit.assert_not_called()
 
 
 def _call_endpoint(endpoint, db, room_id=None):
