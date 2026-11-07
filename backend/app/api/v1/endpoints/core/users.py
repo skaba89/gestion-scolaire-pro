@@ -308,12 +308,15 @@ def list_users(
 
 @router.get("/roles/")
 def list_user_roles(
+    request: Request,
     tenant_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
 ):
     """GET /users/roles/ — list all user-role assignments for the current tenant."""
-    tid = tenant_id or current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    # Query tenant_id is retained for client compatibility, never trusted.
+    tid = str(resolve_current_tenant_id(request, current_user, db))
     rows = db.execute(text("""
         SELECT ur.user_id, ur.role, ur.tenant_id, ur.created_at,
                u.first_name, u.last_name, u.email,
@@ -351,11 +354,20 @@ class AssignRoleDirectRequest(BaseModel):
 @router.post("/roles/", status_code=201)
 def assign_role_direct(
     body: AssignRoleDirectRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
     """POST /users/roles/ — assign a role to a user for the current tenant."""
-    tid = body.tenant_id or current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tid = str(resolve_current_tenant_id(request, current_user, db))
+    # Neither body.tenant_id nor the role name can grant cross-tenant or
+    # platform privileges. Only the verified request context selects tenant.
+    if body.role not in ROLE_PERMISSIONS:
+        raise HTTPException(status_code=422, detail="Unknown role")
+    if body.role in {"SUPER_ADMIN", "TENANT_ADMIN"} and "SUPER_ADMIN" not in current_user.get("roles", []):
+        raise HTTPException(status_code=403, detail="Only SUPER_ADMIN can assign privileged roles")
+    _require_user_in_tenant(db, body.user_id, tid)
     try:
         db.execute(text("""
             INSERT INTO user_roles (user_id, tenant_id, role, created_at)
@@ -377,16 +389,21 @@ def assign_role_direct(
 @router.delete("/roles/{role_id}/", status_code=204)
 def remove_role_direct(
     role_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:write")),
 ):
     """DELETE /users/roles/{role_id}/ — remove a role assignment.
     role_id format: '{user_id}:{role}'
     """
-    tid = current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    tid = str(resolve_current_tenant_id(request, current_user, db))
     if ":" not in role_id:
         raise HTTPException(status_code=400, detail="Invalid role_id format (expected user_id:role)")
     user_id, role = role_id.split(":", 1)
+    _require_user_in_tenant(db, user_id, tid)
+    if role in {"SUPER_ADMIN", "TENANT_ADMIN"} and "SUPER_ADMIN" not in current_user.get("roles", []):
+        raise HTTPException(status_code=403, detail="Only SUPER_ADMIN can remove privileged roles")
     db.execute(text("""
         DELETE FROM user_roles WHERE user_id = :user_id AND role = :role AND tenant_id = :tid
     """), {"user_id": user_id, "role": role, "tid": tid})
@@ -398,13 +415,16 @@ def remove_role_direct(
 
 @router.get("/profiles/")
 def list_user_profiles(
+    request: Request,
     tenant_id: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:read")),
 ):
     """GET /users/profiles/ — list user profiles for a tenant (supports ?search=email)."""
-    tid = tenant_id or current_user.get("tenant_id")
+    from app.core.tenant_resolution import resolve_current_tenant_id
+    # The optional query parameter is kept for backwards compatibility.
+    tid = str(resolve_current_tenant_id(request, current_user, db))
     where = ["u.tenant_id = :tid"]
     params: dict = {"tid": tid}
 
