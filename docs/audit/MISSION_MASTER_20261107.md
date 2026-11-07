@@ -1,5 +1,18 @@
 # Mission master — reprise du 7 novembre 2026
 
+## Troisième lot — matières (base après #427)
+
+La PR #427 est fusionnée (`0c78fc67`), avec six jobs réussis sur son dernier
+HEAD `1e5511d` : PostgreSQL 2 757 réussis, SQLite 1 935, frontend 553,
+E2E 16. Aucun déploiement effectué par l'agent.
+
+| Chantier | Fonctionnalité | Priorité | Diagnostic / correction | Tests | PR / CI / fusion | Production | Risque résiduel |
+|---|---|---|---|---|---|---|---|
+| 2 / 6 / 7 | Suppression des matières | P0 | Perte de notes/évaluations, détachement des présences et inscriptions ; contrôle FK réel et verrou proposés | 67 tests locaux réussis ; PostgreSQL/E2E ajoutés à valider en CI | PR à ouvrir ; six jobs du HEAD à confirmer | Non déployée | Références sans FK, autres entités, rétention et restauration historique |
+
+Fichiers, tests et politique : [SUBJECT_HISTORY_20261107.md](SUBJECT_HISTORY_20261107.md).
+Les sections précédentes ci-dessous conservent leur contexte daté.
+
 ## Deuxième lot — dossiers salariés (base après #426)
 
 La PR #426 est fusionnée (`ac5d12a2`), avec six jobs réussis sur son dernier

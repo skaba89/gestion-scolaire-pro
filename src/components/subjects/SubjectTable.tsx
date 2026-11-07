@@ -140,6 +140,7 @@ export const SubjectTable = ({
                                                 variant="ghost"
                                                 size="sm"
                                                 onClick={() => onDelete(subject.id)}
+                                                aria-label="Supprimer la matière"
                                                 className="text-destructive hover:text-destructive"
                                             >
                                                 <Trash2 className="w-4 h-4" />
