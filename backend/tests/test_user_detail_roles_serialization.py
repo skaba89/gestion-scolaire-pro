@@ -36,7 +36,7 @@ def test_get_user_preserves_complete_role_names(is_sqlite, stored_roles, expecte
         created_at=None, roles=stored_roles,
     )
     tenant_id = str(uuid4())
-    with patch.object(users.settings, "is_sqlite", is_sqlite), patch(
+    with patch.object(users, "settings", SimpleNamespace(is_sqlite=is_sqlite)), patch(
         "app.core.tenant_resolution.resolve_current_tenant_id",
         return_value=tenant_id,
     ):
@@ -51,7 +51,7 @@ def test_get_user_preserves_complete_role_names(is_sqlite, stored_roles, expecte
 def test_get_user_cross_tenant_target_still_returns_404():
     db = MagicMock()
     db.execute.return_value.fetchone.return_value = None
-    with patch.object(users.settings, "is_sqlite", True), patch(
+    with patch.object(users, "settings", SimpleNamespace(is_sqlite=True)), patch(
         "app.core.tenant_resolution.resolve_current_tenant_id",
         return_value=str(uuid4()),
     ), pytest.raises(HTTPException) as err:
