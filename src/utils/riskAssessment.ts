@@ -1,4 +1,5 @@
 import { apiClient } from "@/api/client";
+import { findPreviousAcademicTerm } from "./academicTermOrder";
 
 export type RiskLevel = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 
@@ -66,17 +67,19 @@ export const riskAssessment = {
             // has no backend route and silently disabled the trend component.
             const { data: terms } = await apiClient.get("/terms/");
 
-            if (terms && terms.length >= 2) {
-                const previousTermId = terms[1].id;
+            const previousTerm = Array.isArray(terms)
+                ? findPreviousAcademicTerm(terms, termId)
+                : undefined;
+            if (previousTerm) {
                 const { data: previousResults } = await apiClient.get("/students/term-results/", {
                     params: {
                         student_id: studentId,
-                        term_id: previousTermId,
+                        term_id: previousTerm.id,
                         subject_id: 'null',
                     },
                 });
 
-                if (previousResults) {
+                if (typeof previousResults?.score === "number" && Number.isFinite(previousResults.score)) {
                     trend = currentAverage - previousResults.score;
                 }
             }

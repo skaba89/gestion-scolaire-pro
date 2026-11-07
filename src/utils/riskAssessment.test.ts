@@ -81,7 +81,7 @@ describe("risk assessment academic term API", () => {
                 return { data: { settings: { passingScore: 10 } } };
             }
             if (url === "/terms/") {
-                return { data: [{ id: "term-1" }, { id: "term-0" }] };
+                return { data: [{ id: "term-1", academic_year_id: "year-1", start_date: "2026-04-01", end_date: "2026-06-30" }, { id: "term-0", academic_year_id: "year-1", start_date: "2026-01-01", end_date: "2026-03-31" }] };
             }
             throw new Error("Unexpected URL: " + url);
         });
