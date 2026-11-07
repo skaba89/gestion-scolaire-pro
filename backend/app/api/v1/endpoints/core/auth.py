@@ -319,13 +319,17 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         # PERFORMANCE (20261009_0001): the owning tenant is resolved in one
         # call instead of a tenant-by-tenant sweep — constant cost on this
         # unauthenticated endpoint, whatever the number of tenants.
+        # Normalize surrounding whitespace for BOTH login identifiers.
+        # Previously only emails were trimmed; usernames with trailing spaces
+        # failed even though the corresponding account existed.
+        login_identifier = form_data.username.strip()
         user = find_user_in_owner_tenant(
             db,
             lambda _db: _db.query(User)
-            .filter(or_(User.email == form_data.username.strip().lower(), User.username == form_data.username))
+            .filter(or_(User.email == login_identifier.lower(), User.username == login_identifier))
             .first(),
             by="login",
-            value=form_data.username,
+            value=login_identifier,
         )
 
         if not user:
