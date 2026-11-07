@@ -124,6 +124,50 @@ describe("risk assessment academic term API", () => {
         expect(result.details).toContain("Trend: +4.0");
     });
 
+    it("does not classify a student with unavailable academic results as failing", async () => {
+        mockHttp((url) => {
+            if (url === "/students/term-results/") {
+                return { status: 404, data: { detail: "No results" } };
+            }
+            throw new Error("Unexpected URL: " + url);
+        });
+        const result = await riskAssessment.calculateAcademicRisk("student-1", "term-1", "tenant-1");
+        expect(result.score).toBe(0);
+        expect(result.details).toBe("Insufficient academic data");
+        expect(requests).toHaveLength(1);
+    });
+
+    it("rejects null, missing and invalid averages rather than substituting 0/20", async () => {
+        for (const score of [null, undefined, "0", -1, 21, Number.NaN]) {
+            requests.length = 0;
+            mockHttp((url) => {
+                if (url === "/students/term-results/") {
+                    return { data: { score } };
+                }
+                throw new Error("Unexpected URL: " + url);
+            });
+            const result = await riskAssessment.calculateAcademicRisk("student-1", "term-1", "tenant-1");
+            expect(result.details).toBe("Insufficient academic data");
+            expect(requests).toHaveLength(1);
+        }
+    });
+
+    it("continues to classify a genuine zero score as 0/20", async () => {
+        mockHttp((url) => {
+            if (url === "/students/term-results/") {
+                return { data: { score: 0 } };
+            }
+            if (url === "/tenants/tenant-1/") {
+                return { data: { settings: { passingScore: 10 } } };
+            }
+            if (url === "/terms/") return { data: [] };
+            throw new Error("Unexpected URL: " + url);
+        });
+        const result = await riskAssessment.calculateAcademicRisk("student-1", "term-1", "tenant-1");
+        expect(result.score).toBe(70);
+        expect(result.details).toContain("Average: 0.00/20");
+    });
+
     it("returns a neutral attendance factor when no term exists", async () => {
         mockHttp(() => ({ status: 404, data: { detail: "Not found" } }));
         const result = await riskAssessment.calculateAttendanceRisk("student-1", "missing");
