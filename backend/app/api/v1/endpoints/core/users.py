@@ -580,9 +580,13 @@ def get_user(
     row = db.execute(sql, {"user_id": user_id, "tenant_id": tenant_id}).fetchone()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    roles_val = list(row.roles) if row.roles else []
-    if settings.is_sqlite and isinstance(roles_val, str):
-        roles_val = [r for r in roles_val.split(",") if r] if roles_val else []
+    # SQLite GROUP_CONCAT produces a comma-separated string; list("ADMIN")
+    # produces individual characters rather than a list of role names.
+    # PostgreSQL ARRAY_AGG instead returns an iterable of role strings.
+    if isinstance(row.roles, str):
+        roles_val = [role for role in row.roles.split(",") if role]
+    else:
+        roles_val = list(row.roles) if row.roles else []
     return {
         "id": row.id,
         "email": row.email,
