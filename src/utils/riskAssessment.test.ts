@@ -53,22 +53,22 @@ describe("risk assessment academic term API", () => {
             if (url === "/terms/term-1/") {
                 return { data: { start_date: "2026-09-01", end_date: "2026-09-30" } };
             }
-            if (url === "/students/attendance/") {
-                return { data: [{ status: "ABSENT" }, { status: "PRESENT" }] };
+            if (url === "/attendance/stats/") {
+                return { data: { total: 2, present: 1, absent: 1, late: 0, excused: 0 } };
             }
             throw new Error("Unexpected URL: " + url);
         });
         const result = await riskAssessment.calculateAttendanceRisk("student-1", "term-1");
         expect(requests).toContainEqual({ url: "/terms/term-1/", params: undefined });
         expect(requests).toContainEqual({
-            url: "/students/attendance/",
+            url: "/attendance/stats/",
             params: {
                 student_id: "student-1",
-                from_date: "2026-09-01",
-                to_date: "2026-09-30",
+                date_from: "2026-09-01",
+                date_to: "2026-09-30",
             },
         });
-        expect(result.details).toContain("Absences: 50.0%");
+        expect(result.details).toContain("Unexcused absences: 50.0%");
     });
 
     it("loads tenant-scoped /terms/ without unsupported client filters for trends", async () => {
