@@ -1054,6 +1054,25 @@ def delete_user(
                 detail="Only SUPER_ADMIN can delete privileged accounts",
             )
 
+    # Student accounts are linked to permanent academic records. A hard
+    # delete would silently clear students.user_id (ON DELETE SET NULL),
+    # breaking the portal identity link despite retaining the student row.
+    # Require status deactivation instead; any future erasure must be handled
+    # by a dedicated retention-aware workflow.
+    linked_student = db.execute(
+        text("""
+            SELECT 1 FROM students
+            WHERE user_id = :user_id AND tenant_id = :tenant_id
+            LIMIT 1
+        """),
+        {"user_id": user_id, "tenant_id": tenant_id},
+    ).fetchone()
+    if linked_student:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account is linked to a student record; deactivate instead",
+        )
+
     result = db.execute(
         text("DELETE FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
         {"user_id": user_id, "tenant_id": tenant_id}
