@@ -127,7 +127,8 @@ def delete_student(db: Session, student_id: UUID, tenant_id: UUID) -> bool:
     from app.models.grade import Grade
     from app.models.enrollment import Enrollment
     from app.models.attendance import Attendance
-    from app.models.payment import Payment
+    from app.models.payment import Payment, Invoice
+    from app.models.parent_student import ParentStudent
 
     # Lock the student row until commit to serialize concurrent changes to
     # its child records on PostgreSQL. SQLite ignores FOR UPDATE.
@@ -138,7 +139,9 @@ def delete_student(db: Session, student_id: UUID, tenant_id: UUID) -> bool:
     if not db_student:
         return False
 
-    for model in (Grade, Enrollment, Attendance, Payment):
+    # Invoices can exist without payments; parent-child relationships can
+    # exist without enrollments. Both CASCADE from students and must be retained.
+    for model in (Grade, Enrollment, Attendance, Payment, Invoice, ParentStudent):
         exists = db.query(model.id).filter(
             model.student_id == student_id,
             model.tenant_id == tenant_id,
