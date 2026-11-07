@@ -320,7 +320,7 @@ def list_user_roles(
         SELECT ur.user_id, ur.role, ur.tenant_id, ur.created_at,
                u.first_name, u.last_name, u.email,
                -- Synthetic id: user_id:role (no separate PK on user_roles)
-               CONCAT(ur.user_id::text, ':', ur.role) AS id
+               CAST(ur.user_id AS VARCHAR) || ':' || ur.role AS id
         FROM user_roles ur
         JOIN users u ON u.id = ur.user_id
         WHERE ur.tenant_id = :tid
@@ -433,13 +433,25 @@ def list_user_profiles(
         )
         params["search"] = f"%{search}%"
 
+    # PostgreSQL returns an array, SQLite returns comma-separated role names.
+    # Use DISTINCT on SQLite to avoid duplicated assignments in the response.
+    role_expr = (
+        """COALESCE((
+            SELECT GROUP_CONCAT(DISTINCT ur.role)
+            FROM user_roles ur
+            WHERE ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        ), '')"""
+        if settings.is_sqlite else
+        """COALESCE((
+            SELECT array_agg(ur.role)
+            FROM user_roles ur
+            WHERE ur.user_id = u.id AND ur.tenant_id = u.tenant_id
+        ), ARRAY[]::text[])"""
+    )
     rows = db.execute(text(f"""
         SELECT u.id, u.first_name, u.last_name, u.email, u.is_active, u.created_at,
                p.avatar_url, p.phone,
-               COALESCE(
-                   (SELECT array_agg(ur.role) FROM user_roles ur WHERE ur.user_id = u.id AND ur.tenant_id = u.tenant_id),
-                   ARRAY[]::text[]
-               ) AS roles
+               {role_expr} AS roles
         FROM users u
         LEFT JOIN profiles p ON p.id = u.id
         WHERE {' AND '.join(where)}
@@ -456,7 +468,11 @@ def list_user_profiles(
             "is_active": r["is_active"],
             "avatar_url": r["avatar_url"],
             "phone": r["phone"],
-            "roles": list(r["roles"]) if r["roles"] else [],
+            "roles": (
+                [role for role in r["roles"].split(",") if role]
+                if isinstance(r["roles"], str)
+                else (list(r["roles"]) if r["roles"] else [])
+            ),
             "created_at": r["created_at"],
         }
         for r in rows
