@@ -140,6 +140,7 @@ export function EmployeesTab() {
                             <AlertDialogTitle>Confirmation de suppression</AlertDialogTitle>
                             <AlertDialogDescription>
                                 Êtes-vous sûr de vouloir supprimer l'employé **{selectedEmployee?.first_name} {selectedEmployee?.last_name}** ? Cette action est irréversible.
+                                Un dossier lié à des contrats, bulletins de paie ou congés doit être désactivé plutôt que supprimé.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

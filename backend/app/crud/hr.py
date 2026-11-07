@@ -55,10 +55,27 @@ def update_employee(db: Session, employee_id: UUID, obj_in: EmployeeUpdate, tena
     db.refresh(db_obj)
     return db_obj
 
+class EmployeeHasProtectedHistory(Exception):
+    """Employment and payroll records require retention, not cascading deletion."""
+
+
 def delete_employee(db: Session, employee_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_employee(db, employee_id, tenant_id)
+    # FK inserts acquire a PostgreSQL key-share lock on this row. Lock it
+    # before checking history so a concurrent child insert cannot race DELETE.
+    db_obj = db.query(Employee).filter(
+        Employee.id == employee_id, Employee.tenant_id == tenant_id,
+    ).with_for_update().first()
     if not db_obj:
+        db.rollback()
         return False
+    # Retain expired contracts, all payroll and leave decisions as well.
+    # Do not filter by status or is_active: deactivation is the safe alternative.
+    for model in (Contract, Payslip, LeaveRequest):
+        if db.query(model.id).filter(model.employee_id == employee_id).first() is not None:
+            db.rollback()
+            raise EmployeeHasProtectedHistory(
+                "Employee has employment or payroll history; deactivate instead"
+            )
     db.delete(db_obj)
     db.commit()
     return True
