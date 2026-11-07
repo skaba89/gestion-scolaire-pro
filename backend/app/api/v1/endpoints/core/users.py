@@ -94,7 +94,7 @@ def read_users_me(
     try:
         sql_user = text("""
             SELECT 
-                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name, 
+                CAST(u.id AS VARCHAR) AS id, u.email, u.first_name, u.last_name, 
                 u.is_active, u.avatar_url, u.created_at, u.tenant_id,
                 t.slug as tenant_slug, t.name as tenant_name,
                 t.settings as tenant_settings, t.type as tenant_type,
@@ -109,7 +109,7 @@ def read_users_me(
         logger.warning("must_change_password column missing, using fallback query for /users/me/")
         sql_user = text("""
             SELECT 
-                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name, 
+                CAST(u.id AS VARCHAR) AS id, u.email, u.first_name, u.last_name, 
                 u.is_active, u.avatar_url, u.created_at, u.tenant_id,
                 t.slug as tenant_slug, t.name as tenant_name,
                 t.settings as tenant_settings, t.type as tenant_type,
@@ -238,7 +238,7 @@ def list_users(
     if settings.is_sqlite:
         users_sql_raw = f"""
             SELECT
-                CAST(u.id AS VARCHAR),
+                CAST(u.id AS VARCHAR) AS id,
                 u.email, u.first_name, u.last_name,
                 u.is_active, u.avatar_url, u.created_at,
                 COALESCE(
@@ -257,7 +257,7 @@ def list_users(
     else:
         users_sql_raw = f"""
             SELECT
-                CAST(u.id AS VARCHAR),
+                CAST(u.id AS VARCHAR) AS id,
                 u.email, u.first_name, u.last_name,
                 u.is_active, u.avatar_url, u.created_at,
                 COALESCE(
@@ -549,7 +549,7 @@ def get_user(
     if settings.is_sqlite:
         sql_raw = """
             SELECT
-                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
+                CAST(u.id AS VARCHAR) AS id, u.email, u.first_name, u.last_name,
                 u.is_active, u.avatar_url, u.created_at,
                 COALESCE(
                     (SELECT GROUP_CONCAT(DISTINCT ur2.role)
@@ -564,7 +564,7 @@ def get_user(
     else:
         sql_raw = """
             SELECT
-                CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
+                CAST(u.id AS VARCHAR) AS id, u.email, u.first_name, u.last_name,
                 u.is_active, u.avatar_url, u.created_at,
                 COALESCE(
                     ARRAY_AGG(DISTINCT ur.role) FILTER (WHERE ur.role IS NOT NULL),
