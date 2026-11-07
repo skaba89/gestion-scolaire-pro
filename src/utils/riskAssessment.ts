@@ -141,17 +141,19 @@ export const riskAssessment = {
             };
         }
 
-        // 2. Get attendance records
-        let attendance: any[] = [];
+        // 2. Fetch server-side aggregates: the old /students/attendance/
+        // route does not exist, and /attendance/ is paginated. The stats
+        // endpoint applies tenant/parent ownership checks and counts ALL rows.
+        let stats: { total: number; absent: number; late: number; excused: number };
         try {
-            const { data } = await apiClient.get("/students/attendance/", {
+            const { data } = await apiClient.get("/attendance/stats/", {
                 params: {
                     student_id: studentId,
-                    from_date: term.start_date,
-                    to_date: term.end_date,
+                    date_from: term.start_date,
+                    date_to: term.end_date,
                 },
             });
-            attendance = data || [];
+            stats = data;
         } catch {
             return {
                 category: "Attendance",
@@ -161,7 +163,13 @@ export const riskAssessment = {
             };
         }
 
-        if (attendance.length === 0) {
+        const total = Number(stats?.total);
+        const absent = Number(stats?.absent);
+        const late = Number(stats?.late);
+        const excused = Number(stats?.excused);
+        if (![total, absent, late, excused].every(Number.isFinite) ||
+            total <= 0 || [absent, late, excused].some(n => n < 0) ||
+            absent + late + excused > total) {
             return {
                 category: "Attendance",
                 score: 0,
@@ -170,37 +178,28 @@ export const riskAssessment = {
             };
         }
 
-        // 3. Calculate metrics
-        const totalDays = attendance.length;
-        const absences = attendance.filter((a: any) => a.status === "ABSENT").length;
-        const lates = attendance.filter((a: any) => a.status === "LATE").length;
-        const excused = attendance.filter((a: any) => a.status === "EXCUSED").length;
+        // ABSENT and EXCUSED are separate statuses in the backend.
+        // Never subtract EXCUSED from ABSENT: that understates unexcused
+        // absences, and may even result in a negative rate.
+        const absenceRate = (absent / total) * 100;
+        const lateRate = (late / total) * 100;
 
-        const absenceRate = (absences / totalDays) * 100;
-        const lateRate = (lates / totalDays) * 100;
-
-        // 4. Calculate risk score
         let attendanceRisk = 0;
-
-        // Absence rate thresholds
-        if (absenceRate > 20) attendanceRisk += 60; // Critical
+        if (absenceRate > 20) attendanceRisk += 60;
         else if (absenceRate > 15) attendanceRisk += 45;
         else if (absenceRate > 10) attendanceRisk += 30;
         else if (absenceRate > 5) attendanceRisk += 15;
 
-        // Late rate
         if (lateRate > 15) attendanceRisk += 20;
         else if (lateRate > 10) attendanceRisk += 10;
 
-        // Unexcused absences
-        const unexcusedRate = ((absences - excused) / totalDays) * 100;
-        if (unexcusedRate > 10) attendanceRisk += 20;
+        if (absenceRate > 10) attendanceRisk += 20;
 
         return {
             category: "Attendance",
             score: Math.min(attendanceRisk, 100),
             weight: 0.4,
-            details: `Absences: ${absenceRate.toFixed(1)}%, Lates: ${lateRate.toFixed(1)}%`
+            details: `Unexcused absences: ${absenceRate.toFixed(1)}%, Excused: ${((excused / total) * 100).toFixed(1)}%, Lates: ${lateRate.toFixed(1)}%`
         };
     },
 
