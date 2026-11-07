@@ -1,3 +1,15 @@
+## Lot lecture des liens parent-enfant — 2026-11-07, après #405
+
+PARENT-LINKS-READ-01 (P1), **correctif proposé** : la route GET absente des
+rappels de paiement est créée avec filtre obligatoire, isolation tenant et
+propriété parentale ; le portail étudiant ne déclenche plus cette lecture.
+Détail : `STUDENT_PARENT_LINKS_READ_20261107.md`. Mesures proposées : 651
+opérations, 40 écarts API distincts (41 avant), 173 erreurs TypeScript avec
+référence abaissée à 173, 0 erreur et 1 895 avertissements ESLint. Score
+conservé à 60/100, non certifié ; CI à confirmer, aucun déploiement.
+
+---
+
 ## Lot inscription individuelle élève — 2026-11-05, après #383
 
 ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : la route partagée absente

@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useCurrency } from "@/hooks/useCurrency";
+import { canLoadPaymentReminders } from "./reminderAccess";
 
 // SECURITY: Prevent open redirect attacks by validating URLs before navigation
 function isSafeRedirect(url: string): boolean {
@@ -74,10 +75,11 @@ const DEFAULT_PREFERENCES: ReminderPreferences = {
 };
 
 export const ReminderSystem = () => {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const { tenant } = useTenant();
   const { getTenantUrl } = useTenantUrl();
   const { currency } = useCurrency();
+  const canLoadPayments = canLoadPaymentReminders(roles);
   const queryClient = useQueryClient();
   const [showSettings, setShowSettings] = useState(false);
   const [preferences, setPreferences] = useState<ReminderPreferences>(DEFAULT_PREFERENCES);
@@ -160,7 +162,7 @@ export const ReminderSystem = () => {
   const { data: invoiceData } = useQuery({
     queryKey: ["pending-invoices", user?.id, tenant?.id],
     queryFn: async () => {
-      if (!user?.id || !tenant?.id) return [];
+      if (!user?.id || !tenant?.id || !canLoadPayments) return [];
 
       // Get parent's students
       const psResponse = await apiClient.get("/student-parents/", {
@@ -184,7 +186,7 @@ export const ReminderSystem = () => {
 
       return invoicesResponse.data || [];
     },
-    enabled: !!user?.id && !!tenant?.id && preferences.paymentReminders,
+    enabled: !!user?.id && !!tenant?.id && canLoadPayments && preferences.paymentReminders,
   });
 
   // Fetch upcoming school events

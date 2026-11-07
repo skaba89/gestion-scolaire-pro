@@ -1,3 +1,17 @@
+## Lot lecture des liens parent-enfant — 2026-11-07, après #405
+
+PARENT-LINKS-READ-01 (P1), **correctif proposé** : contrat GET des liens
+familiaux, isolation tenant/parent et garde de rôle des rappels. Détail :
+`STUDENT_PARENT_LINKS_READ_20261107.md`.
+
+Mesures proposées : 40 écarts API distincts (41 avant), 11 pages statiquement
+défectueuses, 24 À VÉRIFIER, 109 NON VÉRIFIÉES, 173 erreurs TypeScript avec
+référence 173, 0 erreur et 1 895 avertissements ESLint. Le score reste
+**60/100**, non certifié ; ce lot ciblé ne valide ni offline, ni charge, ni
+production. CI en attente ; aucun déploiement.
+
+---
+
 ## Lot inscription individuelle élève — 2026-11-05, après #383
 
 ENROLLMENT-DETAIL-01 (P1), **correctif proposé** : contrat d'inscription

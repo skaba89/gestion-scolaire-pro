@@ -11,8 +11,9 @@ import uuid
 from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text, bindparam
+from sqlalchemy.exc import SQLAlchemyError
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -512,6 +513,56 @@ def list_school_events(
 # ─── 7. Student-Parents link (/student-parents/) ──────────────────────────────
 
 student_parents_router = APIRouter()
+
+
+@student_parents_router.get("/")
+def list_student_parent_links(
+    request: Request,
+    parent_id: Optional[UUID] = Query(None),
+    student_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("students:read")),
+):
+    """List explicitly filtered family links in the current tenant.
+
+    Parents are always forced onto their own account, even if they supply a
+    different ``parent_id``. Staff callers with ``students:read`` may filter
+    by either side of the relationship. An unfiltered tenant-wide directory
+    is deliberately not exposed by this alias.
+    """
+    from app.models.parent_student import ParentStudent
+    from app.schemas.parents import ParentStudent as ParentStudentSchema
+
+    if parent_id is None and student_id is None:
+        raise HTTPException(status_code=422, detail="Provide parent_id or student_id")
+
+    try:
+        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        roles = set(current_user.get("roles") or [])
+        privileged = roles & {
+            "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
+            "DEPARTMENT_HEAD", "SECRETARY", "STAFF", "ACCOUNTANT",
+        }
+        effective_parent_id = parent_id
+        if "PARENT" in roles and not privileged:
+            caller_id = str(current_user.get("id") or "")
+            if parent_id is not None and str(parent_id) != caller_id:
+                raise HTTPException(status_code=403, detail="Access denied")
+            effective_parent_id = UUID(caller_id)
+
+        query = db.query(ParentStudent).options(
+            joinedload(ParentStudent.student),
+            joinedload(ParentStudent.parent),
+        ).filter(ParentStudent.tenant_id == tenant_id)
+        if effective_parent_id is not None:
+            query = query.filter(ParentStudent.parent_id == effective_parent_id)
+        if student_id is not None:
+            query = query.filter(ParentStudent.student_id == student_id)
+        rows = query.order_by(ParentStudent.created_at, ParentStudent.id).all()
+        return [ParentStudentSchema.model_validate(row).model_dump(mode="json") for row in rows]
+    except SQLAlchemyError as exc:
+        logger.error("Student-parent link lookup failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Family links temporarily unavailable")
 
 
 class StudentParentLinkRequest(BaseModel):

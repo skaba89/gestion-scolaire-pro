@@ -1,4 +1,4 @@
-# Matrice des écrans — statique, 2026-11-05 (commit `feature/student-enrollment-detail-scope-20261105`)
+# Matrice des écrans — statique, 2026-11-07 (commit `feature/student-parent-links-read-scope-20261107`)
 
 Générée par `scripts/audit/feature-matrix.mjs` (méthode et commande : `docs/audit/AUDIT_GLOBAL.md` § 0.3).
 
@@ -9,14 +9,14 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 
 | Statut | Pages |
 |---|---:|
-| DÉFECTUEUX | 14 |
-| À VÉRIFIER | 23 |
-| NON VÉRIFIÉ | 107 |
+| DÉFECTUEUX | 11 |
+| À VÉRIFIER | 24 |
+| NON VÉRIFIÉ | 109 |
 | COMPLET (parcours E2E) | 3 |
 | NON ROUTÉE | 24 |
 | **Total** | **171** |
 
-## DÉFECTUEUX (14)
+## DÉFECTUEUX (11)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -24,18 +24,15 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/AlumniMentors.tsx` | 77 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Classrooms.tsx` | 53 | DELETE /rooms/X (components/classrooms/RoomsManager.tsx)<br>(partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Admin | `admin/Elearning.tsx` | 77 | PATCH /course-lessons/X (components/admin/elearning/CourseContent.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/Enrollments.tsx` | 36 | DELETE /enrollments/X (hooks/queries/useEnrollments.ts)<br>(partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Admin | `admin/ReportCards.tsx` | 22 | POST /students/term-results/bulk (utils/pedagogicalEngine.ts) |
 | Admin | `admin/Schedule.tsx` | 47 | DELETE /schedule (components/schedule/ScheduleGenerator.tsx)<br>(partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
-| Admin | `admin/TeacherHours.tsx` | 21 | GET /academic/subjects (pages/admin/TeacherHours.tsx) |
 | Admin | `admin/VideoMeetings.tsx` | 14 | GET /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>POST /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>PATCH /communication/video-meetings/X (pages/admin/VideoMeetings.tsx) |
-| Department | `department/DepartmentDashboard.tsx` | 16 | GET /classroom-departments (components/dashboard/DepartmentDashboardCharts.tsx) |
 | Parent | `parent/Appointments.tsx` | 18 | PUT /parents/appointment-slots/X (pages/parent/Appointments.tsx)<br>PUT /parents/appointments/X (pages/parent/Appointments.tsx) |
-| Parent | `parent/ParentDashboard.tsx` | 44 | GET /students/terms/X (utils/riskAssessment.ts)<br>(partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
+| Parent | `parent/ParentDashboard.tsx` | 44 | GET /students/terms/X (utils/riskAssessment.ts) |
 | Teacher | `teacher/AppointmentSlots.tsx` | 17 | PATCH /school-life/appointment-slots/appointments/X (pages/teacher/AppointmentSlots.tsx)<br>POST /school-life/appointment-slots/bulk (pages/teacher/AppointmentSlots.tsx) |
 | Teacher | `teacher/ClassSessionAttendance.tsx` | 19 | PATCH /school-life/check-ins/sessions/${activeSession (pages/teacher/ClassSessionAttendance.tsx) |
 
-## À VÉRIFIER (23)
+## À VÉRIFIER (24)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -44,6 +41,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Badges.tsx` | 81 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Careers.tsx` | 80 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Clubs.tsx` | 77 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| Admin | `admin/Enrollments.tsx` | 36 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Admin | `admin/Events.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Forums.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Gamification.tsx` | 88 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
@@ -60,10 +58,10 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Subjects.tsx` | 50 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Admin | `admin/Surveys.tsx` | 73 | (partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Teachers.tsx` | 45 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
-| Student | `student/StudentDashboard.tsx` | 29 | (partagé) GET /student-parents (components/reminders/ReminderSystem.tsx) |
+| Department | `department/DepartmentDashboard.tsx` | 28 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 | Teacher | `teacher/TeacherClasses.tsx` | 29 | (partagé) PUT /infrastructure/classrooms/X (queries/classrooms.ts)<br>(partagé) DELETE /infrastructure/classrooms/X (queries/classrooms.ts) |
 
-## NON VÉRIFIÉ (107)
+## NON VÉRIFIÉ (109)
 
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
@@ -105,6 +103,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Semesters.tsx` | 20 | — |
 | Admin | `admin/Settings.tsx` | 65 | — |
 | Admin | `admin/SuperAdminTenants.tsx` | 0 | — |
+| Admin | `admin/TeacherHours.tsx` | 33 | — |
 | Admin | `admin/Terms.tsx` | 19 | — |
 | Admin | `admin/TestingGuide.tsx` | 11 | — |
 | Admin | `admin/UniversityGuide.tsx` | 0 | — |
@@ -165,6 +164,7 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Public | `ResetPassword.tsx` | 2 | — |
 | Student | `student/PreRegistration.tsx` | 35 | — |
 | Student | `student/StudentCareers.tsx` | 38 | — |
+| Student | `student/StudentDashboard.tsx` | 29 | — |
 | Student | `student/StudentGrades.tsx` | 17 | — |
 | Student | `student/StudentHomework.tsx` | 26 | — |
 | Student | `student/StudentMessages.tsx` | 53 | — |
