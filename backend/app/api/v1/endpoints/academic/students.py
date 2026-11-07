@@ -483,7 +483,13 @@ def delete_student(
     Permissions: students:write
     """
     tenant_id = resolve_current_tenant_id(request, current_user, db)
-    success = crud_student.delete_student(db, student_id, tenant_id)
+    try:
+        success = crud_student.delete_student(db, student_id, tenant_id)
+    except crud_student.StudentHasProtectedHistory:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Student has academic or financial history; archive instead",
+        )
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
