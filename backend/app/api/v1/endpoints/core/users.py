@@ -242,7 +242,7 @@ def list_users(
                 u.email, u.first_name, u.last_name,
                 u.is_active, u.avatar_url, u.created_at,
                 COALESCE(
-                    (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',')
+                    (SELECT GROUP_CONCAT(DISTINCT ur2.role)
                      FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
                     ''
                 ) AS roles
@@ -284,15 +284,14 @@ def list_users(
             "is_active": r.is_active,
             "avatar_url": r.avatar_url,
             "created_at": r.created_at.isoformat() if r.created_at else None,
-            "roles": list(r.roles) if r.roles else [],
+            "roles": (
+                [role for role in r.roles.split(",") if role]
+                if isinstance(r.roles, str)
+                else (list(r.roles) if r.roles else [])
+            ),
         }
         for r in rows
     ]
-    # SQLite returns roles as comma-separated string via GROUP_CONCAT
-    if settings.is_sqlite:
-        for u in users:
-            if isinstance(u["roles"], str):
-                u["roles"] = [r for r in u["roles"].split(",") if r] if u["roles"] else []
 
     return {
         "items": users,
@@ -553,7 +552,7 @@ def get_user(
                 CAST(u.id AS VARCHAR), u.email, u.first_name, u.last_name,
                 u.is_active, u.avatar_url, u.created_at,
                 COALESCE(
-                    (SELECT GROUP_CONCAT(DISTINCT ur2.role, ',')
+                    (SELECT GROUP_CONCAT(DISTINCT ur2.role)
                      FROM user_roles ur2 WHERE ur2.user_id = u.id AND ur2.tenant_id = u.tenant_id),
                     ''
                 ) AS roles
