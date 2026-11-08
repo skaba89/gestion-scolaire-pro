@@ -311,3 +311,77 @@ def test_rejects_conflicting_group_and_status_filters_before_querying():
             )
     assert exc.value.status_code == 422
     db.execute.assert_not_called()
+
+
+def test_summary_uses_one_tenant_scoped_aggregate_not_loaded_pages():
+    tenant_id = str(uuid4())
+    totals = {
+        "total": 34, "new": 8, "processing": 4, "closed": 22,
+        "resolved": 20, "dismissed": 2, "academic": 14,
+        "critical_new": 3,
+    }
+    db = MagicMock()
+    db.execute.return_value.mappings.return_value.one.return_value = totals
+    with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
+        result = api.early_warnings_summary(
+            request=request(), db=db,
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+        )
+    assert result == totals
+    assert result["new"] + result["processing"] + result["closed"] == result["total"]
+    assert result["resolved"] + result["dismissed"] == result["closed"]
+    sql, params = db.execute.call_args.args
+    assert "FROM early_warnings WHERE tenant_id = :tid" in str(sql)
+    assert "FILTER (WHERE status = 'new' AND severity = 'critical')" in str(sql)
+    assert params == {"tid": tenant_id}
+    db.commit.assert_not_called()
+
+
+@pytest.mark.parametrize("roles", [["TEACHER"], ["PARENT"], ["STUDENT"], []])
+def test_summary_rejects_non_management_roles_without_query(roles):
+    db = MagicMock()
+    with pytest.raises(HTTPException) as err:
+        api.early_warnings_summary(
+            request=request(), db=db,
+            current_user={"id": str(uuid4()), "roles": roles},
+        )
+    assert err.value.status_code == 403
+    db.execute.assert_not_called()
+
+
+def test_summary_returns_zero_counts_for_empty_tenant():
+    db = MagicMock()
+    fields = ("total", "new", "processing", "closed", "resolved", "dismissed",
+              "academic", "critical_new")
+    db.execute.return_value.mappings.return_value.one.return_value = {
+        key: 0 for key in fields
+    }
+    with patch.object(api, "resolve_current_tenant_id", return_value=uuid4()):
+        result = api.early_warnings_summary(
+            request=request(), db=db,
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+        )
+    assert result == {key: 0 for key in fields}
+
+
+def test_processing_group_filters_count_and_page_with_tenant():
+    db = MagicMock()
+    db.execute.side_effect = [
+        MagicMock(scalar_one=lambda: 21),
+        MagicMock(mappings=lambda: MagicMock(all=lambda: [])),
+    ]
+    tenant_id = str(uuid4())
+    with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
+        result = api.list_early_warnings_paginated(
+            request=request(), page=2, page_size=10, status=None,
+            group="processing", db=db,
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+        )
+    assert result["total"] == 21
+    assert result["total_pages"] == 3
+    for call in db.execute.call_args_list:
+        sql, params = call.args
+        assert "w.status IN ('acknowledged', 'in_progress')" in str(sql)
+        assert "w.tenant_id = :tid" in str(sql)
+        assert params["tid"] == tenant_id
+    assert db.execute.call_args_list[1].args[1]["offset"] == 10

@@ -112,7 +112,7 @@ def list_early_warnings_paginated(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     status: Status | None = None,
-    group: Literal["closed"] | None = None,
+    group: Literal["closed", "processing"] | None = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
@@ -132,6 +132,8 @@ def list_early_warnings_paginated(
         params["status"] = status
     if group == "closed":
         where += " AND w.status IN ('resolved', 'dismissed')"
+    elif group == "processing":
+        where += " AND w.status IN ('acknowledged', 'in_progress')"
 
     total = db.execute(
         text("SELECT COUNT(*) FROM early_warnings w" + where), params
@@ -148,6 +150,33 @@ def list_early_warnings_paginated(
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size,
     }
+
+
+@router.get("/summary/")
+def early_warnings_summary(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("analytics:read")),
+):
+    """Authoritative global counts, independent of loaded frontend pages."""
+    _management_only(current_user)
+    tenant_id = _tenant(request, current_user, db)
+    row = db.execute(text("""
+        SELECT
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE status = 'new') AS new,
+          COUNT(*) FILTER (WHERE status IN ('acknowledged', 'in_progress')) AS processing,
+          COUNT(*) FILTER (WHERE status IN ('resolved', 'dismissed')) AS closed,
+          COUNT(*) FILTER (WHERE status = 'resolved') AS resolved,
+          COUNT(*) FILTER (WHERE status = 'dismissed') AS dismissed,
+          COUNT(*) FILTER (WHERE alert_type = 'academic') AS academic,
+          COUNT(*) FILTER (WHERE status = 'new' AND severity = 'critical') AS critical_new
+        FROM early_warnings WHERE tenant_id = :tid
+    """), {"tid": tenant_id}).mappings().one()
+    return {key: int(row[key]) for key in (
+        "total", "new", "processing", "closed", "resolved",
+        "dismissed", "academic", "critical_new",
+    )}
 
 
 @router.post("/", status_code=201)
