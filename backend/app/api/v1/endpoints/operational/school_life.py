@@ -2577,9 +2577,15 @@ def _authorize_report_card_access(current_user: dict, db: Session, tenant_id: st
         allowed_ids: set[str] = set()
         if "STUDENT" in roles:
             own_email = db.query(UserModel.email).filter(UserModel.id == user_id).scalar()
+            # A user without an email must NOT match every student whose
+            # email is NULL (common for newly enrolled minors). Null-equality
+            # used to turn an unlinked STUDENT account into tenant-wide access.
+            from sqlalchemy import or_
+            ownership = StudentModel.user_id == user_id
+            if own_email:
+                ownership = or_(ownership, StudentModel.email == own_email)
             rows = db.query(StudentModel.id).filter(
-                StudentModel.tenant_id == tenant_id,
-                (StudentModel.user_id == user_id) | (StudentModel.email == own_email),
+                StudentModel.tenant_id == tenant_id, ownership,
             ).all()
             allowed_ids.update(str(r[0]) for r in rows)
         if "PARENT" in roles:
