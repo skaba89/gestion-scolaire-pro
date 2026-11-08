@@ -3212,6 +3212,14 @@ def _validate_batch_report_card_period(
         )
 
 
+def _normalize_batch_grade_keys(grades_by_student: dict) -> dict:
+    """Use the same canonical UUID representation for every student's grades."""
+    return {
+        str(UUID(str(student_id))): grades
+        for student_id, grades in grades_by_student.items()
+    }
+
+
 def _generate_batch_report_cards(
     db: Session, tenant_id: str, *,
     classroom_id: str, term_id: str,
@@ -3287,10 +3295,7 @@ def _generate_batch_report_cards(
     # objects / dashed strings. Normalize both sides before computing ranks
     # AND before displaying subject grades: otherwise batch bulletins can
     # silently show no grades and an incorrect rank 0 on SQLite.
-    grades_by_student = {
-        str(UUID(str(student_id))): grades
-        for student_id, grades in raw_grades_by_student.items()
-    }
+    grades_by_student = _normalize_batch_grade_keys(raw_grades_by_student)
     student_ids = [str(UUID(str(row["student_id"]))) for row in student_rows]
     # Rank from the same subject-weighted averages and term-filtered grades
     # printed on the report cards, not a second query with different maths.
