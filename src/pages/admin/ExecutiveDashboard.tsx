@@ -9,6 +9,7 @@ import { toastService } from "@/utils/toast";
 import { academicYearQueries } from "@/queries/academic-years";
 import { exportToCSV } from "@/utils/exportUtils";
 import { selectActiveAcademicTerm } from "@/utils/activeAcademicTerm";
+import { summarizeDashboardRisks } from "@/utils/dashboardRiskCounts";
 import { adminQueries } from "@/queries/admin";
 
 // Modular components
@@ -147,20 +148,13 @@ export default function ExecutiveDashboard() {
                 is_active: boolean;
             }>>("/terms/");
             const termData = selectActiveAcademicTerm(terms, academicYearId);
-            if (!termData) return { total: 0, critical: 0, high: 0, moderate: 0, low: 0 };
+            if (!termData) return summarizeDashboardRisks([]);
 
             const { data } = await apiClient.get("/analytics/risk-scores/", {
                 params: { term_id: termData.id },
             });
 
-            const scores = (data as any[]) || [];
-            return {
-                total: scores.length,
-                critical: scores.filter(s => s.risk_level === 'CRITICAL').length,
-                high: scores.filter(s => s.risk_level === 'HIGH').length,
-                moderate: scores.filter(s => s.risk_level === 'MODERATE').length,
-                low: scores.filter(s => s.risk_level === 'LOW').length,
-            };
+            return summarizeDashboardRisks(data);
         },
         enabled: !!tenant?.id,
     });
