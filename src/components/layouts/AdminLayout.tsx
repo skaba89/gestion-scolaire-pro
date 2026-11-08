@@ -218,6 +218,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/levels"), label: levelLabel, icon: Layers, permission: "levels:manage" },
         { href: getTenantUrl("/admin/classrooms"), label: classroomLabel, icon: School, permission: "classrooms:manage" },
         { href: getTenantUrl("/admin/subjects"), label: subjectsLabel, icon: FileText, permission: "subjects:manage" },
+        { href: getTenantUrl("/admin/academic-rules"), label: "Règles académiques", icon: ClipboardList, permission: "settings:manage" },
         { href: getTenantUrl("/admin/campuses"), label: t("nav.campuses"), icon: Home, permission: "settings:manage" },
         { href: getTenantUrl("/admin/faculties"), label: "Facultés", icon: Landmark, permission: "faculties:manage" },
         { href: getTenantUrl("/admin/departments"), label: t("nav.departments"), icon: Building2, permission: "departments:read" },
