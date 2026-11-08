@@ -22,7 +22,7 @@ def test_listing_is_scoped_to_tenant():
     db = MagicMock()
     db.execute.return_value.mappings.return_value.all.return_value = []
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
-        result = api.list_early_warnings(request=request(), db=db, current_user={"id": str(uuid4())})
+        result = api.list_early_warnings(request=request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]})
     assert result == []
     sql, params = db.execute.call_args.args
     assert "w.tenant_id = :tid" in str(sql)
@@ -40,7 +40,7 @@ def test_cannot_create_warning_for_student_from_another_tenant():
     )
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
         with pytest.raises(HTTPException) as err:
-            api.create_early_warning(payload, request(), db=db, current_user={"id": str(uuid4())})
+            api.create_early_warning(payload, request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]})
     assert err.value.status_code == 404
     sql, params = db.execute.call_args.args
     assert "tenant_id = :tid" in str(sql)
@@ -55,7 +55,7 @@ def test_cross_tenant_update_does_not_modify_alert():
         with pytest.raises(HTTPException) as err:
             api.update_early_warning(
                 uuid4(), api.EarlyWarningUpdate(status="acknowledged"),
-                request(), db=db, current_user={"id": str(uuid4())},
+                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
             )
     assert err.value.status_code == 404
     sql, _ = db.execute.call_args.args
@@ -73,7 +73,7 @@ def test_invalid_transitions_do_not_mutate(initial, desired):
         with pytest.raises(HTTPException) as err:
             api.update_early_warning(
                 uuid4(), api.EarlyWarningUpdate(status=desired, resolution_notes="Réalisé"),
-                request(), db=db, current_user={"id": str(uuid4())},
+                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
             )
     assert err.value.status_code == 409
     assert db.execute.call_count == 1
@@ -87,7 +87,7 @@ def test_resolution_requires_human_explanation():
         with pytest.raises(HTTPException) as err:
             api.update_early_warning(
                 uuid4(), api.EarlyWarningUpdate(status="resolved", resolution_notes="  "),
-                request(), db=db, current_user={"id": str(uuid4())},
+                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
             )
     assert err.value.status_code == 422
     db.commit.assert_not_called()
@@ -99,3 +99,13 @@ def test_rejects_client_supplied_actor_and_dates():
             status="acknowledged", acknowledged_by=str(uuid4()),
             acknowledged_at="2026-11-08T00:00:00Z",
         )
+
+
+@pytest.mark.parametrize("roles", [["STUDENT"], ["PARENT"], ["ACCOUNTANT"], ["TEACHER"], []])
+def test_non_management_roles_cannot_read_nominative_early_warnings(roles):
+    db = MagicMock()
+    with pytest.raises(HTTPException) as err:
+        api.list_early_warnings(request=request(), db=db,
+                                current_user={"id": str(uuid4()), "roles": roles})
+    assert err.value.status_code == 403
+    db.execute.assert_not_called()
