@@ -3077,7 +3077,8 @@ def _authorize_certificate_teacher_scope(
 
     from sqlalchemy import and_
     from app.models.enrollment import Enrollment
-    from app.models.academic import Classroom, AcademicYear
+    from app.models.classroom import Classroom
+    from app.models.academic_year import AcademicYear
 
     # An official current-year certificate must be authorized against the
     # pupil's CURRENT class. An old enrollment in a teacher's former class
