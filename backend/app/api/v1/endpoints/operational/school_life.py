@@ -1881,7 +1881,12 @@ def _fetch_grades_for_term(db, student_id: str, term_id: str, tenant_id: str) ->
             g.comments
         FROM grades g
         JOIN assessments a ON g.assessment_id = a.id
-        LEFT JOIN subjects subj ON a.subject_id = subj.id
+          AND a.tenant_id = g.tenant_id
+        JOIN terms t ON t.id = a.term_id
+          AND t.tenant_id = a.tenant_id
+          AND (a.academic_year_id IS NULL OR a.academic_year_id = t.academic_year_id)
+        JOIN students s ON s.id = g.student_id AND s.tenant_id = g.tenant_id
+        LEFT JOIN subjects subj ON a.subject_id = subj.id AND subj.tenant_id = a.tenant_id
         WHERE g.student_id    = :sid
           AND g.tenant_id     = :tid
           AND a.term_id       = :term_id
