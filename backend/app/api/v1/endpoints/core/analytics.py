@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import csv
 import io
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_, text
@@ -1185,6 +1185,7 @@ def get_analytics_risk_summary(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
+    term_id: Optional[str] = None,
 ):
     """Tenant-wide counts of recorded risk scores, without a 100-row limit.
 
@@ -1192,6 +1193,10 @@ def get_analytics_risk_summary(
     intentionally does NOT claim to represent the currently selected term.
     Unknown and null-score records must never inflate the LOW count.
     """
+    if term_id is not None:
+        raise HTTPException(status_code=422, detail=(
+            "Academic term filtering is not supported for recorded risk scores"
+        ))
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     row = db.execute(text("""
         SELECT
@@ -1227,8 +1232,13 @@ def get_analytics_risk_scores(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     student_ids: Optional[str] = Query(None),
+    term_id: Optional[str] = None,
 ):
     """Risk scores for students — wrapper around student_risk_scores table."""
+    if term_id is not None:
+        raise HTTPException(status_code=422, detail=(
+            "Academic term filtering is not supported for recorded risk scores"
+        ))
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     params: Dict[str, Any] = {"tid": tenant_id}
     where = ["sr.tenant_id = :tid"]

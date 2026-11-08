@@ -1,5 +1,8 @@
 """Recorded risk summary must count the whole tenant, not 100 sample rows."""
 from unittest.mock import MagicMock, patch
+
+import pytest
+from fastapi import HTTPException
 from uuid import uuid4
 
 from starlette.requests import Request
@@ -53,3 +56,21 @@ def test_risk_summary_unknown_includes_unrated_and_invalid_levels():
     assert data["low"] == 2
     assert data["unknown"] == 2
     assert sum(data[level] for level in ("critical", "high", "moderate", "low", "unknown")) == data["total"]
+
+
+@pytest.mark.parametrize("endpoint", [
+    analytics.get_analytics_risk_summary,
+    analytics.get_analytics_risk_scores,
+])
+def test_risk_api_rejects_unsupported_term_id_without_querying_db(endpoint):
+    db = MagicMock()
+    with pytest.raises(HTTPException) as raised:
+        endpoint(
+            request=_request(),
+            db=db,
+            current_user={"id": str(uuid4()), "roles": ["TENANT_ADMIN"]},
+            term_id=str(uuid4()),
+        )
+    assert raised.value.status_code == 422
+    assert "not supported" in str(raised.value.detail)
+    db.execute.assert_not_called()
