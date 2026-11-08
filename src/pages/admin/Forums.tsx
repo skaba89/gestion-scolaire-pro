@@ -38,7 +38,8 @@ export default function Forums() {
   const saveMutation = useMutation({
     mutationFn: (data: any) => adminQueries.saveForum(tenant?.id || "", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["student-forums"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-student-forums", tenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ["admin-forum-post-counts", tenant?.id] });
       toast.success(selectedForum ? t("forums.updateSuccess") : t("forums.createSuccess"));
       resetForm();
     },
@@ -50,7 +51,8 @@ export default function Forums() {
   const deleteMutation = useMutation({
     mutationFn: adminQueries.deleteForum,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["student-forums"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-student-forums", tenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ["admin-forum-post-counts", tenant?.id] });
       toast.success(t("forums.deleteSuccess"));
     },
     onError: () => {
