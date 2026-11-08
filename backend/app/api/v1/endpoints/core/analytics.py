@@ -1185,7 +1185,7 @@ def get_analytics_risk_summary(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
-    term_id: Optional[str] = Query(None),
+    term_id: Optional[str] = None,
 ):
     """Tenant-wide counts of recorded risk scores, without a 100-row limit.
 
@@ -1232,7 +1232,7 @@ def get_analytics_risk_scores(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
     student_ids: Optional[str] = Query(None),
-    term_id: Optional[str] = Query(None),
+    term_id: Optional[str] = None,
 ):
     """Risk scores for students — wrapper around student_risk_scores table."""
     if term_id is not None:
