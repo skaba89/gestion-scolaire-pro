@@ -139,6 +139,17 @@ def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_i
     current students. Returns None for a privileged caller (no
     restriction), or the set of student ids the caller may see (possibly
     empty)."""
+    # In the HTML/PDF bulletin flow, a generic grades:read grant is not
+    # permission for a non-privileged teacher to see every classroom.
+    # Certificate requests have a separate schema without a classroom ID;
+    # they remain unchanged in this targeted report-card correction.
+    if classroom_id is not None and is_scoped_teacher(current_user):
+        if not teacher_teaches_class(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"),
+            class_id=classroom_id,
+        ):
+            raise HTTPException(status_code=403, detail="Bulletin hors du périmètre de cet enseignant")
+
     roles = set(current_user.get("roles", []))
     privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
                           "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
@@ -2560,7 +2571,10 @@ function downloadHtml() {{
 
 # ── Smart endpoint v2 ──────────────────────────────────────────────────────────
 
-def _authorize_report_card_access(current_user: dict, db: Session, tenant_id: str, student_id: str) -> None:
+def _authorize_report_card_access(
+    current_user: dict, db: Session, tenant_id: str, student_id: str,
+    classroom_id: Optional[str] = None,
+) -> None:
     """Raises 403 unless the caller may see this student's report card.
     Shared by the HTML (v2) and PDF endpoints so both enforce the exact
     same ownership rule (institutional-readiness audit, 2026-09)."""
@@ -2754,7 +2768,7 @@ def generate_smart_report_card(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
-    _authorize_report_card_access(current_user, db, tenant_id, body.student_id)
+    _authorize_report_card_access(current_user, db, tenant_id, body.student_id, body.classroom_id)
 
     try:
         html_content, meta = _build_report_card_html(db, body, tenant_id)
@@ -2797,7 +2811,7 @@ def generate_report_card_pdf(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
-    _authorize_report_card_access(current_user, db, tenant_id, body.student_id)
+    _authorize_report_card_access(current_user, db, tenant_id, body.student_id, body.classroom_id)
 
     try:
         html_content, meta = _build_report_card_html(db, body, tenant_id)
