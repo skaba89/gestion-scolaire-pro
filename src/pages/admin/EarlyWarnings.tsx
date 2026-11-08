@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import { fetchEarlyWarnings, updateEarlyWarning } from "@/utils/earlyWarningsApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
@@ -46,20 +46,14 @@ export default function EarlyWarnings() {
 
   const { data: alerts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["early-warnings", tenant?.id],
-    queryFn: async () => {
-      const { data } = await apiClient.get("/school-life/early-warnings/");
-      if (!Array.isArray(data)) {
-        throw new Error("Format de réponse des alertes invalide");
-      }
-      return data;
-    },
+    queryFn: fetchEarlyWarnings,
     enabled: !!tenant?.id,
     retry: false,
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
-      await apiClient.put(`/school-life/early-warnings/${id}/`, updates);
+      await updateEarlyWarning(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["early-warnings"] });
