@@ -100,6 +100,7 @@ class TestReportCardPdfChecksLogoUrlBeforeFetching:
         from app.models.academic_year import AcademicYear
         from app.models.classroom import Classroom
         from app.models.enrollment import Enrollment
+        from app.models.term import Term
         year_id, classroom_id, term_id = (str(uuid.uuid4()) for _ in range(3))
         with SessionLocal() as db:
             db.add(AcademicYear(
