@@ -234,14 +234,14 @@ export default function EarlyWarnings() {
       {!!tenant?.id && !!summary && !isError && !isLoading && (
       <Tabs defaultValue="new" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="new" className="relative">
+          <TabsTrigger value="new" className="relative" aria-label={`Nouvelles alertes : ${summary.new}`}>
             {t("earlyWarnings.tabNew", { count: summary.new })}
             {criticalCount > 0 && (
               <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
             )}
           </TabsTrigger>
-          <TabsTrigger value="processing">{t("earlyWarnings.tabProcessing", { count: summary.processing })}</TabsTrigger>
-          <TabsTrigger value="resolved">{t("earlyWarnings.tabResolved", { count: summary.closed })}</TabsTrigger>
+          <TabsTrigger value="processing" aria-label={`Alertes en cours : ${summary.processing}`}>{t("earlyWarnings.tabProcessing", { count: summary.processing })}</TabsTrigger>
+          <TabsTrigger value="resolved" aria-label={`Alertes clôturées : ${summary.closed}`}>{t("earlyWarnings.tabResolved", { count: summary.closed })}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="new" className="space-y-4">
