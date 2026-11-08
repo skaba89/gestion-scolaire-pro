@@ -38,6 +38,13 @@ class EarlyWarningUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+def _management_only(user: dict) -> None:
+    """Alert contents are sensitive student records, not generic KPI analytics."""
+    roles = set(user.get("roles") or [])
+    if not roles.intersection({"TENANT_ADMIN", "DIRECTOR", "SUPER_ADMIN"}):
+        raise HTTPException(status_code=403, detail="Early warning access reserved for school management")
+
+
 def _tenant(request: Request, user: dict, db: Session) -> str:
     tenant_id = resolve_current_tenant_id(request, user, db)
     if not tenant_id:
@@ -74,6 +81,7 @@ def list_early_warnings(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
+    _management_only(current_user)
     tenant_id = _tenant(request, current_user, db)
     # The UI currently renders all alerts. Do not silently return a paginated
     # subset that would make the counters claim completeness.
@@ -90,6 +98,7 @@ def create_early_warning(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
+    _management_only(current_user)
     tenant_id = _tenant(request, current_user, db)
     student = db.execute(text("""
         SELECT 1 FROM students
@@ -128,6 +137,7 @@ def update_early_warning(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("settings:write")),
 ):
+    _management_only(current_user)
     tenant_id = _tenant(request, current_user, db)
     row = db.execute(text("""
         SELECT status FROM early_warnings
