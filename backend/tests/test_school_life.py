@@ -141,6 +141,14 @@ class TestGenerateReportCardV2:
     def test_generates_html_bulletin_without_crashing(self):
         tenant_id = str(uuid.uuid4())
         student_id = str(uuid.uuid4())
+        year_id = str(uuid.uuid4())
+        classroom_id = str(uuid.uuid4())
+        term_id = str(uuid.uuid4())
+
+        from app.models.academic_year import AcademicYear
+        from app.models.classroom import Classroom
+        from app.models.enrollment import Enrollment
+        from app.models.term import Term
 
         with SessionLocal() as db:
             db.add(Tenant(
@@ -157,14 +165,36 @@ class TestGenerateReportCardV2:
                 status=StudentStatus.ACTIVE,
             ))
             db.commit()
+            # A genuine enrollment binds this student's class and term.
+            db.add(AcademicYear(
+                id=year_id, tenant_id=tenant_id, name="2026-2027",
+                code="2026-2027", start_date=date(2026, 9, 1),
+                end_date=date(2027, 6, 30), is_current=True,
+            ))
+            db.commit()
+            db.add(Classroom(
+                id=classroom_id, tenant_id=tenant_id, name="Première",
+                academic_year_id=year_id,
+            ))
+            db.add(Term(
+                id=term_id, tenant_id=tenant_id, academic_year_id=year_id,
+                name="Semestre 1", start_date=date(2026, 9, 1),
+                end_date=date(2027, 1, 31), sequence_number=1,
+            ))
+            db.add(Enrollment(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                student_id=student_id, class_id=classroom_id,
+                academic_year_id=year_id, status="ACTIVE",
+            ))
+            db.commit()
 
         headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
         resp = client.post(
             "/api/v1/school-life/generate-report-card/v2/",
             json={
                 "student_id": student_id,
-                "term_id": str(uuid.uuid4()),
-                "classroom_id": str(uuid.uuid4()),
+                "term_id": term_id,
+                "classroom_id": classroom_id,
             },
             headers=headers,
         )
