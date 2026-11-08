@@ -9,6 +9,7 @@ import { SurveyStats } from "@/components/admin/surveys/SurveyStats";
 import { SurveyList } from "@/components/admin/surveys/SurveyList";
 import { SurveyDialog } from "@/components/admin/surveys/SurveyDialog";
 import { SurveyResultsDialog } from "@/components/admin/surveys/SurveyResultsDialog";
+import { surveyDateInputValue } from "@/lib/survey-dates";
 
 export default function Surveys() {
   const { t } = useTranslation();
@@ -89,8 +90,8 @@ export default function Surveys() {
       target_audience: survey.target_audience || "all",
       is_anonymous: survey.is_anonymous,
       is_active: survey.is_active,
-      starts_at: survey.starts_at ? survey.starts_at.split("surveys.T")[0] : "",
-      ends_at: survey.ends_at ? survey.ends_at.split("surveys.T")[0] : "",
+      starts_at: surveyDateInputValue(survey.starts_at),
+      ends_at: surveyDateInputValue(survey.ends_at),
     });
     setIsDialogOpen(true);
   };
