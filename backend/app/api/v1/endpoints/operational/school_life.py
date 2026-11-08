@@ -3142,6 +3142,37 @@ def generate_certificate_pdf(
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF")
 
 
+def _validate_batch_report_card_period(
+    db: Session, *, tenant_id: str, classroom_id: str, term_id: str,
+) -> None:
+    """Reject a class/term pairing from different academic years or tenants.
+
+    Called inside the worker as well as by the synchronous fallback,
+    before fetching grades or generating any official batch document.
+    """
+    stmt = text("""
+        SELECT 1
+          FROM classes c
+          JOIN academic_years ay
+            ON ay.id = c.academic_year_id AND ay.tenant_id = c.tenant_id
+          JOIN terms t
+            ON t.academic_year_id = ay.id AND t.tenant_id = c.tenant_id
+         WHERE c.id = :cid AND c.tenant_id = :tid
+           AND t.id = :term_id
+         LIMIT 1
+    """).bindparams(
+        bindparam("cid", type_=GUID()),
+        bindparam("tid", type_=GUID()),
+        bindparam("term_id", type_=GUID()),
+    )
+    if not db.execute(stmt, {
+        "cid": classroom_id, "tid": tenant_id, "term_id": term_id,
+    }).first():
+        raise HTTPException(
+            status_code=404, detail="Classe ou période scolaire incompatible"
+        )
+
+
 def _generate_batch_report_cards(
     db: Session, tenant_id: str, *,
     classroom_id: str, term_id: str,
@@ -3154,14 +3185,20 @@ def _generate_batch_report_cards(
     two divergent copies. Raises HTTPException for the same 404 cases the
     endpoint always raised. Returns {html, count} — html is the raw
     (not yet base64-encoded) combined document."""
+    _validate_batch_report_card_period(
+        db, tenant_id=tenant_id, classroom_id=classroom_id, term_id=term_id,
+    )
+
     # All active students in the class
     student_stmt = text("""
         SELECT e.student_id, s.first_name, s.last_name, s.registration_number,
                s.date_of_birth, s.gender
         FROM enrollments e
-        JOIN students s ON s.id = e.student_id
+        JOIN students s ON s.id = e.student_id AND s.tenant_id = e.tenant_id
+        JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
         WHERE e.class_id  = :cid
           AND e.tenant_id = :tid
+          AND e.academic_year_id = c.academic_year_id
           AND e.status    = 'ACTIVE'
         ORDER BY s.last_name
     """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
