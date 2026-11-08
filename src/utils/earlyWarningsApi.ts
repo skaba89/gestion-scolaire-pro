@@ -46,3 +46,9 @@ export async function searchEarlyWarningStudents(search: string): Promise<EarlyW
     }
     return data.items;
 }
+
+/** Resolution requires an actual explanation; mirror the backend's 4,000-char limit. */
+export function normalizeEarlyWarningResolutionNotes(value: string): string | null {
+    const notes = value.trim();
+    return notes.length > 0 && notes.length <= 4000 ? notes : null;
+}

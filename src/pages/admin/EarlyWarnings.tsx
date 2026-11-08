@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchEarlyWarnings, updateEarlyWarning } from "@/utils/earlyWarningsApi";
+import { fetchEarlyWarnings, updateEarlyWarning, normalizeEarlyWarningResolutionNotes } from "@/utils/earlyWarningsApi";
 import { CreateEarlyWarningDialog } from "@/components/admin/early-warnings/CreateEarlyWarningDialog";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
@@ -76,11 +76,16 @@ export default function EarlyWarnings() {
   };
 
   const resolveAlert = (id: string) => {
+    const notes = normalizeEarlyWarningResolutionNotes(resolutionNotes);
+    if (!notes) {
+      toast.error("Indiquez une justification de résolution (4 000 caractères maximum).");
+      return;
+    }
     updateMutation.mutate({
       id,
       updates: {
         status: "resolved",
-        resolution_notes: resolutionNotes,
+        resolution_notes: notes,
       },
     });
   };
@@ -170,7 +175,15 @@ export default function EarlyWarnings() {
         </Card>
       )}
 
-      {!isError && !isLoading && (
+      {!tenant?.id && (
+        <p role="status" className="text-sm text-muted-foreground">Sélectionnez un établissement pour consulter ses alertes.</p>
+      )}
+
+      {!!tenant?.id && !isError && !isLoading && !alerts && (
+        <p role="status" className="text-sm text-muted-foreground">Chargement des alertes…</p>
+      )}
+
+      {!!tenant?.id && !!alerts && !isError && !isLoading && (
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-red-500/50">
           <CardContent className="pt-6">
@@ -202,7 +215,7 @@ export default function EarlyWarnings() {
 
       )}
 
-      {!isError && !isLoading && (
+      {!!tenant?.id && !!alerts && !isError && !isLoading && (
       <Tabs defaultValue="new" className="space-y-4">
         <TabsList>
           <TabsTrigger value="new" className="relative">
@@ -272,6 +285,7 @@ export default function EarlyWarnings() {
                       size="sm"
                       className="flex-1"
                       onClick={() => acknowledgeAlert(alert.id)}
+                      disabled={updateMutation.isPending}
                     >
                       <Eye className="h-4 w-4 mr-1" />
                       {t("earlyWarnings.acknowledge")}
@@ -280,6 +294,7 @@ export default function EarlyWarnings() {
                       size="sm"
                       variant="ghost"
                       onClick={() => dismissAlert(alert.id)}
+                      disabled={updateMutation.isPending}
                     >
                       <X className="h-4 w-4" />
                     </Button>
@@ -317,6 +332,7 @@ export default function EarlyWarnings() {
                     size="sm"
                     className="w-full"
                     onClick={() => setSelectedAlert(alert)}
+                    disabled={updateMutation.isPending}
                   >
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     {t("earlyWarnings.markResolved")}
@@ -364,7 +380,7 @@ export default function EarlyWarnings() {
       />
 
       {/* Resolution Dialog */}
-      <Dialog open={!!selectedAlert} onOpenChange={() => setSelectedAlert(null)}>
+      <Dialog open={!!selectedAlert} onOpenChange={(open) => { if (!open && !updateMutation.isPending) { setSelectedAlert(null); setResolutionNotes(""); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("earlyWarnings.resolveTitle")}</DialogTitle>
@@ -383,16 +399,19 @@ export default function EarlyWarnings() {
                 onChange={(e) => setResolutionNotes(e.target.value)}
                 placeholder={t("earlyWarnings.resolutionPlaceholder")}
                 rows={4}
+                maxLength={4000}
+                aria-required="true"
               />
             </div>
             <div className="flex gap-2">
               <Button
                 onClick={() => selectedAlert && resolveAlert(selectedAlert.id)}
                 className="flex-1"
+                disabled={updateMutation.isPending || !normalizeEarlyWarningResolutionNotes(resolutionNotes)}
               >
                 {t("earlyWarnings.confirmResolve")}
               </Button>
-              <Button variant="outline" onClick={() => setSelectedAlert(null)}>
+              <Button variant="outline" disabled={updateMutation.isPending} onClick={() => { setSelectedAlert(null); setResolutionNotes(""); }}>
                 {t("earlyWarnings.cancel")}
               </Button>
             </div>
