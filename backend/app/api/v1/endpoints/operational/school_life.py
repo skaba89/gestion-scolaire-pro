@@ -2070,7 +2070,9 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
 
 def _fetch_absences_batch(db, classroom_id: str, start_date, end_date, tenant_id: str) -> dict:
     """Same shape/filtering as _fetch_absences, batched across every
-    actively enrolled student in one classroom in a single query. Returns
+    actively enrolled student in one classroom in a single query. Uses
+    EXISTS rather than joining enrollments to avoid counting an absence
+    multiple times if duplicate enrollment rows exist. Returns
     {student_id: {excused, absent, late}}; a student with no row (no
     absences at all) is NOT present here — callers must fall back to the
     zero dict, matching _fetch_absences' own default."""
@@ -2082,11 +2084,21 @@ def _fetch_absences_batch(db, classroom_id: str, start_date, end_date, tenant_id
                 COUNT(*) FILTER (WHERE att.status = 'ABSENT')  AS absent,
                 COUNT(*) FILTER (WHERE att.status = 'LATE')    AS late
             FROM attendance att
-            JOIN enrollments e ON e.student_id = att.student_id AND e.tenant_id = att.tenant_id
-            WHERE e.class_id   = :cid
-              AND e.tenant_id  = :tid
-              AND e.status     = 'ACTIVE'
+            WHERE att.tenant_id = :tid
               AND att.date BETWEEN :sd AND :ed
+              AND EXISTS (
+                  SELECT 1
+                  FROM enrollments e
+                  JOIN classes c ON c.id = e.class_id
+                     AND c.tenant_id = e.tenant_id
+                  JOIN students s ON s.id = e.student_id
+                     AND s.tenant_id = e.tenant_id
+                  WHERE e.student_id = att.student_id
+                    AND e.tenant_id = att.tenant_id
+                    AND e.class_id = :cid
+                    AND e.academic_year_id = c.academic_year_id
+                    AND e.status = 'ACTIVE'
+              )
             GROUP BY att.student_id
         """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
         rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id, "sd": start_date, "ed": end_date}).mappings().all()
