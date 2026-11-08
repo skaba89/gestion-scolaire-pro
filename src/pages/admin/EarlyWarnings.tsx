@@ -241,7 +241,7 @@ export default function EarlyWarnings() {
             )}
           </TabsTrigger>
           <TabsTrigger value="processing">{t("earlyWarnings.tabProcessing", { count: acknowledgedAlerts.length })}</TabsTrigger>
-          <TabsTrigger value="resolved">{t("earlyWarnings.tabResolved", { count: resolvedAlerts.length })}</TabsTrigger>
+          <TabsTrigger value="resolved">{t("earlyWarnings.tabResolved", { count: summary.closed })}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="new" className="space-y-4">
