@@ -1,0 +1,173 @@
+"""Early warning workflows. Every operation is scoped by tenant and permission."""
+import logging
+from datetime import datetime, timezone
+from typing import Literal
+from uuid import UUID, uuid4
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.core.security import require_permission
+from app.core.tenant_resolution import resolve_current_tenant_id
+from app.utils.audit import log_audit
+
+router = APIRouter()
+logger = logging.getLogger(__name__)
+
+AlertType = Literal["academic", "attendance", "behavior", "engagement", "wellbeing"]
+Severity = Literal["low", "medium", "high", "critical"]
+Status = Literal["new", "acknowledged", "in_progress", "resolved", "dismissed"]
+
+
+class EarlyWarningCreate(BaseModel):
+    student_id: UUID
+    alert_type: AlertType
+    severity: Severity
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=4000)
+    recommended_actions: list[str] = Field(default_factory=list, max_length=10)
+
+
+class EarlyWarningUpdate(BaseModel):
+    status: Status
+    resolution_notes: str | None = Field(default=None, max_length=4000)
+    # Ignore client-supplied identity/time: both are determined by the server.
+    model_config = {"extra": "forbid"}
+
+
+def _tenant(request: Request, user: dict, db: Session) -> str:
+    tenant_id = resolve_current_tenant_id(request, user, db)
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    return str(tenant_id)
+
+
+def _row_to_response(row: dict) -> dict:
+    item = dict(row)
+    for key in ("id", "tenant_id", "student_id", "acknowledged_by", "resolved_by"):
+        if item.get(key) is not None:
+            item[key] = str(item[key])
+    for key in ("created_at", "updated_at", "acknowledged_at", "resolved_at"):
+        if item.get(key) is not None:
+            item[key] = item[key].isoformat() if hasattr(item[key], "isoformat") else str(item[key])
+    item["student"] = {
+        "first_name": item.pop("first_name", None),
+        "last_name": item.pop("last_name", None),
+        "registration_number": item.pop("registration_number", None),
+    }
+    return item
+
+
+_SELECT = """
+    SELECT w.*, s.first_name, s.last_name, s.registration_number
+    FROM early_warnings w
+    JOIN students s ON s.id = w.student_id AND s.tenant_id = w.tenant_id
+"""
+
+
+@router.get("/")
+def list_early_warnings(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("analytics:read")),
+):
+    tenant_id = _tenant(request, current_user, db)
+    # The UI currently renders all alerts. Do not silently return a paginated
+    # subset that would make the counters claim completeness.
+    rows = db.execute(text(_SELECT + """
+        WHERE w.tenant_id = :tid ORDER BY w.created_at DESC, w.id
+    """), {"tid": tenant_id}).mappings().all()
+    return [_row_to_response(row) for row in rows]
+
+
+@router.post("/", status_code=201)
+def create_early_warning(
+    payload: EarlyWarningCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    tenant_id = _tenant(request, current_user, db)
+    student = db.execute(text("""
+        SELECT 1 FROM students
+        WHERE id = :sid AND tenant_id = :tid
+    """), {"sid": str(payload.student_id), "tid": tenant_id}).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found in this establishment")
+    warning_id = str(uuid4())
+    db.execute(text("""
+        INSERT INTO early_warnings
+            (id, tenant_id, student_id, alert_type, severity,
+             title, description, recommended_actions, status)
+        VALUES (:id, :tid, :sid, :type, :severity, :title, :description,
+                CAST(:actions AS JSON), 'new')
+    """), {
+        "id": warning_id, "tid": tenant_id, "sid": str(payload.student_id),
+        "type": payload.alert_type, "severity": payload.severity,
+        "title": payload.title, "description": payload.description,
+        "actions": __import__("json").dumps(payload.recommended_actions),
+    })
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="CREATE_EARLY_WARNING", resource_type="EARLY_WARNING",
+              resource_id=warning_id)
+    db.commit()
+    row = db.execute(text(_SELECT + """
+        WHERE w.id = :id AND w.tenant_id = :tid
+    """), {"id": warning_id, "tid": tenant_id}).mappings().first()
+    return _row_to_response(row)
+
+
+@router.put("/{warning_id}/")
+def update_early_warning(
+    warning_id: UUID,
+    payload: EarlyWarningUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("settings:write")),
+):
+    tenant_id = _tenant(request, current_user, db)
+    row = db.execute(text("""
+        SELECT status FROM early_warnings
+        WHERE id = :id AND tenant_id = :tid FOR UPDATE
+    """), {"id": str(warning_id), "tid": tenant_id}).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    old_status = row[0]
+    transitions = {
+        "new": {"acknowledged", "dismissed"},
+        "acknowledged": {"in_progress", "resolved", "dismissed"},
+        "in_progress": {"resolved", "dismissed"},
+        "resolved": set(),
+        "dismissed": set(),
+    }
+    if payload.status not in transitions.get(old_status, set()):
+        raise HTTPException(status_code=409, detail="Invalid alert status transition")
+    if payload.status == "resolved" and not (payload.resolution_notes or "").strip():
+        raise HTTPException(status_code=422, detail="Resolution notes required")
+    now = datetime.now(timezone.utc)
+    db.execute(text("""
+        UPDATE early_warnings SET
+            status = :status,
+            resolution_notes = CASE WHEN :status = 'resolved' THEN :notes ELSE resolution_notes END,
+            acknowledged_by = CASE WHEN :status = 'acknowledged' THEN :uid ELSE acknowledged_by END,
+            acknowledged_at = CASE WHEN :status = 'acknowledged' THEN :now ELSE acknowledged_at END,
+            resolved_by = CASE WHEN :status = 'resolved' THEN :uid ELSE resolved_by END,
+            resolved_at = CASE WHEN :status = 'resolved' THEN :now ELSE resolved_at END,
+            updated_at = :now
+        WHERE id = :id AND tenant_id = :tid
+    """), {
+        "status": payload.status, "notes": payload.resolution_notes,
+        "uid": str(current_user["id"]), "now": now,
+        "id": str(warning_id), "tid": tenant_id,
+    })
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="UPDATE_EARLY_WARNING", resource_type="EARLY_WARNING",
+              resource_id=str(warning_id))
+    db.commit()
+    result = db.execute(text(_SELECT + """
+        WHERE w.id = :id AND w.tenant_id = :tid
+    """), {"id": str(warning_id), "tid": tenant_id}).mappings().first()
+    return _row_to_response(result)
