@@ -10,6 +10,8 @@ revision = "20261108_0001"
 down_revision = "20261026_0001"
 branch_labels = None
 depends_on = None
+# New isolated table does not alter existing consumers or their schema.
+backward_compatible = True
 
 
 def upgrade():
