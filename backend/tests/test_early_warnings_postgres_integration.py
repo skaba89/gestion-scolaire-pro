@@ -213,3 +213,99 @@ def test_early_warnings_rls_with_non_bypass_runtime_role(school_records):
             conn.execute(text(f'REVOKE ALL ON early_warnings FROM "{role}"'))
             conn.execute(text(f'REVOKE USAGE ON SCHEMA public FROM "{role}"'))
             conn.execute(text(f'DROP ROLE "{role}"'))
+
+
+def test_real_pg_summary_and_paginated_tabs_remain_isolated_across_two_schools(school_records):
+    """Real SQL over >12 records per tenant: no cross-school IDs or misleading totals."""
+    s = school_records
+    created = {"a": [], "b": []}
+    with engine.begin() as conn:
+        fixtures = [
+            ("a", s["tenant_a"], s["student_a"],
+             ["new"] * 13 + ["acknowledged", "dismissed"]),
+            ("b", s["tenant_b"], s["student_b"],
+             ["new"] * 4 + ["in_progress"] + ["resolved"] * 2),
+        ]
+        for group, tid, student_id, statuses in fixtures:
+            for index, status in enumerate(statuses):
+                warning_id = _id()
+                created[group].append(warning_id)
+                conn.execute(text("""
+                    INSERT INTO early_warnings
+                        (id, tenant_id, student_id, alert_type, severity,
+                         title, description, recommended_actions, status)
+                    VALUES (:id, :tid, :sid, 'academic', 'critical',
+                            :title, 'Test de pagination PostgreSQL', '[]', :status)
+                """), {
+                    "id": warning_id, "tid": tid, "sid": student_id,
+                    "title": f"PG {group} {index}", "status": status,
+                })
+
+    with SessionLocal() as db:
+        for tenant_id, own_ids, other_ids, expected in (
+            (s["tenant_a"], set(created["a"]), set(created["b"]),
+             {"total": 15, "new": 13, "processing": 1, "closed": 1,
+              "resolved": 0, "dismissed": 1, "academic": 15, "critical_new": 13}),
+            (s["tenant_b"], set(created["b"]), set(created["a"]),
+             {"total": 7, "new": 4, "processing": 1, "closed": 2,
+              "resolved": 2, "dismissed": 0, "academic": 7, "critical_new": 4}),
+        ):
+            with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
+                summary = api.early_warnings_summary(
+                    _request(), db=db, current_user=_user(s),
+                )
+                assert summary == expected
+                seen = set()
+                for page_number in (1, 2):
+                    result = api.list_early_warnings_paginated(
+                        _request(), page=page_number, page_size=12, status="new",
+                        group=None, db=db, current_user=_user(s),
+                    )
+                    assert result["total"] == expected["new"]
+                    assert result["total_pages"] == (expected["new"] + 11) // 12
+                    ids = {row["id"] for row in result["items"]}
+                    assert ids <= own_ids
+                    assert not ids.intersection(other_ids)
+                    assert not seen.intersection(ids)
+                    seen.update(ids)
+                assert len(seen) == expected["new"]
+                for group, expected_total in (
+                    ("processing", expected["processing"]),
+                    ("closed", expected["closed"]),
+                ):
+                    result = api.list_early_warnings_paginated(
+                        _request(), page=1, page_size=12, status=None,
+                        group=group, db=db, current_user=_user(s),
+                    )
+                    assert result["total"] == expected_total
+                    assert len(result["items"]) == expected_total
+                    assert {row["id"] for row in result["items"]} <= own_ids
+                    assert not {row["id"] for row in result["items"]}.intersection(other_ids)
+
+
+def test_real_pg_summary_and_pages_empty_tenant_do_not_see_other_school(school_records):
+    """A school with no warnings must never inherit another school's statistics."""
+    s = school_records
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO early_warnings
+                (id, tenant_id, student_id, alert_type, severity,
+                 title, description, recommended_actions, status)
+            VALUES (:id, :tid, :sid, 'academic', 'high',
+                    'A seulement', 'Isolement', '[]', 'new')
+        """), {"id": _id(), "tid": s["tenant_a"], "sid": s["student_a"]})
+
+    with SessionLocal() as db:
+        with patch.object(api, "resolve_current_tenant_id", return_value=s["tenant_b"]):
+            summary = api.early_warnings_summary(
+                _request(), db=db, current_user=_user(s),
+            )
+            assert set(summary.values()) == {0}
+            for status, group in (("new", None), (None, "processing"), (None, "closed")):
+                response = api.list_early_warnings_paginated(
+                    _request(), page=1, page_size=12, status=status,
+                    group=group, db=db, current_user=_user(s),
+                )
+                assert response["items"] == []
+                assert response["total"] == 0
+                assert response["total_pages"] == 0
