@@ -174,13 +174,18 @@ def update_early_warning(
     now = datetime.now(timezone.utc)
     db.execute(text("""
         UPDATE early_warnings SET
-            status = :status,
-            resolution_notes = CASE WHEN :status = 'resolved' THEN :notes ELSE resolution_notes END,
-            acknowledged_by = CASE WHEN :status = 'acknowledged' THEN :uid ELSE acknowledged_by END,
-            acknowledged_at = CASE WHEN :status = 'acknowledged' THEN :now ELSE acknowledged_at END,
-            resolved_by = CASE WHEN :status = 'resolved' THEN :uid ELSE resolved_by END,
-            resolved_at = CASE WHEN :status = 'resolved' THEN :now ELSE resolved_at END,
-            updated_at = :now
+            status = CAST(:status AS VARCHAR(20)),
+            resolution_notes = CASE WHEN CAST(:status AS VARCHAR(20)) = 'resolved'
+                                    THEN CAST(:notes AS TEXT) ELSE resolution_notes END,
+            acknowledged_by = CASE WHEN CAST(:status AS VARCHAR(20)) = 'acknowledged'
+                                   THEN CAST(:uid AS UUID) ELSE acknowledged_by END,
+            acknowledged_at = CASE WHEN CAST(:status AS VARCHAR(20)) = 'acknowledged'
+                                   THEN CAST(:now AS TIMESTAMP WITH TIME ZONE) ELSE acknowledged_at END,
+            resolved_by = CASE WHEN CAST(:status AS VARCHAR(20)) = 'resolved'
+                               THEN CAST(:uid AS UUID) ELSE resolved_by END,
+            resolved_at = CASE WHEN CAST(:status AS VARCHAR(20)) = 'resolved'
+                               THEN CAST(:now AS TIMESTAMP WITH TIME ZONE) ELSE resolved_at END,
+            updated_at = CAST(:now AS TIMESTAMP WITH TIME ZONE)
         WHERE id = :id AND tenant_id = :tid
     """), {
         "status": payload.status, "notes": payload.resolution_notes,
