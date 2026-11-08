@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AxiosAdapter } from "axios";
 import { apiClient } from "@/api/client";
-import { fetchEarlyWarnings, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents } from "./earlyWarningsApi";
+import { fetchEarlyWarnings, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents, normalizeEarlyWarningResolutionNotes } from "./earlyWarningsApi";
 
 const originalAdapter = apiClient.defaults.adapter;
 
@@ -92,6 +92,17 @@ describe("early warnings API contract", () => {
             student_id: "student-1", alert_type: "attendance", severity: "medium",
             title: "A", description: "B", recommended_actions: [],
         })).rejects.toBeDefined();
+    });
+
+    it("requires a real justification for resolving an alert", () => {
+        expect(normalizeEarlyWarningResolutionNotes("")).toBeNull();
+        expect(normalizeEarlyWarningResolutionNotes("  \t  ")).toBeNull();
+        expect(normalizeEarlyWarningResolutionNotes("  Famille contactée  ")).toBe("Famille contactée");
+    });
+
+    it("enforces the backend 4000 character resolution limit", () => {
+        expect(normalizeEarlyWarningResolutionNotes("x".repeat(4000))).toHaveLength(4000);
+        expect(normalizeEarlyWarningResolutionNotes("x".repeat(4001))).toBeNull();
     });
 
     it("propagates a failed update so the UI cannot announce success", async () => {
