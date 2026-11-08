@@ -2168,9 +2168,9 @@ def _build_bulletin_v2(
         name = esc(str(g.get("subject_name") or "Matière inconnue"))
         key = (("id", str(g["subject_id"])) if g.get("subject_id")
                else ("name", name))
-        from app.services.grading import _validated_score_scale
+        from app.services.grading import _validated_coefficient, _validated_score_scale
         score, max_s = _validated_score_scale(g)
-        coeff = float(g.get("coefficient") or 1)
+        coeff = _validated_coefficient(g)
         if key not in by_subject:
             by_subject[key] = {"name": name, "scores": [], "coefficient": coeff, "max_score": max_s}
         if score is not None:
