@@ -298,3 +298,78 @@ def test_real_pg_parent_from_other_school_cannot_see_financial_totals(finance_sc
                          {"id": link_id})
             conn.execute(text("DELETE FROM users WHERE id = :id"),
                          {"id": parent})
+
+
+def test_finance_overview_under_non_bypassrls_role_and_parent_scope(finance_schools):
+    """Actual restricted SQL role + parent link, not just mocked tenant filters."""
+    from sqlalchemy.orm import Session
+
+    s = finance_schools
+    parent, link_id = _uuid(), _uuid()
+    role = "test_finance_rls_" + uuid4().hex[:12]
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO users
+                (id, tenant_id, email, username, is_active,
+                 first_name, last_name, created_at, updated_at)
+            VALUES (:id, :tid, :email, :username, true,
+                    'Parent', 'RLS', now(), now())
+        """), {"id": parent, "tid": s["a"],
+               "email": "fin-rls-" + parent[:8] + "@example.test",
+               "username": "fin-rls-" + parent[:8]})
+        conn.execute(text("""
+            INSERT INTO parent_students
+                (id, tenant_id, parent_id, student_id,
+                 created_at, updated_at)
+            VALUES (:id, :tid, :pid, :sid, now(), now())
+        """), {"id": link_id, "tid": s["a"], "pid": parent,
+               "sid": s["student_a"]})
+        # NOLOGIN is enough for SET ROLE testing; all queries run as a
+        # restricted, non-superuser role that cannot bypass row-level security.
+        conn.execute(text(f'CREATE ROLE "{role}" NOLOGIN NOSUPERUSER NOBYPASSRLS'))
+        conn.execute(text(f'GRANT USAGE ON SCHEMA public TO "{role}"'))
+        conn.execute(text(
+            f'GRANT SELECT ON invoices, payments, parent_students TO "{role}"'
+        ))
+
+    try:
+        for tenant, expected in (
+            (s["a"], {"total_invoices": 13, "paid_invoices": 10,
+                      "overdue_invoices": 1, "outstanding_amount": 180.0,
+                      "completed_payments": 2, "received_amount": 300.0}),
+            (s["b"], {"total_invoices": 0, "paid_invoices": 0,
+                      "overdue_invoices": 0, "outstanding_amount": 0.0,
+                      "completed_payments": 0, "received_amount": 0.0}),
+        ):
+            with engine.begin() as conn:
+                with Session(bind=conn) as db:
+                    # Initialize SQLAlchemy's transaction listener before
+                    # setting context: it defaults to no tenant otherwise.
+                    db.execute(text(f'SET LOCAL ROLE "{role}"'))
+                    db.execute(
+                        text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+                        {"tid": tenant},
+                    )
+                    assert db.execute(text("SELECT current_user")).scalar() == role
+                    with patch.object(api, "_get_tenant_id", return_value=tenant):
+                        result = api.finance_overview(
+                            _request(), db=db,
+                            current_user={"id": parent, "roles": ["PARENT"]},
+                        )
+                    assert result == expected
+
+        # No tenant context is fail-closed even for valid parent IDs.
+        with engine.begin() as conn:
+            with Session(bind=conn) as db:
+                db.execute(text(f'SET LOCAL ROLE "{role}"'))
+                db.execute(text("SELECT set_config('app.current_tenant_id', '', true)"))
+                assert db.execute(text("SELECT count(*) FROM invoices")).scalar() == 0
+                assert db.execute(text("SELECT count(*) FROM payments")).scalar() == 0
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f'REVOKE ALL ON invoices, payments, parent_students FROM "{role}"'))
+            conn.execute(text(f'REVOKE USAGE ON SCHEMA public FROM "{role}"'))
+            conn.execute(text(f'DROP ROLE "{role}"'))
+            conn.execute(text("DELETE FROM parent_students WHERE id = :id"),
+                         {"id": link_id})
+            conn.execute(text("DELETE FROM users WHERE id = :id"), {"id": parent})
