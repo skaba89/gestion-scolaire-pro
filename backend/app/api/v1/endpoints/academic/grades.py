@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
+from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import grade as crud_grade
 from app.schemas.grade import Grade, GradeCreate, GradeUpdate, GradeList
@@ -44,6 +45,40 @@ def _validate_grade_fks(db: Session, *, tenant_id: str, student_id=None, subject
         ), {"id": str(assessment_id), "tid": tenant_id}).first()
         if not exists:
             raise HTTPException(status_code=404, detail="Évaluation introuvable dans cet établissement")
+
+
+def _require_teacher_grade_write_scope(
+    db: Session, *, tenant_id: str, current_user: dict,
+    student_id: UUID, assessment_id: Optional[UUID],
+) -> None:
+    """Restrict non-privileged teachers to their assigned class/subject/roster.
+
+    A generic grades:write grant is not authorization to enter grades for
+    every child in the establishment. Assessments without a class and grades
+    without an assessment are administrator-only entry paths.
+    """
+    if not is_scoped_teacher(current_user):
+        return
+    if not assessment_id:
+        raise HTTPException(status_code=403, detail="Évaluation obligatoire pour un enseignant")
+    row = db.execute(text("""
+        SELECT a.class_id, a.subject_id
+          FROM assessments a
+          JOIN enrollments e
+            ON e.tenant_id = a.tenant_id
+           AND e.class_id = a.class_id
+           AND e.student_id = :student_id
+           AND UPPER(e.status) = 'ACTIVE'
+         WHERE a.id = :assessment_id
+           AND a.tenant_id = :tenant_id
+         LIMIT 1
+    """), {"student_id": str(student_id), "assessment_id": str(assessment_id),
+           "tenant_id": tenant_id}).mappings().first()
+    if not row or not teacher_teaches_class(
+        db, tenant_id=tenant_id, user_id=current_user.get("id"),
+        class_id=str(row["class_id"]), subject_id=str(row["subject_id"]) if row["subject_id"] else None,
+    ):
+        raise HTTPException(status_code=403, detail="Classe, matière ou élève non autorisé pour cet enseignant")
 
 
 def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_id: str) -> Optional[set]:
@@ -235,6 +270,11 @@ def create_grade(
         subject_id=grade.subject_id, assessment_id=grade.assessment_id,
     )
 
+    _require_teacher_grade_write_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_id=grade.student_id, assessment_id=grade.assessment_id,
+    )
+
     idem_key = request.headers.get("x-idempotency-key")
     request_body = grade.model_dump(mode="json")
     if idem_key:
@@ -368,6 +408,11 @@ def create_bulk_grades(
             )
         _validate_grade_fks(
             db, tenant_id=tenant_id, student_id=item.student_id, assessment_id=item.assessment_id,
+        )
+
+        _require_teacher_grade_write_scope(
+            db, tenant_id=tenant_id, current_user=current_user,
+            student_id=item.student_id, assessment_id=item.assessment_id,
         )
 
     created = []
