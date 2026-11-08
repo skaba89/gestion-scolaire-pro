@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchEarlyWarnings, updateEarlyWarning, normalizeEarlyWarningResolutionNotes } from "@/utils/earlyWarningsApi";
+import { fetchEarlyWarnings, updateEarlyWarning, normalizeEarlyWarningResolutionNotes, paginateEarlyWarningHistory } from "@/utils/earlyWarningsApi";
 import { CreateEarlyWarningDialog } from "@/components/admin/early-warnings/CreateEarlyWarningDialog";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ export default function EarlyWarnings() {
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const { data: alerts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["early-warnings", tenant?.id],
@@ -131,6 +132,7 @@ export default function EarlyWarnings() {
   const resolvedAlerts = alerts?.filter(a => ["resolved", "dismissed"].includes(a.status)) || [];
 
   const criticalCount = newAlerts.filter(a => a.severity === "critical").length;
+  const history = paginateEarlyWarningHistory(resolvedAlerts, historyPage);
 
   return (
     <div className="space-y-6">
@@ -345,7 +347,7 @@ export default function EarlyWarnings() {
 
         <TabsContent value="resolved" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {resolvedAlerts.slice(0, 12).map((alert: any) => (
+            {history.items.map((alert: any) => (
               <Card key={alert.id} className="opacity-75">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -367,6 +369,17 @@ export default function EarlyWarnings() {
               </Card>
             ))}
           </div>
+          {history.totalPages > 1 && (
+            <nav aria-label="Pagination des alertes clôturées" className="flex items-center justify-center gap-3 pt-3">
+              <Button variant="outline" size="sm" disabled={history.page <= 1}
+                onClick={() => setHistoryPage(history.page - 1)}>Précédent</Button>
+              <span className="text-sm text-muted-foreground" aria-live="polite">
+                Page {history.page} sur {history.totalPages}
+              </span>
+              <Button variant="outline" size="sm" disabled={history.page >= history.totalPages}
+                onClick={() => setHistoryPage(history.page + 1)}>Suivant</Button>
+            </nav>
+          )}
         </TabsContent>
       </Tabs>
 
