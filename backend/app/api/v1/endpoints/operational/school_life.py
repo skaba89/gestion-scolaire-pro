@@ -2906,7 +2906,7 @@ _CERTIFICATE_TITLES = {
 
 def _fetch_current_enrollment(db: Session, student_id: str, tenant_id: str) -> Optional[dict]:
     """Current-year classroom/level for one student, same "current academic
-    year" notion Certificates.tsx uses client-side (academic_years.is_current)."""
+    year" notion Certificates.tsx uses client-side (academic_years.is_current).\n    Bind UUIDs with GUID so SQLite CHAR(32) and PostgreSQL UUID both match."""
     row = db.execute(text("""
         SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
         FROM enrollments e
@@ -2920,7 +2920,9 @@ def _fetch_current_enrollment(db: Session, student_id: str, tenant_id: str) -> O
           AND ay.is_current = true AND e.status = 'ACTIVE'
         ORDER BY e.enrollment_date DESC NULLS LAST, e.created_at DESC
         LIMIT 1
-    """), {"sid": student_id, "tid": tenant_id}).mappings().first()
+    """).bindparams(
+        bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID()),
+    ), {"sid": student_id, "tid": tenant_id}).mappings().first()
     return dict(row) if row else None
 
 
