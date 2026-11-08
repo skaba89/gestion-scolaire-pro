@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { BarChart3, Receipt, FileText, CreditCard } from "lucide-react";
 import { financeQueries } from "@/queries/finance";
 
@@ -35,6 +36,8 @@ const Finances = () => {
     invoices,
     invoicesTotalCount: totalInvoices,
     isLoading: isLoadingFinances,
+    isError: isFinanceError,
+    retryFinancialReads,
     saveInvoice,
     isSavingInvoice,
     deleteInvoice,
@@ -97,6 +100,17 @@ const Finances = () => {
     setSelectedFee(fee);
     setFeeDialogOpen(true);
   };
+
+  if (tenant?.id && isFinanceError) {
+    return (
+      <div role="alert" className="space-y-3 p-6">
+        <h1 className="text-xl font-semibold">Données financières indisponibles</h1>
+        <p>Les factures ou paiements n'ont pas pu être chargés. Aucun solde ni compteur
+          financier ne peut être considéré comme fiable.</p>
+        <Button variant="outline" onClick={() => { void retryFinancialReads(); }}>Réessayer</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
