@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { parseInvoicesResponse } from "../utils/financeReadContracts";
 
 export const useInvoices = (tenantId?: string, options?: { page?: number; pageSize?: number }) => {
     const queryClient = useQueryClient();
@@ -18,19 +19,7 @@ export const useInvoices = (tenantId?: string, options?: { page?: number; pageSi
             const { data } = await apiClient.get("/payments/invoices/", {
                 params: { page, page_size: pageSize }
             });
-            // L'API renvoie { items, total } ; on tolère aussi les formes
-            // historiques { invoices, totalCount } et un tableau brut.
-            const list = Array.isArray(data?.items)
-                ? data.items
-                : Array.isArray(data?.invoices)
-                    ? data.invoices
-                    : Array.isArray(data)
-                        ? data
-                        : [];
-            return {
-                invoices: list,
-                totalCount: data?.total ?? data?.totalCount ?? list.length,
-            };
+            return parseInvoicesResponse(data);
         },
         enabled: !!tenantId,
     });
@@ -112,6 +101,9 @@ export const useInvoices = (tenantId?: string, options?: { page?: number; pageSi
         invoices: invoicesQuery.data?.invoices || [],
         totalCount: invoicesQuery.data?.totalCount || 0,
         isLoading: invoicesQuery.isLoading,
+        isError: invoicesQuery.isError,
+        error: invoicesQuery.error,
+        refetch: invoicesQuery.refetch,
         saveInvoice: saveInvoiceMutation.mutateAsync,
         isSaving: saveInvoiceMutation.isPending,
         deleteInvoice: deleteInvoiceMutation.mutateAsync,
