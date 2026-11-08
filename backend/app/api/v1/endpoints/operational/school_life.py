@@ -2032,7 +2032,7 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
     """Same shape/filtering as _fetch_grades_for_term (one INNER JOIN to
     assessments, so a grade without one is excluded exactly like the
     single-student path), batched across every actively enrolled student
-    in one classroom in a single query. Returns
+    in one classroom in a single query. A DISTINCT enrollment roster avoids\n    multiplying grade rows when duplicate active enrollment records exist. Returns
     {student_id: [ {subject_name, coefficient, score, max_score, comments}, ... ]}.
     """
     try:
@@ -2045,7 +2045,11 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
                 g.score,
                 g.max_score,
                 g.comments
-            FROM enrollments e
+            FROM (
+                SELECT DISTINCT student_id, tenant_id, class_id, academic_year_id, status
+                FROM enrollments
+                WHERE class_id = :cid AND tenant_id = :tid AND status = 'ACTIVE'
+            ) e
             JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
             JOIN students s ON s.id = e.student_id AND s.tenant_id = e.tenant_id
             JOIN grades g ON g.student_id = e.student_id AND g.tenant_id = e.tenant_id
