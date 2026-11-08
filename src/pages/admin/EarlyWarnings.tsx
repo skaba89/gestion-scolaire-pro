@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import { fetchEarlyWarnings, updateEarlyWarning } from "@/utils/earlyWarningsApi";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
@@ -44,26 +44,25 @@ export default function EarlyWarnings() {
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [resolutionNotes, setResolutionNotes] = useState("");
 
-  const { data: alerts, isLoading } = useQuery({
+  const { data: alerts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["early-warnings", tenant?.id],
-    queryFn: async () => {
-      try {
-        const { data } = await apiClient.get("/school-life/early-warnings/");
-        return data || [];
-      } catch { return []; }
-    },
+    queryFn: fetchEarlyWarnings,
     enabled: !!tenant?.id,
+    retry: false,
   });
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: any }) => {
-      await apiClient.put(`/school-life/early-warnings/${id}/`, updates);
+      await updateEarlyWarning(id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["early-warnings"] });
       setSelectedAlert(null);
       setResolutionNotes("");
       toast.success(t("earlyWarnings.alertUpdated"));
+    },
+    onError: () => {
+      toast.error("Impossible de mettre à jour l'alerte. Aucune modification confirmée.");
     },
   });
 
@@ -151,7 +150,26 @@ export default function EarlyWarnings() {
         )}
       </div>
 
-      {/* Stats */}
+      {isError && (
+        <Card role="alert" className="border-destructive/50">
+          <CardHeader>
+            <CardTitle>Alertes indisponibles</CardTitle>
+            <CardDescription>
+              Impossible de charger les alertes de cet établissement. Les compteurs
+              ne sont pas fiables tant que la connexion au service n'est pas rétablie.
+              {((error as any)?.response?.status === 404) &&
+                " Le service des alertes n'est pas disponible sur cette API."}
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button variant="outline" onClick={() => refetch()}>
+              Réessayer
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {!isError && !isLoading && (
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-red-500/50">
           <CardContent className="pt-6">
@@ -181,6 +199,9 @@ export default function EarlyWarnings() {
         </Card>
       </div>
 
+      )}
+
+      {!isError && !isLoading && (
       <Tabs defaultValue="new" className="space-y-4">
         <TabsList>
           <TabsTrigger value="new" className="relative">
@@ -331,6 +352,8 @@ export default function EarlyWarnings() {
           </div>
         </TabsContent>
       </Tabs>
+
+      )}
 
       {/* Resolution Dialog */}
       <Dialog open={!!selectedAlert} onOpenChange={() => setSelectedAlert(null)}>
