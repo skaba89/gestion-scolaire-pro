@@ -5,6 +5,7 @@ import { RevenueCharts } from "@/components/finances/RevenueCharts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { DollarSign, Clock, CheckCircle, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
 import { Invoice, Payment } from "../types";
+import type { FinanceOverview } from "../utils/financeOverviewApi";
 import { RevenueTrendChart } from "@/components/dashboard/widgets/RevenueTrendChart";
 import { DebtAgingChart } from "@/components/dashboard/widgets/DebtAgingChart";
 import { RevenueByCategoryChart } from "@/components/dashboard/widgets/RevenueByCategoryChart";
@@ -15,23 +16,21 @@ import { CashFlowForecastChart } from "@/components/admin/dashboard/CashFlowFore
 interface FinanceDashboardProps {
     invoices: Invoice[];
     payments: Payment[];
+    overview: FinanceOverview;
 }
 
-export const FinanceDashboard = ({ invoices, payments }: FinanceDashboardProps) => {
+export const FinanceDashboard = ({ invoices, payments, overview }: FinanceDashboardProps) => {
     const { tenant } = useTenant();
     const { currencyCode, formatCurrency } = useCurrency();
     const { forecasts, isLoading: isForecastLoading, generateForecast } = useCashFlowForecast(tenant?.id || "");
 
-    const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const totalPending = invoices.reduce((sum, inv) =>
-        inv.status !== "PAID" && inv.status !== "CANCELLED"
-            ? sum + (Number(inv.total_amount) - Number(inv.paid_amount || 0))
-            : sum
-        , 0);
-
+    // Totals come from the full tenant-scoped backend aggregate, never from
+    // the paginated invoice or payment lists visible in the tables.
+    const totalRevenue = overview.received_amount;
+    const totalPending = overview.outstanding_amount;
     const stats = {
-        paid: invoices.filter(i => i.status === "PAID").length,
-        overdue: invoices.filter(i => i.status === "OVERDUE").length,
+        paid: overview.paid_invoices,
+        overdue: overview.overdue_invoices,
     };
 
     return (
@@ -161,10 +160,13 @@ export const FinanceDashboard = ({ invoices, payments }: FinanceDashboardProps) 
                 <RevenueByCategoryChart />
             </div>
 
-            <RevenueCharts
-                payments={payments}
-                invoices={invoices}
-            />
+            <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                    Détail graphique limité aux lignes de la page actuellement chargée.
+                    Les indicateurs financiers globaux ci-dessus couvrent tout l'établissement.
+                </p>
+                <RevenueCharts payments={payments} invoices={invoices} />
+            </div>
         </div>
     );
 };
