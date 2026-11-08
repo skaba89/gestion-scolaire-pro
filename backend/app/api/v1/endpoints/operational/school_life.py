@@ -1861,7 +1861,7 @@ def _fetch_student_data(db, student_id: str, tenant_id: str) -> dict:
     return {"student": s_row, "tenant": t_row}
 
 
-def _fetch_grades_for_term(db, student_id: str, term_id: str, tenant_id: str) -> list:
+def _fetch_grades_for_term(db, student_id: str, term_id: str, tenant_id: str, classroom_id: Optional[str] = None) -> list:
     """Return list of {subject_name, coefficient, score, max_score, comments}.
 
     Fix (2026-08-22, found alongside the batch-endpoint N+1/rank fixes):
@@ -1890,9 +1890,10 @@ def _fetch_grades_for_term(db, student_id: str, term_id: str, tenant_id: str) ->
         WHERE g.student_id    = :sid
           AND g.tenant_id     = :tid
           AND a.term_id       = :term_id
+          AND (:cid IS NULL OR a.class_id IS NULL OR a.class_id = :cid)
         ORDER BY subj.name
-    """).bindparams(bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()))
-    rows = db.execute(stmt, {"sid": student_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
+    """).bindparams(bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()), bindparam("cid", type_=GUID()))
+    rows = db.execute(stmt, {"sid": student_id, "tid": tenant_id, "term_id": term_id, "cid": classroom_id}).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -2063,6 +2064,7 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
               AND e.academic_year_id = c.academic_year_id
               AND e.status     = 'ACTIVE'
               AND a.term_id    = :term_id
+              AND (a.class_id IS NULL OR a.class_id = e.class_id)
             ORDER BY e.student_id, subj.name
         """).bindparams(
             bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()),
@@ -2718,7 +2720,7 @@ def _build_report_card_html(db: Session, body: SmartReportCardRequest, tenant_id
     """), {"tid_term": body.term_id, "tid": tenant_id}).mappings().first()
 
     # Grades
-    grades = _fetch_grades_for_term(db, body.student_id, body.term_id, tenant_id)
+    grades = _fetch_grades_for_term(db, body.student_id, body.term_id, tenant_id, body.classroom_id)
     general_avg = _compute_average(grades)
 
     # Absences

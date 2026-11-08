@@ -48,8 +48,14 @@ test('parallel enrollment API requests create exactly one active enrollment', as
       headers: { Authorization: `Bearer ${tokenOf('admin')}` }, data: payload,
     }),
   ]);
-  expect(attempts.map(r => r.status()).sort(), 'Only one enrollment may succeed')
-    .toEqual([201, 409]);
+  const statuses = attempts.map(r => r.status());
+  // Both enrollment routes may legitimately use either 200 or 201 on
+  // creation. The contract is ONE success and ONE conflict, not a specific
+  // success status code.
+  expect(statuses.filter(code => code === 200 || code === 201),
+    'Exactly one enrollment request must succeed').toHaveLength(1);
+  expect(statuses.filter(code => code === 409),
+    'The competing request must be rejected as a duplicate').toHaveLength(1);
 
   const rosterResponse = await admin.get(`/enrollments/?class_id=${classId}`);
   expect(rosterResponse.status()).toBe(200);
