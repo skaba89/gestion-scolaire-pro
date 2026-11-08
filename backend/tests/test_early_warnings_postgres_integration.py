@@ -65,7 +65,7 @@ def school_records():
     # Tear down in dependency order without touching other test data.
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM audit_logs WHERE resource_type = 'EARLY_WARNING' AND tenant_id = :tid"), {"tid": tenant_a})
-        conn.execute(text("DELETE FROM early_warnings WHERE tenant_id = :tid"), {"tid": tenant_a})
+        conn.execute(text("DELETE FROM early_warnings WHERE tenant_id IN (:a, :b)"), {"a": tenant_a, "b": tenant_b})
         conn.execute(text("DELETE FROM users WHERE id = :id"), {"id": actor})
         conn.execute(text("DELETE FROM students WHERE id IN (:a, :b)"), {"a": student_a, "b": student_b})
         conn.execute(text("DELETE FROM tenants WHERE id IN (:a, :b)"), {"a": tenant_a, "b": tenant_b})
@@ -141,3 +141,75 @@ def test_real_pg_rejects_student_in_other_tenant(school_records):
         assert db.execute(text(
             "SELECT count(*) FROM early_warnings WHERE tenant_id = :tid"
         ), {"tid": s["tenant_a"]}).scalar() == 0
+
+
+def test_early_warnings_rls_with_non_bypass_runtime_role(school_records):
+    """Exercise PostgreSQL FORCE RLS, not merely explicit API tenant filters."""
+    from sqlalchemy.exc import DBAPIError
+
+    s = school_records
+    warning_a, warning_b = _id(), _id()
+    role = "test_early_warning_" + uuid4().hex[:12]
+    # This disposable role represents a production-like NOBYPASSRLS login.
+    # All DDL is scoped to the CI database and cleaned up even on failure.
+    with engine.begin() as conn:
+        for warning, student, tid in (
+            (warning_a, s["student_a"], s["tenant_a"]),
+            (warning_b, s["student_b"], s["tenant_b"]),
+        ):
+            conn.execute(text("""
+                INSERT INTO early_warnings
+                    (id, tenant_id, student_id, alert_type, severity, title,
+                     description, recommended_actions, status)
+                VALUES (:id, :tid, :sid, 'academic', 'high', 'Suivi',
+                        'Contrôle RLS', '[]', 'new')
+            """), {"id": warning, "tid": tid, "sid": student})
+        conn.execute(text(f'CREATE ROLE "{role}" NOLOGIN NOSUPERUSER NOBYPASSRLS'))
+        conn.execute(text(f'GRANT USAGE ON SCHEMA public TO "{role}"'))
+        conn.execute(text(f'GRANT SELECT, INSERT, UPDATE ON early_warnings TO "{role}"'))
+
+    try:
+        for tid, visible, hidden in (
+            (s["tenant_a"], warning_a, warning_b),
+            (s["tenant_b"], warning_b, warning_a),
+        ):
+            with engine.begin() as conn:
+                conn.execute(text(f'SET LOCAL ROLE "{role}"'))
+                conn.execute(
+                    text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+                    {"tid": tid},
+                )
+                found = conn.execute(text("SELECT id FROM early_warnings")).scalars().all()
+                assert [str(row) for row in found] == [visible]
+                blocked = conn.execute(
+                    text("UPDATE early_warnings SET title = 'INTRUSION' WHERE id = :id"),
+                    {"id": hidden},
+                )
+                assert blocked.rowcount == 0
+
+        # Fail closed if a tenant identifier is missing altogether.
+        with engine.begin() as conn:
+            conn.execute(text(f'SET LOCAL ROLE "{role}"'))
+            conn.execute(text("SELECT set_config('app.current_tenant_id', '', true)"))
+            assert conn.execute(text("SELECT count(*) FROM early_warnings")).scalar() == 0
+
+        # A real cross-tenant write must violate WITH CHECK under restricted role.
+        with pytest.raises(DBAPIError):
+            with engine.begin() as conn:
+                conn.execute(text(f'SET LOCAL ROLE "{role}"'))
+                conn.execute(
+                    text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+                    {"tid": s["tenant_a"]},
+                )
+                conn.execute(text("""
+                    INSERT INTO early_warnings
+                        (id, tenant_id, student_id, alert_type, severity,
+                         title, description, recommended_actions, status)
+                    VALUES (:id, :tid, :sid, 'academic', 'high',
+                            'Intrusion', 'Inter-tenant', '[]', 'new')
+                """), {"id": _id(), "tid": s["tenant_b"], "sid": s["student_b"]})
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f'REVOKE ALL ON early_warnings FROM "{role}"'))
+            conn.execute(text(f'REVOKE USAGE ON SCHEMA public FROM "{role}"'))
+            conn.execute(text(f'DROP ROLE "{role}"'))
