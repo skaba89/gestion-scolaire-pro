@@ -3009,6 +3009,37 @@ def _build_certificate_html(
     """
 
 
+def _authorize_certificate_teacher_scope(
+    current_user: dict, db: Session, tenant_id: str, student_id: str,
+) -> None:
+    """A teacher may issue a certificate only for a student on their roster.
+
+    Use ORM GUID columns instead of raw SQL to work on SQLite and PostgreSQL.
+    Historical enrollment records are included; the assignment itself must
+    still exist at issuance time. This guard does not alter family or
+    administrative ownership permissions.
+    """
+    if not is_scoped_teacher(current_user):
+        return
+
+    from app.models.enrollment import Enrollment
+
+    assigned_classes = db.query(Enrollment.class_id).filter(
+        Enrollment.tenant_id == tenant_id,
+        Enrollment.student_id == student_id,
+    ).distinct().all()
+    if not any(
+        teacher_teaches_class(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"),
+            class_id=str(class_id),
+        )
+        for (class_id,) in assigned_classes
+    ):
+        raise HTTPException(
+            status_code=403, detail="Attestation hors du périmètre de cet enseignant"
+        )
+
+
 @router.post("/generate-certificate/pdf/")
 def generate_certificate_pdf(
     request: Request,
@@ -3038,6 +3069,7 @@ def generate_certificate_pdf(
     # (the function's name predates this second use; the check itself is
     # generic to "does this caller own this student record").
     _authorize_report_card_access(current_user, db, tenant_id, body.student_id)
+    _authorize_certificate_teacher_scope(current_user, db, tenant_id, body.student_id)
 
     try:
         info = _fetch_student_data(db, body.student_id, tenant_id)
