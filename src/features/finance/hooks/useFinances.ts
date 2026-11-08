@@ -35,6 +35,9 @@ export const useFinances = (options?: UseFinancesOptions) => {
         invoices,
         totalCount: invoicesTotalCount,
         isLoading: isLoadingInvoices,
+        isError: isInvoicesError,
+        error: invoicesError,
+        refetch: refetchInvoices,
         saveInvoice,
         isSaving: isSavingInvoice,
         deleteInvoice,
@@ -45,6 +48,9 @@ export const useFinances = (options?: UseFinancesOptions) => {
     const {
         payments,
         isLoading: isLoadingPayments,
+        isError: isPaymentsError,
+        error: paymentsError,
+        refetch: refetchPayments,
         registerPayment,
         isRegistering: isRegisteringPayment,
         generateReference: generatePaymentReference,
@@ -81,6 +87,9 @@ export const useFinances = (options?: UseFinancesOptions) => {
 
         // Combined states
         isLoading: isLoadingInvoices || isLoadingPayments,
+        isError: isInvoicesError || isPaymentsError,
+        error: invoicesError ?? paymentsError,
+        retryFinancialReads: () => Promise.all([refetchInvoices(), refetchPayments()]),
 
         // Statistics
         stats,
