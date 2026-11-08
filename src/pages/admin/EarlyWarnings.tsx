@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchEarlyWarnings, updateEarlyWarning } from "@/utils/earlyWarningsApi";
-import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -37,7 +36,6 @@ import {
 
 export default function EarlyWarnings() {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const { tenant } = useTenant();
   const { studentsLabel } = useStudentLabel();
   const queryClient = useQueryClient();
@@ -71,8 +69,6 @@ export default function EarlyWarnings() {
       id,
       updates: {
         status: "acknowledged",
-        acknowledged_by: user?.id,
-        acknowledged_at: new Date().toISOString(),
       },
     });
   };
@@ -82,8 +78,6 @@ export default function EarlyWarnings() {
       id,
       updates: {
         status: "resolved",
-        resolved_by: user?.id,
-        resolved_at: new Date().toISOString(),
         resolution_notes: resolutionNotes,
       },
     });
