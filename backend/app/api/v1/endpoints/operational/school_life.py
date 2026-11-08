@@ -3282,11 +3282,20 @@ def _generate_batch_report_cards(
     # trips at end-of-term. Single-student callers elsewhere
     # (generate-report-card/v2/) are untouched — they still use the
     # original functions, no behavior change there.
-    grades_by_student = _fetch_grades_for_term_batch(db, classroom_id, term_id, tenant_id)
+    raw_grades_by_student = _fetch_grades_for_term_batch(db, classroom_id, term_id, tenant_id)
+    # SQLite stores GUIDs as 32-character hex while PostgreSQL returns UUID
+    # objects / dashed strings. Normalize both sides before computing ranks
+    # AND before displaying subject grades: otherwise batch bulletins can
+    # silently show no grades and an incorrect rank 0 on SQLite.
+    grades_by_student = {
+        str(UUID(str(student_id))): grades
+        for student_id, grades in raw_grades_by_student.items()
+    }
+    student_ids = [str(UUID(str(row["student_id"]))) for row in student_rows]
     # Rank from the same subject-weighted averages and term-filtered grades
     # printed on the report cards, not a second query with different maths.
     ranks_by_student = _rank_batch_from_bulletin_grades(
-        [str(row["student_id"]) for row in student_rows], grades_by_student,
+        student_ids, grades_by_student,
     )
     absences_by_student: dict = {}
     if term_row and term_row["start_date"] and term_row["end_date"]:
@@ -3297,7 +3306,7 @@ def _generate_batch_report_cards(
     html_parts: list[str] = []
 
     for s in student_rows:
-        sid = str(s["student_id"])
+        sid = str(UUID(str(s["student_id"])))
 
         grades = grades_by_student.get(sid, [])
         general_avg = _compute_average(grades)
