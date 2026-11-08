@@ -15,6 +15,27 @@ s'en aperçoive (voir test_crud_grade.py::TestGetStudentAverageWeighting
 et test_school_life.py pour la comparaison croisée).
 """
 from typing import Optional
+import math
+
+
+def _validated_score_scale(row: dict) -> tuple[Optional[float], float]:
+    """Reject corrupted grade scales before an official result is computed.
+
+    Missing scales retain the historical /20 default; an explicitly zero,
+    negative or non-finite scale is not missing and must never be silently
+    interpreted as /20. A non-finite/out-of-range score is also invalid.
+    """
+    raw_max = row.get("max_score")
+    maximum = 20.0 if raw_max is None else float(raw_max)
+    if not math.isfinite(maximum) or maximum <= 0:
+        raise ValueError("Le barème de la note doit être positif et fini")
+    raw_score = row.get("score")
+    if raw_score is None:
+        return None, maximum
+    score = float(raw_score)
+    if not math.isfinite(score) or not 0 <= score <= maximum:
+        raise ValueError("La note doit être comprise entre zéro et le barème")
+    return score, maximum
 
 
 def compute_weighted_average(grade_rows: list[dict]) -> Optional[float]:
@@ -44,13 +65,12 @@ def compute_weighted_average(grade_rows: list[dict]) -> Optional[float]:
         # concerne que les anciennes lignes sans identifiant de matière.
         key = (("id", str(g["subject_id"])) if g.get("subject_id")
                else ("name", name))
-        score = g.get("score")
-        max_s = float(g.get("max_score") or 20)
+        score, max_s = _validated_score_scale(g)
         coeff = float(g.get("coefficient") or 1)
         if key not in by_subject:
             by_subject[key] = {"scores": [], "coefficient": coeff}
         if score is not None:
-            by_subject[key]["scores"].append((float(score), max_s))
+            by_subject[key]["scores"].append((score, max_s))
 
     total_weighted = 0.0
     total_coeff = 0.0
@@ -92,13 +112,12 @@ def compute_ects_weighted_average(grade_rows: list[dict]) -> Optional[float]:
     for g in grade_rows:
         name = g.get("subject_name") or "Matière inconnue"
         key = str(g["subject_id"]) if g.get("subject_id") else name
-        score = g.get("score")
-        max_s = float(g.get("max_score") or 20)
+        score, max_s = _validated_score_scale(g)
         ects = float(g.get("ects") or 0)
         if key not in by_subject:
             by_subject[key] = {"scores": [], "ects": ects}
         if score is not None:
-            by_subject[key]["scores"].append((float(score), max_s))
+            by_subject[key]["scores"].append((score, max_s))
 
     total_weighted = 0.0
     total_ects = 0.0
