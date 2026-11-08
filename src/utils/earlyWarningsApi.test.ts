@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AxiosAdapter } from "axios";
 import { apiClient } from "@/api/client";
-import { fetchEarlyWarnings, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents, normalizeEarlyWarningResolutionNotes, paginateEarlyWarningHistory } from "./earlyWarningsApi";
+import { fetchEarlyWarnings, fetchEarlyWarningHistory, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents, normalizeEarlyWarningResolutionNotes, paginateEarlyWarningHistory } from "./earlyWarningsApi";
 
 const originalAdapter = apiClient.defaults.adapter;
 
@@ -121,6 +121,40 @@ describe("early warnings API contract", () => {
         expect(paginateEarlyWarningHistory([], 3)).toEqual({
             items: [], page: 1, totalPages: 1,
         });
+    });
+
+    it("requests the combined closed history with bounded server pagination", async () => {
+        const calls: Array<{ url?: string; params?: unknown }> = [];
+        apiClient.defaults.adapter = async config => {
+            calls.push({ url: config.url, params: config.params });
+            return {
+                status: 200, statusText: "OK", headers: {}, config,
+                data: { items: [{ id: "a1", status: "dismissed" }], total: 26, page: 2, page_size: 12, total_pages: 3 },
+            };
+        };
+        const result = await fetchEarlyWarningHistory(2);
+        expect(result.total).toBe(26);
+        expect(result.items[0].status).toBe("dismissed");
+        expect(calls).toEqual([{
+            url: "/school-life/early-warnings/paginated/",
+            params: { group: "closed", page: 2, page_size: 12 },
+        }]);
+    });
+
+    it("rejects malformed page response rather than displaying false totals", async () => {
+        mockApi(200, { items: [], total: 25, page: 1, page_size: 12 });
+        await expect(fetchEarlyWarningHistory(1)).rejects.toThrow("Format de pagination");
+    });
+
+    it("does not send invalid pagination parameters to the server", async () => {
+        apiClient.defaults.adapter = async () => { throw new Error("Unexpected request"); };
+        await expect(fetchEarlyWarningHistory(0)).rejects.toThrow("Paramètres de pagination");
+        await expect(fetchEarlyWarningHistory(1, 101)).rejects.toThrow("Paramètres de pagination");
+    });
+
+    it("propagates closed history request failure", async () => {
+        mockApi(403, { detail: "Forbidden" });
+        await expect(fetchEarlyWarningHistory(1)).rejects.toBeDefined();
     });
 
     it("propagates a failed update so the UI cannot announce success", async () => {
