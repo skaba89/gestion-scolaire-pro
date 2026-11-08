@@ -90,7 +90,7 @@ def finance_schools():
                 """), {"id": pid, "tid": tid, "sid": sid, "amount": amount,
                        "state": state, "today": date.today(),
                        "ref": "FIN-REAL-" + pid[:16]})
-    yield {"a": a, "b": b}
+    yield {"a": a, "b": b, "student_a": student_a, "student_b": student_b}
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM payments WHERE tenant_id IN (:a, :b)"),
                      {"a": a, "b": b})
@@ -142,3 +142,159 @@ def test_financial_overview_empty_school_returns_zeros_despite_other_school(fina
     finally:
         with engine.begin() as conn:
             conn.execute(text("DELETE FROM tenants WHERE id = :id"), {"id": tid})
+
+
+def test_real_pg_parent_sees_only_linked_child_within_same_school(finance_schools):
+    """A parent's totals must exclude other families in the same tenant."""
+    s = finance_schools
+    parent, unrelated_student, extra_invoice, extra_payment, link_id = (
+        _uuid() for _ in range(5)
+    )
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO users
+                (id, tenant_id, email, username, is_active,
+                 first_name, last_name, created_at, updated_at)
+            VALUES (:id, :tid, :email, :username, true,
+                    'Parent', 'Test', now(), now())
+        """), {
+            "id": parent, "tid": s["a"],
+            "email": "fin-parent-" + parent[:8] + "@example.test",
+            "username": "fin-parent-" + parent[:8],
+        })
+        conn.execute(text("""
+            INSERT INTO parent_students
+                (id, tenant_id, parent_id, student_id, is_primary,
+                 relation_type, created_at, updated_at)
+            VALUES (:id, :tid, :pid, :sid, true, 'MOTHER', now(), now())
+        """), {
+            "id": link_id, "tid": s["a"], "pid": parent,
+            "sid": s["student_a"],
+        })
+        # Second family shares tenant A, but has no relationship to this parent.
+        conn.execute(text("""
+            INSERT INTO students
+                (id, tenant_id, registration_number, first_name, last_name,
+                 date_of_birth, gender, created_at, updated_at)
+            VALUES (:sid, :tid, :reg, 'Autre', 'Famille',
+                    :birth, 'FEMALE', now(), now())
+        """), {
+            "sid": unrelated_student, "tid": s["a"],
+            "reg": "FO-" + unrelated_student[:8],
+            "birth": date(2011, 4, 3),
+        })
+        conn.execute(text("""
+            INSERT INTO invoices
+                (id, tenant_id, student_id, invoice_number, issue_date,
+                 due_date, subtotal, total_amount, paid_amount,
+                 status, items, created_at, updated_at)
+            VALUES (:id, :tid, :sid, :num, :today,
+                    :today, 30000, 30000, 0, 'OVERDUE', '[]', now(), now())
+        """), {
+            "id": extra_invoice, "tid": s["a"], "sid": unrelated_student,
+            "num": "FIN-" + extra_invoice[:12], "today": date.today(),
+        })
+        conn.execute(text("""
+            INSERT INTO payments
+                (id, tenant_id, student_id, amount, currency,
+                 payment_date, payment_method, status, reference,
+                 created_at, updated_at)
+            VALUES (:id, :tid, :sid, 40000, 'GNF',
+                    :today, 'CASH', 'COMPLETED', :ref, now(), now())
+        """), {
+            "id": extra_payment, "tid": s["a"], "sid": unrelated_student,
+            "today": date.today(), "ref": "FIN-REAL-" + extra_payment[:16],
+        })
+    try:
+        with SessionLocal() as db, patch.object(
+            api, "_get_tenant_id", return_value=s["a"]
+        ):
+            parent_overview = api.finance_overview(
+                _request(), db=db,
+                current_user={"id": parent, "roles": ["PARENT"]},
+            )
+            # School A has an extra invoice/payment for another family,
+            # but this parent sees only the previously seeded child A.
+            assert parent_overview == {
+                "total_invoices": 13,
+                "paid_invoices": 10,
+                "overdue_invoices": 1,
+                "outstanding_amount": 180.0,
+                "completed_payments": 2,
+                "received_amount": 300.0,
+            }
+
+            with_no_links = api.finance_overview(
+                _request(), db=db,
+                current_user={"id": _uuid(), "roles": ["PARENT"]},
+            )
+            assert set(with_no_links.values()) == {0}
+
+            school_manager = api.finance_overview(
+                _request(), db=db,
+                current_user={"id": parent, "roles": ["DIRECTOR"]},
+            )
+            assert school_manager == {
+                "total_invoices": 14,
+                "paid_invoices": 10,
+                "overdue_invoices": 2,
+                "outstanding_amount": 30180.0,
+                "completed_payments": 3,
+                "received_amount": 40300.0,
+            }
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM payments WHERE id = :id"),
+                         {"id": extra_payment})
+            conn.execute(text("DELETE FROM invoices WHERE id = :id"),
+                         {"id": extra_invoice})
+            conn.execute(text("DELETE FROM parent_students WHERE id = :id"),
+                         {"id": link_id})
+            conn.execute(text("DELETE FROM users WHERE id = :id"),
+                         {"id": parent})
+            conn.execute(text("DELETE FROM students WHERE id = :id"),
+                         {"id": unrelated_student})
+
+
+def test_real_pg_parent_from_other_school_cannot_see_financial_totals(finance_schools):
+    """Same parent role on tenant B must not inherit a tenant-A link."""
+    s = finance_schools
+    parent, link_id = _uuid(), _uuid()
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO users
+                (id, tenant_id, email, username, is_active,
+                 first_name, last_name, created_at, updated_at)
+            VALUES (:id, :tid, :email, :username, true,
+                    'Parent', 'Autre', now(), now())
+        """), {
+            "id": parent, "tid": s["a"],
+            "email": "fin-parent-" + parent[:8] + "@example.test",
+            "username": "fin-parent-" + parent[:8],
+        })
+        conn.execute(text("""
+            INSERT INTO parent_students
+                (id, tenant_id, parent_id, student_id, created_at, updated_at)
+            VALUES (:id, :tid, :pid, :sid, now(), now())
+        """), {"id": link_id, "tid": s["a"], "pid": parent,
+               "sid": s["student_a"]})
+    try:
+        with SessionLocal() as db:
+            with patch.object(api, "_get_tenant_id", return_value=s["a"]):
+                own = api.finance_overview(
+                    _request(), db=db,
+                    current_user={"id": parent, "roles": ["PARENT"]},
+                )
+            with patch.object(api, "_get_tenant_id", return_value=s["b"]):
+                other = api.finance_overview(
+                    _request(), db=db,
+                    current_user={"id": parent, "roles": ["PARENT"]},
+                )
+            assert own["total_invoices"] == 13
+            assert set(other.values()) == {0}
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM parent_students WHERE id = :id"),
+                         {"id": link_id})
+            conn.execute(text("DELETE FROM users WHERE id = :id"),
+                         {"id": parent})
