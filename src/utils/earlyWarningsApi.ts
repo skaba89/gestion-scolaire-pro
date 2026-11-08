@@ -9,6 +9,34 @@ export async function fetchEarlyWarnings(): Promise<any[]> {
     return data;
 }
 
+export interface PaginatedEarlyWarnings {
+    items: any[];
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+}
+
+/** Closed history is retrieved in bounded pages, without hiding dismissed alerts. */
+export async function fetchEarlyWarningHistory(page: number, pageSize = 12): Promise<PaginatedEarlyWarnings> {
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+        throw new Error("Paramètres de pagination invalides");
+    }
+    const { data } = await apiClient.get("/school-life/early-warnings/paginated/", {
+        params: { group: "closed", page, page_size: pageSize },
+    });
+    if (
+        !data || !Array.isArray(data.items) ||
+        !Number.isInteger(data.total) || data.total < 0 ||
+        !Number.isInteger(data.page) || data.page !== page ||
+        !Number.isInteger(data.page_size) || data.page_size !== pageSize ||
+        !Number.isInteger(data.total_pages) || data.total_pages < 0
+    ) {
+        throw new Error("Format de pagination des alertes invalide");
+    }
+    return data;
+}
+
 export async function updateEarlyWarning(
     id: string,
     updates: Record<string, unknown>,
