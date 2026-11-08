@@ -151,6 +151,30 @@ class TestCertificatePdfChecksLogoAndSignatureUrlsBeforeFetching:
     def test_malicious_logo_and_signature_urls_are_passed_through_the_ssrf_guard(self):
         tenant_id = _make_tenant_with_malicious_logo()
         student_id = _make_student(tenant_id, reg="REG-CERT-SSRF-1")
+        # Seed a genuine current enrollment so the PDF renderer and SSRF
+        # fetch guard are actually exercised on PostgreSQL, not skipped.
+        from app.models.academic_year import AcademicYear
+        from app.models.classroom import Classroom
+        from app.models.enrollment import Enrollment
+        from app.models.term import Term
+        year_id, classroom_id = str(uuid.uuid4()), str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(AcademicYear(
+                id=year_id, tenant_id=tenant_id, name="2026-2027",
+                code="2026-2027", start_date=date(2026, 9, 1),
+                end_date=date(2027, 6, 30), is_current=True,
+            ))
+            db.commit()
+            db.add(Classroom(
+                id=classroom_id, tenant_id=tenant_id,
+                name="Première", academic_year_id=year_id,
+            ))
+            db.add(Enrollment(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                student_id=student_id, class_id=classroom_id,
+                academic_year_id=year_id, status="ACTIVE",
+            ))
+            db.commit()
         staff_user = {"id": str(uuid.uuid4()), "roles": ["SECRETARY"], "tenant_id": tenant_id}
         payload = {"student_id": student_id, "certificate_type": "enrollment"}
 

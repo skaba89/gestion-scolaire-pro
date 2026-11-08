@@ -2864,10 +2864,14 @@ def _fetch_current_enrollment(db: Session, student_id: str, tenant_id: str) -> O
         SELECT c.name AS class_name, l.name AS level_name, ay.name AS year_name
         FROM enrollments e
         JOIN classes c ON e.class_id = c.id
-        LEFT JOIN levels l ON c.level_id = l.id
+           AND c.tenant_id = e.tenant_id
+           AND (c.academic_year_id IS NULL OR c.academic_year_id = e.academic_year_id)
+        LEFT JOIN levels l ON c.level_id = l.id AND l.tenant_id = e.tenant_id
         JOIN academic_years ay ON e.academic_year_id = ay.id
-        WHERE e.student_id = :sid AND e.tenant_id = :tid AND ay.is_current = true
-        ORDER BY e.enrollment_date DESC
+           AND ay.tenant_id = e.tenant_id
+        WHERE e.student_id = :sid AND e.tenant_id = :tid
+          AND ay.is_current = true AND e.status = 'ACTIVE'
+        ORDER BY e.enrollment_date DESC NULLS LAST, e.created_at DESC
         LIMIT 1
     """), {"sid": student_id, "tid": tenant_id}).mappings().first()
     return dict(row) if row else None
@@ -3077,7 +3081,14 @@ def generate_certificate_pdf(
         if not s:
             raise HTTPException(status_code=404, detail="Élève introuvable")
 
-        enrollment = _fetch_current_enrollment(db, body.student_id, tenant_id) or {}
+        enrollment = _fetch_current_enrollment(db, body.student_id, tenant_id)
+        # An official attestation must not certify current schooling for a
+        # student who has no active enrollment in the current academic year.
+        # Historical proof requires a separate, explicitly dated workflow.
+        if not enrollment:
+            raise HTTPException(
+                status_code=404, detail="Aucune inscription active pour l'année scolaire en cours"
+            )
 
         dob = s.get("date_of_birth")
         dob_str = dob.strftime("%d/%m/%Y") if dob and hasattr(dob, "strftime") else (str(dob) if dob else "")
