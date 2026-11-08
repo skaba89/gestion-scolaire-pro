@@ -2047,8 +2047,12 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
                 g.comments
             FROM enrollments e
             JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
+            JOIN students s ON s.id = e.student_id AND s.tenant_id = e.tenant_id
             JOIN grades g ON g.student_id = e.student_id AND g.tenant_id = e.tenant_id
             JOIN assessments a ON g.assessment_id = a.id AND a.tenant_id = e.tenant_id
+            JOIN terms t ON t.id = a.term_id AND t.tenant_id = e.tenant_id
+                AND t.academic_year_id = e.academic_year_id
+                AND (a.academic_year_id IS NULL OR a.academic_year_id = t.academic_year_id)
             LEFT JOIN subjects subj ON a.subject_id = subj.id AND subj.tenant_id = e.tenant_id
             WHERE e.class_id   = :cid
               AND e.tenant_id  = :tid
