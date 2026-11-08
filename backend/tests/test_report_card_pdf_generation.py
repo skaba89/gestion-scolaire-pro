@@ -139,9 +139,9 @@ class TestReportCardPdfGeneration:
     def test_authorized_role_gets_a_real_pdf_file(self):
         tenant_id = _make_tenant()
         student_id = _make_student(tenant_id, reg="REG-PDF-1")
-        teacher_user = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id}
+        director_user = {"id": str(uuid.uuid4()), "roles": ["DIRECTOR"], "tenant_id": tenant_id}
 
-        resp = _as(teacher_user).post(PDF_URL, json=_payload(student_id), headers=HEADERS)
+        resp = _as(director_user).post(PDF_URL, json=_payload(student_id), headers=HEADERS)
         # 404 is an acceptable outcome on SQLite only — see module docstring
         # (_fetch_student_data's raw-SQL tenant_id comparison never matches
         # there). The real assertion is the CI Postgres job.
@@ -167,7 +167,7 @@ class TestReportCardPdfGeneration:
 
     def test_unknown_student_returns_404_not_a_broken_pdf(self):
         tenant_id = _make_tenant()
-        teacher_user = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id}
+        director_user = {"id": str(uuid.uuid4()), "roles": ["DIRECTOR"], "tenant_id": tenant_id}
 
-        resp = _as(teacher_user).post(PDF_URL, json=_payload(str(uuid.uuid4())), headers=HEADERS)
+        resp = _as(director_user).post(PDF_URL, json=_payload(str(uuid.uuid4())), headers=HEADERS)
         assert resp.status_code == 404, resp.text
