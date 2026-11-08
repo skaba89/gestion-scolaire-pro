@@ -2618,7 +2618,12 @@ def _authorize_report_card_access(
     roles = set(current_user.get("roles", []))
     privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
                           "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
-    if not privileged and roles & {"STUDENT", "PARENT"}:
+    if not privileged:
+        # ALUMNI has grades:read but must never access another pupil's
+        # bulletin. Unknown future roles granted grades:read also fail
+        # closed unless explicitly mapped to a student/parent relationship.
+        if not (roles & {"STUDENT", "PARENT", "ALUMNI"}):
+            raise HTTPException(status_code=403, detail="Accès refusé à ce bulletin")
         # ORM queries (not raw text() SQL) so the GUID TypeDecorator handles
         # the SQLite-hex-vs-Postgres-native-UUID storage difference
         # transparently on both bind and result — a raw text() query
@@ -2626,7 +2631,7 @@ def _authorize_report_card_access(
         # SQLite, even for a legitimate owner.
         user_id = current_user.get("id")
         allowed_ids: set[str] = set()
-        if "STUDENT" in roles:
+        if roles & {"STUDENT", "ALUMNI"}:
             own_email = db.query(UserModel.email).filter(UserModel.id == user_id).scalar()
             # A user without an email must NOT match every student whose
             # email is NULL (common for newly enrolled minors). Null-equality
@@ -2645,7 +2650,10 @@ def _authorize_report_card_access(
                 ParentStudentModel.parent_id == user_id,
             ).all()
             allowed_ids.update(str(r[0]) for r in rows)
-        if str(student_id) not in allowed_ids:
+        # GUID storage differs between SQLite (hex) and PostgreSQL (UUID).
+        # Canonicalize both the requested ID and the authorized ID list.
+        allowed_ids = {str(UUID(str(value))) for value in allowed_ids}
+        if str(UUID(str(student_id))) not in allowed_ids:
             raise HTTPException(status_code=403, detail="Accès refusé à ce bulletin")
 
 
