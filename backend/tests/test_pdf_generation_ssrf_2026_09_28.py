@@ -94,18 +94,47 @@ class TestReportCardPdfChecksLogoUrlBeforeFetching:
     def test_malicious_logo_url_is_passed_through_the_ssrf_guard(self):
         tenant_id = _make_tenant_with_malicious_logo()
         student_id = _make_student(tenant_id, reg="REG-PDF-SSRF-1")
-        teacher_user = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id}
+        # SSRF wiring is independent of teaching assignments. A director is
+        # legitimately allowed to issue official PDFs for the school.
+        director_user = {"id": str(uuid.uuid4()), "roles": ["DIRECTOR"], "tenant_id": tenant_id}
+        from app.models.academic_year import AcademicYear
+        from app.models.classroom import Classroom
+        from app.models.enrollment import Enrollment
+        from app.models.term import Term
+        year_id, classroom_id, term_id = (str(uuid.uuid4()) for _ in range(3))
+        with SessionLocal() as db:
+            db.add(AcademicYear(
+                id=year_id, tenant_id=tenant_id, name="2026-2027",
+                code="2026-2027", start_date=date(2026, 9, 1),
+                end_date=date(2027, 6, 30), is_current=True,
+            ))
+            db.commit()
+            db.add(Classroom(
+                id=classroom_id, tenant_id=tenant_id,
+                name="Secondaire", academic_year_id=year_id,
+            ))
+            db.add(Term(
+                id=term_id, tenant_id=tenant_id, academic_year_id=year_id,
+                name="Semestre 1", start_date=date(2026, 9, 1),
+                end_date=date(2027, 1, 31), sequence_number=1,
+            ))
+            db.add(Enrollment(
+                id=str(uuid.uuid4()), tenant_id=tenant_id,
+                student_id=student_id, class_id=classroom_id,
+                academic_year_id=year_id, status="ACTIVE",
+            ))
+            db.commit()
         payload = {
             "student_id": student_id,
-            "term_id": str(uuid.uuid4()),
-            "classroom_id": str(uuid.uuid4()),
+            "term_id": term_id,
+            "classroom_id": classroom_id,
         }
 
         with patch.object(
             ssrf_protection, "assert_safe_external_url",
             wraps=ssrf_protection.assert_safe_external_url,
         ) as spy:
-            resp = _as(teacher_user).post(REPORT_CARD_PDF_URL, json=payload, headers=HEADERS)
+            resp = _as(director_user).post(REPORT_CARD_PDF_URL, json=payload, headers=HEADERS)
 
         # 404 is an acceptable outcome on SQLite only — see module
         # docstring. When the endpoint does reach PDF rendering, the SSRF

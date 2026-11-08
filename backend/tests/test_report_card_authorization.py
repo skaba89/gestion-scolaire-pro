@@ -171,10 +171,17 @@ class TestV2LegitimateAccessKeepsWorking:
         resp = _as(parent_user).post(V2_URL, json=_v2_payload(child_id), headers=HEADERS)
         assert resp.status_code in (200, 404), resp.text
 
-    def test_teacher_can_target_any_students_report_card(self):
+    def test_teacher_cannot_target_students_outside_assigned_class(self):
+        """An unassigned teacher must receive 403 before bulletin rendering."""
         tenant_id = _make_tenant()
         other_student_id = _make_student(tenant_id, reg="REG-CLASS-1")
         teacher_user = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id}
 
-        resp = _as(teacher_user).post(V2_URL, json=_v2_payload(other_student_id), headers=HEADERS)
-        assert resp.status_code in (200, 404), resp.text
+        from unittest.mock import patch
+        from app.api.v1.endpoints.operational import school_life
+
+        # This test's minimal SQLite fixture does not provision the teacher
+        # assignment tables: fake the assignment lookup, not authorization.
+        with patch.object(school_life, "teacher_teaches_class", return_value=False):
+            resp = _as(teacher_user).post(V2_URL, json=_v2_payload(other_student_id), headers=HEADERS)
+        assert resp.status_code == 403, resp.text
