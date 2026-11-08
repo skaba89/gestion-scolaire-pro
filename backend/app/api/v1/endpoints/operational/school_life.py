@@ -3229,6 +3229,12 @@ async def generate_batch_report_cards(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
+    # A full-class official bulletin contains grades from all subjects,
+    # not only the subject(s) assigned to a teacher. Do not allow an
+    # unprivileged TEACHER with generic grades:write to export the class.
+    if is_scoped_teacher(current_user):
+        raise HTTPException(status_code=403, detail="Génération groupée réservée à l'administration")
+
     job_id = _job_started(
         "generate_report_cards_batch", tenant_id,
         {"classroom_id": body.classroom_id, "term_id": body.term_id, "user_id": current_user.get("id")},
@@ -3277,8 +3283,16 @@ def get_school_life_job_status(
     this router's jobs use a different permission scope: grades:write,
     not students:write)."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    job = db.query(Job).filter(Job.id == job_id).first()
-    if not job or (job.tenant_id and str(job.tenant_id) != tenant_id):
+    if is_scoped_teacher(current_user):
+        raise HTTPException(status_code=403, detail="Résultats groupés réservés à l'administration")
+    # Never expose platform-scoped jobs (tenant_id NULL), unrelated jobs,
+    # or another school's results via a known/guessed job identifier.
+    job = db.query(Job).filter(
+        Job.id == job_id,
+        Job.tenant_id == tenant_id,
+        Job.job_type == "generate_report_cards_batch",
+    ).first()
+    if not job:
         raise HTTPException(status_code=404, detail="Job introuvable")
 
     return {
