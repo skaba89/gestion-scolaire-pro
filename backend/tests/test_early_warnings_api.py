@@ -278,3 +278,36 @@ def test_paginated_listing_empty_page_preserves_true_total():
     sql, params = db.execute.call_args_list[1].args
     assert "w.status = :status" not in str(sql)
     assert params["offset"] == 3
+
+
+def test_closed_history_group_is_filtered_in_both_count_and_page_queries():
+    db = MagicMock()
+    db.execute.side_effect = [
+        MagicMock(scalar_one=lambda: 25),
+        MagicMock(mappings=lambda: MagicMock(all=lambda: [])),
+    ]
+    with patch.object(api, "resolve_current_tenant_id", return_value=uuid4()):
+        result = api.list_early_warnings_paginated(
+            request=request(), page=2, page_size=12, status=None, group="closed",
+            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+        )
+    assert result["total"] == 25
+    assert result["total_pages"] == 3
+    for call in db.execute.call_args_list:
+        sql, params = call.args
+        assert "w.tenant_id = :tid" in str(sql)
+        assert "w.status IN ('resolved', 'dismissed')" in str(sql)
+        assert "status" not in params
+    assert db.execute.call_args_list[1].args[1]["offset"] == 12
+
+
+def test_rejects_conflicting_group_and_status_filters_before_querying():
+    db = MagicMock()
+    with patch.object(api, "resolve_current_tenant_id", return_value=uuid4()):
+        with pytest.raises(HTTPException) as exc:
+            api.list_early_warnings_paginated(
+                request=request(), page=1, page_size=12, status="resolved", group="closed",
+                db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            )
+    assert exc.value.status_code == 422
+    db.execute.assert_not_called()
