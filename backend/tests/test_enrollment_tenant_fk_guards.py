@@ -18,8 +18,10 @@ def _db(student_exists=True, classroom_exists=True, year_exists=True, class_year
     classroom = (
         SimpleNamespace(academic_year_id=class_year) if classroom_exists else None
     )
+    db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = (
+        (uuid4(),) if student_exists else None
+    )
     db.query.return_value.filter.return_value.first.side_effect = [
-        (uuid4(),) if student_exists else None,
         classroom,
         (uuid4(),) if year_exists else None,
     ]
@@ -54,4 +56,18 @@ def test_enrollment_rejects_class_from_incompatible_academic_year():
     with pytest.raises(ValueError, match="autre année académique"):
         create_enrollment(db, request, tenant)
     db.add.assert_not_called()
+    db.commit.assert_not_called()
+
+
+def test_create_enrollment_locks_student_before_validating_classroom():
+    """The row lock must happen before duplicate ACTIVE enrollment checks."""
+    student, classroom, year, tenant = _ids()
+    db = _db(classroom_exists=False)
+    request = EnrollmentCreate(
+        student_id=student, class_id=classroom, academic_year_id=year,
+    )
+    with pytest.raises(ValueError, match="Classe introuvable"):
+        create_enrollment(db, request, tenant)
+    db.query.return_value.filter.return_value.with_for_update.assert_called_once_with()
+    assert db.query.return_value.filter.return_value.first.call_count == 1
     db.commit.assert_not_called()
