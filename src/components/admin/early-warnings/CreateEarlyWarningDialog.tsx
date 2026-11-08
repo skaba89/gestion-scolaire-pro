@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,7 @@ export function CreateEarlyWarningDialog({
         if (!value) reset();
     }
 
-    function submit(e: React.FormEvent<HTMLFormElement>) {
+    function submit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
         if (!studentId || !title.trim() || !description.trim()) {
             toast.error("Sélectionnez un élève, un titre et une description.");
