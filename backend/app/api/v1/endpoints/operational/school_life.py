@@ -2160,19 +2160,25 @@ def _build_bulletin_v2(
     now_str = datetime.now().strftime("%d/%m/%Y")
 
     # ── Subject rows ──────────────────────────────────────────────────────────
-    by_subject: Dict[str, Dict] = {}
+    # Match the shared weighted-average algorithm: subject_id is the stable
+    # identity. Distinct subjects may share a displayed name and must not
+    # silently merge into one row with a misleading coefficient.
+    by_subject: Dict[tuple[str, str], Dict] = {}
     for g in grades:
-        name = esc(str(g.get("subject_name", "Matière inconnue")))
+        name = esc(str(g.get("subject_name") or "Matière inconnue"))
+        key = (("id", str(g["subject_id"])) if g.get("subject_id")
+               else ("name", name))
         score = g.get("score")
         max_s = float(g.get("max_score") or 20)
         coeff = float(g.get("coefficient") or 1)
-        if name not in by_subject:
-            by_subject[name] = {"scores": [], "coefficient": coeff, "max_score": max_s}
+        if key not in by_subject:
+            by_subject[key] = {"name": name, "scores": [], "coefficient": coeff, "max_score": max_s}
         if score is not None:
-            by_subject[name]["scores"].append((float(score), max_s))
+            by_subject[key]["scores"].append((float(score), max_s))
 
     subject_rows_html = ""
-    for subj_name, data in by_subject.items():
+    for data in by_subject.values():
+        subj_name = data["name"]
         scores = data["scores"]
         coeff = data["coefficient"]
         max_s = data["max_score"]
