@@ -12,7 +12,8 @@ import {
   MessageSquare,
   Home,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  CalendarCheck
 } from "lucide-react";
 import { ChatBot } from "@/components/chat/ChatBot";
 import { ResponsiveSidebar } from "@/components/layouts/ResponsiveSidebar";
@@ -38,6 +39,7 @@ export const ParentLayout = () => {
     { href: getTenantUrl("/parent/report-cards"), label: "Bulletins", icon: FileText },
     { href: getTenantUrl("/parent/invoices"), label: "Factures", icon: CreditCard },
     { href: getTenantUrl("/parent/messages"), label: "Messages", icon: MessageSquare },
+    { href: getTenantUrl("/parent/appointments"), label: "Rendez-vous", icon: CalendarCheck },
   ];
 
   const mobileNavItems = [

@@ -12,7 +12,8 @@ import {
   ClipboardCheck,
   MessageSquare,
   BookOpen,
-  QrCode
+  QrCode,
+  CalendarCheck
 } from "lucide-react";
 import { ChatBot } from "@/components/chat/ChatBot";
 import { ResponsiveSidebar } from "@/components/layouts/ResponsiveSidebar";
@@ -38,6 +39,7 @@ export const TeacherLayout = () => {
     { href: getTenantUrl("/teacher/session-attendance"), label: "Badges", icon: QrCode },
     { href: getTenantUrl("/teacher/homework"), label: "Devoirs", icon: BookOpen },
     { href: getTenantUrl("/teacher/messages"), label: "Messages", icon: MessageSquare },
+    { href: getTenantUrl("/teacher/appointment-slots"), label: "Créneaux de rendez-vous", icon: CalendarCheck },
   ];
 
   const mobileNavItems = [
