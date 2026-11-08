@@ -31,6 +31,50 @@ test.describe('Isolation entre établissements', () => {
     expect((await forced.json()).items.filter((s: { id: string }) => ulsIds.has(s.id))).toEqual([]);
   });
 
+  test("l'admin témoin ne peut modifier ni supprimer un étudiant d'un autre établissement", async ({ request }) => {
+    const uls = api(request, 'admin');
+    const witnessToken = tokenOf('witness');
+    const initial = await uls.get('/students/?page_size=100');
+    expect(initial.status()).toBe(200);
+    const students = (await initial.json()).items as Array<{
+      id: string; first_name: string; last_name: string; registration_number: string;
+    }>;
+    expect(students.length).toBeGreaterThan(0);
+    const target = students[0];
+
+    // Both write paths must fail before any mutation under real NOBYPASSRLS.
+    for (const method of ['PATCH', 'PUT'] as const) {
+      const response = await request.fetch(`${API}/students/${target.id}/`, {
+        method,
+        headers: { Authorization: `Bearer ${witnessToken}` },
+        data: { first_name: 'Intrusion', last_name: 'Inter-tenant' },
+      });
+      expect(response.status()).toBe(404);
+    }
+    const removed = await request.delete(`${API}/students/${target.id}/`, {
+      headers: { Authorization: `Bearer ${witnessToken}` },
+    });
+    expect(removed.status()).toBe(404);
+
+    // Forcing X-Tenant-ID must never grant access to the other school.
+    const forced = await request.patch(`${API}/students/${target.id}/`, {
+      headers: {
+        Authorization: `Bearer ${witnessToken}`,
+        'X-Tenant-ID': credentials().uls.id,
+      },
+      data: { first_name: 'Intrusion' },
+    });
+    expect(forced.status()).toBe(404);
+
+    // Assert unchanged authoritative record using the genuine owning account.
+    const after = await uls.get(`/students/${target.id}/`);
+    expect(after.status()).toBe(200);
+    const student = await after.json();
+    expect(student.first_name).toBe(target.first_name);
+    expect(student.last_name).toBe(target.last_name);
+    expect(student.registration_number).toBe(target.registration_number);
+  });
+
   test('il ne peut ni lire ni modifier la fiche de l\'Université La Source', async ({ request }) => {
     const ulsId = credentials().uls.id;
     const headers = { Authorization: `Bearer ${tokenOf('witness')}` };
