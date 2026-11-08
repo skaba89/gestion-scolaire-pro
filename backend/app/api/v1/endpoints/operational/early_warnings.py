@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -103,6 +103,46 @@ def list_early_warnings(
         WHERE w.tenant_id = :tid ORDER BY w.created_at DESC, w.id
     """), {"tid": tenant_id}).mappings().all()
     return [_row_to_response(row) for row in rows]
+
+
+
+@router.get("/paginated/")
+def list_early_warnings_paginated(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    status: Status | None = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("analytics:read")),
+):
+    """Bounded tenant-scoped listing; legacy unpaged endpoint remains unchanged.
+
+    Status is Pydantic-validated and all SQL values are bound parameters.
+    The frontend must migrate explicitly before the unpaged API is retired.
+    """
+    _management_only(current_user)
+    tenant_id = _tenant(request, current_user, db)
+    where = " WHERE w.tenant_id = :tid"
+    params: dict = {"tid": tenant_id}
+    if status is not None:
+        where += " AND w.status = :status"
+        params["status"] = status
+
+    total = db.execute(
+        text("SELECT COUNT(*) FROM early_warnings w" + where), params
+    ).scalar_one()
+    offset = (page - 1) * page_size
+    rows = db.execute(
+        text(_SELECT + where + " ORDER BY w.created_at DESC, w.id DESC LIMIT :limit OFFSET :offset"),
+        {**params, "limit": page_size, "offset": offset},
+    ).mappings().all()
+    return {
+        "items": [_row_to_response(row) for row in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
 
 
 @router.post("/", status_code=201)
