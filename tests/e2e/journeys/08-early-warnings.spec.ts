@@ -20,6 +20,8 @@ test.describe.serial('Alertes précoces — direction scolaire', () => {
     };
 
     await page.goto(ulsUrl('/admin'));
+    // The student-life section is collapsed by default on desktop.
+    await page.getByRole('button', { name: /Vie Étudiante|Vie scolaire/i }).click();
     const link = page.getByRole('link', { name: 'Alertes précoces' });
     await expect(link).toBeVisible();
     await link.click();
