@@ -32,6 +32,12 @@ describe('appointment routes are reachable through role navigation', () => {
       path: '/admin/incidents',
       leaf: 'incidents',
     },
+    {
+      route: 'src/routes/AdminRoutes.tsx',
+      layout: 'src/components/layouts/AdminLayout.tsx',
+      path: '/admin/surveys',
+      leaf: 'surveys',
+    },
   ];
 
   it.each(cases)('$path is registered and linked in its sidebar', ({ route, layout, path, leaf }) => {
@@ -45,5 +51,6 @@ describe('appointment routes are reachable through role navigation', () => {
     const adminNav = readFileSync(resolve(process.cwd(), 'src/components/layouts/AdminLayout.tsx'), 'utf8');
     expect(adminNav).toContain('getTenantUrl("/admin/incidents"), label: "Incidents", icon: Shield, permission: "tenant:manage"');
     expect(adminNav).toContain('getTenantUrl("/admin/documentation"), label: "Documentation", icon: BookOpen, permission: "guides:read"');
+    expect(adminNav).toContain('getTenantUrl("/admin/surveys"), label: "Enquêtes", icon: ClipboardList, permission: "tenant:manage"');
   });
 });
