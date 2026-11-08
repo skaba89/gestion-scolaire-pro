@@ -20,6 +20,18 @@ describe('appointment routes are reachable through role navigation', () => {
       path: '/teacher/appointment-slots',
       leaf: 'appointment-slots',
     },
+    {
+      route: 'src/routes/AdminRoutes.tsx',
+      layout: 'src/components/layouts/AdminLayout.tsx',
+      path: '/admin/documentation',
+      leaf: 'documentation',
+    },
+    {
+      route: 'src/routes/AdminRoutes.tsx',
+      layout: 'src/components/layouts/AdminLayout.tsx',
+      path: '/admin/incidents',
+      leaf: 'incidents',
+    },
   ];
 
   it.each(cases)('$path is registered and linked in its sidebar', ({ route, layout, path, leaf }) => {
@@ -27,5 +39,11 @@ describe('appointment routes are reachable through role navigation', () => {
     const navigation = readFileSync(resolve(process.cwd(), layout), 'utf8');
     expect(routes).toContain(`path="${leaf}"`);
     expect(navigation).toContain(`getTenantUrl("${path}")`);
+  });
+
+  it('restricts incident navigation to tenants administrators', () => {
+    const adminNav = readFileSync(resolve(process.cwd(), 'src/components/layouts/AdminLayout.tsx'), 'utf8');
+    expect(adminNav).toContain('getTenantUrl("/admin/incidents"), label: "Incidents", icon: Shield, permission: "tenant:manage"');
+    expect(adminNav).toContain('getTenantUrl("/admin/documentation"), label: "Documentation", icon: BookOpen, permission: "guides:read"');
   });
 });

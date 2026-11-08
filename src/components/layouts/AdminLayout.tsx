@@ -186,6 +186,7 @@ export const AdminLayout = () => {
       items: [
         { href: getTenantUrl("/admin/testing-guide"), label: t("nav.testingGuide", "Guide de test"), icon: TestTube2, permission: "guides:read" },
         { href: getTenantUrl("/admin/university-guide"), label: isUniversity ? "Guide Universitaire" : "Guide de l'école", icon: BookOpen, permission: "guides:read" },
+        { href: getTenantUrl("/admin/documentation"), label: "Documentation", icon: BookOpen, permission: "guides:read" },
       ],
     },
     {
@@ -303,6 +304,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/exports"), label: t("nav.exports"), icon: Download, permission: "students:export" },
         { href: getTenantUrl("/admin/data-import"), label: "Import de données", icon: Upload, permission: "students:import" },
         { href: getTenantUrl("/admin/audit-logs"), label: t("nav.auditLogs"), icon: Activity, permission: "tenant:manage" },
+        { href: getTenantUrl("/admin/incidents"), label: "Incidents", icon: Shield, permission: "tenant:manage" },
         { href: getTenantUrl("/admin/data-quality"), label: "Qualité des Données", icon: Activity, permission: "settings:manage" },
         { href: getTenantUrl("/admin/public-pages"), label: "Pages publiques", icon: Globe, permission: "settings:manage" },
         { href: getTenantUrl("/admin/public-pages/messages"), label: "Messages reçus", icon: Inbox, permission: "settings:manage" },
