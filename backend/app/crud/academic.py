@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.models import (
     AcademicYear, Term, Campus, Level, Subject,
-    Department, Room, Program, Classroom, Enrollment,
+    Department, Room, Program, Classroom, Enrollment, Student,
     Assessment, Attendance, ScheduleSlot,
     SubjectPreferredRoom, Faculty, Semester,
     subject_levels, subject_departments, classroom_departments, class_subjects,
@@ -733,6 +733,26 @@ def get_enrollments(
     return query.all()
 
 def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) -> Enrollment:
+    # Every FK must belong to the authenticated school. Globally unique PKs
+    # alone do not enforce tenant coherence, particularly for privileged DB
+    # connections that bypass RLS (CI, migrations, some operator scripts).
+    if not db.query(Student.id).filter(
+        Student.id == obj_in.student_id, Student.tenant_id == tenant_id,
+    ).first():
+        raise ValueError("Élève introuvable dans cet établissement")
+    classroom = db.query(Classroom).filter(
+        Classroom.id == obj_in.class_id, Classroom.tenant_id == tenant_id,
+    ).first()
+    if not classroom:
+        raise ValueError("Classe introuvable dans cet établissement")
+    if not db.query(AcademicYear.id).filter(
+        AcademicYear.id == obj_in.academic_year_id,
+        AcademicYear.tenant_id == tenant_id,
+    ).first():
+        raise ValueError("Année académique introuvable dans cet établissement")
+    if classroom.academic_year_id and str(classroom.academic_year_id) != str(obj_in.academic_year_id):
+        raise ValueError("La classe appartient à une autre année académique")
+
     # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): nothing
     # prevented enrolling the same student twice for the same academic
     # year — no unique constraint on the table and no check here — so a
