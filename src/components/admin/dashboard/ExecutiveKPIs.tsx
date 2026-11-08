@@ -68,7 +68,7 @@ export const AcademicExecutiveKPIs = ({
     isLoading
 }: {
     data: AcademicKPIs | undefined;
-    riskScores?: { total: number; critical: number; high: number; moderate: number; low: number };
+    riskScores?: { total: number; critical: number; high: number; moderate: number; low: number; unknown: number };
     isLoading?: boolean;
 }) => {
     const { studentsLabel, StudentsLabel } = useStudentLabel();
@@ -121,6 +121,13 @@ export const AcademicExecutiveKPIs = ({
                     (riskScores?.critical || 0) > 5 ? "critical" :
                         (riskScores?.critical || 0) > 2 ? "warning" : "good"
                 }
+            />
+            <KPICard
+                title="Données de risque insuffisantes"
+                value={riskScores?.unknown ?? 0}
+                subtitle="Évaluations à compléter — non classées comme faible risque"
+                icon={<AlertCircle className="w-4 h-4" />}
+                status={(riskScores?.unknown ?? 0) > 0 ? "warning" : "good"}
             />
         </div>
     );
