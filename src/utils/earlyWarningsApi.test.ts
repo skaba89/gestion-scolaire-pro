@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AxiosAdapter } from "axios";
 import { apiClient } from "@/api/client";
-import { fetchEarlyWarnings, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents, normalizeEarlyWarningResolutionNotes } from "./earlyWarningsApi";
+import { fetchEarlyWarnings, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents, normalizeEarlyWarningResolutionNotes, paginateEarlyWarningHistory } from "./earlyWarningsApi";
 
 const originalAdapter = apiClient.defaults.adapter;
 
@@ -103,6 +103,24 @@ describe("early warnings API contract", () => {
     it("enforces the backend 4000 character resolution limit", () => {
         expect(normalizeEarlyWarningResolutionNotes("x".repeat(4000))).toHaveLength(4000);
         expect(normalizeEarlyWarningResolutionNotes("x".repeat(4001))).toBeNull();
+    });
+
+    it("keeps every resolved alert reachable after the first twelve", () => {
+        const ids = Array.from({ length: 25 }, (_, i) => i + 1);
+        expect(paginateEarlyWarningHistory(ids, 1)).toEqual({
+            items: ids.slice(0, 12), page: 1, totalPages: 3,
+        });
+        expect(paginateEarlyWarningHistory(ids, 2).items).toEqual(ids.slice(12, 24));
+        expect(paginateEarlyWarningHistory(ids, 3).items).toEqual([25]);
+        expect(paginateEarlyWarningHistory(ids, 9)).toEqual({
+            items: [25], page: 3, totalPages: 3,
+        });
+    });
+
+    it("handles empty resolved history without invalid page state", () => {
+        expect(paginateEarlyWarningHistory([], 3)).toEqual({
+            items: [], page: 1, totalPages: 1,
+        });
     });
 
     it("propagates a failed update so the UI cannot announce success", async () => {
