@@ -235,19 +235,19 @@ export default function EarlyWarnings() {
       <Tabs defaultValue="new" className="space-y-4">
         <TabsList>
           <TabsTrigger value="new" className="relative">
-            {t("earlyWarnings.tabNew", { count: newAlerts.length })}
+            {t("earlyWarnings.tabNew", { count: summary.new })}
             {criticalCount > 0 && (
               <span className="absolute -top-1 -right-1 h-2 w-2 bg-red-500 rounded-full animate-pulse" />
             )}
           </TabsTrigger>
-          <TabsTrigger value="processing">{t("earlyWarnings.tabProcessing", { count: acknowledgedAlerts.length })}</TabsTrigger>
+          <TabsTrigger value="processing">{t("earlyWarnings.tabProcessing", { count: summary.processing })}</TabsTrigger>
           <TabsTrigger value="resolved">{t("earlyWarnings.tabResolved", { count: summary.closed })}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="new" className="space-y-4">
           {newQuery.isLoading && <p role="status">Chargement des nouvelles alertes…</p>}
           {newQuery.isError && <div role="alert">Impossible de charger les nouvelles alertes. <Button variant="outline" onClick={() => newQuery.refetch()}>Réessayer</Button></div>}
-          {!newQuery.isError && !newQuery.isLoading && newQuery.data && (newAlerts.length === 0 ? (
+          {!newQuery.isError && !newQuery.isLoading && newQuery.data && (newQuery.data.total === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-green-500" />
@@ -322,7 +322,10 @@ export default function EarlyWarnings() {
             </div>
           ))}
           {newQuery.data && newQuery.data.total > 0 && newAlerts.length === 0 && (
-            <Button variant="outline" onClick={() => setNewPage(1)}>Première page</Button>
+            <div role="status" className="space-y-2">
+              <p>Cette page ne contient plus de nouvelles alertes ; d'autres alertes sont encore disponibles.</p>
+              <Button variant="outline" onClick={() => setNewPage(1)}>Revenir à la première page</Button>
+            </div>
           )}
           {newQuery.data && newQuery.data.total_pages > 1 && (
             <nav aria-label="Pagination des nouvelles alertes" className="flex items-center justify-center gap-3">
@@ -373,7 +376,10 @@ export default function EarlyWarnings() {
             ))}
           </div>
           {processingQuery.data && processingQuery.data.total > 0 && acknowledgedAlerts.length === 0 && (
-            <Button variant="outline" onClick={() => setProcessingPage(1)}>Première page</Button>
+            <div role="status" className="space-y-2">
+              <p>Cette page ne contient plus d'alertes en cours ; d'autres alertes sont encore disponibles.</p>
+              <Button variant="outline" onClick={() => setProcessingPage(1)}>Revenir à la première page</Button>
+            </div>
           )}
           {processingQuery.data && processingQuery.data.total_pages > 1 && (
             <nav aria-label="Pagination des alertes en cours" className="flex items-center justify-center gap-3">
