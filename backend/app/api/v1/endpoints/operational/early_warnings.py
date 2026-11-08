@@ -65,13 +65,27 @@ def _row_to_response(row: dict) -> dict:
         "last_name": item.pop("last_name", None),
         "registration_number": item.pop("registration_number", None),
     }
+    # The processing tab relies on acknowledged_user; do not leave that
+    # metadata silently empty after a successful acknowledgement.
+    acknowledged_first = item.pop("acknowledged_first_name", None)
+    acknowledged_last = item.pop("acknowledged_last_name", None)
+    item["acknowledged_user"] = (
+        {"first_name": acknowledged_first, "last_name": acknowledged_last}
+        if item.get("acknowledged_by") and
+        (acknowledged_first is not None or acknowledged_last is not None)
+        else None
+    )
     return item
 
 
 _SELECT = """
-    SELECT w.*, s.first_name, s.last_name, s.registration_number
+    SELECT w.*, s.first_name, s.last_name, s.registration_number,
+           ack.first_name AS acknowledged_first_name,
+           ack.last_name AS acknowledged_last_name
     FROM early_warnings w
     JOIN students s ON s.id = w.student_id AND s.tenant_id = w.tenant_id
+    LEFT JOIN users ack ON ack.id = w.acknowledged_by
+                       AND ack.tenant_id = w.tenant_id
 """
 
 
