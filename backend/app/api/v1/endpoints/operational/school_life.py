@@ -2037,11 +2037,13 @@ def _fetch_grades_for_term_batch(db, classroom_id: str, term_id: str, tenant_id:
                 g.max_score,
                 g.comments
             FROM enrollments e
+            JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
             JOIN grades g ON g.student_id = e.student_id AND g.tenant_id = e.tenant_id
-            JOIN assessments a ON g.assessment_id = a.id
-            LEFT JOIN subjects subj ON a.subject_id = subj.id
+            JOIN assessments a ON g.assessment_id = a.id AND a.tenant_id = e.tenant_id
+            LEFT JOIN subjects subj ON a.subject_id = subj.id AND subj.tenant_id = e.tenant_id
             WHERE e.class_id   = :cid
               AND e.tenant_id  = :tid
+              AND e.academic_year_id = c.academic_year_id
               AND e.status     = 'ACTIVE'
               AND a.term_id    = :term_id
             ORDER BY e.student_id, subj.name
