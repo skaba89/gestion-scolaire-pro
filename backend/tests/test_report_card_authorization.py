@@ -185,3 +185,77 @@ class TestV2LegitimateAccessKeepsWorking:
         with patch.object(school_life, "teacher_teaches_class", return_value=False):
             resp = _as(teacher_user).post(V2_URL, json=_v2_payload(other_student_id), headers=HEADERS)
         assert resp.status_code == 403, resp.text
+
+
+# Real FastAPI route checks: official HTML, PDF and certificate endpoints
+# must all enforce the SAME ownership constraints before rendering.
+PDF_URL = "/api/v1/school-life/generate-report-card/pdf/"
+CERTIFICATE_URL = "/api/v1/school-life/generate-certificate/pdf/"
+
+
+class TestOfficialDocumentRouteOwnership:
+    @pytest.mark.parametrize("url", [V2_URL, PDF_URL])
+    def test_parent_denied_unrelated_students_report_card_in_html_and_pdf(self, url):
+        tenant_id = _make_tenant()
+        parent_id = _make_user(tenant_id)
+        own_child_id = _make_student(tenant_id, reg="REG-DOC-OWN")
+        unrelated_id = _make_student(tenant_id, reg="REG-DOC-UNRELATED")
+        _link_parent(tenant_id, parent_id, own_child_id)
+        user = {"id": parent_id, "roles": ["PARENT"], "tenant_id": tenant_id}
+        response = _as(user).post(url, json=_v2_payload(unrelated_id), headers=HEADERS)
+        assert response.status_code == 403, response.text
+
+    @pytest.mark.parametrize("url", [V2_URL, PDF_URL])
+    def test_alumni_denied_other_students_report_card_in_html_and_pdf(self, url):
+        tenant_id = _make_tenant()
+        alumnus_id = _make_user(tenant_id)
+        own_student_id = _make_student(tenant_id, reg="REG-ALUMNI-OWN")
+        unrelated_id = _make_student(tenant_id, reg="REG-ALUMNI-OTHER")
+        with SessionLocal() as db:
+            db.query(Student).filter(Student.id == own_student_id).update(
+                {"user_id": alumnus_id}
+            )
+            db.commit()
+        user = {"id": alumnus_id, "roles": ["ALUMNI"], "tenant_id": tenant_id}
+        response = _as(user).post(url, json=_v2_payload(unrelated_id), headers=HEADERS)
+        assert response.status_code == 403, response.text
+
+    def test_parent_denied_certificate_for_unrelated_student(self):
+        tenant_id = _make_tenant()
+        parent_id = _make_user(tenant_id)
+        own_child_id = _make_student(tenant_id, reg="REG-CERT-OWN")
+        unrelated_id = _make_student(tenant_id, reg="REG-CERT-OTHER")
+        _link_parent(tenant_id, parent_id, own_child_id)
+        user = {"id": parent_id, "roles": ["PARENT"], "tenant_id": tenant_id}
+        response = _as(user).post(
+            CERTIFICATE_URL,
+            json={"student_id": unrelated_id, "certificate_type": "enrollment"},
+            headers=HEADERS,
+        )
+        assert response.status_code == 403, response.text
+
+    def test_parent_can_reach_current_enrollment_check_for_own_certificate(self):
+        tenant_id = _make_tenant()
+        parent_id = _make_user(tenant_id)
+        own_child_id = _make_student(tenant_id, reg="REG-CERT-CHILD")
+        _link_parent(tenant_id, parent_id, own_child_id)
+        user = {"id": parent_id, "roles": ["PARENT"], "tenant_id": tenant_id}
+        # No enrollment is seeded: 404 proves access got past the parent
+        # ownership check and reached normal document eligibility checks.
+        response = _as(user).post(
+            CERTIFICATE_URL,
+            json={"student_id": own_child_id, "certificate_type": "enrollment"},
+            headers=HEADERS,
+        )
+        assert response.status_code == 404, response.text
+
+    @pytest.mark.parametrize("url", [V2_URL, PDF_URL])
+    def test_teacher_denied_bulletin_outside_assigned_class(self, url):
+        tenant_id = _make_tenant()
+        student_id = _make_student(tenant_id, reg="REG-TEACHER-DOC")
+        user = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id}
+        from unittest.mock import patch
+        from app.api.v1.endpoints.operational import school_life
+        with patch.object(school_life, "teacher_teaches_class", return_value=False):
+            response = _as(user).post(url, json=_v2_payload(student_id), headers=HEADERS)
+        assert response.status_code == 403, response.text
