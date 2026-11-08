@@ -1936,7 +1936,7 @@ def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, stu
     Missing grades produce rank 0, not a fabricated position.
     """
     stmt = text("""
-        SELECT e.student_id
+        SELECT DISTINCT e.student_id
         FROM enrollments e
         JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
         JOIN students s ON s.id = e.student_id AND s.tenant_id = e.tenant_id
@@ -3228,7 +3228,7 @@ def _generate_batch_report_cards(
 
     # All active students in the class
     student_stmt = text("""
-        SELECT e.student_id, s.first_name, s.last_name, s.registration_number,
+        SELECT DISTINCT e.student_id, s.first_name, s.last_name, s.registration_number,
                s.date_of_birth, s.gender
         FROM enrollments e
         JOIN students s ON s.id = e.student_id AND s.tenant_id = e.tenant_id
