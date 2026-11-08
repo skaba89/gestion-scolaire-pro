@@ -37,7 +37,9 @@ test.describe.serial('Alertes précoces — direction scolaire', () => {
     const summary = await summaryResponse.json();
     expect(summary.new + summary.processing + summary.closed).toBe(summary.total);
     await newPageLoaded;
-    await expect(page.getByRole('tab', { name: new RegExp(String(summary.new)) })).toBeVisible();
+    await expect(page.getByRole('tab', { name: `Nouvelles alertes : ${summary.new}`, exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: `Alertes en cours : ${summary.processing}`, exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: `Alertes clôturées : ${summary.closed}`, exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/admin\/early-warnings$/);
     await expect(page.getByRole('button', { name: 'Créer une alerte' })).toBeVisible();
 
