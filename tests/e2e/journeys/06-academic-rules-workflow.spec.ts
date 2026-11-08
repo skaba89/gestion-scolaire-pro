@@ -86,7 +86,7 @@ test('admin configure des seuils, l’interface les affiche et les rôles resten
     await expect(page.locator(`[id="level-${levelId}-passing"]`)).toHaveValue('12');
 
     // Bouton de réinitialisation : le formulaire revient au seuil standard.
-    await page.getByRole('button', { name: /Réinitialiser|valeurs par défaut/i }).click();
+    await page.getByRole('button', { name: /Réinitialiser|valeurs par défaut|Valeurs habituelles/i }).click();
     await expect(page.locator('#school-passing')).toHaveValue('10');
     await page.getByRole('button', { name: /Enregistrer|Sauvegarder/i }).first().click();
     await expect.poll(async () => {
