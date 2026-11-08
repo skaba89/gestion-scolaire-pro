@@ -62,6 +62,7 @@ const Documentation = lazy(() => import("@/pages/admin/Documentation"));
 const TestingGuide = lazy(() => import("@/pages/admin/TestingGuide"));
 const UniversityGuide = lazy(() => import("@/pages/admin/UniversityGuide"));
 const Incidents = lazy(() => import("@/pages/admin/Incidents"));
+const EarlyWarnings = lazy(() => import("@/pages/admin/EarlyWarnings"));
 const VideoMeetings = lazy(() => import("@/pages/admin/VideoMeetings"));
 const ClassLists = lazy(() => import("@/pages/admin/ClassLists"));
 const DataQuality = lazy(() => import("@/pages/admin/DataQuality"));
@@ -143,9 +144,9 @@ export const AdminRoutes = () => {
             <Route path="testing-guide" element={<TestingGuide />} />
             <Route path="university-guide" element={<UniversityGuide />} />
             <Route path="incidents" element={<Incidents />} />
-            {/* Retirées (2026-10) faute de backend : early-warnings, success-plans,
-                electronic-signatures, sponsorships — les pages restent dans
-                src/pages/admin/, voir docs/STATUT_ACTUEL.md. */}
+            <Route path="early-warnings" element={<EarlyWarnings />} />
+            {/* Toujours retirées faute de backend : success-plans,
+                electronic-signatures, sponsorships. */}
             <Route path="video-meetings" element={<VideoMeetings />} />
             <Route path="data-quality" element={<DataQuality />} />
             <Route path="academic-rules" element={<AcademicRules />} />
