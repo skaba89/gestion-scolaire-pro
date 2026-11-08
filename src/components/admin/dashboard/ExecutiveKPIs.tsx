@@ -113,9 +113,9 @@ export const AcademicExecutiveKPIs = ({
                 status={(data?.failingStudents || 0) > 50 ? "warning" : "good"}
             />
             <KPICard
-                title={`${StudentsLabel} à risque`}
+                title={`${StudentsLabel} à risque (scores enregistrés)`}
                 value={riskScores?.critical || 0}
-                subtitle={`${(riskScores?.high || 0)} élevé, ${(riskScores?.moderate || 0)} modéré`}
+                subtitle={`${(riskScores?.high || 0)} élevé, ${(riskScores?.moderate || 0)} modéré — toutes périodes confondues`}
                 icon={<AlertCircle className="w-4 h-4" />}
                 status={
                     (riskScores?.critical || 0) > 5 ? "critical" :
@@ -123,7 +123,7 @@ export const AcademicExecutiveKPIs = ({
                 }
             />
             <KPICard
-                title="Données de risque insuffisantes"
+                title="Scores enregistrés non évaluables"
                 value={riskScores?.unknown ?? 0}
                 subtitle="Évaluations à compléter — non classées comme faible risque"
                 icon={<AlertCircle className="w-4 h-4" />}
