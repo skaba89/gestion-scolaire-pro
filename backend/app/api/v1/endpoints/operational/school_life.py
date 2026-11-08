@@ -139,17 +139,6 @@ def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_i
     current students. Returns None for a privileged caller (no
     restriction), or the set of student ids the caller may see (possibly
     empty)."""
-    # In the HTML/PDF bulletin flow, a generic grades:read grant is not
-    # permission for a non-privileged teacher to see every classroom.
-    # Certificate requests have a separate schema without a classroom ID;
-    # they remain unchanged in this targeted report-card correction.
-    if classroom_id is not None and is_scoped_teacher(current_user):
-        if not teacher_teaches_class(
-            db, tenant_id=tenant_id, user_id=current_user.get("id"),
-            class_id=classroom_id,
-        ):
-            raise HTTPException(status_code=403, detail="Bulletin hors du périmètre de cet enseignant")
-
     roles = set(current_user.get("roles", []))
     privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
                           "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
@@ -2578,6 +2567,15 @@ def _authorize_report_card_access(
     """Raises 403 unless the caller may see this student's report card.
     Shared by the HTML (v2) and PDF endpoints so both enforce the exact
     same ownership rule (institutional-readiness audit, 2026-09)."""
+    # A grades:read grant alone must not expose other classes' bulletins.
+    # The separate certificate flow calls this helper without classroom_id.
+    if classroom_id is not None and is_scoped_teacher(current_user):
+        if not teacher_teaches_class(
+            db, tenant_id=tenant_id, user_id=current_user.get("id"),
+            class_id=classroom_id,
+        ):
+            raise HTTPException(status_code=403, detail="Bulletin hors du périmètre de cet enseignant")
+
     roles = set(current_user.get("roles", []))
     privileged = roles & {"SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "TEACHER",
                           "DEPARTMENT_HEAD", "SECRETARY", "STAFF"}
