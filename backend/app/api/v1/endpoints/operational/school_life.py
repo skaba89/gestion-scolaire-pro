@@ -2598,6 +2598,43 @@ def _authorize_report_card_access(current_user: dict, db: Session, tenant_id: st
             raise HTTPException(status_code=403, detail="Accès refusé à ce bulletin")
 
 
+def _validate_report_card_academic_context(
+    db: Session, *, tenant_id: str, student_id: str,
+    classroom_id: str, term_id: str,
+) -> None:
+    """Do not issue a document for an invented student/class/period pairing.
+
+    Historical enrollments remain eligible, including withdrawn/graduated
+    records: a past bulletin must not disappear after a student's transfer.
+    The enrollment year, class year (if set), and term year must agree.
+    """
+    stmt = text("""
+        SELECT 1
+          FROM enrollments e
+          JOIN classes c
+            ON c.id = e.class_id AND c.tenant_id = e.tenant_id
+          JOIN terms t
+            ON t.id = :term_id AND t.tenant_id = e.tenant_id
+           AND t.academic_year_id = e.academic_year_id
+         WHERE e.tenant_id = :tenant_id
+           AND e.student_id = :student_id
+           AND e.class_id = :classroom_id
+           AND (c.academic_year_id IS NULL OR c.academic_year_id = e.academic_year_id)
+         LIMIT 1
+    """).bindparams(
+        bindparam("tenant_id", type_=GUID()),
+        bindparam("student_id", type_=GUID()),
+        bindparam("classroom_id", type_=GUID()),
+        bindparam("term_id", type_=GUID()),
+    )
+    valid = db.execute(stmt, {
+        "tenant_id": tenant_id, "student_id": student_id,
+        "classroom_id": classroom_id, "term_id": term_id,
+    }).first()
+    if not valid:
+        raise HTTPException(status_code=404, detail="Inscription, classe ou période introuvable")
+
+
 def _build_report_card_html(db: Session, body: SmartReportCardRequest, tenant_id: str) -> tuple[str, dict]:
     """Fetch all data and build the bulletin HTML for one student. Shared by
     the HTML (v2) and PDF endpoints so a PDF is never anything other than
@@ -2606,6 +2643,10 @@ def _build_report_card_html(db: Session, body: SmartReportCardRequest, tenant_id
     2026-09, P1-1 — server-side PDF generation for official documents).
     Returns (html_content, meta) where meta = {student_name, average, rank,
     class_total}."""
+    _validate_report_card_academic_context(
+        db, tenant_id=tenant_id, student_id=body.student_id,
+        classroom_id=body.classroom_id, term_id=body.term_id,
+    )
     info = _fetch_student_data(db, body.student_id, tenant_id)
     s = info["student"]
     t = info["tenant"]
