@@ -38,6 +38,25 @@ def _validated_score_scale(row: dict) -> tuple[Optional[float], float]:
     return score, maximum
 
 
+
+def _validated_coefficient(row: dict) -> float:
+    """Validate a subject coefficient; missing values keep legacy weight 1."""
+    raw = row.get("coefficient")
+    coefficient = 1.0 if raw is None else float(raw)
+    if not math.isfinite(coefficient) or coefficient <= 0:
+        raise ValueError("Le coefficient de la matière doit être positif et fini")
+    return coefficient
+
+
+def _validated_ects(row: dict) -> float:
+    """Zero or absent ECTS is valid (non-credit subject); negatives are not."""
+    raw = row.get("ects")
+    ects = 0.0 if raw is None else float(raw)
+    if not math.isfinite(ects) or ects < 0:
+        raise ValueError("Les crédits ECTS doivent être positifs ou nuls et finis")
+    return ects
+
+
 def compute_weighted_average(grade_rows: list[dict]) -> Optional[float]:
     """Moyenne pondérée /20, groupée par matière puis pondérée par
     coefficient de matière.
@@ -66,7 +85,7 @@ def compute_weighted_average(grade_rows: list[dict]) -> Optional[float]:
         key = (("id", str(g["subject_id"])) if g.get("subject_id")
                else ("name", name))
         score, max_s = _validated_score_scale(g)
-        coeff = float(g.get("coefficient") or 1)
+        coeff = _validated_coefficient(g)
         if key not in by_subject:
             by_subject[key] = {"scores": [], "coefficient": coeff}
         if score is not None:
@@ -113,7 +132,7 @@ def compute_ects_weighted_average(grade_rows: list[dict]) -> Optional[float]:
         name = g.get("subject_name") or "Matière inconnue"
         key = str(g["subject_id"]) if g.get("subject_id") else name
         score, max_s = _validated_score_scale(g)
-        ects = float(g.get("ects") or 0)
+        ects = _validated_ects(g)
         if key not in by_subject:
             by_subject[key] = {"scores": [], "ects": ects}
         if score is not None:
