@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchEarlyWarnings, updateEarlyWarning } from "@/utils/earlyWarningsApi";
+import { CreateEarlyWarningDialog } from "@/components/admin/early-warnings/CreateEarlyWarningDialog";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -41,6 +42,7 @@ export default function EarlyWarnings() {
   const queryClient = useQueryClient();
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [resolutionNotes, setResolutionNotes] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data: alerts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["early-warnings", tenant?.id],
@@ -137,11 +139,16 @@ export default function EarlyWarnings() {
             {t("earlyWarnings.pageSubtitle", { label: studentsLabel })}
           </p>
         </div>
-        {criticalCount > 0 && (
-          <Badge variant="destructive" className="text-lg px-4 py-2">
-            {t("earlyWarnings.criticalCount", { count: criticalCount })}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {!isError && !isLoading && criticalCount > 0 && (
+            <Badge variant="destructive" className="text-lg px-4 py-2">
+              {t("earlyWarnings.criticalCount", { count: criticalCount })}
+            </Badge>
+          )}
+          <Button onClick={() => setCreateOpen(true)} disabled={!tenant?.id}>
+            Créer une alerte
+          </Button>
+        </div>
       </div>
 
       {isError && (
@@ -348,6 +355,13 @@ export default function EarlyWarnings() {
       </Tabs>
 
       )}
+
+      <CreateEarlyWarningDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        tenantId={tenant?.id ?? ""}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["early-warnings", tenant?.id] })}
+      />
 
       {/* Resolution Dialog */}
       <Dialog open={!!selectedAlert} onOpenChange={() => setSelectedAlert(null)}>
