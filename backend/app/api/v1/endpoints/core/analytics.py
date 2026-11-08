@@ -1180,6 +1180,47 @@ def list_course_enrollments(
 # ACHIEVEMENT DEFINITIONS  /analytics/achievement-definitions/ (alias)
 # =============================================================================
 
+@router.get("/risk-scores/summary/")
+def get_analytics_risk_summary(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("analytics:read")),
+):
+    """Tenant-wide counts of recorded risk scores, without a 100-row limit.
+
+    The stored table has no verified academic term association: this endpoint
+    intentionally does NOT claim to represent the currently selected term.
+    Unknown and null-score records must never inflate the LOW count.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    row = db.execute(text("""
+        SELECT
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE risk_level = 'CRITICAL'
+                AND risk_score IS NOT NULL) AS critical,
+            COUNT(*) FILTER (WHERE risk_level = 'HIGH'
+                AND risk_score IS NOT NULL) AS high,
+            COUNT(*) FILTER (WHERE risk_level = 'MODERATE'
+                AND risk_score IS NOT NULL) AS moderate,
+            COUNT(*) FILTER (WHERE risk_level = 'LOW'
+                AND risk_score IS NOT NULL) AS low,
+            COUNT(*) FILTER (WHERE risk_score IS NULL
+                OR risk_level IS NULL
+                OR risk_level NOT IN ('CRITICAL', 'HIGH', 'MODERATE', 'LOW')) AS unknown
+        FROM student_risk_scores
+        WHERE tenant_id = :tid
+    """), {"tid": tenant_id}).mappings().one()
+    return {
+        "total": int(row["total"]),
+        "critical": int(row["critical"]),
+        "high": int(row["high"]),
+        "moderate": int(row["moderate"]),
+        "low": int(row["low"]),
+        "unknown": int(row["unknown"]),
+        "scope": "recorded_scores",
+    }
+
+
 @router.get("/risk-scores/")
 def get_analytics_risk_scores(
     request: Request,
