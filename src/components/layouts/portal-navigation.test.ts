@@ -44,6 +44,12 @@ describe('appointment routes are reachable through role navigation', () => {
       path: '/admin/forums',
       leaf: 'forums',
     },
+    {
+      route: 'src/routes/AdminRoutes.tsx',
+      layout: 'src/components/layouts/AdminLayout.tsx',
+      path: '/admin/academic-rules',
+      leaf: 'academic-rules',
+    },
   ];
 
   it.each(cases)('$path is registered and linked in its sidebar', ({ route, layout, path, leaf }) => {
@@ -59,5 +65,6 @@ describe('appointment routes are reachable through role navigation', () => {
     expect(adminNav).toContain('getTenantUrl("/admin/documentation"), label: "Documentation", icon: BookOpen, permission: "guides:read"');
     expect(adminNav).toContain('getTenantUrl("/admin/surveys"), label: "Enquêtes", icon: ClipboardList, permission: "tenant:manage"');
     expect(adminNav).toContain('getTenantUrl("/admin/forums"), label: "Forums", icon: MessageSquare, permission: "tenant:manage"');
+    expect(adminNav).toContain('getTenantUrl("/admin/academic-rules"), label: "Règles académiques", icon: ClipboardList, permission: "settings:manage"');
   });
 });
