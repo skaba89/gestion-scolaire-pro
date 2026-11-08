@@ -736,9 +736,15 @@ def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) ->
     # Every FK must belong to the authenticated school. Globally unique PKs
     # alone do not enforce tenant coherence, particularly for privileged DB
     # connections that bypass RLS (CI, migrations, some operator scripts).
+    # PostgreSQL: lock the student row for the duration of this transaction
+    # BEFORE checking existing ACTIVE enrollments. Two concurrent requests
+    # for the same pupil are serialized on this stable row: after the first
+    # commits, the second observes its enrollment and fails the check below.
+    # SQLite ignores FOR UPDATE; integration concurrency guarantees require
+    # PostgreSQL and a DB constraint after cleaning legacy duplicates.
     if not db.query(Student.id).filter(
         Student.id == obj_in.student_id, Student.tenant_id == tenant_id,
-    ).first():
+    ).with_for_update().first():
         raise ValueError("Élève introuvable dans cet établissement")
     classroom = db.query(Classroom).filter(
         Classroom.id == obj_in.class_id, Classroom.tenant_id == tenant_id,
