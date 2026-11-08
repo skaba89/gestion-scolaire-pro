@@ -8,8 +8,6 @@ import { financialKPIs, academicKPIs, operationalKPIs } from "@/queries/dashboar
 import { toastService } from "@/utils/toast";
 import { academicYearQueries } from "@/queries/academic-years";
 import { exportToCSV } from "@/utils/exportUtils";
-import { selectActiveAcademicTerm } from "@/utils/activeAcademicTerm";
-import { summarizeDashboardRisks } from "@/utils/dashboardRiskCounts";
 import { adminQueries } from "@/queries/admin";
 
 // Modular components
@@ -135,26 +133,14 @@ export default function ExecutiveDashboard() {
         enabled: !!tenant?.id,
     });
 
-    // Risk Scores KPI
+    // Risk Scores KPI — counts all recorded tenant scores, without the
+    // /risk-scores/ endpoint's 100-row limit. This is NOT a term-based KPI:
+    // persisted scores do not have a verified academic-term association.
     const { data: riskScoresData, refetch: refetchRiskScores, isLoading: isLoadingRisk } = useQuery({
-        queryKey: ["dashboard-risk-scores", tenant?.id, academicYearId],
+        queryKey: ["dashboard-risk-scores-recorded", tenant?.id],
         queryFn: async () => {
-            // Academic terms are exposed under /terms/, not /schedule/terms/.
-            // The API exposes is_active; choose the active term belonging to
-            // the current academic year rather than the first arbitrary row.
-            const { data: terms } = await apiClient.get<Array<{
-                id: string;
-                academic_year_id: string;
-                is_active: boolean;
-            }>>("/terms/");
-            const termData = selectActiveAcademicTerm(terms, academicYearId);
-            if (!termData) return summarizeDashboardRisks([]);
-
-            const { data } = await apiClient.get("/analytics/risk-scores/", {
-                params: { term_id: termData.id },
-            });
-
-            return summarizeDashboardRisks(data);
+            const { data } = await apiClient.get("/analytics/risk-scores/summary/");
+            return data as { total: number; critical: number; high: number; moderate: number; low: number; unknown: number };
         },
         enabled: !!tenant?.id,
     });
