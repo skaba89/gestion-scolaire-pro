@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchEarlyWarnings, fetchEarlyWarningHistory, updateEarlyWarning, normalizeEarlyWarningResolutionNotes } from "@/utils/earlyWarningsApi";
+import { fetchEarlyWarningSummary, fetchEarlyWarningActivePage, fetchEarlyWarningHistory, updateEarlyWarning, normalizeEarlyWarningResolutionNotes } from "@/utils/earlyWarningsApi";
 import { CreateEarlyWarningDialog } from "@/components/admin/early-warnings/CreateEarlyWarningDialog";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
@@ -44,19 +44,28 @@ export default function EarlyWarnings() {
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
+  const [newPage, setNewPage] = useState(1);
+  const [processingPage, setProcessingPage] = useState(1);
+  useEffect(() => { setNewPage(1); setProcessingPage(1); setHistoryPage(1); }, [tenant?.id]);
 
-  const { data: alerts, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["early-warnings", tenant?.id],
-    queryFn: fetchEarlyWarnings,
-    enabled: !!tenant?.id,
-    retry: false,
+  const { data: summary, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["early-warnings", tenant?.id, "summary"],
+    queryFn: fetchEarlyWarningSummary, enabled: !!tenant?.id, retry: false,
   });
-
+  const newQuery = useQuery({
+    queryKey: ["early-warnings", tenant?.id, "new", newPage],
+    queryFn: () => fetchEarlyWarningActivePage("new", newPage),
+    enabled: !!tenant?.id && !!summary && !isError, retry: false,
+  });
+  const processingQuery = useQuery({
+    queryKey: ["early-warnings", tenant?.id, "processing", processingPage],
+    queryFn: () => fetchEarlyWarningActivePage("processing", processingPage),
+    enabled: !!tenant?.id && !!summary && !isError, retry: false,
+  });
   const historyQuery = useQuery({
     queryKey: ["early-warnings", tenant?.id, "closed-history", historyPage],
     queryFn: () => fetchEarlyWarningHistory(historyPage),
-    enabled: !!tenant?.id && !!alerts && !isError,
-    retry: false,
+    enabled: !!tenant?.id && !!summary && !isError, retry: false,
   });
 
   const updateMutation = useMutation({
@@ -134,11 +143,9 @@ export default function EarlyWarnings() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const newAlerts = alerts?.filter(a => a.status === "new") || [];
-  const acknowledgedAlerts = alerts?.filter(a => a.status === "acknowledged" || a.status === "in_progress") || [];
-  const resolvedAlerts = alerts?.filter(a => ["resolved", "dismissed"].includes(a.status)) || [];
-
-  const criticalCount = newAlerts.filter(a => a.severity === "critical").length;
+  const newAlerts = newQuery.data?.items ?? [];
+  const acknowledgedAlerts = processingQuery.data?.items ?? [];
+  const criticalCount = summary?.critical_new ?? 0;
   const history = historyQuery.data;
 
   return (
@@ -188,34 +195,34 @@ export default function EarlyWarnings() {
         <p role="status" className="text-sm text-muted-foreground">Sélectionnez un établissement pour consulter ses alertes.</p>
       )}
 
-      {!!tenant?.id && !isError && !isLoading && !alerts && (
+      {!!tenant?.id && !isError && !isLoading && !summary && (
         <p role="status" className="text-sm text-muted-foreground">Chargement des alertes…</p>
       )}
 
-      {!!tenant?.id && !!alerts && !isError && !isLoading && (
+      {!!tenant?.id && !!summary && !isError && !isLoading && (
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-red-500/50">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-red-600">{newAlerts.length}</div>
+            <div className="text-2xl font-bold text-red-600">{summary.new}</div>
             <p className="text-sm text-muted-foreground">{t("earlyWarnings.statNew")}</p>
           </CardContent>
         </Card>
         <Card className="border-orange-500/50">
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-orange-600">{acknowledgedAlerts.length}</div>
+            <div className="text-2xl font-bold text-orange-600">{summary.processing}</div>
             <p className="text-sm text-muted-foreground">{t("earlyWarnings.statProcessing")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-green-600">{resolvedAlerts.length}</div>
+            <div className="text-2xl font-bold text-green-600">{summary.closed}</div>
             <p className="text-sm text-muted-foreground">{t("earlyWarnings.statResolved")}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">
-              {alerts?.filter(a => a.alert_type === "academic").length || 0}
+              {summary.academic}
             </div>
             <p className="text-sm text-muted-foreground">{t("earlyWarnings.statAcademic")}</p>
           </CardContent>
@@ -224,7 +231,7 @@ export default function EarlyWarnings() {
 
       )}
 
-      {!!tenant?.id && !!alerts && !isError && !isLoading && (
+      {!!tenant?.id && !!summary && !isError && !isLoading && (
       <Tabs defaultValue="new" className="space-y-4">
         <TabsList>
           <TabsTrigger value="new" className="relative">
@@ -238,7 +245,9 @@ export default function EarlyWarnings() {
         </TabsList>
 
         <TabsContent value="new" className="space-y-4">
-          {newAlerts.length === 0 ? (
+          {newQuery.isLoading && <p role="status">Chargement des nouvelles alertes…</p>}
+          {newQuery.isError && <div role="alert">Impossible de charger les nouvelles alertes. <Button variant="outline" onClick={() => newQuery.refetch()}>Réessayer</Button></div>}
+          {!newQuery.isError && !newQuery.isLoading && newQuery.data && (newAlerts.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
                 <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-green-500" />
@@ -311,12 +320,25 @@ export default function EarlyWarnings() {
                 </Card>
               ))}
             </div>
+          ))}
+          {newQuery.data && newQuery.data.total > 0 && newAlerts.length === 0 && (
+            <Button variant="outline" onClick={() => setNewPage(1)}>Première page</Button>
+          )}
+          {newQuery.data && newQuery.data.total_pages > 1 && (
+            <nav aria-label="Pagination des nouvelles alertes" className="flex items-center justify-center gap-3">
+              <Button variant="outline" size="sm" disabled={newPage <= 1} onClick={() => setNewPage(newPage - 1)}>Précédent</Button>
+              <span aria-live="polite">Page {newPage} sur {newQuery.data.total_pages}</span>
+              <Button variant="outline" size="sm" disabled={newPage >= newQuery.data.total_pages} onClick={() => setNewPage(newPage + 1)}>Suivant</Button>
+            </nav>
           )}
         </TabsContent>
 
         <TabsContent value="processing" className="space-y-4">
+          {processingQuery.isLoading && <p role="status">Chargement des alertes en cours…</p>}
+          {processingQuery.isError && <div role="alert">Impossible de charger les alertes en cours. <Button variant="outline" onClick={() => processingQuery.refetch()}>Réessayer</Button></div>}
+          {processingQuery.data?.total === 0 && <p role="status">Aucune alerte en cours.</p>}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {acknowledgedAlerts.map((alert: any) => (
+            {!processingQuery.isError && acknowledgedAlerts.map((alert: any) => (
               <Card key={alert.id} className="border-orange-500/30">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -350,6 +372,16 @@ export default function EarlyWarnings() {
               </Card>
             ))}
           </div>
+          {processingQuery.data && processingQuery.data.total > 0 && acknowledgedAlerts.length === 0 && (
+            <Button variant="outline" onClick={() => setProcessingPage(1)}>Première page</Button>
+          )}
+          {processingQuery.data && processingQuery.data.total_pages > 1 && (
+            <nav aria-label="Pagination des alertes en cours" className="flex items-center justify-center gap-3">
+              <Button variant="outline" size="sm" disabled={processingPage <= 1} onClick={() => setProcessingPage(processingPage - 1)}>Précédent</Button>
+              <span aria-live="polite">Page {processingPage} sur {processingQuery.data.total_pages}</span>
+              <Button variant="outline" size="sm" disabled={processingPage >= processingQuery.data.total_pages} onClick={() => setProcessingPage(processingPage + 1)}>Suivant</Button>
+            </nav>
+          )}
         </TabsContent>
 
         <TabsContent value="resolved" className="space-y-4">
