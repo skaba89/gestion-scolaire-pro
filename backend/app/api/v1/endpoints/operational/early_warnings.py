@@ -112,6 +112,7 @@ def list_early_warnings_paginated(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     status: Status | None = None,
+    group: Literal["closed"] | None = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("analytics:read")),
 ):
@@ -122,11 +123,15 @@ def list_early_warnings_paginated(
     """
     _management_only(current_user)
     tenant_id = _tenant(request, current_user, db)
+    if status is not None and group is not None:
+        raise HTTPException(status_code=422, detail="Specify status or group, not both")
     where = " WHERE w.tenant_id = :tid"
     params: dict = {"tid": tenant_id}
     if status is not None:
         where += " AND w.status = :status"
         params["status"] = status
+    if group == "closed":
+        where += " AND w.status IN ('resolved', 'dismissed')"
 
     total = db.execute(
         text("SELECT COUNT(*) FROM early_warnings w" + where), params
