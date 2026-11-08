@@ -215,3 +215,66 @@ def test_processing_list_displays_server_acknowledger_from_same_tenant_join():
     assert "ack.tenant_id = w.tenant_id" in str(sql)
     assert params["tid"] == tenant_id
     assert "acknowledged_first_name" not in result[0]
+
+
+def test_paginated_listing_bounds_results_and_scopes_both_queries_to_tenant():
+    tenant_id = str(uuid4())
+    row = _warning_row(tenant_id, str(uuid4()), str(uuid4()), status="resolved")
+    db = MagicMock()
+    db.execute.side_effect = [
+        MagicMock(scalar_one=lambda: 45),
+        MagicMock(mappings=lambda: MagicMock(all=lambda: [row])),
+    ]
+    with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
+        result = api.list_early_warnings_paginated(
+            request=request(), page=2, page_size=20, status="resolved",
+            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+        )
+    assert result["total"] == 45
+    assert result["total_pages"] == 3
+    assert result["page"] == 2
+    assert result["page_size"] == 20
+    assert len(result["items"]) == 1
+    assert result["items"][0]["status"] == "resolved"
+    count_sql, count_params = db.execute.call_args_list[0].args
+    rows_sql, rows_params = db.execute.call_args_list[1].args
+    assert "w.tenant_id = :tid" in str(count_sql)
+    assert "w.status = :status" in str(count_sql)
+    assert "w.tenant_id = :tid" in str(rows_sql)
+    assert "w.status = :status" in str(rows_sql)
+    assert "LIMIT :limit OFFSET :offset" in str(rows_sql)
+    assert count_params == {"tid": tenant_id, "status": "resolved"}
+    assert rows_params == {
+        "tid": tenant_id, "status": "resolved", "limit": 20, "offset": 20,
+    }
+    db.commit.assert_not_called()
+
+
+def test_paginated_listing_rejects_non_management_before_database_access():
+    db = MagicMock()
+    with pytest.raises(HTTPException) as err:
+        api.list_early_warnings_paginated(
+            request=request(), page=1, page_size=20, status=None,
+            db=db, current_user={"id": str(uuid4()), "roles": ["TEACHER"]},
+        )
+    assert err.value.status_code == 403
+    db.execute.assert_not_called()
+
+
+def test_paginated_listing_empty_page_preserves_true_total():
+    db = MagicMock()
+    db.execute.side_effect = [
+        MagicMock(scalar_one=lambda: 2),
+        MagicMock(mappings=lambda: MagicMock(all=lambda: [])),
+    ]
+    with patch.object(api, "resolve_current_tenant_id", return_value=uuid4()):
+        result = api.list_early_warnings_paginated(
+            request=request(), page=4, page_size=1, status=None,
+            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+        )
+    assert result["items"] == []
+    assert result["total"] == 2
+    assert result["total_pages"] == 2
+    sql, params = db.execute.call_args_list[1].args
+    assert "w.status = :status" not in str(sql)
+    assert params["offset"] == 3
