@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { AxiosAdapter } from "axios";
 import { apiClient } from "@/api/client";
-import { fetchEarlyWarnings, fetchEarlyWarningHistory, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents, normalizeEarlyWarningResolutionNotes, paginateEarlyWarningHistory } from "./earlyWarningsApi";
+import { fetchEarlyWarnings, fetchEarlyWarningHistory, fetchEarlyWarningSummary, fetchEarlyWarningActivePage, updateEarlyWarning, createEarlyWarning, searchEarlyWarningStudents, normalizeEarlyWarningResolutionNotes, paginateEarlyWarningHistory } from "./earlyWarningsApi";
 
 const originalAdapter = apiClient.defaults.adapter;
 
@@ -155,6 +155,52 @@ describe("early warnings API contract", () => {
     it("propagates closed history request failure", async () => {
         mockApi(403, { detail: "Forbidden" });
         await expect(fetchEarlyWarningHistory(1)).rejects.toBeDefined();
+    });
+
+    it("uses a server summary rather than counting loaded page records", async () => {
+        const totals = { total: 31, new: 10, processing: 5, closed: 16,
+            resolved: 12, dismissed: 4, academic: 8, critical_new: 3 };
+        const calls: string[] = [];
+        apiClient.defaults.adapter = async config => {
+            calls.push(config.url ?? "");
+            return { status: 200, statusText: "OK", headers: {}, config, data: totals };
+        };
+        await expect(fetchEarlyWarningSummary()).resolves.toEqual(totals);
+        expect(calls).toEqual(["/school-life/early-warnings/summary/"]);
+    });
+
+    it("rejects inconsistent or incomplete summary totals", async () => {
+        mockApi(200, { total: 100, new: 1, processing: 0, closed: 0,
+            resolved: 0, dismissed: 0, academic: 0, critical_new: 0 });
+        await expect(fetchEarlyWarningSummary()).rejects.toThrow("Format de statistiques");
+    });
+
+    it("uses bounded new and processing filters with the correct SQL API contract", async () => {
+        const calls: Array<{url?: string; params?: unknown}> = [];
+        apiClient.defaults.adapter = async config => {
+            calls.push({url: config.url, params: config.params});
+            return {status: 200, statusText: "OK", headers: {}, config,
+                data: {items: [], total: 26, page: 2, page_size: 12, total_pages: 3}};
+        };
+        await fetchEarlyWarningActivePage("new", 2);
+        await fetchEarlyWarningActivePage("processing", 2);
+        expect(calls).toEqual([
+            {url: "/school-life/early-warnings/paginated/",
+                params: {status: "new", page: 2, page_size: 12}},
+            {url: "/school-life/early-warnings/paginated/",
+                params: {group: "processing", page: 2, page_size: 12}},
+        ]);
+    });
+
+    it("rejects active-tab mismatched statuses and malformed totals", async () => {
+        mockApi(200, {items: [{id: "1", status: "resolved"}],
+            total: 1, page: 1, page_size: 12, total_pages: 1});
+        await expect(fetchEarlyWarningActivePage("processing", 1)).rejects.toThrow("Format de pagination");
+    });
+
+    it("does not hide server errors as empty active pages", async () => {
+        mockApi(403, {detail: "Forbidden"});
+        await expect(fetchEarlyWarningActivePage("new", 1)).rejects.toBeDefined();
     });
 
     it("propagates a failed update so the UI cannot announce success", async () => {

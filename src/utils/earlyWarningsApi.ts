@@ -37,6 +37,61 @@ export async function fetchEarlyWarningHistory(page: number, pageSize = 12): Pro
     return data;
 }
 
+export interface EarlyWarningSummary {
+    total: number;
+    new: number;
+    processing: number;
+    closed: number;
+    resolved: number;
+    dismissed: number;
+    academic: number;
+    critical_new: number;
+}
+
+export async function fetchEarlyWarningSummary(): Promise<EarlyWarningSummary> {
+    const { data } = await apiClient.get("/school-life/early-warnings/summary/");
+    const keys: Array<keyof EarlyWarningSummary> = [
+        "total", "new", "processing", "closed", "resolved",
+        "dismissed", "academic", "critical_new",
+    ];
+    if (!data || keys.some(key => !Number.isSafeInteger(data[key]) || data[key] < 0) ||
+        data.new + data.processing + data.closed !== data.total ||
+        data.resolved + data.dismissed !== data.closed ||
+        data.critical_new > data.new || data.academic > data.total) {
+        throw new Error("Format de statistiques des alertes invalide");
+    }
+    return data;
+}
+
+/** Each active tab loads only its own page, not every alert from this school. */
+export async function fetchEarlyWarningActivePage(
+    group: "new" | "processing",
+    page: number,
+    pageSize = 12,
+): Promise<PaginatedEarlyWarnings> {
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
+        throw new Error("Paramètres de pagination invalides");
+    }
+    const params = group === "new"
+        ? { status: "new", page, page_size: pageSize }
+        : { group: "processing", page, page_size: pageSize };
+    const { data } = await apiClient.get("/school-life/early-warnings/paginated/", { params });
+    if (!data || !Array.isArray(data.items) ||
+        !Number.isSafeInteger(data.total) || data.total < 0 ||
+        !Number.isInteger(data.page) || data.page !== page ||
+        !Number.isInteger(data.page_size) || data.page_size !== pageSize ||
+        !Number.isSafeInteger(data.total_pages) || data.total_pages < 0 ||
+        data.total_pages !== Math.ceil(data.total / pageSize) ||
+        data.items.length > pageSize ||
+        data.items.some((item: any) =>
+            !item || (group === "new"
+                ? item.status !== "new"
+                : !["acknowledged", "in_progress"].includes(item.status)))) {
+        throw new Error("Format de pagination des alertes invalide");
+    }
+    return data;
+}
+
 export async function updateEarlyWarning(
     id: string,
     updates: Record<string, unknown>,
