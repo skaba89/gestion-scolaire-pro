@@ -1933,7 +1933,11 @@ def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, stu
     stmt = text("""
         SELECT e.student_id
         FROM enrollments e
-        WHERE e.class_id = :cid AND e.tenant_id = :tid AND e.status = 'ACTIVE'
+        JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
+        JOIN students s ON s.id = e.student_id AND s.tenant_id = e.tenant_id
+        WHERE e.class_id = :cid AND e.tenant_id = :tid
+          AND e.academic_year_id = c.academic_year_id
+          AND e.status = 'ACTIVE'
         ORDER BY e.student_id
     """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
     rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id}).mappings().all()
