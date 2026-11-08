@@ -24,7 +24,22 @@ test.describe.serial('Alertes précoces — direction scolaire', () => {
     await page.getByRole('button', { name: /Vie Étudiante|Vie scolaire/i }).click();
     const link = page.getByRole('link', { name: 'Alertes précoces' });
     await expect(link).toBeVisible();
+    const summaryLoaded = page.waitForResponse(resp =>
+      resp.url().includes('/school-life/early-warnings/summary/') &&
+      resp.request().method() === 'GET' && resp.status() === 200
+    );
+    const newPageLoaded = page.waitForResponse(resp =>
+      resp.url().includes('/school-life/early-warnings/paginated/') &&
+      resp.url().includes('status=new') && resp.status() === 200
+    );
     await link.click();
+    const summaryResponse = await summaryLoaded;
+    const summary = await summaryResponse.json();
+    expect(summary.new + summary.processing + summary.closed).toBe(summary.total);
+    await newPageLoaded;
+    await expect(page.getByRole('tab', { name: `Nouvelles alertes : ${summary.new}`, exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: `Alertes en cours : ${summary.processing}`, exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: `Alertes clôturées : ${summary.closed}`, exact: true })).toBeVisible();
     await expect(page).toHaveURL(/\/admin\/early-warnings$/);
     await expect(page.getByRole('button', { name: 'Créer une alerte' })).toBeVisible();
 
@@ -85,5 +100,9 @@ test.describe('Alertes précoces — contrôle des rôles', () => {
     await expect(page.getByRole('link', { name: 'Alertes précoces' })).toHaveCount(0);
     const resp = await api(request, 'teacher').get('/school-life/early-warnings/');
     expect(resp.status()).toBe(403);
+    const summaryDenied = await api(request, 'teacher').get('/school-life/early-warnings/summary/');
+    expect(summaryDenied.status()).toBe(403);
+    const paginatedDenied = await api(request, 'teacher').get('/school-life/early-warnings/paginated/?group=processing');
+    expect(paginatedDenied.status()).toBe(403);
   });
 });
