@@ -292,6 +292,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/messages"), label: t("nav.messages"), icon: MessageSquare, permission: "messages:read" },
         { href: getTenantUrl("/admin/announcements"), label: t("nav.announcements", "Annonces"), icon: Megaphone, permission: "messages:admin" },
         { href: getTenantUrl("/admin/surveys"), label: "Enquêtes", icon: ClipboardList, permission: "tenant:manage" },
+        { href: getTenantUrl("/admin/forums"), label: "Forums", icon: MessageSquare, permission: "tenant:manage" },
       ],
     },
     {
