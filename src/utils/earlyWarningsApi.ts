@@ -52,3 +52,18 @@ export function normalizeEarlyWarningResolutionNotes(value: string): string | nu
     const notes = value.trim();
     return notes.length > 0 && notes.length <= 4000 ? notes : null;
 }
+
+/** Client-side history pagination without silently hiding older resolved alerts. */
+export function paginateEarlyWarningHistory<T>(
+    records: T[],
+    requestedPage: number,
+    pageSize = 12,
+): { items: T[]; page: number; totalPages: number } {
+    const totalPages = Math.max(1, Math.ceil(records.length / pageSize));
+    const page = Math.max(1, Math.min(Math.floor(requestedPage) || 1, totalPages));
+    return {
+        items: records.slice((page - 1) * pageSize, page * pageSize),
+        page,
+        totalPages,
+    };
+}
