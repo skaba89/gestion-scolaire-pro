@@ -45,6 +45,7 @@ export const usePayments = (tenantId?: string) => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            queryClient.invalidateQueries({ queryKey: ["finance-overview", tenantId] });
             queryClient.invalidateQueries({ queryKey: ["payments"] });
             toast.success("Paiement enregistré");
         },
@@ -76,6 +77,7 @@ export const usePayments = (tenantId?: string) => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            queryClient.invalidateQueries({ queryKey: ["finance-overview", tenantId] });
             queryClient.invalidateQueries({ queryKey: ["payments"] });
             toast.success("Paiement annulé avec succès");
         },

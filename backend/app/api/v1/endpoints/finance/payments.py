@@ -135,6 +135,56 @@ def _period_filter(column: str, date_from: Optional[date], date_to: Optional[dat
     return fragment
 
 
+@router.get("/overview/")
+def finance_overview(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("payments:read")),
+):
+    """Full tenant-scoped financial totals, independent of list pagination.
+
+    Parents retain the same child-level restrictions as invoice/payment lists.
+    Only COMPLETED payments count as revenue: reversed or pending transfers
+    must never be reported as cash received.
+    """
+    tenant_id = _get_tenant_id(request, current_user, db)
+    invoice_filter, invoice_scope = parent_student_filter(
+        db, tenant_id=tenant_id, user=current_user,
+        column="i.student_id", requested_student_id=None,
+    )
+    payment_filter, payment_scope = parent_student_filter(
+        db, tenant_id=tenant_id, user=current_user,
+        column="p.student_id", requested_student_id=None,
+    )
+    invoices = db.execute(text(f"""
+        SELECT COUNT(*) AS total_invoices,
+               COUNT(*) FILTER (WHERE i.status = 'PAID') AS paid_invoices,
+               COUNT(*) FILTER (WHERE i.status = 'OVERDUE') AS overdue_invoices,
+               COALESCE(SUM(
+                   CASE WHEN i.status NOT IN ('PAID', 'CANCELLED')
+                        THEN GREATEST(i.total_amount - COALESCE(i.paid_amount, 0), 0)
+                        ELSE 0 END
+               ), 0) AS outstanding_amount
+        FROM invoices i
+        WHERE i.tenant_id = :tenant_id {invoice_filter}
+    """), {"tenant_id": tenant_id, **invoice_scope}).mappings().one()
+    payments = db.execute(text(f"""
+        SELECT COUNT(*) FILTER (WHERE p.status = 'COMPLETED') AS completed_payments,
+               COALESCE(SUM(CASE WHEN p.status = 'COMPLETED'
+                   THEN p.amount ELSE 0 END), 0) AS received_amount
+        FROM payments p
+        WHERE p.tenant_id = :tenant_id {payment_filter}
+    """), {"tenant_id": tenant_id, **payment_scope}).mappings().one()
+    return {
+        "total_invoices": int(invoices["total_invoices"]),
+        "paid_invoices": int(invoices["paid_invoices"]),
+        "overdue_invoices": int(invoices["overdue_invoices"]),
+        "outstanding_amount": float(invoices["outstanding_amount"]),
+        "completed_payments": int(payments["completed_payments"]),
+        "received_amount": float(payments["received_amount"]),
+    }
+
+
 @router.get("/payments/")
 def list_payments(
     request: Request,
