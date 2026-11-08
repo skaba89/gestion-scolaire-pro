@@ -276,6 +276,11 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/careers"), label: t("nav.careers", "Carrières & Stages"), icon: GraduationCap, permission: "students:read" },
         { href: getTenantUrl("/admin/alumni-mentors"), label: t("nav.alumniMentors", "Mentors Alumni"), icon: Users, permission: "users:read" },
         { href: getTenantUrl("/admin/alumni-requests"), label: t("nav.alumniRequests", "Requêtes Alumni"), icon: FileText, permission: "users:read" },
+        // Sensitive nominative alerts: visible only to roles accepted by the API,
+        // never to teachers, students or parents with broad read permissions.
+        ...(roles.some(role => ["TENANT_ADMIN", "DIRECTOR", "SUPER_ADMIN"].includes(role))
+          ? [{ href: getTenantUrl("/admin/early-warnings"), label: "Alertes précoces", icon: Brain, permission: "students:read" as Permission }]
+          : []),
       ],
     },
     {
@@ -304,7 +309,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/settings"), label: t("nav.settings"), icon: Settings, permission: "settings:read" },
       ],
     },
-  ], [t, getTenantUrl, isSuperAdmin, StudentsLabel, termsLabel, levelLabel, classroomLabel, subjectsLabel, isUniversity]);
+  ], [t, getTenantUrl, isSuperAdmin, roles, StudentsLabel, termsLabel, levelLabel, classroomLabel, subjectsLabel, isUniversity]);
 
   // Filter sections and items based on permissions
   const navSections = useMemo(() => {
