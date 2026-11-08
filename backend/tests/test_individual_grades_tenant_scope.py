@@ -18,7 +18,7 @@ def test_individual_grade_query_enforces_tenant_and_academic_period():
     assert "s.tenant_id = g.tenant_id" in sql
     assert "subj.tenant_id = a.tenant_id" in sql
     assert "a.term_id       = :term_id" in sql
-    assert params == {"sid": student, "term_id": term, "tid": tenant}
+    assert params == {"sid": student, "term_id": term, "tid": tenant, "cid": None}
 
 
 def test_individual_grade_query_preserves_subject_and_weight():
