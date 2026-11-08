@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, IDEMPOTENCY_HEADER, newIdempotencyKey } from "@/api/client";
 import { toast } from "sonner";
+import { parsePaymentsResponse } from "../utils/financeReadContracts";
 
 export const usePayments = (tenantId?: string) => {
     const queryClient = useQueryClient();
@@ -11,8 +12,7 @@ export const usePayments = (tenantId?: string) => {
         queryFn: async () => {
             if (!tenantId) return [];
             const { data } = await apiClient.get("/payments/payments/");
-            const raw = data?.items || data;
-            return Array.isArray(raw) ? raw : [];
+            return parsePaymentsResponse(data);
         },
         enabled: !!tenantId,
     });
@@ -88,6 +88,9 @@ export const usePayments = (tenantId?: string) => {
     return {
         payments: paymentsQuery.data || [],
         isLoading: paymentsQuery.isLoading,
+        isError: paymentsQuery.isError,
+        error: paymentsQuery.error,
+        refetch: paymentsQuery.refetch,
         registerPayment: registerPaymentMutation.mutateAsync,
         isRegistering: registerPaymentMutation.isPending,
         generateReference,
