@@ -3068,19 +3068,41 @@ def _authorize_certificate_teacher_scope(
     """A teacher may issue a certificate only for a student on their roster.
 
     Use ORM GUID columns instead of raw SQL to work on SQLite and PostgreSQL.
-    Historical enrollment records are included; the assignment itself must
-    still exist at issuance time. This guard does not alter family or
-    administrative ownership permissions.
+    Only active enrollments in the current academic year count: a past
+    teacher must not issue a present-day certificate after a pupil transfers.
+    This guard does not alter family or administrative ownership permissions.
     """
     if not is_scoped_teacher(current_user):
         return
 
+    from sqlalchemy import and_
     from app.models.enrollment import Enrollment
+    from app.models.classroom import Classroom
+    from app.models.academic_year import AcademicYear
 
-    assigned_classes = db.query(Enrollment.class_id).filter(
-        Enrollment.tenant_id == tenant_id,
-        Enrollment.student_id == student_id,
-    ).distinct().all()
+    # An official current-year certificate must be authorized against the
+    # pupil's CURRENT class. An old enrollment in a teacher's former class
+    # must not grant access after the pupil transfers to another class.
+    assigned_classes = (
+        db.query(Enrollment.class_id)
+        .join(Classroom, and_(
+            Classroom.id == Enrollment.class_id,
+            Classroom.tenant_id == Enrollment.tenant_id,
+            Classroom.academic_year_id == Enrollment.academic_year_id,
+        ))
+        .join(AcademicYear, and_(
+            AcademicYear.id == Enrollment.academic_year_id,
+            AcademicYear.tenant_id == Enrollment.tenant_id,
+        ))
+        .filter(
+            Enrollment.tenant_id == tenant_id,
+            Enrollment.student_id == student_id,
+            Enrollment.status == "ACTIVE",
+            AcademicYear.is_current.is_(True),
+        )
+        .distinct()
+        .all()
+    )
     if not any(
         teacher_teaches_class(
             db, tenant_id=tenant_id, user_id=current_user.get("id"),
