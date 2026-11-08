@@ -37,7 +37,7 @@ def _identity(roles):
 
 def test_anonymous_early_warning_requests_are_denied():
     assert client.get(URL).status_code in (401, 403)
-    assert client.post(URL, json={}).status_code in (401, 403)
+    assert client.post(URL, json={\n        "student_id": str(uuid4()), "alert_type": "academic",\n        "severity": "high", "title": "Suivi", "description": "Difficulté",\n    }).status_code in (401, 403)
 
 
 @pytest.mark.parametrize("role", ["STUDENT", "PARENT", "TEACHER", "ACCOUNTANT", "STAFF"])
