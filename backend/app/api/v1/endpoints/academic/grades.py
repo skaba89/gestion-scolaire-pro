@@ -316,6 +316,24 @@ def update_grade(
         db, tenant_id=tenant_id, student_id=grade_update.student_id,
         subject_id=grade_update.subject_id, assessment_id=grade_update.assessment_id,
     )
+    # Validate authorization for the existing row AND the final student /
+    # assessment pair, so a teacher cannot transfer a grade to a class
+    # outside their own or edit one that was never theirs.
+    if is_scoped_teacher(current_user):
+        current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
+        if not current_grade:
+            raise HTTPException(status_code=404, detail="Grade not found")
+        _require_teacher_grade_write_scope(
+            db, tenant_id=tenant_id, current_user=current_user,
+            student_id=current_grade.student_id, assessment_id=current_grade.assessment_id,
+        )
+        _require_teacher_grade_write_scope(
+            db, tenant_id=tenant_id, current_user=current_user,
+            student_id=grade_update.student_id or current_grade.student_id,
+            assessment_id=grade_update.assessment_id or current_grade.assessment_id,
+        )
+        if grade_update.subject_id is not None and grade_update.subject_id != current_grade.subject_id:
+            raise HTTPException(status_code=403, detail="Modification de matière réservée à l'administration")
     try:
         updated_grade = crud_grade.update_grade(
             db, grade_id, grade_update, tenant_id
@@ -345,6 +363,14 @@ def delete_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
+    if is_scoped_teacher(current_user):
+        current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
+        if not current_grade:
+            raise HTTPException(status_code=404, detail="Grade not found")
+        _require_teacher_grade_write_scope(
+            db, tenant_id=tenant_id, current_user=current_user,
+            student_id=current_grade.student_id, assessment_id=current_grade.assessment_id,
+        )
     success = crud_grade.delete_grade(db, grade_id, tenant_id)
     if not success:
         raise HTTPException(
