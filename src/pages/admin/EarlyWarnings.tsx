@@ -44,15 +44,17 @@ export default function EarlyWarnings() {
   const [selectedAlert, setSelectedAlert] = useState<any>(null);
   const [resolutionNotes, setResolutionNotes] = useState("");
 
-  const { data: alerts, isLoading } = useQuery({
+  const { data: alerts, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["early-warnings", tenant?.id],
     queryFn: async () => {
-      try {
-        const { data } = await apiClient.get("/school-life/early-warnings/");
-        return data || [];
-      } catch { return []; }
+      const { data } = await apiClient.get("/school-life/early-warnings/");
+      if (!Array.isArray(data)) {
+        throw new Error("Format de réponse des alertes invalide");
+      }
+      return data;
     },
     enabled: !!tenant?.id,
+    retry: false,
   });
 
   const updateMutation = useMutation({
@@ -64,6 +66,9 @@ export default function EarlyWarnings() {
       setSelectedAlert(null);
       setResolutionNotes("");
       toast.success(t("earlyWarnings.alertUpdated"));
+    },
+    onError: () => {
+      toast.error("Impossible de mettre à jour l'alerte. Aucune modification confirmée.");
     },
   });
 
@@ -151,7 +156,26 @@ export default function EarlyWarnings() {
         )}
       </div>
 
-      {/* Stats */}
+      {isError && (
+        <Card role="alert" className="border-destructive/50">
+          <CardHeader>
+            <CardTitle>Alertes indisponibles</CardTitle>
+            <CardDescription>
+              Impossible de charger les alertes de cet établissement. Les compteurs
+              ne sont pas fiables tant que la connexion au service n'est pas rétablie.
+              {((error as any)?.response?.status === 404) &&
+                " Le service des alertes n'est pas disponible sur cette API."}
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button variant="outline" onClick={() => refetch()}>
+              Réessayer
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {!isError && !isLoading && (
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-red-500/50">
           <CardContent className="pt-6">
@@ -181,6 +205,9 @@ export default function EarlyWarnings() {
         </Card>
       </div>
 
+      )}
+
+      {!isError && !isLoading && (
       <Tabs defaultValue="new" className="space-y-4">
         <TabsList>
           <TabsTrigger value="new" className="relative">
@@ -331,6 +358,8 @@ export default function EarlyWarnings() {
           </div>
         </TabsContent>
       </Tabs>
+
+      )}
 
       {/* Resolution Dialog */}
       <Dialog open={!!selectedAlert} onOpenChange={() => setSelectedAlert(null)}>
