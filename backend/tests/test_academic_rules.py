@@ -100,6 +100,26 @@ class TestEffectiveRules:
             assert effective_rules(db, tid)["passing_grade"] == 11
             assert effective_rules(db, tid, str(uuid.uuid4()))["passing_grade"] == 11
 
+    def test_level_rule_matches_sqlite_hex_and_native_uuid_identically(self):
+        """Raw SQL class level IDs and ORM level IDs must use one ruleset."""
+        tid = _tenant()
+        lid = _level(tid, "Terminale")
+        with SessionLocal() as db:
+            tenant = db.query(Tenant).filter(Tenant.id == tid).one()
+            tenant.settings = {
+                "academic_rules": {
+                    "default": _rules(passing=10),
+                    "levels": {lid: _rules(passing=12, ab=13)},
+                },
+            }
+            db.commit()
+            expected = 12.0
+            assert effective_rules(db, tid, lid)["passing_grade"] == expected
+            assert effective_rules(db, tid, uuid.UUID(lid))["passing_grade"] == expected
+            assert effective_rules(db, tid, uuid.UUID(lid).hex)["passing_grade"] == expected
+            assert mention_for(11, effective_rules(db, tid, uuid.UUID(lid).hex)) == "Insuffisant"
+            assert mention_for(12, effective_rules(db, tid, uuid.UUID(lid).hex)) == "Passable"
+
     def test_corrupted_stored_rules_fall_back_to_defaults(self):
         tid = _tenant({"academic_rules": {"default": {"passing_grade": 99}}})
         with SessionLocal() as db:

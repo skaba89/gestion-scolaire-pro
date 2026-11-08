@@ -20,6 +20,7 @@ from __future__ import annotations
 import copy
 import logging
 from typing import Optional
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -104,7 +105,11 @@ def effective_rules(db: Session, tenant_id: str, level_id: Optional[str] = None)
     sinon les valeurs par défaut."""
     stored = _stored(db, tenant_id)
     if level_id:
-        per_level = _safe((stored.get("levels") or {}).get(str(level_id)), tenant_id=tenant_id, where=f"niveau {level_id}")
+        # Raw SQL reads SQLite GUIDs as 32-character hex while the settings
+        # endpoint saves level keys as canonical dashed UUID strings.
+        # Normalize both variants before looking up level-specific rules.
+        level_key = str(UUID(str(level_id)))
+        per_level = _safe((stored.get("levels") or {}).get(level_key), tenant_id=tenant_id, where=f"niveau {level_key}")
         if per_level:
             return per_level
     return _safe(stored.get("default"), tenant_id=tenant_id, where="défaut") or copy.deepcopy(DEFAULT_RULES)
