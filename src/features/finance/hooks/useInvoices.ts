@@ -62,6 +62,7 @@ export const useInvoices = (tenantId?: string, options?: { page?: number; pageSi
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            queryClient.invalidateQueries({ queryKey: ["finance-overview", tenantId] });
             toast.success("Facture enregistrée");
         },
         onError: (error: any) => {
@@ -78,6 +79,7 @@ export const useInvoices = (tenantId?: string, options?: { page?: number; pageSi
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            queryClient.invalidateQueries({ queryKey: ["finance-overview", tenantId] });
             toast.success("Facture supprimée");
         },
         onError: () => toast.error("Erreur lors de la suppression"),
