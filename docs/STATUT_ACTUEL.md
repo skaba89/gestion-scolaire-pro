@@ -722,3 +722,10 @@ ce fichier — pas d'un document de 2025 non révisé.
   qu'un partage entre établissements n'est pas cadré (produit, sécurité,
   RLS). La recette E2E des 9 portails tourne désormais avec une référence
   vide : 0 défaut connu sur les 202 entrées de menu parcourues.
+- **2026-11-09 — plus aucune donnée hors ligne après déconnexion (O1).** La
+  page Présences de l'enseignant met en cache les élèves de la classe pour la
+  saisie hors ligne ; ce cache (noms de mineurs), les présences et notes en
+  attente restaient dans le navigateur après la déconnexion, lisibles par
+  l'utilisateur suivant d'un poste partagé. Toutes les bases hors ligne sont
+  désormais vidées ; avant, l'application tente d'envoyer les saisies en
+  attente et annonce celles qui seront perdues. Parcours E2E 10.
