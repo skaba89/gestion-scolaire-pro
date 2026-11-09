@@ -1,0 +1,25 @@
+{
+  "admin": [
+    "api-404 GET /library/marketplace/"
+  ],
+  "director": [
+    "api-404 GET /library/marketplace/"
+  ],
+  "secretary": [
+    "foreign /student redirect /"
+  ],
+  "department_head": [
+    "api-5xx GET /department-portal/dashboard/",
+    "api-5xx GET /department-portal/classrooms/",
+    "api-5xx GET /department-portal/schedule/"
+  ],
+  "student": [
+    "api-5xx GET /students/dashboard/"
+  ],
+  "parent": [
+    "/parent portal render-error"
+  ],
+  "alumni": [
+    "foreign /admin redirect /"
+  ]
+}

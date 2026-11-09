@@ -29,7 +29,7 @@ Source : `tests/e2e/journeys/` exécuté par le job « E2E Journeys (real stack)
 | B4 Bulletins / relevés | 03 notes, 06 règles académiques | Note visible côté admin ; moyenne et rang affichés = métadonnées du bulletin v2 ; PDF valide ; seuils par niveau. Texte du PDF comparé au calcul serveur en pytest PostgreSQL (`test_report_card_class_summary.py`) | Classement/égalités en E2E ; relevé LMD ; parents/anciens élèves en E2E (couverts en pytest) |
 | B5 Présences | 05 présences | Absent puis corrigé : une seule présence au bon statut | Justification, QR/badge, coupure réseau |
 | B6 Finances | 04 frais/facture | Frais → facture → Mobile Money + espèces → soldée | Webhook signé en E2E, remboursement, export comptable |
-| B7 Portails | 02, 08 alertes | Admin, enseignant, admin témoin | DIRECTOR, SECRETARY, ACCOUNTANT, STUDENT, PARENT, ALUMNI, DEPARTMENT_HEAD : aucun compte de recette E2E |
+| B7 Portails | 02, 08 alertes, **09 portails** | 9 rôles d'établissement connectés par l'interface ; 196 entrées de menu ouvertes (admin 65, direction 54, secrétariat 29, comptabilité 18, chef de département 11, enseignant 8, étudiant 7, ancien étudiant 4, parent 0 — portail en erreur) ; redirection hors portail et 403 API par rôle | 9 défauts connus en référence (voir REMAINING_WORK R1–R5) ; actions des pages (formulaires, boutons) non jouées ; affichage mobile non testé ; SUPER_ADMIN non couvert |
 | E Offline / mobile | — | — | Aucun scénario coupure / reprise réseau |
 
 Les règles de calcul des bulletins (rangs individuel/groupé, égalités, notes

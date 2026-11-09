@@ -3,11 +3,17 @@ import path from 'node:path';
 import type { APIRequestContext, Page } from '@playwright/test';
 
 export type Account = { email: string; password: string };
+/** Comptes de recette de l'Université La Source (scripts/ci/seed_e2e.py). */
+export const ULS_ROLES = [
+  'admin', 'teacher', 'director', 'secretary', 'accountant',
+  'department_head', 'student', 'parent', 'alumni',
+] as const;
+export type UlsRole = (typeof ULS_ROLES)[number];
 export type Credentials = {
-  uls: { id: string; slug: string; admin: Account; teacher: Account };
+  uls: { id: string; slug: string } & Record<UlsRole, Account>;
   witness: { id: string; slug: string; admin: Account };
 };
-export type Role = 'admin' | 'teacher' | 'witness';
+export type Role = UlsRole | 'witness';
 
 export const API = `${process.env.E2E_API_ORIGIN ?? 'http://localhost:8000'}/api/v1`;
 export const AUTH_DIR = path.resolve('test-results/.auth-journeys');
@@ -41,6 +47,7 @@ export function api(request: APIRequestContext, role: Role) {
   return {
     get: (url: string) => request.get(`${API}${url}`, { headers }),
     post: (url: string, data: unknown) => request.post(`${API}${url}`, { headers, data }),
+    put: (url: string, data: unknown) => request.put(`${API}${url}`, { headers, data }),
   };
 }
 

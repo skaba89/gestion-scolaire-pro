@@ -3,8 +3,10 @@
 
 Crée directement en base (rôle propriétaire, avant le démarrage de l'API) :
 - l'établissement « Université La Source (démo) » (type university, plan
-  pro, campus principal, niveaux préréglés L1–M2), son administrateur et un
-  enseignant ;
+  pro, campus principal, niveaux préréglés L1–M2), son administrateur, un
+  enseignant et un compte de recette par rôle d'établissement (direction,
+  secrétariat, comptabilité, chef de département, étudiant relié à sa fiche,
+  parent relié à cet étudiant, ancien étudiant relié à sa fiche diplômée) ;
 - un établissement témoin et son administrateur, pour les contrôles
   d'isolation.
 
@@ -25,6 +27,7 @@ import json
 import os
 import secrets
 import sys
+from datetime import date
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[2] / "backend"
@@ -50,6 +53,8 @@ def main() -> int:
     from app.core.security import get_password_hash
     from app.models.campus import Campus
     from app.models.level import Level
+    from app.models.parent_student import ParentStudent
+    from app.models.student import Gender, Student, StudentStatus
     from app.models.tenant import Tenant
     from app.models.user import User
     from app.models.user_role import UserRole
@@ -86,7 +91,23 @@ def main() -> int:
             db.add(UserRole(tenant_id=tenant.id, user_id=user.id, role=role))
         # Nouveau mot de passe à chaque exécution : le fichier fait foi.
         user.password_hash = get_password_hash(password)
-        return {"email": email, "password": password}
+        return {"email": email, "password": password, "id": user.id}
+
+    def make_student(db, tenant: Tenant, registration: str, first: str, last: str,
+                     user: dict, status: StudentStatus) -> Student:
+        """Fiche reliée au compte (`user_id`), comme le fait l'administration."""
+        student = db.query(Student).filter(Student.registration_number == registration).first()
+        if student is None:
+            student = Student(
+                tenant_id=tenant.id, registration_number=registration,
+                first_name=first, last_name=last, date_of_birth=date(2004, 3, 12),
+                gender=Gender.FEMALE, status=status,
+            )
+            db.add(student)
+        student.user_id = user["id"]
+        student.email = user["email"]
+        db.flush()
+        return student
 
     with SessionLocal() as db:
         uls = make_tenant(db, "Université La Source (démo)", "universite-la-source-demo")
@@ -97,6 +118,13 @@ def main() -> int:
                 "slug": uls.slug,
                 "admin": make_user(db, uls, "admin.uls@example.com", "Admin", "ULS", "TENANT_ADMIN"),
                 "teacher": make_user(db, uls, "prof.uls@example.com", "Lamine", "Cisse", "TEACHER"),
+                "director": make_user(db, uls, "direction.uls@example.com", "Mariama", "Sow", "DIRECTOR"),
+                "secretary": make_user(db, uls, "secretariat.uls@example.com", "Kadiatou", "Barry", "SECRETARY"),
+                "accountant": make_user(db, uls, "comptable.uls@example.com", "Ibrahima", "Conde", "ACCOUNTANT"),
+                "department_head": make_user(db, uls, "chef.dept.uls@example.com", "Sekou", "Toure", "DEPARTMENT_HEAD"),
+                "student": make_user(db, uls, "etudiant.uls@example.com", "Aissatou", "Diallo", "STUDENT"),
+                "parent": make_user(db, uls, "parent.uls@example.com", "Thierno", "Diallo", "PARENT"),
+                "alumni": make_user(db, uls, "ancien.uls@example.com", "Fatoumata", "Keita", "ALUMNI"),
             },
             "witness": {
                 "id": str(witness.id),
@@ -104,7 +132,24 @@ def main() -> int:
                 "admin": make_user(db, witness, "admin.temoin@example.com", "Admin", "Témoin", "TENANT_ADMIN"),
             },
         }
+        accounts = credentials["uls"]
+        own = make_student(db, uls, "E2E-ROLE-ETU", "Aissatou", "Diallo",
+                           accounts["student"], StudentStatus.ACTIVE)
+        make_student(db, uls, "E2E-ROLE-ANCIEN", "Fatoumata", "Keita",
+                     accounts["alumni"], StudentStatus.GRADUATED)
+        parent_id = accounts["parent"]["id"]
+        if not db.query(ParentStudent).filter(
+            ParentStudent.parent_id == parent_id, ParentStudent.student_id == own.id,
+        ).first():
+            db.add(ParentStudent(tenant_id=uls.id, parent_id=parent_id, student_id=own.id,
+                                 is_primary=True, relation_type="FATHER"))
         db.commit()
+
+    # Les identifiants internes ne servent qu'au rattachement ci-dessus.
+    for group in credentials.values():
+        for value in group.values():
+            if isinstance(value, dict):
+                value.pop("id", None)
 
     Path(out).write_text(json.dumps(credentials, indent=2), encoding="utf-8")
     print(f"Comptes E2E prêts : {credentials['uls']['slug']}, {credentials['witness']['slug']} (identifiants dans {out}).")
