@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import { Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { usePWA } from "@/hooks/usePWA";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
 const OfflineIndicator = () => {
-  const { isOnline, isSyncing, pendingCount, syncData } = usePWA();
+  const { isOnline, isSyncing, pendingCount, syncNow } = useOfflineStatus();
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
@@ -19,7 +19,7 @@ const OfflineIndicator = () => {
   }, [isOnline, pendingCount]);
 
   const handleManualSync = () => {
-    syncData();
+    void syncNow();
   };
 
   if (!showBanner && isOnline && pendingCount === 0) {
@@ -59,6 +59,8 @@ const OfflineIndicator = () => {
                 onClick={handleManualSync}
                 disabled={isSyncing}
                 className="text-white hover:bg-white/20"
+                aria-label="Synchroniser maintenant"
+                title="Synchroniser maintenant"
               >
                 <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
               </Button>
@@ -70,7 +72,9 @@ const OfflineIndicator = () => {
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm">Mode hors-ligne</p>
               <p className="text-xs opacity-90">
-                Les données seront synchronisées à la reconnexion
+                {pendingCount > 0
+                  ? `${pendingCount} saisie(s) en attente, envoyée(s) à la reconnexion`
+                  : "Les données seront synchronisées à la reconnexion"}
               </p>
             </div>
           </>

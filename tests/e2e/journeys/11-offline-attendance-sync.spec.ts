@@ -14,6 +14,10 @@ import { api, stateFile, ulsUrl } from './helpers';
  */
 const run = Date.now().toString(36).toUpperCase();
 const matricule = `E2E-HL-${run}`;
+/** Élève d'une AUTRE classe : ne doit jamais figurer dans la liste hors ligne
+ * de « L1 Économie » (O6-A : l'ancien cache prenait les élèves de tout
+ * l'établissement). */
+const otherMatricule = `E2E-HL-AUTRE-${run}`;
 const today = new Date().toISOString().slice(0, 10);
 
 type Named = { id: string; name: string };
@@ -40,6 +44,19 @@ async function prepare(request: APIRequestContext): Promise<void> {
     student_id: studentId, class_id: classroom.id, academic_year_id: year.id,
   });
   expect(enrolled.ok()).toBeTruthy();
+
+  const otherClass = ((await (await admin.get('/infrastructure/classrooms/')).json()) as (Named & { academic_year_id?: string })[])
+    .find((c) => c.name !== 'L1 Économie' && c.academic_year_id === year.id)!;
+  expect(otherClass, 'une autre classe de la même année').toBeTruthy();
+  const other = await admin.post('/students/', {
+    first_name: 'Ibrahima', last_name: 'Kaba', date_of_birth: '2005-07-02', gender: 'MALE',
+    registration_number: otherMatricule,
+  });
+  expect(other.status()).toBe(201);
+  const otherEnrolled = await admin.post('/infrastructure/enrollments/', {
+    student_id: (await other.json()).id, class_id: otherClass.id, academic_year_id: year.id,
+  });
+  expect(otherEnrolled.ok()).toBeTruthy();
 }
 
 async function serverRecords(request: APIRequestContext): Promise<{ status: string }[]> {
@@ -68,6 +85,8 @@ test.describe('Pointage hors ligne', () => {
     const row = page.getByText(matricule, { exact: true })
       .locator('xpath=ancestor::div[.//button[@title="Absent(e)"]][1]');
     await expect(row).toBeVisible({ timeout: 15_000 });
+    // La liste hors ligne est celle de la classe, pas de l'établissement.
+    await expect(page.getByText(otherMatricule, { exact: true })).toHaveCount(0);
     const save = page.getByRole('button', { name: 'Enregistrer hors-ligne' });
 
     await row.locator('button[title="Absent(e)"]').click();

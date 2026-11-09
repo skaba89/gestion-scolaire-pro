@@ -16,7 +16,7 @@ import {
   Shield,
   RefreshCw
 } from "lucide-react";
-import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -29,7 +29,7 @@ const Install = () => {
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const { isOnline, pendingItems } = useOfflineStorage();
+  const { isOnline, pendingCount } = useOfflineStatus();
 
   useEffect(() => {
     // Check if already installed
@@ -120,8 +120,8 @@ const Install = () => {
                   <div>
                     <p className="font-medium text-sm">Mode hors-ligne</p>
                     <p className="text-xs text-muted-foreground">
-                      {pendingItems.length > 0
-                        ? `${pendingItems.length} élément(s) en attente de synchronisation`
+                      {pendingCount > 0
+                        ? `${pendingCount} élément(s) en attente de synchronisation`
                         : "Données en cache disponibles"
                       }
                     </p>
