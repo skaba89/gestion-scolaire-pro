@@ -2,6 +2,8 @@ import logging
 import base64
 import html as html_mod
 import re
+import unicodedata
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -1931,11 +1933,10 @@ def _compute_average(grades: list) -> float:
     return result if result is not None else -1.0
 
 
-def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, student_id: str) -> Tuple[int, int]:
-    """Use the same period-filtered grades, weighted average, and tie rules
-    as the classroom batch bulletin, so individual and batch ranks agree.
-    Missing grades produce rank 0, not a fabricated position.
-    """
+def _active_class_student_ids(db, classroom_id: str, tenant_id: str) -> list[str]:
+    """Canonical roster of a class for bulletins and ranks: distinct active
+    enrollments of the class's own academic year, as dashed UUID strings
+    (SQLite hex and PostgreSQL UUID normalized the same way)."""
     stmt = text("""
         SELECT DISTINCT e.student_id
         FROM enrollments e
@@ -1947,7 +1948,15 @@ def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, stu
         ORDER BY e.student_id
     """).bindparams(bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()))
     rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id}).mappings().all()
-    student_ids = [str(UUID(str(row["student_id"]))) for row in rows]
+    return [str(UUID(str(row["student_id"]))) for row in rows]
+
+
+def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, student_id: str) -> Tuple[int, int]:
+    """Use the same period-filtered grades, weighted average, and tie rules
+    as the classroom batch bulletin, so individual and batch ranks agree.
+    Missing grades produce rank 0, not a fabricated position.
+    """
+    student_ids = _active_class_student_ids(db, classroom_id, tenant_id)
     target_id = str(UUID(str(student_id)))
     if target_id not in student_ids:
         return 0, len(student_ids)
@@ -1958,53 +1967,6 @@ def _compute_class_rank(db, classroom_id: str, term_id: str, tenant_id: str, stu
         str(UUID(str(sid))): grades for sid, grades in grades_by_student.items()
     }
     return _rank_batch_from_bulletin_grades(student_ids, normalized_grades)[target_id]
-
-
-def _compute_class_ranks_batch(db, classroom_id: str, term_id: str, tenant_id: str) -> dict:
-    """Same ranking query as _compute_class_rank, but run ONCE for the
-    whole class instead of once per student.
-
-    Audit finding (dette technique, 2026-08-16) : generate_batch_report_cards()
-    called _compute_class_rank() inside its per-student loop — each call
-    re-executes this exact same class-wide query, then throws away every
-    row except the one matching that student. For a 500-élève
-    établissement generating end-of-term bulletins, that's ~500 redundant
-    executions of an identical query. Returns
-    {student_id: (rank, total)} so the batch endpoint computes the
-    ranking once and looks each student up in memory.
-    """
-    try:
-        stmt = text("""
-            SELECT
-                e.student_id,
-                CASE WHEN SUM(COALESCE(subj.coefficient, g.coefficient, 1)) > 0
-                     THEN SUM((CAST(g.score AS FLOAT) / NULLIF(g.max_score,0)) * 20
-                              * COALESCE(subj.coefficient, g.coefficient, 1))
-                          / SUM(COALESCE(subj.coefficient, g.coefficient, 1))
-                     ELSE -1
-                END AS avg
-            FROM enrollments e
-            LEFT JOIN grades g
-                ON g.student_id = e.student_id AND g.tenant_id = :tid
-            LEFT JOIN assessments a
-                ON g.assessment_id = a.id AND a.term_id = :term_id
-            LEFT JOIN subjects subj ON a.subject_id = subj.id
-            WHERE e.class_id   = :cid
-              AND e.tenant_id  = :tid
-              AND e.status     = 'ACTIVE'
-            GROUP BY e.student_id
-            ORDER BY avg DESC NULLS LAST
-        """).bindparams(
-            bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()), bindparam("term_id", type_=GUID()),
-        )
-        rows = db.execute(stmt, {"cid": classroom_id, "tid": tenant_id, "term_id": term_id}).mappings().all()
-
-        total = len(rows)
-        return {str(r["student_id"]): (idx, total) for idx, r in enumerate(rows, 1)}
-    except Exception as exc:
-        logger.warning("Batch class rank computation failed: %s", exc)
-        return {}
-
 
 
 def _rank_batch_from_bulletin_grades(student_ids: list[str], grades_by_student: dict) -> dict:
@@ -2832,6 +2794,24 @@ def generate_smart_report_card(
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du bulletin")
 
 
+def _pdf_attachment_disposition(prefix: str, person_name: Optional[str], fallback: str) -> str:
+    """En-tête Content-Disposition sûr pour un document nominatif.
+
+    Un en-tête HTTP doit rester en ASCII : « Fodé » ou « Aïssatou »
+    produisaient un octet latin-1 brut (\\w accepte l'Unicode), illisible
+    pour les clients stricts. Nom ASCII translittéré dans `filename`, nom
+    exact encodé en UTF-8 dans `filename*` (RFC 6266 / RFC 5987).
+    """
+    raw = (person_name or "").strip() or fallback
+    unicode_name = re.sub(r"[^\w\-]+", "_", raw).strip("_") or fallback
+    ascii_raw = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode("ascii")
+    ascii_name = re.sub(r"[^A-Za-z0-9_-]+", "_", ascii_raw).strip("_") or fallback
+    return (
+        f'attachment; filename="{prefix}_{ascii_name}.pdf"; '
+        f"filename*=UTF-8''{quote(f'{prefix}_{unicode_name}.pdf')}"
+    )
+
+
 @router.post("/generate-report-card/pdf/")
 def generate_report_card_pdf(
     request: Request,
@@ -2870,13 +2850,10 @@ def generate_report_card_pdf(
         # ssrf_protection.py for the full writeup.
         pdf_bytes = HTML(string=html_content, url_fetcher=get_weasyprint_safe_url_fetcher()).write_pdf()
 
-        safe_name = re.sub(r"[^\w\-]+", "_", meta["student_name"] or "bulletin")
-        filename = f"Bulletin_{safe_name}.pdf"
-
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": _pdf_attachment_disposition("Bulletin", meta["student_name"], "bulletin")},
         )
 
     except HTTPException:
@@ -2884,6 +2861,60 @@ def generate_report_card_pdf(
     except Exception as exc:
         logger.error("generate-report-card/pdf error: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF")
+
+
+@router.get("/report-cards/class-summary/")
+def get_report_card_class_summary(
+    request: Request,
+    classroom_id: UUID = Query(...),
+    term_id: UUID = Query(...),
+    db: Session = Depends(get_db),
+    # Même garde que l'export groupé : une synthèse de classe expose les
+    # moyennes et rangs de tous les élèves. STUDENT/PARENT n'ont que
+    # grades:read ; un enseignant à périmètre limité est refusé plus bas.
+    current_user: dict = Depends(require_permission("grades:write")),
+):
+    """
+    GET /school-life/report-cards/class-summary/?classroom_id=&term_id=
+
+    Moyenne et rang officiels de chaque élève actif de la classe pour la
+    période, calculés par les mêmes fonctions que le bulletin HTML/PDF
+    (_fetch_grades_for_term_batch, _compute_average,
+    _rank_batch_from_bulletin_grades). Remplace l'estimation que la page
+    admin Bulletins recalculait dans le navigateur sur toutes les périodes.
+    `average` vaut None et `rank` 0 pour un élève sans note calculable,
+    exactement comme les métadonnées de /generate-report-card/v2/.
+    """
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    if is_scoped_teacher(current_user):
+        raise HTTPException(status_code=403, detail="Synthèse de classe réservée à l'administration")
+
+    _validate_batch_report_card_period(
+        db, tenant_id=tenant_id, classroom_id=str(classroom_id), term_id=str(term_id),
+    )
+    student_ids = _active_class_student_ids(db, str(classroom_id), tenant_id)
+    grades_by_student = _normalize_batch_grade_keys(
+        _fetch_grades_for_term_batch(db, str(classroom_id), str(term_id), tenant_id)
+    )
+    ranks = _rank_batch_from_bulletin_grades(student_ids, grades_by_student)
+
+    items = []
+    for sid in student_ids:
+        average = _compute_average(grades_by_student.get(sid, []))
+        rank, _total = ranks[sid]
+        items.append({
+            "student_id": sid,
+            "average": f"{average:.2f}" if average >= 0 else None,
+            "rank": rank,
+        })
+    return {
+        "classroom_id": str(classroom_id),
+        "term_id": str(term_id),
+        "class_total": len(student_ids),
+        "items": items,
+    }
 
 
 # ── Certificates (enrollment / attendance / level) ─────────────────────────────
@@ -3197,13 +3228,10 @@ def generate_certificate_pdf(
         # src>. See ssrf_protection.py.
         pdf_bytes = HTML(string=html_content, url_fetcher=get_weasyprint_safe_url_fetcher()).write_pdf()
 
-        safe_name = re.sub(r"[^\w\-]+", "_", student_name or "attestation")
-        filename = f"Attestation_{safe_name}.pdf"
-
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            headers={"Content-Disposition": _pdf_attachment_disposition("Attestation", student_name, "attestation")},
         )
 
     except HTTPException:

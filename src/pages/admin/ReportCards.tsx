@@ -34,7 +34,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PerformanceAnalytics } from "@/components/reports/PerformanceAnalytics";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
-import { pedagogicalEngine, Grade as EngineGrade } from "@/utils/pedagogicalEngine";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -55,6 +54,16 @@ interface Student {
   first_name: string;
   last_name: string;
   registration_number: string | null;
+}
+
+interface OfficialResult {
+  average: string | null;
+  rank: number;
+}
+
+interface ClassSummary {
+  class_total: number;
+  items: ({ student_id: string } & OfficialResult)[];
 }
 
 interface GradeData {
@@ -180,17 +189,46 @@ const ReportCards = () => {
         }
       }
       const studentList = Array.from(studentsById.values());
-      if (studentList.length === 0) {
-        return { students: [] as Student[], gradesMap: new Map<string, GradeData[]>() };
-      }
-      // Assessments have no class_id link in the database (the "Classes"
-      // picker on evaluation creation isn't persisted anywhere), so grades
-      // can't be filtered by class server-side — fetch per enrolled student.
+      return studentList;
+    },
+    enabled: !!tenant && !!selectedClassroom && !!selectedTerm,
+  });
+
+  // Moyenne et rang officiels : même calcul serveur que le bulletin HTML/PDF
+  // (REPORT-CARDS-SUMMARY-01). L'ancienne « Moy. estimée » était recalculée
+  // ici sur toutes les notes de l'élève, toutes périodes confondues.
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryError,
+  } = useQuery({
+    queryKey: ["report-cards", "class-summary", tenant?.id, selectedClassroom, selectedTerm],
+    queryFn: async () => {
+      const res = await apiClient.get<ClassSummary>("/school-life/report-cards/class-summary/", {
+        params: { classroom_id: selectedClassroom, term_id: selectedTerm },
+      });
+      return {
+        classTotal: res.data.class_total,
+        byStudent: new Map(res.data.items.map((item) => [item.student_id, item])),
+      };
+    },
+    enabled: !!tenant && !!selectedClassroom && !!selectedTerm,
+  });
+
+  // Notes détaillées : uniquement pour l'onglet « Analyse des résultats »,
+  // chargées à son ouverture (évite N requêtes à chaque affichage).
+  const [activeTab, setActiveTab] = useState("reports");
+  const students = enrollmentData ?? [];
+  const {
+    data: studentGrades = new Map<string, GradeData[]>(),
+    isLoading: gradesLoading,
+    isError: gradesError,
+  } = useQuery({
+    queryKey: ["report-cards", "grades", tenant?.id, selectedClassroom, students.map((s) => s.id)],
+    queryFn: async () => {
       const gradesResponses = await Promise.all(
-        studentList.map((s) =>
-          apiClient
-            .get<any>("/grades/", { params: { student_id: s.id, page_size: 100 } })
-            .catch(() => ({ data: { items: [] } }))
+        students.map((s) =>
+          apiClient.get<any>("/grades/", { params: { student_id: s.id, page_size: 100 } })
         )
       );
       const gradesMap = new Map<string, GradeData[]>();
@@ -206,40 +244,12 @@ const ReportCards = () => {
         });
         gradesMap.set(g.student_id, sg);
       });
-      return { students: studentList, gradesMap };
+      return gradesMap;
     },
-    enabled: !!tenant && !!selectedClassroom && !!selectedTerm,
+    enabled: activeTab === "overview" && students.length > 0,
   });
 
-  const students = enrollmentData?.students ?? [];
-  const studentGrades = enrollmentData?.gradesMap ?? new Map<string, GradeData[]>();
   const loading = termsLoading || classroomsLoading || enrollmentLoading;
-
-  // ── Average for analytics (local calculation) ───────────────────────────────
-
-  const calculateAverage = (studentId: string): string => {
-    const grades = studentGrades.get(studentId) || [];
-    if (grades.length === 0) return "—";
-    const engineGrades: EngineGrade[] = grades.map(g => ({
-      score: g.score || 0, max_score: g.max_score, weight: g.weight,
-      subject_id: "", subject_name: g.subject_name, coefficient: g.coefficient,
-    }));
-    const bySubject = new Map<string, EngineGrade[]>();
-    engineGrades.forEach(g => {
-      const list = bySubject.get(g.subject_name) || [];
-      list.push(g);
-      bySubject.set(g.subject_name, list);
-    });
-    let totalWeighted = 0, totalCoeff = 0;
-    bySubject.forEach(sGrades => {
-      const avg = pedagogicalEngine.calculateAverage(sGrades);
-      const coeff = sGrades[0].coefficient;
-      totalWeighted += avg * coeff;
-      totalCoeff += coeff;
-    });
-    if (totalCoeff === 0) return "—";
-    return (totalWeighted / totalCoeff).toFixed(2);
-  };
 
   // ── Generate single bulletin (v2 endpoint) ──────────────────────────────────
 
@@ -519,7 +529,7 @@ const ReportCards = () => {
       </Card>
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
-      <Tabs defaultValue="reports" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="reports">
             <FileText className="w-4 h-4 mr-2" />
@@ -559,19 +569,27 @@ const ReportCards = () => {
                   <p className="text-xs mt-1">Sélectionnez une autre classe ou vérifiez les inscriptions</p>
                 </div>
               ) : (
+                <>
+                {summaryError && (
+                  <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                    Impossible de charger les moyennes et rangs officiels. Réessayez ; les bulletins restent générables.
+                  </div>
+                )}
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Matricule</TableHead>
                       <TableHead>Nom &amp; Prénom</TableHead>
-                      <TableHead>Moy. estimée</TableHead>
+                      <TableHead>Moyenne</TableHead>
+                      <TableHead>Rang</TableHead>
                       <TableHead className="text-right">Bulletin</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {students.map((student) => {
-                      const avg = calculateAverage(student.id);
-                      const avgNum = parseFloat(avg);
+                      const official = summary?.byStudent.get(student.id);
+                      const avg = official?.average ?? null;
+                      const avgNum = avg !== null ? parseFloat(avg) : NaN;
                       const isGenerating = generating === student.id;
                       return (
                         <TableRow key={student.id}>
@@ -583,7 +601,9 @@ const ReportCards = () => {
                             <span>{student.first_name}</span>
                           </TableCell>
                           <TableCell>
-                            {avg !== "—" ? (
+                            {summaryLoading ? (
+                              <span className="text-muted-foreground text-sm">…</span>
+                            ) : avg !== null ? (
                               <span
                                 className="font-bold"
                                 style={{
@@ -593,6 +613,16 @@ const ReportCards = () => {
                                 }}
                               >
                                 {avg}<span className="text-muted-foreground font-normal">/20</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {official && official.rank > 0 ? (
+                              <span>
+                                {official.rank}<sup>e</sup>
+                                <span className="text-muted-foreground">/{summary?.classTotal}</span>
                               </span>
                             ) : (
                               <span className="text-muted-foreground text-sm">—</span>
@@ -636,6 +666,7 @@ const ReportCards = () => {
                     })}
                   </TableBody>
                 </Table>
+                </>
               )}
             </CardContent>
           </Card>
@@ -643,8 +674,12 @@ const ReportCards = () => {
 
         {/* ── Analytics ─────────────────────────────────────────────── */}
         <TabsContent value="overview">
-          {loading ? (
+          {loading || gradesLoading ? (
             <div className="text-center py-12">Chargement des données...</div>
+          ) : gradesError ? (
+            <div role="alert" className="text-center py-12 text-destructive">
+              Impossible de charger les notes détaillées de la classe.
+            </div>
           ) : (
             <PerformanceAnalytics
               students={students}
