@@ -665,3 +665,16 @@ ce fichier — pas d'un document de 2025 non révisé.
   par axe : `docs/audit/QUALITY_SCORECARD.md`. Restent bloquants pour 99 :
   E2E non obligatoires, charge non mesurée, hors-ligne non testé, recette pilote.
 
+- **2026-11-09 — page « Bulletins » : liste complète, moyenne et rang
+  officiels (REPORT-CARDS-ROSTER-01, REPORT-CARDS-SUMMARY-01).** Au-delà de
+  100 élèves dans l'établissement, des inscrits disparaissaient de la liste
+  (#498). La colonne « Moy. estimée », recalculée dans le navigateur sur
+  toutes les périodes, est remplacée par la moyenne et le rang du bulletin
+  officiel de la période : nouvelle route en lecture
+  `GET /school-life/report-cards/class-summary/` (`grades:write`, refusée à
+  l'enseignant à périmètre limité comme l'export groupé), même calcul que le
+  PDF. Corrigé au passage : le nom de fichier des PDF de bulletin et
+  d'attestation contenait les accents bruts du prénom (« Fodé ») dans
+  l'en-tête HTTP ; désormais ASCII + `filename*` UTF-8. Code mort divergent
+  `_compute_class_ranks_batch` supprimé. Un test PostgreSQL compare
+  synthèse, métadonnées v2 et texte du PDF (`pypdf`, dépendance de test).

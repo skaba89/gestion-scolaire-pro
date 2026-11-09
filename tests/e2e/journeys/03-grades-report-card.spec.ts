@@ -94,7 +94,7 @@ test.describe.serial('Notes et bulletin', () => {
   test.describe('côté administration', () => {
     test.use({ storageState: stateFile('admin') });
 
-    test('l\'admin voit la note dans les bulletins et télécharge le PDF', async ({ page }) => {
+    test('l\'admin voit la note dans les bulletins et télécharge le PDF', async ({ page, request }) => {
       await page.goto(ulsUrl('/admin/report-cards'));
       await expect(page.getByRole('combobox').filter({ hasText: 'Semestre 1' })).toBeVisible();
       const classSelect = page.getByRole('combobox').nth(1);
@@ -105,6 +105,23 @@ test.describe.serial('Notes et bulletin', () => {
 
       const row = page.locator('tr').filter({ hasText: matricule });
       await expect(row).toContainText(`${Number(SCORE).toFixed(2)}/20`);
+
+      // REPORT-CARDS-SUMMARY-01 : moyenne et rang affichés = ceux du bulletin
+      // officiel calculé par le serveur (/generate-report-card/v2/).
+      const admin = api(request, 'admin');
+      const classroom = ((await (await admin.get('/infrastructure/classrooms/')).json()) as Named[])
+        .find((c) => c.name === 'L1 Économie')!;
+      const term = ((await (await admin.get('/terms/')).json()) as Named[]).find((t) => t.name === 'Semestre 1')!;
+      const roster = (await (await admin.get(`/infrastructure/enrollments/?class_id=${classroom.id}&status=active`)).json()) as
+        { student?: { id: string; registration_number: string } }[];
+      const studentId = roster.find((e) => e.student?.registration_number === matricule)!.student!.id;
+      const official = await admin.post('/school-life/generate-report-card/v2/', {
+        student_id: studentId, classroom_id: classroom.id, term_id: term.id,
+      });
+      expect(official.status()).toBe(200);
+      const meta = (await official.json()) as { average: string; rank: number; class_total: number };
+      await expect(row).toContainText(`${meta.average}/20`);
+      await expect(row).toContainText(`${meta.rank}e/${meta.class_total}`);
 
       const [download] = await Promise.all([
         page.waitForEvent('download'),
