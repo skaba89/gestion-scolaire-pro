@@ -761,3 +761,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   élève → inscription. La production n'a pas été vérifiée directement
   (lecture refusée) ; elle applique les mêmes migrations, donc très
   probablement concernée tant que ce correctif n'est pas déployé.
+- **2026-11-09 — réinscription sans doublon (RE-01).** Valider la demande de
+  réinscription d'un élève existant (formulaire public) créait un second
+  élève, avec un nouveau matricule, au lieu de réinscrire le premier. La
+  demande est désormais rattachée à l'élève existant (vérifié dans
+  l'établissement) ; l'écran Admissions affiche « Réinscription » et
+  « Valider la réinscription ». Transfert de classe et changement d'année
+  vérifiés sains. Parcours E2E 13. **À déployer** : la production
+  (`c3d7097`) est concernée.
