@@ -67,7 +67,6 @@ const VideoMeetings = lazy(() => import("@/pages/admin/VideoMeetings"));
 const ClassLists = lazy(() => import("@/pages/admin/ClassLists"));
 const DataQuality = lazy(() => import("@/pages/admin/DataQuality"));
 const AcademicRules = lazy(() => import("@/pages/admin/AcademicRules"));
-const Marketplace = lazy(() => import("@/pages/admin/Marketplace"));
 const DecisionDashboard = lazy(() => import("@/pages/admin/DecisionDashboard"));
 const QrScanPage = lazy(() => import("@/pages/admin/QrScanPage"));
 const KioskDevices = lazy(() => import("@/pages/admin/KioskDevices"));
@@ -150,7 +149,6 @@ export const AdminRoutes = () => {
             <Route path="video-meetings" element={<VideoMeetings />} />
             <Route path="data-quality" element={<DataQuality />} />
             <Route path="academic-rules" element={<AcademicRules />} />
-            <Route path="marketplace" element={<Marketplace />} />
             <Route path="decision-support" element={<DecisionDashboard />} />
             <Route path="scan" element={<QrScanPage />} />
             <Route path="kiosk-devices" element={<KioskDevices />} />

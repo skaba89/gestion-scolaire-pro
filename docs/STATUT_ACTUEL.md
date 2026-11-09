@@ -716,3 +716,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   accès refusé ; le chef de département passait par l'espace admin après la
   connexion. Une seule règle (`src/lib/roleRedirect.ts`) sert désormais aux
   gardes de route et à la connexion. Vérifié en E2E pour les 9 rôles.
+- **2026-11-09 — « Marketplace Éducatif » retirée (R5).** L'entrée de menu
+  admin appelait une API inexistante (page toujours vide) et la case
+  « Partager sur le Marketplace global » ne partageait rien. Retirées tant
+  qu'un partage entre établissements n'est pas cadré (produit, sécurité,
+  RLS). La recette E2E des 9 portails tourne désormais avec une référence
+  vide : 0 défaut connu sur les 202 entrées de menu parcourues.
