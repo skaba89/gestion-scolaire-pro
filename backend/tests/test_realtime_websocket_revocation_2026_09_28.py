@@ -113,32 +113,46 @@ def _token(user_id: str, tenant_id: str, *, roles=None, jti: str | None = None, 
 
 @pytest.fixture
 def _isolated_websocket_pubsub(monkeypatch):
-    """Keep real Redis auth/revocation, but isolate the streaming subscription.
+    """Keep real Redis auth/revocation, but isolate the streaming part and
+    make the accepted-connection tests deterministic.
 
-    The module-level redis.asyncio client is shared across TestClient event
-    loops in the full suite. Its PubSub connection can retain a Future from a
-    preceding loop, causing the *accepted connection* test to fail on
-    get_message() despite successful authentication. Relay forwarding and
-    disconnect logic have separate dedicated tests.
+    Starlette's TestClient, on leaving ``websocket_connect``, sends the
+    disconnect and IMMEDIATELY cancels the application task, then reads its
+    result: if the endpoint has not finished its own teardown yet, that read
+    raises ``concurrent.futures.CancelledError`` (reproduced: 8 failures out
+    of 15 runs of the realtime test files on PostgreSQL). That race is in the
+    test harness, not in the product.
+
+    So here: the relay loop (covered on its own by
+    test_realtime_relay_disconnect.py) returns at once, and the subscription
+    signals ``closed`` when the endpoint closes it — its very last step. Tests
+    wait for that signal before leaving the ``with`` block, so the endpoint
+    has always completed before the client tears the session down.
     """
-    import asyncio
+    import threading
     from app.api.v1.endpoints.core import realtime
+
+    closed = threading.Event()
 
     class _PubSub:
         async def get_message(self, **kwargs):
-            await asyncio.sleep(0.05)
             return None
 
         async def unsubscribe(self, *args):
             return None
 
         async def aclose(self):
-            return None
+            closed.set()
 
     async def subscribe(channel):
         return _PubSub()
 
+    async def relay_returns_at_once(websocket, pubsub, *, tenant_id, user_id):
+        return None
+
     monkeypatch.setattr(realtime.redis_client, "subscribe", subscribe)
+    monkeypatch.setattr(realtime, "_relay_tenant_events", relay_returns_at_once)
+    return closed
 
 
 
@@ -149,8 +163,10 @@ class TestWebSocketRejectsDeactivatedAccount:
         user_id = _make_user(tenant_id)
         token = _token(user_id, tenant_id)
 
-        with client.websocket_connect(f"/api/v1/realtime/ws/{tenant_id}/{user_id}?token={token}") as ws:
-            pass  # connection accepted, then cleanly closed by the context manager
+        with client.websocket_connect(f"/api/v1/realtime/ws/{tenant_id}/{user_id}?token={token}"):
+            # Accepted (entering the block requires the accept message), and
+            # the endpoint closed its subscription: it ran to completion.
+            assert _isolated_websocket_pubsub.wait(timeout=5)
 
     @_needs_redis
     def test_deactivated_user_token_is_rejected_immediately(self):
@@ -225,4 +241,4 @@ class TestWebSocketRevokedSuperAdminRoleLosesCrossTenantAccess:
         token = _token(user_id, own_tenant, roles=["SUPER_ADMIN"])
 
         with client.websocket_connect(f"/api/v1/realtime/ws/{other_tenant}/{user_id}?token={token}"):
-            pass
+            assert _isolated_websocket_pubsub.wait(timeout=5)
