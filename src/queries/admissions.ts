@@ -104,6 +104,18 @@ export const admissionTimelineQuery = (id: string) => ({
 // POST /admissions/{id}/convert/ crée l'élève (matricule, classe, etc.).
 // Cliquer "Inscrire" marquait donc le dossier comme inscrit sans que
 // l'élève existe réellement nulle part.
+/**
+ * Demande de RÉINSCRIPTION d'un élève existant (formulaire public) : le champ
+ * `documents` est alors un objet `{ type: "REINSCRIPTION", student_id }`, et
+ * non la liste des pièces jointes d'une candidature. Sa validation rattache
+ * la demande à l'élève existant au lieu d'en créer un second (RE-01).
+ */
+export function isReenrollment(app: Pick<AdmissionApplication, "documents">): boolean {
+    const docs = app.documents as unknown;
+    return !!docs && !Array.isArray(docs) && typeof docs === "object"
+        && (docs as { type?: unknown }).type === "REINSCRIPTION";
+}
+
 export const useConvertAdmission = (tenantId: string) => {
     const queryClient = useQueryClient();
 
@@ -116,11 +128,18 @@ export const useConvertAdmission = (tenantId: string) => {
             // même avec des champs tous optionnels, FastAPI exige un
             // corps présent (au moins {}) pour construire le modèle.
             const response = await apiClient.post(`/admissions/${id}/convert/`, {});
-            return response.data as { student_name: string; registration_number: string };
+            return response.data as { student_name: string; registration_number: string; reenrollment?: boolean };
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["admissions", tenantId] });
-            toast.success(`${data.student_name} inscrit(e) — matricule ${data.registration_number}`);
+            if (data.reenrollment) {
+                toast.success(
+                    `Réinscription validée pour ${data.student_name} (matricule ${data.registration_number}). ` +
+                    "Inscrivez maintenant l'élève dans sa classe pour l'année concernée.",
+                );
+            } else {
+                toast.success(`${data.student_name} inscrit(e) — matricule ${data.registration_number}`);
+            }
         },
         onError: (error: any) => {
             toast.error("Erreur lors de l'inscription : " + (error.response?.data?.detail || error.message));

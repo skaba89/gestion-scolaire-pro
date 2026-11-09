@@ -557,6 +557,48 @@ def convert_to_student(
         raise HTTPException(status_code=400,
             detail=f"Only ACCEPTED applications can be converted (current: {status or app['status']})")
 
+    # RE-01 : une demande de RÉINSCRIPTION (formulaire public) vise un élève
+    # EXISTANT. La convertir créait un second élève (nouveau matricule) au lieu
+    # de réinscrire le premier, dont l'historique restait sur l'ancienne fiche.
+    # La demande est désormais rattachée à l'élève existant ; son inscription
+    # dans la classe de l'année visée se fait par l'écran d'inscription.
+    documents = application.documents if isinstance(application.documents, dict) else {}
+    if documents.get("type") == "REINSCRIPTION":
+        existing = None
+        try:
+            existing_id = uuid.UUID(str(documents.get("student_id")))
+        except (TypeError, ValueError):
+            existing_id = None
+        if existing_id is not None:
+            # `documents` vient d'un formulaire public : l'élève est revérifié
+            # dans l'établissement courant (jamais un élève d'une autre école).
+            existing = (
+                db.query(Student)
+                .filter(Student.id == existing_id, Student.tenant_id == tenant_id)
+                .first()
+            )
+        if existing is None:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=(
+                "Réinscription : l'élève concerné est introuvable dans cet établissement."
+            ))
+        application.status = AdmissionStatus.CONVERTED_TO_STUDENT
+        application.converted_student_id = existing.id
+        application.reviewed_by = current_user.get("id")
+        application.reviewed_at = datetime.utcnow()
+        log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+                  action="ADMISSION_REENROLLMENT_VALIDATED", resource_type="ADMISSION",
+                  resource_id=admission_id,
+                  details={"student_id": str(existing.id), "registration_number": existing.registration_number})
+        db.commit()
+        return {
+            "message": "Re-enrollment validated: existing student kept",
+            "student_id": str(existing.id),
+            "registration_number": existing.registration_number,
+            "student_name": f"{existing.first_name} {existing.last_name}",
+            "reenrollment": True,
+        }
+
     # Valeur ORM (typée sur SQLite comme sur PostgreSQL), pas celle du SQL brut.
     dob = payload.date_of_birth or application.student_date_of_birth
     if isinstance(dob, datetime):
@@ -629,6 +671,7 @@ def convert_to_student(
         "student_id": student_id,
         "registration_number": reg_number,
         "student_name": f"{student.first_name} {student.last_name}",
+        "reenrollment": False,
     }
 
 
