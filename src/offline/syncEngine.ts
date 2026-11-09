@@ -74,5 +74,8 @@ export async function migrateLegacyQueue(): Promise<number> {
 }
 
 export { flushOfflineQueue, type FlushResult };
-export { enqueueAction, clearOfflineQueue, getQueuedActions, queueLength, isNetworkError } from "./outbox";
+export {
+  enqueueAction, clearOfflineQueue, getQueuedActions, queueLength, isNetworkError,
+  recoverInterruptedActions, OfflineQueueFullError,
+} from "./outbox";
 export type { OfflineAction, OfflineActionStatus } from "./db";
