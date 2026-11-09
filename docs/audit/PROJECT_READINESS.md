@@ -30,7 +30,7 @@ Source : `tests/e2e/journeys/` exécuté par le job « E2E Journeys (real stack)
 | B5 Présences | 05 présences | Absent puis corrigé : une seule présence au bon statut | Justification, QR/badge, coupure réseau |
 | B6 Finances | 04 frais/facture | Frais → facture → Mobile Money + espèces → soldée | Webhook signé en E2E, remboursement, export comptable |
 | B7 Portails | 02, 08 alertes, **09 portails** | 9 rôles d'établissement connectés par l'interface ; 202 entrées de menu ouvertes (admin 64, direction 53, secrétariat 29, comptabilité 18, chef de département 11, enseignant 8, parent 8, étudiant 7, ancien étudiant 4) ; redirection hors portail et 403 API par rôle | **référence vide** : 0 défaut connu sur les entrées parcourues (R1–R5 traités) ; actions des pages (formulaires, boutons) non jouées ; affichage mobile non testé ; SUPER_ADMIN non couvert |
-| E Offline / mobile | — | — | Aucun scénario coupure / reprise réseau |
+| E Offline / mobile | 10 confidentialité hors ligne | Après déconnexion, aucune base IndexedDB ne conserve de données (élèves en cache compris) | Coupure / reprise réseau, reprise d'un envoi interrompu, appareils réels (O2–O6) |
 
 Les règles de calcul des bulletins (rangs individuel/groupé, égalités, notes
 pondérées, élèves sans note, identifiants SQLite/PostgreSQL, propriété
