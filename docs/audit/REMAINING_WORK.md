@@ -25,6 +25,16 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | 6 | P2 | `test_start_sh_db_resolution.py` | 8 échecs en local (Python système 3.14, pas de `python`) ; verts en CI | Test indépendant de l'interpréteur de l'hôte |
 
 
+
+## Recette B2 — admissions (2026-11-09)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| A1 | ~~P0~~ corrigé | Conversion candidature → élève | **Corrigé** (PR fix/admission-convert) : 500 sur PostgreSQL pour CHAQUE conversion (INSERT brut sans `id`) ; matricule « nombre + 1 » en collision (unicité globale entre écoles) ; date de naissance inventée ; pas de verrou (double conversion). ORM, verrou, matricule libre par essais, date exigée | — |
+| A2 | P1 | Matricule unique sur toute la plateforme | `students.registration_number` est unique globalement, pas par établissement : une école ne peut pas réutiliser un matricule pris ailleurs, et l'unicité révèle qu'il existe | Unicité par établissement (migration, validation requise) |
+| A3 | P2 | Conversion sans lien parent | Les coordonnées du parent sont copiées en texte ; aucun compte parent ni lien `parent_students` créé | Lien parent proposé à la conversion |
+| A4 | P1 | Parcours B2 restants | Préinscription publique, réinscription, transfert, changement d'année non joués en E2E | Parcours E2E et correctifs |
+
 ## Qualité de la chaîne CI (2026-11-09)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |

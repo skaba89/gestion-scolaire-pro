@@ -188,6 +188,9 @@ class StatusUpdate(BaseModel):
 class ConvertPayload(BaseModel):
     registration_number: Optional[str] = None
     class_name: Optional[str] = None
+    # Date de naissance à utiliser si la candidature n'en a pas : jamais
+    # inventée (l'ancien code mettait la date du jour).
+    date_of_birth: Optional[date] = None
 
 
 class AdmissionEdit(BaseModel):
@@ -505,17 +508,17 @@ def transition_status(
 
 # ─── POST /{id}/convert ───────────────────────────────────────────────────────
 
+# Tentatives de matricule automatique avant d'abandonner (collisions avec un
+# matricule déjà pris, y compris dans un autre établissement : la contrainte
+# d'unicité de students.registration_number est globale, et la RLS masque
+# les élèves des autres écoles à la requête de comptage).
+_MAX_REGISTRATION_ATTEMPTS = 50
+
+
 @router.post("/{admission_id}/convert/")
 def convert_to_student(
     request: Request,
     admission_id: str,
-    # BUG RÉEL (reproduit en prod, 422 systématique) : ConvertPayload a
-    # tous ses champs optionnels, mais SANS valeur par défaut sur le
-    # paramètre lui-même, FastAPI exige quand même un corps de requête
-    # présent — un appel sans corps du tout (ex. apiClient.post(url) côté
-    # frontend, sans second argument) échoue la validation avant même
-    # d'atteindre le code. Un défaut rend l'ensemble du corps facultatif,
-    # cohérent avec le fait que chaque champ l'est déjà individuellement.
     payload: ConvertPayload = ConvertPayload(),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:write")),
@@ -523,64 +526,99 @@ def convert_to_student(
     """
     Convert an ACCEPTED application into a Student record.
     Copies personal + parent data and marks the application as CONVERTED_TO_STUDENT.
+
+    ADM-CONVERT-01 (recette B2, 2026-11-09) : l'ancien INSERT SQL brut ne
+    fournissait pas d'`id` (généré côté ORM, aucune valeur par défaut en
+    base) — sur PostgreSQL CHAQUE conversion échouait en 500. Le matricule
+    « nombre d'élèves + 1 » entrait aussi en collision avec un matricule
+    existant, notamment d'une autre école (unicité globale). Désormais :
+    ORM (id généré), verrou de la candidature (pas de double conversion),
+    matricule libre trouvé par essais successifs, date de naissance jamais
+    inventée.
     """
+    from sqlalchemy.exc import IntegrityError
+    from app.models.admission import AdmissionApplication, AdmissionStatus
+    from app.models.student import Gender, Student, StudentStatus
+
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    app = _fetch(db, admission_id, tenant_id)
-    if app["status"] != "ACCEPTED":
+    app = _fetch(db, admission_id, tenant_id)  # 404 si absente / autre école
+
+    # Verrou de la ligne : deux validations simultanées (double clic, deux
+    # secrétaires) ne peuvent pas créer deux élèves.
+    application = (
+        db.query(AdmissionApplication)
+        .filter(AdmissionApplication.id == admission_id, AdmissionApplication.tenant_id == tenant_id)
+        .with_for_update()
+        .first()
+    )
+    status = getattr(application.status, "value", application.status) if application else None
+    if application is None or status != AdmissionStatus.ACCEPTED.value:
+        db.rollback()
         raise HTTPException(status_code=400,
-            detail=f"Only ACCEPTED applications can be converted (current: {app['status']})")
+            detail=f"Only ACCEPTED applications can be converted (current: {status or app['status']})")
 
-    # Auto-generate registration number
-    reg_number = payload.registration_number
-    if not reg_number:
-        year = datetime.now().year
-        seq = (db.execute(text(
-            "SELECT COUNT(*) FROM students WHERE tenant_id = :tid"
-        ), {"tid": tenant_id}).scalar() or 0) + 1
-        reg_number = f"STU-{year}-{seq:04d}"
+    # Valeur ORM (typée sur SQLite comme sur PostgreSQL), pas celle du SQL brut.
+    dob = payload.date_of_birth or application.student_date_of_birth
+    if isinstance(dob, datetime):
+        dob = dob.date()
+    if not dob:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=(
+            "Date de naissance de l'élève requise : renseignez-la pour finaliser l'inscription."
+        ))
 
-    # Map gender safely
     raw_gender = (app.get("student_gender") or "").upper()
-    gender = raw_gender if raw_gender in ("MALE", "FEMALE", "OTHER") else "OTHER"
-    # date_of_birth is NOT NULL in students — fallback to today if missing
-    dob = app.get("student_date_of_birth") or date.today()
+    gender = Gender(raw_gender) if raw_gender in Gender.__members__ else Gender.OTHER
 
-    student = db.execute(text("""
-        INSERT INTO students (
-            tenant_id, registration_number,
-            first_name, last_name, date_of_birth, gender,
-            address, level, class_name, academic_year, status,
-            parent_name, parent_phone, parent_email,
-            created_at, updated_at
-        ) VALUES (
-            :tenant_id, :reg_number,
-            :first_name, :last_name, :dob, :gender,
-            :address, :level, :class_name, :academic_year, 'ACTIVE',
-            :parent_name, :parent_phone, :parent_email,
-            NOW(), NOW()
-        ) RETURNING id, registration_number, first_name, last_name
-    """), {
-        "tenant_id":   tenant_id, "reg_number": reg_number,
-        "first_name":  app["student_first_name"], "last_name": app["student_last_name"],
-        "dob":         dob, "gender": gender,
-        "address":     app.get("student_address"),
-        "level":       app.get("level_name") or "",
-        "class_name":  payload.class_name,
-        "academic_year": app.get("academic_year_name"),
-        "parent_name": f"{app['parent_first_name']} {app['parent_last_name']}",
-        "parent_phone": app["parent_phone"],
-        "parent_email": app["parent_email"],
-    }).mappings().first()
+    def build(reg_number: str) -> Student:
+        return Student(
+            tenant_id=tenant_id, registration_number=reg_number,
+            first_name=app["student_first_name"], last_name=app["student_last_name"],
+            date_of_birth=dob, gender=gender, address=app.get("student_address"),
+            level=app.get("level_name") or "", class_name=payload.class_name,
+            academic_year=app.get("academic_year_name"), status=StudentStatus.ACTIVE,
+            parent_name=f"{app['parent_first_name']} {app['parent_last_name']}",
+            parent_phone=app["parent_phone"], parent_email=app["parent_email"],
+        )
 
-    student_id = str(student["id"])
-    db.execute(text("""
-        UPDATE admission_applications
-        SET status = 'CONVERTED_TO_STUDENT', converted_student_id = :student_id,
-            reviewed_by = :reviewer, reviewed_at = NOW(), updated_at = NOW()
-        WHERE id = :id AND tenant_id = :tenant_id
-    """), {"student_id": student_id, "reviewer": current_user.get("id"),
-           "id": admission_id, "tenant_id": tenant_id})
+    student = None
+    if payload.registration_number:
+        try:
+            with db.begin_nested():
+                student = build(payload.registration_number.strip())
+                db.add(student)
+                db.flush()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Ce matricule est déjà utilisé.")
+    else:
+        year = datetime.now().year
+        seq = (db.query(Student).filter(Student.tenant_id == tenant_id).count() or 0) + 1
+        for _ in range(_MAX_REGISTRATION_ATTEMPTS):
+            candidate = f"STU-{year}-{seq:04d}"
+            try:
+                with db.begin_nested():
+                    student = build(candidate)
+                    db.add(student)
+                    db.flush()
+                break
+            except IntegrityError:
+                student = None
+                seq += 1
+        if student is None:
+            db.rollback()
+            logger.error("Admission %s : aucun matricule libre après %s essais", admission_id,
+                         _MAX_REGISTRATION_ATTEMPTS)
+            raise HTTPException(status_code=409, detail=(
+                "Impossible d'attribuer un matricule automatique : saisissez-en un."
+            ))
 
+    application.status = AdmissionStatus.CONVERTED_TO_STUDENT
+    application.converted_student_id = student.id
+    application.reviewed_by = current_user.get("id")
+    application.reviewed_at = datetime.utcnow()
+    student_id = str(student.id)
+    reg_number = student.registration_number
     log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
               action="ADMISSION_CONVERTED", resource_type="ADMISSION", resource_id=admission_id,
               details={"student_id": student_id, "registration_number": reg_number})
@@ -590,11 +628,9 @@ def convert_to_student(
         "message": "Application converted to student successfully",
         "student_id": student_id,
         "registration_number": reg_number,
-        "student_name": f"{student['first_name']} {student['last_name']}",
+        "student_name": f"{student.first_name} {student.last_name}",
     }
 
-
-# ─── PATCH /{id} — edit DRAFT fields ─────────────────────────────────────────
 
 @router.patch("/{admission_id}/")
 def edit_admission(
