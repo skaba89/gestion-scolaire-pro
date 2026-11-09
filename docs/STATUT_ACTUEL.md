@@ -769,3 +769,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   « Valider la réinscription ». Transfert de classe et changement d'année
   vérifiés sains. Parcours E2E 13. **À déployer** : la production
   (`c3d7097`) est concernée.
+- **2026-11-09 — finances : un parent ne peut plus solder lui-même une facture
+  (F1, P0).** La route de paiement parent acceptait les méthodes « espèces »
+  et « virement » et créditait aussitôt la facture : un parent pouvait, par
+  un appel d'API, marquer la facture de son enfant comme payée. Réservé
+  désormais au personnel habilité. Aussi corrigé : deux confirmations
+  Mobile Money simultanées faisaient perdre un paiement du solde de la
+  facture (F2) ; échec masqué lors de la préparation d'un paiement en ligne
+  (F3) ; données de paiement complètes dans les journaux (F4). **À
+  déployer**, et à contrôler en production (paiements espèces/virement
+  enregistrés par des comptes parents).
