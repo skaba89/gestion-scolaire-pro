@@ -12,7 +12,7 @@ import {
   offlinePersister,
   shouldDehydrateQuery,
 } from "@/lib/offline-persistence";
-import { clearOfflineQueue } from "@/offline/syncEngine";
+import { purgeAllOfflineData } from "@/offline/purge";
 import { useOfflineQueueSync } from "@/hooks/useOfflineQueueSync";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -107,7 +107,9 @@ const AppContent = memo(() => {
       // Purge aussi le cache offline persisté et la file de brouillons
       // (règle : rien ne survit au logout ni au changement d'utilisateur).
       clearOfflineCache();
-      clearOfflineQueue();
+      // Toutes les bases IndexedDB hors ligne : file d'envoi, brouillons et
+      // élèves mis en cache (noms de mineurs), pas seulement la file.
+      void purgeAllOfflineData();
     };
     window.addEventListener('auth:clear-cache', handleClearCache);
     return () => window.removeEventListener('auth:clear-cache', handleClearCache);

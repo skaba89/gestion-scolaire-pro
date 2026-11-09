@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { apiClient, TOKEN_STORAGE_KEY } from "@/api/client";
+import { toast } from "sonner";
+import { flushBeforeLogout } from "@/offline/purge";
 import type { AppRole, Profile, Tenant } from "@/lib/types";
 
 type AuthenticatedUser = {
@@ -284,14 +286,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Avant la purge des données hors ligne (auth:clear-cache) : envoyer ce qui
+  // peut l'être tant que le jeton est valide, puis prévenir de ce qui sera
+  // perdu au lieu de le supprimer en silence.
+  const sendOfflineWorkBeforeLogout = useCallback(async (): Promise<number> => {
+    try {
+      return await flushBeforeLogout(tenant?.id ? String(tenant.id) : null);
+    } catch (error) {
+      console.error("[Auth] Envoi des saisies hors ligne avant déconnexion impossible", error);
+      return 0;
+    }
+  }, [tenant?.id]);
+
+  const warnLostOfflineWork = (lost: number) => {
+    if (lost > 0) {
+      toast.warning(
+        `${lost} saisie(s) hors ligne non synchronisée(s) supprimée(s) de cet appareil à la déconnexion.`,
+      );
+    }
+  };
+
   const signOut = useCallback(async () => {
+    const lost = await sendOfflineWorkBeforeLogout();
     try {
       await apiClient.post("/auth/logout/");
     } catch {
       // Server logout failed, continue with local cleanup
     }
     clearAuth();
-  }, [clearAuth]);
+    warnLostOfflineWork(lost);
+  }, [clearAuth, sendOfflineWorkBeforeLogout]);
 
   const refreshToken = useCallback(async () => {
     try {
@@ -312,13 +336,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [clearAuth]);
 
   const signOutAllDevices = useCallback(async () => {
+    const lost = await sendOfflineWorkBeforeLogout();
     try {
       await apiClient.post("/auth/logout-all/");
     } catch {
       // Server call failed, still clear local state
     }
     clearAuth();
-  }, [clearAuth]);
+    warnLostOfflineWork(lost);
+  }, [clearAuth, sendOfflineWorkBeforeLogout]);
 
   const verifyMfa = useCallback(async (token: string) => {
     try {
