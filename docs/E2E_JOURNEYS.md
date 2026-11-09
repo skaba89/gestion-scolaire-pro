@@ -17,7 +17,7 @@ Vite. Ils complètent le smoke navigateur (`tests/e2e/smoke`, sans backend).
 |---|---|---|
 | 1 | `alembic upgrade head` (rôle propriétaire) | schéma + politiques RLS |
 | 2 | `scripts/ci/e2e_app_role.sql` | rôle `e2e_app` NOSUPERUSER NOBYPASSRLS |
-| 3 | `scripts/ci/seed_e2e.py` | établissements « Université La Source (démo) » et « témoin », comptes admin / enseignant |
+| 3 | `scripts/ci/seed_e2e.py` | établissements « Université La Source (démo) » et « témoin » ; comptes admin, enseignant, direction, secrétariat, comptabilité, chef de département, étudiant (fiche reliée), parent (relié à l'étudiant), ancien étudiant (fiche diplômée) |
 | 4 | `scripts/seed_universite_la_source.py` (via l'API) | facultés, programmes, niveaux, classes, matières, périodes de notation |
 
 `seed_e2e.py` écrit directement en base car `POST /tenants/create-with-admin/`
@@ -34,6 +34,7 @@ exige l'envoi réel d'un e-mail d'invitation. Il refuse de tourner sans
 | `03-grades-report-card.spec.ts` | l'enseignant affecté à « L1 Économie »/ECO101 crée une évaluation et saisit une note ; l'admin la voit dans les bulletins et télécharge un vrai PDF (WeasyPrint) |
 | `04-fees-invoice-mobile-money.spec.ts` | frais d'inscription → facture → paiement **Mobile Money reçu** (référence Orange Money) → solde en espèces → facture « Payé » ; méthode `MOBILE_MONEY` vérifiée par l'API |
 | `05-teacher-attendance.spec.ts` | l'enseignant pointe un absent puis corrige en présent (boutons accessibles « Absent » / « Présent ») ; l'API ne garde qu'une présence, au statut corrigé |
+| `09-role-portals.spec.ts` | recette des portails : pour 9 rôles, chaque entrée du menu latéral est ouverte (page 404, erreur d'affichage, renvoi hors portail, API 5xx/404) ; un autre portail renvoie vers le sien ; une API hors permission répond 403 |
 
 Le paiement **en ligne** par passerelle (CinetPay / PayTech) n'est pas joué :
 l'initier appelle l'API réelle du prestataire. Son rapprochement par webhook
@@ -42,6 +43,21 @@ signé est couvert par `backend/tests/test_payment_webhook_events.py`.
 Le PDF du bulletin exige WeasyPrint et ses bibliothèques système (installées
 par le job CI, comme dans `backend/Dockerfile`). Sans elles, l'étape PDF du
 parcours 03 échoue en local — c'est attendu.
+
+## Recette des portails (parcours 09)
+
+- **Connexions espacées** : `global-setup.ts` ouvre 10 sessions alors que
+  `/auth/login/` accepte 5 essais par minute et par IP ; il n'en fait pas plus
+  de 4 par minute glissante (≈ 2 min de pauses). La limite n'est pas relevée.
+- **Débit API** : l'API limite chaque IP à 100 requêtes/min ; le parcours
+  attend que moins de 70 appels aient eu lieu sur la dernière minute avant
+  chaque page, et navigue dans l'application (`pushState`) sans recharger.
+- **Référence-cliquet** `role-portals.baseline.json` : défauts connus par
+  rôle. Un défaut absent de la liste fait échouer le test ; une entrée qui
+  ne se reproduit plus aussi (la retirer avec le correctif). Les défauts d'API
+  sont rattachés à la route API (une relance React Query peut aboutir sur la
+  page suivante), ceux d'affichage à la page. Rapport complet joint au test.
+- Durée mesurée : ≈ 12 min pour les 9 rôles.
 
 ## Lancer en local
 

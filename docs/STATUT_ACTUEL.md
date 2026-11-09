@@ -678,3 +678,15 @@ ce fichier — pas d'un document de 2025 non révisé.
   l'en-tête HTTP ; désormais ASCII + `filename*` UTF-8. Code mort divergent
   `_compute_class_ranks_batch` supprimé. Un test PostgreSQL compare
   synthèse, métadonnées v2 et texte du PDF (`pypdf`, dépendance de test).
+- **2026-11-09 — recette automatisée des portails par rôle (B7).** Le job
+  « E2E Journeys » connecte désormais 9 rôles d'établissement (direction,
+  secrétariat, comptabilité, chef de département, étudiant, parent, ancien
+  étudiant, en plus de l'admin et de l'enseignant) et ouvre chaque entrée de
+  leur menu (196 au total). **Défauts réels trouvés, non encore corrigés** :
+  portail parent entièrement en erreur dès qu'un enfant est rattaché
+  (`ReminderSystem`) ; tableau de bord étudiant en 500 sur PostgreSQL ;
+  portail chef de département en 500 (tableau de bord, classes, emploi du
+  temps) ; anciens étudiants et secrétariat renvoyés vers la page publique ;
+  appel à une route bibliothèque inexistante. Ils sont listés dans
+  `tests/e2e/journeys/role-portals.baseline.json` (tout nouveau défaut fait
+  échouer la CI) et dans `docs/audit/REMAINING_WORK.md` (R1–R5).
