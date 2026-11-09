@@ -12,9 +12,10 @@ est marquée **non vérifiée** et ne reçoit pas de points. Historique des lots
   E2E Journeys (real stack). Run de #497 en cours à la lecture.
 - Local (worktree de `8643ddb`) : Vitest 111 fichiers / 643 tests réussis ;
   TypeScript 165 erreurs pour une référence de 173 (aucune nouvelle).
-- Score : **60/100 historique, non certifié, non recalculé** dans ce lot. La grille
-  sur 100 points de la mission n'a pas encore été évaluée critère par critère ;
-  aucune note supérieure n'est revendiquée.
+- Score : **60/100 sur la grille de la mission, mesuré le 2026-11-09** sur
+  `main` `7b072ea`, non certifié — détail critère par critère et preuves :
+  [`SCORE_MISSION_20261109.md`](SCORE_MISSION_20261109.md). Les correctifs de
+  cette session ne sont **pas déployés** (production en retard de 100 commits).
 
 ## Matrice des parcours métier réellement couverts (stack réelle)
 
