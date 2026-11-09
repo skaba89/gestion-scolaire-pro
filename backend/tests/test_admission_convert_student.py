@@ -28,8 +28,16 @@ BASE = "/api/v1/admissions"
 HEADERS = {"Authorization": "Bearer mock-token"}
 
 
+# Établissements créés par ce module : tout ce qui leur appartient est
+# supprimé après chaque test. Sans ce nettoyage, les candidatures restantes
+# (reviewed_by → users) bloquaient le « DELETE FROM users » de
+# test_bootstrap.py plus loin dans la suite (clé étrangère).
+_CREATED_TENANTS: list[str] = []
+
+
 def _tenant() -> str:
     tid = str(uuid.uuid4())
+    _CREATED_TENANTS.append(tid)
     with SessionLocal() as db:
         db.add(Tenant(id=tid, name="École Admissions", slug=f"adm-{tid[:12]}", type="primary",
                       country="GN", is_active=True, settings={}))
@@ -65,6 +73,16 @@ def _as(tid: str, roles=("TENANT_ADMIN",)):
 def _clear():
     yield
     app.dependency_overrides.pop(get_current_user, None)
+    tenants = list(_CREATED_TENANTS)
+    _CREATED_TENANTS.clear()
+    if not tenants:
+        return
+    with SessionLocal() as db:
+        db.query(AdmissionApplication).filter(AdmissionApplication.tenant_id.in_(tenants)).delete(synchronize_session=False)
+        db.query(Student).filter(Student.tenant_id.in_(tenants)).delete(synchronize_session=False)
+        db.query(User).filter(User.tenant_id.in_(tenants)).delete(synchronize_session=False)
+        db.query(Tenant).filter(Tenant.id.in_(tenants)).delete(synchronize_session=False)
+        db.commit()
 
 
 def _convert(tid, aid, body=None):
