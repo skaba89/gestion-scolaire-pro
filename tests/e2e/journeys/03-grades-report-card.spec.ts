@@ -40,6 +40,14 @@ async function prepare(request: APIRequestContext): Promise<void> {
     student_id: (await student.json()).id, class_id: classroom.id, academic_year_id: year.id,
   });
   expect(enrolled.ok()).toBeTruthy();
+
+  // Contrat dont dépend la page Bulletins (REPORT-CARDS-ROSTER-01) : la liste
+  // des inscriptions d'une classe embarque l'élève, sans passer par la
+  // première page tronquée de GET /students/.
+  const roster = (await (await admin.get(`/infrastructure/enrollments/?class_id=${classroom.id}&status=active`)).json()) as
+    { student_id: string; student?: { id: string; registration_number: string } }[];
+  const mine = roster.find((e) => e.student?.registration_number === matricule);
+  expect(mine?.student?.id).toBe(mine?.student_id);
 }
 
 test.describe.serial('Notes et bulletin', () => {
