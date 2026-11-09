@@ -162,20 +162,24 @@ const ReportCards = () => {
       const enrollments = (enrollmentsRes.data || []).filter(
         (e: any) => e.class_id === selectedClassroom
       );
-      let studentList: Student[] = [];
-      if (enrollments.length > 0) {
-        // The enrollments endpoint only returns student_id (no embedded
-        // student object), so the enrolled students must be fetched separately.
-        const studentsRes = await apiClient
-          .get<any>("/students/", { params: { page_size: 100 } })
-          .catch(() => ({ data: { items: [] } }));
-        const studentsById = new Map(
-          (studentsRes.data?.items || []).map((s: any) => [s.id, s])
-        );
-        studentList = enrollments
-          .map((e: any) => studentsById.get(e.student_id))
-          .filter(Boolean) as Student[];
+      // Le roster vient de l'inscription elle-même (`student` embarqué par
+      // l'API). Auparavant, il était croisé avec GET /students/?page_size=100,
+      // limité aux 100 élèves les plus récents de l'établissement : au-delà,
+      // des inscrits de la classe disparaissaient de la liste des bulletins
+      // et du compteur « Tous les bulletins », sans aucune erreur visible.
+      const studentsById = new Map<string, Student>();
+      for (const e of enrollments) {
+        const s = e.student;
+        if (s?.id && !studentsById.has(s.id)) {
+          studentsById.set(s.id, {
+            id: s.id,
+            first_name: s.first_name,
+            last_name: s.last_name,
+            registration_number: s.registration_number ?? null,
+          });
+        }
       }
+      const studentList = Array.from(studentsById.values());
       if (studentList.length === 0) {
         return { students: [] as Student[], gradesMap: new Map<string, GradeData[]>() };
       }
