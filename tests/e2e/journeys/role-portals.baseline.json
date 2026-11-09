@@ -13,9 +13,6 @@
     "api-5xx GET /department-portal/classrooms/",
     "api-5xx GET /department-portal/schedule/"
   ],
-  "parent": [
-    "/parent portal render-error"
-  ],
   "alumni": [
     "foreign /admin redirect /"
   ]
