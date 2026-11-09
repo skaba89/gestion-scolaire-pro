@@ -72,7 +72,7 @@ test('annulation d\'encaissement, reçu annulé et export CSV', async ({ request
   const csv = await admin.get(`/payments/export/?student_id=${studentId}`);
   expect(csv.status()).toBe(200);
   expect(csv.headers()['content-type']).toContain('text/csv');
-  const lines = (await csv.text()).replace(/^﻿+/, '').trim().split(/\r?\n/);
+  const lines = (await csv.text()).replace(/^\uFEFF+/, '').trim().split(/\r?\n/);
   expect(lines[0]).toBe('reference,date,eleve,matricule,facture,montant,devise,mode,statut');
   const row = (ref: string) => lines.find((l) => l.startsWith(`${ref},`)) ?? '';
   expect(row(omRef)).toMatch(/,REVERSED$/);
