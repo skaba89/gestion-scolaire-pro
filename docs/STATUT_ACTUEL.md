@@ -690,3 +690,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   appel à une route bibliothèque inexistante. Ils sont listés dans
   `tests/e2e/journeys/role-portals.baseline.json` (tout nouveau défaut fait
   échouer la CI) et dans `docs/audit/REMAINING_WORK.md` (R1–R5).
+- **2026-11-09 — portail parent rétabli (R1).** Tout le portail parent
+  plantait (« invoiceData.forEach is not a function ») dès qu'un enfant était
+  rattaché : le composant de rappels traitait la réponse paginée de
+  `GET /invoices/` comme un tableau. Corrigé ; rappels limités aux factures
+  impayées (PENDING, PARTIAL, OVERDUE) avec le reste à payer. La recette E2E
+  parcourt désormais les 8 entrées du portail parent sans défaut.
