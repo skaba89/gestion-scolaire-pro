@@ -74,6 +74,23 @@ const DEFAULT_PREFERENCES: ReminderPreferences = {
   enablePushReminders: true,
 };
 
+const UNPAID_STATUSES = new Set(["PENDING", "PARTIAL", "OVERDUE"]);
+
+interface UnpaidInvoice {
+  id: string;
+  invoice_number: string;
+  status: string;
+  due_date: string;
+  total_amount: number | string | null;
+  paid_amount: number | string | null;
+  students?: { first_name?: string; last_name?: string } | null;
+}
+
+/** Reste à payer (montants renvoyés en nombre ou en chaîne décimale). */
+export function remainingAmount(inv: Pick<UnpaidInvoice, "total_amount" | "paid_amount">): number {
+  return Number(inv.total_amount ?? 0) - Number(inv.paid_amount ?? 0);
+}
+
 export const ReminderSystem = () => {
   const { user, roles } = useAuth();
   const { tenant } = useTenant();
@@ -158,33 +175,21 @@ export const ReminderSystem = () => {
     enabled: !!user?.id && !!tenant?.id && preferences.homeworkReminders,
   });
 
-  // Fetch pending invoices (for parents)
+  // Fetch unpaid invoices (for parents)
+  // GET /invoices/ renvoie une page { items, total, ... } déjà restreinte par
+  // le serveur aux enfants du parent. L'ancien code la traitait comme un
+  // tableau (« invoiceData.forEach is not a function ») : tout le portail
+  // parent plantait dès qu'un enfant était rattaché (R1, recette E2E 09).
   const { data: invoiceData } = useQuery({
     queryKey: ["pending-invoices", user?.id, tenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<UnpaidInvoice[]> => {
       if (!user?.id || !tenant?.id || !canLoadPayments) return [];
-
-      // Get parent's students
-      const psResponse = await apiClient.get("/student-parents/", {
-        params: { parent_id: user.id },
+      const response = await apiClient.get<{ items?: UnpaidInvoice[] }>("/invoices/", {
+        params: { page_size: 100 },
       });
-      const parentStudents = psResponse.data || [];
-
-      if (!parentStudents.length) return [];
-
-      const studentIds = parentStudents.map((ps: any) => ps.student_id);
-
-      // Get pending invoices
-      const invoicesResponse = await apiClient.get("/invoices/", {
-        params: {
-          student_id__in: studentIds.join(","),
-          tenant_id: tenant.id,
-          status__in: "PENDING,OVERDUE",
-          ordering: "due_date",
-        },
-      });
-
-      return invoicesResponse.data || [];
+      return (response.data?.items ?? []).filter(
+        (inv) => UNPAID_STATUSES.has(inv.status) && remainingAmount(inv) > 0,
+      );
     },
     enabled: !!user?.id && !!tenant?.id && canLoadPayments && preferences.paymentReminders,
   });
@@ -245,7 +250,7 @@ export const ReminderSystem = () => {
 
   // Add payment reminders
   if (preferences.paymentReminders && invoiceData) {
-    invoiceData.forEach((inv: any) => {
+    invoiceData.forEach((inv) => {
       const dueDate = new Date(inv.due_date);
       const daysUntilDue = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       const isOverdue = daysUntilDue < 0;
@@ -255,7 +260,7 @@ export const ReminderSystem = () => {
           id: `invoice-${inv.id}`,
           type: "payment",
           title: `Facture ${inv.invoice_number}`,
-          description: `${inv.students?.first_name} ${inv.students?.last_name} - ${inv.amount} ${currency.symbol}`,
+          description: `${inv.students?.first_name ?? ""} ${inv.students?.last_name ?? ""} - ${remainingAmount(inv).toLocaleString("fr-FR")} ${currency.symbol}`.trim(),
           dueDate,
           isUrgent: isOverdue || daysUntilDue <= 3,
           urgencyLevel: getUrgencyLevel(daysUntilDue),

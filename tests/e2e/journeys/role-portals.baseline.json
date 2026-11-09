@@ -16,9 +16,6 @@
   "student": [
     "api-5xx GET /students/dashboard/"
   ],
-  "parent": [
-    "/parent portal render-error"
-  ],
   "alumni": [
     "foreign /admin redirect /"
   ]
