@@ -737,3 +737,10 @@ ce fichier — pas d'un document de 2025 non révisé.
   pleine, conservation des saisies d'un autre établissement ou utilisateur
   (jamais envoyées sous une autre identité). Parcours E2E 11 : pointage sans
   réseau, retour du réseau, une seule présence au dernier statut.
+- **2026-11-09 — hors ligne : bonne liste d'élèves et indicateur fiable (O6).**
+  Sans réseau, la liste d'une classe montrait la première page des élèves de
+  tout l'établissement (paramètre de classe ignoré par l'API) : elle vient
+  désormais des inscriptions de la classe. L'indicateur global « en attente »
+  comptait une file que rien n'alimentait (toujours 0) et son bouton
+  supprimait sans envoyer : il compte maintenant les vraies saisies et les
+  envoie. Code hors ligne mort retiré (usePWA, useOfflineStorage, lib/db).

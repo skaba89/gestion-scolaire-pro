@@ -8,12 +8,12 @@
  * Comportement :
  *   - Ne fait rien si hors-ligne
  *   - Ne re-cache que si les données ont plus de 30 minutes (TTL)
- *   - Silencieux en cas d'erreur (best-effort)
+ *   - Best-effort : une erreur est journalisée, sans bloquer la page
  */
 
 import { useEffect, useRef } from "react";
 import { apiClient } from "@/api/client";
-import { cacheStudents, cacheClassrooms, offlineDb } from "@/lib/offlineDb";
+import { cacheClassrooms, replaceClassroomStudents } from "@/lib/offlineDb";
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -38,30 +38,34 @@ export function useOfflineCache({
       if (Date.now() - lastCached < CACHE_TTL_MS) return; // skip if fresh
 
       try {
-        // ── Students ───────────────────────────────────────────────────────
-        const { data } = await apiClient.get(
-          `/students/?class_id=${cid}&limit=300&status=ACTIVE`
-        );
-        const raw: any[] = data?.items ?? data ?? [];
-        if (raw.length > 0) {
-          await cacheStudents(
-            tenantId,
-            raw.map((s) => ({
+        // ── Élèves INSCRITS dans la classe ────────────────────────────────
+        // O6-A : l'ancien appel /students/?class_id=…&limit=300 était ignoré
+        // par l'API (paramètres inconnus) et mettait en cache la première page
+        // des élèves de TOUT l'établissement, étiquetés comme élèves de la
+        // classe. Les inscriptions de la classe embarquent l'élève et sont
+        // accessibles à l'enseignant affecté.
+        const { data } = await apiClient.get("/infrastructure/enrollments/", {
+          params: { class_id: cid, status: "active" },
+        });
+        const enrollments: any[] = Array.isArray(data) ? data : [];
+        const byId = new Map<string, { id: string; firstName: string; lastName: string; registrationNumber?: string }>();
+        for (const e of enrollments) {
+          const s = e?.student;
+          if (e?.class_id === cid && s?.id && !byId.has(s.id)) {
+            byId.set(s.id, {
               id: s.id,
-              tenantId,
               firstName: s.first_name ?? "",
               lastName: s.last_name ?? "",
-              registrationNumber: s.registration_number,
-              classroomId: cid,
-              gender: s.gender,
-              status: s.status,
-            }))
-          );
+              registrationNumber: s.registration_number ?? undefined,
+            });
+          }
         }
+        await replaceClassroomStudents(tenantId, cid, [...byId.values()]);
 
         lastCachedRef.current[cid] = Date.now();
-      } catch {
-        // Silently fail — offline cache is best-effort
+      } catch (error) {
+        // Best-effort (le cache sert au mode hors ligne), mais jamais muet.
+        console.warn("[offline] mise en cache de la classe impossible", error);
       }
     };
 
@@ -81,8 +85,8 @@ export function useOfflineCache({
             }))
           );
         }
-      } catch {
-        // Silently fail
+      } catch (error) {
+        console.warn("[offline] mise en cache des classes impossible", error);
       }
     };
 

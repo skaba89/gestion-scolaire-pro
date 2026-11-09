@@ -151,6 +151,25 @@ export async function cacheStudents(
   );
 }
 
+/**
+ * Remplace la liste en cache d'UNE classe par ses élèves inscrits : les
+ * anciennes entrées de cette classe (élève parti, ancien cache erroné) sont
+ * retirées dans la même transaction, jamais mélangées à la nouvelle liste.
+ */
+export async function replaceClassroomStudents(
+  tenantId: string,
+  classroomId: string,
+  students: Array<Omit<CachedStudent, "cachedAt" | "tenantId" | "classroomId">>,
+) {
+  const now = Date.now();
+  await offlineDb.transaction("rw", offlineDb.cachedStudents, async () => {
+    await offlineDb.cachedStudents.where("classroomId").equals(classroomId).delete();
+    await offlineDb.cachedStudents.bulkPut(
+      students.map((s) => ({ ...s, tenantId, classroomId, cachedAt: now })),
+    );
+  });
+}
+
 export async function cacheClassrooms(
   tenantId: string,
   classrooms: Array<Omit<CachedClassroom, "cachedAt">>

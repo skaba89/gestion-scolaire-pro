@@ -6,11 +6,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { post } = vi.hoisted(() => ({ post: vi.fn() }));
 vi.mock("@/api/client", () => ({ apiClient: { post, patch: vi.fn(), put: vi.fn() } }));
 
-import { db as legacyDb } from "@/lib/db";
+import Dexie from "dexie";
 import { offlineDb as draftsDb } from "@/lib/offlineDb";
 import { offlineDb as outboxDb } from "@/offline/db";
 import { enqueueAction } from "@/offline/outbox";
-import { countUnsyncedOfflineWork, flushBeforeLogout, purgeAllOfflineData } from "@/offline/purge";
+import {
+  LEGACY_DATABASE, countUnsyncedOfflineWork, flushBeforeLogout, purgeAllOfflineData, retireLegacyDatabase,
+} from "@/offline/purge";
+
+/** Recrée l'ancienne base SchoolFlowDB telle qu'elle existe sur les appareils. */
+async function createLegacyDatabase(pendingOps = 0) {
+  const legacy = new Dexie(LEGACY_DATABASE);
+  legacy.version(1).stores({
+    students: "id, registration_number, tenant_id, last_updated",
+    syncQueue: "++id, table, action, timestamp",
+  });
+  await legacy.open();
+  await legacy.table("students").put({
+    id: "s1", registration_number: "MAT-001", first_name: "Aïssatou", last_name: "Diallo",
+    tenant_id: "tenant-1", last_updated: Date.now(),
+  });
+  for (let i = 0; i < pendingOps; i++) {
+    await legacy.table("syncQueue").add({ table: "attendance", action: "INSERT", data: {}, timestamp: Date.now(), retry_count: 0 });
+  }
+  legacy.close();
+}
 
 const TENANT = "tenant-1";
 
@@ -27,16 +47,13 @@ async function seedEverything() {
     localId: "local-1", tenantId: TENANT, studentId: "s1", classroomId: "c1", date: "2026-11-09",
     status: "ABSENT", synced: 0, syncStatus: "PENDING", retries: 0, createdAt: Date.now(),
   } as never);
-  await legacyDb.students.put({
-    id: "s1", registration_number: "MAT-001", first_name: "Aïssatou", last_name: "Diallo",
-    tenant_id: TENANT, last_updated: Date.now(),
-  });
+  await createLegacyDatabase();
 }
 
 async function totalRows() {
-  const all = [outboxDb.offline_actions, ...draftsDb.tables, ...legacyDb.tables];
+  const all = [outboxDb.offline_actions, ...draftsDb.tables];
   const counts = await Promise.all(all.map((t) => t.count()));
-  return counts.reduce((a, b) => a + b, 0);
+  return counts.reduce((a: number, b: number) => a + b, 0);
 }
 
 beforeEach(async () => {
@@ -48,12 +65,14 @@ afterEach(() => vi.restoreAllMocks());
 describe("purgeAllOfflineData", () => {
   it("vide la file, les brouillons, le cache d'élèves et l'ancienne base", async () => {
     await seedEverything();
-    expect(await totalRows()).toBeGreaterThanOrEqual(4);
+    expect(await totalRows()).toBe(3); // file, élève en cache, brouillon
+    expect(await Dexie.exists(LEGACY_DATABASE)).toBe(true);
 
     await purgeAllOfflineData();
 
     expect(await totalRows()).toBe(0);
     expect(await draftsDb.cachedStudents.count()).toBe(0);
+    expect(await Dexie.exists(LEGACY_DATABASE)).toBe(false);
   });
 
   it("journalise une table impossible à vider sans arrêter les autres", async () => {
@@ -107,5 +126,27 @@ describe("flushBeforeLogout", () => {
     post.mockRejectedValue(Object.assign(new Error("Network Error"), { request: {} }));
 
     expect(await flushBeforeLogout(TENANT)).toBe(2);
+  });
+});
+
+describe("retireLegacyDatabase (ancienne base SchoolFlowDB, O6)", () => {
+  it("au démarrage, supprime l'ancienne base si elle ne contient aucune opération", async () => {
+    await createLegacyDatabase(0);
+    expect(await retireLegacyDatabase()).toBe(true);
+    expect(await Dexie.exists(LEGACY_DATABASE)).toBe(false);
+  });
+
+  it("au démarrage, la conserve (et le signale) si des opérations y restent", async () => {
+    await createLegacyDatabase(2);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect(await retireLegacyDatabase()).toBe(false);
+    expect(await Dexie.exists(LEGACY_DATABASE)).toBe(true);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("2 opération(s)"));
+  });
+
+  it("à la déconnexion, la supprime dans tous les cas", async () => {
+    await createLegacyDatabase(2);
+    expect(await retireLegacyDatabase({ force: true })).toBe(true);
+    expect(await Dexie.exists(LEGACY_DATABASE)).toBe(false);
   });
 });

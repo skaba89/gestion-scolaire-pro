@@ -19,8 +19,9 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | O3 | ~~P1~~ corrigé | Plafond de la file | **Corrigé** : file pleine de saisies non envoyées → nouvelle saisie refusée avec message ; place libérée seulement sur l'historique déjà tranché | — |
 | O4 | ~~P1~~ corrigé | Changement d'établissement | **Corrigé** : actions d'un autre établissement jamais envoyées ici, mais conservées | — |
 | O5 | ~~P2~~ corrigé | Utilisateur non vérifié à l'envoi | **Corrigé** : seules les actions de l'utilisateur courant sont envoyées | — |
-| O6 | P2 | Trois couches hors ligne | `offline/`, `lib/offlineDb.ts`, `lib/db.ts` ; deux chemins de saisie de présence ; le cache d'élèves appelle `/students/?class_id=` (paramètre ignoré : élèves de l'établissement, page 1) | Une seule couche |
-| 5 | P2 | Code mort au contrat invalide | `src/queries/reference-data.ts` : `students` (`page_size: 1000`) et `teachers` (`/users/`, `page_size: 500`) dépassent le plafond serveur de 100 (422) ; aucun consommateur | Suppression (validation requise : suppression de code) |
+| O6 | ~~P1/P2~~ corrigé (sauf E) | Couches hors ligne | **Corrigé** (PR fix/offline-roster-and-indicator) : (A) la liste hors ligne d'une classe vient de ses inscriptions — l'ancien cache prenait la page 1 des élèves de l'établissement ; (B) l'indicateur global compte les vraies saisies en attente et « Synchroniser » les envoie — il comptait une file vide et « synchronisait » en supprimant ; (C) page Installer idem ; (D) `usePWA`, `useOfflineStorage`, `lib/db.ts` et requêtes mortes de `reference-data.ts` retirés, ancienne base supprimée si vide | — |
+| O7 | P2 | Deux chemins de saisie de présence | File d'envoi (réseau perdu pendant une requête) et brouillons (écran hors ligne) coexistent ; tous deux robustes et testés | Fusion éventuelle, non urgente |
+| 5 | ~~P2~~ fait | Code mort au contrat invalide | **Retiré** avec O6 (`reference-data.ts` : `students`, `teachers`) | — |
 | 6 | P2 | `test_start_sh_db_resolution.py` | 8 échecs en local (Python système 3.14, pas de `python`) ; verts en CI | Test indépendant de l'interpréteur de l'hôte |
 
 Points hors périmètre automatisé, nécessitant une décision humaine : déploiement
