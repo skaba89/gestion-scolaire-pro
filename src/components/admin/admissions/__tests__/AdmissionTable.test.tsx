@@ -109,3 +109,22 @@ describe("AdmissionTable — bouton Inscrire", () => {
     expect(onUpdateStatus).toHaveBeenCalledWith("app-2", "UNDER_REVIEW", expect.objectContaining({ id: "app-2" }));
   });
 });
+
+describe("AdmissionTable — réinscription (RE-01)", () => {
+  it("signale une réinscription et propose de la valider, sans « Inscrire »", () => {
+    const onConvert = vi.fn();
+    renderWithClient(
+      <AdmissionTable
+        applications={[makeApplication({ documents: { type: "REINSCRIPTION", student_id: "s-1" } as never })]}
+        isLoading={false}
+        studentLabel="Élève"
+        onUpdateStatus={vi.fn()}
+        onConvert={onConvert}
+      />,
+    );
+    expect(screen.getByText("Réinscription")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Valider la réinscription" }));
+    expect(onConvert).toHaveBeenCalledWith("app-1", expect.objectContaining({ id: "app-1" }));
+    expect(screen.queryByRole("button", { name: /^inscrire$/i })).not.toBeInTheDocument();
+  });
+});

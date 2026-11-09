@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { AdmissionApplication, AdmissionStatus } from "@/queries/admissions";
+import { AdmissionApplication, AdmissionStatus, isReenrollment } from "@/queries/admissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdmissionDetailDialog } from "./AdmissionDetailDialog";
 
@@ -132,7 +132,10 @@ export const AdmissionTable = ({
                                             <p className="font-medium">
                                                 {app.student_first_name} {app.student_last_name}
                                             </p>
-                                            {(app.documents?.length ?? 0) > 0 && (
+                                            {isReenrollment(app) && (
+                                                <Badge variant="secondary" className="text-xs">Réinscription</Badge>
+                                            )}
+                                            {Array.isArray(app.documents) && app.documents.length > 0 && (
                                                 <span
                                                     className="inline-flex items-center gap-0.5 text-xs text-muted-foreground"
                                                     title={`${app.documents!.length} document(s) déposé(s)`}
@@ -211,7 +214,7 @@ export const AdmissionTable = ({
                                                 onClick={() => onConvert(app.id, app)}
                                             >
                                                 <UserPlus className="w-4 h-4 mr-1" />
-                                                Inscrire
+                                                {isReenrollment(app) ? "Valider la réinscription" : "Inscrire"}
                                             </Button>
                                         )}
                                     </div>

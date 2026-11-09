@@ -45,14 +45,15 @@ def _tenant() -> str:
     return tid
 
 
-def _application(tid: str, *, status=AdmissionStatus.ACCEPTED, dob=datetime(2013, 4, 2), last="Bangoura") -> str:
+def _application(tid: str, *, status=AdmissionStatus.ACCEPTED, dob=datetime(2013, 4, 2), last="Bangoura",
+                 documents=None) -> str:
     aid = str(uuid.uuid4())
     with SessionLocal() as db:
         db.add(AdmissionApplication(
             id=aid, tenant_id=tid, student_first_name="Fanta", student_last_name=last,
             student_date_of_birth=dob, student_gender="female",
             parent_first_name="Mamadou", parent_last_name=last, parent_email=f"{aid[:8]}@example.com",
-            parent_phone="+224620000000", status=status,
+            parent_phone="+224620000000", status=status, documents=documents,
         ))
         db.commit()
     return aid
@@ -189,3 +190,63 @@ def test_roles_without_admissions_write_are_refused():
     aid = _application(tid)
     for role in ("TEACHER", "PARENT", "STUDENT"):
         assert _as(tid, roles=(role,)).post(f"{BASE}/{aid}/convert/", json={}, headers=HEADERS).status_code == 403
+
+
+# ── RE-01 : réinscription d'un élève existant ────────────────────────────────
+# Une demande de réinscription (formulaire public) vise un élève EXISTANT ; la
+# convertir créait un second élève (nouveau matricule) au lieu de réinscrire
+# le premier.
+
+def _student(tid: str, reg: str) -> str:
+    sid = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.add(Student(id=sid, tenant_id=tid, registration_number=reg, first_name="Fanta",
+                       last_name="Bangoura", date_of_birth=date(2013, 4, 2), gender=Gender.FEMALE))
+        db.commit()
+    return sid
+
+
+def test_reenrollment_is_linked_to_the_existing_student_without_creating_one():
+    tid = _tenant()
+    reg = f"EXIST-{uuid.uuid4().hex[:8]}"
+    sid = _student(tid, reg)
+    aid = _application(tid, dob=None, documents={"type": "REINSCRIPTION", "student_id": sid})
+
+    response = _convert(tid, aid)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body == {**body, "student_id": sid, "registration_number": reg, "reenrollment": True}
+    with SessionLocal() as db:
+        assert db.query(Student).filter(Student.tenant_id == tid).count() == 1  # aucun doublon
+        application = db.query(AdmissionApplication).filter(AdmissionApplication.id == aid).one()
+        assert application.status == AdmissionStatus.CONVERTED_TO_STUDENT
+        assert str(application.converted_student_id) == sid
+
+
+def test_reenrollment_never_targets_a_student_of_another_school():
+    tid, other = _tenant(), _tenant()
+    foreign = _student(other, f"OTHER-{uuid.uuid4().hex[:8]}")
+    aid = _application(tid, documents={"type": "REINSCRIPTION", "student_id": foreign})
+
+    response = _convert(tid, aid)
+
+    assert response.status_code == 400, response.text
+    with SessionLocal() as db:
+        assert db.query(Student).filter(Student.tenant_id == tid).count() == 0
+        assert db.query(AdmissionApplication).filter(AdmissionApplication.id == aid).one().status == AdmissionStatus.ACCEPTED
+
+
+@pytest.mark.parametrize("student_ref", [None, "pas-un-uuid", str(uuid.uuid4())])
+def test_reenrollment_with_missing_or_unknown_student_is_refused(student_ref):
+    tid = _tenant()
+    aid = _application(tid, documents={"type": "REINSCRIPTION", "student_id": student_ref})
+    assert _convert(tid, aid).status_code == 400
+
+
+def test_a_new_application_still_creates_a_student():
+    tid = _tenant()
+    response = _convert(tid, _application(tid, documents={"type": "NOUVELLE"}))
+    assert response.status_code == 200, response.text
+    assert response.json()["reenrollment"] is False
+
