@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { ownTenantPath } from "@/lib/tenant-path";
 import { AppRole } from "@/lib/types";
+import { getRedirectPathForRoles } from "@/lib/roleRedirect";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -166,57 +167,6 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
   return <>{children}</>;
 };
 
-export const getRedirectPathForRoles = (roles: AppRole[], tenantSlug?: string | null): string => {
-  const businessRoles = roles.filter((role) =>
-    [
-      "SUPER_ADMIN",
-      "TENANT_ADMIN",
-      "DIRECTOR",
-      "DEPARTMENT_HEAD",
-      "TEACHER",
-      "PARENT",
-      "STUDENT",
-      "ACCOUNTANT",
-      "STAFF",
-    ].includes(role),
-  );
-
-  if (businessRoles.length === 0) {
-    return "/";
-  }
-
-  // SUPER_ADMIN always goes to the platform dashboard regardless of tenant
-  if (businessRoles.includes("SUPER_ADMIN" as AppRole)) {
-    return "/super-admin";
-  }
-
-  const prefix = tenantSlug ? `/${tenantSlug}` : "";
-
-  if (
-    businessRoles.includes("TENANT_ADMIN") ||
-    businessRoles.includes("DIRECTOR") ||
-    businessRoles.includes("ACCOUNTANT")
-  ) {
-    return `${prefix}/admin`;
-  }
-  if (businessRoles.includes("DEPARTMENT_HEAD" as AppRole)) {
-    return `${prefix}/department`;
-  }
-  if (businessRoles.includes("TEACHER")) {
-    return `${prefix}/teacher`;
-  }
-  if (businessRoles.includes("PARENT")) {
-    return `${prefix}/parent`;
-  }
-  if (businessRoles.includes("STUDENT")) {
-    return `${prefix}/student`;
-  }
-  if (businessRoles.includes("ALUMNI" as AppRole)) {
-    return `${prefix}/alumni`;
-  }
-  if (businessRoles.includes("STAFF")) {
-    return `${prefix}/admin`;
-  }
-
-  return "/";
-};
+// Source unique du portail d'accueil d'un rôle (module pur, sans contexte
+// React) : réexportée pour les appelants existants.
+export { getRedirectPathForRoles };

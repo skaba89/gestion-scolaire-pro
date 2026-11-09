@@ -711,3 +711,8 @@ ce fichier — pas d'un document de 2025 non révisé.
   élèves du département. Tests PostgreSQL ; recette E2E du portail sans
   défaut. Les trois défauts P0 trouvés par la recette des portails sont
   corrigés.
+- **2026-11-09 — chaque rôle arrive sur son portail (R4).** Les anciens
+  étudiants et le secrétariat étaient renvoyés vers la page publique lors d'un
+  accès refusé ; le chef de département passait par l'espace admin après la
+  connexion. Une seule règle (`src/lib/roleRedirect.ts`) sert désormais aux
+  gardes de route et à la connexion. Vérifié en E2E pour les 9 rôles.
