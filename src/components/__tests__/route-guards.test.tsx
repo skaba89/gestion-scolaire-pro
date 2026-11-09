@@ -58,6 +58,19 @@ describe("getRedirectPathForRoles", () => {
     expect(getRedirectPathForRoles(["TEACHER"], "isc-paris")).toBe("/isc-paris/teacher");
   });
 
+  // R4 (recette E2E des portails) : ALUMNI et SECRETARY étaient ignorés et
+  // renvoyés vers la page publique « / ».
+  it.each([
+    ["ALUMNI", "/lasource/alumni"],
+    ["SECRETARY", "/lasource/admin"],
+    ["ACCOUNTANT", "/lasource/admin"],
+    ["DEPARTMENT_HEAD", "/lasource/department"],
+    ["STUDENT", "/lasource/student"],
+    ["PARENT", "/lasource/parent"],
+  ])("sends %s to its own portal", (role, path) => {
+    expect(getRedirectPathForRoles([role as never], "lasource")).toBe(path);
+  });
+
   it("falls back to root when no business role is found", () => {
     expect(getRedirectPathForRoles([])).toBe("/");
   });
