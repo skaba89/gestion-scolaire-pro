@@ -696,3 +696,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   `GET /invoices/` comme un tableau. Corrigé ; rappels limités aux factures
   impayées (PENDING, PARTIAL, OVERDUE) avec le reste à payer. La recette E2E
   parcourt désormais les 8 entrées du portail parent sans défaut.
+- **2026-11-09 — tableau de bord étudiant rétabli (R2).** `GET
+  /students/dashboard/` répondait 500 sur PostgreSQL pour tout élève (jointure
+  sur une colonne `enrollments.level_id` inexistante) ; il comparait aussi le
+  statut à `active` (stocké `ACTIVE`, donc jamais d'inscription trouvée) et ne
+  filtrait pas l'établissement. Corrigé, avec un test PostgreSQL ; la recette
+  E2E parcourt le portail étudiant sans défaut.

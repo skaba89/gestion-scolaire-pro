@@ -8,9 +8,6 @@
   "secretary": [
     "foreign /student redirect /"
   ],
-  "student": [
-    "api-5xx GET /students/dashboard/"
-  ],
   "alumni": [
     "foreign /admin redirect /"
   ]
