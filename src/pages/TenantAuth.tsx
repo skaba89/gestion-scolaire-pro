@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Loader2, Users, BookOpen, MapPin, Globe, Calendar, ShieldCheck, ArrowRight } from "lucide-react";
 import { getTenantTypeLabel } from "@/types/tenant";
 import { resolveUploadUrl } from "@/utils/url";
+import { getRedirectPathForRoles } from "@/lib/roleRedirect";
+import type { AppRole } from "@/lib/types";
 
 // ─────────────────────────────────────────────
 // Color utilities
@@ -156,20 +158,10 @@ const TenantAuthPage = () => {
       return;
     }
 
-    const slug = profileSlug;
-    if (userRoles.includes("TENANT_ADMIN") || userRoles.includes("DIRECTOR") || userRoles.includes("STAFF")) {
-      navigate(`/${slug}/admin`, { replace: true });
-    } else if (userRoles.includes("TEACHER")) {
-      navigate(`/${slug}/teacher`, { replace: true });
-    } else if (userRoles.includes("PARENT")) {
-      navigate(`/${slug}/parent`, { replace: true });
-    } else if (userRoles.includes("STUDENT")) {
-      navigate(`/${slug}/student`, { replace: true });
-    } else if (userRoles.includes("ALUMNI")) {
-      navigate(`/${slug}/alumni`, { replace: true });
-    } else {
-      navigate(`/${slug}/admin`, { replace: true });
-    }
+    // Même règle que les gardes de route : un chef de département, un
+    // comptable ou un secrétaire arrive directement sur son portail.
+    const path = getRedirectPathForRoles(userRoles as AppRole[], profileSlug);
+    navigate(path === "/" ? `/${profileSlug}/admin` : path, { replace: true });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
