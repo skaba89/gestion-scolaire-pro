@@ -35,6 +35,8 @@ exige l'envoi réel d'un e-mail d'invitation. Il refuse de tourner sans
 | `04-fees-invoice-mobile-money.spec.ts` | frais d'inscription → facture → paiement **Mobile Money reçu** (référence Orange Money) → solde en espèces → facture « Payé » ; méthode `MOBILE_MONEY` vérifiée par l'API |
 | `05-teacher-attendance.spec.ts` | l'enseignant pointe un absent puis corrige en présent (boutons accessibles « Absent » / « Présent ») ; l'API ne garde qu'une présence, au statut corrigé |
 | `09-role-portals.spec.ts` | recette des portails : pour 9 rôles, chaque entrée du menu latéral est ouverte (page 404, erreur d'affichage, renvoi hors portail, API 5xx/404) ; un autre portail renvoie vers le sien ; une API hors permission répond 403 |
+| `10-offline-privacy.spec.ts` | après déconnexion par l'interface, aucune base IndexedDB hors ligne ne conserve de données (élèves en cache compris) |
+| `11-offline-attendance-sync.spec.ts` | réseau coupé (`context.setOffline`) : pointage hors ligne, correction, retour du réseau → une seule présence côté API, au dernier statut |
 
 Le paiement **en ligne** par passerelle (CinetPay / PayTech) n'est pas joué :
 l'initier appelle l'API réelle du prestataire. Son rapprochement par webhook

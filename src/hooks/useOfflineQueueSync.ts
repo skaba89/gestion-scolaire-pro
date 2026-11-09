@@ -10,10 +10,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { useTenant } from "@/contexts/TenantContext";
-import { flushOfflineQueue, migrateLegacyQueue, queueLength } from "@/offline/syncEngine";
+import { flushOfflineQueue, migrateLegacyQueue, queueLength, recoverInterruptedActions } from "@/offline/syncEngine";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function useOfflineQueueSync(): void {
   const { tenant } = useTenant();
+  const { user } = useAuth();
+  const userId = user?.id ? String(user.id) : null;
   const queryClient = useQueryClient();
   const flushing = useRef(false);
   const migrated = useRef(false);
@@ -26,11 +29,13 @@ export function useOfflineQueueSync(): void {
       if (!migrated.current) {
         migrated.current = true;
         await migrateLegacyQueue();
+        // O2 : envois interrompus (onglet fermé, coupure en plein envoi).
+        await recoverInterruptedActions();
       }
       if (flushing.current || (await queueLength()) === 0 || !navigator.onLine) return;
       flushing.current = true;
       try {
-        const result = await flushOfflineQueue(tenantId);
+        const result = await flushOfflineQueue(tenantId, undefined, userId);
         if (result.sent > 0) {
           queryClient.invalidateQueries({ queryKey: ["attendance-records"] });
           toast.success(
@@ -59,5 +64,5 @@ export function useOfflineQueueSync(): void {
     flush();
     window.addEventListener("online", flush);
     return () => window.removeEventListener("online", flush);
-  }, [tenantId, queryClient]);
+  }, [tenantId, userId, queryClient]);
 }

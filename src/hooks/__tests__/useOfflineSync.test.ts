@@ -6,7 +6,7 @@
  * see syncGrade()/syncAttendance() in useOfflineSync.ts).
  */
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockApiPost } = vi.hoisted(() => ({ mockApiPost: vi.fn() }));
 
@@ -16,6 +16,7 @@ vi.mock("@/api/client", () => ({
 
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { offlineDb, queueGrade, type PendingGrade } from "@/lib/offlineDb";
+import { whenDraftSyncIdle } from "@/offline/draftSync";
 
 function networkError() {
   return { request: {}, response: undefined, message: "Network Error" };
@@ -39,7 +40,15 @@ async function addGrade(overrides: Partial<PendingGrade> = {}): Promise<number> 
   });
 }
 
+// Les envois lancés au montage du hook se poursuivent après la fin d'un test :
+// on attend qu'ils soient terminés pour qu'ils ne consomment pas les
+// simulacres du test suivant (tests indépendants de l'ordre).
+afterEach(async () => {
+  await whenDraftSyncIdle();
+});
+
 beforeEach(async () => {
+  await whenDraftSyncIdle();
   vi.clearAllMocks();
   await offlineDb.pendingGrades.clear();
   await offlineDb.pendingAttendance.clear();

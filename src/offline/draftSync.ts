@@ -137,7 +137,20 @@ async function syncGrade(item: PendingGrade): Promise<SyncOutcome> {
   }
 }
 
+/** O2 : un brouillon resté SYNCING (onglet fermé, coupure en plein envoi)
+ * n'était jamais renvoyé — seuls les PENDING le sont. On le remet en
+ * attente avant chaque envoi : sans risque, sa clé d'idempotence (localId)
+ * est la même, le serveur ne crée pas de doublon. */
+export async function recoverInterruptedDrafts(): Promise<number> {
+  const [attendance, grades] = await Promise.all([
+    offlineDb.pendingAttendance.where("syncStatus").equals("SYNCING").modify({ syncStatus: "PENDING" }),
+    offlineDb.pendingGrades.where("syncStatus").equals("SYNCING").modify({ syncStatus: "PENDING" }),
+  ]);
+  return attendance + grades;
+}
+
 async function runSync(): Promise<DraftSyncResult> {
+  await recoverInterruptedDrafts();
   let synced = 0;
   let failed = 0;
   let conflicts = 0;
@@ -199,13 +212,36 @@ async function runSync(): Promise<DraftSyncResult> {
   return { synced, failed, conflicts };
 }
 
-/** Envoie les brouillons en attente. Un seul envoi à la fois : un appel
- * concurrent attend le même résultat au lieu de renvoyer les mêmes lignes. */
+/**
+ * Envoie les brouillons en attente. Un seul envoi à la fois ; un appel qui
+ * arrive pendant un envoi en déclenche un NOUVEAU juste après (regroupé avec
+ * les autres appels concurrents), pour que l'appelant récupère toujours un
+ * envoi démarré après son appel — un brouillon ajouté entre-temps (ou juste
+ * avant une déconnexion) n'est pas oublié.
+ */
+let followUp: Promise<DraftSyncResult> | null = null;
+
 export function syncPendingDrafts(): Promise<DraftSyncResult> {
   if (!running) {
     running = runSync().finally(() => {
       running = null;
     });
+    return running;
   }
-  return running;
+  if (!followUp) {
+    followUp = running
+      .catch(() => undefined)
+      .then(() => {
+        followUp = null;
+        return syncPendingDrafts();
+      });
+  }
+  return followUp;
+}
+
+/** Attend qu'aucun envoi de brouillons ne soit en cours (tests, déconnexion). */
+export async function whenDraftSyncIdle(): Promise<void> {
+  while (running || followUp) {
+    await (followUp ?? running)!.catch(() => undefined);
+  }
 }

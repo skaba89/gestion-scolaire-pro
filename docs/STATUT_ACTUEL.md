@@ -729,3 +729,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   l'utilisateur suivant d'un poste partagé. Toutes les bases hors ligne sont
   désormais vidées ; avant, l'application tente d'envoyer les saisies en
   attente et annonce celles qui seront perdues. Parcours E2E 10.
+- **2026-11-09 — saisies hors ligne : plus de perte silencieuse (O2–O5).**
+  Un envoi interrompu (onglet fermé, coupure en plein envoi) n'était jamais
+  repris ; au-delà de 200 saisies, les plus anciennes étaient effacées même
+  non envoyées ; celles d'un autre établissement étaient supprimées. Désormais
+  : reprise avec la même clé d'idempotence, refus visible quand la file est
+  pleine, conservation des saisies d'un autre établissement ou utilisateur
+  (jamais envoyées sous une autre identité). Parcours E2E 11 : pointage sans
+  réseau, retour du réseau, une seule présence au dernier statut.

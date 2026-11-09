@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { offlineDb } from "@/offline/db";
 import {
   OFFLINE_QUEUE_CAP,
+  OfflineQueueFullError,
   clearOfflineQueue,
+  recoverInterruptedActions,
   enqueueAction,
   flushOfflineQueue,
   getQueuedActions,
@@ -52,6 +54,25 @@ describe("isNetworkError", () => {
   });
 });
 
+/** Remplit la file de `n` saisies en attente en une seule opération (rapide,
+ * contrairement à n appels successifs d'enqueueAction). */
+async function fillPending(n: number) {
+  const base = Date.parse("2026-11-01T00:00:00Z");
+  await offlineDb.offline_actions.bulkAdd(
+    Array.from({ length: n }, (_, i) => ({
+      ...makeAttendance(`s${i}`),
+      dedupeKey: `attendance:c1:2026-11-01:s${i}`,
+      id: `seed-${i}`,
+      idempotencyKey: `key-${i}`,
+      status: "PENDING" as const,
+      retryCount: 0,
+      createdAt: new Date(base + i).toISOString(),
+      lastAttemptAt: null,
+      syncedAt: null,
+    })),
+  );
+}
+
 describe("enqueueAction", () => {
   it("ajoute une action horodatée, identifiée et avec une idempotencyKey", async () => {
     const entry = await enqueueAction(makeAttendance("s1"));
@@ -72,13 +93,29 @@ describe("enqueueAction", () => {
     expect(queue[0].idempotencyKey).toBe(second.idempotencyKey);
   });
 
-  it("borne la taille de la file en gardant les plus récentes", async () => {
-    for (let i = 0; i < OFFLINE_QUEUE_CAP + 10; i++) {
-      await enqueueAction(makeAttendance(`s${i}`));
-    }
+  // O3 : l'ancienne règle effaçait les saisies les plus anciennes, même non
+  // envoyées. Désormais une file pleine de saisies non envoyées REFUSE la
+  // nouvelle saisie (erreur visible) et ne perd rien.
+  it("file pleine de saisies non envoyées : refuse la nouvelle saisie sans rien effacer", async () => {
+    await fillPending(OFFLINE_QUEUE_CAP);
+    await expect(enqueueAction(makeAttendance("de-trop"))).rejects.toBeInstanceOf(OfflineQueueFullError);
     const queue = await getQueuedActions();
     expect(queue).toHaveLength(OFFLINE_QUEUE_CAP);
-    expect(queue[queue.length - 1].body.student_id).toBe(`s${OFFLINE_QUEUE_CAP + 9}`);
+    expect(queue[0].body.student_id).toBe("s0"); // la plus ancienne est toujours là
+    expect(queue.some((a) => a.body.student_id === "de-trop")).toBe(false);
+  });
+
+  it("libère la place sur l'historique déjà synchronisé, jamais sur l'attente", async () => {
+    await fillPending(OFFLINE_QUEUE_CAP);
+    const oldest = (await getQueuedActions())[0];
+    await offlineDb.offline_actions.update(oldest.id, { status: "SYNCED" });
+
+    await enqueueAction(makeAttendance("nouvelle"));
+
+    const queue = await getQueuedActions();
+    expect(queue).toHaveLength(OFFLINE_QUEUE_CAP);
+    expect(queue.some((a) => a.id === oldest.id)).toBe(false); // SYNCED retirée
+    expect(queue.filter((a) => a.status === "PENDING")).toHaveLength(OFFLINE_QUEUE_CAP);
   });
 });
 
@@ -129,7 +166,10 @@ describe("flushOfflineQueue", () => {
     expect(await queueLength()).toBe(2);
   });
 
-  it("ignore et retire les brouillons d'un autre tenant (sécurité)", async () => {
+  // O4 : sécurité conservée (jamais envoyé sous un autre établissement),
+  // mais la saisie n'est plus supprimée : elle partira au retour dans son
+  // établissement (ou sera purgée à la déconnexion).
+  it("n'envoie jamais un brouillon d'un autre tenant, mais le conserve", async () => {
     await enqueueAction({ ...makeAttendance("s1"), tenantId: "autre-tenant" });
     await enqueueAction(makeAttendance("s2"));
     const client = { post: vi.fn().mockResolvedValue({}), patch: vi.fn(), put: vi.fn() };
@@ -139,10 +179,14 @@ describe("flushOfflineQueue", () => {
     expect(result.sent).toBe(1);
     expect(client.post).toHaveBeenCalledTimes(1);
     expect(client.post.mock.calls[0][1].student_id).toBe("s2");
-    expect(await queueLength()).toBe(0);
+    expect(await queueLength()).toBe(1); // celui de l'autre tenant attend
+
+    const back = await flushOfflineQueue("autre-tenant", client);
+    expect(back.sent).toBe(1);
+    expect(client.post.mock.calls[1][1].student_id).toBe("s1");
   });
 
-  it("ne rejoue rien sans tenant courant", async () => {
+  it("ne rejoue rien sans tenant courant, et ne supprime rien", async () => {
     await enqueueAction(makeAttendance("s1"));
     const client = { post: vi.fn(), patch: vi.fn(), put: vi.fn() };
 
@@ -150,7 +194,34 @@ describe("flushOfflineQueue", () => {
 
     expect(result.sent).toBe(0);
     expect(client.post).not.toHaveBeenCalled();
-    expect(await queueLength()).toBe(0); // purgée : contexte inconnu
+    expect(await queueLength()).toBe(1); // conservée
+  });
+
+  // O5 : défense en profondeur — jamais envoyé sous l'identité d'un autre.
+  it("n'envoie que les brouillons de l'utilisateur courant", async () => {
+    await enqueueAction({ ...makeAttendance("s1"), userId: "autre-enseignant" });
+    await enqueueAction(makeAttendance("s2")); // userId: user-1
+    const client = { post: vi.fn().mockResolvedValue({}), patch: vi.fn(), put: vi.fn() };
+
+    const result = await flushOfflineQueue(TENANT, client, "user-1");
+
+    expect(result.sent).toBe(1);
+    expect(client.post.mock.calls.map((c) => c[1].student_id)).toEqual(["s2"]);
+    expect(await queueLength()).toBe(1);
+  });
+
+  // O2 : un envoi interrompu (SYNCING orphelin) n'était jamais repris.
+  it("reprend un envoi interrompu avec la même clé d'idempotence", async () => {
+    const action = await enqueueAction(makeAttendance("s1"));
+    await offlineDb.offline_actions.update(action.id, { status: "SYNCING" }); // onglet fermé en plein envoi
+    const client = { post: vi.fn().mockResolvedValue({}), patch: vi.fn(), put: vi.fn() };
+
+    expect((await flushOfflineQueue(TENANT, client)).sent).toBe(0); // bloqué avant correctif
+
+    expect(await recoverInterruptedActions()).toBe(1);
+    const result = await flushOfflineQueue(TENANT, client);
+    expect(result.sent).toBe(1);
+    expect(client.post.mock.calls[0][2]).toEqual({ headers: { "X-Idempotency-Key": action.idempotencyKey } });
   });
 });
 

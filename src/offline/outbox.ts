@@ -4,10 +4,17 @@
  *
  * Règles de sécurité (issue #23, préservées depuis l'ancienne file
  * localStorage) :
- * - chaque entrée est liée à un utilisateur + tenant ; au flush, les
- *   entrées d'un autre tenant que le tenant courant sont ignorées ;
+ * - chaque entrée est liée à un utilisateur + tenant ; au flush, seules
+ *   celles du tenant ET de l'utilisateur courants sont envoyées — les
+ *   autres sont conservées, jamais envoyées ni supprimées en silence (O4,
+ *   O5, lot hors-ligne n°2) ;
  * - la file est purgée au logout (auth:clear-cache) ;
- * - taille bornée (cap) pour ne pas saturer le stockage.
+ * - taille bornée (cap) : quand la file est pleine de saisies non envoyées,
+ *   une nouvelle saisie est REFUSÉE (OfflineQueueFullError, visible) au lieu
+ *   d'effacer les plus anciennes (O3) ;
+ * - un envoi interrompu (statut SYNCING laissé par un onglet fermé ou une
+ *   coupure) est remis en attente au démarrage (O2) : sans risque, la même
+ *   idempotencyKey est renvoyée.
  *
  * Nouveau vs. l'ancienne file : chaque action porte une idempotencyKey
  * stable, envoyée en en-tête X-Idempotency-Key à chaque tentative — un
@@ -18,6 +25,17 @@ import { apiClient } from "@/api/client";
 import { offlineDb, type OfflineAction } from "./db";
 
 export const OFFLINE_QUEUE_CAP = 200;
+
+/** File pleine de saisies non envoyées : la nouvelle saisie est refusée. */
+export class OfflineQueueFullError extends Error {
+  constructor() {
+    super(
+      `File hors ligne pleine (${OFFLINE_QUEUE_CAP} saisies non envoyées). ` +
+        "Reconnectez-vous au réseau pour les envoyer avant d'en saisir d'autres.",
+    );
+    this.name = "OfflineQueueFullError";
+  }
+}
 
 export interface FlushResult {
   sent: number;
@@ -106,17 +124,31 @@ export async function enqueueAction(
       // new payload (e.g. a corrected attendance status), not a retry.
       await offlineDb.offline_actions.where("dedupeKey").equals(entry.dedupeKey).delete();
     }
-    await offlineDb.offline_actions.add(entry);
-
-    const count = await offlineDb.offline_actions.count();
-    if (count > OFFLINE_QUEUE_CAP) {
-      const excess = count - OFFLINE_QUEUE_CAP;
-      const oldest = await offlineDb.offline_actions.orderBy("createdAt").limit(excess).primaryKeys();
-      await offlineDb.offline_actions.bulkDelete(oldest);
+    // Place libérée d'abord sur l'historique déjà tranché (SYNCED/REJECTED),
+    // jamais sur une saisie en attente (O3).
+    const total = await offlineDb.offline_actions.count();
+    if (total >= OFFLINE_QUEUE_CAP) {
+      const resolved = await offlineDb.offline_actions
+        .where("status").anyOf("SYNCED", "REJECTED")
+        .sortBy("createdAt");
+      const excess = total - OFFLINE_QUEUE_CAP + 1;
+      await offlineDb.offline_actions.bulkDelete(resolved.slice(0, excess).map((a) => a.id));
     }
+    const unsent = await offlineDb.offline_actions.where("status").anyOf("PENDING", "SYNCING").count();
+    if (unsent >= OFFLINE_QUEUE_CAP) {
+      throw new OfflineQueueFullError();
+    }
+    await offlineDb.offline_actions.add(entry);
   });
 
   return entry;
+}
+
+/** O2 : remet en attente les envois interrompus (SYNCING orphelins). À
+ * appeler au démarrage, avant tout envoi. Renvoie le nombre d'actions
+ * reprises. */
+export async function recoverInterruptedActions(): Promise<number> {
+  return offlineDb.offline_actions.where("status").equals("SYNCING").modify({ status: "PENDING" });
 }
 
 /** Purge complète (logout / changement d'utilisateur). */
@@ -142,12 +174,15 @@ type HttpClient = {
  *   abandonné définitivement, mais gardé visible) ;
  * - erreur réseau → repasse en PENDING, on s'arrête là, le reste attend
  *   le prochain flush ;
- * - tenant différent du tenant courant → ignorée et retirée (sécurité,
- *   jamais gardée, même pas visible).
+ * - tenant ou utilisateur différent du contexte courant (ou contexte
+ *   inconnu) → jamais envoyée, mais conservée en attente (O4/O5) : elle
+ *   partira quand son auteur sera de retour dans cet établissement, ou sera
+ *   purgée à la déconnexion.
  */
 export async function flushOfflineQueue(
   currentTenantId: string | null | undefined,
   client: HttpClient = apiClient,
+  currentUserId: string | null = null,
 ): Promise<FlushResult> {
   await pruneOldResolvedActions();
 
@@ -159,10 +194,10 @@ export async function flushOfflineQueue(
   let remaining = queue.length;
 
   for (const action of queue) {
-    if (!currentTenantId || action.tenantId !== currentTenantId) {
-      // Brouillon d'un autre contexte — jamais rejoué, jamais gardé.
-      await offlineDb.offline_actions.delete(action.id);
-      remaining -= 1;
+    const otherTenant = !currentTenantId || action.tenantId !== currentTenantId;
+    const otherUser = !!currentUserId && !!action.userId && action.userId !== currentUserId;
+    if (otherTenant || otherUser) {
+      // Autre contexte : jamais envoyé ici, mais conservé (O4/O5).
       continue;
     }
 
