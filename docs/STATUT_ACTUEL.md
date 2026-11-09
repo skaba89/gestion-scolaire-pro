@@ -752,3 +752,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   réglé pour le niveau et les moyennes de classe par matière, fournies par
   `GET /school-life/report-cards/class-summary/` (champs `passing_grade` et
   `subjects` ajoutés).
+- **2026-11-09 — admission : la conversion en élève fonctionne (A1, P0).**
+  Sur PostgreSQL, valider l'inscription d'un candidat accepté échouait
+  toujours (erreur 500 : élève inséré sans identifiant). Corrigé, avec
+  verrou contre la double validation, matricule automatique qui saute ceux
+  déjà pris (y compris par une autre école) et date de naissance exigée au
+  lieu d'être remplacée par la date du jour. Parcours E2E 12 : candidature →
+  élève → inscription. La production n'a pas été vérifiée directement
+  (lecture refusée) ; elle applique les mêmes migrations, donc très
+  probablement concernée tant que ce correctif n'est pas déployé.
