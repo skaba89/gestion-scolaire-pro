@@ -628,16 +628,6 @@ export const adminQueries = {
         return response.data;
     },
 
-    marketplaceResources: (filters: { search?: string; category?: string; type?: string }) => ({
-        queryKey: ["admin-marketplace-resources", filters] as const,
-        queryFn: async () => {
-            const response = await apiClient.get("/library/marketplace/", {
-                params: filters
-            });
-            return response.data || [];
-        },
-    }),
-
     calculateCashFlowForecast: async (tenantId: string, monthsAhead: number = 3) => {
         const response = await apiClient.post("/analytics/cash-flow-forecast/", { months_ahead: monthsAhead });
         return response.data;

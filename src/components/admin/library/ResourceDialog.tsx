@@ -194,14 +194,10 @@ export function ResourceDialog({
                                 />
                                 <span className="text-sm">Mettre en avant</span>
                             </label>
-                            <label className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.is_public}
-                                    onChange={(e) => setFormData({ ...formData, is_public: e.target.checked })}
-                                />
-                                <span className="text-sm font-medium text-primary">Partager sur le Marketplace global</span>
-                            </label>
+                            {/* « Partager sur le Marketplace global » retiré : aucun
+                                partage entre établissements n'existe côté API (R5).
+                                is_public reste transmis tel quel pour ne pas modifier
+                                les ressources existantes. */}
                         </div>
                     </div>
                     <DialogFooter>

@@ -1,14 +1,1 @@
-{
-  "admin": [
-    "api-404 GET /library/marketplace/"
-  ],
-  "director": [
-    "api-404 GET /library/marketplace/"
-  ],
-  "secretary": [
-    "foreign /student redirect /"
-  ],
-  "alumni": [
-    "foreign /admin redirect /"
-  ]
-}
+{}
