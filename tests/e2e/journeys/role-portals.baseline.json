@@ -13,9 +13,6 @@
     "api-5xx GET /department-portal/classrooms/",
     "api-5xx GET /department-portal/schedule/"
   ],
-  "student": [
-    "api-5xx GET /students/dashboard/"
-  ],
   "parent": [
     "/parent portal render-error"
   ],

@@ -82,7 +82,8 @@ def list_students(
         pages=pages,
     )
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
+from app.models.base import GUID
 from fastapi.responses import JSONResponse
 from datetime import datetime
 import logging
@@ -107,28 +108,42 @@ def get_student_dashboard(
         SELECT * FROM students
         WHERE user_id = :user_id AND tenant_id = :tenant_id
         LIMIT 1
-    """), {"user_id": user_id, "tenant_id": tenant_id}).mappings().first()
+    """).bindparams(
+        bindparam("user_id", type_=GUID()), bindparam("tenant_id", type_=GUID()),
+    ), {"user_id": user_id, "tenant_id": tenant_id}).mappings().first()
 
     if not student_res and current_user.get("email"):
         student_res = db.execute(text("""
             SELECT * FROM students
             WHERE email = :email AND tenant_id = :tenant_id
             LIMIT 1
-        """), {"email": current_user.get("email"), "tenant_id": tenant_id}).mappings().first()
+        """).bindparams(
+            bindparam("tenant_id", type_=GUID()),
+        ), {"email": current_user.get("email"), "tenant_id": tenant_id}).mappings().first()
 
     if not student_res:
          raise HTTPException(status_code=404, detail="Student profile not found")
          
     student_id = str(student_res["id"])
     
+    # R2 (recette E2E 09) : la jointure visait `e.level_id`, colonne
+    # inexistante (le niveau est porté par la classe) — erreur 500 pour tout
+    # élève sur PostgreSQL. Le statut était aussi comparé à 'active' alors
+    # qu'il est stocké 'ACTIVE', et l'établissement n'était pas filtré.
+    # Inscription active de l'année en cours d'abord, puis la plus récente.
     enrollment = db.execute(text("""
-        SELECT e.*, c.name as class_name, l.name as level_name
+        SELECT e.*, c.name AS class_name, l.name AS level_name
         FROM enrollments e
-        LEFT JOIN classrooms c ON e.class_id = c.id
-        LEFT JOIN levels l ON e.level_id = l.id
-        WHERE e.student_id = :student_id AND e.status = 'active'
+        JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
+        LEFT JOIN levels l ON l.id = c.level_id AND l.tenant_id = c.tenant_id
+        LEFT JOIN academic_years ay ON ay.id = e.academic_year_id AND ay.tenant_id = e.tenant_id
+        WHERE e.student_id = :student_id AND e.tenant_id = :tenant_id
+          AND UPPER(e.status) = 'ACTIVE'
+        ORDER BY CASE WHEN ay.is_current THEN 0 ELSE 1 END, e.created_at DESC
         LIMIT 1
-    """), {"student_id": student_id}).mappings().first()
+    """).bindparams(
+        bindparam("student_id", type_=GUID()), bindparam("tenant_id", type_=GUID()),
+    ), {"student_id": student_id, "tenant_id": tenant_id}).mappings().first()
     
     class_id = str(enrollment["class_id"]) if enrollment and enrollment["class_id"] else None
 
@@ -138,14 +153,16 @@ def get_student_dashboard(
         FROM grades g
         JOIN assessments a ON g.assessment_id = a.id
         LEFT JOIN subjects s ON a.subject_id = s.id
-        WHERE g.student_id = :student_id AND g.score IS NOT NULL
+        WHERE g.student_id = :student_id AND g.tenant_id = :tenant_id AND g.score IS NOT NULL
         ORDER BY g.created_at DESC LIMIT 15
-    """), {"student_id": student_id}).mappings().all()]
+    """).bindparams(
+        bindparam("student_id", type_=GUID()), bindparam("tenant_id", type_=GUID()),
+    ), {"student_id": student_id, "tenant_id": tenant_id}).mappings().all()]
     
     formatted_grades = []
     for g in grades:
          formatted_grades.append({
-             "id": g["id"], "score": g["score"], "created_at": g["created_at"].isoformat() if g["created_at"] else None,
+             "id": g["id"], "score": g["score"], "created_at": g["created_at"].isoformat() if hasattr(g["created_at"], "isoformat") else g["created_at"],
              "assessments": { "max_score": g["max_score"], "name": g["assessment_name"], "subjects": {"name": g["subject_name"]} }
          })
 
@@ -156,9 +173,11 @@ def get_student_dashboard(
             SELECT h.*, h.classroom_id AS class_id, s.name as subject_name
             FROM homework h
             LEFT JOIN subjects s ON h.subject_id = s.id
-            WHERE h.classroom_id = :class_id AND h.due_date >= CURRENT_DATE
+            WHERE h.classroom_id = :class_id AND h.tenant_id = :tenant_id AND h.due_date >= CURRENT_DATE
             ORDER BY h.due_date ASC LIMIT 5
-        """), {"class_id": class_id}).mappings().all()]
+        """).bindparams(
+            bindparam("class_id", type_=GUID()), bindparam("tenant_id", type_=GUID()),
+        ), {"class_id": class_id, "tenant_id": tenant_id}).mappings().all()]
         
     for h in homework:
         if isinstance(h.get("due_date"), datetime): h["due_date"] = h["due_date"].isoformat()
@@ -171,15 +190,19 @@ def get_student_dashboard(
             FROM schedule sh
             LEFT JOIN subjects s ON sh.subject_id = s.id
             LEFT JOIN users p ON sh.teacher_id = p.id
-            WHERE sh.class_id = :class_id
-        """), {"class_id": class_id}).mappings().all()]
+            WHERE sh.class_id = :class_id AND sh.tenant_id = :tenant_id
+        """).bindparams(
+            bindparam("class_id", type_=GUID()), bindparam("tenant_id", type_=GUID()),
+        ), {"class_id": class_id, "tenant_id": tenant_id}).mappings().all()]
 
     # Checkins
     checkins = [dict(r) for r in db.execute(text("""
         SELECT * FROM student_check_ins
-        WHERE student_id = :student_id
+        WHERE student_id = :student_id AND tenant_id = :tenant_id
         ORDER BY checked_at DESC LIMIT 10
-    """), {"student_id": student_id}).mappings().all()]
+    """).bindparams(
+        bindparam("student_id", type_=GUID()), bindparam("tenant_id", type_=GUID()),
+    ), {"student_id": student_id, "tenant_id": tenant_id}).mappings().all()]
     for c in checkins:
         if isinstance(c.get("checked_at"), datetime): c["checked_at"] = c["checked_at"].isoformat()
 
