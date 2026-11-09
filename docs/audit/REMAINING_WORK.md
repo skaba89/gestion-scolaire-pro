@@ -40,7 +40,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
 | C1 | P1 | E2E non obligatoire | Le ruleset `protect-main` exige 5 contrôles ; « E2E Journeys (real stack) » ne l'est pas | Contrôle requis (validation humaine : modification de la protection de branche) |
-| C2 | P1 | Test instable | `test_realtime_websocket_revocation…test_super_admin_role_still_in_db_can_cross_tenant` : `CancelledError` sur `main` (#506), vert ensuite | Test déterministe, 20 exécutions vertes |
+| C2 | ~~P1~~ corrigé | Test instable | **Corrigé** (PR test/stabilize-websocket-revocation) : course du `TestClient` Starlette à la fermeture (annulation avant la fin de l'endpoint) ; 8 échecs sur 15 avant, 0 sur 30 après | — |
 | C3 | P2 | Run `main` incomplet | Sur `7b072ea`, GitHub n'a jamais créé Backend ni Browser Smoke (deux tentatives) ; arbre identique au commit de PR vert 6/6 | Surveiller ; relancer par un nouveau commit si cela se reproduit |
 | C4 | P1 | Production en retard | 100 commits non déployés (#498–#509 compris) | Déploiement validé, sauvegarde préalable, plan de retour arrière |
 
