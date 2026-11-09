@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.security import get_current_user, require_permission
+from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.tenant_resolution import (
     enter_tenant_context_or_404,
     find_user_by_email_in_any_tenant,
@@ -934,7 +934,12 @@ def create_parent_payment(
         except Exception as e:
             db.rollback()
             logger.error("Failed to create pending payment record: %s", e, exc_info=True)
-            # Still return the URL — the webhook will handle reconciliation
+            # Sans ligne PENDING, la notification du fournisseur ne pourrait
+            # jamais être rapprochée : le parent paierait sans que la facture
+            # soit créditée. On n'envoie donc pas vers la page de paiement.
+            raise HTTPException(status_code=502, detail=(
+                "Le paiement n'a pas pu être préparé. Aucun montant n'a été débité ; réessayez."
+            ))
 
         return {
             "url": result.payment_url,
@@ -947,10 +952,19 @@ def create_parent_payment(
     # ── Direct payment (CASH / BANK_TRANSFER) ────────────────────────────────
     if method_upper not in {"CASH", "BANK_TRANSFER"}:
         raise HTTPException(status_code=400, detail="Méthode de paiement non prise en charge")
+    # F1 (recette B6, P0) : un encaissement en espèces ou par virement est
+    # enregistré directement COMPLETED et crédite la facture. Un parent
+    # pouvait donc solder lui-même la facture de son enfant par un simple
+    # appel d'API, sans payer ni validation. Seul le personnel habilité à
+    # encaisser (payments:write) peut enregistrer ce type de paiement ; un
+    # parent paie en ligne (Mobile Money), confirmé par le webhook signé.
+    if not user_has_permission(current_user, "payments:write"):
+        raise HTTPException(status_code=403, detail=(
+            "Les paiements en espèces ou par virement sont enregistrés par l'établissement. "
+            "Utilisez le paiement Mobile Money en ligne."
+        ))
 
     reference = body.reference or f"PAY-{secrets.token_hex(6).upper()}"
-    new_paid = float(inv["paid_amount"] or 0) + body.amount
-    new_status = "PAID" if new_paid >= float(inv["total_amount"]) else ("PARTIAL" if new_paid > 0 else "PENDING")
 
     try:
         payment_id = db.execute(text("""
@@ -975,11 +989,11 @@ def create_parent_payment(
             "notes": body.notes,
         }).scalar()
 
-        db.execute(text("""
-            UPDATE invoices SET paid_amount = :paid, status = :status, updated_at = NOW()
-            WHERE id = :invoice_id AND tenant_id = :tenant_id
-        """), {"paid": new_paid, "status": new_status,
-               "invoice_id": body.invoice_id, "tenant_id": tenant_id})
+        # Incrément calculé par la base (deux encaissements simultanés
+        # s'additionnent, F2).
+        new_paid, new_status = _credit_invoice_atomically(
+            db, invoice_id=body.invoice_id, tenant_id=tenant_id, amount=body.amount,
+        )
 
         log_audit(db, user_id=user_id, tenant_id=tenant_id,
                   action="REGISTER_PAYMENT", resource_type="PAYMENT",
@@ -1003,17 +1017,57 @@ def _gateway_amount_matches(expected: float, received: float) -> bool:
     return abs(expected - received) <= 0.01
 
 
+# Requêtes fixes (aucune interpolation) : SQLite ne connaît pas FOR UPDATE.
+_PENDING_PAYMENT_SQL = text("""
+    SELECT p.id, p.invoice_id, p.tenant_id, p.amount
+    FROM payments p
+    WHERE p.reference = :ref AND p.status = 'PENDING'
+    LIMIT 1
+""")
+_PENDING_PAYMENT_FOR_UPDATE_SQL = text("""
+    SELECT p.id, p.invoice_id, p.tenant_id, p.amount
+    FROM payments p
+    WHERE p.reference = :ref AND p.status = 'PENDING'
+    LIMIT 1
+    FOR UPDATE
+""")
+
+
+def _credit_invoice_atomically(db: Session, *, invoice_id: str, tenant_id: str, amount: float):
+    """Ajoute `amount` au montant payé de la facture EN UNE SEULE requête : la
+    base calcule l'incrément et le statut sur la valeur courante, sous le
+    verrou de ligne de l'UPDATE. Deux encaissements simultanés s'additionnent
+    au lieu de s'écraser (F2). Renvoie (paid_amount, status) ou None."""
+    row = db.execute(text("""
+        UPDATE invoices
+           SET paid_amount = COALESCE(paid_amount, 0) + :amount,
+               status = CASE
+                   WHEN COALESCE(paid_amount, 0) + :amount >= total_amount THEN 'PAID'
+                   WHEN COALESCE(paid_amount, 0) + :amount > 0 THEN 'PARTIAL'
+                   ELSE status END,
+               updated_at = NOW()
+         WHERE id = :id AND tenant_id = :tid
+     RETURNING paid_amount, status
+    """), {"amount": amount, "id": invoice_id, "tid": tenant_id}).mappings().first()
+    return (float(row["paid_amount"]), str(row["status"])) if row else None
+
+
 def _confirm_gateway_payment(db: Session, transaction_id: str, amount: float, tenant_id_hint: Optional[str] = None):
     """
     Shared logic: find the pending payment by reference and mark it COMPLETED,
     then update the invoice accordingly.
+
+    F2 (recette B6) : le paiement était lu sans verrou puis passé en
+    COMPLETED sans condition, et la facture recalculée par lecture-écriture.
+    Deux confirmations simultanées (plusieurs workers) faisaient perdre un
+    paiement du solde de la facture. Désormais : paiement verrouillé
+    (PostgreSQL), passage PENDING → COMPLETED conditionnel, incrément de la
+    facture calculé par la base.
     """
-    payment = db.execute(text("""
-        SELECT p.id, p.invoice_id, p.tenant_id, p.amount
-        FROM payments p
-        WHERE p.reference = :ref AND p.status = 'PENDING'
-        LIMIT 1
-    """), {"ref": transaction_id}).mappings().first()
+    payment = db.execute(
+        _PENDING_PAYMENT_SQL if settings.is_sqlite else _PENDING_PAYMENT_FOR_UPDATE_SQL,
+        {"ref": transaction_id},
+    ).mappings().first()
 
     if not payment:
         logger.warning("Webhook: no pending payment found for ref %s", transaction_id)
@@ -1035,23 +1089,19 @@ def _confirm_gateway_payment(db: Session, transaction_id: str, amount: float, te
         )
         return False
 
-    inv = db.execute(text(
-        "SELECT total_amount, paid_amount FROM invoices WHERE id = :id AND tenant_id = :tid"
-    ), {"id": invoice_id, "tid": tenant_id}).mappings().first()
-    if not inv:
-        logger.error("Webhook: invoice %s not found", invoice_id)
+    completed = db.execute(text(
+        "UPDATE payments SET status = 'COMPLETED', updated_at = NOW() "
+        "WHERE id = :pid AND status = 'PENDING'"
+    ), {"pid": str(payment["id"])})
+    if completed.rowcount != 1:
+        # Déjà confirmé par une notification concurrente : rien à créditer.
+        logger.info("Webhook: payment %s already confirmed", transaction_id)
         return False
 
-    new_paid = float(inv["paid_amount"] or 0) + pay_amount
-    new_status = "PAID" if new_paid >= float(inv["total_amount"]) else "PARTIAL"
-
-    db.execute(text(
-        "UPDATE payments SET status = 'COMPLETED', updated_at = NOW() WHERE id = :pid"
-    ), {"pid": str(payment["id"])})
-    db.execute(text(
-        "UPDATE invoices SET paid_amount = :paid, status = :status, updated_at = NOW() "
-        "WHERE id = :id AND tenant_id = :tid"
-    ), {"paid": new_paid, "status": new_status, "id": invoice_id, "tid": tenant_id})
+    if _credit_invoice_atomically(db, invoice_id=invoice_id, tenant_id=tenant_id, amount=pay_amount) is None:
+        logger.error("Webhook: invoice %s not found", invoice_id)
+        db.rollback()
+        return False
     return True
 
 
@@ -1098,7 +1148,8 @@ async def cinetpay_webhook(request: Request, background_tasks: BackgroundTasks, 
         form = await request.form()
         payload = dict(form)
 
-    logger.info("CinetPay webhook received: %s", payload)
+    # Contenu complet non journalisé : il peut contenir nom et téléphone du payeur.
+    logger.info("CinetPay webhook received (ref=%s)", payload.get("cpm_trans_id") or payload.get("transaction_id") or payload.get("ref_command"))
 
     # Find the tenant from the invoice so we can load credentials
     transaction_id = payload.get("cpm_trans_id") or payload.get("transaction_id", "")
@@ -1163,7 +1214,8 @@ async def paytech_webhook(request: Request, background_tasks: BackgroundTasks, d
         form = await request.form()
         payload = dict(form)
 
-    logger.info("PayTech webhook received: %s", payload)
+    # Contenu complet non journalisé : il peut contenir nom et téléphone du payeur.
+    logger.info("PayTech webhook received (ref=%s)", payload.get("cpm_trans_id") or payload.get("transaction_id") or payload.get("ref_command"))
     transaction_id = payload.get("ref_command", "")
     if not transaction_id:
         _log_webhook_event(db, tenant_id=None, gateway="paytech", transaction_id=None,

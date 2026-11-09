@@ -37,6 +37,18 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | RE-01 | ~~P1~~ corrigé | Réinscription en double | **Corrigé** (PR fix/reenrollment-no-duplicate) : valider une réinscription créait un second élève ; la demande est désormais rattachée à l'élève existant (revérifié dans l'établissement) | — |
 | A5 | P2 | Transfert non atomique | Le transfert se fait en deux appels (retrait puis inscription) : si le second échoue, l'élève reste sans classe active | Opération de transfert unique |
 
+
+## Recette B6 — finances (2026-11-09)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| F1 | ~~P0~~ corrigé | Parent qui solde lui-même une facture | **Corrigé** (PR fix/payment-webhook-idempotence) : `POST /parents/payments/create/` avec CASH/BANK_TRANSFER créditait la facture (COMPLETED) pour un simple parent ; réservé désormais à `payments:write`. Présent depuis le 2026-04-25 ; **impact en production non vérifié** (lecture refusée) — requête de contrôle dans la PR | Contrôle des paiements CASH/BANK_TRANSFER enregistrés par des parents en production |
+| F2 | ~~P1~~ corrigé | Paiement perdu du solde | **Corrigé** : confirmations simultanées (plusieurs workers) → un paiement disparaissait du solde de la facture (lecture-écriture) ; verrou, passage PENDING→COMPLETED conditionnel, incrément calculé par la base | — |
+| F3 | ~~P2~~ corrigé | Paiement en ligne non rapprochable | **Corrigé** : échec d'enregistrement du paiement PENDING masqué, URL de paiement renvoyée quand même ; désormais 502 | — |
+| F4 | ~~P2~~ corrigé | Données personnelles dans les journaux | **Corrigé** : contenu complet des webhooks journalisé ; seule la référence l'est désormais | — |
+| F5 | P2 | Signature PayTech partielle | Le HMAC PayTech ne couvre que `ref_command` (format du fournisseur) ; montant contrôlé côté serveur | Vérifier les champs signés disponibles chez PayTech |
+| F6 | P1 | Recette B6 restante | Remboursement/annulation, export comptable en E2E ; CinetPay non testable sans sandbox | Parcours E2E et accès sandbox |
+
 ## Qualité de la chaîne CI (2026-11-09)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
