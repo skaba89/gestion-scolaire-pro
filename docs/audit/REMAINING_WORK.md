@@ -47,7 +47,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | F3 | ~~P2~~ corrigé | Paiement en ligne non rapprochable | **Corrigé** : échec d'enregistrement du paiement PENDING masqué, URL de paiement renvoyée quand même ; désormais 502 | — |
 | F4 | ~~P2~~ corrigé | Données personnelles dans les journaux | **Corrigé** : contenu complet des webhooks journalisé ; seule la référence l'est désormais | — |
 | F5 | P2 | Signature PayTech partielle | Le HMAC PayTech ne couvre que `ref_command` (format du fournisseur) ; montant contrôlé côté serveur | Vérifier les champs signés disponibles chez PayTech |
-| F6 | P1 | Recette B6 restante | Remboursement/annulation, export comptable en E2E ; CinetPay non testable sans sandbox | Parcours E2E et accès sandbox |
+| F6 | P2 | Recette B6 restante | Annulation et export CSV couverts (parcours 15, aucun défaut trouvé) ; reste CinetPay, non testable sans sandbox | Accès sandbox CinetPay |
 
 ## Qualité de la chaîne CI (2026-11-09)
 
