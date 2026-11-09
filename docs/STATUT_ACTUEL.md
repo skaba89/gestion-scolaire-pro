@@ -744,3 +744,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   comptait une file que rien n'alimentait (toujours 0) et son bouton
   supprimait sans envoyer : il compte maintenant les vraies saisies et les
   envoie. Code hors ligne mort retiré (usePWA, useOfflineStorage, lib/db).
+- **2026-11-09 — « Analyse des résultats » alignée sur le bulletin.** L'onglet
+  de la page Bulletins recalculait ses statistiques dans le navigateur sur
+  toutes les notes de toutes les périodes, note par note, avec un taux de
+  réussite au seuil 10 écrit en dur. Il affiche désormais les valeurs
+  officielles de la période (même calcul que le PDF), le seuil de réussite
+  réglé pour le niveau et les moyennes de classe par matière, fournies par
+  `GET /school-life/report-cards/class-summary/` (champs `passing_grade` et
+  `subjects` ajoutés).

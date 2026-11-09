@@ -32,7 +32,7 @@ import {
   Download, ChevronDown, Info, Award
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PerformanceAnalytics } from "@/components/reports/PerformanceAnalytics";
+import { PerformanceAnalytics, type SubjectStat } from "@/components/reports/PerformanceAnalytics";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -63,16 +63,9 @@ interface OfficialResult {
 
 interface ClassSummary {
   class_total: number;
+  passing_grade: number;
   items: ({ student_id: string } & OfficialResult)[];
-}
-
-interface GradeData {
-  student_id: string;
-  subject_name: string;
-  score: number | null;
-  max_score: number;
-  coefficient: number;
-  weight: number;
+  subjects: SubjectStat[];
 }
 
 // ── Décision choices ────────────────────────────────────────────────────────────
@@ -210,44 +203,18 @@ const ReportCards = () => {
       return {
         classTotal: res.data.class_total,
         byStudent: new Map(res.data.items.map((item) => [item.student_id, item])),
+        // Onglet « Analyse » : mêmes valeurs officielles, pour la période.
+        averages: res.data.items
+          .map((item) => (item.average === null ? null : Number(item.average)))
+          .filter((v): v is number => v !== null),
+        passingGrade: res.data.passing_grade,
+        subjects: res.data.subjects ?? [],
       };
     },
     enabled: !!tenant && !!selectedClassroom && !!selectedTerm,
   });
 
-  // Notes détaillées : uniquement pour l'onglet « Analyse des résultats »,
-  // chargées à son ouverture (évite N requêtes à chaque affichage).
-  const [activeTab, setActiveTab] = useState("reports");
   const students = enrollmentData ?? [];
-  const {
-    data: studentGrades = new Map<string, GradeData[]>(),
-    isLoading: gradesLoading,
-    isError: gradesError,
-  } = useQuery({
-    queryKey: ["report-cards", "grades", tenant?.id, selectedClassroom, students.map((s) => s.id)],
-    queryFn: async () => {
-      const gradesResponses = await Promise.all(
-        students.map((s) =>
-          apiClient.get<any>("/grades/", { params: { student_id: s.id, page_size: 100 } })
-        )
-      );
-      const gradesMap = new Map<string, GradeData[]>();
-      gradesResponses.flatMap((r) => r.data?.items || []).forEach((g: any) => {
-        const sg = gradesMap.get(g.student_id) || [];
-        sg.push({
-          student_id: g.student_id,
-          subject_name: g.subject_name || g.assessments?.subjects?.name || "Matière",
-          score: g.score,
-          max_score: g.max_score || 20,
-          coefficient: g.coefficient || g.assessments?.subjects?.coefficient || 1,
-          weight: g.weight || 1,
-        });
-        gradesMap.set(g.student_id, sg);
-      });
-      return gradesMap;
-    },
-    enabled: activeTab === "overview" && students.length > 0,
-  });
 
   const loading = termsLoading || classroomsLoading || enrollmentLoading;
 
@@ -529,7 +496,7 @@ const ReportCards = () => {
       </Card>
 
       {/* ── Tabs ────────────────────────────────────────────────────────── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs defaultValue="reports" className="space-y-4">
         <TabsList>
           <TabsTrigger value="reports">
             <FileText className="w-4 h-4 mr-2" />
@@ -674,16 +641,17 @@ const ReportCards = () => {
 
         {/* ── Analytics ─────────────────────────────────────────────── */}
         <TabsContent value="overview">
-          {loading || gradesLoading ? (
+          {loading || summaryLoading ? (
             <div className="text-center py-12">Chargement des données...</div>
-          ) : gradesError ? (
+          ) : summaryError || !summary ? (
             <div role="alert" className="text-center py-12 text-destructive">
-              Impossible de charger les notes détaillées de la classe.
+              Impossible de charger les résultats officiels de la classe.
             </div>
           ) : (
             <PerformanceAnalytics
-              students={students}
-              studentGrades={studentGrades}
+              averages={summary.averages}
+              passingGrade={summary.passingGrade}
+              subjects={summary.subjects}
               termName={selectedTermName}
             />
           )}

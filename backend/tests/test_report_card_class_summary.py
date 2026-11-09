@@ -32,6 +32,7 @@ from app.models.assessment import Assessment  # noqa: E402
 from app.models.classroom import Classroom  # noqa: E402
 from app.models.enrollment import Enrollment  # noqa: E402
 from app.models.grade import Grade  # noqa: E402
+from app.models.level import Level  # noqa: E402
 from app.models.student import Gender, Student  # noqa: E402
 from app.models.subject import Subject  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
@@ -217,3 +218,39 @@ def test_pdf_disposition_neutralizes_header_injection():
     header = api._pdf_attachment_disposition("Bulletin", 'x"; filename=evil.exe\r\nX: y', "bulletin")
     assert "\r" not in header and "\n" not in header
     assert header.count('"') == 2
+
+
+# ── Onglet « Analyse des résultats » : matières et seuil de réussite ───────────
+# L'onglet recalculait dans le navigateur, sur toutes les périodes, note par
+# note et au seuil 10 écrit en dur. La synthèse fournit désormais des valeurs
+# calculées comme le bulletin, pour la période.
+
+def test_summary_subject_statistics_follow_the_bulletin_for_the_term(ctx):
+    body = _summary(ctx).json()
+    by_name = {s["subject_name"]: s for s in body["subjects"]}
+    # Trimestre 1 seulement : la note de 20 de C en maths (trimestre 2) est ignorée.
+    assert by_name["Mathématiques"]["class_average"] == round((18 + 15 + 10) / 3, 2)
+    assert by_name["Mathématiques"]["best_average"] == 18
+    assert by_name["Mathématiques"]["graded_students"] == 3
+    assert by_name["Mathématiques"]["coefficient"] == 3
+    assert by_name["Français"]["class_average"] == 13
+    assert by_name["Français"]["best_average"] == 19
+    assert {s["subject_id"] for s in body["subjects"]} == {ctx["maths"], ctx["french"]}
+
+
+def test_summary_returns_the_level_passing_grade(ctx):
+    assert _summary(ctx).json()["passing_grade"] == 10.0  # valeur par défaut
+    level_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.add(Level(id=level_id, tenant_id=ctx["tid"], name="7e Année", order_index=1))
+        db.flush()
+        db.query(Classroom).filter(Classroom.id == ctx["class_id"]).update({"level_id": level_id})
+        tenant = db.query(Tenant).filter(Tenant.id == ctx["tid"]).one()
+        tenant.settings = {"academic_rules": {"levels": {level_id: {
+            "passing_grade": 12, "mentions": [
+                {"label": "Assez Bien", "min": 13}, {"label": "Bien", "min": 14},
+                {"label": "Très Bien", "min": 16}, {"label": "Excellent", "min": 18},
+            ],
+        }}}}
+        db.commit()
+    assert _summary(ctx).json()["passing_grade"] == 12.0

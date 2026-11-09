@@ -19,7 +19,14 @@ vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/hooks/useStudentLabel", () => ({
   useStudentLabel: () => ({ studentLabel: "élève", studentsLabel: "élèves", StudentsLabel: "Élèves" }),
 }));
-vi.mock("@/components/reports/PerformanceAnalytics", () => ({ PerformanceAnalytics: () => null }));
+// L'onglet Analyse reçoit les props officielles : on les expose pour les vérifier.
+vi.mock("@/components/reports/PerformanceAnalytics", () => ({
+  PerformanceAnalytics: (props: { averages: number[]; passingGrade: number; subjects: { subject_name: string }[] }) => (
+    <div data-testid="analytics-props">{JSON.stringify({
+      averages: props.averages, passingGrade: props.passingGrade, subjects: props.subjects.map((s) => s.subject_name),
+    })}</div>
+  ),
+}));
 vi.mock("@/components/ui/select", () => ({
   Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SelectTrigger: () => null, SelectValue: () => null,
@@ -49,9 +56,11 @@ beforeEach(() => {
     }
     if (url === "/school-life/report-cards/class-summary/") {
       expect(config?.params).toEqual({ classroom_id: CLASS_ID, term_id: "term-1" });
-      return Promise.resolve({ data: { class_total: 2, items: [
+      return Promise.resolve({ data: { class_total: 2, passing_grade: 12, items: [
         { student_id: "s-old", average: "14.25", rank: 1 },
         { student_id: "s-new", average: null, rank: 0 },
+      ], subjects: [
+        { subject_id: "m1", subject_name: "Microéconomie", coefficient: 2, class_average: 14.25, best_average: 14.25, graded_students: 1 },
       ] } });
     }
     if (url === "/grades/") {
@@ -99,14 +108,19 @@ it("signale l'échec de la synthèse officielle au lieu d'afficher des moyennes 
   expect(screen.getByText("ANCIEN-001")).toBeInTheDocument();
 });
 
-it("charge les notes détaillées seulement à l'ouverture de l'onglet Analyse", async () => {
+// L'onglet Analyse recalculait dans le navigateur à partir de TOUTES les
+// notes (N requêtes /grades/, toutes périodes, seuil 10 en dur). Il reçoit
+// désormais les valeurs officielles de la période, sans aucune requête de notes.
+it("l'onglet Analyse utilise la synthèse officielle de la période, sans requête de notes", async () => {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={queryClient}><ReportCards /></QueryClientProvider>);
   await screen.findByText("ANCIEN-001");
-  expect(get.mock.calls.some(([url]) => url === "/grades/")).toBe(false);
 
   const tab = screen.getByRole("tab", { name: /Analyse des résultats/ });
   fireEvent.mouseDown(tab);
   fireEvent.click(tab);
-  await waitFor(() => expect(get.mock.calls.filter(([url]) => url === "/grades/")).toHaveLength(2));
+
+  const props = JSON.parse((await screen.findByTestId("analytics-props")).textContent!);
+  expect(props).toEqual({ averages: [14.25], passingGrade: 12, subjects: ["Microéconomie"] });
+  expect(get.mock.calls.some(([url]) => url === "/grades/")).toBe(false);
 });
