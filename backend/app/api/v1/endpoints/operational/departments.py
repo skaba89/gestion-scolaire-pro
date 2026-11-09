@@ -219,7 +219,8 @@ def department_dashboard(
             # Students
             stats["totalStudents"] = db.execute(text("""
                 SELECT COUNT(DISTINCT e.student_id) FROM enrollments e
-                WHERE e.class_id = ANY(:class_ids) AND e.status = 'active'
+                WHERE e.class_id = ANY(:class_ids) AND UPPER(e.status) = 'ACTIVE'
+                  AND e.tenant_id = :tenant_id
             """), params_cls).scalar() or 0
 
             # Teachers
@@ -238,20 +239,22 @@ def department_dashboard(
             thirty_ago = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
             att = db.execute(text("""
                 SELECT status FROM attendance
-                WHERE class_id = ANY(:class_ids) AND date >= :since
-            """), {"class_ids": class_ids, "since": thirty_ago}).fetchall()
+                WHERE classroom_id = ANY(:class_ids) AND tenant_id = :tenant_id AND date >= :since
+            """), {"class_ids": class_ids, "tenant_id": tenant_id, "since": thirty_ago}).fetchall()
             total_att = len(att)
             present = sum(1 for a in att if a.status == "PRESENT")
             stats["attendanceRate"] = round((present / total_att) * 100) if total_att else 0
 
             # Upcoming exams
-            stats["upcomingExams"] = db.execute(text(f"""
+            stats["upcomingExams"] = db.execute(text("""
                 SELECT COUNT(*) FROM exams
-                WHERE department_id = :dept_id AND exam_date >= CURRENT_DATE AND status = 'scheduled'
-            """), {"dept_id": department_id}).scalar() or 0
+                WHERE department_id = :dept_id AND tenant_id = :tenant_id
+                  AND exam_date >= CURRENT_DATE AND status = 'scheduled'
+            """), {"dept_id": department_id, "tenant_id": tenant_id}).scalar() or 0
 
-            # Recent grades (last 5)
-            grades = db.execute(text(f"""
+            # Recent grades (last 5) — limitées aux élèves inscrits dans les
+            # classes du département (auparavant : tout l'établissement).
+            grades = db.execute(text("""
                 SELECT g.id, g.score, g.created_at,
                        s.first_name, s.last_name,
                        a.name AS assessment_name,
@@ -261,9 +264,14 @@ def department_dashboard(
                 JOIN assessments a ON a.id = g.assessment_id
                 JOIN subjects sub ON sub.id = a.subject_id
                 WHERE g.tenant_id = :tenant_id
+                  AND EXISTS (
+                      SELECT 1 FROM enrollments e
+                      WHERE e.student_id = g.student_id AND e.tenant_id = g.tenant_id
+                        AND e.class_id = ANY(:class_ids) AND UPPER(e.status) = 'ACTIVE'
+                  )
                 ORDER BY g.created_at DESC
                 LIMIT 5
-            """), {"tenant_id": tenant_id}).fetchall()
+            """), params_cls).fetchall()
 
             recent_activities = [{
                 "type": "grade",
@@ -304,10 +312,10 @@ def department_classrooms(
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
         rows = db.execute(text("""
-            SELECT c.id, c.name, c.level_id, c.capacity, c.section,
+            SELECT c.id, c.name, c.level_id, c.capacity,
                    l.name AS level_name
             FROM classroom_departments cd
-            JOIN classrooms c ON c.id = cd.class_id
+            JOIN classes c ON c.id = cd.class_id AND c.tenant_id = cd.tenant_id
             LEFT JOIN levels l ON l.id = c.level_id
             WHERE cd.department_id = :dept_id AND cd.tenant_id = :tenant_id
             ORDER BY c.name
@@ -315,7 +323,8 @@ def department_classrooms(
 
         return [{
             "id": str(r.id), "name": r.name, "level_id": str(r.level_id) if r.level_id else None,
-            "capacity": r.capacity, "section": r.section, "level_name": r.level_name,
+            # `section` n'existe pas en base : conservé à null pour le contrat.
+            "capacity": r.capacity, "section": None, "level_name": r.level_name,
         } for r in rows]
     except HTTPException:
         raise
@@ -375,7 +384,7 @@ def department_students(
             FROM enrollments e
             JOIN students s ON s.id = e.student_id
             JOIN classrooms c ON c.id = e.class_id
-            WHERE e.tenant_id = :tenant_id AND e.status = 'active'
+            WHERE e.tenant_id = :tenant_id AND UPPER(e.status) = 'ACTIVE'
             {filters} {search_filter}
             ORDER BY s.last_name, s.first_name
         """), params).fetchall()
@@ -802,7 +811,7 @@ def department_schedule(
                    sub.name AS subject_name,
                    u.first_name AS teacher_first, u.last_name AS teacher_last,
                    c.name AS classroom_name
-            FROM schedules s
+            FROM schedule s
             LEFT JOIN subjects sub ON sub.id = s.subject_id
             LEFT JOIN users u ON u.id = s.teacher_id
             LEFT JOIN classrooms c ON c.id = s.class_id
@@ -873,7 +882,7 @@ def department_grades_report(
                    MAX(g.score) AS max_score,
                    MIN(g.score) AS min_score
             FROM students s
-            JOIN enrollments e ON e.student_id = s.id AND e.status = 'active'
+            JOIN enrollments e ON e.student_id = s.id AND UPPER(e.status) = 'ACTIVE'
             JOIN classrooms c ON c.id = e.class_id
             LEFT JOIN grades g ON g.student_id = s.id AND g.tenant_id = :tenant_id
             LEFT JOIN assessments a ON a.id = g.assessment_id {term_filter}
@@ -954,7 +963,7 @@ def department_report_stats(
 
         student_count = db.execute(text("""
             SELECT COUNT(DISTINCT e.student_id) FROM enrollments e
-            WHERE e.tenant_id = :tid AND e.status = 'active' AND e.class_id = ANY(:cids)
+            WHERE e.tenant_id = :tid AND UPPER(e.status) = 'ACTIVE' AND e.class_id = ANY(:cids)
         """), {"tid": tenant_id, "cids": scoped_class_ids}).scalar() or 0
 
         teacher_rows = db.execute(text("""
@@ -967,7 +976,7 @@ def department_report_stats(
         students_per_class_rows = db.execute(text("""
             SELECT c.id AS class_id, c.name, COUNT(e.student_id) AS count
             FROM classrooms c
-            LEFT JOIN enrollments e ON e.class_id = c.id AND e.status = 'active' AND e.tenant_id = :tid
+            LEFT JOIN enrollments e ON e.class_id = c.id AND UPPER(e.status) = 'ACTIVE' AND e.tenant_id = :tid
             WHERE c.id = ANY(:cids)
             GROUP BY c.id, c.name
             ORDER BY c.name
@@ -999,7 +1008,7 @@ def department_report_stats(
 
         avg_grade = db.execute(text("""
             SELECT AVG(g.score) FROM grades g
-            JOIN enrollments e ON e.student_id = g.student_id AND e.status = 'active'
+            JOIN enrollments e ON e.student_id = g.student_id AND UPPER(e.status) = 'ACTIVE'
             WHERE g.tenant_id = :tid AND e.class_id = ANY(:cids)
         """), {"tid": tenant_id, "cids": scoped_class_ids}).scalar()
 

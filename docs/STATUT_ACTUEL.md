@@ -702,3 +702,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   statut à `active` (stocké `ACTIVE`, donc jamais d'inscription trouvée) et ne
   filtrait pas l'établissement. Corrigé, avec un test PostgreSQL ; la recette
   E2E parcourt le portail étudiant sans défaut.
+- **2026-11-09 — portail chef de département rétabli (R3).** Tableau de
+  bord, classes et emploi du temps répondaient 500 sur PostgreSQL (colonnes
+  `attendance.class_id` et `classes.section`, table `schedules` inexistantes) ;
+  six requêtes comparaient le statut d'inscription à `active` (stocké
+  `ACTIVE`) : liste des élèves et rapports toujours vides. Les « activités
+  récentes » affichaient les notes de tout l'établissement : limitées aux
+  élèves du département. Tests PostgreSQL ; recette E2E du portail sans
+  défaut. Les trois défauts P0 trouvés par la recette des portails sont
+  corrigés.
