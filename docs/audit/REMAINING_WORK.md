@@ -5,7 +5,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
-| 1 | P1 | Onglet « Analyse des résultats » (page Bulletins) | Calcule encore ses statistiques sur toutes les notes de l'élève (toutes périodes), par nom de matière. Notes désormais chargées seulement à l'ouverture de l'onglet, erreurs visibles. | Statistiques par matière fournies par le serveur pour la période |
+| 1 | ~~P1~~ corrigé | Onglet « Analyse des résultats » (page Bulletins) | **Corrigé** (PR fix/report-analytics-official) : statistiques issues de la synthèse officielle de la période (moyennes du bulletin, seuil de réussite du niveau, matières par identifiant) ; plus aucune requête de notes par élève ; médiane exacte | — |
 | 2 | P2 | Couleurs de moyenne de la page Bulletins | Seuils 10/14 écrits en dur alors que les règles académiques sont réglables par niveau (#496) | Couleurs dérivées des règles effectives |
 | R1 | ~~P0~~ corrigé | Portail parent inutilisable | **Corrigé** (PR fix/parent-portal-invoice-reminders) : réponse paginée lue correctement, impayés PENDING/PARTIAL/OVERDUE, reste à payer affiché. Portail parent parcouru : 8 entrées, 0 défaut | — |
 | R6 | P2 | Rappels de devoirs (ReminderSystem) | La requête lit `GET /students/` (paginée, et refusée à l'élève) comme un tableau : les rappels de devoirs restent toujours vides, sans erreur | Source élève/inscription correcte et test |

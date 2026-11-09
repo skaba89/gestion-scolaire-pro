@@ -2863,6 +2863,47 @@ def generate_report_card_pdf(
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du PDF")
 
 
+def _class_subject_statistics(student_ids: list[str], grades_by_student: dict) -> list[dict]:
+    """Statistiques de classe par matière pour la période, à partir des MÊMES
+    lignes de notes que le bulletin : moyenne de chaque élève dans la matière
+    (moyenne simple de ses notes ramenées sur /20, étape 1 de
+    compute_weighted_average), puis moyenne de classe et meilleure moyenne
+    sur les élèves notés. Matières identifiées par leur identifiant : deux
+    matières de même nom restent distinctes."""
+    from app.services.grading import _validated_coefficient, _validated_score_scale
+
+    subjects: dict[str, dict] = {}
+    for sid in student_ids:
+        per_subject: dict[str, list[float]] = {}
+        for g in grades_by_student.get(sid, []):
+            # UUID canonique (SQLite renvoie de l'hexadécimal sans tirets).
+            subject_id = str(UUID(str(g["subject_id"]))) if g.get("subject_id") else None
+            key = subject_id or f"name:{g.get('subject_name')}"
+            score, max_s = _validated_score_scale(g)
+            subjects.setdefault(key, {
+                "subject_id": subject_id,
+                "subject_name": g.get("subject_name") or "Matière inconnue",
+                "coefficient": _validated_coefficient(g),
+                "student_averages": [],
+            })
+            if score is not None:
+                per_subject.setdefault(key, []).append(score / max_s * 20)
+        for key, values in per_subject.items():
+            subjects[key]["student_averages"].append(sum(values) / len(values))
+
+    result = []
+    for data in subjects.values():
+        averages = data.pop("student_averages")
+        result.append({
+            **data,
+            "class_average": round(sum(averages) / len(averages), 2) if averages else None,
+            "best_average": round(max(averages), 2) if averages else None,
+            "graded_students": len(averages),
+        })
+    result.sort(key=lambda r: (r["subject_name"], r["subject_id"] or ""))
+    return result
+
+
 @router.get("/report-cards/class-summary/")
 def get_report_card_class_summary(
     request: Request,
@@ -2884,6 +2925,10 @@ def get_report_card_class_summary(
     admin Bulletins recalculait dans le navigateur sur toutes les périodes.
     `average` vaut None et `rank` 0 pour un élève sans note calculable,
     exactement comme les métadonnées de /generate-report-card/v2/.
+
+    Champs ajoutés pour l'onglet « Analyse des résultats » : `passing_grade`
+    (seuil de réussite effectif du niveau de la classe, comme le bulletin)
+    et `subjects` (statistiques de classe par matière pour la période).
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
@@ -2909,11 +2954,22 @@ def get_report_card_class_summary(
             "average": f"{average:.2f}" if average >= 0 else None,
             "rank": rank,
         })
+    level_row = db.execute(
+        text("SELECT level_id FROM classes WHERE id = :cid AND tenant_id = :tid").bindparams(
+            bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()),
+        ),
+        {"cid": str(classroom_id), "tid": tenant_id},
+    ).first()
+    level_id = str(level_row[0]) if level_row and level_row[0] else None
+    rules = effective_rules(db, tenant_id, level_id)
+
     return {
         "classroom_id": str(classroom_id),
         "term_id": str(term_id),
         "class_total": len(student_ids),
+        "passing_grade": float(rules["passing_grade"]),
         "items": items,
+        "subjects": _class_subject_statistics(student_ids, grades_by_student),
     }
 
 

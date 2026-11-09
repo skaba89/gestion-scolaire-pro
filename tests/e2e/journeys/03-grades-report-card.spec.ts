@@ -131,6 +131,18 @@ test.describe.serial('Notes et bulletin', () => {
       const pdf = Buffer.concat(body);
       expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
       expect(pdf.length).toBeGreaterThan(1000);
+
+      // Onglet « Analyse des résultats » : moyenne générale = moyenne des
+      // moyennes officielles de la période renvoyées par le serveur (et non
+      // un recalcul navigateur sur toutes les notes, toutes périodes).
+      const summary = (await (await admin.get(
+        `/school-life/report-cards/class-summary/?classroom_id=${classroom.id}&term_id=${term.id}`,
+      )).json()) as { items: { average: string | null }[]; passing_grade: number };
+      const officials = summary.items.filter((i) => i.average !== null).map((i) => Number(i.average));
+      const expected = (officials.reduce((a, b) => a + b, 0) / officials.length).toFixed(2);
+      await page.getByRole('tab', { name: /Analyse des résultats/ }).click();
+      await expect(page.getByTestId('analytics-average')).toHaveText(`${expected}/20`);
+      await expect(page.getByText(`Taux de réussite (≥ ${summary.passing_grade}/20)`)).toBeVisible();
     });
   });
 });
