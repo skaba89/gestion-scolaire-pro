@@ -37,6 +37,8 @@ exige l'envoi réel d'un e-mail d'invitation. Il refuse de tourner sans
 | `09-role-portals.spec.ts` | recette des portails : pour 9 rôles, chaque entrée du menu latéral est ouverte (page 404, erreur d'affichage, renvoi hors portail, API 5xx/404) ; un autre portail renvoie vers le sien ; une API hors permission répond 403 |
 | `10-offline-privacy.spec.ts` | après déconnexion par l'interface, aucune base IndexedDB hors ligne ne conserve de données (élèves en cache compris) |
 | `11-offline-attendance-sync.spec.ts` | réseau coupé (`context.setOffline`) : pointage hors ligne, correction, retour du réseau → une seule présence côté API, au dernier statut |
+| `14-parent-cannot-self-pay.spec.ts` | un parent ne peut pas déclarer lui-même un paiement en espèces ou par virement (403) ; la facture reste impayée |
+| `15-payment-reversal-export.spec.ts` | encaissements Mobile Money + espèces → annulation du Mobile Money : facture revenue à PARTIAL, seconde annulation refusée (400), reçu « Paiement annulé », solde ré-encaissable ; export CSV avec la ligne REVERSED et filtre par statut ; le parent ne peut ni annuler (403) ni exporter les paiements d'une autre famille (403) |
 
 Le paiement **en ligne** par passerelle (CinetPay / PayTech) n'est pas joué :
 l'initier appelle l'API réelle du prestataire. Son rapprochement par webhook
