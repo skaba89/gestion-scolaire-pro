@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, or_
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from uuid import UUID
 import math
 
@@ -452,8 +452,20 @@ def create_student(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Registration number already exists"
         )
-    
-    return crud_student.create_student(db, student, tenant_id)
+
+    try:
+        return crud_student.create_student(db, student, tenant_id)
+    except IntegrityError as exc:
+        # Même matricule enregistré au même instant par une autre requête de
+        # cet établissement : même réponse que le contrôle ci-dessus, pas un 500.
+        db.rollback()
+        message = str(exc.orig)
+        if "uq_students_tenant_registration" in message or "students.registration_number" in message:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Registration number already exists",
+            )
+        raise
 
 
 @router.put("/{student_id}/", response_model=Student)

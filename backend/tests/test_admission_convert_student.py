@@ -111,22 +111,39 @@ def test_accepted_application_becomes_a_student_linked_to_it():
     assert body["registration_number"] == student.registration_number
 
 
-def test_generated_number_skips_one_already_taken_by_another_school():
+def test_generated_number_may_reuse_one_taken_by_another_school():
+    """A2 : le matricule est unique par établissement. Le numéro pris par une
+    autre école reste attribuable ici (avant : évité, l'unicité était globale)."""
     year = datetime.now().year
     other, tid = _tenant(), _tenant()
     taken = f"STU-{year}-0001"
     with SessionLocal() as db:
-        # Le matricule a pu être pris par un test précédent : on le garantit.
-        if not db.query(Student).filter(Student.registration_number == taken).first():
-            db.add(Student(id=str(uuid.uuid4()), tenant_id=other, registration_number=taken,
-                           first_name="Autre", last_name="École", date_of_birth=date(2010, 1, 1),
-                           gender=Gender.MALE))
-            db.commit()
+        db.add(Student(id=str(uuid.uuid4()), tenant_id=other, registration_number=taken,
+                       first_name="Autre", last_name="École", date_of_birth=date(2010, 1, 1),
+                       gender=Gender.MALE))
+        db.commit()
 
     response = _convert(tid, _application(tid))
 
     assert response.status_code == 200, response.text
-    assert response.json()["registration_number"] != taken
+    assert response.json()["registration_number"] == taken
+
+
+def test_generated_number_skips_one_already_taken_in_the_same_school():
+    """Le comptage des élèves ne reflète pas toujours les numéros utilisés
+    (import hors séquence) : un numéro déjà pris DANS l'école est sauté."""
+    year = datetime.now().year
+    tid = _tenant()
+    with SessionLocal() as db:
+        db.add(Student(id=str(uuid.uuid4()), tenant_id=tid, registration_number=f"STU-{year}-0002",
+                       first_name="Déjà", last_name="Inscrit", date_of_birth=date(2010, 1, 1),
+                       gender=Gender.MALE))
+        db.commit()
+
+    response = _convert(tid, _application(tid))
+
+    assert response.status_code == 200, response.text
+    assert response.json()["registration_number"] == f"STU-{year}-0003"
 
 
 def test_explicit_number_already_used_is_a_clear_conflict_and_nothing_changes():
