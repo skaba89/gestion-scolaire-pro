@@ -509,9 +509,9 @@ def transition_status(
 # ─── POST /{id}/convert ───────────────────────────────────────────────────────
 
 # Tentatives de matricule automatique avant d'abandonner (collisions avec un
-# matricule déjà pris, y compris dans un autre établissement : la contrainte
-# d'unicité de students.registration_number est globale, et la RLS masque
-# les élèves des autres écoles à la requête de comptage).
+# matricule déjà pris dans l'établissement : élèves supprimés ou importés hors
+# séquence, le comptage ne reflète pas les numéros réellement utilisés). Le
+# matricule est unique par établissement (migration 20261110_0001).
 _MAX_REGISTRATION_ATTEMPTS = 50
 
 

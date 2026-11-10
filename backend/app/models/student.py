@@ -1,5 +1,5 @@
 """Student model"""
-from sqlalchemy import Column, String, Date, Boolean, Integer, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Date, Boolean, Integer, ForeignKey, UniqueConstraint, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 import enum
 
@@ -21,6 +21,11 @@ class StudentStatus(str, enum.Enum):
 
 class Student(Base, UUIDMixin, TimestampMixin, TenantMixin):
     __tablename__ = "students"
+    # Matricule unique PAR établissement, pas sur toute la plateforme (A2,
+    # migration 20261110_0001) : deux écoles peuvent avoir chacune un « 0001 ».
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "registration_number", name="uq_students_tenant_registration"),
+    )
 
     # Optional portal identity. A student record can exist before an account is
     # provisioned; once converted, this provides an explicit and stable link.
@@ -33,7 +38,7 @@ class Student(Base, UUIDMixin, TimestampMixin, TenantMixin):
     )
     
     # Identification
-    registration_number = Column(String(50), unique=True, nullable=False, index=True)
+    registration_number = Column(String(50), nullable=False, index=True)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     date_of_birth = Column(Date, nullable=False)

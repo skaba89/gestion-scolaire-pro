@@ -776,6 +776,22 @@ ce fichier — pas d'un document de 2025 non révisé.
   désormais au personnel habilité. Aussi corrigé : deux confirmations
   Mobile Money simultanées faisaient perdre un paiement du solde de la
   facture (F2) ; échec masqué lors de la préparation d'un paiement en ligne
-  (F3) ; données de paiement complètes dans les journaux (F4). **À
-  déployer**, et à contrôler en production (paiements espèces/virement
-  enregistrés par des comptes parents).
+  (F3) ; données de paiement complètes dans les journaux (F4). Déployé le
+  2026-11-09 (`a40d276`) ; contrôle en production : aucun paiement
+  espèces/virement enregistré par un compte parent.
+
+- **2026-11-10 — changement de classe en une seule opération (A5).**
+  `POST /enrollments/{id}/transfer/` et action « Changer de classe » : un
+  échec ne laisse plus l'élève sans classe active. Le choix de classe de la
+  fiche élève en modification, sans effet jusqu'ici, est désactivé.
+
+- **2026-11-10 — matricule unique par établissement (A2, migration
+  `20261110_0001`).** Un index unique global oublié en 2026-04 empêchait une
+  école d'utiliser un matricule pris par une autre (erreur 500 qui révélait
+  son existence), et l'import CSV ignorait ces élèves en les comptant
+  « créés ». Migration non rétrocompatible (`backward_compatible = False`) :
+  la version précédente de l'import ne fonctionne plus sur ce schéma ;
+  readiness 503 pendant les quelques secondes entre la migration et le
+  redémarrage dans `deploy.sh`. Retour arrière : `alembic downgrade
+  20261108_0001` (refusé avec la liste des matricules si des écoles en
+  partagent un). **À déployer.**

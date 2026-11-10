@@ -260,7 +260,7 @@ def run_student_import(
             # Point de sauvegarde par ligne : une erreur inattendue n'annule
             # que cette ligne, pas la transaction de tout le fichier.
             with db.begin_nested():
-                db.execute(text("""
+                inserted = db.execute(text("""
                     INSERT INTO students (
                         id, tenant_id, registration_number, first_name, last_name,
                         date_of_birth, gender, level, class_name, academic_year,
@@ -274,7 +274,7 @@ def run_student_import(
                         :parent_name, :parent_phone, :parent_email,
                         'ACTIVE', NOW(), NOW()
                     )
-                    ON CONFLICT (registration_number) DO NOTHING
+                    ON CONFLICT (tenant_id, registration_number) DO NOTHING
                 """), {
                     "tid": tenant_id,
                     "reg": reg,
@@ -293,6 +293,12 @@ def run_student_import(
                     "parent_phone": get("parent_phone") or None,
                     "parent_email": get("parent_email") or None,
                 })
+            if inserted.rowcount != 1:
+                # Matricule pris entre-temps dans cet établissement (import
+                # concurrent) : la ligne n'est pas créée, il faut le dire.
+                skipped += 1
+                error_rows.append({"row": i, "error": f"Matricule déjà utilisé : '{reg}'", "data": dict(row)})
+                continue
             created += 1
 
         except Exception as exc:
