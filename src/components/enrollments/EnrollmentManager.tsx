@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/api/client";
@@ -10,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { UserPlus, Users, RefreshCw, Loader2 } from "lucide-react";
+import { UserPlus, Users, RefreshCw, Loader2, ArrowRightLeft } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { academicYearQueries } from "@/queries/academic-years";
 import { classroomQueries } from "@/queries/classrooms";
@@ -18,6 +19,7 @@ import { useStudents } from "@/hooks/queries/useStudents";
 import { useEnrollments } from "@/hooks/queries/useEnrollments";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { StaggerContainer, StaggerItem } from "@/components/layouts/PageTransition";
+import { TransferEnrollmentDialog } from "@/components/enrollments/transfer-enrollment-dialog";
 
 export const EnrollmentManager = () => {
   const { tenant } = useAuth();
@@ -25,6 +27,8 @@ export const EnrollmentManager = () => {
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [transferTarget, setTransferTarget] = useState<{ id: string; name: string; classId: string | null } | null>(null);
+  const { t } = useTranslation();
 
   const parentUnenrolledRef = useRef<HTMLDivElement>(null);
   const parentEnrolledRef = useRef<HTMLDivElement>(null);
@@ -44,6 +48,8 @@ export const EnrollmentManager = () => {
     enrollments: classroomEnrollments = [],
     enrollStudents,
     removeEnrollment,
+    transferEnrollment,
+    isTransferring,
     isLoading: isEnrollmentsLoading
   } = useEnrollments(tenant?.id || "", selectedYear, selectedClassroom);
 
@@ -54,6 +60,24 @@ export const EnrollmentManager = () => {
       if (current) setSelectedYear(current.id);
     }
   }, [academicYears, selectedYear]);
+
+  // Classes de destination : même année, hors classe actuelle.
+  const transferClasses = useMemo(() => classrooms
+    .filter((c) => (!c.academic_year_id || c.academic_year_id === selectedYear) && c.id !== transferTarget?.classId)
+    .map((c) => ({ id: c.id, name: c.name })), [classrooms, selectedYear, transferTarget]);
+
+  const handleTransfer = async (classId: string): Promise<boolean> => {
+    if (!transferTarget) return false;
+    try {
+      await transferEnrollment({ enrollmentId: transferTarget.id, classId });
+      toast.success(t("enrollments.transfer.success", { name: transferTarget.name }));
+      return true;
+    } catch (error) {
+      const err = error as { response?: { data?: { detail?: string } }; message?: string };
+      toast.error(t("enrollments.transfer.error", { detail: err.response?.data?.detail || err.message || "" }));
+      return false;
+    }
+  };
 
   // Calculate unenrolled students
   const unenrolledStudents = useMemo(() => {
@@ -331,7 +355,7 @@ export const EnrollmentManager = () => {
                               className="contents"
                             >
                               <TableRow className="contents">
-                                <TableCell className="w-[40%]">
+                                <TableCell className="w-[35%]">
                                   {enrollment.student?.last_name} {enrollment.student?.first_name}
                                 </TableCell>
                                 <TableCell className="w-[30%]">
@@ -342,11 +366,27 @@ export const EnrollmentManager = () => {
                                     {enrollment.status === "ACTIVE" ? "Actif" : enrollment.status}
                                   </Badge>
                                 </TableCell>
-                                <TableCell className="w-[10%]">
+                                <TableCell className="w-[15%] whitespace-nowrap">
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0"
+                                    title={t("enrollments.transfer.action")}
+                                    aria-label={t("enrollments.transfer.action")}
+                                    onClick={() => setTransferTarget({
+                                      id: enrollment.id,
+                                      name: `${enrollment.student?.last_name ?? ""} ${enrollment.student?.first_name ?? ""}`.trim(),
+                                      classId: enrollment.class_id,
+                                    })}
+                                  >
+                                    <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    title={t("enrollments.withdrawAction")}
+                                    aria-label={t("enrollments.withdrawAction")}
                                     onClick={() => removeEnrollment(enrollment.id)}
                                   >
                                     <RefreshCw className="w-4 h-4 text-muted-foreground" />
@@ -369,6 +409,14 @@ export const EnrollmentManager = () => {
           </CardContent>
         </Card>
       </div>
+      <TransferEnrollmentDialog
+        open={!!transferTarget}
+        onOpenChange={(open) => { if (!open) setTransferTarget(null); }}
+        studentName={transferTarget?.name ?? ""}
+        classes={transferClasses}
+        isPending={isTransferring}
+        onConfirm={handleTransfer}
+      />
     </div>
   );
 };

@@ -1574,7 +1574,21 @@
   },
   "enrollments": {
     "pageTitle": "班级注册",
-    "pageSubtitle": "管理{{students}}的班级分配"
+    "pageSubtitle": "管理{{students}}的班级分配",
+    "withdrawAction": "移出班级",
+    "classChangeHint": "要为已注册的学生更换班级，请在“注册”页面使用“更换班级”。",
+    "transfer": {
+      "action": "更换班级",
+      "title": "更换班级",
+      "description": "为 {{name}} 选择同一学年的新班级。当前注册记录将保留在历史中。",
+      "targetClass": "新班级",
+      "chooseClass": "选择班级",
+      "noOtherClass": "本学年没有其他班级。",
+      "cancel": "取消",
+      "confirm": "更换班级",
+      "success": "{{name}} 已更换班级",
+      "error": "无法更换班级：{{detail}}"
+    }
   },
   "humanResources": {
     "pageTitle": "人力资源",

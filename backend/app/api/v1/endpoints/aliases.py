@@ -131,6 +131,52 @@ def withdraw_enrollment_alias(
     return None
 
 
+class EnrollmentTransferRequest(BaseModel):
+    class_id: UUID
+
+
+@enrollments_alias_router.post("/{enrollment_id}/transfer/")
+def transfer_enrollment_alias(
+    enrollment_id: UUID,
+    body: EnrollmentTransferRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("enrollments:write")),
+):
+    """Change un élève de classe dans la même année, en une seule opération.
+
+    L'ancienne inscription est conservée (statut TRANSFERRED) pour l'historique ;
+    en cas d'erreur l'élève reste dans sa classe. Inscription ou classe d'un
+    autre établissement : 404, indiscernable d'un identifiant inexistant.
+    """
+    from app.crud import academic as crud
+    from app.utils.audit import log_audit
+
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    try:
+        previous, new = crud.transfer_enrollment(
+            db, enrollment_id=enrollment_id, class_id=body.class_id, tenant_id=tenant_id,
+        )
+    except crud.EnrollmentNotFound as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=str(tenant_id),
+        action="TRANSFER_ENROLLMENT", resource_type="ENROLLMENT", resource_id=str(new.id),
+        details={"previous_enrollment_id": str(previous.id), "from_class_id": str(previous.class_id),
+                 "to_class_id": str(new.class_id), "student_id": str(new.student_id)},
+    )
+    db.commit()
+    return {
+        "id": str(new.id), "student_id": str(new.student_id), "class_id": str(new.class_id),
+        "academic_year_id": str(new.academic_year_id), "status": new.status,
+        "previous_enrollment_id": str(previous.id), "previous_status": previous.status,
+    }
+
+
 @enrollments_alias_router.get("/counts/")
 def enrollment_counts_alias(
     request: Request,

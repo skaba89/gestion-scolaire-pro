@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { API, api, credentials, tokenOf } from './helpers';
+import { API, api, credentials } from './helpers';
 
 /**
  * Parcours 13 — réinscription, transfert de classe et changement d'année (B2).
  *
  * Régression RE-01 : valider une demande de RÉINSCRIPTION (formulaire public)
  * créait un second élève au lieu de rattacher la demande à l'élève existant.
- * Les parcours transfert et changement d'année, vérifiés sains, restent couverts.
+ * Transfert de classe en une seule opération (A5) et changement d'année.
  */
 const run = Date.now().toString(36).toUpperCase();
 type Named = { id: string; name: string; academic_year_id?: string };
@@ -60,21 +60,25 @@ test('réinscription sans doublon, puis transfert de classe et inscription l\'an
   const same = (await (await admin.get(`/students/?search=${encodeURIComponent(`Barry-${run}`)}`)).json()).items as { id: string }[];
   expect(same.map((s) => s.id)).toEqual([studentId]);
 
-  // Transfert A → B : refusé tant que l'inscription A est active, accepté après retrait.
-  const roster = async (classId: string) =>
-    ((await (await admin.get(`/infrastructure/enrollments/?class_id=${classId}&status=active`)).json()) as { student_id: string }[])
+  // Transfert A → B : une seconde inscription active est refusée ; le
+  // changement de classe se fait en une seule opération (A5) qui conserve
+  // l'inscription A dans l'historique.
+  const roster = async (classId: string, status = 'active') =>
+    ((await (await admin.get(`/infrastructure/enrollments/?class_id=${classId}&status=${status}`)).json()) as { student_id: string }[])
       .filter((e) => e.student_id === studentId).length;
   const tooEarly = await admin.post('/infrastructure/enrollments/', {
     student_id: studentId, class_id: classB.id, academic_year_id: current.id,
   });
   expect(tooEarly.status()).toBe(409);
-  const withdraw = await request.delete(`${API}/enrollments/${enrollmentA}/`, {
-    headers: { Authorization: `Bearer ${tokenOf('admin')}` },
+  const transferred = await admin.post(`/enrollments/${enrollmentA}/transfer/`, { class_id: classB.id });
+  expect(transferred.status()).toBe(200);
+  expect(await transferred.json()).toMatchObject({
+    class_id: classB.id, status: 'ACTIVE', previous_enrollment_id: enrollmentA, previous_status: 'TRANSFERRED',
   });
-  expect(withdraw.status()).toBe(204);
-  expect((await admin.post('/infrastructure/enrollments/', {
-    student_id: studentId, class_id: classB.id, academic_year_id: current.id,
-  })).ok()).toBeTruthy();
+  expect([await roster(classA.id), await roster(classB.id)]).toEqual([0, 1]);
+  expect(await roster(classA.id, 'TRANSFERRED')).toBe(1);
+  // Rejeu sur l'ancienne inscription : refusé, rien ne bouge.
+  expect((await admin.post(`/enrollments/${enrollmentA}/transfer/`, { class_id: classA.id })).status()).toBe(409);
   expect([await roster(classA.id), await roster(classB.id)]).toEqual([0, 1]);
 
   // Année suivante : nouvelle classe, inscription acceptée en plus de l'année en cours.

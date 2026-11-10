@@ -1539,7 +1539,21 @@
   },
   "enrollments": {
     "pageTitle": "التسجيل في الفصول",
-    "pageSubtitle": "إدارة توزيع {{students}} على الفصول"
+    "pageSubtitle": "إدارة توزيع {{students}} على الفصول",
+    "withdrawAction": "إزالة من الفصل",
+    "classChangeHint": "لنقل طالب مسجّل بالفعل إلى فصل آخر، استخدم «تغيير الفصل» في صفحة التسجيلات.",
+    "transfer": {
+      "action": "تغيير الفصل",
+      "title": "تغيير الفصل",
+      "description": "اختر الفصل الجديد لـ {{name}} في نفس السنة. يُحتفظ بالتسجيل الحالي في السجل.",
+      "targetClass": "الفصل الجديد",
+      "chooseClass": "اختر فصلاً",
+      "noOtherClass": "لا يوجد فصل آخر لهذه السنة.",
+      "cancel": "إلغاء",
+      "confirm": "تغيير الفصل",
+      "success": "تم تغيير فصل {{name}}",
+      "error": "تعذّر تغيير الفصل: {{detail}}"
+    }
   },
   "humanResources": {
     "pageTitle": "الموارد البشرية",

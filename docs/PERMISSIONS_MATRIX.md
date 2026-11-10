@@ -938,3 +938,16 @@ la session d'un autre compte).
 - Écart préexistant **non corrigé ici** : le frontend déclare
   `admissions:manage` / `admissions:convert` là où le backend n'a que
   `admissions:write` (règle d'or n° 3) — voir `docs/audit/BUGS_AND_GAPS.md` (RBAC-01).
+
+## Changement de classe atomique (A5, 2026-11-10)
+
+`POST /enrollments/{enrollment_id}/transfer/` (corps `{class_id}`) :
+`enrollments:write` (aucune nouvelle permission — mêmes rôles que le retrait
+et l'inscription : TENANT_ADMIN, DIRECTOR, SECRETARY, STAFF, et SUPER_ADMIN par `*`) +
+`resolve_current_tenant_id`. Inscription ou classe d'un autre établissement :
+404 (indiscernable d'un identifiant inexistant) ; classe d'une autre année,
+même classe ou inscription déjà inactive : 409. TEACHER / PARENT / STUDENT :
+403. L'ancienne inscription passe à `TRANSFERRED` (historique conservé),
+tracé `TRANSFER_ENROLLMENT` dans le journal d'audit. Frontend : action
+« Changer de classe » de `EnrollmentManager` (même garde d'affichage que la
+page Inscriptions). Tests : `backend/tests/test_enrollment_transfer.py`.

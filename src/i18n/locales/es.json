@@ -1539,7 +1539,21 @@
   },
   "enrollments": {
     "pageTitle": "Inscripciones a Clases",
-    "pageSubtitle": "Gestionar la asignación de {{students}} a las clases"
+    "pageSubtitle": "Gestionar la asignación de {{students}} a las clases",
+    "withdrawAction": "Retirar de la clase",
+    "classChangeHint": "Para cambiar de clase a un alumno ya inscrito, use «Cambiar de clase» en la página de Inscripciones.",
+    "transfer": {
+      "action": "Cambiar de clase",
+      "title": "Cambiar de clase",
+      "description": "Elija la nueva clase de {{name}} para el mismo año. La inscripción actual se conserva en el historial.",
+      "targetClass": "Nueva clase",
+      "chooseClass": "Elegir una clase",
+      "noOtherClass": "No hay otra clase para este año.",
+      "cancel": "Cancelar",
+      "confirm": "Cambiar de clase",
+      "success": "{{name}} cambió de clase",
+      "error": "No se pudo cambiar de clase: {{detail}}"
+    }
   },
   "humanResources": {
     "pageTitle": "Recursos Humanos",

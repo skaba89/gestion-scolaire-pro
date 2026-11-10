@@ -35,7 +35,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | A3 | P2 | Conversion sans lien parent | Les coordonnées du parent sont copiées en texte ; aucun compte parent ni lien `parent_students` créé | Lien parent proposé à la conversion |
 | A4 | ~~P1~~ fait | Parcours B2 restants | **Joués sur la vraie stack** : préinscription publique, transfert de classe (retrait puis réinscription, doublon refusé), changement d'année : sains. Réinscription : défaut RE-01 corrigé. Parcours E2E 13 | — |
 | RE-01 | ~~P1~~ corrigé | Réinscription en double | **Corrigé** (PR fix/reenrollment-no-duplicate) : valider une réinscription créait un second élève ; la demande est désormais rattachée à l'élève existant (revérifié dans l'établissement) | — |
-| A5 | P2 | Transfert non atomique | Le transfert se fait en deux appels (retrait puis inscription) : si le second échoue, l'élève reste sans classe active | Opération de transfert unique |
+| A5 | — | ~~Transfert non atomique~~ **corrigé** | `POST /enrollments/{id}/transfer/` : retrait et nouvelle inscription dans une seule transaction (ancienne inscription TRANSFERRED) ; action « Changer de classe » ; le choix de classe en modification d'élève, sans effet jusqu'ici, est désactivé avec un renvoi | — |
 
 
 ## Recette B6 — finances (2026-11-09)
