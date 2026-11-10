@@ -23,6 +23,8 @@ from app.models.admission import AdmissionApplication, AdmissionStatus  # noqa: 
 from app.models.student import Gender, Student  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.models.parent_student import ParentStudent  # noqa: E402
+from app.models.user_role import UserRole  # noqa: E402
 
 BASE = "/api/v1/admissions"
 HEADERS = {"Authorization": "Bearer mock-token"}
@@ -46,13 +48,13 @@ def _tenant() -> str:
 
 
 def _application(tid: str, *, status=AdmissionStatus.ACCEPTED, dob=datetime(2013, 4, 2), last="Bangoura",
-                 documents=None) -> str:
+                 documents=None, parent_email: str | None = None) -> str:
     aid = str(uuid.uuid4())
     with SessionLocal() as db:
         db.add(AdmissionApplication(
             id=aid, tenant_id=tid, student_first_name="Fanta", student_last_name=last,
             student_date_of_birth=dob, student_gender="female",
-            parent_first_name="Mamadou", parent_last_name=last, parent_email=f"{aid[:8]}@example.com",
+            parent_first_name="Mamadou", parent_last_name=last, parent_email=parent_email if parent_email is not None else f"{aid[:8]}@example.com",
             parent_phone="+224620000000", status=status, documents=documents,
         ))
         db.commit()
@@ -81,6 +83,8 @@ def _clear():
     with SessionLocal() as db:
         db.query(AdmissionApplication).filter(AdmissionApplication.tenant_id.in_(tenants)).delete(synchronize_session=False)
         db.query(Student).filter(Student.tenant_id.in_(tenants)).delete(synchronize_session=False)
+        db.query(ParentStudent).filter(ParentStudent.tenant_id.in_(tenants)).delete(synchronize_session=False)
+        db.query(UserRole).filter(UserRole.tenant_id.in_(tenants)).delete(synchronize_session=False)
         db.query(User).filter(User.tenant_id.in_(tenants)).delete(synchronize_session=False)
         db.query(Tenant).filter(Tenant.id.in_(tenants)).delete(synchronize_session=False)
         db.commit()

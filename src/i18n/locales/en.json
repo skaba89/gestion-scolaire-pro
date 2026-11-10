@@ -1727,7 +1727,17 @@
   "admissions": {
     "loadError": "Error loading applications",
     "unexpectedFormat": "Unexpected data format",
-    "applicationsTitle": "Applications"
+    "applicationsTitle": "Applications",
+    "parentLink": {
+      "linked": "The parent's account was linked: they now see the student in their portal.",
+      "created": "A pending parent account was created and linked. Activate it from “Pending users” to give portal access.",
+      "skipped": {
+        "not_permitted": "The parent was not linked: an administrator must do it from the student's record.",
+        "no_email": "The parent was not linked: the application has no parent e-mail.",
+        "invalid_email": "The parent was not linked: the application's parent e-mail is invalid.",
+        "email_in_use": "The parent was not linked: this e-mail is already used by another account. Link the parent from the student's record."
+      }
+    }
   },
   "campuses": {
     "deleteConfirm": "Are you sure you want to delete this campus?",

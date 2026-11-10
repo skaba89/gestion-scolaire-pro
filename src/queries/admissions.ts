@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
+import i18n from "@/i18n/config";
 
 export type AdmissionStatus = "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "ACCEPTED" | "REJECTED" | "CONVERTED_TO_STUDENT";
 
@@ -116,6 +117,28 @@ export function isReenrollment(app: Pick<AdmissionApplication, "documents">): bo
         && (docs as { type?: unknown }).type === "REINSCRIPTION";
 }
 
+/** Résultat du rattachement du parent à la conversion (A3). */
+export interface ParentLinkResult {
+    status: "linked" | "created" | "skipped";
+    reason?: "not_permitted" | "no_email" | "invalid_email" | "email_in_use";
+}
+
+export interface ConvertAdmissionResult {
+    student_name: string;
+    registration_number: string;
+    reenrollment?: boolean;
+    parent_link?: ParentLinkResult;
+}
+
+/** Message affiché après la conversion selon ce qui a été fait pour le parent. */
+export function parentLinkMessage(link: ParentLinkResult | undefined): string | null {
+    if (!link) return null;
+    if (link.status === "skipped") {
+        return i18n.t(`admissions.parentLink.skipped.${link.reason ?? "email_in_use"}`);
+    }
+    return i18n.t(`admissions.parentLink.${link.status}`);
+}
+
 export const useConvertAdmission = (tenantId: string) => {
     const queryClient = useQueryClient();
 
@@ -128,7 +151,7 @@ export const useConvertAdmission = (tenantId: string) => {
             // même avec des champs tous optionnels, FastAPI exige un
             // corps présent (au moins {}) pour construire le modèle.
             const response = await apiClient.post(`/admissions/${id}/convert/`, {});
-            return response.data as { student_name: string; registration_number: string; reenrollment?: boolean };
+            return response.data as ConvertAdmissionResult;
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["admissions", tenantId] });
@@ -139,6 +162,10 @@ export const useConvertAdmission = (tenantId: string) => {
                 );
             } else {
                 toast.success(`${data.student_name} inscrit(e) — matricule ${data.registration_number}`);
+                const parentMessage = parentLinkMessage(data.parent_link);
+                if (parentMessage) {
+                    (data.parent_link?.status === "skipped" ? toast.warning : toast.info)(parentMessage);
+                }
             }
         },
         onError: (error: any) => {

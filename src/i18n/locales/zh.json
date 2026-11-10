@@ -1685,7 +1685,17 @@
   "admissions": {
     "loadError": "加载申请时出错",
     "unexpectedFormat": "意外的数据格式",
-    "applicationsTitle": "申请"
+    "applicationsTitle": "申请",
+    "parentLink": {
+      "linked": "已关联家长账户：家长现在可以在门户中看到该学生。",
+      "created": "已创建并关联一个待激活的家长账户。请在“待处理用户”中激活以开通门户访问。",
+      "skipped": {
+        "not_permitted": "未关联家长：需由管理员在学生档案中操作。",
+        "no_email": "未关联家长：申请中没有家长邮箱。",
+        "invalid_email": "未关联家长：申请中的家长邮箱无效。",
+        "email_in_use": "未关联家长：该邮箱已被其他账户使用。请在学生档案中关联家长。"
+      }
+    }
   },
   "campuses": {
     "deleteConfirm": "您确定要删除此校区吗？",

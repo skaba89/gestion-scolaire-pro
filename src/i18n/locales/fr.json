@@ -1727,7 +1727,17 @@
     "admissions": {
         "loadError": "Erreur lors du chargement des candidatures",
         "unexpectedFormat": "Format de données inattendu",
-        "applicationsTitle": "Candidatures"
+        "applicationsTitle": "Candidatures",
+        "parentLink": {
+            "linked": "Le compte du parent a été rattaché : il voit désormais l'élève dans son portail.",
+            "created": "Un compte parent en attente a été créé et rattaché. Activez-le depuis « Utilisateurs en attente » pour donner accès au portail.",
+            "skipped": {
+                "not_permitted": "Le parent n'a pas été rattaché : un administrateur doit le faire depuis la fiche de l'élève.",
+                "no_email": "Le parent n'a pas été rattaché : la candidature ne contient pas d'e-mail parent.",
+                "invalid_email": "Le parent n'a pas été rattaché : l'e-mail parent de la candidature est invalide.",
+                "email_in_use": "Le parent n'a pas été rattaché : cet e-mail est déjà utilisé par un autre compte. Rattachez le parent depuis la fiche de l'élève."
+            }
+        }
     },
     "campuses": {
         "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce campus ?",

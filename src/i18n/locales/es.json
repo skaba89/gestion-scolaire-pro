@@ -1650,7 +1650,17 @@
   "admissions": {
     "loadError": "Error al cargar las solicitudes",
     "unexpectedFormat": "Formato de datos inesperado",
-    "applicationsTitle": "Solicitudes"
+    "applicationsTitle": "Solicitudes",
+    "parentLink": {
+      "linked": "La cuenta del padre/madre se vinculó: ahora ve al alumno en su portal.",
+      "created": "Se creó y vinculó una cuenta de padre/madre pendiente. Actívela desde «Usuarios pendientes» para dar acceso al portal.",
+      "skipped": {
+        "not_permitted": "No se vinculó al padre/madre: un administrador debe hacerlo desde la ficha del alumno.",
+        "no_email": "No se vinculó al padre/madre: la solicitud no tiene correo del padre/madre.",
+        "invalid_email": "No se vinculó al padre/madre: el correo del padre/madre de la solicitud no es válido.",
+        "email_in_use": "No se vinculó al padre/madre: este correo ya lo usa otra cuenta. Vincúlelo desde la ficha del alumno."
+      }
+    }
   },
   "campuses": {
     "deleteConfirm": "¿Está seguro de que desea eliminar este campus?",
