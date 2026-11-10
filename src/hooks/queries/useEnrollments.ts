@@ -97,6 +97,20 @@ export const useEnrollments = (tenantId: string, academicYearId?: string, classr
         },
     });
 
+    // Changement de classe en une seule opération (A5) : l'ancienne inscription
+    // est conservée (TRANSFERRED) ; en cas d'échec l'élève reste dans sa classe.
+    // Les messages sont affichés par l'appelant (i18n).
+    const transferEnrollment = useMutation({
+        mutationFn: async ({ enrollmentId, classId }: { enrollmentId: string; classId: string }) => {
+            const { data } = await apiClient.post(`/enrollments/${enrollmentId}/transfer/`, { class_id: classId });
+            return data;
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ["enrollments", tenantId] });
+            queryClient.invalidateQueries({ queryKey: ["students", tenantId] });
+        },
+    });
+
     return {
         enrollments: query.data || [],
         isLoading: query.isLoading,
@@ -104,6 +118,8 @@ export const useEnrollments = (tenantId: string, academicYearId?: string, classr
         isEnrolling: enrollStudents.isPending,
         removeEnrollment: removeEnrollment.mutateAsync,
         isRemoving: removeEnrollment.isPending,
+        transferEnrollment: transferEnrollment.mutateAsync,
+        isTransferring: transferEnrollment.isPending,
         refetch: query.refetch
     };
 };

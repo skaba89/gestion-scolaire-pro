@@ -113,6 +113,7 @@ export const StudentFormDialog = ({
                     levels={levels}
                     selectedOptionalSubjects={selectedOptionalSubjects}
                     onOptionalSubjectToggle={handleOptionalSubjectToggle}
+                    isEdit={!!editStudent}
                   />
                 </TabsContent>
 

@@ -8,6 +8,7 @@ import { apiClient } from "@/api/client";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { useTranslation } from "react-i18next";
 
 interface StudentEnrollmentSectionProps {
     form: UseFormReturn<StudentFormValues>;
@@ -15,6 +16,8 @@ interface StudentEnrollmentSectionProps {
     levels: any[];
     selectedOptionalSubjects: string[];
     onOptionalSubjectToggle: (id: string) => void;
+    /** Modification d'un élève : la classe se change depuis « Inscriptions ». */
+    isEdit?: boolean;
 }
 
 export const StudentEnrollmentSection = ({
@@ -22,8 +25,10 @@ export const StudentEnrollmentSection = ({
     departments,
     levels,
     selectedOptionalSubjects,
-    onOptionalSubjectToggle
+    onOptionalSubjectToggle,
+    isEdit = false,
 }: StudentEnrollmentSectionProps) => {
+    const { t } = useTranslation();
     const [classes, setClasses] = useState<any[]>([]);
     const [optionalSubjects, setOptionalSubjects] = useState<any[]>([]);
 
@@ -168,7 +173,7 @@ export const StudentEnrollmentSection = ({
                                     Classe (pour inscription)
                                     <HelpTooltip content="Sélectionnez la classe pour l'année scolaire en cours." />
                                 </FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isEdit}>
                                     <FormControl>
                                         <SelectTrigger>
                                             <SelectValue placeholder="Choisir une classe" />
@@ -183,6 +188,9 @@ export const StudentEnrollmentSection = ({
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {isEdit && (
+                                    <p className="text-sm text-muted-foreground">{t("enrollments.classChangeHint")}</p>
+                                )}
                                 <FormMessage />
                             </FormItem>
                         )}

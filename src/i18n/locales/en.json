@@ -1616,7 +1616,21 @@
   },
   "enrollments": {
     "pageTitle": "Class Enrollments",
-    "pageSubtitle": "Manage {{students}} class assignments"
+    "pageSubtitle": "Manage {{students}} class assignments",
+    "withdrawAction": "Remove from class",
+    "classChangeHint": "To move an already enrolled student to another class, use “Change class” on the Enrollments page.",
+    "transfer": {
+      "action": "Change class",
+      "title": "Change class",
+      "description": "Choose the new class for {{name}} in the same year. The current enrollment is kept in the history.",
+      "targetClass": "New class",
+      "chooseClass": "Choose a class",
+      "noOtherClass": "No other class for this year.",
+      "cancel": "Cancel",
+      "confirm": "Change class",
+      "success": "{{name}} changed class",
+      "error": "Could not change class: {{detail}}"
+    }
   },
   "humanResources": {
     "pageTitle": "Human Resources",

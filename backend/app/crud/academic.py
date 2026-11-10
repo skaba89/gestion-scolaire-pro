@@ -1,8 +1,8 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, inspect, table, column, select, literal
+from sqlalchemy import func, inspect, table, column, select, literal, update
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime
 
 from app.models import (
     AcademicYear, Term, Campus, Level, Subject,
@@ -781,6 +781,68 @@ def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) ->
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+class EnrollmentNotFound(LookupError):
+    """Inscription ou classe absente de l'établissement courant (→ 404)."""
+
+
+def transfer_enrollment(db: Session, *, enrollment_id: UUID, class_id: UUID,
+                        tenant_id: UUID) -> tuple[Enrollment, Enrollment]:
+    """Change un élève de classe en une seule transaction (A5).
+
+    Auparavant le transfert se faisait en deux appels (retrait puis
+    inscription) : si le second échouait, l'élève restait sans classe active.
+    Ici l'ancienne inscription passe à TRANSFERRED et la nouvelle est créée
+    ACTIVE dans la même transaction ; toute erreur laisse l'élève dans sa
+    classe. Ne valide pas : l'appelant journalise puis commit.
+
+    Lève EnrollmentNotFound (404) ou ValueError (409).
+    """
+    current = db.query(Enrollment).filter(
+        Enrollment.id == enrollment_id, Enrollment.tenant_id == tenant_id,
+    ).first()
+    if not current:
+        raise EnrollmentNotFound("Inscription introuvable")
+    # Même verrou que create_enrollment : les opérations concurrentes sur un
+    # même élève sont sérialisées ; on relit ensuite l'inscription à jour.
+    db.query(Student.id).filter(
+        Student.id == current.student_id, Student.tenant_id == tenant_id,
+    ).with_for_update().first()
+    db.refresh(current)
+    if (current.status or "").upper() != "ACTIVE":
+        raise ValueError("Inscription déjà inactive")
+    if str(current.class_id) == str(class_id):
+        raise ValueError("L'élève est déjà inscrit dans cette classe")
+    target = db.query(Classroom).filter(
+        Classroom.id == class_id, Classroom.tenant_id == tenant_id,
+    ).first()
+    if not target:
+        raise EnrollmentNotFound("Classe introuvable dans cet établissement")
+    if target.academic_year_id and str(target.academic_year_id) != str(current.academic_year_id):
+        raise ValueError("La classe appartient à une autre année académique")
+
+    closed = db.execute(
+        update(Enrollment)
+        .where(
+            Enrollment.id == current.id,
+            Enrollment.tenant_id == tenant_id,
+            func.upper(Enrollment.status) == "ACTIVE",
+        )
+        .values(status="TRANSFERRED")
+        .execution_options(synchronize_session=False)
+    )
+    if closed.rowcount != 1:
+        raise ValueError("Inscription déjà inactive")
+    new = Enrollment(
+        tenant_id=tenant_id, student_id=current.student_id, class_id=target.id,
+        academic_year_id=current.academic_year_id, enrollment_date=date.today(),
+        status="ACTIVE",
+    )
+    db.add(new)
+    db.flush()
+    db.refresh(current)
+    return current, new
+
 
 # --- Subject Preferred Rooms ---
 def get_subject_preferred_rooms(
