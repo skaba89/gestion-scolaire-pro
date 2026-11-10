@@ -794,4 +794,10 @@ ce fichier — pas d'un document de 2025 non révisé.
   readiness 503 pendant les quelques secondes entre la migration et le
   redémarrage dans `deploy.sh`. Retour arrière : `alembic downgrade
   20261108_0001` (refusé avec la liste des matricules si des écoles en
-  partagent un). **À déployer.**
+  partagent un). Déployé le 2026-11-10 (`23f4870`).
+
+- **2026-11-10 — conversion d'une candidature : le parent est rattaché (A3).**
+  Compte parent de l'établissement trouvé par e-mail, sinon compte en attente
+  à activer dans « Utilisateurs en attente » ; le parent voit ensuite
+  l'enfant dans son portail. Réservé aux rôles qui gèrent déjà les comptes
+  (`settings:write`). **À déployer.**

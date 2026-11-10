@@ -10,6 +10,9 @@ import { api } from './helpers';
  *
  * Deux validations simultanées de la même candidature (double clic, deux
  * secrétaires) ne créent qu'UN élève.
+ *
+ * A3 : la conversion rattache le parent — compte en attente créé et lié à
+ * l'élève (avant : coordonnées recopiées en texte, aucun lien).
  */
 const run = Date.now().toString(36).toUpperCase();
 type Named = { id: string; name: string };
@@ -38,8 +41,13 @@ test('une candidature acceptée devient un élève, une seule fois, puis est ins
   ]);
   const statuses = [a.status(), b.status()].sort();
   expect(statuses, 'une conversion réussit, l\'autre est refusée').toEqual([200, 400]);
-  const converted = (await (a.status() === 200 ? a : b).json()) as { student_id: string; registration_number: string };
+  const converted = (await (a.status() === 200 ? a : b).json()) as
+    { student_id: string; registration_number: string; parent_link: { status: string } };
   expect(converted.registration_number).toMatch(/\S+/);
+  expect(converted.parent_link).toEqual({ status: 'created' });
+  const links = (await (await admin.get(`/student-parents/?student_id=${converted.student_id}`)).json()) as
+    { parent?: { email?: string } }[];
+  expect(links.map((l) => l.parent?.email)).toEqual([`parent.${run.toLowerCase()}@example.com`]);
 
   const students = (await (await admin.get(`/students/?search=${encodeURIComponent(lastName)}`)).json()).items as { id: string }[];
   expect(students.map((s) => s.id)).toEqual([converted.student_id]);

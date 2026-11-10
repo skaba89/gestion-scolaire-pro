@@ -15,7 +15,7 @@ from app.core.client_ip import get_client_ip
 import uuid
 
 from app.core.database import get_db
-from app.core.security import require_permission
+from app.core.security import require_permission, user_has_permission
 from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
 from app.core.storage import storage_client
 from app.models.base import GUID
@@ -609,6 +609,14 @@ def convert_to_student(
             "Date de naissance de l'élève requise : renseignez-la pour finaliser l'inscription."
         ))
 
+    # A3 : recherche du compte parent (plateforme) AVANT tout point de
+    # sauvegarde — elle change temporairement le contexte tenant.
+    from app.services import admission_parent_link
+    parent_lookup = admission_parent_link.lookup_parent(
+        db, email=app.get("parent_email"),
+        allowed=user_has_permission(current_user, "settings:write"),
+    )
+
     raw_gender = (app.get("student_gender") or "").upper()
     gender = Gender(raw_gender) if raw_gender in Gender.__members__ else Gender.OTHER
 
@@ -661,9 +669,15 @@ def convert_to_student(
     application.reviewed_at = datetime.utcnow()
     student_id = str(student.id)
     reg_number = student.registration_number
+    # Même transaction que l'élève : rien n'est créé à moitié.
+    parent_link = admission_parent_link.attach_parent(
+        db, lookup=parent_lookup, tenant_id=tenant_id, student_id=student_id,
+        app=app, actor_id=current_user.get("id"),
+    )
     log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
               action="ADMISSION_CONVERTED", resource_type="ADMISSION", resource_id=admission_id,
-              details={"student_id": student_id, "registration_number": reg_number})
+              details={"student_id": student_id, "registration_number": reg_number,
+                       "parent_link": parent_link["status"]})
     db.commit()
 
     return {
@@ -672,6 +686,7 @@ def convert_to_student(
         "registration_number": reg_number,
         "student_name": f"{student.first_name} {student.last_name}",
         "reenrollment": False,
+        "parent_link": {k: v for k, v in parent_link.items() if k != "parent_id"},
     }
 
 

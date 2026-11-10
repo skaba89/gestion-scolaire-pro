@@ -951,3 +951,17 @@ même classe ou inscription déjà inactive : 409. TEACHER / PARENT / STUDENT :
 tracé `TRANSFER_ENROLLMENT` dans le journal d'audit. Frontend : action
 « Changer de classe » de `EnrollmentManager` (même garde d'affichage que la
 page Inscriptions). Tests : `backend/tests/test_enrollment_transfer.py`.
+
+## Rattachement du parent à la conversion d'une candidature (A3, 2026-11-10)
+
+`POST /admissions/{id}/convert/` reste sous `admissions:write` (TENANT_ADMIN,
+DIRECTOR, SECRETARY, STAFF). Le rattachement du parent qu'il fait désormais
+(compte PARENT de l'établissement trouvé par e-mail, ou identité parent en
+attente créée puis liée via `parent_students`) exige **en plus**
+`settings:write` — la même permission que `POST /parents/` et
+`POST /student-parents/` : la conversion n'ouvre pas au secrétariat la
+création de comptes. Sans elle, l'élève est créé et la réponse renvoie
+`parent_link: {status: "skipped", reason: "not_permitted"}`. Un e-mail
+appartenant à un compte d'un autre établissement (ou à un compte non parent)
+n'est jamais rattaché, et la réponse ne nomme pas l'établissement. Aucune
+nouvelle permission. Tests : `backend/tests/test_admission_parent_link.py`.
