@@ -297,17 +297,59 @@ class PayTechGateway(PaymentGateway):
                 error=str(e),
             )
 
+    # Vérification IPN (F5) — documentation PayTech (docs.intech.sn, section
+    # « Vérification IPN », lue le 2026-11-10) : chaque notification porte
+    # `hmac_compute` = HMAC-SHA256(api_secret, "montant|ref_command|api_key").
+    # L'ancien contrôle attendait un HMAC de `ref_command` seul dans un
+    # en-tête `x-paytech-hash` ou un champ `hash` que PayTech n'envoie pas :
+    # toute vraie notification était rejetée, aucun paiement jamais crédité.
+    #
+    # Le repli « api_key_sha256 / api_secret_sha256 » des exemples PayTech est
+    # volontairement refusé : ces valeurs sont identiques dans chaque
+    # notification, les avoir vues une fois suffit à les rejouer.
+    #
+    # Montant : le texte de la documentation signe `item_price`, ses exemples
+    # PHP/Node `final_item_price` (prix après promotion). Les deux sont
+    # acceptés ; le montant renvoyé est celui que la signature couvre, et c'est
+    # lui que l'appelant compare au paiement attendu.
+
+    @staticmethod
+    def _amount_text(value) -> Optional[str]:
+        """Le montant tel que PayTech l'a écrit dans le message signé."""
+        if value is None or isinstance(value, bool):
+            return None
+        if isinstance(value, float) and value.is_integer():
+            return str(int(value))
+        text_value = str(value).strip()
+        return text_value or None
+
+    def _signature(self, amount: str, ref_command: str) -> str:
+        message = f"{amount}|{ref_command}|{self.api_key}"
+        return hmac.new(self.secret_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+
+    def verified_amount(self, payload: dict) -> Optional[float]:
+        """Montant couvert par une signature `hmac_compute` valide, ou None."""
+        received = str(payload.get("hmac_compute") or "").strip().lower()
+        ref_command = str(payload.get("ref_command") or "")
+        if not received or not ref_command:
+            return None
+        candidates = []
+        for field in ("final_item_price", "item_price"):
+            amount = self._amount_text(payload.get(field))
+            if amount and amount not in candidates:
+                candidates.append(amount)
+        for amount in candidates:
+            if hmac.compare_digest(self._signature(amount, ref_command), received):
+                try:
+                    return float(amount)
+                except ValueError:
+                    return None
+        return None
+
     def verify_webhook(self, payload: dict, headers: dict) -> bool:
-        """PayTech IPN verification via HMAC-SHA256."""
-        received_hash = headers.get("x-paytech-hash") or payload.get("hash", "")
-        if not received_hash:
-            return False
-        expected = hmac.new(
-            self.secret_key.encode(),
-            payload.get("ref_command", "").encode(),
-            hashlib.sha256,
-        ).hexdigest()
-        return hmac.compare_digest(received_hash, expected)
+        """Notification signée par PayTech (`hmac_compute`). Aucun en-tête de
+        signature n'existe chez PayTech : `headers` est ignoré."""
+        return self.verified_amount(payload) is not None
 
     def parse_webhook_status(self, payload: dict) -> str:
         return "COMPLETED" if payload.get("type_event") == "sale_complete" else "FAILED"
@@ -316,10 +358,9 @@ class PayTechGateway(PaymentGateway):
         return payload.get("ref_command")
 
     def extract_amount(self, payload: dict) -> Optional[float]:
-        try:
-            return float(payload.get("item_price", 0))
-        except (TypeError, ValueError):
-            return None
+        """Montant signé uniquement (voir verified_amount) : un montant non
+        couvert par la signature ne doit jamais servir à créditer."""
+        return self.verified_amount(payload)
 
 
 # ─── Factory ──────────────────────────────────────────────────────────────────

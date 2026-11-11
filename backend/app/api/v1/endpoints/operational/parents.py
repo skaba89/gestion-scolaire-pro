@@ -1239,10 +1239,12 @@ async def paytech_webhook(request: Request, background_tasks: BackgroundTasks, d
         secret_key = tenant_settings.get("paytechSecretKey", "")
         if api_key and secret_key:
             gw = PayTechGateway(api_key=api_key, secret_key=secret_key)
-            if gw.verify_webhook(payload, dict(request.headers)):
+            signed_amount = gw.verified_amount(payload)
+            if signed_amount is not None:
                 pay_status = gw.parse_webhook_status(payload)
                 if pay_status == "COMPLETED":
-                    amount = gw.extract_amount(payload) or 0
+                    # Montant couvert par la signature, comparé au paiement attendu.
+                    amount = signed_amount
                     confirmed = _confirm_gateway_payment(db, transaction_id, amount)
                     if confirmed:
                         db.commit()

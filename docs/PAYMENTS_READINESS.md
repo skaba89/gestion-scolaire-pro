@@ -22,7 +22,7 @@ au fichier/endpoint qui l'implémente.
 | Export brut des paiements | ✅ **ajouté cette phase** | `GET /payments/export/` (CSV, filtrable par élève/statut, audité) |
 | Isolation tenant | ✅ | vérifiée sur chaque endpoint par tests dédiés (aucune fuite cross-tenant) |
 | Aucune suppression physique | ✅ | confirmé — aucune route `DELETE` sur `/payments/`, seul `reverse/` existe |
-| Webhook paiement sécurisé | ✅ | `POST /parents/payments/webhook/{cinetpay\|paytech}/` — CinetPay vérifié par rappel serveur-à-serveur, PayTech par HMAC-SHA256 (`hmac.compare_digest`) |
+| Webhook paiement sécurisé | ✅ | `POST /parents/payments/webhook/{cinetpay\|paytech}/` — CinetPay vérifié par rappel serveur-à-serveur, PayTech par `hmac_compute` = HMAC-SHA256(secret, `montant\|ref_command\|api_key`) selon la documentation PayTech (corrigé le 2026-11-10, F5 : l'ancien contrôle attendait un format que PayTech n'envoie pas) ; notification sans `hmac_compute` refusée |
 | Intégration Mobile Money / Orange Money / Wave | ✅ **déjà en place** | `app/services/payment_gateways.py` — `CinetPayGateway` (agrégateur couvrant la Guinée + Afrique francophone) et `PayTechGateway` (Wave/Orange Money/MTN via agrégateur sénégalais) |
 
 ## Ce qui manque
