@@ -1787,7 +1787,14 @@
     "paymentCash": "现金",
     "paymentCard": "银行卡",
     "paymentTransfer": "转账",
-    "paymentOther": "其他"
+    "paymentOther": "其他",
+    "cancelSale": "取消销售",
+    "cancelTitle": "取消此笔销售？",
+    "cancelDescription": "该销售仍保留在历史记录中，状态为“已取消”，商品将退回库存。此操作无法撤销。",
+    "cancelConfirm": "取消销售",
+    "cancelBack": "返回",
+    "cancelSuccess": "销售已取消，商品已退回库存",
+    "statusCancelled": "已取消"
   },
   "schedule": {
     "monday": "周一",

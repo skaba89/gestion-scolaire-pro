@@ -1752,7 +1752,14 @@
     "paymentCash": "نقداً",
     "paymentCard": "بطاقة",
     "paymentTransfer": "تحويل",
-    "paymentOther": "أخرى"
+    "paymentOther": "أخرى",
+    "cancelSale": "إلغاء البيع",
+    "cancelTitle": "هل تريد إلغاء عملية البيع هذه؟",
+    "cancelDescription": "تبقى عملية البيع في السجل بحالة «ملغاة» وتُعاد المواد إلى المخزون. لا يمكن التراجع عن هذا الإجراء.",
+    "cancelConfirm": "إلغاء البيع",
+    "cancelBack": "رجوع",
+    "cancelSuccess": "تم إلغاء البيع وإعادة المواد إلى المخزون",
+    "statusCancelled": "ملغاة"
   },
   "schedule": {
     "monday": "الاثنين",

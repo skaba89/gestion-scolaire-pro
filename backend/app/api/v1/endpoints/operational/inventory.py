@@ -9,6 +9,7 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -325,3 +326,63 @@ def create_order(request: Request, body: OrderCreateBody, db: Session = Depends(
         logger.error("create_order failed: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+
+@router.get("/orders/{order_id}/items/")
+def list_order_items(
+    request: Request,
+    order_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("inventory:read")),
+):
+    """Lignes d'une commande (reçu de l'historique). Route appelée par la
+    page Historique des commandes mais absente jusqu'ici (404) : le reçu
+    s'affichait toujours sans article."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    owner = db.execute(text("SELECT 1 FROM orders WHERE id = :oid AND tenant_id = :tid"),
+                       {"oid": str(order_id), "tid": tenant_id}).first()
+    if not owner:
+        raise HTTPException(status_code=404, detail="Commande introuvable")
+    rows = db.execute(text("""
+        SELECT id, order_id, item_id, item_name, quantity, unit_price, total_price, created_at
+        FROM order_items WHERE order_id = :oid ORDER BY created_at, item_name
+    """), {"oid": str(order_id)}).mappings().all()
+    return [{k: (str(v) if k in ("id", "order_id", "item_id") and v is not None else v) for k, v in r.items()} for r in rows]
+
+
+@router.post("/orders/{order_id}/cancel/")
+def cancel_order(
+    request: Request,
+    order_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("inventory:write")),
+):
+    """Annule une vente : statut CANCELLED, articles remis en stock, trace
+    d'audit. Pas de suppression physique : une vente encaissée reste une
+    trace financière (même règle que l'annulation des paiements). La page
+    proposait une corbeille sans action et `DELETE /inventory/orders/{id}/`
+    n'existait pas."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    order = db.execute(text(
+        "SELECT id, status, total_amount FROM orders WHERE id = :oid AND tenant_id = :tid FOR UPDATE"
+    ), {"oid": str(order_id), "tid": tenant_id}).mappings().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Commande introuvable")
+    if (order["status"] or "").upper() == "CANCELLED":
+        raise HTTPException(status_code=409, detail="Cette vente est déjà annulée")
+    lines = db.execute(text(
+        "SELECT item_id, quantity FROM order_items WHERE order_id = :oid AND item_id IS NOT NULL"
+    ), {"oid": str(order_id)}).mappings().all()
+    for line in lines:
+        db.execute(text(
+            "UPDATE inventory_items SET stock_quantity = stock_quantity + :qty WHERE id = :iid AND tenant_id = :tid"
+        ), {"qty": line["quantity"], "iid": str(line["item_id"]), "tid": tenant_id})
+    db.execute(text(
+        "UPDATE orders SET status = 'CANCELLED', updated_at = now() WHERE id = :oid AND tenant_id = :tid"
+    ), {"oid": str(order_id), "tid": tenant_id})
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="CANCEL_ORDER", resource_type="ORDER", resource_id=str(order_id),
+              details={"previous_status": order["status"], "total_amount": float(order["total_amount"] or 0),
+                       "restocked_lines": len(lines)})
+    db.commit()
+    return {"id": str(order_id), "status": "CANCELLED", "restocked_lines": len(lines)}

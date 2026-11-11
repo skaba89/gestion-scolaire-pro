@@ -1,5 +1,3 @@
 [
-  "DELETE /inventory/orders/X",
-  "GET /inventory/orders/X/items",
   "PATCH /school-life/check-ins/sessions/${activeSession"
 ]

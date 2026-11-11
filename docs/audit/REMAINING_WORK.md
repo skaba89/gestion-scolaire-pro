@@ -63,6 +63,12 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | EXP | ~~P1~~ corrigé | Exports avancés | **Corrigé** (PR fix/exports-and-mentoring) : Enseignants sur `/users/?role=TEACHER` + affectations `/teachers/` (au lieu de `/hr/staff/`, 404) ; toutes les pages lues (`fetchAllPages`) ; paramètres réels (`classroom_id`, `classId`/`termId`) ; colonnes Tuteur remplies ; Emploi du temps implémenté ; échec affiché avec sa raison. Colonne Téléphone retirée de l'export Enseignants (donnée absente de l'API) | — |
 | CAR | ~~P1~~ corrigé | Candidatures et mentorat | **Corrigé** : fiche élève de l'appelant trouvée par `students.user_id` (l'identifiant du compte était écrit dans `student_id`, clé étrangère vers `students` → échec pour tout vrai compte ; les tests confondaient les deux) ; statut imposé « PENDING » à la création ; statuts normalisés en majuscules ; erreurs plus avalées ; nouvelle route `PATCH /alumni/admin/mentorship-requests/{id}/` (`users:write`) | — |
 
+## Historique des commandes (2026-11-11)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| ORD | ~~P2~~ corrigé | Reçu et suppression de vente | **Corrigé** (PR fix/order-history) : `GET /inventory/orders/{id}/items/` (`inventory:read`) ; corbeille → annulation confirmée `POST /inventory/orders/{id}/cancel/` (`inventory:write`) : statut CANCELLED, remise en stock, audit, seconde annulation refusée (409), autre établissement 404. Pas de suppression physique | — |
+
 ## E-learning (2026-11-11)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
