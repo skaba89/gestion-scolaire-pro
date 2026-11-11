@@ -180,3 +180,66 @@ def test_teacher_cannot_start_session_for_a_class_they_do_not_teach():
     resp = client.post("/api/v1/school-life/check-ins/sessions/start/", json={"class_id": class_id},
                        headers={"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant_a})
     assert resp.status_code == 403, resp.text
+
+
+# --- /schedule/ : corps typé et références du tenant (2026-11-11) ---------
+
+from app.models.room import Room  # noqa: E402
+from app.models.user_role import UserRole  # noqa: E402
+
+
+def _teacher(tenant_id: str) -> str:
+    uid = str(uuid.uuid4())
+    _add(User(id=uid, tenant_id=tenant_id, email=f"t.{uid[:8]}@ecole.gn", username=f"t.{uid[:8]}",
+              first_name="T", last_name="T", password_hash="x", is_active=True))
+    with SessionLocal() as db:
+        db.add(UserRole(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=uid, role="TEACHER"))
+        db.commit()
+    return uid
+
+
+def _schedule_refs(tenant_id: str) -> dict:
+    rid = lambda: str(uuid.uuid4())  # noqa: E731
+    return {
+        "class_id": _add(Classroom(id=rid(), tenant_id=tenant_id, name="Classe")),
+        "subject_id": _add(Subject(id=rid(), tenant_id=tenant_id, name="Matière")),
+        "room_id": _add(Room(id=rid(), tenant_id=tenant_id, name="Salle")),
+        "teacher_id": _teacher(tenant_id),
+    }
+
+
+@pytest.mark.parametrize("field", ["class_id", "subject_id", "room_id", "teacher_id"])
+def test_schedule_slot_refuses_foreign_reference(field):
+    tenant_a, tenant_b = _tenant(), _tenant()
+    body = {**_schedule_refs(tenant_a), "day_of_week": 1, "start_time": "08:00:00", "end_time": "09:00:00"}
+    body[field] = _schedule_refs(tenant_b)[field]
+    resp = client.post("/api/v1/schedule/", json=body, headers=_admin_headers(tenant_a))
+    assert resp.status_code == 404, resp.text
+    assert "introuvable dans cet établissement" in resp.text
+
+
+def test_schedule_slot_incomplete_body_is_422_not_500():
+    tenant_a = _tenant()
+    resp = client.post("/api/v1/schedule/", json={}, headers=_admin_headers(tenant_a))
+    assert resp.status_code == 422, resp.text
+
+
+def test_schedule_slot_own_references_created_and_returned():
+    tenant_a = _tenant()
+    body = {**_schedule_refs(tenant_a), "day_of_week": "2", "start_time": "10:00:00", "end_time": "11:00:00"}
+    resp = client.post("/api/v1/schedule/", json=body, headers=_admin_headers(tenant_a))
+    assert resp.status_code == 201, resp.text
+    data = resp.json()
+    assert data["class_id"] == body["class_id"] and data["start_time"] == "10:00"
+    # Le frontend invalide le cache avec tenant_id/class_id de la réponse.
+    assert data["tenant_id"] == tenant_a
+
+
+def test_schedule_slot_update_refuses_foreign_room():
+    tenant_a, tenant_b = _tenant(), _tenant()
+    body = {**_schedule_refs(tenant_a), "day_of_week": 3, "start_time": "08:00:00", "end_time": "09:00:00"}
+    headers = _admin_headers(tenant_a)
+    slot_id = client.post("/api/v1/schedule/", json=body, headers=headers).json()["id"]
+    resp = client.put(f"/api/v1/schedule/{slot_id}/", json={"room_id": _schedule_refs(tenant_b)["room_id"]},
+                      headers=headers)
+    assert resp.status_code == 404, resp.text

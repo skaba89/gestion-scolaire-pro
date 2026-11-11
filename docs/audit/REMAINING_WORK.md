@@ -74,7 +74,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
 | CRAWL | ~~P2~~ fait | Erreurs 500 sur des lectures invisibles des tests | **Fait** (PR ci/get-routes-crawl) : parcours de toutes les routes GET × 9 rôles dans le job E2E, échec sur toute 5xx. Un premier parcours manuel a trouvé `event-registrations` (#531) | — |
-| CRAWL-W | P2 | Écritures non parcourues | Parcours exploratoire 2026-11-11 : 365 routes, 53 opérations en 5xx. **A fait** (PR fix/cross-tenant-fk) : FK d'un autre établissement acceptées (≈17 FK) → 404. Restent B (pannes : branding `me`, `bio` des profils, salles préférées, emploi du temps), C (≈21 saisies non-UUID et ≈15 erreurs génériques → 422), D (parcours des écritures dans la CI avec liste de référence décroissante) | 0 réponse 5xx sur les écritures ; parcours en CI |
+| CRAWL-W | P2 | Écritures non parcourues | Parcours exploratoire 2026-11-11 : 365 routes, 53 opérations en 5xx. **A fait** (PR fix/cross-tenant-fk) : FK d'un autre établissement acceptées (≈17 FK + emploi du temps) → 404. Restent B (pannes : branding `me`, `bio` des profils, salles préférées), C (≈21 saisies non-UUID et ≈15 erreurs génériques → 422), D (parcours des écritures dans la CI avec liste de référence décroissante) | 0 réponse 5xx sur les écritures ; parcours en CI |
 
 ## E-learning (2026-11-11)
 

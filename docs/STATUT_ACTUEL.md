@@ -909,7 +909,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   Corrigé sur salles (deux routes), départements (`head_id`, `faculty_id`),
   facultés (`dean_id`), périodes, matières (`semester_id`), contrats, congés
   et bulletins de paie (`employee_id`), clubs (`advisor_id`), ressources de
-  bibliothèque (`category_id`), et les écritures de `/school-life/`
+  bibliothèque (`category_id`), créneaux d'emploi du temps (`POST`/`PUT
+  /schedule/` : corps typé, classe, matière, salle et enseignant vérifiés,
+  créneau complet renvoyé, audit), et les écritures de `/school-life/`
   (évaluations, notes, présences, pointages, séances de pointage) : 404
   « … introuvable dans cet établissement » (`app/core/tenant_refs.py`).
   Les routes `/school-life/grades|attendance/` (doublons sans appelant

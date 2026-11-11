@@ -30,6 +30,7 @@ _REF_TABLES = {
     "employees": "Employé",
     "faculties": "Faculté",
     "library_categories": "Catégorie",
+    "rooms": "Salle",
     "semesters": "Semestre",
     "students": "Élève",
     "subjects": "Matière",
