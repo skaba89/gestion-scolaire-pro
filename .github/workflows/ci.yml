@@ -221,6 +221,7 @@ jobs:
           E2E_ALLOW_SEED=1 DATABASE_URL=$OWNER_URL DATABASE_URL_SYNC=$OWNER_URL_PSYCOPG DATABASE_URL_ASYNC=$OWNER_URL_PSYCOPG             python scripts/ci/seed_e2e.py
 
       - name: Start API and worker (restricted role)
+        id: start_api
         run: |
           cd backend
           export DATABASE_URL=$APP_URL_PSYCOPG DATABASE_URL_SYNC=$APP_URL_PSYCOPG DATABASE_URL_ASYNC=$APP_URL_PSYCOPG
@@ -249,7 +250,9 @@ jobs:
         # Après les parcours (base réaliste). Toute réponse 5xx fait échouer
         # le job : SQL brut divergeant du schéma, exception non gérée —
         # cf. scripts/ci/crawl_get_routes.py (origine : #531).
-        if: success() || failure()
+        # Lancé même si les parcours ont échoué (diagnostic), mais seulement
+        # si l'API a réellement démarré (sinon échec trompeur).
+        if: (success() || failure()) && steps.start_api.outcome == 'success'
         timeout-minutes: 12
         run: python scripts/ci/crawl_get_routes.py
         env:
