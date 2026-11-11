@@ -258,6 +258,10 @@ class TestEventRegistrationIdorAndFk:
         assert resp.status_code == 201, resp.text
 
 
+@pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="career_event_registrations is a raw Postgres-only operational table.",
+)
 class TestEventRegistrationsWithoutStudentRecord:
     """2026-11-11 (parcours GET de toutes les routes, stack RLS réelle) : pour
     un appelant non administratif sans fiche élève liée (enseignant, chef de
