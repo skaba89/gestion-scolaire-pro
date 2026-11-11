@@ -49,6 +49,13 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | F5 | — | ~~Signature PayTech~~ **corrigé** | Le contrôle attendait un HMAC de `ref_command` seul dans un champ `hash` / en-tête `x-paytech-hash` que PayTech n'envoie pas : toute vraie notification était rejetée (aucun paiement PayTech crédité). Désormais `hmac_compute` = HMAC-SHA256(secret, `montant\|ref_command\|api_key`) selon la documentation PayTech ; repli par hachages fixes des clés refusé (rejouable) ; montant contrôlé = montant signé. Production vérifiée le 2026-11-10 : aucune école sur PayTech, aucune notification reçue | Premier paiement réel avec un établissement pilote |
 | F6 | P2 | Recette B6 restante | Annulation et export CSV couverts (parcours 15, aucun défaut trouvé) ; reste CinetPay, non testable sans sandbox | Accès sandbox CinetPay |
 
+## Contrat frontend → API (2026-11-11)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| RDV | ~~P1~~ corrigé | Rendez-vous parents-enseignants | **Corrigé** (PR fix/appointments-end-to-end) : la fonction n'avait jamais marché — création de créneau refusée (`slot_date` / `date`), réservation en échec sur PostgreSQL (`:appointment_date::date`), génération de semaine, confirmation et annulation vers des routes absentes, double réservation possible, liste parent toujours vide (page lue comme tableau), tous les rendez-vous de l'établissement visibles par tout enseignant, erreurs avalées. Service `app/services/appointments.py`, créneau verrouillé à la réservation, transitions contrôlées ; parcours E2E 16 | — |
+| API-UNBUILT | P2 | Fonctions jamais construites côté serveur | 25 appels sans route restants (référence CI) : parrainages, plans de réussite, visioconférences, signatures électroniques, prévisions de trésorerie, quiz e-learning, mentorat, discussions et leçons de cours, commandes d'inventaire, export RH, résultats de période | Décision produit par fonction : construire ou masquer (comme R5) |
+
 ## Qualité de la chaîne CI (2026-11-09)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |

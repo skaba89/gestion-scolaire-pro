@@ -26,7 +26,18 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { format, isFuture, isPast } from "date-fns";
+import { apiErrorDetail } from "@/lib/api-error";
+import {
+  type Appointment,
+  type AppointmentSlot,
+  type PersonRef,
+  ACTIVE_STATUSES,
+  STATUS_LABEL_KEYS,
+  fullName,
+  hhmm,
+  isOnlineLocation,
+} from "@/lib/appointments";
+import { format, isFuture } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
   Calendar, 
@@ -35,7 +46,6 @@ import {
   User, 
   Video,
   MapPin,
-  CheckCircle2,
   X,
   MessageSquare
 } from "lucide-react";
@@ -61,7 +71,7 @@ export default function Appointments() {
       const { data } = await apiClient.get('/parents/children/', {
         params: { parent_id: user?.id },
       });
-      return Array.isArray(data) ? data.map((ps: any) => ps.student).filter(Boolean) : [];
+      return Array.isArray(data) ? data.map((ps: { student?: PersonRef }) => ps.student).filter((c): c is PersonRef => !!c) : [];
     },
     enabled: !!user?.id,
   });
@@ -72,7 +82,7 @@ export default function Appointments() {
   const { data: teachers } = useQuery({
     queryKey: ["teachers-for-appointments", tenant?.id],
     queryFn: async () => {
-      const { data } = await apiClient.get('/parents/children-teachers/');
+      const { data } = await apiClient.get<PersonRef[]>('/parents/children-teachers/');
       return Array.isArray(data) ? data : [];
     },
     enabled: !!tenant?.id,
@@ -82,50 +92,38 @@ export default function Appointments() {
   const { data: availableSlots } = useQuery({
     queryKey: ["appointment-slots", formData.teacher_id],
     queryFn: async () => {
-      const { data } = await apiClient.get('/parents/appointment-slots/', {
-        params: {
-          teacher_id: formData.teacher_id,
-          is_available: true,
-          slot_date_from: new Date().toISOString().split("T")[0],
-        },
+      // Le serveur ne renvoie que les créneaux à venir et non complets.
+      const { data } = await apiClient.get<AppointmentSlot[]>('/parents/appointment-slots/', {
+        params: { teacher_id: formData.teacher_id },
       });
-      return Array.isArray(data) ? data : [];
+      return data;
     },
     enabled: !!formData.teacher_id,
   });
 
   // Fetch appointments
-  const { data: appointments, isLoading } = useQuery({
+  const { data: appointments } = useQuery({
     queryKey: ["parent-appointments", user?.id],
     queryFn: async () => {
-      const { data } = await apiClient.get('/parents/appointments/', {
-        params: { parent_id: user?.id },
+      // Page { items } : l'ancien code attendait un tableau, la liste restait vide.
+      const { data } = await apiClient.get<{ items: Appointment[] }>('/parents/appointments/', {
+        params: { page_size: 100 },
       });
-      return Array.isArray(data) ? data : [];
+      return data.items ?? [];
     },
     enabled: !!user?.id,
   });
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const slot = availableSlots?.find(s => s.id === formData.slot_id);
-      if (!slot) throw new Error("Créneau non trouvé");
-
+      // Enseignant, date et heure : le serveur les prend du créneau, qu'il
+      // verrouille (pas de double réservation). Pas de colonne « sujet » :
+      // il ouvre les notes.
       await apiClient.post('/parents/appointments/', {
-        tenant_id: tenant?.id,
-        parent_id: user?.id,
-        teacher_id: formData.teacher_id,
         student_id: formData.student_id,
         slot_id: formData.slot_id,
-        appointment_date: slot.slot_date,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        subject: formData.subject,
-        notes: formData.notes,
+        notes: [formData.subject.trim(), formData.notes.trim()].filter(Boolean).join("\n\n") || null,
       });
-
-      // Mark slot as unavailable
-      await apiClient.put(`/parents/appointment-slots/${formData.slot_id}/`, { is_available: false });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parent-appointments"] });
@@ -134,54 +132,38 @@ export default function Appointments() {
       setFormData({ teacher_id: "", student_id: "", slot_id: "", subject: "", notes: "" });
       toast.success(t("appointments.bookingSuccess"));
     },
-    onError: () => {
-      toast.error(t("appointments.bookingError"));
+    onError: (error) => {
+      // Créneau pris entre-temps (409) : la liste est rafraîchie.
+      queryClient.invalidateQueries({ queryKey: ["appointment-slots"] });
+      toast.error(`${t("appointments.bookingError")} : ${apiErrorDetail(error)}`);
     },
   });
 
   const cancelMutation = useMutation({
     mutationFn: async (appointmentId: string) => {
-      const appointment = appointments?.find(a => a.id === appointmentId);
-      
-      await apiClient.put(`/parents/appointments/${appointmentId}/`, {
-        status: "cancelled",
-        cancelled_by: user?.id,
-        cancellation_reason: "Annulé par le parent",
-      });
-
-      // Make slot available again
-      if (appointment?.slot_id) {
-        await apiClient.put(`/parents/appointment-slots/${appointment.slot_id}/`, { is_available: true });
-      }
+      // Le créneau redevient disponible côté serveur.
+      await apiClient.post(`/parents/appointments/${appointmentId}/cancel/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parent-appointments"] });
       queryClient.invalidateQueries({ queryKey: ["appointment-slots"] });
       toast.success(t("appointments.cancelled"));
     },
+    onError: (error) => toast.error(apiErrorDetail(error)),
   });
 
   const getStatusBadge = (status: string) => {
-    const configs: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
-      scheduled: { variant: "outline", label: t("appointments.statusScheduled") },
-      confirmed: { variant: "default", label: t("appointments.statusConfirmed") },
-      cancelled: { variant: "destructive", label: t("appointments.statusCancelled") },
-      completed: { variant: "secondary", label: t("appointments.statusCompleted") },
-      no_show: { variant: "destructive", label: t("appointments.statusAbsent") },
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      REQUESTED: "outline", CONFIRMED: "default", CANCELLED: "destructive", COMPLETED: "secondary", NO_SHOW: "destructive",
     };
-    const config = configs[status] || configs.scheduled;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const key = STATUS_LABEL_KEYS[status as Appointment["status"]] ?? STATUS_LABEL_KEYS.REQUESTED;
+    return <Badge variant={variants[status] ?? "outline"}>{t(key)}</Badge>;
   };
 
-  const upcomingAppointments = appointments?.filter(a => 
-    ["scheduled", "confirmed"].includes(a.status) && 
-    isFuture(new Date(`${a.appointment_date}T${a.start_time}`))
-  ) || [];
-  
-  const pastAppointments = appointments?.filter(a => 
-    isPast(new Date(`${a.appointment_date}T${a.end_time}`)) ||
-    ["cancelled", "completed", "no_show"].includes(a.status)
-  ) || [];
+  const startsAt = (a: Appointment) => new Date(`${a.appointment_date}T${a.start_time ?? "00:00:00"}`);
+  const isUpcoming = (a: Appointment) => ACTIVE_STATUSES.includes(a.status) && isFuture(startsAt(a));
+  const upcomingAppointments = appointments?.filter(isUpcoming) ?? [];
+  const pastAppointments = appointments?.filter((a) => !isUpcoming(a)) ?? [];
 
   return (
     <div className="space-y-6">
@@ -217,7 +199,7 @@ export default function Appointments() {
                     <SelectValue placeholder={t("appointments.selectChild")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {children?.map((child: any) => (
+                    {children?.map((child) => (
                       <SelectItem key={child.id} value={child.id}>
                         {child.first_name} {child.last_name}
                       </SelectItem>
@@ -236,7 +218,7 @@ export default function Appointments() {
                     <SelectValue placeholder={t("appointments.selectTeacher")} />
                   </SelectTrigger>
                   <SelectContent>
-                    {teachers?.map((teacher: any) => (
+                    {teachers?.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id}>
                         {teacher.first_name} {teacher.last_name}
                       </SelectItem>
@@ -261,10 +243,10 @@ export default function Appointments() {
                         <SelectValue placeholder={t("appointments.chooseSlot")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableSlots?.map((slot: any) => (
+                        {availableSlots?.map((slot) => (
                           <SelectItem key={slot.id} value={slot.id}>
-                            {format(new Date(slot.slot_date), "EEEE d MMMM", { locale: fr })} - {slot.start_time.slice(0, 5)} à {slot.end_time.slice(0, 5)}
-                            {slot.is_online && ` ${t("appointments.inOnline")}`}
+                            {format(new Date(`${slot.date}T00:00:00`), "EEEE d MMMM", { locale: fr })} - {hhmm(slot.start_time)} à {hhmm(slot.end_time)}
+                            {isOnlineLocation(slot.location) && ` ${t("appointments.inOnline")}`}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -327,7 +309,7 @@ export default function Appointments() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {upcomingAppointments.map((apt: any) => (
+              {upcomingAppointments.map((apt) => (
                 <Card key={apt.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -338,33 +320,40 @@ export default function Appointments() {
                     </div>
                     <CardDescription className="flex items-center gap-2">
                       <Clock className="h-4 w-4" />
-                      {apt.start_time.slice(0, 5)} - {apt.end_time.slice(0, 5)}
+                      {hhmm(apt.start_time)}{apt.end_time ? ` - ${hhmm(apt.end_time)}` : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {apt.teacher?.first_name} {apt.teacher?.last_name}
-                      </span>
+                      <span>{fullName(apt.teacher)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span>{t("appointments.regarding")}</span>
-                      <span className="font-medium text-foreground">
-                        {apt.student?.first_name} {apt.student?.last_name}
-                      </span>
+                      <span className="font-medium text-foreground">{fullName(apt.student)}</span>
                     </div>
-                    {apt.subject && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                        {apt.subject}
+                    {apt.location && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {isOnlineLocation(apt.location) ? <Video className="h-4 w-4" /> : <MapPin className="h-4 w-4" />}
+                        {isOnlineLocation(apt.location) ? (
+                          <a href={apt.location} target="_blank" rel="noopener noreferrer" className="underline">
+                            {t("appointments.online")}
+                          </a>
+                        ) : apt.location}
+                      </div>
+                    )}
+                    {apt.notes && (
+                      <div className="flex items-start gap-2 text-sm whitespace-pre-line">
+                        <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        {apt.notes}
                       </div>
                     )}
                   </CardContent>
                   <CardFooter>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       size="sm"
+                      disabled={cancelMutation.isPending}
                       onClick={() => cancelMutation.mutate(apt.id)}
                     >
                       <X className="h-4 w-4 mr-1" />
@@ -379,7 +368,7 @@ export default function Appointments() {
 
         <TabsContent value="past" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {pastAppointments.map((apt: any) => (
+            {pastAppointments.map((apt) => (
               <Card key={apt.id} className="opacity-75">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -390,12 +379,8 @@ export default function Appointments() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {apt.teacher?.first_name} {apt.teacher?.last_name}
-                  </p>
-                  <p className="text-sm">
-                    {apt.student?.first_name} {apt.student?.last_name}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{fullName(apt.teacher)}</p>
+                  <p className="text-sm">{fullName(apt.student)}</p>
                 </CardContent>
               </Card>
             ))}

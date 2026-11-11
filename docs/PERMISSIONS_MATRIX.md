@@ -366,6 +366,18 @@ vérification de propriété. 4 bugs confirmés et corrigés :
   inscriptions actives — même schéma de jointure que
   `departments.py::department_teachers`), et les deux pages pointées
   dessus.
+- **Rendez-vous parents-enseignants (2026-11-11)** — aucune nouvelle
+  permission. Côté enseignant (`/school-life/appointment-slots/…`,
+  `school_life:read` / `school_life:write`) : un enseignant ne crée, ne
+  supprime et ne voit que **ses** créneaux et rendez-vous ; un titulaire de
+  `settings:write` (direction / administration) agit pour tout enseignant de
+  l'établissement. Côté parent (`/parents/appointments/…`,
+  `/parents/appointment-slots/`, `me:read` + rôle PARENT obligatoire) :
+  réservation uniquement pour un enfant rattaché (`parent_students`, sinon
+  403), annulation uniquement de ses propres rendez-vous (sinon 404).
+  Enseignant, date et heure sont lus dans le créneau de l'établissement,
+  jamais pris du client. Tests : `backend/tests/test_appointments_end_to_end.py`,
+  parcours E2E 16.
 - **ALUMNI** (faille de sécurité) sur `GET /alumni/document-requests/
   {id}/history/` : la vérification de propriété acceptait `tenant_id =
   :tenant_id` comme alternative à la possession de la demande — ce qui

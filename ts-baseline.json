@@ -56,7 +56,6 @@
   "src/pages/student/StudentDashboard.tsx": 2,
   "src/pages/student/StudentHomework.tsx": 5,
   "src/pages/student/StudentSchedule.tsx": 7,
-  "src/pages/teacher/AppointmentSlots.tsx": 4,
   "src/pages/teacher/ClassSessionAttendance.tsx": 5,
   "src/pages/teacher/TeacherAttendance.tsx": 3,
   "src/pages/teacher/TeacherClasses.tsx": 3,

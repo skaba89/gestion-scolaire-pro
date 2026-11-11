@@ -830,3 +830,15 @@ ce fichier — pas d'un document de 2025 non révisé.
   (rejouable). Production vérifiée en lecture seule le 2026-11-10 : aucune
   école sur PayTech, aucune notification reçue — aucun impact passé.
   Premier paiement réel à faire avec un établissement pilote.
+
+- **2026-11-11 — rendez-vous parents-enseignants fonctionnels.** La fonction
+  n'avait jamais marché de bout en bout : création de créneau refusée,
+  réservation en échec sur PostgreSQL, génération de semaine / confirmation /
+  annulation vers des routes absentes, double réservation possible, liste du
+  parent toujours vide, et tout enseignant voyait les rendez-vous de tout
+  l'établissement. Nouveau service `app/services/appointments.py` ; nouvelles
+  routes `POST /school-life/appointment-slots/bulk/`,
+  `PATCH /school-life/appointment-slots/appointments/{id}/`,
+  `POST /parents/appointments/{id}/cancel/` ; réservation sur `slot_id`
+  (enseignant, date, heure lus dans le créneau verrouillé) ; aucune migration
+  ni nouvelle permission. Appels frontend sans route : 29 → 25.

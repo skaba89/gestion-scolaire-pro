@@ -11,7 +11,7 @@ from sqlalchemy import bindparam, text
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID, uuid4
 from datetime import datetime, date, time, timezone
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.base import GUID
 from app.models.job import Job
@@ -34,6 +34,7 @@ from app.schemas.school_life import (
 )
 from app.crud import school_life as crud_sl
 from app.utils.audit import log_audit
+from app.services import appointments as appointments_svc
 from app.services.academic_rules import (
     effective_rules, grade_color, mention_background, mention_for,
 )
@@ -609,127 +610,165 @@ def export_events_ics(
         headers={"Content-Disposition": 'attachment; filename="calendrier-scolaire.ics"'},
     )
 
-# --- Appointment Slots ---
+# --- Appointment Slots (rendez-vous parents-enseignants, côté enseignant) ---
+# Logique métier : app/services/appointments.py. Ici : contrôles d'accès.
+# Un enseignant ne gère que SES créneaux et SES rendez-vous ; un titulaire de
+# settings:write (direction / administration) gère ceux de tout enseignant de
+# l'établissement.
 
 class AppointmentSlotCreate(BaseModel):
     teacher_id: Optional[UUID] = None
-    date: str
-    start_time: str
-    end_time: str
-    max_appointments: int = 1
-    location: Optional[str] = None
+    date: date
+    start_time: time
+    end_time: time
+    max_appointments: int = Field(1, ge=1, le=20)
+    # Lieu ou lien de visioconférence (pas de colonne dédiée).
+    location: Optional[str] = Field(None, max_length=255)
     is_active: bool = True
+
+
+class AppointmentSlotBulkCreate(BaseModel):
+    slots: List[AppointmentSlotCreate] = Field(..., min_length=1, max_length=appointments_svc.MAX_BULK_SLOTS)
+
+
+class AppointmentStatusUpdate(BaseModel):
+    status: str = Field(..., min_length=1, max_length=20)
+
+
+def _manages_all_teachers(current_user: dict) -> bool:
+    from app.core.security import user_has_permission
+    return user_has_permission(current_user, "settings:write")
+
+
+def _slot_owner(current_user: dict, requested: Optional[UUID]) -> str:
+    """Enseignant propriétaire d'un créneau à créer : soi-même, sauf pour
+    l'administration qui peut créer pour un autre enseignant."""
+    own = str(current_user.get("id"))
+    if requested is None or str(requested) == own:
+        return own
+    if not _manages_all_teachers(current_user):
+        raise HTTPException(status_code=403, detail="Vous ne pouvez créer un créneau que pour vous-même")
+    return str(requested)
+
+
+def _check_teacher_in_tenant(db: Session, tenant_id: str, teacher_id: str) -> None:
+    row = db.execute(
+        text("SELECT 1 FROM users WHERE id = :uid AND tenant_id = :tid").bindparams(
+            bindparam("uid", type_=GUID()), bindparam("tid", type_=GUID()),
+        ),
+        {"uid": teacher_id, "tid": tenant_id},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Enseignant introuvable dans l'établissement")
+
+
+def _insert_slot(db: Session, tenant_id: str, teacher_id: str, slot: AppointmentSlotCreate) -> Optional[str]:
+    """Insère un créneau ; None si l'enseignant a déjà un créneau à la même
+    date et heure de début (génération de semaine rejouée)."""
+    if slot.end_time <= slot.start_time:
+        raise HTTPException(status_code=422, detail="L'heure de fin doit suivre l'heure de début")
+    exists = db.execute(
+        text(
+            "SELECT 1 FROM appointment_slots WHERE tenant_id = :tid AND teacher_id = :teacher_id "
+            "AND date = :d AND start_time = :st"
+        ).bindparams(bindparam("tid", type_=GUID()), bindparam("teacher_id", type_=GUID())),
+        {"tid": tenant_id, "teacher_id": teacher_id, "d": slot.date, "st": slot.start_time},
+    ).first()
+    if exists:
+        return None
+    return str(db.execute(
+        text(
+            "INSERT INTO appointment_slots (id, tenant_id, teacher_id, date, start_time, end_time, "
+            "max_appointments, location, is_active, created_at) "
+            "VALUES (gen_random_uuid(), :tid, :teacher_id, :d, :st, :et, :maxa, :loc, :active, now()) RETURNING id"
+        ).bindparams(bindparam("tid", type_=GUID()), bindparam("teacher_id", type_=GUID())),
+        {
+            "tid": tenant_id, "teacher_id": teacher_id, "d": slot.date, "st": slot.start_time,
+            "et": slot.end_time, "maxa": slot.max_appointments, "loc": slot.location, "active": slot.is_active,
+        },
+    ).scalar())
 
 
 @router.get("/appointment-slots/appointments/")
 def list_teacher_appointments(
     request: Request,
-    teacher_id: Optional[str] = None,
+    teacher_id: Optional[UUID] = None,
     status: Optional[str] = None,
+    from_date: Optional[date] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:read")),
 ):
-    """List booked appointments for a teacher's slots (teacher-facing view).
-
-    Route absente jusqu'ici — le frontend l'appelait déjà (AppointmentSlots.tsx)
-    et recevait un 404 silencieux, laissant la liste des RDV du jour vide.
-    """
+    """Rendez-vous des créneaux d'un enseignant. Un enseignant ne voit que les
+    siens (avant : `teacher_id` facultatif, donc tous ceux de l'établissement) ;
+    l'administration peut filtrer sur un enseignant ou tout voir."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        return []
-    conditions = ["a.tenant_id = :tid"]
-    params: Dict[str, Any] = {"tid": tenant_id}
-    if teacher_id:
-        conditions.append("a.teacher_id = :teacher_id")
-        params["teacher_id"] = teacher_id
-    if status:
-        conditions.append("a.status = ANY(:statuses)")
-        params["statuses"] = [s.strip().upper() for s in status.split(",")]
-    where = " AND ".join(conditions)
-    params["limit"] = page_size
-    params["offset"] = (page - 1) * page_size
-    try:
-        rows = db.execute(text(f"""
-            SELECT a.*, s.first_name as student_first_name, s.last_name as student_last_name
-            FROM appointments a
-            LEFT JOIN students s ON a.student_id = s.id
-            WHERE {where}
-            ORDER BY a.appointment_date ASC
-            LIMIT :limit OFFSET :offset
-        """), params).mappings().all()
-        items = []
-        for r in rows:
-            d = dict(r)
-            for k, v in d.items():
-                if isinstance(v, datetime):
-                    d[k] = v.isoformat()
-            items.append(d)
-        return items
-    except Exception:
-        # La table 'appointments' peut être absente sur une install ancienne.
-        return []
+    if not _manages_all_teachers(current_user):
+        teacher_id = UUID(str(current_user.get("id")))
+    items, _total = appointments_svc.list_appointments(
+        db, tenant_id,
+        teacher_id=str(teacher_id) if teacher_id else None,
+        statuses=status.split(",") if status else None,
+        date_from=from_date.isoformat() if from_date else None,
+        limit=page_size, offset=(page - 1) * page_size,
+    )
+    return items
+
+
+@router.patch("/appointment-slots/appointments/{appointment_id}/")
+def update_teacher_appointment_status(
+    request: Request,
+    appointment_id: UUID,
+    body: AppointmentStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """Confirmer, clore, marquer absent ou annuler un rendez-vous (route
+    appelée par AppointmentSlots.tsx mais absente jusqu'ici : 404)."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    appointment = appointments_svc.get_appointment(db, tenant_id, str(appointment_id))
+    owner = (appointment["teacher"] or {}).get("id")
+    if owner != str(current_user.get("id")) and not _manages_all_teachers(current_user):
+        raise HTTPException(status_code=403, detail="Ce rendez-vous concerne un autre enseignant")
+    new_status = body.status.upper()
+    appointments_svc.change_status(db, tenant_id, str(appointment_id), appointment["status"], new_status)
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=tenant_id,
+        action="UPDATE_APPOINTMENT_STATUS", resource_type="APPOINTMENT", resource_id=str(appointment_id),
+        details={"from": appointment["status"], "to": new_status},
+    )
+    db.commit()
+    return appointments_svc.get_appointment(db, tenant_id, str(appointment_id))
 
 
 @router.get("/appointment-slots/")
 def list_appointment_slots(
     request: Request,
-    teacher_id: Optional[str] = None,
-    date: Optional[str] = None,
-    is_active: Optional[bool] = None,
-    page: int = 1,
-    page_size: int = 20,
+    teacher_id: Optional[UUID] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    is_active: Optional[bool] = True,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:read")),
 ):
-    """List appointment slots with pagination and filters."""
+    """Créneaux de l'établissement, avec `booked_count` et `is_available`
+    (calculés à partir des rendez-vous non annulés)."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        raise HTTPException(status_code=403, detail="No tenant context")
-    try:
-        # SECURITY: WHERE clauses built from developer-controlled literals, not user-supplied SQL.
-        # All filter values are passed as bound parameters (safe from injection).
-        conditions = ["tenant_id = :tid"]
-        params: Dict[str, Any] = {"tid": tenant_id}
-        if teacher_id:
-            conditions.append("teacher_id = :teacher_id")
-            params["teacher_id"] = teacher_id
-        if date:
-            conditions.append("date = :slot_date")
-            params["slot_date"] = date
-        if is_active is not None:
-            conditions.append("is_active = :is_active")
-            params["is_active"] = is_active
-
-        where = " AND ".join(conditions)
-        offset = (page - 1) * page_size
-
-        count_row = db.execute(
-            text(f"SELECT COUNT(*) FROM appointment_slots WHERE {where}"), params
-        ).scalar()
-
-        rows = db.execute(
-            text(f"SELECT * FROM appointment_slots WHERE {where} ORDER BY date, start_time LIMIT :lim OFFSET :off"),
-            {**params, "lim": page_size, "off": offset},
-        ).fetchall()
-
-        return {
-            "items": [dict(r._mapping) for r in rows],
-            "total": count_row,
-            "page": page,
-            "page_size": page_size,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error("Error listing appointment slots: %s", e)
-        logger.error("Operation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
+    items, total = appointments_svc.list_slots(
+        db, tenant_id,
+        teacher_id=str(teacher_id) if teacher_id else None,
+        date_from=date_from.isoformat() if date_from else None,
+        date_to=date_to.isoformat() if date_to else None,
+        only_active=bool(is_active),
+        limit=page_size, offset=(page - 1) * page_size,
+    )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
 
 
-@router.post("/appointment-slots/")
+@router.post("/appointment-slots/", status_code=201)
 def create_appointment_slot(
     *,
     request: Request,
@@ -737,46 +776,54 @@ def create_appointment_slot(
     obj_in: AppointmentSlotCreate,
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
-    """Create a new appointment slot."""
+    """Crée un créneau. Avant : tout titulaire de school_life:write pouvait le
+    créer au nom d'un autre enseignant."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        raise HTTPException(status_code=403, detail="No tenant context")
-    try:
-        slot_id = str(uuid4())
-        db.execute(
-            text("""
-                INSERT INTO appointment_slots (id, tenant_id, teacher_id, date, start_time, end_time,
-                    max_appointments, location, is_active)
-                VALUES (:id, :tid, :teacher_id, :slot_date, :start_time, :end_time,
-                    :max_appointments, :location, :is_active)
-            """),
-            {
-                "id": slot_id,
-                "tid": tenant_id,
-                "teacher_id": obj_in.teacher_id or current_user.get("id"),
-                "slot_date": obj_in.date,
-                "start_time": obj_in.start_time,
-                "end_time": obj_in.end_time,
-                "max_appointments": obj_in.max_appointments,
-                "location": obj_in.location,
-                "is_active": obj_in.is_active,
-            },
-        )
-        log_audit(
-            db, user_id=current_user.get("id"), tenant_id=tenant_id,
-            action="CREATE_APPOINTMENT_SLOT", resource_type="APPOINTMENT_SLOT",
-            resource_id=slot_id,
-        )
-        db.commit()
-        row = db.execute(
-            text("SELECT * FROM appointment_slots WHERE id = :id"), {"id": slot_id}
-        ).first()
-        return dict(row._mapping) if row else {"id": slot_id}
-    except Exception as e:
-        db.rollback()
-        logger.error("Error creating appointment slot: %s", e)
-        logger.error("Operation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
+    teacher_id = _slot_owner(current_user, obj_in.teacher_id)
+    _check_teacher_in_tenant(db, tenant_id, teacher_id)
+    slot_id = _insert_slot(db, tenant_id, teacher_id, obj_in)
+    if slot_id is None:
+        raise HTTPException(status_code=409, detail="Un créneau existe déjà à cette date et heure")
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=tenant_id,
+        action="CREATE_APPOINTMENT_SLOT", resource_type="APPOINTMENT_SLOT", resource_id=slot_id,
+    )
+    db.commit()
+    items, _ = appointments_svc.list_slots(db, tenant_id, teacher_id=teacher_id, only_active=False, limit=500)
+    return next((s for s in items if s["id"] == slot_id), {"id": slot_id})
+
+
+@router.post("/appointment-slots/bulk/", status_code=201)
+def bulk_create_appointment_slots(
+    *,
+    request: Request,
+    db: Session = Depends(get_db),
+    body: AppointmentSlotBulkCreate,
+    current_user: dict = Depends(require_permission("school_life:write")),
+):
+    """Génération d'une série de créneaux (« Générer la semaine »), en une
+    seule transaction. Les créneaux déjà existants (même enseignant, date et
+    heure de début) sont ignorés, pas dupliqués."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    created, skipped = [], 0
+    checked: set[str] = set()
+    for slot in body.slots:
+        teacher_id = _slot_owner(current_user, slot.teacher_id)
+        if teacher_id not in checked:
+            _check_teacher_in_tenant(db, tenant_id, teacher_id)
+            checked.add(teacher_id)
+        slot_id = _insert_slot(db, tenant_id, teacher_id, slot)
+        if slot_id is None:
+            skipped += 1
+        else:
+            created.append(slot_id)
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=tenant_id,
+        action="BULK_CREATE_APPOINTMENT_SLOTS", resource_type="APPOINTMENT_SLOT",
+        details={"created": len(created), "skipped": skipped},
+    )
+    db.commit()
+    return {"created": len(created), "skipped": skipped, "ids": created}
 
 
 @router.delete("/appointment-slots/{slot_id}/")
@@ -786,35 +833,33 @@ def delete_appointment_slot(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("school_life:write")),
 ):
-    """Delete an appointment slot."""
+    """Supprime un créneau sans rendez-vous en cours (sinon 409 : annuler
+    d'abord les rendez-vous). Un enseignant ne supprime que les siens."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        raise HTTPException(status_code=403, detail="No tenant context")
-    try:
-        row = db.execute(
-            text("SELECT * FROM appointment_slots WHERE id = :id AND tenant_id = :tid"),
-            {"id": slot_id, "tid": tenant_id},
-        ).first()
-        if not row:
-            raise HTTPException(status_code=404, detail="Appointment slot not found")
-        db.execute(
-            text("DELETE FROM appointment_slots WHERE id = :id AND tenant_id = :tid"),
-            {"id": slot_id, "tid": tenant_id},
-        )
-        log_audit(
-            db, user_id=current_user.get("id"), tenant_id=tenant_id,
-            action="DELETE_APPOINTMENT_SLOT", resource_type="APPOINTMENT_SLOT",
-            resource_id=str(slot_id),
-        )
-        db.commit()
-        return {"status": "success"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error("Error deleting appointment slot: %s", e)
-        logger.error("Operation failed: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="An internal error occurred.")
+    row = db.execute(
+        text("SELECT teacher_id FROM appointment_slots WHERE id = :id AND tenant_id = :tid").bindparams(
+            bindparam("id", type_=GUID()), bindparam("tid", type_=GUID()),
+        ),
+        {"id": str(slot_id), "tid": tenant_id},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Créneau introuvable")
+    if str(row[0]) != str(current_user.get("id")) and not _manages_all_teachers(current_user):
+        raise HTTPException(status_code=403, detail="Ce créneau appartient à un autre enseignant")
+    if appointments_svc.active_appointment_count(db, tenant_id, str(slot_id)):
+        raise HTTPException(status_code=409, detail="Ce créneau a des rendez-vous en cours : annulez-les d'abord")
+    db.execute(
+        text("DELETE FROM appointment_slots WHERE id = :id AND tenant_id = :tid").bindparams(
+            bindparam("id", type_=GUID()), bindparam("tid", type_=GUID()),
+        ),
+        {"id": str(slot_id), "tid": tenant_id},
+    )
+    log_audit(
+        db, user_id=current_user.get("id"), tenant_id=tenant_id,
+        action="DELETE_APPOINTMENT_SLOT", resource_type="APPOINTMENT_SLOT", resource_id=str(slot_id),
+    )
+    db.commit()
+    return {"status": "success"}
 
 
 # --- Bookable Resources & Bookings (src/pages/admin/Bookings.tsx) ---

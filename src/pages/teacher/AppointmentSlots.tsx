@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,12 +18,20 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { format, addDays, startOfWeek, isSameDay } from "date-fns";
+import { apiErrorDetail } from "@/lib/api-error";
+import {
+  type Appointment,
+  type AppointmentSlot,
+  STATUS_LABEL_KEYS,
+  fullName,
+  hhmm,
+  isOnlineLocation,
+} from "@/lib/appointments";
+import { format, addDays, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
   Calendar, 
   Plus, 
-  Clock, 
   User, 
   Video,
   MapPin,
@@ -35,11 +42,10 @@ import {
 export default function AppointmentSlots() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
-    slot_date: "",
+    date: "",
     start_time: "",
     end_time: "",
     location: "",
@@ -47,16 +53,13 @@ export default function AppointmentSlots() {
     meeting_url: "",
   });
 
-  const { data: slots, isLoading } = useQuery({
+  const { data: slots } = useQuery({
     queryKey: ["teacher-slots", user?.id],
     queryFn: async () => {
-      const { data } = await apiClient.get("/school-life/appointment-slots/", {
-        params: {
-          teacher_id: user?.id,
-          is_active: true,
-        },
+      const { data } = await apiClient.get<{ items: AppointmentSlot[] }>("/school-life/appointment-slots/", {
+        params: { teacher_id: user?.id, date_from: new Date().toISOString().split("T")[0] },
       });
-      return Array.isArray(data) ? data : (data?.items ?? []);
+      return data.items;
     },
     enabled: !!user?.id,
   });
@@ -64,61 +67,60 @@ export default function AppointmentSlots() {
   const { data: appointments } = useQuery({
     queryKey: ["teacher-appointments", user?.id],
     queryFn: async () => {
-      const { data } = await apiClient.get("/school-life/appointment-slots/appointments/", {
+      // Le serveur limite déjà un enseignant à ses propres rendez-vous.
+      const { data } = await apiClient.get<Appointment[]>("/school-life/appointment-slots/appointments/", {
         params: {
-          teacher_id: user?.id,
-          status: "scheduled,confirmed",
+          status: "REQUESTED,CONFIRMED",
           from_date: new Date().toISOString().split("T")[0],
         },
       });
-      return data || [];
+      return data;
     },
     enabled: !!user?.id,
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      // Pas de colonne « en ligne » : le lien de visioconférence est le lieu.
       await apiClient.post("/school-life/appointment-slots/", {
-        teacher_id: user?.id,
-        slot_date: data.slot_date,
+        date: data.date,
         start_time: data.start_time,
         end_time: data.end_time,
-        location: data.location || null,
-        is_online: data.is_online,
-        meeting_url: data.is_online ? data.meeting_url : null,
+        location: (data.is_online ? data.meeting_url : data.location) || null,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-slots"] });
       setIsOpen(false);
-      setFormData({ slot_date: "", start_time: "", end_time: "", location: "", is_online: false, meeting_url: "" });
+      setFormData({ date: "", start_time: "", end_time: "", location: "", is_online: false, meeting_url: "" });
       toast.success(t("appointments.slotAdded"));
     },
-    onError: () => {
-      toast.error(t("appointments.slotAddError"));
+    onError: (error) => {
+      toast.error(`${t("appointments.slotAddError")} : ${apiErrorDetail(error)}`);
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (slotId: string) => {
-      await apiClient.delete(`/school-life/appointment-slots/${slotId}/`, {
-        params: { is_available: true },
-      });
+      await apiClient.delete(`/school-life/appointment-slots/${slotId}/`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-slots"] });
       toast.success("Créneau supprimé");
     },
+    onError: (error) => toast.error(apiErrorDetail(error)),
   });
 
   const updateAppointmentMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status }: { id: string; status: "CONFIRMED" | "CANCELLED" }) => {
       await apiClient.patch(`/school-life/appointment-slots/appointments/${id}/`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-slots"] });
       toast.success(t("appointments.appointmentUpdated"));
     },
+    onError: (error) => toast.error(apiErrorDetail(error)),
   });
 
   const generateWeekSlots = () => {
@@ -130,11 +132,9 @@ export default function AppointmentSlots() {
       const date = addDays(weekStart, day + 7); // Next week
       for (let hour = 16; hour <= 18; hour++) {
         slotsToCreate.push({
-          teacher_id: user?.id,
-          slot_date: format(date, "yyyy-MM-dd"),
+          date: format(date, "yyyy-MM-dd"),
           start_time: `${hour}:00`,
           end_time: `${hour}:30`,
-          is_online: false,
         });
       }
     }
@@ -151,11 +151,12 @@ export default function AppointmentSlots() {
       queryClient.invalidateQueries({ queryKey: ["teacher-slots"] });
       toast.success(t("appointments.weekGenerated"));
     },
+    onError: (error) => toast.error(apiErrorDetail(error)),
   });
 
   // Group slots by date
-  const slotsByDate = slots?.reduce((acc: Record<string, any[]>, slot) => {
-    const date = slot.slot_date;
+  const slotsByDate = slots?.reduce((acc: Record<string, AppointmentSlot[]>, slot) => {
+    const date = slot.date;
     if (!acc[date]) acc[date] = [];
     acc[date].push(slot);
     return acc;
@@ -196,8 +197,8 @@ export default function AppointmentSlots() {
                   <Label>{t("appointments.date")}</Label>
                   <Input
                     type="date"
-                    value={formData.slot_date}
-                    onChange={(e) => setFormData({ ...formData, slot_date: e.target.value })}
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     min={new Date().toISOString().split("T")[0]}
                   />
                 </div>
@@ -247,7 +248,7 @@ export default function AppointmentSlots() {
                 )}
                 <Button
                   onClick={() => createMutation.mutate(formData)}
-                  disabled={!formData.slot_date || !formData.start_time || !formData.end_time || createMutation.isPending}
+                  disabled={!formData.date || !formData.start_time || !formData.end_time || createMutation.isPending}
                   className="w-full"
                 >
                   {t("appointments.addSlotBtn")}
@@ -308,7 +309,7 @@ export default function AppointmentSlots() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
-                      {dateSlots.map((slot: any) => (
+                      {dateSlots.map((slot) => (
                         <div
                           key={slot.id}
                           className={`p-3 rounded-lg border ${
@@ -319,7 +320,7 @@ export default function AppointmentSlots() {
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-medium">
-                              {slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}
+                              {hhmm(slot.start_time)} - {hhmm(slot.end_time)}
                             </span>
                             {slot.is_available ? (
                               <Button
@@ -335,7 +336,7 @@ export default function AppointmentSlots() {
                             )}
                           </div>
                           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                            {slot.is_online ? (
+                            {isOnlineLocation(slot.location) ? (
                               <>
                                 <Video className="h-3 w-3" />
                                 {t("appointments.online")}
@@ -367,41 +368,50 @@ export default function AppointmentSlots() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {appointments.map((apt: any) => (
+              {appointments.map((apt) => (
                 <Card key={apt.id}>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center justify-between">
                       {format(new Date(apt.appointment_date), "EEEE d MMMM", { locale: fr })}
-                      <Badge variant={apt.status === "confirmed" ? "default" : "outline"}>
-                        {apt.status === "confirmed" ? "Confirmé" : "En attente"}
+                      <Badge variant={apt.status === "CONFIRMED" ? "default" : "outline"}>
+                        {t(STATUS_LABEL_KEYS[apt.status] ?? "appointments.statusScheduled")}
                       </Badge>
                     </CardTitle>
                     <CardDescription>
-                      {apt.start_time.slice(0, 5)} - {apt.end_time.slice(0, 5)}
+                      {hhmm(apt.start_time)}{apt.end_time ? ` - ${hhmm(apt.end_time)}` : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span>{apt.parent?.first_name} {apt.parent?.last_name}</span>
+                      <span>{fullName(apt.parent)}</span>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {t("appointments.regarding")} <span className="text-foreground">{apt.student?.first_name} {apt.student?.last_name}</span>
+                      {t("appointments.regarding")} <span className="text-foreground">{fullName(apt.student)}</span>
                     </div>
-                    {apt.subject && (
-                      <div className="text-sm">{t("appointments.subject")} {apt.subject}</div>
+                    {apt.notes && (
+                      <div className="text-sm whitespace-pre-line">{t("appointments.subject")} {apt.notes}</div>
                     )}
-                    {apt.status === "scheduled" && (
-                      <div className="flex gap-2 pt-2">
+                    <div className="flex gap-2 pt-2">
+                      {apt.status === "REQUESTED" && (
                         <Button
                           size="sm"
-                          onClick={() => updateAppointmentMutation.mutate({ id: apt.id, status: "confirmed" })}
+                          disabled={updateAppointmentMutation.isPending}
+                          onClick={() => updateAppointmentMutation.mutate({ id: apt.id, status: "CONFIRMED" })}
                         >
                           <CheckCircle2 className="h-4 w-4 mr-1" />
                           {t("appointments.confirm")}
                         </Button>
-                      </div>
-                    )}
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={updateAppointmentMutation.isPending}
+                        onClick={() => updateAppointmentMutation.mutate({ id: apt.id, status: "CANCELLED" })}
+                      >
+                        {t("common.cancel")}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
