@@ -1,6 +1,6 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-10-26 (journal de production ci-dessous). Le
+**Dernière mise à jour : 2026-11-11 (journal de production ci-dessous ; production en `81eaf4a`). Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -767,8 +767,7 @@ ce fichier — pas d'un document de 2025 non révisé.
   demande est désormais rattachée à l'élève existant (vérifié dans
   l'établissement) ; l'écran Admissions affiche « Réinscription » et
   « Valider la réinscription ». Transfert de classe et changement d'année
-  vérifiés sains. Parcours E2E 13. **À déployer** : la production
-  (`c3d7097`) est concernée.
+  vérifiés sains. Parcours E2E 13. Déployé le 2026-11-09 (`7ad5379`).
 - **2026-11-09 — finances : un parent ne peut plus solder lui-même une facture
   (F1, P0).** La route de paiement parent acceptait les méthodes « espèces »
   et « virement » et créditait aussitôt la facture : un parent pouvait, par
@@ -800,4 +799,4 @@ ce fichier — pas d'un document de 2025 non révisé.
   Compte parent de l'établissement trouvé par e-mail, sinon compte en attente
   à activer dans « Utilisateurs en attente » ; le parent voit ensuite
   l'enfant dans son portail. Réservé aux rôles qui gèrent déjà les comptes
-  (`settings:write`). **À déployer.**
+  (`settings:write`). Déployé le 2026-11-11 (`81eaf4a`, sans migration).
