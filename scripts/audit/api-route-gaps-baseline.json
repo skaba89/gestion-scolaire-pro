@@ -1,5 +1,4 @@
 [
-  "DELETE /course-discussions/X",
   "DELETE /inventory/orders/X",
   "DELETE /school-life/sponsorships/X",
   "GET /analytics/cash-flow-forecasts",
@@ -11,11 +10,8 @@
   "GET /school-life/sponsorships",
   "GET /school-life/success-plans",
   "PATCH /communication/video-meetings/X",
-  "PATCH /course-discussions/X",
-  "PATCH /course-lessons/X",
   "PATCH /school-life/check-ins/sessions/${activeSession",
   "PATCH /school-life/success-plans/X",
-  "POST /academic/courses/lessons/quiz",
   "POST /communication/document-signatories",
   "POST /communication/electronic-documents",
   "POST /communication/video-meetings",

@@ -2358,7 +2358,7 @@ course_discussions_router = APIRouter()
 def list_course_discussions(
     request: Request,
     course_id: Optional[str] = None,
-    ordering: str = "-created_at",
+    top_level: bool = False,
     limit: int = Query(10, le=100),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -2371,28 +2371,35 @@ def list_course_discussions(
     if course_id:
         where.append("cd.course_id = :course_id")
         params["course_id"] = course_id
+    if top_level:
+        # Messages principaux seulement (sans les réponses).
+        where.append("cd.parent_id IS NULL")
 
     try:
         rows = db.execute(text(f"""
             SELECT cd.id, cd.course_id, cd.user_id, cd.content,
                    cd.parent_id, cd.created_at,
-                   u.first_name, u.last_name
+                   u.first_name, u.last_name, ec.title AS course_title
             FROM course_discussions cd
             LEFT JOIN users u ON u.id = cd.user_id
+            LEFT JOIN elearning_courses ec ON ec.id = cd.course_id AND ec.tenant_id = cd.tenant_id
             WHERE {' AND '.join(where)}
             ORDER BY cd.created_at DESC
             LIMIT :limit
         """), params).mappings().all()
         return [
             {
-                **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name")},
+                **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name", "course_title")},
                 "author": {"first_name": r["first_name"], "last_name": r["last_name"]}
                 if r["user_id"] else None,
+                "course": {"id": r["course_id"], "title": r["course_title"]} if r["course_title"] else None,
             }
             for r in rows
         ]
-    except Exception:
-        return []
+    except Exception as e:
+        # Avant : liste vide silencieuse sur toute erreur (2026-11-11).
+        logger.error("list_course_discussions failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @course_discussions_router.post("/", status_code=201)

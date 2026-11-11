@@ -1152,7 +1152,9 @@
     "confirmDeleteLesson": "حذف الدرس «{{title}}»؟",
     "add": "إضافة",
     "update": "تحديث",
-    "cancel": "إلغاء"
+    "cancel": "إلغاء",
+    "lessonsNotSavedTitle": "الوحدات والدروس غير محفوظة",
+    "lessonsNotSavedDescription": "تبقى الوحدات والدروس التي تُنشأ هنا في هذا المتصفح وتضيع عند إعادة تحميل الصفحة: حفظها على الخادم غير متاح بعد. لا يراها الطلاب."
   },
   "sponsorships": {
     "pageTitle": "برامج الرعاية",

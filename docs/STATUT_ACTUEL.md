@@ -842,3 +842,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   `POST /parents/appointments/{id}/cancel/` ; réservation sur `slot_id`
   (enseignant, date, heure lus dans le créneau verrouillé) ; aucune migration
   ni nouvelle permission. Appels frontend sans route : 29 → 25.
+
+- **2026-11-11 — e-learning : plus de faux contenu IA, limites affichées.**
+  `POST /ai/generate/` renvoyait un résumé et un QCM fictifs que la page
+  présentait comme générés par IA : route et boutons retirés. Les modules et
+  leçons de la page admin ne sont enregistrés nulle part (aucune table,
+  état local du navigateur) : un avertissement visible le dit désormais.
+  Composant `CourseDiscussions` (jamais affiché) retiré ; la liste des
+  discussions de l'accueil élève lit enfin l'auteur et le cours
+  (`top_level`, `author`, `course`) et les erreurs ne sont plus avalées.
+  Persistance des leçons : chantier produit séparé (voir `REMAINING_WORK.md`).

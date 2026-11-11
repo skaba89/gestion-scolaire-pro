@@ -1229,7 +1229,9 @@
         "confirmDeleteLesson": "Supprimer la leçon \"{{title}}\" ?",
         "add": "Ajouter",
         "update": "Mettre à jour",
-        "cancel": "Annuler"
+        "cancel": "Annuler",
+        "lessonsNotSavedTitle": "Modules et leçons non enregistrés",
+        "lessonsNotSavedDescription": "Les modules et leçons créés ici restent dans ce navigateur et disparaissent au rechargement de la page : leur enregistrement sur le serveur n'est pas encore disponible. Les élèves ne les voient pas."
     },
     "sponsorships": {
         "pageTitle": "Parrainages",

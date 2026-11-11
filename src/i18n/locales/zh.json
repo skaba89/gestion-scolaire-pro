@@ -1187,7 +1187,9 @@
     "confirmDeleteLesson": "删除课时「{{title}}」？",
     "add": "添加",
     "update": "更新",
-    "cancel": "取消"
+    "cancel": "取消",
+    "lessonsNotSavedTitle": "模块和课程尚未保存",
+    "lessonsNotSavedDescription": "在此创建的模块和课程仅保留在本浏览器中，刷新页面后会丢失：目前尚不支持保存到服务器。学生无法看到它们。"
   },
   "sponsorships": {
     "pageTitle": "助学计划",

@@ -116,40 +116,10 @@ class AuditRequest(BaseModel):
     )
 
 
-# ---------------------------------------------------------------------------
-# Legacy schema (backward compatibility)
-# ---------------------------------------------------------------------------
-
-class AIRequest(BaseModel):
-    lesson_id: str
-    type: str
-
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-@router.post("/generate/")
-def generate_ai_content(
-    req: AIRequest,
-    current_user: dict = Depends(get_current_user),
-):
-    """Legacy mock AI content generation (kept for backward compatibility)."""
-    if req.type == "SUMMARY":
-        return {"content": "Résumé généré par IA pour la leçon " + req.lesson_id}
-    elif req.type == "QUIZ":
-        return {
-            "title": "Quiz sur la leçon",
-            "questions": [
-                {
-                    "question_text": "Question 1 générée par IA?",
-                    "options": ["A", "B", "C", "D"],
-                    "correct_answer": "A",
-                    "points": 1,
-                }
-            ],
-        }
-    return {"error": "Unknown type"}
+# `POST /ai/generate/` (retiré le 2026-11-11) renvoyait un résumé et un QCM
+# FICTIFS (« Résumé généré par IA pour la leçon … », « Question 1 générée par
+# IA? ») que la page e-learning présentait comme du contenu généré. Aucune
+# génération réelle n'existe pour les leçons (non enregistrées côté serveur).
 
 
 @router.post("/chat")

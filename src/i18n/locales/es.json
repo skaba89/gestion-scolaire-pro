@@ -1152,7 +1152,9 @@
     "confirmDeleteLesson": "¿Eliminar la lección \"{{title}}\"?",
     "add": "Añadir",
     "update": "Actualizar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "lessonsNotSavedTitle": "Módulos y lecciones no guardados",
+    "lessonsNotSavedDescription": "Los módulos y lecciones creados aquí permanecen en este navegador y se pierden al recargar la página: aún no se pueden guardar en el servidor. Los alumnos no los ven."
   },
   "sponsorships": {
     "pageTitle": "Patrocinios",

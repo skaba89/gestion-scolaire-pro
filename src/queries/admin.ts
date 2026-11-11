@@ -614,20 +614,6 @@ export const adminQueries = {
             notes: p_notes
         });
     },
-    // AI Generation Queries
-    generateAIContent: async (lessonId: string, type: 'SUMMARY' | 'QUIZ') => {
-        const response = await apiClient.post("/ai/generate/", { lesson_id: lessonId, type });
-        return response.data;
-    },
-
-    saveAIQuiz: async (tenantId: string, lessonId: string, quizData: any) => {
-        const response = await apiClient.post("/academic/courses/lessons/quiz/", {
-            lesson_id: lessonId,
-            ...quizData
-        });
-        return response.data;
-    },
-
     calculateCashFlowForecast: async (tenantId: string, monthsAhead: number = 3) => {
         const response = await apiClient.post("/analytics/cash-flow-forecast/", { months_ahead: monthsAhead });
         return response.data;
