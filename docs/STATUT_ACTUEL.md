@@ -806,3 +806,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   5 contrôles existants. Le job tourne sur toute PR vers `main` (aucun filtre
   de chemins) ; un échec E2E bloque donc la fusion. Retour arrière : retirer
   ce contrôle du ruleset (voir `docs/runbooks/github-main-protection.md`).
+
+- **2026-11-11 — couleurs des moyennes de la page Bulletins.** Elles
+  utilisaient des seuils fixes (10 et 14) alors que le seuil de réussite et
+  la mention « Bien » se règlent par niveau. `GET /school-life/report-cards/class-summary/`
+  renvoie désormais `items[].color` (champ ajouté, rétrocompatible), la
+  couleur du bulletin PDF selon les règles du niveau ; la page l'affiche.

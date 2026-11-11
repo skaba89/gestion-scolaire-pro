@@ -57,8 +57,8 @@ beforeEach(() => {
     if (url === "/school-life/report-cards/class-summary/") {
       expect(config?.params).toEqual({ classroom_id: CLASS_ID, term_id: "term-1" });
       return Promise.resolve({ data: { class_total: 2, passing_grade: 12, items: [
-        { student_id: "s-old", average: "14.25", rank: 1 },
-        { student_id: "s-new", average: null, rank: 0 },
+        { student_id: "s-old", average: "14.25", rank: 1, color: "#1d4ed8" },
+        { student_id: "s-new", average: null, rank: 0, color: null },
       ], subjects: [
         { subject_id: "m1", subject_name: "Microéconomie", coefficient: 2, class_average: 14.25, best_average: 14.25, graded_students: 1 },
       ] } });
@@ -123,4 +123,16 @@ it("l'onglet Analyse utilise la synthèse officielle de la période, sans requê
   const props = JSON.parse((await screen.findByTestId("analytics-props")).textContent!);
   expect(props).toEqual({ averages: [14.25], passingGrade: 12, subjects: ["Microéconomie"] });
   expect(get.mock.calls.some(([url]) => url === "/grades/")).toBe(false);
+});
+
+// Les couleurs de moyenne étaient calculées ici avec 10/14 en dur (vert dès
+// 14) alors que les règles académiques sont réglables par niveau. La page
+// affiche désormais la couleur calculée par le serveur (règles du niveau,
+// même couleur que le bulletin PDF) : ici 14,25 reste bleu car « Bien » est
+// plus haut pour ce niveau.
+it("colore la moyenne avec la couleur officielle du serveur, pas des seuils en dur", async () => {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={queryClient}><ReportCards /></QueryClientProvider>);
+  const avg = (await screen.findByText("14.25")).closest("span")!;
+  expect(avg).toHaveStyle({ color: "#1d4ed8" });
 });
