@@ -61,8 +61,15 @@ test.describe('Rendez-vous parents-enseignants', () => {
 
     // Le parent le voit confirmé dans son portail et l'annule par l'interface.
     await page.goto(ulsUrl('/parent/appointments'));
-    const card = page.locator('div.rounded-lg', { hasText: notes }).filter({ has: page.getByRole('button') }).last();
+    // La carte de CE rendez-vous : le plus profond des blocs qui contient sa
+    // note (unique au run) et un bouton « Annuler » — un essai précédent du
+    // même run peut avoir laissé un autre rendez-vous à venir.
+    const card = page.getByRole('tabpanel').locator('div')
+      .filter({ hasText: notes })
+      .filter({ has: page.getByRole('button', { name: /Annuler/ }) })
+      .last();
     await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card.getByText('Lamine Cisse')).toBeVisible();
     await expect(card.getByText('Confirmé')).toBeVisible();
     await card.getByRole('button', { name: /Annuler/ }).click();
     await expect(page.getByText('Rendez-vous annulé').first()).toBeVisible();
