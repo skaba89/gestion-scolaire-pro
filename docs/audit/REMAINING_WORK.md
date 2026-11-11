@@ -46,7 +46,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | F2 | ~~P1~~ corrigé | Paiement perdu du solde | **Corrigé** : confirmations simultanées (plusieurs workers) → un paiement disparaissait du solde de la facture (lecture-écriture) ; verrou, passage PENDING→COMPLETED conditionnel, incrément calculé par la base | — |
 | F3 | ~~P2~~ corrigé | Paiement en ligne non rapprochable | **Corrigé** : échec d'enregistrement du paiement PENDING masqué, URL de paiement renvoyée quand même ; désormais 502 | — |
 | F4 | ~~P2~~ corrigé | Données personnelles dans les journaux | **Corrigé** : contenu complet des webhooks journalisé ; seule la référence l'est désormais | — |
-| F5 | P2 | Signature PayTech partielle | Le HMAC PayTech ne couvre que `ref_command` (format du fournisseur) ; montant contrôlé côté serveur | Vérifier les champs signés disponibles chez PayTech |
+| F5 | — | ~~Signature PayTech~~ **corrigé** | Le contrôle attendait un HMAC de `ref_command` seul dans un champ `hash` / en-tête `x-paytech-hash` que PayTech n'envoie pas : toute vraie notification était rejetée (aucun paiement PayTech crédité). Désormais `hmac_compute` = HMAC-SHA256(secret, `montant\|ref_command\|api_key`) selon la documentation PayTech ; repli par hachages fixes des clés refusé (rejouable) ; montant contrôlé = montant signé. Production vérifiée le 2026-11-10 : aucune école sur PayTech, aucune notification reçue | Premier paiement réel avec un établissement pilote |
 | F6 | P2 | Recette B6 restante | Annulation et export CSV couverts (parcours 15, aucun défaut trouvé) ; reste CinetPay, non testable sans sandbox | Accès sandbox CinetPay |
 
 ## Qualité de la chaîne CI (2026-11-09)

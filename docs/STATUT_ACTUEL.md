@@ -817,3 +817,16 @@ ce fichier — pas d'un document de 2025 non révisé.
   la mention « Bien » se règlent par niveau. `GET /school-life/report-cards/class-summary/`
   renvoie désormais `items[].color` (champ ajouté, rétrocompatible), la
   couleur du bulletin PDF selon les règles du niveau ; la page l'affiche.
+
+- **2026-11-11 — PayTech : vérification des notifications conforme au
+  fournisseur (F5).** Le contrôle attendait une signature que PayTech
+  n'envoie pas (HMAC de `ref_command` seul dans `hash` / `x-paytech-hash`) :
+  toute vraie notification aurait été rejetée et aucun paiement PayTech
+  crédité. Désormais `hmac_compute` = HMAC-SHA256(api_secret,
+  `montant|ref_command|api_key`) (documentation PayTech, docs.intech.sn,
+  relue le 2026-11-11 : le texte signe `item_price`, ses exemples PHP/Node
+  `final_item_price` — les deux sont acceptés, et le montant signé doit
+  couvrir le paiement attendu) ; repli par hachages fixes des clés refusé
+  (rejouable). Production vérifiée en lecture seule le 2026-11-10 : aucune
+  école sur PayTech, aucune notification reçue — aucun impact passé.
+  Premier paiement réel à faire avec un établissement pilote.

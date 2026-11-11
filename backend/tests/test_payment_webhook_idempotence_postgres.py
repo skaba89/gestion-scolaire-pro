@@ -29,6 +29,7 @@ from app.models.tenant import Tenant  # noqa: E402
 pytestmark = pytest.mark.skipif(engine.dialect.name != "postgresql", reason="Concurrence réelle : PostgreSQL")
 
 URL = "/api/v1/parents/payments/webhook/paytech/"
+API_KEY = "cle"
 SECRET = "secret-de-test-paytech"
 TOTAL = 150_000.0
 
@@ -38,7 +39,7 @@ def ctx():
     tid, sid, iid = (str(uuid.uuid4()) for _ in range(3))
     with SessionLocal() as db:
         db.add(Tenant(id=tid, name="École IPN", slug=f"ipn-{tid[:12]}", type="primary", country="GN",
-                      is_active=True, settings={"paytechApiKey": "cle", "paytechSecretKey": SECRET}))
+                      is_active=True, settings={"paytechApiKey": API_KEY, "paytechSecretKey": SECRET}))
         db.flush()
         db.add(Student(id=sid, tenant_id=tid, registration_number=f"IPN-{tid[:12]}", first_name="Aïcha",
                        last_name="Sow", date_of_birth=date(2012, 1, 1), gender=Gender.FEMALE,
@@ -61,10 +62,15 @@ def _pending(ctx, amount: float) -> str:
     return ref
 
 
-def _notification(ref: str, amount: float, *, secret: str = SECRET) -> dict:
+def _notification(ref: str, amount: float, *, secret: str = SECRET, event: str = "sale_complete") -> dict:
+    """Notification au format réel de PayTech (documentation IPN) :
+    `hmac_compute` = HMAC-SHA256(secret, "montant|ref_command|api_key")."""
+    price = str(int(amount))
     return {
-        "ref_command": ref, "type_event": "sale_complete", "item_price": str(int(amount)),
-        "hash": hmac.new(secret.encode(), ref.encode(), hashlib.sha256).hexdigest(),
+        "type_event": event, "ref_command": ref, "item_price": price, "final_item_price": price,
+        "api_key_sha256": hashlib.sha256(API_KEY.encode()).hexdigest(),
+        "api_secret_sha256": hashlib.sha256(SECRET.encode()).hexdigest(),
+        "hmac_compute": hmac.new(secret.encode(), f"{price}|{ref}|{API_KEY}".encode(), hashlib.sha256).hexdigest(),
     }
 
 
@@ -227,3 +233,67 @@ def test_two_workers_confirming_two_payments_of_one_invoice_lose_nothing(ctx, mo
     assert _invoice(ctx) == (TOTAL, "PAID")
     assert {_payment_status(ref) for ref, _ in payments} == {"COMPLETED"}
 
+
+# ─── F5 : signature réelle de PayTech ────────────────────────────────────────
+
+def test_hash_only_notification_of_the_old_format_is_rejected(ctx):
+    """Ancien format inventé (HMAC de ref_command seul) : PayTech ne l'envoie
+    pas, et il ne doit plus rien confirmer."""
+    ref = _pending(ctx, TOTAL)
+    client.post(URL, json={"ref_command": ref, "type_event": "sale_complete", "item_price": str(int(TOTAL)),
+                           "hash": hmac.new(SECRET.encode(), ref.encode(), hashlib.sha256).hexdigest()})
+    assert _invoice(ctx) == (0.0, "PENDING")
+    assert _payment_status(ref) == "PENDING"
+
+
+def test_static_key_hashes_without_hmac_are_rejected(ctx):
+    """Les hachages fixes des clés (repli des exemples PayTech) se rejouent :
+    sans `hmac_compute`, rien n'est confirmé."""
+    ref = _pending(ctx, TOTAL)
+    notification = _notification(ref, TOTAL)
+    del notification["hmac_compute"]
+    client.post(URL, json=notification)
+    assert _invoice(ctx) == (0.0, "PENDING")
+    assert _payment_status(ref) == "PENDING"
+
+
+def test_signature_of_another_reference_is_rejected(ctx):
+    ref, other = _pending(ctx, TOTAL), f"PT-{uuid.uuid4().hex[:12]}"
+    forged = {**_notification(other, TOTAL), "ref_command": ref}
+    client.post(URL, json=forged)
+    assert _invoice(ctx) == (0.0, "PENDING")
+
+
+def test_tampered_amount_after_signing_is_rejected(ctx):
+    ref = _pending(ctx, TOTAL)
+    tampered = {**_notification(ref, 1_000), "item_price": str(int(TOTAL)), "final_item_price": str(int(TOTAL))}
+    client.post(URL, json=tampered)
+    assert _invoice(ctx) == (0.0, "PENDING")
+
+
+def test_promotion_lower_signed_amount_is_not_confirmed(ctx):
+    """Prix final réduit par une promotion PayTech : signé, mais inférieur au
+    paiement attendu — pas de confirmation (prudence), incident journalisé."""
+    ref = _pending(ctx, TOTAL)
+    price = str(int(TOTAL))
+    final = str(int(TOTAL * 0.9))
+    notification = {**_notification(ref, TOTAL), "item_price": price, "final_item_price": final,
+                    "hmac_compute": hmac.new(SECRET.encode(), f"{final}|{ref}|{API_KEY}".encode(),
+                                             hashlib.sha256).hexdigest()}
+    client.post(URL, json=notification)
+    assert _invoice(ctx) == (0.0, "PENDING")
+    assert _payment_status(ref) == "PENDING"
+
+
+def test_form_encoded_notification_is_accepted(ctx):
+    """PayTech poste un formulaire (application/x-www-form-urlencoded)."""
+    ref = _pending(ctx, TOTAL)
+    assert client.post(URL, data=_notification(ref, TOTAL)).status_code == 200
+    assert _invoice(ctx) == (TOTAL, "PAID")
+
+
+def test_cancelled_sale_credits_nothing(ctx):
+    ref = _pending(ctx, TOTAL)
+    client.post(URL, json=_notification(ref, TOTAL, event="sale_canceled"))
+    assert _invoice(ctx) == (0.0, "PENDING")
+    assert _payment_status(ref) == "PENDING"
