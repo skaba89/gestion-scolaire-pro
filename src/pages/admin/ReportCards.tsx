@@ -59,6 +59,8 @@ interface Student {
 interface OfficialResult {
   average: string | null;
   rank: number;
+  /** Couleur du bulletin PDF selon les règles du niveau (null sans moyenne). */
+  color?: string | null;
 }
 
 interface ClassSummary {
@@ -556,7 +558,6 @@ const ReportCards = () => {
                     {students.map((student) => {
                       const official = summary?.byStudent.get(student.id);
                       const avg = official?.average ?? null;
-                      const avgNum = avg !== null ? parseFloat(avg) : NaN;
                       const isGenerating = generating === student.id;
                       return (
                         <TableRow key={student.id}>
@@ -573,11 +574,9 @@ const ReportCards = () => {
                             ) : avg !== null ? (
                               <span
                                 className="font-bold"
-                                style={{
-                                  color: avgNum >= 14 ? "#166534"
-                                    : avgNum >= 10 ? "#1d4ed8"
-                                    : "#991b1b"
-                                }}
+                                // Couleur calculée par le serveur avec les règles
+                                // académiques du niveau (identique au bulletin PDF).
+                                style={official?.color ? { color: official.color } : undefined}
                               >
                                 {avg}<span className="text-muted-foreground font-normal">/20</span>
                               </span>

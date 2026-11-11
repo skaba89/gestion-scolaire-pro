@@ -2929,6 +2929,8 @@ def get_report_card_class_summary(
     Champs ajoutés pour l'onglet « Analyse des résultats » : `passing_grade`
     (seuil de réussite effectif du niveau de la classe, comme le bulletin)
     et `subjects` (statistiques de classe par matière pour la période).
+    `items[].color` : couleur de la moyenne selon les règles du niveau
+    (`grade_color`, celle du bulletin PDF), None sans moyenne.
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
@@ -2945,15 +2947,6 @@ def get_report_card_class_summary(
     )
     ranks = _rank_batch_from_bulletin_grades(student_ids, grades_by_student)
 
-    items = []
-    for sid in student_ids:
-        average = _compute_average(grades_by_student.get(sid, []))
-        rank, _total = ranks[sid]
-        items.append({
-            "student_id": sid,
-            "average": f"{average:.2f}" if average >= 0 else None,
-            "rank": rank,
-        })
     level_row = db.execute(
         text("SELECT level_id FROM classes WHERE id = :cid AND tenant_id = :tid").bindparams(
             bindparam("cid", type_=GUID()), bindparam("tid", type_=GUID()),
@@ -2962,6 +2955,19 @@ def get_report_card_class_summary(
     ).first()
     level_id = str(level_row[0]) if level_row and level_row[0] else None
     rules = effective_rules(db, tenant_id, level_id)
+
+    items = []
+    for sid in student_ids:
+        average = _compute_average(grades_by_student.get(sid, []))
+        rank, _total = ranks[sid]
+        items.append({
+            "student_id": sid,
+            "average": f"{average:.2f}" if average >= 0 else None,
+            "rank": rank,
+            # Même couleur que la moyenne générale du bulletin PDF (règles du
+            # niveau) : la page Bulletins ne recalcule plus avec 10/14 en dur.
+            "color": grade_color(average, rules) if average >= 0 else None,
+        })
 
     return {
         "classroom_id": str(classroom_id),

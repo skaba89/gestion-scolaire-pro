@@ -254,3 +254,49 @@ def test_summary_returns_the_level_passing_grade(ctx):
         }}}}
         db.commit()
     assert _summary(ctx).json()["passing_grade"] == 12.0
+
+
+def test_summary_colors_follow_the_level_rules(ctx):
+    """Couleur de la moyenne : celle du bulletin PDF, d'après les règles du
+    niveau (P2 « couleurs de moyenne ») — plus de seuils 10/14 en dur."""
+    from app.services.academic_rules import grade_color
+
+    body = _summary(ctx).json()
+    for item in body["items"]:
+        if item["average"] is None:
+            assert item["color"] is None
+        else:
+            assert item["color"] == grade_color(float(item["average"]))
+
+    level_id = str(uuid.uuid4())
+    rules = {
+        "passing_grade": 12, "mentions": [
+            {"label": "Assez Bien", "min": 14}, {"label": "Bien", "min": 17},
+            {"label": "Très Bien", "min": 18}, {"label": "Excellent", "min": 19},
+        ],
+    }
+    with SessionLocal() as db:
+        db.add(Level(id=level_id, tenant_id=ctx["tid"], name="Terminale", order_index=1))
+        db.flush()
+        db.query(Classroom).filter(Classroom.id == ctx["class_id"]).update({"level_id": level_id})
+        tenant = db.query(Tenant).filter(Tenant.id == ctx["tid"]).one()
+        tenant.settings = {"academic_rules": {"levels": {level_id: rules}}}
+        db.commit()
+
+    body = _summary(ctx).json()
+    colored = [i for i in body["items"] if i["average"] is not None]
+    assert colored, "le jeu de test doit contenir des moyennes"
+    for item in colored:
+        avg = float(item["average"])
+        if avg >= 17:
+            assert item["color"] == "#166534"      # « Bien » du niveau
+        elif avg >= 12:
+            assert item["color"] == "#1d4ed8"      # au-dessus du passage du niveau
+        elif avg >= 10:
+            assert item["color"] == "#92400e"      # juste en dessous
+        else:
+            assert item["color"] == "#991b1b"
+    # Au moins une moyenne entre 10 et 14 ou entre 14 et 17 change de couleur
+    # par rapport aux anciens seuils fixes : la règle du niveau est appliquée.
+    assert any(10 <= float(i["average"]) < 12 or 14 <= float(i["average"]) < 17 for i in colored)
+
