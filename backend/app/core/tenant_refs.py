@@ -11,6 +11,7 @@ qu'une salle pouvait être rattachée au campus d'un autre établissement
 """
 from __future__ import annotations
 
+import uuid
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -29,6 +30,8 @@ _REF_TABLES = {
     "classes": "Classe",
     "employees": "Employé",
     "faculties": "Faculté",
+    "inventory_categories": "Catégorie d'inventaire",
+    "levels": "Niveau",
     "library_categories": "Catégorie",
     "rooms": "Salle",
     "semesters": "Semestre",
@@ -46,6 +49,10 @@ def ensure_in_tenant(db: Session, tenant_id: Any, table: str, value: Optional[An
     label = _REF_TABLES.get(table)
     if label is None:
         raise RuntimeError(f"Table non autorisée pour ensure_in_tenant : {table}")
+    try:
+        value = uuid.UUID(str(value))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"{label} : identifiant invalide")
     stmt = text(f"SELECT 1 FROM {table} WHERE id = :id AND tenant_id = :tid").bindparams(
         bindparam("id", type_=GUID()), bindparam("tid", type_=GUID()),
     )

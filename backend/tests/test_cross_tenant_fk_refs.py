@@ -243,3 +243,48 @@ def test_schedule_slot_update_refuses_foreign_room():
     resp = client.put(f"/api/v1/schedule/{slot_id}/", json={"room_id": _schedule_refs(tenant_b)["room_id"]},
                       headers=headers)
     assert resp.status_code == 404, resp.text
+
+
+# --- Second parcours (champs *_id texte remplis d'UUID), 2026-11-11 -------
+
+PG_ONLY_SECOND = [
+    # Tables opérationnelles créées par migration.
+    ("/api/v1/admissions/", lambda f: {"student_first_name": "A", "student_last_name": "B",
+                                        "parent_first_name": "P", "parent_last_name": "Q",
+                                        "parent_email": "p@ecole.gn", "parent_phone": "+224600000000",
+                                        "academic_year_id": f["year"]}),
+    ("/api/v1/analytics/elearning/courses/", lambda f: {"title": "Cours", "subject_id": f["subject"]}),
+    ("/api/v1/communication/conversations/", lambda f: {"recipient_id": f["user"]}),
+    ("/api/v1/inventory/orders/", lambda f: {"student_id": f["student"], "items": [],
+                                              "total_amount": 0, "payment_method": "CASH"}),
+]
+
+
+@pytest.mark.skipif(not IS_POSTGRES, reason="tables opérationnelles (PostgreSQL)")
+@pytest.mark.parametrize("path,make_body", PG_ONLY_SECOND, ids=[p for p, _ in PG_ONLY_SECOND])
+def test_foreign_reference_refused_operational_tables(path, make_body):
+    tenant_a = _tenant()
+    resp = client.post(path, json=make_body(_foreign_rows()), headers=_admin_headers(tenant_a))
+    assert resp.status_code in (400, 404), f"{path} -> {resp.status_code} {resp.text}"
+    assert "invalide" in resp.text or "introuvable" in resp.text
+
+
+def test_malformed_reference_is_422_not_500():
+    tenant_a = _tenant()
+    resp = client.post("/api/v1/communication/conversations/", json={"recipient_id": "pas-un-uuid"},
+                       headers=_admin_headers(tenant_a))
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.skipif(not IS_POSTGRES, reason="inventory_categories : table opérationnelle (PostgreSQL)")
+def test_inventory_item_refuses_foreign_category():
+    from sqlalchemy import text
+    tenant_a, tenant_b = _tenant(), _tenant()
+    category = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.execute(text("INSERT INTO inventory_categories (id, tenant_id, name) VALUES (:id, :tid, 'Fournitures B')"),
+                   {"id": category, "tid": tenant_b})
+        db.commit()
+    resp = client.post("/api/v1/inventory/items/", json={"name": "Cahier", "category_id": category},
+                       headers=_admin_headers(tenant_a))
+    assert resp.status_code == 404, resp.text

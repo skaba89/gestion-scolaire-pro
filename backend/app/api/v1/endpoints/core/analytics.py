@@ -11,6 +11,7 @@ from sqlalchemy import func, case, and_, text
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_refs import ensure_refs_in_tenant
 from app.core.tenant_resolution import resolve_current_tenant_id
 
 router = APIRouter()
@@ -1066,6 +1067,8 @@ def create_elearning_course(
     """Create a new e-learning course."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    # 2026-11-11 (CRAWL-W) : matière et niveau d'un autre établissement passaient.
+    ensure_refs_in_tenant(db, tenant_id, ("subjects", body.subject_id), ("levels", body.level_id))
     row = db.execute(text("""
         INSERT INTO elearning_courses
             (tenant_id, title, description, subject_id, level_id, teacher_id,
@@ -1100,6 +1103,7 @@ def update_elearning_course(
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    ensure_refs_in_tenant(db, tenant_id, ("subjects", updates.get("subject_id")), ("levels", updates.get("level_id")))
 
     set_clauses = ", ".join(f"{k} = :{k}" for k in updates)
     updates.update({"id": course_id, "tid": tenant_id, "now": datetime.now(timezone.utc)})

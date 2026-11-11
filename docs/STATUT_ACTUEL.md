@@ -911,12 +911,16 @@ ce fichier — pas d'un document de 2025 non révisé.
   et bulletins de paie (`employee_id`), clubs (`advisor_id`), ressources de
   bibliothèque (`category_id`), créneaux d'emploi du temps (`POST`/`PUT
   /schedule/` : corps typé, classe, matière, salle et enseignant vérifiés,
-  créneau complet renvoyé, audit), et les écritures de `/school-life/`
+  créneau complet renvoyé, audit), candidatures (`POST`/`PATCH /admissions/`),
+  cours e-learning (`subject_id`, `level_id`), articles d'inventaire
+  (`category_id`), ventes (`student_id`), conversations (destinataire d'un
+  autre établissement : n'importe quel compte pouvait en ouvrir une), et les
+  écritures de `/school-life/`
   (évaluations, notes, présences, pointages, séances de pointage) : 404
   « … introuvable dans cet établissement » (`app/core/tenant_refs.py`).
   Les routes `/school-life/grades|attendance/` (doublons sans appelant
   frontend) appliquent aussi le périmètre enseignant de `/grades/` et
   `/attendance/`, et une séance de pointage ne vise que les classes de
   l'enseignant. Test de régression : `tests/test_cross_tenant_fk_refs.py`
-  (17 cas rouges avant le correctif). Impact réel : intégrité des données
+  (22 cas rouges avant le correctif ; un identifiant mal formé donne 422). Impact réel : intégrité des données
   (la RLS masque déjà la donnée de l'autre établissement en lecture).
