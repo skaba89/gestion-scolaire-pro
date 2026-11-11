@@ -3,7 +3,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
 
-export const useStudentData = () => {
+/**
+ * Données du portail élève, depuis GET /students/dashboard/ (un seul appel,
+ * partagé en cache par toutes les pages qui l'utilisent).
+ * `enabled: false` permet à un composant commun à plusieurs portails
+ * (ReminderSystem) de ne pas l'appeler pour un autre rôle.
+ */
+export const useStudentData = ({ enabled = true }: { enabled?: boolean } = {}) => {
     const { user } = useAuth();
     const { tenant } = useTenant();
 
@@ -14,7 +20,7 @@ export const useStudentData = () => {
             const { data } = await apiClient.get('/students/dashboard/');
             return data;
         },
-        enabled: !!user?.id && !!tenant?.id,
+        enabled: enabled && !!user?.id && !!tenant?.id,
     });
 
     const data = dashboardQuery.data || {

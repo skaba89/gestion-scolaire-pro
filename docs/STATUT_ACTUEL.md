@@ -806,3 +806,8 @@ ce fichier — pas d'un document de 2025 non révisé.
   5 contrôles existants. Le job tourne sur toute PR vers `main` (aucun filtre
   de chemins) ; un échec E2E bloque donc la fusion. Retour arrière : retirer
   ce contrôle du ruleset (voir `docs/runbooks/github-main-protection.md`).
+
+- **2026-11-11 — rappels de devoirs de l'élève (R6).** Le bloc « Rappels »
+  de l'accueil élève n'affichait jamais de devoir : il lisait `GET /students/`
+  (paginé, refusé à l'élève) comme un tableau. Il utilise désormais les
+  devoirs à venir de `GET /students/dashboard/`, déjà chargés par l'accueil.

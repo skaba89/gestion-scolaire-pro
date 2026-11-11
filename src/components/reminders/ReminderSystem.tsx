@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useCurrency } from "@/hooks/useCurrency";
 import { canLoadPaymentReminders } from "./reminderAccess";
+import { useStudentData } from "@/features/students/hooks/useStudentData";
 
 // SECURITY: Prevent open redirect attacks by validating URLs before navigation
 function isSafeRedirect(url: string): boolean {
@@ -91,6 +92,14 @@ export function remainingAmount(inv: Pick<UnpaidInvoice, "total_amount" | "paid_
   return Number(inv.total_amount ?? 0) - Number(inv.paid_amount ?? 0);
 }
 
+/** Devoir tel que renvoyé par GET /students/dashboard/ (champ `homework`). */
+type StudentHomeworkItem = {
+  id: string;
+  title: string;
+  due_date: string;
+  subject_name?: string | null;
+};
+
 export const ReminderSystem = () => {
   const { user, roles } = useAuth();
   const { tenant } = useTenant();
@@ -138,41 +147,14 @@ export const ReminderSystem = () => {
     localStorage.setItem(`dismissed-reminders-${user?.id}`, JSON.stringify([...newDismissed]));
   };
 
-  // Fetch upcoming homework (for students)
-  const { data: homeworkData } = useQuery({
-    queryKey: ["upcoming-homework", user?.id, tenant?.id],
-    queryFn: async () => {
-      if (!user?.id || !tenant?.id) return [];
-
-      // Get student record
-      const studentResponse = await apiClient.get("/students/", {
-        params: { user_id: user.id, tenant_id: tenant.id },
-      });
-      const student = studentResponse.data?.[0] || null;
-
-      if (!student) return [];
-
-      // Get student's enrollment
-      const enrollmentResponse = await apiClient.get("/enrollments/", {
-        params: { student_id: student.id, status: "active" },
-      });
-      const enrollment = enrollmentResponse.data?.[0] || null;
-
-      if (!enrollment) return [];
-
-      // Get upcoming homework
-      const homeworkResponse = await apiClient.get("/homework/", {
-        params: {
-          class_id: enrollment.class_id,
-          tenant_id: tenant.id,
-          due_date__gte: new Date().toISOString().split("T")[0],
-          ordering: "due_date",
-        },
-      });
-
-      return homeworkResponse.data || [];
-    },
-    enabled: !!user?.id && !!tenant?.id && preferences.homeworkReminders,
+  // Devoirs à venir (portail élève). Source : GET /students/dashboard/, la
+  // même requête (et le même cache) que l'accueil et la page Devoirs de
+  // l'élève : devoirs de sa classe, échéance aujourd'hui ou plus tard.
+  // L'ancien code lisait GET /students/ (paginé, refusé à l'élève) comme un
+  // tableau : les rappels de devoirs restaient toujours vides (R6).
+  const isStudent = roles.includes("STUDENT");
+  const { homework: homeworkData } = useStudentData({
+    enabled: isStudent && preferences.homeworkReminders,
   });
 
   // Fetch unpaid invoices (for parents)
@@ -227,8 +209,8 @@ export const ReminderSystem = () => {
   };
 
   // Add homework reminders
-  if (preferences.homeworkReminders && homeworkData) {
-    homeworkData.forEach((hw: any) => {
+  if (isStudent && preferences.homeworkReminders && Array.isArray(homeworkData)) {
+    homeworkData.forEach((hw: StudentHomeworkItem) => {
       const dueDate = new Date(hw.due_date);
       const daysUntilDue = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
@@ -237,7 +219,7 @@ export const ReminderSystem = () => {
           id: `homework-${hw.id}`,
           type: "homework",
           title: hw.title,
-          description: `${hw.subjects?.name || "Devoir"} - À rendre`,
+          description: `${hw.subject_name || "Devoir"} - À rendre`,
           dueDate,
           isUrgent: daysUntilDue <= 1,
           urgencyLevel: getUrgencyLevel(daysUntilDue),
