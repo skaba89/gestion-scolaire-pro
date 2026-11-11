@@ -69,6 +69,13 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 |---|---|---|---|---|
 | ORD | ~~P2~~ corrigé | Reçu et suppression de vente | **Corrigé** (PR fix/order-history) : `GET /inventory/orders/{id}/items/` (`inventory:read`) ; corbeille → annulation confirmée `POST /inventory/orders/{id}/cancel/` (`inventory:write`) : statut CANCELLED, remise en stock, audit, seconde annulation refusée (409), autre établissement 404. Pas de suppression physique | — |
 
+## Non-régression des lectures (2026-11-11)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| CRAWL | ~~P2~~ fait | Erreurs 500 sur des lectures invisibles des tests | **Fait** (PR ci/get-routes-crawl) : parcours de toutes les routes GET × 9 rôles dans le job E2E, échec sur toute 5xx. Un premier parcours manuel a trouvé `event-registrations` (#531) | — |
+| CRAWL-W | P3 | Écritures non parcourues | POST/PUT/PATCH non couverts par ce parcours (corps valides nécessaires) | Parcours des écritures avec corps générés depuis l'OpenAPI, sur base jetable |
+
 ## E-learning (2026-11-11)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
