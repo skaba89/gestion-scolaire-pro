@@ -900,3 +900,14 @@ ce fichier — pas d'un document de 2025 non révisé.
   (`scripts/ci/crawl_get_routes.py`, rapport en artefact `get-routes-crawl`).
   Vérifié localement : 2 112 appels, 0 erreur 5xx sur `main` ; une panne
   injectée est détectée (code de sortie 1). Coût : quelques minutes de job.
+
+- **2026-11-11 — trois écritures qui répondaient 500 (parcours CRAWL-W, lot B).**
+  `PATCH /platform/branding/me/` répondait 500 à chaque enregistrement réussi
+  (relecture appelée sans `request`) : corrigé. `PATCH /users/profiles/{id}/`
+  visait une colonne `bio` inexistante, produisait un `UPDATE` vide avec
+  seulement `email`, et laissait un identifiant non UUID atteindre la base :
+  un champ non enregistrable par cette route est désormais refusé en 422
+  (champs acceptés : prénom, nom, avatar, téléphone), l'identifiant est typé.
+  `POST /subject-preferred-rooms/` lisait un dictionnaire (`KeyError` → 500)
+  : corps typé, 422. Test : `tests/test_write_route_failures.py` (6 cas
+  rouges avant le correctif).
