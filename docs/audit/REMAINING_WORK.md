@@ -56,6 +56,12 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | RDV | ~~P1~~ corrigé | Rendez-vous parents-enseignants | **Corrigé** (PR fix/appointments-end-to-end) : la fonction n'avait jamais marché — création de créneau refusée (`slot_date` / `date`), réservation en échec sur PostgreSQL (`:appointment_date::date`), génération de semaine, confirmation et annulation vers des routes absentes, double réservation possible, liste parent toujours vide (page lue comme tableau), tous les rendez-vous de l'établissement visibles par tout enseignant, erreurs avalées. Service `app/services/appointments.py`, créneau verrouillé à la réservation, transitions contrôlées ; parcours E2E 16 | — |
 | API-UNBUILT | P2 | Fonctions jamais construites côté serveur | 25 appels sans route restants (référence CI) : parrainages, plans de réussite, visioconférences, signatures électroniques, prévisions de trésorerie, quiz e-learning, mentorat, discussions et leçons de cours, commandes d'inventaire, export RH, résultats de période | Décision produit par fonction : construire ou masquer (comme R5) |
 
+## Historique des commandes (2026-11-11)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| ORD | ~~P2~~ corrigé | Reçu et suppression de vente | **Corrigé** (PR fix/order-history) : `GET /inventory/orders/{id}/items/` (`inventory:read`) ; corbeille → annulation confirmée `POST /inventory/orders/{id}/cancel/` (`inventory:write`) : statut CANCELLED, remise en stock, audit, seconde annulation refusée (409), autre établissement 404. Pas de suppression physique | — |
+
 ## Qualité de la chaîne CI (2026-11-09)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |

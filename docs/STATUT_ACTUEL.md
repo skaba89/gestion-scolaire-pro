@@ -842,3 +842,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   `POST /parents/appointments/{id}/cancel/` ; réservation sur `slot_id`
   (enseignant, date, heure lus dans le créneau verrouillé) ; aucune migration
   ni nouvelle permission. Appels frontend sans route : 29 → 25.
+
+- **2026-11-11 — historique des commandes : reçu et annulation de vente.**
+  Le reçu d'une vente s'affichait sans article (`GET
+  /inventory/orders/{id}/items/` absent) et la corbeille de l'historique
+  n'avait aucune action. Nouvelle route `POST /inventory/orders/{id}/cancel/`
+  (`inventory:write`) : la vente passe à « Annulée », ses articles sont remis
+  en stock, une trace d'audit est écrite ; elle n'est jamais supprimée (trace
+  financière, même règle que l'annulation des paiements).

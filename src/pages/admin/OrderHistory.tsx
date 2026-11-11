@@ -1,18 +1,30 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { adminQueries } from "@/queries/admin";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ShoppingBag, Eye, Printer, Trash2, Calendar } from "lucide-react";
+import { Search, ShoppingBag, Eye, Trash2, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useCurrency } from "@/hooks/useCurrency";
 import { OrderReceipt } from "@/components/admin/orders/OrderReceipt";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { apiErrorDetail } from "@/lib/api-error";
 
 export const OrderHistory = () => {
     const { t } = useTranslation();
@@ -22,6 +34,19 @@ export const OrderHistory = () => {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [showReceipt, setShowReceipt] = useState(false);
     const [orderItems, setOrderItems] = useState<any[]>([]);
+    const [orderToCancel, setOrderToCancel] = useState<{ id: string } | null>(null);
+    const queryClient = useQueryClient();
+
+    const cancelMutation = useMutation({
+        mutationFn: (orderId: string) => adminQueries.cancelOrder(orderId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+            queryClient.invalidateQueries({ queryKey: ["admin-inventory-items"] });
+            toast.success(t("orderHistory.cancelSuccess"));
+            setOrderToCancel(null);
+        },
+        onError: (error) => toast.error(apiErrorDetail(error)),
+    });
 
     const { data: orders = [], isLoading } = useQuery(adminQueries.orders(tenant?.id || ""));
 
@@ -119,7 +144,14 @@ export const OrderHistory = () => {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right font-bold text-primary">
-                                            {formatCurrency(order.total_amount)}
+                                            <span className={order.status === "CANCELLED" ? "line-through text-muted-foreground" : undefined}>
+                                                {formatCurrency(order.total_amount)}
+                                            </span>
+                                            {order.status === "CANCELLED" && (
+                                                <Badge variant="destructive" className="ml-2 text-[10px] h-5">
+                                                    {t("orderHistory.statusCancelled")}
+                                                </Badge>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
                                             <div className="flex items-center justify-end gap-1">
@@ -135,6 +167,10 @@ export const OrderHistory = () => {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-8 w-8 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                                                    aria-label={t("orderHistory.cancelSale")}
+                                                    title={t("orderHistory.cancelSale")}
+                                                    disabled={order.status === "CANCELLED"}
+                                                    onClick={() => setOrderToCancel(order)}
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </Button>
@@ -147,6 +183,27 @@ export const OrderHistory = () => {
                     </Table>
                 </CardContent>
             </Card>
+
+            <AlertDialog open={!!orderToCancel} onOpenChange={(open) => !open && setOrderToCancel(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("orderHistory.cancelTitle")}</AlertDialogTitle>
+                        <AlertDialogDescription>{t("orderHistory.cancelDescription")}</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("orderHistory.cancelBack")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={cancelMutation.isPending}
+                            onClick={(event) => {
+                                event.preventDefault();
+                                if (orderToCancel) cancelMutation.mutate(orderToCancel.id);
+                            }}
+                        >
+                            {t("orderHistory.cancelConfirm")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <OrderReceipt
                 isOpen={showReceipt}

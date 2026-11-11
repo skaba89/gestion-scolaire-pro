@@ -1836,7 +1836,14 @@
     "paymentCash": "Cash",
     "paymentCard": "Card",
     "paymentTransfer": "Transfer",
-    "paymentOther": "Other"
+    "paymentOther": "Other",
+    "cancelSale": "Cancel sale",
+    "cancelTitle": "Cancel this sale?",
+    "cancelDescription": "The sale stays in the history with the status “Cancelled” and the items are put back in stock. This cannot be undone.",
+    "cancelConfirm": "Cancel sale",
+    "cancelBack": "Back",
+    "cancelSuccess": "Sale cancelled, items restocked",
+    "statusCancelled": "Cancelled"
   },
   "dataQuality": {
     "pageTitle": "Data Quality",

@@ -1,13 +1,11 @@
 [
   "DELETE /course-discussions/X",
-  "DELETE /inventory/orders/X",
   "DELETE /school-life/sponsorships/X",
   "GET /analytics/cash-flow-forecasts",
   "GET /communication/electronic-documents",
   "GET /communication/video-meetings",
   "GET /finance/invoices",
   "GET /hr/staff",
-  "GET /inventory/orders/X/items",
   "GET /school-life/sponsorships",
   "GET /school-life/success-plans",
   "PATCH /communication/video-meetings/X",

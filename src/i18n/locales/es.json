@@ -1750,7 +1750,14 @@
     "paymentCash": "Efectivo",
     "paymentCard": "Tarjeta",
     "paymentTransfer": "Transferencia",
-    "paymentOther": "Otro"
+    "paymentOther": "Otro",
+    "cancelSale": "Anular la venta",
+    "cancelTitle": "¿Anular esta venta?",
+    "cancelDescription": "La venta permanece en el historial con el estado «Anulada» y los artículos vuelven al stock. Esta acción no se puede deshacer.",
+    "cancelConfirm": "Anular la venta",
+    "cancelBack": "Volver",
+    "cancelSuccess": "Venta anulada, artículos repuestos en stock",
+    "statusCancelled": "Anulada"
   },
   "schedule": {
     "monday": "Lunes",
