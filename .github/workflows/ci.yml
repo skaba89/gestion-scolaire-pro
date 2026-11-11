@@ -245,6 +245,25 @@ jobs:
         env:
           CI: true
 
+      - name: Crawl every GET route with every school role (no 5xx)
+        # Après les parcours (base réaliste). Toute réponse 5xx fait échouer
+        # le job : SQL brut divergeant du schéma, exception non gérée —
+        # cf. scripts/ci/crawl_get_routes.py (origine : #531).
+        if: success() || failure()
+        timeout-minutes: 12
+        run: python scripts/ci/crawl_get_routes.py
+        env:
+          CRAWL_REPORT: e2e-logs/get-routes-crawl.json
+
+      - name: Upload GET-routes crawl report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: get-routes-crawl
+          path: e2e-logs/get-routes-crawl.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload report and service logs
         if: failure()
         uses: actions/upload-artifact@v4

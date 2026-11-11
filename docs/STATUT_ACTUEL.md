@@ -892,3 +892,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   avec test de régression. Le risque « SQL brut divergeant du schéma » de la
   grille de score n'a pas révélé d'autre défaut sur les lectures.
 
+- **2026-11-11 — parcours de toutes les routes GET dans la CI.** Le job
+  « E2E Journeys (real stack) » (contrôle requis sur `main`) appelle, après
+  les parcours Playwright, chaque route GET avec les 9 rôles de recette
+  (connexion réelle, API sous rôle NOBYPASSRLS) et chaque route à paramètre
+  avec un identifiant inexistant ; toute réponse 5xx fait échouer la fusion
+  (`scripts/ci/crawl_get_routes.py`, rapport en artefact `get-routes-crawl`).
+  Vérifié localement : 2 112 appels, 0 erreur 5xx sur `main` ; une panne
+  injectée est détectée (code de sortie 1). Coût : quelques minutes de job.
