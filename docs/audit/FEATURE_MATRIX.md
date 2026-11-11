@@ -23,8 +23,8 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/AdvancedExports.tsx` | 79 | GET /hr/staff (pages/admin/AdvancedExports.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/AlumniMentors.tsx` | 77 | PUT /hr/mentorship-requests/X (pages/admin/AlumniMentors.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/Elearning.tsx` | 77 | PATCH /course-lessons/X (components/admin/elearning/CourseContent.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
-| Admin | `admin/ReportCards.tsx` | 22 | POST /students/term-results/bulk (utils/pedagogicalEngine.ts) |
-| Admin | `admin/VideoMeetings.tsx` | 14 | GET /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>POST /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>PATCH /communication/video-meetings/X (pages/admin/VideoMeetings.tsx) |
+| Admin | `admin/ReportCards.tsx` | 22 | `utils/pedagogicalEngine.ts` (importé nulle part) retiré le 2026-11-11 |
+| Admin | `admin/VideoMeetings.tsx` | 14 | **Retirée 2026-11-11** (code jamais relié à une API ; décision : retrait, comme R5) |
 | Parent | `parent/Appointments.tsx` | 18 | **Corrigé 2026-11-11** (rendez-vous de bout en bout, parcours E2E 16) |
 | Parent | `parent/ParentDashboard.tsx` | 44 | GET /students/terms/X (utils/riskAssessment.ts) |
 | Teacher | `teacher/AppointmentSlots.tsx` | 17 | **Corrigé 2026-11-11** (rendez-vous de bout en bout, parcours E2E 16) |
@@ -188,11 +188,11 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Portail | Page | Appels API | Défauts |
 |---|---|---:|---|
 | — | `admin/EarlyWarnings.tsx` | 13 | GET /school-life/early-warnings (pages/admin/EarlyWarnings.tsx)<br>PUT /school-life/early-warnings/X (pages/admin/EarlyWarnings.tsx) |
-| — | `admin/ElectronicSignatures.tsx` | 14 | GET /communication/electronic-documents (pages/admin/ElectronicSignatures.tsx)<br>POST /communication/electronic-documents (pages/admin/ElectronicSignatures.tsx)<br>POST /communication/document-signatories (pages/admin/ElectronicSignatures.tsx) |
-| — | `admin/ExecutiveDashboard.tsx` | 85 | GET /schedule/terms (pages/admin/ExecutiveDashboard.tsx)<br>GET /analytics/cash-flow-forecasts (pages/admin/ExecutiveDashboard.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
+| — | `admin/ElectronicSignatures.tsx` | 14 | **Retirée 2026-11-11** (code jamais relié à une API ; décision : retrait, comme R5) |
+| — | `admin/ExecutiveDashboard.tsx` | 85 | **Retirée 2026-11-11** (code jamais relié à une API ; décision : retrait, comme R5) |
 | — | `admin/GamificationTest.tsx` | 17 | — |
-| — | `admin/Sponsorships.tsx` | 17 | GET /school-life/sponsorships (pages/admin/Sponsorships.tsx)<br>PUT /school-life/sponsorships/X (pages/admin/Sponsorships.tsx)<br>POST /school-life/sponsorships (pages/admin/Sponsorships.tsx)<br>DELETE /school-life/sponsorships/X (pages/admin/Sponsorships.tsx) |
-| — | `admin/SuccessPlans.tsx` | 15 | GET /school-life/success-plans (pages/admin/SuccessPlans.tsx)<br>POST /school-life/success-plans (pages/admin/SuccessPlans.tsx)<br>PATCH /school-life/success-plans/X (pages/admin/SuccessPlans.tsx) |
+| — | `admin/Sponsorships.tsx` | 17 | **Retirée 2026-11-11** (code jamais relié à une API ; décision : retrait, comme R5) |
+| — | `admin/SuccessPlans.tsx` | 15 | **Retirée 2026-11-11** (code jamais relié à une API ; décision : retrait, comme R5) |
 | — | `admin/university-guide/components/GuideComponents.tsx` | 0 | — |
 | — | `admin/university-guide/sections/AcademicsSection.tsx` | 0 | — |
 | — | `admin/university-guide/sections/AlumniSection.tsx` | 0 | — |

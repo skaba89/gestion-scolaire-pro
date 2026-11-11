@@ -371,6 +371,11 @@ vérification de propriété. 4 bugs confirmés et corrigés :
   inscriptions actives — même schéma de jointure que
   `departments.py::department_teachers`), et les deux pages pointées
   dessus.
+- **Carrières / mentorat (2026-11-11)** — `PATCH /alumni/admin/mentorship-requests/{id}/`
+  exige `users:write` (TENANT_ADMIN, DIRECTOR) ; même établissement (sinon
+  404). Candidatures et demandes de mentorat sont toujours attribuées à la
+  fiche élève de l'appelant (`students.user_id`), jamais au `student_id`
+  fourni par le client ; un compte sans fiche élève reçoit 403.
 - **Rendez-vous parents-enseignants (2026-11-11)** — aucune nouvelle
   permission. Côté enseignant (`/school-life/appointment-slots/…`,
   `school_life:read` / `school_life:write`) : un enseignant ne crée, ne

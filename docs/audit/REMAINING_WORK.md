@@ -54,7 +54,14 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
 | RDV | ~~P1~~ corrigé | Rendez-vous parents-enseignants | **Corrigé** (PR fix/appointments-end-to-end) : la fonction n'avait jamais marché — création de créneau refusée (`slot_date` / `date`), réservation en échec sur PostgreSQL (`:appointment_date::date`), génération de semaine, confirmation et annulation vers des routes absentes, double réservation possible, liste parent toujours vide (page lue comme tableau), tous les rendez-vous de l'établissement visibles par tout enseignant, erreurs avalées. Service `app/services/appointments.py`, créneau verrouillé à la réservation, transitions contrôlées ; parcours E2E 16 | — |
-| API-UNBUILT | P2 | Fonctions jamais construites côté serveur | 25 appels sans route restants (référence CI) : parrainages, plans de réussite, visioconférences, signatures électroniques, prévisions de trésorerie, quiz e-learning, mentorat, discussions et leçons de cours, commandes d'inventaire, export RH, résultats de période | Décision produit par fonction : construire ou masquer (comme R5) |
+| API-UNBUILT | ~~P2~~ traité | Fonctions jamais construites côté serveur | **Retirées** (PR chore/remove-unbuilt-pages) : parrainages, plans de réussite, signatures électroniques, tableau de bord exécutif / prévisions de trésorerie (pages sans route), visioconférences (route sans lien de menu), `cashFlowForecasting.ts` et `pedagogicalEngine.ts` (importés nulle part) — ~2 400 lignes, aucun changement visible. Appels sans route : 25 → 9 (défauts réels restants : exports, mentorat, commandes, e-learning ; plus un faux positif) | Décision produit avant toute réintroduction (tables, migration, endpoints, permissions) |
+
+## Exports et carrières (2026-11-11)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| EXP | ~~P1~~ corrigé | Exports avancés | **Corrigé** (PR fix/exports-and-mentoring) : Enseignants sur `/users/?role=TEACHER` + affectations `/teachers/` (au lieu de `/hr/staff/`, 404) ; toutes les pages lues (`fetchAllPages`) ; paramètres réels (`classroom_id`, `classId`/`termId`) ; colonnes Tuteur remplies ; Emploi du temps implémenté ; échec affiché avec sa raison. Colonne Téléphone retirée de l'export Enseignants (donnée absente de l'API) | — |
+| CAR | ~~P1~~ corrigé | Candidatures et mentorat | **Corrigé** : fiche élève de l'appelant trouvée par `students.user_id` (l'identifiant du compte était écrit dans `student_id`, clé étrangère vers `students` → échec pour tout vrai compte ; les tests confondaient les deux) ; statut imposé « PENDING » à la création ; statuts normalisés en majuscules ; erreurs plus avalées ; nouvelle route `PATCH /alumni/admin/mentorship-requests/{id}/` (`users:write`) | — |
 
 ## Historique des commandes (2026-11-11)
 

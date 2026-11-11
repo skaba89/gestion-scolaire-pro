@@ -4,12 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel
 import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.utils.audit import log_audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -422,6 +424,23 @@ def alumni_career_events(
 
 # ─── Career Applications ──────────────────────────────────────────────────────
 
+def _caller_student_id(db: Session, tenant_id: str, user_id) -> Optional[str]:
+    """Fiche élève de l'appelant (élève ou ancien élève), par `students.user_id`
+    dans son établissement.
+
+    Avant (2026-11-11) : l'identifiant du COMPTE était écrit dans
+    `student_id`, colonne à clé étrangère vers `students(id)` — toute vraie
+    candidature ou demande de mentorat échouait sur PostgreSQL (les tests
+    faisaient passer l'identifiant d'élève pour celui du compte)."""
+    row = db.execute(text(
+        "SELECT id FROM students WHERE user_id = :uid AND tenant_id = :tid LIMIT 1"
+    ), {"uid": str(user_id), "tid": tenant_id}).first()
+    return str(row[0]) if row else None
+
+
+MENTORSHIP_STATUSES = ("PENDING", "ACCEPTED", "ACTIVE", "COMPLETED", "CANCELLED")
+
+
 @router.get("/careers/applications/")
 def list_job_applications(
     request: Request,
@@ -445,8 +464,11 @@ def list_job_applications(
         # always scoped to their own id regardless of the query param.
         roles = current_user.get("roles", [])
         if not any(r in roles for r in ("TENANT_ADMIN", "DIRECTOR", "STAFF")):
+            own = _caller_student_id(db, tenant_id, user_id)
+            if not own:
+                return []
             where.append("ja.student_id = :uid")
-            params["uid"] = user_id
+            params["uid"] = own
         elif student_id:
             where.append("ja.student_id = :uid")
             params["uid"] = student_id
@@ -461,10 +483,12 @@ def list_job_applications(
             ORDER BY ja.applied_at DESC NULLS LAST, ja.created_at DESC
             LIMIT 200
         """), params).mappings().all()
-        return [dict(r) for r in rows]
+        # Statuts en majuscules, comme les attend la page Carrières
+        # (stockés « pending » à la création).
+        return [{**dict(r), "status": (r["status"] or "PENDING").upper()} for r in rows]
     except Exception as e:
-        logger.error("Error listing job applications: %s", e)
-        return []
+        logger.error("Error listing job applications: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.post("/careers/applications/", status_code=201)
@@ -491,6 +515,9 @@ def create_job_application(
         ), {"jid": body.get("job_offer_id"), "tid": tenant_id}).first()
         if not offer:
             raise HTTPException(status_code=404, detail="Offre d'emploi introuvable")
+        own_student_id = _caller_student_id(db, tenant_id, user_id)
+        if not own_student_id:
+            raise HTTPException(status_code=403, detail="Aucune fiche élève n'est liée à votre compte")
 
         new_id = str(_uuid.uuid4())
         db.execute(text("""
@@ -505,7 +532,7 @@ def create_job_application(
             # `body.get("student_id") or user_id` — a client-supplied
             # student_id let anyone submit a job application AS another
             # student. An application always belongs to its caller.
-            "sid": user_id,
+            "sid": own_student_id,
             "jid": body.get("job_offer_id"),
             "cover": body.get("cover_letter", ""),
         })
@@ -538,7 +565,9 @@ def list_mentorship_requests_student(
         # frontend use of this param (see the dedicated, permission-gated
         # GET /alumni/admin/mentorship-requests/ for staff), so it is now
         # always ignored in favour of the caller's own id.
-        effective_id = user_id
+        effective_id = _caller_student_id(db, tenant_id, user_id)
+        if not effective_id:
+            return []
         # BUG (found while adding the ownership-scoping fix above, 2026-09):
         # this SELECT referenced m.goals, a column that has never existed on
         # mentorship_requests (create_mentorship_request folds goals into
@@ -557,10 +586,10 @@ def list_mentorship_requests_student(
             ORDER BY m.created_at DESC
             LIMIT 100
         """), {"tid": tenant_id, "sid": effective_id}).mappings().all()
-        return [dict(r) for r in rows]
+        return [{**dict(r), "status": (r["status"] or "PENDING").upper()} for r in rows]
     except Exception as e:
-        logger.error("Error listing mentorship requests: %s", e)
-        return []
+        logger.error("Error listing mentorship requests: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 # ─── Messaging recipients (staff for alumni to contact) ───────────────────────
@@ -656,6 +685,7 @@ def admin_list_mentorship_requests(
 
         return [{
             **dict(r._mapping),
+            "status": (r.status or "PENDING").upper(),
             "students": {"id": r.student_id, "first_name": r.student_first_name, "last_name": r.student_last_name, "email": r.student_email},
             "alumni_mentors": {"id": r.mentor_id, "first_name": r.mentor_first_name, "last_name": r.mentor_last_name, "current_company": r.current_company, "current_position": r.current_position}
         } for r in rows]
@@ -664,6 +694,39 @@ def admin_list_mentorship_requests(
         logger.error("Error admin listing mentorship requests: %s", e)
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
+
+class MentorshipStatusUpdate(BaseModel):
+    status: str
+
+
+@router.patch("/admin/mentorship-requests/{request_id}/")
+def admin_update_mentorship_request_status(
+    request: Request,
+    request_id: UUID,
+    body: MentorshipStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("users:write")),
+):
+    """Change le statut d'une demande de mentorat (page admin « Mentors
+    alumni »). Route appelée par la page mais absente jusqu'ici (`PUT
+    /hr/mentorship-requests/{id}/` → 404) : aucune demande ne pouvait être
+    acceptée ni clôturée."""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    new_status = body.status.strip().upper()
+    if new_status not in MENTORSHIP_STATUSES:
+        raise HTTPException(status_code=422, detail=f"Statut invalide (attendu : {', '.join(MENTORSHIP_STATUSES)})")
+    result = db.execute(text(
+        "UPDATE mentorship_requests SET status = :status, updated_at = now() "
+        "WHERE id = :id AND tenant_id = :tid"
+    ), {"status": new_status, "id": str(request_id), "tid": tenant_id})
+    if result.rowcount != 1:
+        raise HTTPException(status_code=404, detail="Demande de mentorat introuvable")
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="UPDATE_MENTORSHIP_STATUS", resource_type="MENTORSHIP_REQUEST",
+              resource_id=str(request_id), details={"status": new_status})
+    db.commit()
+    return {"id": str(request_id), "status": new_status}
+
 
 @router.get("/admin/document-requests/")
 def admin_list_document_requests(
@@ -745,7 +808,9 @@ def create_mentorship_request(
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=400, detail="tenant_id required")
-        student_id = current_user.get("id")
+        student_id = _caller_student_id(db, tenant_id, current_user.get("id"))
+        if not student_id:
+            raise HTTPException(status_code=403, detail="Aucune fiche élève n'est liée à votre compte")
 
         mentor = db.execute(text(
             "SELECT id FROM alumni_mentors WHERE id = :mid AND tenant_id = :tid"
@@ -770,11 +835,13 @@ def create_mentorship_request(
             "tenant_id": tenant_id,
             "student_id": student_id,
             "mentor_id": payload.mentor_id,
-            "status": payload.status,
+            # Toujours « en attente » : le statut fourni par le client était
+            # écrit tel quel (une demande pouvait naître « ACTIVE »).
+            "status": "PENDING",
             "message": combined_message or None,
         })
         db.commit()
-        return {"id": new_id, "mentor_id": payload.mentor_id, "student_id": student_id, "status": payload.status}
+        return {"id": new_id, "mentor_id": payload.mentor_id, "student_id": student_id, "status": "PENDING"}
     except HTTPException:
         raise
     except Exception as e:

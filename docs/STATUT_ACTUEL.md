@@ -843,6 +843,28 @@ ce fichier — pas d'un document de 2025 non révisé.
   (enseignant, date, heure lus dans le créneau verrouillé) ; aucune migration
   ni nouvelle permission. Appels frontend sans route : 29 → 25.
 
+- **2026-11-11 — pages jamais construites côté serveur retirées.**
+  Parrainages, plans de réussite, signatures électroniques, tableau de bord
+  exécutif (prévisions de trésorerie) : pages sans route ; visioconférences :
+  route sans lien de menu ; `utils/cashFlowForecasting.ts` et
+  `utils/pedagogicalEngine.ts` : importés nulle part. Toutes appelaient des
+  API inexistantes. Retrait comme la Marketplace (R5) ; une réintroduction
+  demande une décision produit (tables, migration, endpoints, permissions).
+  Appels frontend sans route : 25 → 9.
+
+- **2026-11-11 — exports avancés et portail carrières / mentorat réparés.**
+  Exports : l'export Enseignants appelait `/hr/staff/` (inexistant) ; Élèves,
+  Notes, Présences et Finances lisaient des pages `{ items }` comme des
+  tableaux avec des paramètres ignorés ; colonnes Tuteur toujours vides ;
+  Emploi du temps non implémenté — données désormais lues sur les routes
+  réelles (`src/lib/export-data.ts`). Carrières : candidatures et demandes de
+  mentorat écrivaient l'identifiant du COMPTE dans `student_id` (clé
+  étrangère vers `students`) et échouaient pour tout vrai compte ; une
+  demande de mentorat pouvait naître « ACTIVE » (statut du client) ; statuts
+  en minuscules non reconnus par les pages. Nouvelle route
+  `PATCH /alumni/admin/mentorship-requests/{id}/` (`users:write`) : la page
+  Mentors alumni appelait `PUT /hr/mentorship-requests/{id}/` (404).
+
 - **2026-11-11 — historique des commandes : reçu et annulation de vente.**
   Le reçu d'une vente s'affichait sans article (`GET
   /inventory/orders/{id}/items/` absent) et la corbeille de l'historique
