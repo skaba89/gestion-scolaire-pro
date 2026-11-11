@@ -256,3 +256,23 @@ class TestEventRegistrationIdorAndFk:
             "event_id": event_id, "student_id": student_id,
         })
         assert resp.status_code == 201, resp.text
+
+
+@pytest.mark.skipif(
+    engine.dialect.name != "postgresql",
+    reason="career_event_registrations is a raw Postgres-only operational table.",
+)
+class TestEventRegistrationsWithoutStudentRecord:
+    """2026-11-11 (parcours GET de toutes les routes, stack RLS réelle) : pour
+    un appelant non administratif sans fiche élève liée (enseignant, chef de
+    département), la liste IN vide des élèves autorisés était typée INTEGER
+    par SQLAlchemy et comparée à un UUID → 500 sur PostgreSQL."""
+
+    @pytest.mark.parametrize("role", ["TEACHER", "DEPARTMENT_HEAD"])
+    def test_caller_without_student_record_gets_an_empty_list(self, role):
+        tenant_id = _make_tenant()
+        user_id = _make_user(tenant_id)
+        headers = _as({"id": user_id, "roles": [role], "tenant_id": tenant_id})
+        resp = client.get(EVENT_REGISTRATIONS_URL, headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == []

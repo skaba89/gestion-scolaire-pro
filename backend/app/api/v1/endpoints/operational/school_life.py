@@ -1729,9 +1729,15 @@ def list_event_registrations(
                 own_ids += [str(r[0]) for r in db.query(ParentStudentModel.student_id).filter(
                     ParentStudentModel.tenant_id == tenant_id, ParentStudentModel.parent_id == user_id,
                 ).all()]
-                params["allowed_student_ids"] = own_ids
                 params["self_alumni_id"] = user_id
-                where += " AND (student_id IN :allowed_student_ids OR alumni_id = :self_alumni_id)"
+                if own_ids:
+                    params["allowed_student_ids"] = own_ids
+                    where += " AND (student_id IN :allowed_student_ids OR alumni_id = :self_alumni_id)"
+                else:
+                    # Aucune fiche élève liée (enseignant, chef de département…) :
+                    # une liste IN vide était typée INTEGER par SQLAlchemy et
+                    # comparée à un UUID → 500 sur PostgreSQL (2026-11-11).
+                    where += " AND alumni_id = :self_alumni_id"
         elif student_id:
             where += " AND student_id = :student_id"
             params["student_id"] = student_id
@@ -1740,7 +1746,7 @@ def list_event_registrations(
             "ORDER BY registered_at DESC LIMIT :limit OFFSET :offset"
         )
         if "allowed_student_ids" in params:
-            stmt = stmt.bindparams(bindparam("allowed_student_ids", expanding=True))
+            stmt = stmt.bindparams(bindparam("allowed_student_ids", expanding=True, type_=GUID()))
         rows = db.execute(stmt, params).mappings().all()
         return [dict(r) for r in rows]
     except HTTPException:

@@ -882,3 +882,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   discussions de l'accueil élève lit enfin l'auteur et le cours
   (`top_level`, `author`, `course`) et les erreurs ne sont plus avalées.
   Persistance des leçons : chantier produit séparé (voir `REMAINING_WORK.md`).
+
+- **2026-11-11 — parcours de toutes les routes GET (stack RLS réelle).**
+  Stack locale jetable identique à la CI E2E (API sous rôle NOBYPASSRLS,
+  comptes de recette) : 296 routes GET × 9 rôles = 2 168 appels — 1 284 × 200,
+  649 × 403, 139 × 404, 94 × 422, aucun 401, **une seule erreur 500** :
+  `GET /school-life/event-registrations/` pour un enseignant ou un chef de
+  département (liste `IN` vide typée INTEGER comparée à un UUID). Corrigée,
+  avec test de régression. Le risque « SQL brut divergeant du schéma » de la
+  grille de score n'a pas révélé d'autre défaut sur les lectures.
+
