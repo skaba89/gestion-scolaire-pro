@@ -872,3 +872,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   (`inventory:write`) : la vente passe à « Annulée », ses articles sont remis
   en stock, une trace d'audit est écrite ; elle n'est jamais supprimée (trace
   financière, même règle que l'annulation des paiements).
+
+- **2026-11-11 — e-learning : plus de faux contenu IA, limites affichées.**
+  `POST /ai/generate/` renvoyait un résumé et un QCM fictifs que la page
+  présentait comme générés par IA : route et boutons retirés. Les modules et
+  leçons de la page admin ne sont enregistrés nulle part (aucune table,
+  état local du navigateur) : un avertissement visible le dit désormais.
+  Composant `CourseDiscussions` (jamais affiché) retiré ; la liste des
+  discussions de l'accueil élève lit enfin l'auteur et le cours
+  (`top_level`, `author`, `course`) et les erreurs ne sont plus avalées.
+  Persistance des leçons : chantier produit séparé (voir `REMAINING_WORK.md`).

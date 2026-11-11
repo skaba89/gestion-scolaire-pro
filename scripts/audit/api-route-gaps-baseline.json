@@ -1,7 +1,3 @@
 [
-  "DELETE /course-discussions/X",
-  "PATCH /course-discussions/X",
-  "PATCH /course-lessons/X",
-  "PATCH /school-life/check-ins/sessions/${activeSession",
-  "POST /academic/courses/lessons/quiz"
+  "PATCH /school-life/check-ins/sessions/${activeSession"
 ]

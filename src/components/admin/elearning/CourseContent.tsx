@@ -1,21 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Plus, Edit, Trash2, GripVertical, PlayCircle, FileText, CheckCircle2, Sparkles, BrainCircuit, Wand2 } from "lucide-react";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
-import { useState } from "react";
-import { apiClient } from "@/api/client";
-import { adminQueries } from "@/queries/admin";
-import { useTenant } from "@/contexts/TenantContext";
-import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Edit, Trash2, GripVertical, PlayCircle, FileText, CheckCircle2 } from "lucide-react";
 
 interface CourseContentProps {
     courseId: string;
@@ -29,7 +15,6 @@ interface CourseContentProps {
     onAddLesson: (moduleId: string) => void;
     onEditLesson: (lesson: any, moduleId: string) => void;
     onDeleteLesson: (lesson: any, moduleId: string) => void;
-    onAIUpdate?: () => void;
 }
 
 export function CourseContent({
@@ -40,49 +25,7 @@ export function CourseContent({
     onAddLesson,
     onEditLesson,
     onDeleteLesson,
-    onAIUpdate
 }: CourseContentProps) {
-    const { tenant } = useTenant();
-    const queryClient = useQueryClient();
-    const [isGenerating, setIsGenerating] = useState<string | null>(null);
-
-    const generateMutation = useMutation({
-        mutationFn: async ({ lessonId, type }: { lessonId: string; type: 'SUMMARY' | 'QUIZ' }) => {
-            const result = await adminQueries.generateAIContent(lessonId, type);
-
-            if (type === 'SUMMARY') {
-                await apiClient.patch(`/course-lessons/${lessonId}/`, { content: result.summary });
-            } else {
-                await adminQueries.saveAIQuiz(tenant?.id || "", lessonId, result);
-            }
-            return result;
-        },
-        onSuccess: (_, variables) => {
-            toast.success(variables.type === 'SUMMARY' ? "Résumé généré et enregistré" : "QCM généré avec succès");
-            queryClient.invalidateQueries({ queryKey: ["admin-course-modules"] });
-            if (onAIUpdate) onAIUpdate();
-            setIsGenerating(null);
-        },
-        onError: (error) => {
-            toast.error("Échec de la génération IA: " + error.message);
-            setIsGenerating(null);
-        }
-    });
-
-    const onGenerateSummary = (lesson: any) => {
-        if (!lesson.content && lesson.content_type !== 'text') {
-            toast.error("La leçon doit avoir du contenu texte pour générer un résumé.");
-            return;
-        }
-        setIsGenerating(lesson.id);
-        generateMutation.mutate({ lessonId: lesson.id, type: 'SUMMARY' });
-    };
-
-    const onGenerateQuiz = (lesson: any) => {
-        setIsGenerating(lesson.id);
-        generateMutation.mutate({ lessonId: lesson.id, type: 'QUIZ' });
-    };
-
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -126,36 +69,6 @@ export function CourseContent({
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1 opacity-0 group-hover/lesson:opacity-100 transition-opacity">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:text-primary" aria-label="Assistant IA">
-                                                        <Sparkles className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="w-56">
-                                                    <DropdownMenuLabel className="flex items-center gap-2">
-                                                        <BrainCircuit className="h-4 w-4" />
-                                                        Assistant IA
-                                                    </DropdownMenuLabel>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        onClick={() => onGenerateSummary(lesson)}
-                                                        className="cursor-pointer"
-                                                        disabled={isGenerating === lesson.id}
-                                                    >
-                                                        <FileText className="h-4 w-4 mr-2" />
-                                                        Générer un résumé
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        onClick={() => onGenerateQuiz(lesson)}
-                                                        className="cursor-pointer"
-                                                        disabled={isGenerating === lesson.id}
-                                                    >
-                                                        <Wand2 className="h-4 w-4 mr-2" />
-                                                        Générer un QCM
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
                                             <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Modifier la leçon" onClick={() => onEditLesson(lesson, module.id)}>
                                                 <Edit className="h-3 w-3" />
                                             </Button>

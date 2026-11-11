@@ -69,6 +69,14 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 |---|---|---|---|---|
 | ORD | ~~P2~~ corrigé | Reçu et suppression de vente | **Corrigé** (PR fix/order-history) : `GET /inventory/orders/{id}/items/` (`inventory:read`) ; corbeille → annulation confirmée `POST /inventory/orders/{id}/cancel/` (`inventory:write`) : statut CANCELLED, remise en stock, audit, seconde annulation refusée (409), autre établissement 404. Pas de suppression physique | — |
 
+## E-learning (2026-11-11)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| ELN-AI | ~~P1~~ corrigé | Faux contenu IA | **Corrigé** (PR fix/elearning-routes) : `POST /ai/generate/` renvoyait un texte et un QCM fictifs présentés comme générés ; route et boutons « Assistant IA » retirés | — |
+| ELN-DISC | ~~P2~~ corrigé | Discussions de cours | **Corrigé** : `CourseDiscussions.tsx` jamais affiché (retiré, avec ses appels PATCH/DELETE sans route) ; accueil élève : auteur et cours enfin affichés, messages principaux seulement (`top_level`) ; erreurs plus avalées | — |
+| ELN-PERSIST | P2 | Leçons non enregistrées | Aucune table de leçons : modules et leçons de la page admin restent dans le navigateur et ne sont jamais vus des élèves. Avertissement visible ajouté | Décision produit : table + migration + endpoints + permissions + vue élève (+ génération IA réelle si souhaitée) |
+
 ## Qualité de la chaîne CI (2026-11-09)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |

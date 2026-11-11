@@ -1229,7 +1229,9 @@
     "confirmDeleteLesson": "Delete lesson \"{{title}}\"?",
     "add": "Add",
     "update": "Update",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "lessonsNotSavedTitle": "Modules and lessons are not saved",
+    "lessonsNotSavedDescription": "Modules and lessons created here stay in this browser and are lost when the page reloads: saving them on the server is not available yet. Students do not see them."
   },
   "sponsorships": {
     "pageTitle": "Sponsorships",

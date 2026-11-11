@@ -4,8 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
-import { Plus, ChevronLeft, GraduationCap } from "lucide-react";
+import { AlertTriangle, Plus, ChevronLeft, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { adminQueries } from "@/queries/admin";
 import { CourseGrid } from "@/components/admin/elearning/CourseGrid";
 import { CourseContent } from "@/components/admin/elearning/CourseContent";
@@ -312,6 +313,14 @@ export default function Elearning() {
             <ChevronLeft className="h-4 w-4 mr-2" />
             {t("elearning.backToCatalog")}
           </Button>
+
+          {/* Honnêteté (2026-11-11) : modules et leçons ne sont pas encore
+              enregistrés côté serveur (aucune table) — l'admin doit le savoir. */}
+          <Alert role="status">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{t("elearning.lessonsNotSavedTitle")}</AlertTitle>
+            <AlertDescription>{t("elearning.lessonsNotSavedDescription")}</AlertDescription>
+          </Alert>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">

@@ -50,12 +50,8 @@ export const CollaborativeTools = () => {
       if (!tenant?.id) return [];
 
       const { data } = await apiClient.get<any[]>("/course-discussions/", {
-        params: {
-          tenant_id: tenant.id,
-          parent_id__isnull: true,
-          ordering: "-created_at",
-          limit: 10,
-        },
+        // Messages principaux seulement ; les plus récents d'abord (côté serveur).
+        params: { top_level: true, limit: 10 },
       });
 
       return data || [];
@@ -163,7 +159,7 @@ export const CollaborativeTools = () => {
                     <div key={disc.id} className="p-4 border rounded-lg">
                       <div className="flex items-center gap-2 text-sm">
                         <span className="font-medium">
-                          {disc.profiles?.first_name} {disc.profiles?.last_name}
+                          {disc.author?.first_name} {disc.author?.last_name}
                         </span>
                         <span className="text-muted-foreground">•</span>
                         <span className="text-xs text-muted-foreground">
@@ -171,8 +167,8 @@ export const CollaborativeTools = () => {
                         </span>
                       </div>
                       <p className="text-sm mt-1 line-clamp-2">{disc.content}</p>
-                      {disc.courses && (
-                        <Badge variant="outline" className="mt-2 text-xs">{disc.courses.title}</Badge>
+                      {disc.course?.title && (
+                        <Badge variant="outline" className="mt-2 text-xs">{disc.course.title}</Badge>
                       )}
                     </div>
                   ))}
