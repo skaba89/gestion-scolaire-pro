@@ -842,3 +842,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   `POST /parents/appointments/{id}/cancel/` ; réservation sur `slot_id`
   (enseignant, date, heure lus dans le créneau verrouillé) ; aucune migration
   ni nouvelle permission. Appels frontend sans route : 29 → 25.
+
+- **2026-11-11 — pages jamais construites côté serveur retirées.**
+  Parrainages, plans de réussite, signatures électroniques, tableau de bord
+  exécutif (prévisions de trésorerie) : pages sans route ; visioconférences :
+  route sans lien de menu ; `utils/cashFlowForecasting.ts` et
+  `utils/pedagogicalEngine.ts` : importés nulle part. Toutes appelaient des
+  API inexistantes. Retrait comme la Marketplace (R5) ; une réintroduction
+  demande une décision produit (tables, migration, endpoints, permissions).
+  Appels frontend sans route : 25 → 9.
+

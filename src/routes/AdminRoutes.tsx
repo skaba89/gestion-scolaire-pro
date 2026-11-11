@@ -63,7 +63,6 @@ const TestingGuide = lazy(() => import("@/pages/admin/TestingGuide"));
 const UniversityGuide = lazy(() => import("@/pages/admin/UniversityGuide"));
 const Incidents = lazy(() => import("@/pages/admin/Incidents"));
 const EarlyWarnings = lazy(() => import("@/pages/admin/EarlyWarnings"));
-const VideoMeetings = lazy(() => import("@/pages/admin/VideoMeetings"));
 const ClassLists = lazy(() => import("@/pages/admin/ClassLists"));
 const DataQuality = lazy(() => import("@/pages/admin/DataQuality"));
 const AcademicRules = lazy(() => import("@/pages/admin/AcademicRules"));
@@ -146,7 +145,6 @@ export const AdminRoutes = () => {
             <Route path="early-warnings" element={<EarlyWarnings />} />
             {/* Toujours retirées faute de backend : success-plans,
                 electronic-signatures, sponsorships. */}
-            <Route path="video-meetings" element={<VideoMeetings />} />
             <Route path="data-quality" element={<DataQuality />} />
             <Route path="academic-rules" element={<AcademicRules />} />
             <Route path="decision-support" element={<DecisionDashboard />} />
