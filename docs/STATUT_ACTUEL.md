@@ -800,3 +800,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   à activer dans « Utilisateurs en attente » ; le parent voit ensuite
   l'enfant dans son portail. Réservé aux rôles qui gèrent déjà les comptes
   (`settings:write`). Déployé le 2026-11-11 (`81eaf4a`, sans migration).
+
+- **2026-11-11 — parcours E2E obligatoires avant fusion (C1).** Le ruleset
+  `protect-main` exige désormais « E2E Journeys (real stack) » en plus des
+  5 contrôles existants. Le job tourne sur toute PR vers `main` (aucun filtre
+  de chemins) ; un échec E2E bloque donc la fusion. Retour arrière : retirer
+  ce contrôle du ruleset (voir `docs/runbooks/github-main-protection.md`).

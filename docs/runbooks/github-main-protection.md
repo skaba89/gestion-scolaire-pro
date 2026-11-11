@@ -22,7 +22,7 @@ cours, et rien n'empêche un push direct ou un force-push sur `main`.
 | Approbations requises | 1 (voir « mainteneur unique » ci-dessous) | revue humaine |
 | Rejeter les approbations obsolètes au nouveau push | oui | la revue porte sur le code fusionné |
 | Résolution des conversations | obligatoire | aucun commentaire de revue ignoré |
-| Checks requis | `Backend`, `Backend Tests (PostgreSQL)`, `Frontend`, `Security Scan`, `Browser Smoke (Playwright)` | noms exacts des jobs de `ci.yml` |
+| Checks requis | `Backend`, `Backend Tests (PostgreSQL)`, `Frontend`, `Security Scan`, `Browser Smoke (Playwright)`, `E2E Journeys (real stack)` (ajouté le 2026-11-11) | noms exacts des jobs de `ci.yml` |
 | Branche à jour avant fusion (`strict`) | oui | les checks portent sur le résultat réel de la fusion |
 | Historique linéaire | oui (squash, déjà la pratique) | — |
 | Suppression de `main` | interdite | — |
@@ -68,7 +68,8 @@ gh api -X POST repos/skaba89/gestion-scolaire-pro/rulesets --input - <<'JSON'
           { "context": "Backend Tests (PostgreSQL)" },
           { "context": "Frontend" },
           { "context": "Security Scan" },
-          { "context": "Browser Smoke (Playwright)" } ] } }
+          { "context": "Browser Smoke (Playwright)" },
+          { "context": "E2E Journeys (real stack)" } ] } }
   ],
   "bypass_actors": []
 }
