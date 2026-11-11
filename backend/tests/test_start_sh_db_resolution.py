@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 import pytest
 
@@ -46,6 +47,12 @@ def start_environment(tmp_path: Path) -> dict[str, str]:
     """
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
+    # start.sh appelle `python` (présent dans l'image et en CI). Certains
+    # hôtes n'ont que `python3` : on pointe `python` vers l'interpréteur qui
+    # exécute les tests, pour que le résultat ne dépende pas de l'hôte.
+    # Script et non lien symbolique : un lien vers le python d'un venv perd
+    # le venv (pyvenv.cfg est cherché à côté du chemin invoqué).
+    _write_executable(fake_bin / "python", f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
 
     _write_executable(
         fake_bin / "pg_isready",
