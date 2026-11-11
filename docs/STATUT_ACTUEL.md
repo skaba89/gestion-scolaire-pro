@@ -811,3 +811,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   de l'accueil élève n'affichait jamais de devoir : il lisait `GET /students/`
   (paginé, refusé à l'élève) comme un tableau. Il utilise désormais les
   devoirs à venir de `GET /students/dashboard/`, déjà chargés par l'accueil.
+
+- **2026-11-11 — couleurs des moyennes de la page Bulletins.** Elles
+  utilisaient des seuils fixes (10 et 14) alors que le seuil de réussite et
+  la mention « Bien » se règlent par niveau. `GET /school-life/report-cards/class-summary/`
+  renvoie désormais `items[].color` (champ ajouté, rétrocompatible), la
+  couleur du bulletin PDF selon les règles du niveau ; la page l'affiche.
