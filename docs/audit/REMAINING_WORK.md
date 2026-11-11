@@ -56,7 +56,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | C1 | P1 | E2E non obligatoire | Le ruleset `protect-main` exige 5 contrôles ; « E2E Journeys (real stack) » ne l'est pas | Contrôle requis (validation humaine : modification de la protection de branche) |
 | C2 | ~~P1~~ corrigé | Test instable | **Corrigé** (PR test/stabilize-websocket-revocation) : course du `TestClient` Starlette à la fermeture (annulation avant la fin de l'endpoint) ; 8 échecs sur 15 avant, 0 sur 30 après | — |
 | C3 | P2 | Run `main` incomplet | Sur `7b072ea`, GitHub n'a jamais créé Backend ni Browser Smoke (deux tentatives) ; arbre identique au commit de PR vert 6/6 | Surveiller ; relancer par un nouveau commit si cela se reproduit |
-| C4 | P1 | Production en retard | 100 commits non déployés (#498–#509 compris) | Déploiement validé, sauvegarde préalable, plan de retour arrière |
+| C4 | ~~P1~~ fait | Production en retard | **Rattrapée** : 5 déploiements validés du 2026-11-09 au 2026-11-11, chacun avec sauvegarde préalable ; production en `81eaf4a` (#519) | — |
 
 Points hors périmètre automatisé, nécessitant une décision humaine : déploiement
 en production, recette sur appareils réels, environnement sandbox Mobile Money,
