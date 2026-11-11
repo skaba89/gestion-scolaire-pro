@@ -842,3 +842,16 @@ ce fichier — pas d'un document de 2025 non révisé.
   `POST /parents/appointments/{id}/cancel/` ; réservation sur `slot_id`
   (enseignant, date, heure lus dans le créneau verrouillé) ; aucune migration
   ni nouvelle permission. Appels frontend sans route : 29 → 25.
+
+- **2026-11-11 — exports avancés et portail carrières / mentorat réparés.**
+  Exports : l'export Enseignants appelait `/hr/staff/` (inexistant) ; Élèves,
+  Notes, Présences et Finances lisaient des pages `{ items }` comme des
+  tableaux avec des paramètres ignorés ; colonnes Tuteur toujours vides ;
+  Emploi du temps non implémenté — données désormais lues sur les routes
+  réelles (`src/lib/export-data.ts`). Carrières : candidatures et demandes de
+  mentorat écrivaient l'identifiant du COMPTE dans `student_id` (clé
+  étrangère vers `students`) et échouaient pour tout vrai compte ; une
+  demande de mentorat pouvait naître « ACTIVE » (statut du client) ; statuts
+  en minuscules non reconnus par les pages. Nouvelle route
+  `PATCH /alumni/admin/mentorship-requests/{id}/` (`users:write`) : la page
+  Mentors alumni appelait `PUT /hr/mentorship-requests/{id}/` (404).

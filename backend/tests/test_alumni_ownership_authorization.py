@@ -37,6 +37,7 @@ from app.core.security import get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.student import Gender, Student, StudentStatus  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
+from app.models.user import User  # noqa: E402
 
 HEADERS = {"Authorization": "Bearer mock-token"}
 pytestmark = pytest.mark.skipif(
@@ -59,11 +60,26 @@ def _make_tenant() -> str:
     return tenant_id
 
 
+# Un élève (ou ancien élève) se connecte avec son COMPTE, relié à sa fiche
+# par students.user_id (2026-11-11). Ces tests utilisaient l'identifiant de
+# la fiche comme identifiant du compte, ce qui masquait que le code écrivait
+# l'identifiant du compte dans student_id (clé étrangère vers students).
+_ACCOUNT_OF: dict[str, str] = {}
+
+
+def _account(student_id: str) -> str:
+    """Identifiant du compte relié à la fiche élève."""
+    return _ACCOUNT_OF[student_id]
+
+
 def _make_student(tenant_id: str, *, reg: str) -> str:
-    student_id = str(uuid.uuid4())
+    student_id, user_id = str(uuid.uuid4()), str(uuid.uuid4())
+    _ACCOUNT_OF[student_id] = user_id
     with SessionLocal() as db:
+        db.add(User(id=user_id, tenant_id=tenant_id, email=f"{user_id[:12]}@example.com", username=user_id, is_active=True))
+        db.flush()
         db.add(Student(
-            id=student_id, tenant_id=tenant_id, registration_number=reg,
+            id=student_id, tenant_id=tenant_id, registration_number=reg, user_id=user_id,
             first_name="Ancien", last_name="Élève",
             date_of_birth=date(2000, 1, 1), gender=Gender.MALE,
             status=StudentStatus.ACTIVE,
@@ -149,7 +165,7 @@ class TestCannotReadOrActAsAnotherStudent:
         victim_id = _make_student(tenant_id, reg="ALU-2")
         attacker_student_id = _make_student(tenant_id, reg="ALU-2-ATTACKER")
 
-        attacker = {"id": attacker_student_id, "roles": ["ALUMNI"], "tenant_id": tenant_id}
+        attacker = {"id": _account(attacker_student_id), "roles": ["ALUMNI"], "tenant_id": tenant_id}
         resp = _as(attacker).post(
             "/api/v1/alumni/careers/applications/",
             json={"student_id": victim_id, "job_offer_id": offer_id, "cover_letter": "spoofed"},
@@ -162,7 +178,7 @@ class TestCannotReadOrActAsAnotherStudent:
             row = db.execute(text(
                 "SELECT student_id FROM job_applications WHERE job_offer_id = :jid"
             ), {"jid": offer_id}).mappings().first()
-        assert str(row["student_id"]) == attacker["id"], "application must be attributed to the caller, not the spoofed student_id"
+        assert str(row["student_id"]) == attacker_student_id, "application must be attributed to the caller's own student record"
 
     def test_student_cannot_view_another_students_mentorship_requests(self):
         tenant_id = _make_tenant()
@@ -187,7 +203,7 @@ class TestCannotReadOrActAsAnotherStudent:
         victim_id = _make_student(tenant_id, reg="ALU-5")
         attacker_id = _make_student(tenant_id, reg="ALU-5-ATTACKER")
 
-        attacker = {"id": attacker_id, "roles": ["ALUMNI"], "tenant_id": tenant_id}
+        attacker = {"id": _account(attacker_id), "roles": ["ALUMNI"], "tenant_id": tenant_id}
         resp = _as(attacker).post(
             "/api/v1/alumni/mentorship-requests/",
             json={"mentor_id": mentor_id, "student_id": victim_id, "message": "spoofed"},
@@ -214,7 +230,7 @@ class TestCannotReadOrActAsAnotherStudent:
         foreign_offer_id = _make_job_offer(tenant_b)
         student_id = _make_student(tenant_a, reg="ALU-7")
 
-        caller = {"id": student_id, "roles": ["ALUMNI"], "tenant_id": tenant_a}
+        caller = {"id": _account(student_id), "roles": ["ALUMNI"], "tenant_id": tenant_a}
         resp = _as(caller).post(
             "/api/v1/alumni/careers/applications/",
             json={"job_offer_id": foreign_offer_id, "cover_letter": "x"},
@@ -228,7 +244,7 @@ class TestCannotReadOrActAsAnotherStudent:
         foreign_mentor_id = _make_mentor(tenant_b)
         student_id = _make_student(tenant_a, reg="ALU-6")
 
-        caller = {"id": student_id, "roles": ["ALUMNI"], "tenant_id": tenant_a}
+        caller = {"id": _account(student_id), "roles": ["ALUMNI"], "tenant_id": tenant_a}
         resp = _as(caller).post(
             "/api/v1/alumni/mentorship-requests/",
             json={"mentor_id": foreign_mentor_id, "student_id": student_id, "message": "x"},
@@ -246,7 +262,7 @@ class TestOwnDataStillWorks:
         user_id = _make_student(tenant_id, reg="ALU-OWN-1")
         _make_job_application(tenant_id, user_id, offer_id)
 
-        alumnus = {"id": user_id, "roles": ["ALUMNI"], "tenant_id": tenant_id}
+        alumnus = {"id": _account(user_id), "roles": ["ALUMNI"], "tenant_id": tenant_id}
         resp = _as(alumnus).get("/api/v1/alumni/careers/applications/", headers=HEADERS)
         assert resp.status_code == 200, resp.text
         assert len(resp.json()) == 1
@@ -256,7 +272,7 @@ class TestOwnDataStillWorks:
         user_id = _make_student(tenant_id, reg="ALU-OWN-2")
         _make_mentorship_request(tenant_id, user_id)
 
-        student = {"id": user_id, "roles": ["STUDENT"], "tenant_id": tenant_id}
+        student = {"id": _account(user_id), "roles": ["STUDENT"], "tenant_id": tenant_id}
         resp = _as(student).get("/api/v1/alumni/mentorship-requests/", headers=HEADERS)
         assert resp.status_code == 200, resp.text
         assert len(resp.json()) == 1
@@ -275,3 +291,66 @@ class TestOwnDataStillWorks:
         )
         assert resp.status_code == 200, resp.text
         assert len(resp.json()) == 1
+
+
+class TestCareersWorkForRealAccounts:
+    """2026-11-11 : candidature et demande de mentorat d'un vrai compte (fiche
+    élève reliée par user_id) ; statut imposé à la création ; statut modifié
+    par l'administration (route absente jusqu'ici)."""
+
+    def test_real_account_creates_and_lists_its_mentorship_request(self):
+        tenant_id = _make_tenant()
+        mentor_id = _make_mentor(tenant_id)
+        student_id = _make_student(tenant_id, reg="ALU-REAL-1")
+        me = {"id": _account(student_id), "roles": ["ALUMNI"], "tenant_id": tenant_id}
+
+        resp = _as(me).post("/api/v1/alumni/mentorship-requests/",
+                            json={"mentor_id": mentor_id, "student_id": student_id, "message": "x", "status": "ACTIVE"},
+                            headers=HEADERS)
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["status"] == "PENDING"  # le statut du client est ignoré
+        assert resp.json()["student_id"] == student_id
+        [mine] = _as(me).get("/api/v1/alumni/mentorship-requests/", headers=HEADERS).json()
+        assert mine["status"] == "PENDING"
+
+    def test_real_account_applies_to_a_job_offer(self):
+        tenant_id = _make_tenant()
+        offer_id = _make_job_offer(tenant_id)
+        student_id = _make_student(tenant_id, reg="ALU-REAL-2")
+        me = {"id": _account(student_id), "roles": ["STUDENT"], "tenant_id": tenant_id}
+        resp = _as(me).post("/api/v1/alumni/careers/applications/",
+                            json={"job_offer_id": offer_id, "cover_letter": "Motivé"}, headers=HEADERS)
+        assert resp.status_code == 201, resp.text
+        assert len(_as(me).get("/api/v1/alumni/careers/applications/", headers=HEADERS).json()) == 1
+
+    def test_account_without_student_record_cannot_apply(self):
+        tenant_id = _make_tenant()
+        offer_id = _make_job_offer(tenant_id)
+        stranger = {"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": tenant_id}
+        resp = _as(stranger).post("/api/v1/alumni/careers/applications/",
+                                  json={"job_offer_id": offer_id}, headers=HEADERS)
+        assert resp.status_code == 403
+
+    def test_admin_changes_status_but_other_school_and_teacher_cannot(self):
+        tenant_id = _make_tenant()
+        student_id = _make_student(tenant_id, reg="ALU-REAL-3")
+        _make_mentorship_request(tenant_id, student_id)
+        with SessionLocal() as db:
+            from sqlalchemy import text
+            request_id = str(db.execute(text("SELECT id FROM mentorship_requests WHERE student_id = :s"),
+                                        {"s": student_id}).scalar())
+        url = f"/api/v1/alumni/admin/mentorship-requests/{request_id}/"
+
+        teacher = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id}
+        assert _as(teacher).patch(url, json={"status": "ACTIVE"}, headers=HEADERS).status_code == 403
+        other_admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": _make_tenant()}
+        assert _as(other_admin).patch(url, json={"status": "ACTIVE"}, headers=HEADERS).status_code == 404
+
+        admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+        assert _as(admin).patch(url, json={"status": "bogus"}, headers=HEADERS).status_code == 422
+        resp = _as(admin).patch(url, json={"status": "active"}, headers=HEADERS)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "ACTIVE"
+        listed = _as(admin).get("/api/v1/alumni/admin/mentorship-requests/", headers=HEADERS).json()
+        assert [r["status"] for r in listed] == ["ACTIVE"]
+

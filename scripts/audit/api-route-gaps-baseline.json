@@ -6,7 +6,6 @@
   "GET /communication/electronic-documents",
   "GET /communication/video-meetings",
   "GET /finance/invoices",
-  "GET /hr/staff",
   "GET /inventory/orders/X/items",
   "GET /school-life/sponsorships",
   "GET /school-life/success-plans",
@@ -22,6 +21,5 @@
   "POST /school-life/sponsorships",
   "POST /school-life/success-plans",
   "POST /students/term-results/bulk",
-  "PUT /hr/mentorship-requests/X",
   "PUT /school-life/sponsorships/X"
 ]
