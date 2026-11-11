@@ -53,7 +53,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
-| C1 | P1 | E2E non obligatoire | Le ruleset `protect-main` exige 5 contrôles ; « E2E Journeys (real stack) » ne l'est pas | Contrôle requis (validation humaine : modification de la protection de branche) |
+| C1 | ~~P1~~ fait | E2E non obligatoire | **Fait le 2026-11-11** (validation humaine) : « E2E Journeys (real stack) » ajouté aux contrôles requis du ruleset `protect-main` (6 contrôles). Job sans filtre de chemins, donc exécuté sur toute PR ; 30 derniers runs : 27 succès (dont 1 au 2ᵉ essai), 2 annulés, 0 échec | — |
 | C2 | ~~P1~~ corrigé | Test instable | **Corrigé** (PR test/stabilize-websocket-revocation) : course du `TestClient` Starlette à la fermeture (annulation avant la fin de l'endpoint) ; 8 échecs sur 15 avant, 0 sur 30 après | — |
 | C3 | P2 | Run `main` incomplet | Sur `7b072ea`, GitHub n'a jamais créé Backend ni Browser Smoke (deux tentatives) ; arbre identique au commit de PR vert 6/6 | Surveiller ; relancer par un nouveau commit si cela se reproduit |
 | C4 | ~~P1~~ fait | Production en retard | **Rattrapée** : 5 déploiements validés du 2026-11-09 au 2026-11-11, chacun avec sauvegarde préalable ; production en `81eaf4a` (#519) | — |
