@@ -354,6 +354,11 @@ vérification de propriété. 4 bugs confirmés et corrigés :
   point d'entrée self-scopé existant `GET /alumni/mentorship-requests/`,
   qui ignore déjà tout `student_id` fourni par le client et se limite à
   l'appelant.
+- **Ventes / historique des commandes (2026-11-11)** — `GET
+  /inventory/orders/{id}/items/` exige `inventory:read`,
+  `POST /inventory/orders/{id}/cancel/` exige `inventory:write` (mêmes
+  permissions que la liste et la création de vente) ; commande d'un autre
+  établissement → 404.
 - **PARENT** sur `/parent/messages` et `/parent/appointments` : les deux
   pages appelaient chacune un endpoint différent (`/parents/children-
   teachers/` et `/parents/teachers/` respectivement) — aucun des deux

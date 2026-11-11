@@ -1836,7 +1836,14 @@
         "paymentCash": "Espèces",
         "paymentCard": "CB",
         "paymentTransfer": "Virement",
-        "paymentOther": "Autre"
+        "paymentOther": "Autre",
+        "cancelSale": "Annuler la vente",
+        "cancelTitle": "Annuler cette vente ?",
+        "cancelDescription": "La vente reste dans l'historique avec le statut « Annulée » et les articles sont remis en stock. Cette action ne peut pas être défaite.",
+        "cancelConfirm": "Annuler la vente",
+        "cancelBack": "Retour",
+        "cancelSuccess": "Vente annulée, articles remis en stock",
+        "statusCancelled": "Annulée"
     },
     "dataQuality": {
         "pageTitle": "Qualité des Données",

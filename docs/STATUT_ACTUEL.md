@@ -864,3 +864,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   en minuscules non reconnus par les pages. Nouvelle route
   `PATCH /alumni/admin/mentorship-requests/{id}/` (`users:write`) : la page
   Mentors alumni appelait `PUT /hr/mentorship-requests/{id}/` (404).
+
+- **2026-11-11 — historique des commandes : reçu et annulation de vente.**
+  Le reçu d'une vente s'affichait sans article (`GET
+  /inventory/orders/{id}/items/` absent) et la corbeille de l'historique
+  n'avait aucune action. Nouvelle route `POST /inventory/orders/{id}/cancel/`
+  (`inventory:write`) : la vente passe à « Annulée », ses articles sont remis
+  en stock, une trace d'audit est écrite ; elle n'est jamais supprimée (trace
+  financière, même règle que l'annulation des paiements).

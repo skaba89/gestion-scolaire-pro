@@ -574,7 +574,6 @@ export const adminQueries = {
         queryFn: async () => {
             if (!orderId) return [];
             const response = await apiClient.get(`/inventory/orders/${orderId}/items/`);
-            // Note: need to add this endpoint to inventory.py if missing, or use a list filtering
             return response.data || [];
         },
     }),
@@ -593,8 +592,11 @@ export const adminQueries = {
         return response.data;
     },
 
-    deleteOrder: async (orderId: string) => {
-        await apiClient.delete(`/inventory/orders/${orderId}/`);
+    // Annulation (statut CANCELLED + remise en stock), jamais de suppression :
+    // une vente encaissée reste une trace financière.
+    cancelOrder: async (orderId: string) => {
+        const response = await apiClient.post(`/inventory/orders/${orderId}/cancel/`);
+        return response.data;
     },
 
     inventoryTransactions: (tenantId: string) => ({
