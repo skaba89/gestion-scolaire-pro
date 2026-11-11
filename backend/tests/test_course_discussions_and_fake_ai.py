@@ -82,5 +82,12 @@ def test_top_level_discussions_with_author_and_course_title():
     assert top["content"] == "Question sur les équations"
     assert top["author"] == {"first_name": "Awa", "last_name": "Bah"}
     assert top["course"]["title"] == "Algèbre"
-    # Autre établissement : rien.
-    assert _as(str(uuid.uuid4())).get("/api/v1/course-discussions/", headers=HEADERS).json() == []
+    # Autre établissement (réel) : rien.
+    other = str(uuid.uuid4())
+    _CREATED.append(other)
+    with SessionLocal() as db:
+        db.add(Tenant(id=other, name="Autre école", slug=f"el2-{other[:12]}", type="primary",
+                      country="GN", is_active=True, settings={}))
+        db.commit()
+    r = _as(other).get("/api/v1/course-discussions/", headers=HEADERS)
+    assert r.status_code == 200 and r.json() == []
