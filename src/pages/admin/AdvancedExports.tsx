@@ -1,7 +1,15 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import {
+  exportAttendance,
+  exportFinances,
+  exportGrades,
+  exportSchedule,
+  exportStudents,
+  exportTeachers,
+} from "@/lib/export-data";
+import { apiErrorDetail } from "@/lib/api-error";
 import { useTenant } from "@/contexts/TenantContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -39,7 +47,7 @@ export default function AdvancedExports() {
       label: t("exports.typeTeachers"),
       icon: GraduationCap,
       description: t("exports.descTeachers"),
-      fields: ["Prénom", "Nom", "Email", "Téléphone", "Matières", "Classes"],
+      fields: ["Prénom", "Nom", "Email", "Matières", "Classes"],
     },
     grades: {
       label: t("exports.typeGrades"),
@@ -162,129 +170,37 @@ export default function AdvancedExports() {
       let data: Record<string, unknown>[] = [];
       let filename = "";
 
+      const classroomId = selectedClassroom && selectedClassroom !== "all" ? selectedClassroom : null;
+      const termId = selectedTerm && selectedTerm !== "all" ? selectedTerm : null;
+      const classroomNames = new Map<string, string>(
+        (classrooms as { id: string; name: string }[]).map((c) => [String(c.id), c.name]),
+      );
+
       switch (exportType) {
-        case "students": {
-          const params: Record<string, string> = {};
-
-          if (selectedClassroom && selectedClassroom !== "all") {
-            const { data: enrollmentData } = await apiClient.get("/admissions/enrollments/", {
-              params: { class_id: selectedClassroom },
-            });
-            const studentIds = (enrollmentData as any[])?.map((e) => e.student_id) || [];
-            if (studentIds.length > 0) {
-              params.student_ids = studentIds.join(",");
-            }
-          }
-
-          const { data: studentsData } = await apiClient.get("/students/", {
-            params,
-          });
-          data = (studentsData || []).map((s: any) => ({
-            "N° Étudiant": s.registration_number || "",
-            Prénom: s.first_name,
-            Nom: s.last_name,
-            Email: s.email || "",
-            Téléphone: s.phone || "",
-            "Date de naissance": s.date_of_birth || "",
-            Genre: genderLabel(s.gender, ""),
-            Nationalité: s.nationality || "",
-            Adresse: s.address || "",
-            Ville: s.city || "",
-            Pays: s.country || "",
-            Classe: s.enrollments?.[0]?.classroom?.name || s.classroom_name || "",
-          }));
+        case "students":
+          data = await exportStudents(classroomId, genderLabel);
           filename = "etudiants";
           break;
-        }
-
-        case "teachers": {
-          const { data: teachersData } = await apiClient.get("/hr/staff/", {
-            params: { role: "TEACHER" },
-          });
-          data = ((teachersData as any[]) || []).map((t: any) => ({
-            Prénom: t.first_name || "",
-            Nom: t.last_name || "",
-            Email: t.email,
-            Téléphone: t.phone || "",
-          }));
+        case "teachers":
+          data = await exportTeachers();
           filename = "enseignants";
           break;
-        }
-
-        case "grades": {
-          const params: Record<string, string> = {};
-
-          if (selectedTerm && selectedTerm !== "all") {
-            const { data: assessmentIds } = await apiClient.get("/assessments/", {
-              params: { term_id: selectedTerm, fields: "id" },
-            });
-            const ids = (assessmentIds as any[]) || [];
-            if (ids.length > 0) {
-              params.assessment_ids = ids.map((a: any) => a.id).join(",");
-            }
-          }
-
-          const { data: gradesData } = await apiClient.get("/grades/", { params });
-          data = (gradesData || []).map((g: any) => ({
-            "N° Étudiant": g.student?.registration_number || "",
-            Étudiant: `${g.student?.first_name || ""} ${g.student?.last_name || ""}`,
-            Classe: g.assessment?.classroom?.name || "",
-            Matière: g.assessment?.subject?.name || "",
-            Évaluation: g.assessment?.name || "",
-            Trimestre: g.assessment?.term?.name || "",
-            Note: g.score || 0,
-            "Note max": g.assessment?.max_score || 20,
-            Commentaire: g.comment || "",
-          }));
+        case "grades":
+          data = await exportGrades(classroomId, termId, classroomNames);
           filename = "notes";
           break;
-        }
-
-        case "attendance": {
-          const params: Record<string, string> = {
-            ordering: "-date",
-            limit: "1000",
-          };
-
-          if (selectedClassroom && selectedClassroom !== "all") {
-            params.class_id = selectedClassroom;
-          }
-
-          const { data: attendanceData } = await apiClient.get("/attendance/", { params });
-          data = (attendanceData || []).map((a: any) => ({
-            Date: a.date,
-            "N° Étudiant": a.student?.registration_number || "",
-            Étudiant: `${a.student?.first_name || ""} ${a.student?.last_name || ""}`,
-            Classe: a.classroom?.name || "",
-            Statut: a.status === "PRESENT" ? "Présent" : a.status === "ABSENT" ? "Absent" : a.status === "LATE" ? "Retard" : a.status,
-            Remarques: a.notes || "",
-          }));
+        case "attendance":
+          data = await exportAttendance(classroomId);
           filename = "presences";
           break;
-        }
-
-        case "finances": {
-          const { data: invoicesData } = await apiClient.get("/invoices/", {
-            params: {
-              ordering: "-created_at",
-              expand: "student",
-            },
-          });
-
-          data = (invoicesData || []).map((i: any) => ({
-            "N° Facture": i.invoice_number,
-            "N° Étudiant": i.student?.registration_number || "",
-            Étudiant: `${i.student?.first_name || ""} ${i.student?.last_name || ""}`,
-            "Montant total": i.total_amount,
-            "Montant payé": i.paid_amount || 0,
-            Solde: i.total_amount - (i.paid_amount || 0),
-            Statut: i.status === "PAID" ? "Payée" : i.status === "PARTIAL" ? "Partielle" : i.status === "OVERDUE" ? "En retard" : "En attente",
-            Échéance: i.due_date || "",
-            "Date création": formatDate(new Date(i.created_at), "dd/MM/yyyy", { locale: fr }),
-          }));
+        case "finances":
+          data = await exportFinances((iso) => formatDate(new Date(iso), "dd/MM/yyyy", { locale: fr }));
           filename = "factures";
           break;
-        }
+        case "schedule":
+          data = await exportSchedule(classroomId, classroomNames);
+          filename = "emploi_du_temps";
+          break;
       }
 
       let rowCount = 0;
@@ -353,7 +269,8 @@ export default function AdvancedExports() {
         ]);
       }
     } catch (error) {
-      toast.error(t("exports.exportError"));
+      console.error("Export échoué", error);
+      toast.error(`${t("exports.exportError")} : ${apiErrorDetail(error)}`);
     } finally {
       setIsExporting(false);
     }

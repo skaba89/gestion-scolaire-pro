@@ -1,11 +1,9 @@
 [
   "DELETE /course-discussions/X",
   "DELETE /inventory/orders/X",
-  "GET /hr/staff",
   "GET /inventory/orders/X/items",
   "PATCH /course-discussions/X",
   "PATCH /course-lessons/X",
   "PATCH /school-life/check-ins/sessions/${activeSession",
-  "POST /academic/courses/lessons/quiz",
-  "PUT /hr/mentorship-requests/X"
+  "POST /academic/courses/lessons/quiz"
 ]

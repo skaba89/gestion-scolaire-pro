@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
+import { apiErrorDetail } from "@/lib/api-error";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -83,20 +84,14 @@ const AlumniMentors = () => {
 
   const updateRequestMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: MentorshipStatus }) => {
-      const updateData: any = { status, updated_at: new Date().toISOString() };
-      if (status === "ACTIVE") {
-        updateData.started_at = new Date().toISOString();
-      } else if (status === "COMPLETED" || status === "CANCELLED") {
-        updateData.ended_at = new Date().toISOString();
-      }
-
-      await apiClient
-        .put(`/hr/mentorship-requests/${id}/`, updateData);
+      // Route réelle (avant : PUT /hr/mentorship-requests/{id}/, inexistante → 404).
+      await apiClient.patch(`/alumni/admin/mentorship-requests/${id}/`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-mentorship-requests", tenant?.id] });
       toast.success(t("alumniMentors.statusUpdateSuccess"));
     },
+    onError: (error) => toast.error(apiErrorDetail(error)),
   });
 
   const handleEditMentor = (mentor: any) => {
