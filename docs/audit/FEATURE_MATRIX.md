@@ -25,10 +25,10 @@ Statuts : **DÉFECTUEUX** = appel sans route dans la page ou dans un module qu'e
 | Admin | `admin/Elearning.tsx` | 77 | PATCH /course-lessons/X (components/admin/elearning/CourseContent.tsx)<br>(partagé) GET /inventory/orders/X/items (queries/admin.ts)<br>(partagé) DELETE /inventory/orders/X (queries/admin.ts)<br>(partagé) POST /academic/courses/lessons/quiz (queries/admin.ts)<br>(partagé) GET /library/marketplace (queries/admin.ts) |
 | Admin | `admin/ReportCards.tsx` | 22 | POST /students/term-results/bulk (utils/pedagogicalEngine.ts) |
 | Admin | `admin/VideoMeetings.tsx` | 14 | GET /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>POST /communication/video-meetings (pages/admin/VideoMeetings.tsx)<br>PATCH /communication/video-meetings/X (pages/admin/VideoMeetings.tsx) |
-| Parent | `parent/Appointments.tsx` | 18 | PUT /parents/appointment-slots/X (pages/parent/Appointments.tsx)<br>PUT /parents/appointments/X (pages/parent/Appointments.tsx) |
+| Parent | `parent/Appointments.tsx` | 18 | **Corrigé 2026-11-11** (rendez-vous de bout en bout, parcours E2E 16) |
 | Parent | `parent/ParentDashboard.tsx` | 44 | GET /students/terms/X (utils/riskAssessment.ts) |
-| Teacher | `teacher/AppointmentSlots.tsx` | 17 | PATCH /school-life/appointment-slots/appointments/X (pages/teacher/AppointmentSlots.tsx)<br>POST /school-life/appointment-slots/bulk (pages/teacher/AppointmentSlots.tsx) |
-| Teacher | `teacher/ClassSessionAttendance.tsx` | 19 | PATCH /school-life/check-ins/sessions/${activeSession (pages/teacher/ClassSessionAttendance.tsx) |
+| Teacher | `teacher/AppointmentSlots.tsx` | 17 | **Corrigé 2026-11-11** (rendez-vous de bout en bout, parcours E2E 16) |
+| Teacher | `teacher/ClassSessionAttendance.tsx` | 19 | Faux positif de l'analyse statique (URL `${activeSession?.id}` non lue) : `PATCH /school-life/check-ins/sessions/{id}/end/` existe |
 
 ## À VÉRIFIER (19)
 

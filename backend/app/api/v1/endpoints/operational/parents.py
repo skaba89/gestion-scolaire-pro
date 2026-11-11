@@ -2,11 +2,11 @@ import logging
 import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query, Request, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, text
+from sqlalchemy import and_, bindparam, or_, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from typing import List, Optional, Any
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel, EmailStr, Field
 import math
 import secrets
@@ -27,6 +27,8 @@ from app.core.tenant_resolution import (
 from app.schemas.parents import ParentStudent, ParentStudentCreate
 from app.crud import parents as crud_parents
 from app.utils.audit import log_audit
+from app.models.base import GUID
+from app.services import appointments as appointments_svc
 from app.services.payment_gateways import CinetPayGateway, get_gateway
 from app.services.notifications import EmailSender
 from app.models import ParentStudent as ParentStudentModel, User, UserRole
@@ -1634,73 +1636,43 @@ def generate_invoice_pdf(
     }
 
 
-# --- GET /parents/appointments/ --- List appointments ---
+# --- Rendez-vous parents-enseignants, côté parent ---------------------------
+# Logique métier : app/services/appointments.py. Réservé au rôle PARENT ; un
+# parent ne voit, ne réserve et n'annule que pour lui-même et ses enfants.
+
+def _require_parent(current_user: dict) -> str:
+    if "PARENT" not in (current_user.get("roles") or []):
+        raise HTTPException(status_code=403, detail="Réservé aux parents")
+    return str(current_user.get("id"))
+
 
 @router.get("/appointments/")
 def list_parent_appointments(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("me:read")),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
 ):
-    """List parent-teacher appointments."""
+    """Rendez-vous du parent connecté (page paginée `items`)."""
+    parent_id = _require_parent(current_user)
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    user_id = current_user.get("id")
-    if not tenant_id or not user_id:
-        return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
+    items, total = appointments_svc.list_appointments(
+        db, tenant_id, parent_id=parent_id, limit=page_size, offset=(page - 1) * page_size,
+    )
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": max(1, math.ceil(total / page_size)),
+    }
 
-    offset = (page - 1) * page_size
-    params = {"tenant_id": tenant_id, "parent_id": user_id, "limit": page_size, "offset": offset}
-
-    try:
-        rows = db.execute(text("""
-            SELECT a.*,
-                   t.first_name as teacher_first_name, t.last_name as teacher_last_name,
-                   s.first_name as student_first_name, s.last_name as student_last_name
-            FROM appointments a
-            LEFT JOIN users t ON a.teacher_id = t.id
-            LEFT JOIN students s ON a.student_id = s.id
-            WHERE a.tenant_id = :tenant_id AND a.parent_id = :parent_id
-            ORDER BY a.appointment_date DESC, a.appointment_time DESC
-            LIMIT :limit OFFSET :offset
-        """), params).fetchall()
-
-        total = db.execute(text("""
-            SELECT COUNT(*) FROM appointments
-            WHERE tenant_id = :tenant_id AND parent_id = :parent_id
-        """), {"tenant_id": tenant_id, "parent_id": user_id}).scalar() or 0
-
-        items = []
-        for r in rows:
-            d = dict(r._mapping)
-            for k, v in d.items():
-                if isinstance(v, datetime):
-                    d[k] = v.isoformat()
-            items.append(d)
-
-        return {
-            "items": items,
-            "total": int(total or 0),
-            "page": page,
-            "page_size": page_size,
-            "pages": math.ceil(float(total or 0) / page_size) if total and total > 0 else 1,
-        }
-    except Exception:
-        # Table may not exist yet — return empty
-        return {"items": [], "total": 0, "page": page, "page_size": page_size, "pages": 1}
-
-
-# --- POST /parents/appointments/ --- Create appointment ---
 
 class AppointmentCreate(BaseModel):
-    teacher_id: Optional[str] = None
-    student_id: Optional[str] = None
-    appointment_date: str
-    appointment_time: Optional[str] = None
-    slot_id: Optional[str] = None
-    notes: Optional[str] = None
-    status: str = "REQUESTED"
+    slot_id: uuid.UUID
+    student_id: uuid.UUID
+    notes: Optional[str] = Field(None, max_length=2000)
 
 
 @router.post("/appointments/", status_code=status.HTTP_201_CREATED)
@@ -1708,107 +1680,79 @@ def create_parent_appointment(
     request: Request,
     body: AppointmentCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("me:read")),
 ):
-    """Create a parent-teacher appointment request."""
+    """Réserve un créneau pour l'un de ses enfants. Avant : échec sur
+    PostgreSQL à chaque appel (`:appointment_date::date` jamais lié), et
+    enseignant / date / heure fournis par le client. Désormais tout vient du
+    créneau, verrouillé pendant la réservation (pas de double réservation)."""
+    parent_id = _require_parent(current_user)
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    user_id = current_user.get("id")
-    if not tenant_id or not user_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    # If student_id provided, verify it's linked to this parent
-    if body.student_id:
-        link = db.execute(text(
-            "SELECT 1 FROM parent_students "
-            "WHERE parent_id = :uid AND student_id = :sid AND tenant_id = :tid"
-        ), {"uid": user_id, "sid": body.student_id, "tid": tenant_id}).first()
-        if not link:
-            raise HTTPException(status_code=403, detail="Student not linked to your account")
-
-    try:
-        import uuid
-        appointment_id = str(uuid.uuid4())
-        db.execute(text("""
-            INSERT INTO appointments (
-                id, tenant_id, parent_id, teacher_id, student_id,
-                appointment_date, appointment_time, slot_id, notes, status,
-                created_at, updated_at
-            ) VALUES (
-                :id, :tenant_id, :parent_id, :teacher_id, :student_id,
-                :appointment_date::date, :appointment_time::time, :slot_id, :notes, :status,
-                NOW(), NOW()
-            ) RETURNING id
-        """), {
-            "id": appointment_id,
-            "tenant_id": tenant_id,
-            "parent_id": user_id,
-            "teacher_id": body.teacher_id,
-            "student_id": body.student_id,
-            "appointment_date": body.appointment_date,
-            "appointment_time": body.appointment_time,
-            "slot_id": body.slot_id,
-            "notes": body.notes,
-            "status": body.status,
-        })
-
-        log_audit(db, user_id=user_id, tenant_id=tenant_id,
-                  action="CREATE_APPOINTMENT", resource_type="APPOINTMENT",
-                  resource_id=appointment_id,
-                  details={"teacher_id": body.teacher_id, "student_id": body.student_id,
-                           "date": body.appointment_date})
-        db.commit()
-        return {"id": appointment_id, "status": body.status, "message": "Appointment request created"}
-    except Exception as e:
-        db.rollback()
-        logger.error("Failed to create appointment: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Failed to create resource. Please check your input and try again.")
+    link = db.execute(
+        text(
+            "SELECT 1 FROM parent_students WHERE parent_id = :uid AND student_id = :sid AND tenant_id = :tid"
+        ).bindparams(
+            bindparam("uid", type_=GUID()), bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID()),
+        ),
+        {"uid": parent_id, "sid": str(body.student_id), "tid": tenant_id},
+    ).first()
+    if not link:
+        raise HTTPException(status_code=403, detail="Cet élève n'est pas rattaché à votre compte")
+    appointment_id = appointments_svc.book(
+        db, tenant_id, parent_id=parent_id, student_id=str(body.student_id),
+        slot_id=str(body.slot_id), notes=(body.notes or None),
+    )
+    log_audit(db, user_id=parent_id, tenant_id=tenant_id,
+              action="CREATE_APPOINTMENT", resource_type="APPOINTMENT", resource_id=appointment_id,
+              details={"slot_id": str(body.slot_id), "student_id": str(body.student_id)})
+    db.commit()
+    return appointments_svc.get_appointment(db, tenant_id, appointment_id)
 
 
-# --- GET /parents/appointment-slots/ --- List available appointment slots ---
+@router.post("/appointments/{appointment_id}/cancel/")
+def cancel_parent_appointment(
+    request: Request,
+    appointment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("me:read")),
+):
+    """Annule l'un de SES rendez-vous (demandé ou confirmé) ; le créneau
+    redevient disponible. Route appelée par Appointments.tsx mais absente
+    jusqu'ici (404)."""
+    parent_id = _require_parent(current_user)
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    appointment = appointments_svc.get_appointment(db, tenant_id, str(appointment_id))
+    if (appointment["parent"] or {}).get("id") != parent_id:
+        # Même réponse qu'un rendez-vous inexistant : ne pas révéler celui d'un autre parent.
+        raise HTTPException(status_code=404, detail="Rendez-vous introuvable")
+    appointments_svc.change_status(
+        db, tenant_id, str(appointment_id), appointment["status"], appointments_svc.CANCELLED,
+    )
+    log_audit(db, user_id=parent_id, tenant_id=tenant_id,
+              action="CANCEL_APPOINTMENT", resource_type="APPOINTMENT", resource_id=str(appointment_id),
+              details={"from": appointment["status"]})
+    db.commit()
+    return appointments_svc.get_appointment(db, tenant_id, str(appointment_id))
+
 
 @router.get("/appointment-slots/")
 def list_parent_appointment_slots(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    teacher_id: Optional[str] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
+    current_user: dict = Depends(require_permission("me:read")),
+    teacher_id: Optional[uuid.UUID] = Query(None),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
 ):
-    """List available appointment slots for booking."""
+    """Créneaux encore réservables (à partir d'aujourd'hui, non complets)."""
+    _require_parent(current_user)
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        return []
-
-    try:
-        params: dict = {"tenant_id": tenant_id}
-        extra = ""
-        if teacher_id:
-            extra += " AND teacher_id = :teacher_id"
-            params["teacher_id"] = teacher_id
-        if date_from:
-            extra += " AND date >= :date_from::date"
-            params["date_from"] = date_from
-        if date_to:
-            extra += " AND date <= :date_to::date"
-            params["date_to"] = date_to
-
-        rows = db.execute(text(f"""
-            SELECT * FROM appointment_slots
-            WHERE tenant_id = :tenant_id AND is_active = true {extra}
-            ORDER BY date, start_time
-        """), params).fetchall()
-
-        items = []
-        for r in rows:
-            d = dict(r._mapping)
-            for k, v in d.items():
-                if isinstance(v, datetime):
-                    d[k] = v.isoformat()
-            items.append(d)
-        return items
-    except Exception:
-        return []
+    start = max(date_from or date.today(), date.today())
+    items, _total = appointments_svc.list_slots(
+        db, tenant_id, teacher_id=str(teacher_id) if teacher_id else None,
+        date_from=start.isoformat(), date_to=date_to.isoformat() if date_to else None, limit=500,
+    )
+    return [s for s in items if s["is_available"]]
 
 
 # --- POST /parents/appointment-slots/ --- Create appointment slot ---
