@@ -900,3 +900,16 @@ ce fichier — pas d'un document de 2025 non révisé.
   (`scripts/ci/crawl_get_routes.py`, rapport en artefact `get-routes-crawl`).
   Vérifié localement : 2 112 appels, 0 erreur 5xx sur `main` ; une panne
   injectée est détectée (code de sortie 1). Coût : quelques minutes de job.
+
+- **2026-11-11 — saisies mal formées : 422 au lieu de 500 (parcours CRAWL-W,
+  lot C).** Une vingtaine de routes d'écriture laissaient un identifiant non
+  UUID ou une date illisible atteindre PostgreSQL et répondaient 500. Une
+  `sqlalchemy.exc.DataError` (SQLSTATE classe 22) devient une 422
+  `INVALID_DATA` globale, sans écho de la valeur saisie ; une erreur de
+  programmation (colonne inexistante, SQL invalide) reste une 500. Là où un
+  `except Exception` avalait l'erreur, les identifiants sont typés `UUIDStr`
+  (`app/schemas/types.py` : ajustement de stock, inscription à un événement,
+  bulletins et attestation PDF). Corps des forums typé (titre obligatoire,
+  404 sur un forum inconnu) ; `POST /classrooms/` convertit le refus d'un
+  niveau d'un autre établissement en 404. Test :
+  `tests/test_write_input_validation.py` (9 cas rouges avant le correctif).
