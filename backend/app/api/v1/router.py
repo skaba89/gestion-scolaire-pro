@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise, ministry, whatsapp_webhook
 from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework, transcripts, faculties, semesters
+from app.api.v1.endpoints.academic import elearning
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys, kiosk, early_warnings
 from app.api.v1.endpoints.operational import departments as dept_portal
@@ -47,6 +48,8 @@ api_router.include_router(tenants.router, prefix="/tenants", tags=["Tenants"])
 api_router.include_router(ministry.router, prefix="/ministry", tags=["Ministry (National Supervision)"])
 api_router.include_router(rgpd.router, prefix="/rgpd", tags=["RGPD"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
+api_router.include_router(elearning.staff_router, prefix="/analytics/elearning", tags=["E-learning"])
+api_router.include_router(elearning.student_router, prefix="/me/elearning", tags=["E-learning"])
 api_router.include_router(audit.router, prefix="/audit", tags=["Audit Logs"])
 # /audit-logs is a legacy alias — use a lightweight redirect instead of double-registering
 # the same router (which duplicates all endpoints in OpenAPI).

@@ -12,7 +12,8 @@ import {
   MessageSquare,
   RefreshCw,
   BookOpen,
-  Briefcase
+  Briefcase,
+  GraduationCap
 } from "lucide-react";
 import { ChatBot } from "@/components/chat/ChatBot";
 import { ResponsiveSidebar } from "@/components/layouts/ResponsiveSidebar";
@@ -34,6 +35,7 @@ export const StudentLayout = () => {
     { href: getTenantUrl("/student"), label: "Tableau de bord", icon: LayoutDashboard },
     { href: getTenantUrl("/student/grades"), label: "Mes Notes", icon: FileText },
     { href: getTenantUrl("/student/homework"), label: "Devoirs", icon: BookOpen },
+    { href: getTenantUrl("/student/courses"), label: t("studentElearning.nav"), icon: GraduationCap },
     { href: getTenantUrl("/student/schedule"), label: "Emploi du temps", icon: Calendar },
     { href: getTenantUrl("/student/careers"), label: "Carrières & Stages", icon: Briefcase },
     { href: getTenantUrl("/student/messages"), label: "Messages", icon: MessageSquare },

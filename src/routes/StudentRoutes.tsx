@@ -9,6 +9,7 @@ const StudentMessages = lazy(() => import("@/pages/student/StudentMessages"));
 const StudentHomework = lazy(() => import("@/pages/student/StudentHomework"));
 const PreRegistration = lazy(() => import("@/pages/student/PreRegistration"));
 const StudentCareers = lazy(() => import("@/pages/student/StudentCareers"));
+const StudentElearning = lazy(() => import("@/pages/student/StudentElearning"));
 
 export const StudentRoutes = () => {
     return (
@@ -20,6 +21,7 @@ export const StudentRoutes = () => {
             <Route path="messages" element={<StudentMessages />} />
             <Route path="pre-registration" element={<PreRegistration />} />
             <Route path="careers" element={<StudentCareers />} />
+            <Route path="courses" element={<StudentElearning />} />
         </>
     );
 };

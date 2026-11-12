@@ -1144,7 +1144,6 @@
     "type": "النوع",
     "typeVideo": "فيديو",
     "typeText": "نص",
-    "typeQuiz": "اختبار",
     "typeDocument": "مستند",
     "durationMinutes": "المدة (دقائق)",
     "lessonAdded": "تمت إضافة الدرس",
@@ -1153,8 +1152,20 @@
     "add": "إضافة",
     "update": "تحديث",
     "cancel": "إلغاء",
-    "lessonsNotSavedTitle": "الوحدات والدروس غير محفوظة",
-    "lessonsNotSavedDescription": "تبقى الوحدات والدروس التي تُنشأ هنا في هذا المتصفح وتضيع عند إعادة تحميل الصفحة: حفظها على الخادم غير متاح بعد. لا يراها الطلاب."
+    "lessonContent": "محتوى الدرس",
+    "lessonContentPlaceholder": "نص الدرس (يُعرض كما هو للتلاميذ)",
+    "resourceUrl": "رابط إلى مورد (اختياري)",
+    "resourceUrlHttps": "يجب أن يبدأ الرابط بـ https://",
+    "published": "منشور",
+    "publishedHelp": "مرئي لتلاميذ مستوى المقرر",
+    "draft": "مسودة",
+    "lessonDeleted": "تم حذف الدرس",
+    "saveError": "تعذّر الحفظ",
+    "loadError": "تعذّر تحميل برنامج المقرر",
+    "programTitle": "برنامج المقرر",
+    "noModules": "لم يتم إنشاء أي وحدة لهذا المقرر",
+    "deleteModule": "حذف الوحدة",
+    "deleteLesson": "حذف الدرس"
   },
   "sponsorships": {
     "pageTitle": "برامج الرعاية",
@@ -3118,5 +3129,24 @@
       "othersRevokedTitle": "تم فصل الأجهزة",
       "othersRevokedBody": "تم الفصل: {{ok}} — فشل: {{failed}}"
     }
+  },
+  "studentElearning": {
+    "nav": "مقرراتي",
+    "title": "مقرراتي عبر الإنترنت",
+    "subtitle": "المقررات المنشورة لمستواك",
+    "loadError": "تعذّر تحميل مقرراتك",
+    "empty": "لا يوجد بعد أي مقرر منشور لمستواك.",
+    "lessonsDone": "أُنجز {{done}} من {{total}} درس",
+    "progress": "التقدّم",
+    "continue": "متابعة",
+    "open": "ابدأ",
+    "back": "العودة إلى مقرراتي",
+    "programme": "برنامج المقرر",
+    "completed": "منجز",
+    "duration": "{{minutes}} دقيقة",
+    "openResource": "فتح المورد",
+    "markDone": "وضع علامة منجز",
+    "lessonCompleted": "تم إنجاز الدرس",
+    "saveError": "تعذّر الحفظ"
   }
 }

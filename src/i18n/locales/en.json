@@ -1221,7 +1221,6 @@
     "type": "Type",
     "typeVideo": "Video",
     "typeText": "Text",
-    "typeQuiz": "Quiz",
     "typeDocument": "Document",
     "durationMinutes": "Duration (minutes)",
     "lessonAdded": "Lesson added",
@@ -1230,8 +1229,20 @@
     "add": "Add",
     "update": "Update",
     "cancel": "Cancel",
-    "lessonsNotSavedTitle": "Modules and lessons are not saved",
-    "lessonsNotSavedDescription": "Modules and lessons created here stay in this browser and are lost when the page reloads: saving them on the server is not available yet. Students do not see them."
+    "lessonContent": "Lesson content",
+    "lessonContentPlaceholder": "Lesson text (shown as-is to students)",
+    "resourceUrl": "Link to a resource (optional)",
+    "resourceUrlHttps": "The link must start with https://",
+    "published": "Published",
+    "publishedHelp": "Visible to students of the course level",
+    "draft": "Draft",
+    "lessonDeleted": "Lesson deleted",
+    "saveError": "Could not save",
+    "loadError": "Could not load the course programme",
+    "programTitle": "Course programme",
+    "noModules": "No module created for this course",
+    "deleteModule": "Delete module",
+    "deleteLesson": "Delete lesson"
   },
   "sponsorships": {
     "pageTitle": "Sponsorships",
@@ -3071,5 +3082,24 @@
       "othersRevokedTitle": "Devices signed out",
       "othersRevokedBody": "Signed out: {{ok}} — failed: {{failed}}"
     }
+  },
+  "studentElearning": {
+    "nav": "My courses",
+    "title": "My online courses",
+    "subtitle": "Courses published for your level",
+    "loadError": "Could not load your courses",
+    "empty": "No online course is published for your level yet.",
+    "lessonsDone": "{{done}} of {{total}} lesson(s) completed",
+    "progress": "Progress",
+    "continue": "Continue",
+    "open": "Start",
+    "back": "Back to my courses",
+    "programme": "Course programme",
+    "completed": "Completed",
+    "duration": "{{minutes}} min",
+    "openResource": "Open the resource",
+    "markDone": "Mark as completed",
+    "lessonCompleted": "Lesson completed",
+    "saveError": "Could not save"
   }
 }

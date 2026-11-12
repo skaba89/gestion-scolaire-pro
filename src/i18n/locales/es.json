@@ -1144,7 +1144,6 @@
     "type": "Tipo",
     "typeVideo": "Vídeo",
     "typeText": "Texto",
-    "typeQuiz": "Cuestionario",
     "typeDocument": "Documento",
     "durationMinutes": "Duración (minutos)",
     "lessonAdded": "Lección añadida",
@@ -1153,8 +1152,20 @@
     "add": "Añadir",
     "update": "Actualizar",
     "cancel": "Cancelar",
-    "lessonsNotSavedTitle": "Módulos y lecciones no guardados",
-    "lessonsNotSavedDescription": "Los módulos y lecciones creados aquí permanecen en este navegador y se pierden al recargar la página: aún no se pueden guardar en el servidor. Los alumnos no los ven."
+    "lessonContent": "Contenido de la lección",
+    "lessonContentPlaceholder": "Texto de la lección (se muestra tal cual a los alumnos)",
+    "resourceUrl": "Enlace a un recurso (opcional)",
+    "resourceUrlHttps": "El enlace debe empezar por https://",
+    "published": "Publicada",
+    "publishedHelp": "Visible para los alumnos del nivel del curso",
+    "draft": "Borrador",
+    "lessonDeleted": "Lección eliminada",
+    "saveError": "No se pudo guardar",
+    "loadError": "No se pudo cargar el programa del curso",
+    "programTitle": "Programa del curso",
+    "noModules": "Ningún módulo creado para este curso",
+    "deleteModule": "Eliminar el módulo",
+    "deleteLesson": "Eliminar la lección"
   },
   "sponsorships": {
     "pageTitle": "Patrocinios",
@@ -3118,5 +3129,24 @@
       "othersRevokedTitle": "Dispositivos desconectados",
       "othersRevokedBody": "Desconectados: {{ok}} — con error: {{failed}}"
     }
+  },
+  "studentElearning": {
+    "nav": "Mis cursos",
+    "title": "Mis cursos en línea",
+    "subtitle": "Los cursos publicados para tu nivel",
+    "loadError": "No se pudieron cargar tus cursos",
+    "empty": "Todavía no hay ningún curso en línea publicado para tu nivel.",
+    "lessonsDone": "{{done}} de {{total}} lección(es) terminada(s)",
+    "progress": "Progreso",
+    "continue": "Continuar",
+    "open": "Empezar",
+    "back": "Volver a mis cursos",
+    "programme": "Programa del curso",
+    "completed": "Terminada",
+    "duration": "{{minutes}} min",
+    "openResource": "Abrir el recurso",
+    "markDone": "Marcar como terminada",
+    "lessonCompleted": "Lección terminada",
+    "saveError": "No se pudo guardar"
   }
 }

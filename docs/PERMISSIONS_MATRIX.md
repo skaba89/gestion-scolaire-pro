@@ -987,3 +987,21 @@ création de comptes. Sans elle, l'élève est créé et la réponse renvoie
 appartenant à un compte d'un autre établissement (ou à un compte non parent)
 n'est jamais rattaché, et la réponse ne nomme pas l'établissement. Aucune
 nouvelle permission. Tests : `backend/tests/test_admission_parent_link.py`.
+
+## E-learning : modules, leçons, progression (2026-11-12)
+
+Aucune nouvelle permission ; règles d'accès dans `backend/app/api/v1/endpoints/academic/elearning.py`.
+
+| Action | Route | Qui |
+|---|---|---|
+| Lire le programme d'un cours (brouillons compris) | `GET /analytics/elearning/courses/{id}/content/` | `homework:read` (personnel) |
+| Créer / modifier / supprimer un module ou une leçon | `POST …/courses/{id}/modules/`, `PUT/DELETE …/modules/{id}/`, `POST …/modules/{id}/lessons/`, `PUT/DELETE …/lessons/{id}/` | `homework:write` ; un **TEACHER** non privilégié seulement sur les cours dont il est l'auteur (`teacher_id`) |
+| Modifier / supprimer un cours | `PUT/DELETE /analytics/elearning/courses/{id}/` | `homework:write` ; même règle d'auteur (avant : tout enseignant sur tout cours) |
+| Voir ses cours, lire les leçons publiées, terminer une leçon | `GET /me/elearning/courses/`, `GET /me/elearning/courses/{id}/`, `POST /me/elearning/lessons/{id}/complete/` | `homework:read` **et** une fiche élève reliée au compte (`students.user_id`) ; sinon 403 (parents, personnel) |
+
+Visibilité côté élève : cours de son établissement, publiés (`is_published` ou
+`status = published`), sans niveau ou du niveau de la classe de son inscription
+active ; seules les leçons publiées. Tables sous RLS (FORCE) :
+`elearning_modules` (colonne `tenant_id` ajoutée), `elearning_lessons`,
+`elearning_lesson_progress`. Contenu affiché en texte brut ; lien `https://`
+uniquement.
