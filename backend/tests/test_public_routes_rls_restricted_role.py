@@ -276,14 +276,17 @@ class TestPublicRoutesUnderRestrictedRole:
     # -- authenticated but middleware-exempt routes ---------------------------
 
     @_needs_redis
-    def test_onboarding_levels_replaces_only_own_tenant_levels(self, seeded):
+    def test_onboarding_levels_adds_only_to_own_tenant(self, seeded):
+        # 2026-11-12 : la route ajoute les niveaux absents sans rien supprimer
+        # (elle remplaçait tout, au risque d'emporter les données liées).
         a, b = seeded["A"], seeded["B"]
+        before_a = _admin_scalar("SELECT count(*) FROM levels WHERE tenant_id = :t", t=a["id"])
         resp = client.post(
             "/api/v1/tenants/onboarding/levels/", json=["Niv1", "Niv2", "Niv3"],
             headers=_auth(a["admin_id"], a["id"], ["TENANT_ADMIN"]),
         )
         assert resp.status_code == 200, resp.text
-        assert _admin_scalar("SELECT count(*) FROM levels WHERE tenant_id = :t", t=a["id"]) == 3
+        assert _admin_scalar("SELECT count(*) FROM levels WHERE tenant_id = :t", t=a["id"]) == before_a + 3
         assert _admin_scalar("SELECT count(*) FROM levels WHERE tenant_id = :t", t=b["id"]) == 2
 
     @pytest.mark.parametrize(
