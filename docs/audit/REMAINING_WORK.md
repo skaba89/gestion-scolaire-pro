@@ -82,7 +82,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 |---|---|---|---|---|
 | ELN-AI | ~~P1~~ corrigé | Faux contenu IA | **Corrigé** (PR fix/elearning-routes) : `POST /ai/generate/` renvoyait un texte et un QCM fictifs présentés comme générés ; route et boutons « Assistant IA » retirés | — |
 | ELN-DISC | ~~P2~~ corrigé | Discussions de cours | **Corrigé** : `CourseDiscussions.tsx` jamais affiché (retiré, avec ses appels PATCH/DELETE sans route) ; accueil élève : auteur et cours enfin affichés, messages principaux seulement (`top_level`) ; erreurs plus avalées | — |
-| ELN-PERSIST | P2 | Leçons non enregistrées | Aucune table de leçons : modules et leçons de la page admin restent dans le navigateur et ne sont jamais vus des élèves. Avertissement visible ajouté | Décision produit : table + migration + endpoints + permissions + vue élève (+ génération IA réelle si souhaitée) |
+| ELN-PERSIST | ~~P2~~ fait | Leçons non enregistrées | **Fait** (PR feat/elearning-lessons) : tables `elearning_lessons` / `elearning_lesson_progress`, RLS sur les modules, routes personnel + élève, page « Mes cours ». Reste éventuel : quiz, génération IA réelle | — |
 
 ## Qualité de la chaîne CI (2026-11-09)
 

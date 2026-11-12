@@ -1221,7 +1221,6 @@
         "type": "Type",
         "typeVideo": "Vidéo",
         "typeText": "Texte",
-        "typeQuiz": "Quiz",
         "typeDocument": "Document",
         "durationMinutes": "Durée (minutes)",
         "lessonAdded": "Leçon ajoutée",
@@ -1230,8 +1229,20 @@
         "add": "Ajouter",
         "update": "Mettre à jour",
         "cancel": "Annuler",
-        "lessonsNotSavedTitle": "Modules et leçons non enregistrés",
-        "lessonsNotSavedDescription": "Les modules et leçons créés ici restent dans ce navigateur et disparaissent au rechargement de la page : leur enregistrement sur le serveur n'est pas encore disponible. Les élèves ne les voient pas."
+        "lessonContent": "Contenu de la leçon",
+        "lessonContentPlaceholder": "Texte de la leçon (affiché tel quel aux élèves)",
+        "resourceUrl": "Lien vers une ressource (facultatif)",
+        "resourceUrlHttps": "Le lien doit commencer par https://",
+        "published": "Publiée",
+        "publishedHelp": "Visible par les élèves du niveau du cours",
+        "draft": "Brouillon",
+        "lessonDeleted": "Leçon supprimée",
+        "saveError": "Enregistrement impossible",
+        "loadError": "Impossible de charger le programme du cours",
+        "programTitle": "Programme du cours",
+        "noModules": "Aucun module créé pour ce cours",
+        "deleteModule": "Supprimer le module",
+        "deleteLesson": "Supprimer la leçon"
     },
     "sponsorships": {
         "pageTitle": "Parrainages",
@@ -3071,5 +3082,24 @@
             "othersRevokedTitle": "Appareils déconnectés",
             "othersRevokedBody": "Déconnectés : {{ok}} — en échec : {{failed}}"
         }
+    },
+    "studentElearning": {
+        "nav": "Mes cours",
+        "title": "Mes cours en ligne",
+        "subtitle": "Les cours publiés pour votre niveau",
+        "loadError": "Impossible de charger vos cours",
+        "empty": "Aucun cours en ligne n'est publié pour votre niveau pour le moment.",
+        "lessonsDone": "{{done}} leçon(s) terminée(s) sur {{total}}",
+        "progress": "Progression",
+        "continue": "Continuer",
+        "open": "Commencer",
+        "back": "Retour à mes cours",
+        "programme": "Programme du cours",
+        "completed": "Terminée",
+        "duration": "{{minutes}} min",
+        "openResource": "Ouvrir la ressource",
+        "markDone": "Marquer comme terminée",
+        "lessonCompleted": "Leçon terminée",
+        "saveError": "Enregistrement impossible"
     }
 }

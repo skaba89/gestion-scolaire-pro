@@ -979,3 +979,18 @@ ce fichier — pas d'un document de 2025 non révisé.
   serveur ; une entrée corrigée restée dans la liste est détectée. En CI, sur
   la base peuplée par les parcours, il a en plus trouvé l'effacement des
   matières par l'assistant de configuration (#537).
+
+- **2026-11-12 — leçons e-learning enregistrées et suivies par les élèves
+  (ELN-PERSIST).** Les modules et leçons de `/admin/elearning` restaient dans
+  le navigateur (aucune table de leçons, aucune route d'écriture des modules)
+  et aucun élève n'y avait accès. Migration `20261112_0001` : `tenant_id` +
+  RLS sur `elearning_modules`, nouvelles tables `elearning_lessons` et
+  `elearning_lesson_progress` (RLS FORCE). Routes du personnel (programme,
+  modules, leçons ; un enseignant ne gère que ses propres cours, règle
+  appliquée aussi à la modification et à la suppression de cours) et de
+  l'élève (`/me/elearning/` : cours publiés de son niveau, leçons publiées,
+  « terminée », progression). Nouvelle page élève « Mes cours »
+  (`/student/courses`). Contenu en texte brut, liens `https://` seulement.
+  Tests : `tests/test_elearning_lessons.py` (PostgreSQL), Vitest (page admin,
+  page élève, programme), parcours E2E 17. Production vérifiée en lecture
+  seule avant la migration : 0 cours, 0 module.

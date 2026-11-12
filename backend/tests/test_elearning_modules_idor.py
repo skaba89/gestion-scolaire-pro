@@ -61,9 +61,9 @@ def _make_course_with_module(tenant_id: str) -> str:
         """), {"tid": tenant_id}).mappings().first()
         course_id = str(course["id"])
         db.execute(text("""
-            INSERT INTO elearning_modules (course_id, title, description, order_index)
-            VALUES (:cid, 'Module confidentiel', 'contenu sensible', 0)
-        """), {"cid": course_id})
+            INSERT INTO elearning_modules (tenant_id, course_id, title, description, order_index)
+            VALUES (:tid, :cid, 'Module confidentiel', 'contenu sensible', 0)
+        """), {"tid": tenant_id, "cid": course_id})
         db.commit()
     return course_id
 

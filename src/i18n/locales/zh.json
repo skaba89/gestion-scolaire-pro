@@ -1179,7 +1179,6 @@
     "type": "类型",
     "typeVideo": "视频",
     "typeText": "文本",
-    "typeQuiz": "测验",
     "typeDocument": "文档",
     "durationMinutes": "时长（分钟）",
     "lessonAdded": "课时已添加",
@@ -1188,8 +1187,20 @@
     "add": "添加",
     "update": "更新",
     "cancel": "取消",
-    "lessonsNotSavedTitle": "模块和课程尚未保存",
-    "lessonsNotSavedDescription": "在此创建的模块和课程仅保留在本浏览器中，刷新页面后会丢失：目前尚不支持保存到服务器。学生无法看到它们。"
+    "lessonContent": "课程内容",
+    "lessonContentPlaceholder": "课时文本（按原样显示给学生）",
+    "resourceUrl": "资源链接（可选）",
+    "resourceUrlHttps": "链接必须以 https:// 开头",
+    "published": "已发布",
+    "publishedHelp": "对该课程年级的学生可见",
+    "draft": "草稿",
+    "lessonDeleted": "课时已删除",
+    "saveError": "无法保存",
+    "loadError": "无法加载课程大纲",
+    "programTitle": "课程大纲",
+    "noModules": "此课程尚未创建模块",
+    "deleteModule": "删除模块",
+    "deleteLesson": "删除课时"
   },
   "sponsorships": {
     "pageTitle": "助学计划",
@@ -3153,5 +3164,24 @@
       "othersRevokedTitle": "其他设备已退出",
       "othersRevokedBody": "已退出：{{ok}} — 失败：{{failed}}"
     }
+  },
+  "studentElearning": {
+    "nav": "我的课程",
+    "title": "我的在线课程",
+    "subtitle": "为你的年级发布的课程",
+    "loadError": "无法加载你的课程",
+    "empty": "目前还没有为你的年级发布在线课程。",
+    "lessonsDone": "已完成 {{done}}/{{total}} 课时",
+    "progress": "进度",
+    "continue": "继续",
+    "open": "开始",
+    "back": "返回我的课程",
+    "programme": "课程大纲",
+    "completed": "已完成",
+    "duration": "{{minutes}} 分钟",
+    "openResource": "打开资源",
+    "markDone": "标记为已完成",
+    "lessonCompleted": "课时已完成",
+    "saveError": "无法保存"
   }
 }

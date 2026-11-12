@@ -2,6 +2,7 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 import logging
+from uuid import UUID
 import csv
 import io
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -1091,7 +1092,7 @@ def create_elearning_course(
 
 @router.put("/elearning/courses/{course_id}/")
 def update_elearning_course(
-    course_id: str,
+    course_id: UUID,
     body: CourseUpdate,
     request: Request,
     db: Session = Depends(get_db),
@@ -1099,7 +1100,11 @@ def update_elearning_course(
 ):
     """Update an e-learning course."""
     from fastapi import HTTPException
+    from app.api.v1.endpoints.academic.elearning import _course, _require_course_manager
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # 2026-11-12 : un enseignant ne modifie que ses propres cours.
+    _require_course_manager(current_user, _course(db, tenant_id, course_id))
+    course_id = str(course_id)
     updates = {k: v for k, v in body.model_dump(exclude_unset=True).items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -1123,15 +1128,24 @@ def update_elearning_course(
 
 @router.delete("/elearning/courses/{course_id}/", status_code=204)
 def delete_elearning_course(
-    course_id: str,
+    course_id: UUID,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:write")),
 ):
-    """Delete an e-learning course."""
+    """Delete an e-learning course (its modules, lessons and progress cascade).
+
+    2026-11-12 : un enseignant ne supprime que ses propres cours ; 404 sur un
+    cours inconnu (avant : 204 silencieux) ; suppression journalisée."""
+    from app.api.v1.endpoints.academic.elearning import _course, _require_course_manager
+    from app.utils.audit import log_audit
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    course = _course(db, tenant_id, course_id)
+    _require_course_manager(current_user, course)
     db.execute(text("DELETE FROM elearning_courses WHERE id = :id AND tenant_id = :tid"),
-               {"id": course_id, "tid": tenant_id})
+               {"id": str(course_id), "tid": tenant_id})
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id, action="DELETE_ELEARNING_COURSE",
+              resource_type="ELEARNING_COURSE", resource_id=str(course_id), details={"title": course["title"]})
     db.commit()
     return None
 

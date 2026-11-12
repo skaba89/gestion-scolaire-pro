@@ -1,12 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CourseContent } from "../CourseContent";
+import type { ElearningLesson, ElearningModule } from "@/lib/elearning";
+import i18n from "@/i18n/config";
+
+beforeAll(async () => {
+  await i18n.changeLanguage("fr");
+});
 
 vi.mock("@/contexts/TenantContext", () => ({ useTenant: () => ({ tenant: { id: "t1" } }) }));
 
-const lesson = { id: "l1", title: "Leçon 1", type: "video", duration: 30 };
-const module = { id: "m1", title: "Module 1", lessons: [lesson] };
+const lesson: ElearningLesson = {
+  id: "l1", course_id: "c1", module_id: "m1", title: "Leçon 1", content: null, resource_url: null,
+  lesson_type: "video", duration_minutes: 30, order_index: 0, is_published: false,
+};
+const module: ElearningModule = {
+  id: "m1", course_id: "c1", title: "Module 1", description: null, order_index: 0, lessons: [lesson],
+};
 
 function renderContent() {
   const handlers = {
@@ -40,5 +51,10 @@ describe("CourseContent", () => {
     expect(h.onEditLesson).toHaveBeenCalledWith(lesson, "m1");
     fireEvent.click(screen.getByLabelText("Supprimer la leçon"));
     expect(h.onDeleteLesson).toHaveBeenCalledWith(lesson, "m1");
+  });
+
+  it("marks an unpublished lesson as a draft", () => {
+    renderContent();
+    expect(screen.getByText("Brouillon")).toBeInTheDocument();
   });
 });

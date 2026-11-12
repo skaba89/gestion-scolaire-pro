@@ -4,9 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Plus, ChevronLeft, GraduationCap } from "lucide-react";
+import { Plus, ChevronLeft, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { adminQueries } from "@/queries/admin";
 import { CourseGrid } from "@/components/admin/elearning/CourseGrid";
 import { CourseContent } from "@/components/admin/elearning/CourseContent";
@@ -21,25 +20,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { apiErrorDetail } from "@/lib/api-error";
+import {
+  createLesson,
+  createModule,
+  deleteLesson,
+  deleteModule,
+  elearningKeys,
+  fetchCourseContent,
+  updateLesson,
+  updateModule,
+  type ElearningLesson,
+  type ElearningModule,
+  type LessonInput,
+  type LessonType,
+} from "@/lib/elearning";
 
-interface LocalModule {
-  id: string;
-  title: string;
-  description: string;
-  order: number;
-  lessons: LocalLesson[];
-}
-
-interface LocalLesson {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
-  duration: number;
-  order: number;
-}
-
-const generateId = () => Math.random().toString(36).substring(2, 11);
+// 2026-11-12 : modules et leçons sont enregistrés en base (avant : état local
+// du navigateur, perdu au rechargement et jamais vu des élèves).
+const EMPTY_LESSON: LessonInput = {
+  title: "", content: "", resource_url: "", lesson_type: "text", duration_minutes: null, is_published: false,
+};
 
 export default function Elearning() {
   const { t } = useTranslation();
@@ -49,34 +52,29 @@ export default function Elearning() {
   const [isCourseDialogOpen, setIsCourseDialogOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<any>(null);
 
-  // Local state for modules/lessons (no backend available)
-  const [localModules, setLocalModules] = useState<LocalModule[]>([]);
-
   // Module dialog state
   const [isModuleDialogOpen, setIsModuleDialogOpen] = useState(false);
-  const [editingModule, setEditingModule] = useState<LocalModule | null>(null);
+  const [editingModule, setEditingModule] = useState<ElearningModule | null>(null);
   const [moduleTitle, setModuleTitle] = useState("");
   const [moduleDescription, setModuleDescription] = useState("");
 
   // Lesson dialog state
   const [isLessonDialogOpen, setIsLessonDialogOpen] = useState(false);
-  const [editingLesson, setEditingLesson] = useState<LocalLesson | null>(null);
+  const [editingLesson, setEditingLesson] = useState<ElearningLesson | null>(null);
   const [targetModuleId, setTargetModuleId] = useState<string>("");
-  const [lessonTitle, setLessonTitle] = useState("");
-  const [lessonDescription, setLessonDescription] = useState("");
-  const [lessonType, setLessonType] = useState("video");
-  const [lessonDuration, setLessonDuration] = useState(30);
+  const [lessonForm, setLessonForm] = useState<LessonInput>(EMPTY_LESSON);
 
   // Queries
   const { data: courses = [], isLoading: isLoadingCourses } = useQuery(adminQueries.adminCourses(tenant?.id || ""));
   const { data: enrollments = [] } = useQuery(adminQueries.adminCourseEnrollments(tenant?.id || ""));
-  const { data: selectedCourseModules = [] } = useQuery({
-    ...adminQueries.adminCourseModules(selectedCourseId || ""),
+  const { data: modules = [], isError: contentError } = useQuery({
+    queryKey: elearningKeys.content(selectedCourseId || ""),
+    queryFn: () => fetchCourseContent(selectedCourseId as string),
     enabled: !!selectedCourseId,
   });
-
-  // Use local modules if we have them for the selected course, otherwise use fetched data
-  const displayModules = localModules.length > 0 ? localModules : (selectedCourseModules as any[]);
+  const refreshContent = () =>
+    queryClient.invalidateQueries({ queryKey: elearningKeys.content(selectedCourseId || "") });
+  const onSaveError = (error: unknown) => toast.error(apiErrorDetail(error) || t("elearning.saveError"));
 
   // Mutations
   const courseMutation = useMutation({
@@ -99,6 +97,7 @@ export default function Elearning() {
       setEditingCourse(null);
       toast.success(editingCourse ? t("elearning.courseUpdated") : t("elearning.courseCreated"));
     },
+    onError: onSaveError,
   });
 
   const deleteCourseMutation = useMutation({
@@ -109,6 +108,61 @@ export default function Elearning() {
       queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       toast.success(t("elearning.courseDeleted"));
     },
+    onError: onSaveError,
+  });
+
+  const moduleMutation = useMutation({
+    mutationFn: async () => {
+      const body = { title: moduleTitle.trim(), description: moduleDescription.trim() || null };
+      if (editingModule) await updateModule(editingModule.id, body);
+      else await createModule(selectedCourseId as string, body);
+    },
+    onSuccess: () => {
+      toast.success(editingModule ? t("elearning.moduleUpdated") : t("elearning.moduleAdded"));
+      setIsModuleDialogOpen(false);
+      setEditingModule(null);
+      refreshContent();
+    },
+    onError: onSaveError,
+  });
+
+  const deleteModuleMutation = useMutation({
+    mutationFn: (moduleId: string) => deleteModule(moduleId),
+    onSuccess: () => {
+      toast.success(t("elearning.moduleDeleted"));
+      refreshContent();
+    },
+    onError: onSaveError,
+  });
+
+  const lessonMutation = useMutation({
+    mutationFn: async () => {
+      const body: LessonInput = {
+        ...lessonForm,
+        title: lessonForm.title.trim(),
+        content: lessonForm.content?.trim() || null,
+        resource_url: lessonForm.resource_url?.trim() || null,
+        duration_minutes: lessonForm.duration_minutes || null,
+      };
+      if (editingLesson) await updateLesson(editingLesson.id, body);
+      else await createLesson(targetModuleId, body);
+    },
+    onSuccess: () => {
+      toast.success(editingLesson ? t("elearning.lessonUpdated") : t("elearning.lessonAdded"));
+      setIsLessonDialogOpen(false);
+      setEditingLesson(null);
+      refreshContent();
+    },
+    onError: onSaveError,
+  });
+
+  const deleteLessonMutation = useMutation({
+    mutationFn: (lessonId: string) => deleteLesson(lessonId),
+    onSuccess: () => {
+      toast.success(t("elearning.lessonDeleted"));
+      refreshContent();
+    },
+    onError: onSaveError,
   });
 
   const handleEditCourse = (course: any) => {
@@ -124,46 +178,16 @@ export default function Elearning() {
     setIsModuleDialogOpen(true);
   };
 
-  const handleEditModule = (module: any) => {
+  const handleEditModule = (module: ElearningModule) => {
     setEditingModule(module);
     setModuleTitle(module.title);
     setModuleDescription(module.description || "");
     setIsModuleDialogOpen(true);
   };
 
-  const handleSaveModule = () => {
-    if (!moduleTitle.trim()) return;
-
-    if (editingModule) {
-      setLocalModules((prev) =>
-        prev.map((m) =>
-          m.id === editingModule.id
-            ? { ...m, title: moduleTitle.trim(), description: moduleDescription.trim() }
-            : m
-        )
-      );
-      toast.success(t("elearning.moduleUpdated"));
-    } else {
-      const newModule: LocalModule = {
-        id: generateId(),
-        title: moduleTitle.trim(),
-        description: moduleDescription.trim(),
-        order: localModules.length + 1,
-        lessons: [],
-      };
-      setLocalModules((prev) => [...prev, newModule]);
-      toast.success(t("elearning.moduleAdded"));
-    }
-    setIsModuleDialogOpen(false);
-    setModuleTitle("");
-    setModuleDescription("");
-    setEditingModule(null);
-  };
-
-  const handleDeleteModule = (module: any) => {
+  const handleDeleteModule = (module: ElearningModule) => {
     if (confirm(t("elearning.confirmDeleteModule", { title: module.title }))) {
-      setLocalModules((prev) => prev.filter((m) => m.id !== module.id));
-      toast.success(t("elearning.moduleDeleted"));
+      deleteModuleMutation.mutate(module.id);
     }
   };
 
@@ -171,94 +195,37 @@ export default function Elearning() {
   const handleAddLesson = (moduleId: string) => {
     setTargetModuleId(moduleId);
     setEditingLesson(null);
-    setLessonTitle("");
-    setLessonDescription("");
-    setLessonType("video");
-    setLessonDuration(30);
+    setLessonForm(EMPTY_LESSON);
     setIsLessonDialogOpen(true);
   };
 
-  const handleEditLesson = (lesson: any, moduleId: string) => {
+  const handleEditLesson = (lesson: ElearningLesson, moduleId: string) => {
     setTargetModuleId(moduleId);
     setEditingLesson(lesson);
-    setLessonTitle(lesson.title);
-    setLessonDescription(lesson.description || "");
-    setLessonType(lesson.type || "video");
-    setLessonDuration(lesson.duration || 30);
+    setLessonForm({
+      title: lesson.title,
+      content: lesson.content || "",
+      resource_url: lesson.resource_url || "",
+      lesson_type: lesson.lesson_type,
+      duration_minutes: lesson.duration_minutes,
+      is_published: lesson.is_published,
+    });
     setIsLessonDialogOpen(true);
   };
 
-  const handleDeleteLesson = (lesson: any, moduleId: string) => {
+  const handleDeleteLesson = (lesson: ElearningLesson) => {
     if (confirm(t("elearning.confirmDeleteLesson", { title: lesson.title }))) {
-      setLocalModules((prev) =>
-        prev.map((m) =>
-          m.id === moduleId
-            ? { ...m, lessons: m.lessons.filter((l) => l.id !== lesson.id) }
-            : m
-        )
-      );
-      toast.success("Leçon supprimée");
+      deleteLessonMutation.mutate(lesson.id);
     }
   };
 
-  const handleSaveLesson = () => {
-    if (!lessonTitle.trim()) return;
-
-    if (editingLesson) {
-      setLocalModules((prev) =>
-        prev.map((m) =>
-          m.id === targetModuleId
-            ? {
-                ...m,
-                lessons: m.lessons.map((l) =>
-                  l.id === editingLesson.id
-                    ? {
-                        ...l,
-                        title: lessonTitle.trim(),
-                        description: lessonDescription.trim(),
-                        type: lessonType,
-                        duration: lessonDuration,
-                      }
-                    : l
-                ),
-              }
-            : m
-        )
-      );
-      toast.success(t("elearning.lessonUpdated"));
-    } else {
-      const newLesson: LocalLesson = {
-        id: generateId(),
-        title: lessonTitle.trim(),
-        description: lessonDescription.trim(),
-        type: lessonType,
-        duration: lessonDuration,
-        order: (localModules.find((m) => m.id === targetModuleId)?.lessons.length || 0) + 1,
-      };
-      setLocalModules((prev) =>
-        prev.map((m) =>
-          m.id === targetModuleId
-            ? { ...m, lessons: [...m.lessons, newLesson] }
-            : m
-        )
-      );
-      toast.success(t("elearning.lessonAdded"));
-    }
-    setIsLessonDialogOpen(false);
-    setLessonTitle("");
-    setLessonDescription("");
-    setEditingLesson(null);
-  };
+  const urlInvalid = !!lessonForm.resource_url?.trim() && !/^https:\/\//i.test(lessonForm.resource_url.trim());
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
 
-  // Calculate completion rate from actual data
-  const totalLessons = localModules.reduce((sum, m) => sum + m.lessons.length, 0);
-  const completionRate = totalLessons > 0
-    ? Math.round((localModules.filter((m) => m.lessons.length > 0).length / localModules.length) * 100)
-    : courses.length > 0
-      ? Math.round((courses.filter((c) => c.status === "published").length / courses.length) * 100)
-      : 0;
+  const completionRate = courses.length > 0
+    ? Math.round((courses.filter((c) => c.status === "published").length / courses.length) * 100)
+    : 0;
 
   const stats = {
     totalCourses: courses.length,
@@ -301,10 +268,7 @@ export default function Elearning() {
             onDelete={(id) => {
               if (confirm(t("elearning.confirmDeleteCourse"))) deleteCourseMutation.mutate(id);
             }}
-            onView={(id) => {
-              setSelectedCourseId(id);
-              setLocalModules([]); // Reset local modules when switching courses
-            }}
+            onView={(id) => setSelectedCourseId(id)}
           />
         </>
       ) : (
@@ -314,23 +278,19 @@ export default function Elearning() {
             {t("elearning.backToCatalog")}
           </Button>
 
-          {/* Honnêteté (2026-11-11) : modules et leçons ne sont pas encore
-              enregistrés côté serveur (aucune table) — l'admin doit le savoir. */}
-          <Alert role="status">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("elearning.lessonsNotSavedTitle")}</AlertTitle>
-            <AlertDescription>{t("elearning.lessonsNotSavedDescription")}</AlertDescription>
-          </Alert>
+          {contentError && (
+            <p role="alert" className="text-sm text-destructive">{t("elearning.loadError")}</p>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <CourseContent
                 courseId={selectedCourseId}
-                modules={displayModules}
+                modules={modules}
                 onAddModule={handleAddModule}
-                onEditModule={(module: any) => handleEditModule(module)}
+                onEditModule={handleEditModule}
                 onDeleteModule={handleDeleteModule}
-                onAddLesson={(moduleId: string) => handleAddLesson(moduleId)}
+                onAddLesson={handleAddLesson}
                 onEditLesson={handleEditLesson}
                 onDeleteLesson={handleDeleteLesson}
               />
@@ -402,7 +362,7 @@ export default function Elearning() {
             <Button variant="outline" onClick={() => setIsModuleDialogOpen(false)}>
               {t("elearning.cancel")}
             </Button>
-            <Button onClick={handleSaveModule} disabled={!moduleTitle.trim()}>
+            <Button onClick={() => moduleMutation.mutate()} disabled={!moduleTitle.trim() || moduleMutation.isPending}>
               {editingModule ? t("elearning.update") : t("elearning.add")}
             </Button>
           </DialogFooter>
@@ -417,51 +377,87 @@ export default function Elearning() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>{t("elearning.lessonTitle")}</Label>
+              <Label htmlFor="lesson-title">{t("elearning.lessonTitle")}</Label>
               <Input
-                value={lessonTitle}
-                onChange={(e) => setLessonTitle(e.target.value)}
+                id="lesson-title"
+                value={lessonForm.title}
+                maxLength={200}
+                onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })}
                 placeholder={t("elearning.lessonTitlePlaceholder")}
               />
             </div>
             <div className="space-y-2">
-              <Label>{t("elearning.description")}</Label>
-              <Input
-                value={lessonDescription}
-                onChange={(e) => setLessonDescription(e.target.value)}
-                placeholder={t("elearning.lessonDescPlaceholder")}
+              <Label htmlFor="lesson-content">{t("elearning.lessonContent")}</Label>
+              <Textarea
+                id="lesson-content"
+                rows={6}
+                value={lessonForm.content || ""}
+                onChange={(e) => setLessonForm({ ...lessonForm, content: e.target.value })}
+                placeholder={t("elearning.lessonContentPlaceholder")}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lesson-url">{t("elearning.resourceUrl")}</Label>
+              <Input
+                id="lesson-url"
+                type="url"
+                inputMode="url"
+                value={lessonForm.resource_url || ""}
+                onChange={(e) => setLessonForm({ ...lessonForm, resource_url: e.target.value })}
+                placeholder="https://"
+                aria-invalid={urlInvalid}
+              />
+              {urlInvalid && <p className="text-xs text-destructive">{t("elearning.resourceUrlHttps")}</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{t("elearning.type")}</Label>
+                <Label htmlFor="lesson-type">{t("elearning.type")}</Label>
                 <select
-                  value={lessonType}
-                  onChange={(e) => setLessonType(e.target.value)}
+                  id="lesson-type"
+                  value={lessonForm.lesson_type}
+                  onChange={(e) => setLessonForm({ ...lessonForm, lesson_type: e.target.value as LessonType })}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="video">{t("elearning.typeVideo")}</option>
                   <option value="text">{t("elearning.typeText")}</option>
-                  <option value="quiz">{t("elearning.typeQuiz")}</option>
+                  <option value="video">{t("elearning.typeVideo")}</option>
                   <option value="document">{t("elearning.typeDocument")}</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>{t("elearning.durationMinutes")}</Label>
+                <Label htmlFor="lesson-duration">{t("elearning.durationMinutes")}</Label>
                 <Input
+                  id="lesson-duration"
                   type="number"
-                  value={lessonDuration}
-                  onChange={(e) => setLessonDuration(parseInt(e.target.value) || 0)}
                   min={1}
+                  max={1440}
+                  value={lessonForm.duration_minutes ?? ""}
+                  onChange={(e) => setLessonForm({
+                    ...lessonForm,
+                    duration_minutes: e.target.value === "" ? null : parseInt(e.target.value) || null,
+                  })}
                 />
               </div>
+            </div>
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <Label htmlFor="lesson-published">{t("elearning.published")}</Label>
+                <p className="text-xs text-muted-foreground">{t("elearning.publishedHelp")}</p>
+              </div>
+              <Switch
+                id="lesson-published"
+                checked={lessonForm.is_published}
+                onCheckedChange={(checked) => setLessonForm({ ...lessonForm, is_published: checked })}
+              />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsLessonDialogOpen(false)}>
               {t("elearning.cancel")}
             </Button>
-            <Button onClick={handleSaveLesson} disabled={!lessonTitle.trim()}>
+            <Button
+              onClick={() => lessonMutation.mutate()}
+              disabled={!lessonForm.title.trim() || urlInvalid || lessonMutation.isPending}
+            >
               {editingLesson ? t("elearning.update") : t("elearning.add")}
             </Button>
           </DialogFooter>
