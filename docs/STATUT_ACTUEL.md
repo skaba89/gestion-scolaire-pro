@@ -963,3 +963,19 @@ ce fichier — pas d'un document de 2025 non révisé.
   2026-11-12 avant correctif : un seul établissement, 0 classe, 0 évaluation,
   0 note — aucune perte. Test : `tests/test_onboarding_never_deletes.py`
   (7 cas rouges avant le correctif).
+
+- **2026-11-12 — parcours de toutes les routes d'écriture dans la CI
+  (CRAWL-W, lot D).** Le job « E2E Journeys (real stack) » appelle, après le
+  parcours des lectures, chaque route POST/PUT/PATCH/DELETE avec le compte
+  administrateur de recette (API sous rôle NOBYPASSRLS) : corps vide, puis
+  corps généré depuis l'OpenAPI avec des UUID inexistants dans les champs
+  `*_id` et les chemins (rien d'existant n'est modifié). Toute réponse
+  500/501/504 absente de `scripts/ci/write-crawl-known-failures.json` fait
+  échouer la fusion ; une entrée de cette liste qui ne répond plus 5xx aussi
+  (cliquet). Les 502/503 (dépendance externe non configurée en CI) sont
+  comptés sans bloquer. Exclus : authentification, MFA, amorçage, webhooks,
+  envois externes, IA, abonnement, réglages de sécurité. Vérifié localement
+  sur le code de #533 + #534 + #535 : 305 opérations, 515 appels, 0 erreur
+  serveur ; une entrée corrigée restée dans la liste est détectée. En CI, sur
+  la base peuplée par les parcours, il a en plus trouvé l'effacement des
+  matières par l'assistant de configuration (#537).
