@@ -434,6 +434,10 @@ def create_admission(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    # 2026-11-11 (CRAWL-W) : année et niveau étaient insérés sans contrôle
+    # (l'année d'un autre établissement passait la clé étrangère, vérifiée
+    # sans RLS) — même contrôle que les candidatures publiques.
+    _assert_year_and_level_in_tenant(db, tenant_id, payload.academic_year_id, payload.level_id)
     row = db.execute(text("""
         INSERT INTO admission_applications (
             id, tenant_id, academic_year_id, level_id,
@@ -701,6 +705,7 @@ def edit_admission(
     """Update editable fields on a DRAFT application."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
+    _assert_year_and_level_in_tenant(db, tenant_id, updates.get("academic_year_id"), updates.get("level_id"))
     if not updates:
         raise HTTPException(status_code=400, detail="No updatable fields provided")
     set_clause = ", ".join(f"{k} = :{k}" for k in updates)

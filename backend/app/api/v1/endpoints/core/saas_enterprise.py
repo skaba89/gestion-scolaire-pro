@@ -150,7 +150,9 @@ async def update_my_branding(
     settings["branding"] = branding
     tenant.settings = settings
     db.commit()
-    return await get_my_branding(db=db, current_user=current_user)
+    # 2026-11-11 (CRAWL-W) : `request` manquait — TypeError après la
+    # sauvegarde, donc 500 à chaque enregistrement réussi.
+    return await get_my_branding(request=request, db=db, current_user=current_user)
 
 
 @router.get("/domains/me/")

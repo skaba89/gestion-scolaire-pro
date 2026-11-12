@@ -4,6 +4,7 @@ from sqlalchemy import func, inspect, table, column, select, literal, update
 from uuid import UUID
 from datetime import date, datetime
 
+from app.core.tenant_refs import ensure_refs_in_tenant
 from app.models import (
     AcademicYear, Term, Campus, Level, Subject,
     Department, Room, Program, Classroom, Enrollment, Student,
@@ -83,6 +84,7 @@ def get_term(db: Session, term_id: UUID, tenant_id: UUID) -> Optional[Term]:
     return db.query(Term).filter(Term.id == term_id, Term.tenant_id == tenant_id).first()
 
 def create_term(db: Session, obj_in: TermCreate, tenant_id: UUID) -> Term:
+    ensure_refs_in_tenant(db, tenant_id, ("academic_years", obj_in.academic_year_id))
     db_obj = Term(
         **obj_in.model_dump(),
         tenant_id=tenant_id
@@ -241,6 +243,7 @@ def _validate_subject_association_fks(
 
 
 def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subject:
+    ensure_refs_in_tenant(db, tenant_id, ("semesters", obj_in.semester_id))
     _validate_subject_association_fks(
         db, tenant_id=tenant_id,
         department_ids=obj_in.department_ids,
@@ -293,6 +296,7 @@ def update_subject(db: Session, subject_id: UUID, obj_in: SubjectUpdate, tenant_
     dept_ids = update_data.pop("department_ids", None)
     level_ids = update_data.pop("level_ids", None)
     prereq_ids = update_data.pop("prerequisite_subject_ids", None)
+    ensure_refs_in_tenant(db, tenant_id, ("semesters", update_data.get("semester_id")))
 
     _validate_subject_association_fks(
         db, tenant_id=tenant_id,
@@ -373,6 +377,7 @@ def get_department(db: Session, dept_id: UUID, tenant_id: UUID) -> Optional[Depa
     return db.query(Department).filter(Department.id == dept_id, Department.tenant_id == tenant_id).first()
 
 def create_department(db: Session, obj_in: DepartmentCreate, tenant_id: UUID) -> Department:
+    ensure_refs_in_tenant(db, tenant_id, ("users", obj_in.head_id), ("faculties", obj_in.faculty_id))
     db_obj = Department(**obj_in.model_dump(), tenant_id=tenant_id)
     db.add(db_obj)
     db.commit()
@@ -382,7 +387,9 @@ def create_department(db: Session, obj_in: DepartmentCreate, tenant_id: UUID) ->
 def update_department(db: Session, dept_id: UUID, obj_in: DepartmentUpdate, tenant_id: UUID) -> Optional[Department]:
     db_obj = get_department(db, dept_id, tenant_id)
     if not db_obj: return None
-    for field, value in obj_in.model_dump(exclude_unset=True).items():
+    changes = obj_in.model_dump(exclude_unset=True)
+    ensure_refs_in_tenant(db, tenant_id, ("users", changes.get("head_id")), ("faculties", changes.get("faculty_id")))
+    for field, value in changes.items():
         setattr(db_obj, field, value)
     db.add(db_obj)
     db.commit()
@@ -404,6 +411,7 @@ def get_faculty(db: Session, faculty_id: UUID, tenant_id: UUID) -> Optional[Facu
     return db.query(Faculty).filter(Faculty.id == faculty_id, Faculty.tenant_id == tenant_id).first()
 
 def create_faculty(db: Session, obj_in: FacultyCreate, tenant_id: UUID) -> Faculty:
+    ensure_refs_in_tenant(db, tenant_id, ("users", obj_in.dean_id))
     db_obj = Faculty(**obj_in.model_dump(), tenant_id=tenant_id)
     db.add(db_obj)
     db.commit()
@@ -413,7 +421,9 @@ def create_faculty(db: Session, obj_in: FacultyCreate, tenant_id: UUID) -> Facul
 def update_faculty(db: Session, faculty_id: UUID, obj_in: FacultyUpdate, tenant_id: UUID) -> Optional[Faculty]:
     db_obj = get_faculty(db, faculty_id, tenant_id)
     if not db_obj: return None
-    for field, value in obj_in.model_dump(exclude_unset=True).items():
+    changes = obj_in.model_dump(exclude_unset=True)
+    ensure_refs_in_tenant(db, tenant_id, ("users", changes.get("dean_id")))
+    for field, value in changes.items():
         setattr(db_obj, field, value)
     db.add(db_obj)
     db.commit()
@@ -501,6 +511,7 @@ def get_rooms(db: Session, tenant_id: UUID) -> List[Room]:
     return db.query(Room).filter(Room.tenant_id == tenant_id).all()
 
 def create_room(db: Session, obj_in: RoomCreate, tenant_id: UUID) -> Room:
+    ensure_refs_in_tenant(db, tenant_id, ("campuses", obj_in.campus_id))
     db_obj = Room(**obj_in.model_dump(), tenant_id=tenant_id)
     db.add(db_obj)
     db.commit()

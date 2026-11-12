@@ -39,6 +39,7 @@ from app.services.academic_rules import (
     effective_rules, grade_color, mention_background, mention_for,
 )
 from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
+from app.core.tenant_refs import ensure_refs_in_tenant
 from app.schemas.types import UUIDStr
 
 logger = logging.getLogger(__name__)
@@ -75,8 +76,11 @@ def create_assessment(
     # — this just closes the gap on create/update to match.
     current_user: dict = Depends(require_permission("settings:write")),
 ):
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    ensure_refs_in_tenant(db, tenant_id, ("subjects", obj_in.subject_id),
+                          ("academic_years", obj_in.academic_year_id), ("terms", obj_in.term_id))
     try:
-        return crud_sl.create_assessment(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
+        return crud_sl.create_assessment(db, obj_in=obj_in, tenant_id=tenant_id)
     except Exception as e:
         db.rollback()
         logger.error("Error creating assessment: %s", e, exc_info=True)
@@ -217,8 +221,16 @@ def create_grade(
     # with no legitimate workflow depending on the old open access.
     current_user: dict = Depends(require_permission("grades:write")),
 ):
+    # 2026-11-11 (CRAWL-W) : ni FK ni périmètre enseignant n'étaient vérifiés
+    # ici, contrairement à POST /grades/ — mêmes contrôles que la route canonique.
+    from app.api.v1.endpoints.academic.grades import _require_teacher_grade_write_scope
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    ensure_refs_in_tenant(db, tenant_id, ("students", obj_in.student_id),
+                          ("assessments", obj_in.assessment_id), ("subjects", obj_in.subject_id))
+    _require_teacher_grade_write_scope(db, tenant_id=tenant_id, current_user=current_user,
+                                       student_id=obj_in.student_id, assessment_id=obj_in.assessment_id)
     try:
-        return crud_sl.create_grade(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
+        return crud_sl.create_grade(db, obj_in=obj_in, tenant_id=tenant_id)
     except Exception as e:
         db.rollback()
         logger.error("Error creating grade: %s", e, exc_info=True)
@@ -327,8 +339,17 @@ def create_attendance(
     # on the old open access.
     current_user: dict = Depends(require_permission("attendance:write")),
 ):
+    # 2026-11-11 (CRAWL-W) : mêmes contrôles que POST /attendance/ (FK du
+    # tenant, enseignant limité à ses classes).
+    from app.api.v1.endpoints.academic.attendance import _teacher_may_create
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    ensure_refs_in_tenant(db, tenant_id, ("students", obj_in.student_id),
+                          ("subjects", obj_in.subject_id), ("classes", obj_in.classroom_id))
+    if not _teacher_may_create(db, current_user=current_user, tenant_id=tenant_id,
+                               classroom_id=str(obj_in.classroom_id) if obj_in.classroom_id else None):
+        raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
     try:
-        return crud_sl.create_attendance(db, obj_in=obj_in, tenant_id=resolve_current_tenant_id(request, current_user, db))
+        return crud_sl.create_attendance(db, obj_in=obj_in, tenant_id=tenant_id)
     except Exception as e:
         db.rollback()
         logger.error("Error creating attendance: %s", e, exc_info=True)
@@ -1194,6 +1215,23 @@ def update_booking_status(
 
 # --- Check-Ins ---
 
+def _check_session_class(db: Session, *, tenant_id: str, current_user: dict,
+                         class_id: Optional[UUID], subject_id: Optional[UUID] = None) -> None:
+    """Séance de pointage : classe et matière de l'établissement courant, et
+    un enseignant ne pointe que ses propres classes.
+
+    2026-11-11 (CRAWL-W) : classroom_id/class_id/subject_id étaient insérés
+    tels quels — une séance pouvait viser la classe d'un autre établissement
+    (la contrainte de clé étrangère ne passe pas par la RLS) ou une classe
+    que l'enseignant n'a pas."""
+    ensure_refs_in_tenant(db, tenant_id, ("classes", class_id), ("subjects", subject_id))
+    if is_scoped_teacher(current_user) and not (
+        class_id and teacher_teaches_class(db, tenant_id=tenant_id, user_id=current_user.get("id"),
+                                           class_id=str(class_id))
+    ):
+        raise HTTPException(status_code=403, detail="Accès non autorisé à cette classe")
+
+
 class CheckInSessionCreate(BaseModel):
     classroom_id: Optional[UUID] = None
     notes: Optional[str] = None
@@ -1286,6 +1324,8 @@ def create_check_in_session(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _check_session_class(db, tenant_id=tenant_id, current_user=current_user,
+                         class_id=obj_in.classroom_id)
     try:
         session_id = str(uuid4())
         db.execute(
@@ -1340,6 +1380,8 @@ def start_check_in_session(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _check_session_class(db, tenant_id=tenant_id, current_user=current_user,
+                         class_id=obj_in.class_id, subject_id=obj_in.subject_id)
     try:
         session_id = str(uuid4())
         db.execute(
@@ -1576,6 +1618,8 @@ def create_check_in(
 ):
     try:
         tenant_id = resolve_current_tenant_id(request, current_user, db)
+        ensure_refs_in_tenant(db, tenant_id, ("students", obj_in.student_id),
+                              ("check_in_sessions", obj_in.session_id))
         if not _can_access_checkin_for_student(db, current_user=current_user, student_id=obj_in.student_id, tenant_id=tenant_id, write=True):
             raise HTTPException(status_code=403, detail="Not authorized to check in this student.")
         return crud_sl.create_check_in(db, obj_in=obj_in, tenant_id=tenant_id)

@@ -24,6 +24,7 @@ from app.schemas.library import (
     ResourceCreate, ResourceUpdate, ResourceOut,
     BorrowRequest, ReturnRequest,
 )
+from app.core.tenant_refs import ensure_in_tenant
 from app.crud import library as crud_library
 
 router = APIRouter()
@@ -186,6 +187,7 @@ def create_resource(
     tenant_id = resolve_current_tenant_id(request, current_user, db)
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    ensure_in_tenant(db, tenant_id, "library_categories", resource.category_id)
     try:
         uploaded_by = current_user.get("id")
         db_obj = crud_library.create_resource(db, resource, tenant_id, uploaded_by)
@@ -218,6 +220,7 @@ def update_resource(
         raise HTTPException(status_code=404, detail="Resource not found")
     if not resource.model_dump(exclude_unset=True):
         raise HTTPException(status_code=400, detail="No fields to update")
+    ensure_in_tenant(db, tenant_id, "library_categories", resource.category_id)
     try:
         db_obj = crud_library.update_resource(db, db_obj, resource)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,

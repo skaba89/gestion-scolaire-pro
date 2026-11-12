@@ -105,11 +105,21 @@ class TestGradeWriteAuthorization:
         }), json={"student_id": student_id, "score": 20.0, "max_score": 20.0})
         assert resp.status_code == 403, resp.text
 
-    def test_teacher_can_create_grade(self):
+    def test_teacher_cannot_grade_outside_own_classes(self):
+        # 2026-11-11 (CRAWL-W) : cette route en doublon laissait un enseignant
+        # noter n'importe quel élève ; même périmètre que POST /grades/.
         tenant_id = _make_tenant()
         student_id = _make_student(tenant_id)
         resp = client.post(GRADES_URL, headers=_as({
             "id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id,
+        }), json={"student_id": student_id, "score": 15.0, "max_score": 20.0})
+        assert resp.status_code == 403, resp.text
+
+    def test_tenant_admin_can_create_grade(self):
+        tenant_id = _make_tenant()
+        student_id = _make_student(tenant_id)
+        resp = client.post(GRADES_URL, headers=_as({
+            "id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id,
         }), json={"student_id": student_id, "score": 15.0, "max_score": 20.0})
         assert resp.status_code == 200, resp.text
 
@@ -123,11 +133,20 @@ class TestAttendanceWriteAuthorization:
         }), json={"student_id": student_id, "date": str(date.today()), "status": "PRESENT"})
         assert resp.status_code == 403, resp.text
 
-    def test_teacher_can_mark_attendance(self):
+    def test_teacher_cannot_mark_attendance_without_own_class(self):
+        # 2026-11-11 (CRAWL-W) : même règle que POST /attendance/.
         tenant_id = _make_tenant()
         student_id = _make_student(tenant_id)
         resp = client.post(ATTENDANCE_URL, headers=_as({
             "id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id,
+        }), json={"student_id": student_id, "date": str(date.today()), "status": "PRESENT"})
+        assert resp.status_code == 403, resp.text
+
+    def test_tenant_admin_can_mark_attendance(self):
+        tenant_id = _make_tenant()
+        student_id = _make_student(tenant_id)
+        resp = client.post(ATTENDANCE_URL, headers=_as({
+            "id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id,
         }), json={"student_id": student_id, "date": str(date.today()), "status": "PRESENT"})
         assert resp.status_code == 200, resp.text
 

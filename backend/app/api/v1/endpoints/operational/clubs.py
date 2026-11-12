@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
+from app.core.tenant_refs import ensure_in_tenant
 from app.crud import club as crud_club
 from app.schemas.club import (
     ClubCreate, ClubUpdate, ClubOut,
@@ -44,6 +45,7 @@ def create_club(
 ):
     """Create a new club."""
     tenant_id = _require_tenant(request, current_user, db)
+    ensure_in_tenant(db, tenant_id, "users", club.advisor_id)
     try:
         db_obj = crud_club.create_club(db, club, tenant_id)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
@@ -69,6 +71,7 @@ def update_club(
     tenant_id = _require_tenant(request, current_user, db)
     if not any(v is not None for v in club.model_dump().values()):
         raise HTTPException(status_code=400, detail="No fields to update")
+    ensure_in_tenant(db, tenant_id, "users", club.advisor_id)
     try:
         db_obj = crud_club.get_club(db, club_id, tenant_id)
         if not db_obj:
