@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Dict, Any, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from uuid import UUID
 import datetime, json
 
@@ -908,9 +908,18 @@ def get_forum_post_counts(request: Request, db: Session = Depends(get_db), curre
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
+class ForumIn(BaseModel):
+    """2026-11-11 (CRAWL-W) : le corps était un dict lu par body["title"] —
+    sans titre, KeyError avalé en 500 générique."""
+    title: str = Field(min_length=1, max_length=500)
+    description: Optional[str] = None
+    category: Optional[str] = Field(default=None, max_length=100)
+    is_active: bool = True
+
+
 @router.post("/forums/")
 def create_forum(
-    request: Request, body: dict, db: Session = Depends(get_db),
+    request: Request, body: ForumIn, db: Session = Depends(get_db),
     # SECURITY FIX (institutional-readiness audit, 2026-09): previously
     # get_current_user() only, same class of bug already fixed for
     # create_announcement() above — any authenticated user of any role
@@ -928,8 +937,8 @@ def create_forum(
             VALUES (:tid, :title, :desc, :cat, :active, :uid, NOW())
             RETURNING id
         """), {
-            "tid": tenant_id, "title": body["title"], "desc": body.get("description"),
-            "cat": body.get("category"), "active": body.get("is_active", True),
+            "tid": tenant_id, "title": body.title, "desc": body.description,
+            "cat": body.category, "active": body.is_active,
             "uid": user_id
         }).scalar()
         db.commit()
@@ -943,20 +952,22 @@ def create_forum(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.patch("/forums/{forum_id}/")
-def update_forum(request: Request, forum_id: UUID, body: dict, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("communications:write"))):
+def update_forum(request: Request, forum_id: UUID, body: ForumIn, db: Session = Depends(get_db), current_user: dict = Depends(require_permission("communications:write"))):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
             raise HTTPException(status_code=403, detail="No tenant context")
-        db.execute(text("""
+        result = db.execute(text("""
             UPDATE student_forums SET 
                 title = :title, description = :desc, category = :cat, is_active = :active
             WHERE id = :fid AND tenant_id = :tid
         """), {
             "fid": str(forum_id), "tid": tenant_id,
-            "title": body["title"], "desc": body.get("description"),
-            "cat": body.get("category"), "active": body.get("is_active", True)
+            "title": body.title, "desc": body.description,
+            "cat": body.category, "active": body.is_active,
         })
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Forum introuvable")
         db.commit()
         return {"status": "ok"}
     except HTTPException:
