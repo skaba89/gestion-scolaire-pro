@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
+from pydantic import BaseModel, Field
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Query, Request, Response
 from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 from sqlalchemy.orm import Session
@@ -1972,51 +1972,92 @@ async def update_tenant(
 
     return tenant
 
+class OnboardingSubjectIn(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    code: Optional[str] = Field(default=None, max_length=50)
+    coefficient: float = Field(default=1.0, gt=0, le=100)
+
+
+# 2026-11-12 (CRAWL-W) : ces deux routes commençaient par
+# « DELETE FROM levels|subjects WHERE tenant_id = … ». L'étape « Matières »
+# de l'assistant (/admin/onboarding, toujours accessible) effaçait donc
+# toutes les matières de l'établissement et, par cascade, toutes ses
+# évaluations et notes ; l'étape « Niveaux » répondait 500 dès qu'une classe
+# utilisait un niveau. Elles n'ajoutent plus que ce qui manque (comparaison
+# du nom sans casse) et ne suppriment jamais rien : l'assistant reste
+# rejouable sans perte. La modification et la suppression passent par les
+# pages Niveaux / Matières, qui vérifient les usages.
+
+
+def _existing_names(db: Session, model, tenant_id) -> set:
+    return {(name or "").strip().casefold()
+            for (name,) in db.query(model.name).filter(model.tenant_id == tenant_id).all()}
+
+
 @router.post("/onboarding/levels/")
 async def setup_tenant_levels(
-    levels_in: List[str],
     request: Request,
+    levels_in: List[str] = Body(..., min_length=1, max_length=100),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("levels:write"))
 ):
-    """Batch create levels during onboarding."""
+    """Onboarding : ajoute les niveaux absents, sans jamais en supprimer."""
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant_id = enter_tenant_context_or_404(db, tid_uuid)  # middleware-exempt route: no RLS context yet
 
-    # Clean existing levels if any
-    db.execute(text("DELETE FROM levels WHERE tenant_id = :tid"), {"tid": tenant_id})
-    
-    for i, name in enumerate(levels_in):
-        level = Level(tenant_id=tenant_id, name=name, order_index=i+1)
-        db.add(level)
-    
+    names = [n.strip() for n in levels_in]
+    if any(not n or len(n) > 255 for n in names):
+        raise HTTPException(status_code=422, detail="Nom de niveau vide ou trop long (255 caractères maximum)")
+    existing = _existing_names(db, Level, tenant_id)
+    next_index = (db.query(func.max(Level.order_index)).filter(Level.tenant_id == tenant_id).scalar() or 0) + 1
+    created, kept = [], []
+    for name in names:
+        key = name.casefold()
+        if key in existing:
+            kept.append(name)
+            continue
+        db.add(Level(tenant_id=tenant_id, name=name, order_index=next_index))
+        next_index += 1
+        existing.add(key)
+        created.append(name)
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="ONBOARDING_LEVELS", resource_type="LEVEL",
+              details={"created": len(created), "already_present": len(kept)})
     db.commit()
-    return {"message": f"{len(levels_in)} levels created"}
+    return {"message": f"{len(created)} niveau(x) créé(s), {len(kept)} déjà présent(s)",
+            "created": created, "already_present": kept}
 
 @router.post("/onboarding/subjects/")
 async def setup_tenant_subjects(
-    subjects_in: List[Dict[str, Any]],
     request: Request,
+    subjects_in: List[OnboardingSubjectIn] = Body(..., min_length=1, max_length=200),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("subjects:write"))
 ):
-    """Batch create subjects during onboarding."""
+    """Onboarding : ajoute les matières absentes, sans jamais en supprimer."""
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant_id = enter_tenant_context_or_404(db, tid_uuid)  # middleware-exempt route: no RLS context yet
 
-    db.execute(text("DELETE FROM subjects WHERE tenant_id = :tid"), {"tid": tenant_id})
-    
+    existing = _existing_names(db, Subject, tenant_id)
+    created, kept = [], []
     for sub in subjects_in:
-        subject = Subject(
-            tenant_id=tenant_id,
-            name=sub["name"],
-            code=sub.get("code", sub["name"][:3].upper()),
-            coefficient=sub.get("coefficient", 1)
-        )
-        db.add(subject)
-        
+        name = sub.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="Nom de matière vide")
+        key = name.casefold()
+        if key in existing:
+            kept.append(name)
+            continue
+        db.add(Subject(tenant_id=tenant_id, name=name,
+                       code=sub.code or name[:3].upper(), coefficient=sub.coefficient))
+        existing.add(key)
+        created.append(name)
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="ONBOARDING_SUBJECTS", resource_type="SUBJECT",
+              details={"created": len(created), "already_present": len(kept)})
     db.commit()
-    return {"message": f"{len(subjects_in)} subjects created"}
+    return {"message": f"{len(created)} matière(s) créée(s), {len(kept)} déjà présente(s)",
+            "created": created, "already_present": kept}
 
 @router.patch("/onboarding/complete/")
 async def complete_onboarding(
