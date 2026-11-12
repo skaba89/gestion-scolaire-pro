@@ -223,6 +223,28 @@ class TestClubMembershipsRequiresPermission:
         assert resp.status_code == 200, resp.text
         assert len(resp.json()) == 1
 
+    def test_director_can_list_memberships_of_own_tenant_only(self):
+        """Audit de recette CI (2026-11-12) : la page Clubs du menu directeur
+        répondait 403 (clubs:read réservé à TENANT_ADMIN)."""
+        tenant_id = _make_tenant()
+        other_tenant = _make_tenant()
+        director = _make_user(tenant_id)
+        _make_club_membership(tenant_id, _make_student(tenant_id))
+        _make_club_membership(other_tenant, _make_student(other_tenant))
+
+        resp = _as({"id": director, "roles": ["DIRECTOR"], "tenant_id": tenant_id}).get(
+            "/api/v1/clubs/memberships/", headers=HEADERS,
+        )
+        assert resp.status_code == 200, resp.text
+        assert len(resp.json()) == 1
+
+    def test_accountant_is_still_rejected(self):
+        tenant_id = _make_tenant()
+        resp = _as({"id": str(uuid.uuid4()), "roles": ["ACCOUNTANT"], "tenant_id": tenant_id}).get(
+            "/api/v1/clubs/memberships/", headers=HEADERS,
+        )
+        assert resp.status_code == 403, resp.text
+
 
 @requires_postgres
 class TestInventoryListingRequiresPermission:

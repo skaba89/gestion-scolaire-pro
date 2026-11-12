@@ -684,6 +684,11 @@ ROLE_PERMISSIONS: dict = {
     ],
     "DIRECTOR": [
         "users:read", "users:write",
+        # Audit de recette CI (2026-11-12) : le directeur gère les clubs et
+        # leurs membres (settings:write) mais GET /clubs/memberships/ exigeait
+        # clubs:read, réservé à TENANT_ADMIN — la page Clubs de son menu
+        # répondait 403 et il ne voyait jamais les membres qu'il ajoutait.
+        "clubs:read",
         "ai:audit",
         "students:read", "students:write",
         "enrollments:read", "enrollments:write",
