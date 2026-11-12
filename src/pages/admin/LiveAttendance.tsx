@@ -19,6 +19,7 @@ import { adminQueries } from "@/queries/admin";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { apiErrorDetail } from "@/lib/api-error";
+import { fetchCurrentAcademicYear } from "@/lib/academic-structure";
 
 interface Student {
   id: string;
@@ -123,8 +124,13 @@ export default function LiveAttendancePage() {
     // (capturée par /students/{id}/ → 422) et l'erreur n'était pas gérée :
     // erreur non interceptée, chargement sans fin.
     try {
+      // Année en cours uniquement, un élève une fois : un élève inscrit
+      // (ACTIVE) sur deux années apparaissait deux fois (clé React en double).
+      const year = await fetchCurrentAcademicYear();
+      if (year) params.academic_year_id = year.id;
       const response = await apiClient.get<Enrollment[]>("/enrollments/", { params });
-      setEnrollments(response.data || []);
+      const seen = new Set<string>();
+      setEnrollments((response.data || []).filter((e) => !seen.has(e.student_id) && !!seen.add(e.student_id)));
     } catch (error) {
       toast.error(apiErrorDetail(error) || t("common.error"));
     } finally {

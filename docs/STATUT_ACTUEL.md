@@ -1036,3 +1036,19 @@ ce fichier — pas d'un document de 2025 non révisé.
   capturé par une route à identifiant, ex. `/students/classes/` →
   `/students/{id}/`) : Certificats, Listes de classe, Statistiques
   d'inscription, risque de décrochage, soumissions de devoirs.
+
+- **2026-11-12 — appels vers des routes inexistantes « capturées » (AUD-ROUTES).**
+  L'audit de recette avait trouvé des appels frontend comme
+  `/students/classes/` que le serveur prenait pour `/students/{id}/` (422) :
+  invisibles du contrôle de contrat (le chemin « correspondait » à la route à
+  paramètre) et du parcours 09. **Certificats**, **Listes de classe** et
+  **Statistiques d'inscription** étaient vides ou inutilisables ; ils lisent
+  désormais `/infrastructure/classrooms/`, `/levels/`, `/campuses/`,
+  `/academic-years/`, `/enrollments/` (par lots de 100 classes) et
+  `/admissions/stats/` (`src/lib/academic-structure.ts`) ; les statistiques
+  comptent tous les élèves (toutes les pages, et non plus les 50 premiers) et
+  affichent le genre MALE/FEMALE traduit. Code mort retiré : moteur de risque
+  côté navigateur (`riskAssessment.ts`, jamais appelé ; seuls ses types
+  restent) et `studentsService.getSubmissions`. Le contrôle de contrat signale
+  désormais un segment littéral capturé par un paramètre (et ne coupe plus
+  `${a?.b}` au « ? ») : 0 appel sans route, référence vide.

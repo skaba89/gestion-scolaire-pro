@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import { fetchClassroomsWithRefs, fetchEnrollments, type ClassroomWithRefs } from "@/lib/academic-structure";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -77,50 +78,37 @@ const ClassLists = () => {
         queryFn: async (): Promise<ClassList[]> => {
             if (!tenant?.id) return [];
 
-            const classParams: Record<string, string> = { expand: "level,campus" };
+            // 2026-11-12 (AUD-ROUTES) : routes réelles — /students/classes/,
+            // /students/class-departments/ et /admissions/enrollments/
+            // n'existent pas (pages vides), /students/?ids= ignorait les ids.
+            let filteredClassrooms: ClassroomWithRefs[] = await fetchClassroomsWithRefs();
             if (selectedLevel !== "all") {
-                classParams.level_id = selectedLevel;
+                filteredClassrooms = filteredClassrooms.filter(c => c.level_id === selectedLevel);
             }
-
-            const { data: classrooms } = await apiClient.get("/students/classes/", { params: classParams });
-
-            let filteredClassrooms = (classrooms as any[]) || [];
 
             // Filter by department if needed
             if (selectedDept !== "all") {
-                const { data: classDepts } = await apiClient.get("/students/class-departments/", {
-                    params: { department_id: selectedDept },
-                });
-
-                const validIds = new Set((classDepts as any[])?.map((cd: any) => cd.class_id) || []);
+                const { data: classDepts } = await apiClient.get<{ class_id: string; department_id: string }[]>(
+                    "/infrastructure/classroom-departments/",
+                );
+                const validIds = new Set((classDepts || [])
+                    .filter(cd => cd.department_id === selectedDept)
+                    .map(cd => cd.class_id));
                 filteredClassrooms = filteredClassrooms.filter(c => validIds.has(c.id));
             }
 
-            // Fetch all enrollments for these classrooms in ONE bulk query
+            // Inscriptions actives de ces classes (élève inclus), par lots.
             const classroomIds = filteredClassrooms.map(c => c.id);
-            const { data: allEnrollments } = await apiClient.get("/admissions/enrollments/", {
-                params: { class_ids: classroomIds.join(","), status: "ACTIVE" },
-            });
-
-            // Fetch all students for these enrollments in ONE bulk query
-            const studentIds = [...new Set((allEnrollments as any[])?.map((e: any) => e.student_id) || [])];
-            const { data: studentsData } = await apiClient.get("/students/", {
-                params: { ids: studentIds.join(",") },
-            });
-
-            // Map students for easy lookup
-            const studentMap = ((studentsData as any[]) || []).reduce((acc: Record<string, any>, student: any) => {
-                acc[student.id] = student;
-                return acc;
-            }, {} as Record<string, any>);
+            const allEnrollments = classroomIds.length
+                ? await fetchEnrollments({ classIds: classroomIds, status: "ACTIVE" })
+                : [];
 
             // Group students by classroom
             const fullLists = filteredClassrooms.map(classroom => {
-                const classroomEnrollments = (allEnrollments as any[])?.filter((e: any) => e.class_id === classroom.id) || [];
-                const students = classroomEnrollments
-                    .map((e: any) => studentMap[e.student_id])
-                    .filter(Boolean)
-                    .sort((a: any, b: any) => a.last_name.localeCompare(b.last_name));
+                const students = allEnrollments
+                    .filter(e => e.class_id === classroom.id && e.student)
+                    .map(e => e.student as ClassListStudent)
+                    .sort((a, b) => a.last_name.localeCompare(b.last_name, "fr"));
 
                 return {
                     ...classroom,

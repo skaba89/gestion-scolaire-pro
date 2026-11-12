@@ -41,17 +41,14 @@ import {
 import { format, startOfMonth, endOfMonth, subMonths, eachMonthOfInterval } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
-import { toList } from "@/lib/api-list";
+import { fetchAcademicYears, fetchClassroomsWithRefs, fetchEnrollments } from "@/lib/academic-structure";
+import { fetchAllPages } from "@/lib/export-data";
 
 interface NamedRef {
   id?: string;
   name?: string;
 }
 
-interface AcademicYearRow {
-  id: string;
-  name: string;
-}
 
 interface EnrollmentRow {
   status?: string | null;
@@ -66,10 +63,6 @@ interface StudentRow {
   created_at?: string | null;
 }
 
-interface ApplicationRow {
-  status?: string | null;
-}
-
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 const EnrollmentStats = () => {
@@ -78,55 +71,51 @@ const EnrollmentStats = () => {
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
 
-  // Fetch academic years
+  // 2026-11-12 (AUD-ROUTES) : /students/academic-years/,
+  // /admissions/enrollments/ et /admissions/applications/ n'existent pas
+  // (pages vides) ; /students/ n'était lue que sur sa première page (50).
   const { data: academicYears } = useQuery({
     queryKey: ["academic-years-stats", tenant?.id],
-    queryFn: async (): Promise<AcademicYearRow[]> => {
-      if (!tenant?.id) return [];
-      const { data } = await apiClient.get("/students/academic-years/", {
-        params: { ordering: "-start_date" },
-      });
-      return toList<AcademicYearRow>(data);
-    },
+    queryFn: fetchAcademicYears,
     enabled: !!tenant?.id,
   });
 
-  // Fetch enrollments with details
   const { data: enrollments } = useQuery({
     queryKey: ["enrollments-stats", tenant?.id, selectedYear],
     queryFn: async (): Promise<EnrollmentRow[]> => {
-      if (!tenant?.id) return [];
-      const params: Record<string, string> = { expand: "student,classroom,level,academic_year" };
-      if (selectedYear !== "all") {
-        params.academic_year_id = selectedYear;
-      }
-      const { data } = await apiClient.get("/admissions/enrollments/", { params });
-      return toList<EnrollmentRow>(data);
+      const [rows, classrooms] = await Promise.all([
+        fetchEnrollments(selectedYear !== "all" ? { academicYearId: selectedYear } : {}),
+        fetchClassroomsWithRefs(),
+      ]);
+      const classById = new Map(classrooms.map((c) => [c.id, c]));
+      return rows.map((e) => {
+        const classroom = classById.get(e.class_id);
+        return { status: e.status, classroom: classroom ? { id: classroom.id, name: classroom.name } : null,
+                 level: classroom?.level ?? null };
+      });
     },
     enabled: !!tenant?.id,
   });
 
-  // Fetch students
   const { data: students } = useQuery({
     queryKey: ["students-stats", tenant?.id],
-    queryFn: async (): Promise<StudentRow[]> => {
-      if (!tenant?.id) return [];
-      const { data } = await apiClient.get("/students/");
-      return toList<StudentRow>(data);
-    },
+    queryFn: () => fetchAllPages<StudentRow>("/students/"),
     enabled: !!tenant?.id,
   });
 
-  // Fetch admission applications
-  const { data: applications } = useQuery({
-    queryKey: ["applications-stats", tenant?.id],
-    queryFn: async (): Promise<ApplicationRow[]> => {
-      if (!tenant?.id) return [];
-      const { data } = await apiClient.get("/admissions/applications/");
-      return toList<ApplicationRow>(data);
+  // Effectifs de candidatures par statut, calculés par le serveur.
+  const { data: applicationCounts } = useQuery({
+    queryKey: ["applications-stats", tenant?.id, selectedYear],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data } = await apiClient.get<Record<string, number>>("/admissions/stats/", {
+        params: selectedYear !== "all" ? { academic_year_id: selectedYear } : {},
+      });
+      return data || {};
     },
     enabled: !!tenant?.id,
   });
+  const countOf = (...statuses: string[]) =>
+    statuses.reduce((sum, st) => sum + (applicationCounts?.[st] ?? 0), 0);
 
   // Calculate statistics
   const stats = {
@@ -134,9 +123,9 @@ const EnrollmentStats = () => {
     archivedStudents: students?.filter(s => s.status === 'ARCHIVED' || s.deleted_at).length || 0,
     totalEnrollments: enrollments?.length || 0,
     activeEnrollments: enrollments?.filter(e => (e.status || "").toUpperCase() === "ACTIVE").length || 0,
-    pendingApplications: applications?.filter(a => a.status === "SUBMITTED" || a.status === "UNDER_REVIEW").length || 0,
-    acceptedApplications: applications?.filter(a => a.status === "ACCEPTED" || a.status === "CONVERTED_TO_STUDENT").length || 0,
-    rejectedApplications: applications?.filter(a => a.status === "REJECTED").length || 0,
+    pendingApplications: countOf("SUBMITTED", "UNDER_REVIEW"),
+    acceptedApplications: countOf("ACCEPTED", "CONVERTED_TO_STUDENT"),
+    rejectedApplications: countOf("REJECTED"),
   };
 
   // Enrollments by level
@@ -171,7 +160,9 @@ const EnrollmentStats = () => {
   }, {}) || {};
 
   const genderChartData = Object.entries(genderStats).map(([name, value]) => ({
-    name: name === "M" ? t("enrollmentStats.male") : name === "F" ? t("enrollmentStats.female") : name,
+    // Genre stocké MALE/FEMALE (le libellé brut s'affichait).
+    name: ["M", "MALE"].includes(name) ? t("enrollmentStats.male")
+      : ["F", "FEMALE"].includes(name) ? t("enrollmentStats.female") : name,
     value,
   }));
 

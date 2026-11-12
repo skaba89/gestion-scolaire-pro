@@ -14,6 +14,9 @@ import { toast } from "sonner";
 import { Award, FileText, Download, Search, Printer } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { escapeHTML } from '@/lib/security';
+import {
+  fetchClassroomsWithRefs, fetchCurrentAcademicYear, fetchEnrollments, type ClassroomWithRefs,
+} from "@/lib/academic-structure";
 
 interface Student {
   id: string;
@@ -30,11 +33,7 @@ interface Enrollment {
   level: { id: string; name: string } | null;
 }
 
-interface Classroom {
-  id: string;
-  name: string;
-  level: { name: string } | null;
-}
+type Classroom = ClassroomWithRefs;
 
 type CertificateType = "enrollment" | "attendance" | "level";
 
@@ -48,65 +47,55 @@ const Certificates = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // 2026-11-12 (AUD-ROUTES) : routes réelles (voir src/lib/academic-structure.ts).
   const { data: classrooms = [] } = useQuery({
     queryKey: ["certificates", "classrooms", tenant?.id],
-    queryFn: async () => {
-      const { data } = await apiClient.get("/students/classes/", {
-        params: { ordering: "name", expand: "level" },
-      });
-      return ((data as any[]) || []).map((c) => ({
-        ...c,
-        level: c.level as { name: string } | null,
-      }));
-    },
+    queryFn: async (): Promise<Classroom[]> => fetchClassroomsWithRefs(),
+    enabled: !!tenant?.id,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  const { data: currentYear = null } = useQuery({
+    queryKey: ["certificates", "current-year", tenant?.id],
+    queryFn: fetchCurrentAcademicYear,
     enabled: !!tenant?.id,
     staleTime: 10 * 60 * 1000,
   });
 
   const { data: students = [] } = useQuery({
-    queryKey: ["certificates", "students", selectedClassroom],
-    queryFn: async () => {
-      const { data: currentYear } = await apiClient.get("/students/academic-years/", {
-        params: { is_current: true },
+    queryKey: ["certificates", "students", selectedClassroom, currentYear?.id],
+    queryFn: async (): Promise<Student[]> => {
+      const rows = await fetchEnrollments({
+        classId: selectedClassroom, academicYearId: currentYear!.id, status: "ACTIVE",
       });
-      const yearData = (currentYear as any[])?.[0];
-      if (!yearData) return [];
-
-      const { data: enrollments } = await apiClient.get("/admissions/enrollments/", {
-        params: { class_id: selectedClassroom, academic_year_id: yearData.id, expand: "student" },
-      });
-      return ((enrollments as any[]) || [])
-        .map((e) => e.student as unknown as Student)
-        .filter(Boolean);
+      return rows
+        .filter((e) => e.student)
+        .map((e) => ({ ...e.student!, date_of_birth: null }))
+        .sort((a, b) => a.last_name.localeCompare(b.last_name, "fr"));
     },
-    enabled: !!selectedClassroom,
+    enabled: !!selectedClassroom && !!currentYear?.id,
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: enrollment = null } = useQuery({
-    queryKey: ["certificates", "enrollment", selectedStudent?.id],
-    queryFn: async () => {
-      const { data: currentYear } = await apiClient.get("/students/academic-years/", {
-        params: { is_current: true },
-      });
-      const yearData = (currentYear as any[])?.[0];
-      if (!yearData) return null;
+  // L'élève vient de l'inscription active de la classe choisie pour l'année en
+  // cours : l'attestation reprend cette classe, son niveau et l'année.
+  const enrollment: Enrollment | null = useMemo(() => {
+    const classroom = classrooms.find((c) => c.id === selectedClassroom);
+    if (!selectedStudent || !classroom || !currentYear) return null;
+    return {
+      id: `${selectedStudent.id}:${classroom.id}`,
+      academic_year: { id: currentYear.id, name: currentYear.name },
+      classroom: { id: classroom.id, name: classroom.name },
+      level: classroom.level,
+    };
+  }, [classrooms, selectedClassroom, selectedStudent, currentYear]);
 
-      const { data } = await apiClient.get("/admissions/enrollments/", {
-        params: {
-          student_id: selectedStudent!.id,
-          academic_year_id: yearData.id,
-          expand: "academic_year,classroom,level",
-        },
-      });
-      const e = (data as any[])?.[0];
-      if (!e) return null;
-      return {
-        ...e,
-        academic_year: e.academic_year as { id: string; name: string },
-        classroom: e.classroom as { id: string; name: string },
-        level: e.level as { id: string; name: string } | null,
-      } as Enrollment;
+  // Date de naissance : sur la fiche de l'élève (absente de l'inscription).
+  const { data: studentDetail = null } = useQuery({
+    queryKey: ["certificates", "student", selectedStudent?.id],
+    queryFn: async () => {
+      const { data } = await apiClient.get<{ date_of_birth: string | null }>(`/students/${selectedStudent!.id}/`);
+      return data ?? null;
     },
     enabled: !!selectedStudent?.id,
     staleTime: 5 * 60 * 1000,
@@ -142,8 +131,9 @@ const Certificates = () => {
       year: "numeric"
     });
 
-    const birthDate = selectedStudent.date_of_birth
-      ? new Date(selectedStudent.date_of_birth).toLocaleDateString("fr-FR")
+    const dateOfBirth = studentDetail?.date_of_birth ?? selectedStudent.date_of_birth;
+    const birthDate = dateOfBirth
+      ? new Date(dateOfBirth).toLocaleDateString("fr-FR")
       : t("certificates.notProvided");
 
     // Signatures électroniques des responsables (cast tenant avec les nouveaux champs)
