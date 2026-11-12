@@ -648,7 +648,7 @@ def update_user(
         )
 
     # SECURITY: Whitelist allowed column names to prevent SQL injection
-    ALLOWED_USER_UPDATE_FIELDS = {"first_name", "last_name", "email", "username", "avatar_url", "is_active", "phone", "bio"}
+    ALLOWED_USER_UPDATE_FIELDS = {"first_name", "last_name", "email", "username", "avatar_url", "is_active", "phone"}
     updates = {k: v for k, v in updates.items() if k in ALLOWED_USER_UPDATE_FIELDS}
 
     # If email is being changed, check uniqueness
@@ -1498,7 +1498,7 @@ class ProfileUpdate(BaseModel):
 
 @router.patch("/profiles/{user_id}/")
 def update_user_profile(
-    user_id: str,
+    user_id: UUID,
     body: ProfileUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -1509,6 +1509,7 @@ def update_user_profile(
     """
     tenant_id = current_user.get("tenant_id")
     auth_id = current_user.get("id")
+    user_id = str(user_id)
 
     # Permission check: own profile or admin
     roles = current_user.get("roles", [])
@@ -1522,19 +1523,17 @@ def update_user_profile(
     if not updates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No fields to update")
 
-    # SECURITY: Whitelist allowed profile fields
-    ALLOWED_PROFILE_FIELDS = {"first_name", "last_name", "bio", "avatar_url", "phone", "date_of_birth", "address", "city", "country"}
-    updates = {k: v for k, v in updates.items() if k in ALLOWED_PROFILE_FIELDS}
-
-    # If email is being changed, check uniqueness
-    if "email" in updates:
-        existing = db.execute(
-            text("SELECT id FROM users WHERE email = :email AND id != :user_id"),
-            {"email": updates["email"], "user_id": user_id}
-        ).fetchone()
-        if existing:
-            raise HTTPException(status_code=400, detail="Email already in use by another user")
-        updates["username"] = updates["email"]
+    # SECURITY: Whitelist allowed profile fields — colonnes réelles de `users`.
+    # 2026-11-11 (CRAWL-W) : `bio` (colonne inexistante) donnait une 500, et un
+    # corps ne contenant que `email` (écarté) produisait un UPDATE vide (500).
+    # Un champ non modifiable ici est désormais refusé explicitement.
+    ALLOWED_PROFILE_FIELDS = {"first_name", "last_name", "avatar_url", "phone"}
+    rejected = sorted(set(updates) - ALLOWED_PROFILE_FIELDS)
+    if rejected:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Champ(s) non modifiable(s) par cette route : {', '.join(rejected)}",
+        )
 
     set_clauses = ", ".join([f"{k} = :{k}" for k in updates])
     updates["user_id"] = user_id

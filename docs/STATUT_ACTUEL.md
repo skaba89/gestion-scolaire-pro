@@ -925,6 +925,17 @@ ce fichier — pas d'un document de 2025 non révisé.
   (22 cas rouges avant le correctif ; un identifiant mal formé donne 422). Impact réel : intégrité des données
   (la RLS masque déjà la donnée de l'autre établissement en lecture).
 
+- **2026-11-11 — trois écritures qui répondaient 500 (parcours CRAWL-W, lot B).**
+  `PATCH /platform/branding/me/` répondait 500 à chaque enregistrement réussi
+  (relecture appelée sans `request`) : corrigé. `PATCH /users/profiles/{id}/`
+  visait une colonne `bio` inexistante, produisait un `UPDATE` vide avec
+  seulement `email`, et laissait un identifiant non UUID atteindre la base :
+  un champ non enregistrable par cette route est désormais refusé en 422
+  (champs acceptés : prénom, nom, avatar, téléphone), l'identifiant est typé.
+  `POST /subject-preferred-rooms/` lisait un dictionnaire (`KeyError` → 500)
+  : corps typé, 422. Test : `tests/test_write_route_failures.py` (6 cas
+  rouges avant le correctif).
+
 - **2026-11-11 — saisies mal formées : 422 au lieu de 500 (parcours CRAWL-W,
   lot C).** Une vingtaine de routes d'écriture laissaient un identifiant non
   UUID ou une date illisible atteindre PostgreSQL et répondaient 500. Une
