@@ -11,6 +11,7 @@ from app.core.security import get_current_user, require_permission
 from app.core.tenant_refs import ensure_in_tenant
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
+from app.schemas.types import UUIDStr
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -31,7 +32,7 @@ class InventoryItemUpdate(BaseModel):
     category_id: Optional[str] = None
 
 class AdjustmentBody(BaseModel):
-    item_id: str
+    item_id: UUIDStr
     quantity: int
     type: str # IN | OUT | ADJUST
     notes: Optional[str] = None

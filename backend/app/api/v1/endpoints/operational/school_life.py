@@ -40,6 +40,7 @@ from app.services.academic_rules import (
 )
 from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
 from app.core.tenant_refs import ensure_refs_in_tenant
+from app.schemas.types import UUIDStr
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1803,9 +1804,9 @@ def list_event_registrations(
 
 
 class EventRegistrationCreate(BaseModel):
-    event_id: str
-    student_id: Optional[str] = None
-    alumni_id: Optional[str] = None
+    event_id: UUIDStr
+    student_id: Optional[UUIDStr] = None
+    alumni_id: Optional[UUIDStr] = None
 
 
 @router.post("/event-registrations/", status_code=201)
@@ -1906,17 +1907,17 @@ def get_gamification_stats(request: Request, db: Session = Depends(get_db), curr
 
 class SmartReportCardRequest(BaseModel):
     """Single student bulletin — all data fetched from DB."""
-    student_id: str
-    term_id: str
-    classroom_id: str
+    student_id: UUIDStr
+    term_id: UUIDStr
+    classroom_id: UUIDStr
     director_comment: Optional[str] = None
     decision: Optional[str] = None          # "Passage", "Redoublement", "Félicitations"
     show_guinea_header: bool = True          # République de Guinée header
 
 class SmartBatchRequest(BaseModel):
     """Batch bulletin for all students in a class."""
-    classroom_id: str
-    term_id: str
+    classroom_id: UUIDStr
+    term_id: UUIDStr
     director_comment: Optional[str] = None
     decision: Optional[str] = None
     show_guinea_header: bool = True
@@ -1926,7 +1927,7 @@ class CertificateRequest(BaseModel):
     """Enrollment/attendance/level certificate for one student — see
     generate_certificate_pdf below (national-readiness audit, 2026-09,
     priority: second server-side PDF document)."""
-    student_id: str
+    student_id: UUIDStr
     certificate_type: str = "enrollment"  # "enrollment" | "attendance" | "level"
 
 
