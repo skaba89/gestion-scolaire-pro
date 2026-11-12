@@ -25,6 +25,7 @@ from app.models.room import Room  # noqa: E402
 from app.models.subject import Subject  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.models.user_role import UserRole  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
     engine.dialect.name != "postgresql",
@@ -84,6 +85,9 @@ def _make_teacher(tenant_id: str) -> str:
             id=teacher_id, tenant_id=tenant_id, email=f"{teacher_id[:8]}@example.com",
             username=f"teacher-{teacher_id[:8]}", is_active=True,
         ))
+        # 2026-11-11 : POST/PUT /schedule/ n'acceptent qu'un enseignant de
+        # l'établissement (rôle TEACHER), comme PUT /classes/{id}/replace/.
+        db.add(UserRole(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=teacher_id, role="TEACHER"))
         db.commit()
     return teacher_id
 

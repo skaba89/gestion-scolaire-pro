@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import date
 
+from app.core.tenant_refs import ensure_in_tenant
 from app.models import Employee, Contract, LeaveRequest, Payslip
 from app.schemas.hr import (
     EmployeeCreate, EmployeeUpdate,
@@ -91,6 +92,7 @@ def get_contract(db: Session, contract_id: UUID, tenant_id: UUID) -> Optional[Co
     return db.query(Contract).filter(Contract.id == contract_id, Contract.tenant_id == tenant_id).first()
 
 def create_contract(db: Session, obj_in: ContractCreate, tenant_id: UUID) -> Contract:
+    ensure_in_tenant(db, tenant_id, "employees", obj_in.employee_id)
     if obj_in.is_current:
         # Reset others for this employee
         db.query(Contract).filter(
@@ -160,6 +162,7 @@ def _has_overlapping_leave(db: Session, *, tenant_id: UUID, employee_id: UUID, s
 
 
 def create_leave_request(db: Session, obj_in: LeaveRequestCreate, tenant_id: UUID) -> LeaveRequest:
+    ensure_in_tenant(db, tenant_id, "employees", obj_in.employee_id)
     # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): nothing
     # prevented the same employee from having two overlapping leave
     # requests recorded simultaneously.
@@ -218,6 +221,7 @@ def get_payslip(db: Session, payslip_id: UUID, tenant_id: UUID) -> Optional[Pays
     return db.query(Payslip).filter(Payslip.id == payslip_id, Payslip.tenant_id == tenant_id).first()
 
 def create_payslip(db: Session, obj_in: PayslipCreate, tenant_id: UUID) -> Payslip:
+    ensure_in_tenant(db, tenant_id, "employees", obj_in.employee_id)
     db_obj = Payslip(
         **obj_in.model_dump(),
         tenant_id=tenant_id

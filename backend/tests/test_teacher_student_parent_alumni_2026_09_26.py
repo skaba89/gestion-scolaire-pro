@@ -200,6 +200,8 @@ class TestTeacherCheckInSessionLifecycle:
         # actual row, unlike the synthetic ids used for TEACHER callers below
         # whose requests never insert a teacher_id.
         teacher_id = _make_user(tenant_id)
+        # 2026-11-11 : un enseignant ne démarre une séance que pour sa classe.
+        _assign_teacher(tenant_id, teacher_id, classroom_id)
         headers = _as({"id": teacher_id, "roles": ["TEACHER"], "tenant_id": tenant_id})
 
         start_resp = headers.post(

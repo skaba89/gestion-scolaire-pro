@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_refs import ensure_refs_in_tenant
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.models import Classroom, Room, Subject, User, UserRole
 from app.models.schedule import ScheduleSlot
@@ -112,10 +113,58 @@ def _find_schedule_conflict(
     return dict(row._mapping) if row else None
 
 
+class ScheduleSlotIn(BaseModel):
+    class_id: UUID
+    subject_id: UUID
+    teacher_id: Optional[UUID] = None
+    day_of_week: int = Field(ge=1, le=7)
+    start_time: time
+    end_time: time
+    room_id: Optional[UUID] = None
+
+
+class ScheduleSlotPatch(BaseModel):
+    class_id: Optional[UUID] = None
+    subject_id: Optional[UUID] = None
+    teacher_id: Optional[UUID] = None
+    day_of_week: Optional[int] = Field(default=None, ge=1, le=7)
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    room_id: Optional[UUID] = None
+
+
+def _validate_slot_refs(db: Session, *, tenant_id: str, class_id=None, subject_id=None,
+                        teacher_id=None, room_id=None) -> None:
+    """2026-11-11 (CRAWL-W) : POST/PUT /schedule/ prenaient un dict brut —
+    classe, matière, enseignant et salle d'un autre établissement passaient
+    (contrainte de clé étrangère vérifiée sans RLS), et un corps incomplet
+    finissait en erreur 500. Mêmes règles que PUT /classes/{id}/replace/."""
+    ensure_refs_in_tenant(db, tenant_id, ("classes", class_id), ("subjects", subject_id), ("rooms", room_id))
+    if teacher_id and not db.query(User.id).join(UserRole, UserRole.user_id == User.id).filter(
+        User.tenant_id == tenant_id, User.id == teacher_id,
+        UserRole.tenant_id == tenant_id, UserRole.role == "TEACHER",
+    ).first():
+        raise HTTPException(status_code=404, detail="Enseignant introuvable dans cet établissement")
+
+
+def _serialize_slot(slot: ScheduleSlot) -> dict:
+    return {
+        "id": str(slot.id), "tenant_id": str(slot.tenant_id), "class_id": str(slot.class_id),
+        "subject_id": str(slot.subject_id), "teacher_id": str(slot.teacher_id) if slot.teacher_id else None,
+        "day_of_week": slot.day_of_week,
+        "start_time": slot.start_time.strftime("%H:%M") if slot.start_time else None,
+        "end_time": slot.end_time.strftime("%H:%M") if slot.end_time else None,
+        "room_id": str(slot.room_id) if slot.room_id else None,
+    }
+
+
+_OVERLAP_DETAIL = "Ce créneau chevauche un cours existant (enseignant, salle ou classe déjà occupé)"
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_schedule_slot(
     request: Request,
-    payload: dict,
+    payload: ScheduleSlotIn,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("schedule:write")),
 ):
@@ -129,37 +178,26 @@ def create_schedule_slot(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    if payload.end_time <= payload.start_time:
+        raise HTTPException(status_code=422, detail="L'heure de fin doit suivre l'heure de début")
+    _validate_slot_refs(db, tenant_id=tenant_id, class_id=payload.class_id, subject_id=payload.subject_id,
+                        teacher_id=payload.teacher_id, room_id=payload.room_id)
 
     conflict = _find_schedule_conflict(
-        db, tenant_id=tenant_id,
-        day_of_week=payload.get("day_of_week"),
-        start_time=payload.get("start_time"), end_time=payload.get("end_time"),
-        teacher_id=payload.get("teacher_id"), room_id=payload.get("room_id"),
-        class_id=payload.get("class_id"),
+        db, tenant_id=tenant_id, day_of_week=payload.day_of_week,
+        start_time=payload.start_time, end_time=payload.end_time,
+        teacher_id=payload.teacher_id, room_id=payload.room_id, class_id=payload.class_id,
     )
     if conflict:
-        raise HTTPException(status_code=409, detail="Ce créneau chevauche un cours existant (enseignant, salle ou classe déjà occupé)")
+        raise HTTPException(status_code=409, detail=_OVERLAP_DETAIL)
 
-    new_id = str(uuid.uuid4())
-    sql = text("""
-        INSERT INTO schedule (id, tenant_id, class_id, subject_id, teacher_id, day_of_week, start_time, end_time, room_id, created_at, updated_at)
-        VALUES (:id, :tenant_id, :class_id, :subject_id, :teacher_id, :day_of_week, :start_time, :end_time, :room_id, NOW(), NOW())
-    """)
-
-    db.execute(sql, {
-        "id": new_id,
-        "tenant_id": tenant_id,
-        "class_id": payload.get("class_id"),
-        "subject_id": payload.get("subject_id"),
-        "teacher_id": payload.get("teacher_id"),
-        "day_of_week": payload.get("day_of_week"),
-        "start_time": payload.get("start_time"),
-        "end_time": payload.get("end_time"),
-        "room_id": payload.get("room_id"),
-    })
+    slot = ScheduleSlot(id=uuid.uuid4(), tenant_id=tenant_id, **payload.model_dump())
+    db.add(slot)
+    db.flush()
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="CREATE_SCHEDULE_SLOT", resource_type="SCHEDULE", resource_id=str(slot.id))
     db.commit()
-
-    return {"id": new_id}
+    return _serialize_slot(slot)
 
 
 class ScheduleReplacementSlot(BaseModel):
@@ -271,8 +309,8 @@ def replace_class_schedule(
 @router.put("/{slot_id}/")
 def update_schedule_slot(
     request: Request,
-    slot_id: str,
-    payload: dict,
+    slot_id: UUID,
+    payload: ScheduleSlotPatch,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("schedule:write")),
 ):
@@ -286,77 +324,43 @@ def update_schedule_slot(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
 
-    existing = db.execute(text("""
-        SELECT day_of_week, start_time, end_time, teacher_id, room_id, class_id
-        FROM schedule WHERE id = :slot_id AND tenant_id = :tenant_id
-    """), {"slot_id": slot_id, "tenant_id": tenant_id}).mappings().first()
-    if not existing:
+    slot = db.query(ScheduleSlot).filter(
+        ScheduleSlot.id == slot_id, ScheduleSlot.tenant_id == tenant_id,
+    ).with_for_update().first()
+    if not slot:
         raise HTTPException(status_code=404, detail="Slot not found")
 
-    sets = []
-    params = {"slot_id": slot_id, "tenant_id": tenant_id}
-
-    field_map = {
-        "class_id": payload.get("class_id"),
-        "subject_id": payload.get("subject_id"),
-        "teacher_id": payload.get("teacher_id"),
-        "day_of_week": payload.get("day_of_week"),
-        "start_time": payload.get("start_time"),
-        "end_time": payload.get("end_time"),
-        "room_id": payload.get("room_id"),
-    }
-
-    for col, val in field_map.items():
-        if val is not None:
-            sets.append(f"{col} = :{col}")
-            params[col] = val
-
-    if not sets:
+    changes = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    if not changes:
         raise HTTPException(status_code=400, detail="No fields to update")
+    _validate_slot_refs(db, tenant_id=tenant_id, class_id=changes.get("class_id"),
+                        subject_id=changes.get("subject_id"), teacher_id=changes.get("teacher_id"),
+                        room_id=changes.get("room_id"))
 
+    merged = {col: changes.get(col, getattr(slot, col)) for col in (
+        "class_id", "teacher_id", "room_id", "day_of_week", "start_time", "end_time")}
+    if merged["end_time"] <= merged["start_time"]:
+        raise HTTPException(status_code=422, detail="L'heure de fin doit suivre l'heure de début")
     conflict = _find_schedule_conflict(
-        db, tenant_id=tenant_id,
-        day_of_week=field_map["day_of_week"] if field_map["day_of_week"] is not None else existing["day_of_week"],
-        start_time=field_map["start_time"] or existing["start_time"],
-        end_time=field_map["end_time"] or existing["end_time"],
-        teacher_id=field_map["teacher_id"] if field_map["teacher_id"] is not None else existing["teacher_id"],
-        room_id=field_map["room_id"] if field_map["room_id"] is not None else existing["room_id"],
-        class_id=field_map["class_id"] if field_map["class_id"] is not None else existing["class_id"],
+        db, tenant_id=tenant_id, day_of_week=merged["day_of_week"],
+        start_time=merged["start_time"], end_time=merged["end_time"],
+        teacher_id=merged["teacher_id"], room_id=merged["room_id"], class_id=merged["class_id"],
         exclude_slot_id=slot_id,
     )
     if conflict:
-        raise HTTPException(status_code=409, detail="Ce créneau chevauche un cours existant (enseignant, salle ou classe déjà occupé)")
+        raise HTTPException(status_code=409, detail=_OVERLAP_DETAIL)
 
-    sets.append("updated_at = NOW()")
-    query_str = f"""
-        UPDATE schedule SET {', '.join(sets)}
-        WHERE id = :slot_id AND tenant_id = :tenant_id
-        RETURNING id, tenant_id, class_id, subject_id, teacher_id, day_of_week, start_time, end_time, room_id
-    """
-
-    try:
-        result = db.execute(text(query_str), params).mappings().first()
-        if not result:
-            raise HTTPException(status_code=404, detail="Slot not found")
-        log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
-                  action="UPDATE_SCHEDULE_SLOT", resource_type="SCHEDULE", resource_id=slot_id)
-        db.commit()
-        return {
-            **dict(result),
-            "start_time": result["start_time"].strftime("%H:%M") if result["start_time"] else None,
-            "end_time": result["end_time"].strftime("%H:%M") if result["end_time"] else None,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error("Failed to update schedule slot: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail="Failed to update resource. Please check your input and try again.")
+    for col, value in changes.items():
+        setattr(slot, col, value)
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
+              action="UPDATE_SCHEDULE_SLOT", resource_type="SCHEDULE", resource_id=str(slot_id))
+    db.commit()
+    return _serialize_slot(slot)
 
 @router.delete("/{slot_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_schedule_slot(
     request: Request,
-    slot_id: str,
+    slot_id: UUID,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("schedule:write")),
 ):
@@ -367,14 +371,14 @@ def delete_schedule_slot(
 
     result = db.execute(
         text("DELETE FROM schedule WHERE id = :slot_id AND tenant_id = :tenant_id"),
-        {"slot_id": slot_id, "tenant_id": tenant_id}
+        {"slot_id": str(slot_id), "tenant_id": tenant_id}
     )
 
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Slot not found")
 
     log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
-              action="DELETE_SCHEDULE_SLOT", resource_type="SCHEDULE", resource_id=slot_id)
+              action="DELETE_SCHEDULE_SLOT", resource_type="SCHEDULE", resource_id=str(slot_id))
     db.commit()
 
     return None

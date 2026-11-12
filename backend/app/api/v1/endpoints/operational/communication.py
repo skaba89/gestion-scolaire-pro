@@ -10,6 +10,7 @@ import datetime, json
 from app.core.database import get_db
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_refs import ensure_in_tenant
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
@@ -301,10 +302,16 @@ def create_or_find_conversation(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
+    """Find or create a direct 1-on-1 conversation. Returns conversation_id."""
+    # 2026-11-11 (CRAWL-W) : le destinataire n'était pas vérifié — une
+    # conversation pouvait inclure un utilisateur d'un autre établissement
+    # (clé étrangère vérifiée sans RLS) ; un identifiant inconnu donnait 500.
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    ensure_in_tenant(db, tenant_id, "users", body.recipient_id)
+    if str(body.recipient_id) == str(current_user.get("id")):
+        raise HTTPException(status_code=422, detail="Impossible d'ouvrir une conversation avec soi-même")
     try:
-        """Find or create a direct 1-on-1 conversation. Returns conversation_id."""
         user_id = current_user.get("id")
-        tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         # Check if 1-on-1 conversation already exists
         existing = db.execute(text("""
             SELECT c.id FROM conversations c

@@ -901,6 +901,30 @@ ce fichier — pas d'un document de 2025 non révisé.
   Vérifié localement : 2 112 appels, 0 erreur 5xx sur `main` ; une panne
   injectée est détectée (code de sortie 1). Coût : quelques minutes de job.
 
+- **2026-11-11 — identifiants d'un autre établissement refusés en écriture
+  (sécurité).** Un parcours exploratoire des 365 routes d'écriture (stack
+  locale jetable) a montré qu'une contrainte de clé étrangère, vérifiée sans
+  RLS, laissait passer l'identifiant d'un autre établissement : une salle
+  était rattachée au campus d'un autre établissement (`POST /rooms/` → 201).
+  Corrigé sur salles (deux routes), départements (`head_id`, `faculty_id`),
+  facultés (`dean_id`), périodes, matières (`semester_id`), contrats, congés
+  et bulletins de paie (`employee_id`), clubs (`advisor_id`), ressources de
+  bibliothèque (`category_id`), créneaux d'emploi du temps (`POST`/`PUT
+  /schedule/` : corps typé, classe, matière, salle et enseignant vérifiés,
+  créneau complet renvoyé, audit), candidatures (`POST`/`PATCH /admissions/`),
+  cours e-learning (`subject_id`, `level_id`), articles d'inventaire
+  (`category_id`), ventes (`student_id`), conversations (destinataire d'un
+  autre établissement : n'importe quel compte pouvait en ouvrir une), et les
+  écritures de `/school-life/`
+  (évaluations, notes, présences, pointages, séances de pointage) : 404
+  « … introuvable dans cet établissement » (`app/core/tenant_refs.py`).
+  Les routes `/school-life/grades|attendance/` (doublons sans appelant
+  frontend) appliquent aussi le périmètre enseignant de `/grades/` et
+  `/attendance/`, et une séance de pointage ne vise que les classes de
+  l'enseignant. Test de régression : `tests/test_cross_tenant_fk_refs.py`
+  (22 cas rouges avant le correctif ; un identifiant mal formé donne 422). Impact réel : intégrité des données
+  (la RLS masque déjà la donnée de l'autre établissement en lecture).
+
 - **2026-11-11 — trois écritures qui répondaient 500 (parcours CRAWL-W, lot B).**
   `PATCH /platform/branding/me/` répondait 500 à chaque enregistrement réussi
   (relecture appelée sans `request`) : corrigé. `PATCH /users/profiles/{id}/`

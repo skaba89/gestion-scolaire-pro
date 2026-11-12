@@ -8,6 +8,7 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_refs import ensure_in_tenant
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 from app.schemas.types import UUIDStr
@@ -104,6 +105,8 @@ def create_item(request: Request, item: InventoryItemCreate, db: Session = Depen
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    # 2026-11-11 (CRAWL-W) : catégorie d'un autre établissement acceptée.
+    ensure_in_tenant(db, tenant_id, "inventory_categories", item.category_id)
     try:
         res = db.execute(text("""
             INSERT INTO inventory_items (tenant_id, category_id, name, unit_price, stock_quantity)
@@ -125,6 +128,7 @@ def update_item(request: Request, item_id: str, item: InventoryItemUpdate, db: S
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    ensure_in_tenant(db, tenant_id, "inventory_categories", item.category_id)
     try:
         # SECURITY: Only allow whitelisted column names in dynamic UPDATE to prevent SQL injection
         ALLOWED_INVENTORY_COLUMNS = {"name", "description", "unit_price", "stock_quantity", "category_id"}
@@ -277,6 +281,8 @@ def create_order(request: Request, body: OrderCreateBody, db: Session = Depends(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    # 2026-11-11 (CRAWL-W) : élève d'un autre établissement accepté.
+    ensure_in_tenant(db, tenant_id, "students", body.student_id)
     try:
         resolved_items = []
         computed_total = 0.0
