@@ -948,3 +948,18 @@ ce fichier — pas d'un document de 2025 non révisé.
   404 sur un forum inconnu) ; `POST /classrooms/` convertit le refus d'un
   niveau d'un autre établissement en 404. Test :
   `tests/test_write_input_validation.py` (9 cas rouges avant le correctif).
+
+- **2026-11-12 — l'assistant de configuration ne supprime plus rien (perte
+  de données évitée).** Trouvé par le parcours des routes d'écriture en CI
+  (#536) : `POST /tenants/onboarding/subjects/` commençait par
+  `DELETE FROM subjects WHERE tenant_id = …`. Rejouer l'étape « Matières »
+  de `/admin/onboarding` (page toujours accessible à TENANT_ADMIN, DIRECTOR,
+  DEPARTMENT_HEAD) effaçait toutes les matières de l'établissement et, par
+  cascade, toutes ses évaluations et notes, les associations classe–matière
+  et les inscriptions des élèves aux matières. `…/onboarding/levels/` faisait
+  de même et répondait 500 dès qu'une classe utilisait un niveau. Les deux
+  routes n'ajoutent plus que les éléments absents (nom comparé sans casse),
+  corps typé (422), audit. Production vérifiée en lecture seule le
+  2026-11-12 avant correctif : un seul établissement, 0 classe, 0 évaluation,
+  0 note — aucune perte. Test : `tests/test_onboarding_never_deletes.py`
+  (7 cas rouges avant le correctif).
