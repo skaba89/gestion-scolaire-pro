@@ -101,4 +101,4 @@ test de charge sur une copie de production.
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
-| AUD-ROUTES | P1 | Appels vers des routes inexistantes « capturées » | 17 appels (Certificats, Listes de classe, Statistiques d'inscription, `riskAssessment.ts`, soumissions de devoirs) visent `/students/classes/`, `/students/academic-years/`, `/admissions/enrollments/`… que le serveur route vers `/students/{id}/` ou `/admissions/{id}/` (422/404). Invisible du contrôle de contrat (le chemin « correspond » à une route à paramètre) et du parcours 09 (422 non compté) | Chaque page rebranchée sur une route existante ; contrôle de contrat qui signale un segment littéral capturé par un paramètre |
+| AUD-ROUTES | ~~P1~~ fait | Appels vers des routes inexistantes « capturées » | **Fait** (PR fix/aud-routes) : Certificats, Listes de classe, Statistiques d'inscription rebranchés sur les routes réelles ; code mort retiré ; contrôle de contrat étendu (référence vide) | — |

@@ -138,14 +138,6 @@ export const studentsService = {
     return data || [];
   },
 
-  async getSubmissions(studentId: string) {
-    if (!studentId) return [];
-    const { data } = await apiClient.get<any[]>("/homework/submissions/", {
-      params: { student_id: studentId },
-    });
-    return data || [];
-  },
-
   async getMessagingRecipients(userId: string, tenantId: string) {
     if (!userId || !tenantId) return [];
 
