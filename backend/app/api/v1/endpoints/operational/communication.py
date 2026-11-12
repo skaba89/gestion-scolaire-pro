@@ -187,6 +187,49 @@ def get_messaging_users(
         logger.error("Operation failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
+@router.get("/messaging/recipients/")
+def get_messaging_recipients(
+    request: Request,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("communications:write")),
+):
+    """Destinataires possibles du formulaire de rédaction de l'administration.
+
+    2026-11-12 (audit de recette) : les formulaires appelaient
+    /messaging/users/ (users:read) — le comptable, qui rédige des messages
+    (communications:write) sans voir la liste complète des comptes, recevait
+    403 et ne pouvait choisir aucun destinataire. Ici :
+    - avec users:read : tous les comptes de l'établissement, e-mail compris
+      (comportement inchangé pour l'administration) ;
+    - sinon : personnel et parents (comptes ayant au moins un rôle autre que
+      STUDENT/ALUMNI), sans e-mail.
+    """
+    from app.core.security import user_has_permission
+    full = user_has_permission(current_user, "users:read")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    rows = db.execute(text(f"""
+        SELECT u.id, u.first_name, u.last_name, u.email,
+               array_agg(DISTINCT ur.role) AS roles
+        FROM users u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        WHERE u.tenant_id = :tenant_id AND u.is_active
+        GROUP BY u.id, u.first_name, u.last_name, u.email
+        {"" if full else "HAVING bool_or(ur.role NOT IN ('STUDENT', 'ALUMNI'))"}
+        ORDER BY u.last_name, u.first_name
+        LIMIT :limit OFFSET :offset
+    """), {"tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
+    out = []
+    for r in rows:
+        item = {"id": str(r["id"]), "first_name": r["first_name"], "last_name": r["last_name"],
+                "roles": [role for role in (r["roles"] or []) if role]}
+        if full:
+            item["email"] = r["email"]
+        out.append(item)
+    return out
+
+
 @router.get("/messaging/teacher-recipients/")
 def get_teacher_recipients(
     request: Request,

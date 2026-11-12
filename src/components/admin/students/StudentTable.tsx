@@ -13,7 +13,6 @@ import { Users } from "lucide-react";
 import { Student } from "@/queries/students";
 import { StudentRowOptimized } from "@/components/students/StudentRowOptimized";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
-import { StaggerContainer, StaggerItem } from "@/components/layouts/PageTransition";
 import { DataTablePagination } from "@/components/ui/DataTablePagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { exportToCSV } from "@/utils/exportUtils";
@@ -144,29 +143,28 @@ export const StudentTable = ({
                                         <TableCell colSpan={7} style={{ height: `${paddingTop}px` }} />
                                     </TableRow>
                                 )}
-                                <StaggerContainer className="contents">
-                                    {virtualItems.map((virtualRow) => {
-                                        const student = students[virtualRow.index];
-                                        return (
-                                            <StaggerItem key={student.id} className="contents">
-                                                <StudentRowOptimized
-                                                    student={student}
-                                                    creatingAccountFor={creatingAccountFor}
-                                                    onEdit={onEdit}
-                                                    onView={onView}
-                                                    onArchive={onArchive}
-                                                    onDelete={onDelete}
-                                                    onCreateAccount={onCreateAccount}
-                                                    onEnrollClick={() => onEnrollClick(student)}
-                                                    tenantId={tenantId}
-                                                    style={{ height: `${virtualRow.size}px` }}
-                                                    ariaRole="row"
-                                                    ariaRowIndex={virtualRow.index + 1}
-                                                />
-                                            </StaggerItem>
-                                        );
-                                    })}
-                                </StaggerContainer>
+                                {/* 2026-11-12 : plus de conteneurs d'animation (div) entre
+                                    <tbody> et les lignes — HTML invalide (avertissements React). */}
+                                {virtualItems.map((virtualRow) => {
+                                    const student = students[virtualRow.index];
+                                    return (
+                                        <StudentRowOptimized
+                                            key={student.id}
+                                            student={student}
+                                            creatingAccountFor={creatingAccountFor}
+                                            onEdit={onEdit}
+                                            onView={onView}
+                                            onArchive={onArchive}
+                                            onDelete={onDelete}
+                                            onCreateAccount={onCreateAccount}
+                                            onEnrollClick={() => onEnrollClick(student)}
+                                            tenantId={tenantId}
+                                            style={{ height: `${virtualRow.size}px` }}
+                                            ariaRole="row"
+                                            ariaRowIndex={virtualRow.index + 1}
+                                        />
+                                    );
+                                })}
                                 {paddingBottom > 0 && (
                                     <TableRow>
                                         <TableCell colSpan={7} style={{ height: `${paddingBottom}px` }} />

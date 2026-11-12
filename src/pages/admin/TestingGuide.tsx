@@ -613,11 +613,12 @@ export default function TestingGuide() {
           </div>
           <div>
             <h3 className="font-semibold">Ordre recommandé</h3>
-            <p className="text-sm text-muted-foreground">
+            {/* div (pas p) : Badge rend une div, interdite dans un paragraphe. */}
+            <div className="text-sm text-muted-foreground">
               Suivez les sections dans l'ordre pour éviter les erreurs de dépendances.
               Les sections marquées <Badge variant="outline" className="mx-1 text-xs bg-red-100 text-red-800">Critique</Badge>
               doivent être complétées en premier.
-            </p>
+            </div>
           </div>
         </div>
       </Card>

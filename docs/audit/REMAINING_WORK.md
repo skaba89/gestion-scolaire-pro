@@ -96,3 +96,9 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 Points hors périmètre automatisé, nécessitant une décision humaine : déploiement
 en production, recette sur appareils réels, environnement sandbox Mobile Money,
 test de charge sur une copie de production.
+
+## Audit de recette par rôle (2026-11-12)
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| AUD-ROUTES | P1 | Appels vers des routes inexistantes « capturées » | 17 appels (Certificats, Listes de classe, Statistiques d'inscription, `riskAssessment.ts`, soumissions de devoirs) visent `/students/classes/`, `/students/academic-years/`, `/admissions/enrollments/`… que le serveur route vers `/students/{id}/` ou `/admissions/{id}/` (422/404). Invisible du contrôle de contrat (le chemin « correspond » à une route à paramètre) et du parcours 09 (422 non compté) | Chaque page rebranchée sur une route existante ; contrôle de contrat qui signale un segment littéral capturé par un paramètre |

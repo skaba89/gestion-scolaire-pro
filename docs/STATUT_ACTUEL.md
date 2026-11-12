@@ -1003,3 +1003,36 @@ ce fichier — pas d'un document de 2025 non révisé.
   terminé une leçon ; avancement = leçons publiées terminées). Migration
   `20261112_0002` : `tenant_id` + RLS (FORCE) sur `elearning_enrollments`,
   conservée pour une future inscription explicite (0 ligne en production).
+
+- **2026-11-12 — audit de recette par rôle (navigateur, stack réelle).** Les
+  9 comptes de recette ont ouvert chacune de leurs pages (129 pages) après
+  les 49 parcours E2E, en relevant erreurs de console, appels API refusés et
+  textes anormaux (undefined, NaN, dates invalides, clés de traduction
+  brutes) : aucun texte anormal ; constats corrigés :
+  - **élève** : « Pré-inscription » affichait toujours « profil introuvable »
+    (route `/students/detailed-profile/` inexistante) et n'aurait pas pu
+    soumettre (`POST /admissions/` réservé à l'administration) ;
+    « Carrières & Stages » ne chargeait jamais « mes candidatures / événements
+    / mentorat » (`/students/profile/` inexistante). Nouvelles routes
+    `GET /students/me/`, `POST /students/me/reenroll/` (mêmes règles que la
+    réinscription par un parent, doublon 409, audit) et
+    `GET /students/me/reenrollment/` ;
+  - **comptable** : aucun destinataire dans la messagerie (liste réservée à
+    `users:read`) → `GET /communication/messaging/recipients/`
+    (`communications:write` : personnel et parents, sans e-mail ; liste
+    complète avec e-mails pour `users:read`) ; onglet « E-mail externe »
+    réservé à `users:read` ; la page Élèves n'appelle plus `/departments/`
+    tant que le formulaire de création est fermé ;
+  - **rapport ministériel par niveau** : les effectifs comptaient des notes
+    (jointure), et les élèves sans niveau formaient deux lignes ;
+  - **présence en direct** (`/admin/live-attendance`) : appelait
+    `/students/enrollments/`, inexistante (422), et plantait → `/enrollments/` ;
+  - avertissements React : clé en double, `div` dans `tbody` (élèves,
+    enseignants), `div` dans `p`.
+  Test : `tests/test_audit_findings_2026_11_12.py` (8 cas rouges avant).
+  Second passage de l'audit sur le code corrigé : 0 constat pour 8 rôles sur 9.
+  Reste (plan à part) : 17 appels frontend vers des routes inexistantes que
+  ni le contrôle de contrat ni le parcours 09 ne voient (segment littéral
+  capturé par une route à identifiant, ex. `/students/classes/` →
+  `/students/{id}/`) : Certificats, Listes de classe, Statistiques
+  d'inscription, risque de décrochage, soumissions de devoirs.

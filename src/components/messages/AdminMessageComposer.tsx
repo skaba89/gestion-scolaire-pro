@@ -71,7 +71,7 @@ export const AdminMessageComposer = () => {
     queryFn: async () => {
       if (!tenantId) return [];
 
-      const response = await apiClient.get<any[]>("/communication/messaging/users/");
+      const response = await apiClient.get<any[]>("/communication/messaging/recipients/");
       const profiles = response.data || [];
 
       return profiles

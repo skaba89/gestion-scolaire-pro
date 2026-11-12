@@ -40,7 +40,10 @@ export const StudentFormDialog = ({
       });
       return data.data || data || [];
     },
-    enabled: !!tenant?.id,
+    // 2026-11-12 (audit de recette) : chargé seulement à l'ouverture — le
+    // formulaire, monté fermé sur /admin/students, appelait /departments/
+    // pour tout visiteur (403 pour le comptable, sans departments:read).
+    enabled: !!tenant?.id && open,
   });
 
   const { data: levels = [] } = useLevels(tenant?.id);

@@ -79,12 +79,17 @@ export const studentsService = {
     return { emailSent: !!data?.delivery, ...data };
   },
 
+  /** Fiche de l'élève connecté (2026-11-12 : appelait /students/profile/,
+   *  route inexistante refusée en 403). null si le compte n'est pas un élève. */
   async getProfile(userId: string, tenantId: string) {
     if (!userId || !tenantId) return null;
-    const { data } = await apiClient.get<any>("/students/profile/", {
-      params: { user_id: userId, tenant_id: tenantId },
-    });
-    return data || null;
+    try {
+      const { data } = await apiClient.get<any>("/students/me/");
+      return data || null;
+    } catch (error: unknown) {
+      if ((error as { response?: { status?: number } })?.response?.status === 403) return null;
+      throw error;
+    }
   },
 
   async getEnrollment(studentId: string) {
@@ -237,32 +242,22 @@ export const studentsService = {
     return data || [];
   },
 
-  async getExistingAdmissionApplication(tenantId: string, academicYearId: string, firstName: string, lastName: string) {
-    if (!tenantId || !academicYearId) return null;
-    const { data } = await apiClient.get<any[]>("/admissions/", {
-      params: {
-        tenant_id: tenantId,
-        academic_year_id: academicYearId,
-        student_first_name: firstName,
-        student_last_name: lastName,
-      },
+  /** Demande de réinscription de l'élève connecté pour cette année (ou null). */
+  async getMyReenrollment(academicYearId: string) {
+    if (!academicYearId) return null;
+    const { data } = await apiClient.get<any>("/students/me/reenrollment/", {
+      params: { academic_year_id: academicYearId },
     });
-    return data?.[0] || null;
+    return data || null;
   },
 
-  async submitAdmissionApplication(payload: any) {
-    await apiClient.post("/admissions/", payload);
+  /** L'élève connecté demande sa réinscription (POST /admissions/ est réservé à l'administration). */
+  async submitMyReenrollment(payload: { academic_year_id: string; level_id: string | null; notes?: string }) {
+    const { data } = await apiClient.post<any>("/students/me/reenroll/", payload);
+    return data;
   },
 
   async getDetailedProfile(userId: string, tenantId: string) {
-    if (!userId || !tenantId) return null;
-    try {
-      const { data } = await apiClient.get<any>("/students/detailed-profile/", {
-        params: { user_id: userId, tenant_id: tenantId },
-      });
-      return data || null;
-    } catch {
-      return null;
-    }
+    return studentsService.getProfile(userId, tenantId);
   },
 };

@@ -18,6 +18,7 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { adminQueries } from "@/queries/admin";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { apiErrorDetail } from "@/lib/api-error";
 
 interface Student {
   id: string;
@@ -118,9 +119,17 @@ export default function LiveAttendancePage() {
       params.class_id = selectedClassroom;
     }
 
-    const response = await apiClient.get<Enrollment[]>("/students/enrollments/", { params });
-    setEnrollments(response.data || []);
-    setLoading(false);
+    // 2026-11-12 (audit de recette) : /students/enrollments/ n'existe pas
+    // (capturée par /students/{id}/ → 422) et l'erreur n'était pas gérée :
+    // erreur non interceptée, chargement sans fin.
+    try {
+      const response = await apiClient.get<Enrollment[]>("/enrollments/", { params });
+      setEnrollments(response.data || []);
+    } catch (error) {
+      toast.error(apiErrorDetail(error) || t("common.error"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

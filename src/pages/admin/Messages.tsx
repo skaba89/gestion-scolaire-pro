@@ -10,10 +10,15 @@ import ExternalMessageComposer from "@/components/messages/ExternalMessageCompos
 import { MessengerInterface } from "@/components/messages/MessengerInterface";
 import { WhatsAppThreadsPanel } from "@/components/messages/WhatsAppThreadsPanel";
 import { useTranslation } from "react-i18next";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const MessagesPage = () => {
   const { t } = useTranslation();
   const { tenant } = useTenant();
+  const { can } = usePermissions();
+  // L'e-mail externe utilise les adresses des comptes : réservé à users:read
+  // (2026-11-12 — le comptable n'y avait que des destinataires sans e-mail).
+  const canEmail = can("users:read");
 
   // Fetch all users for recipient selection
   const { data: allUsers } = useQuery({
@@ -34,7 +39,7 @@ const MessagesPage = () => {
       </div>
 
       <Tabs defaultValue="inbox" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+        <TabsList className={`grid w-full ${canEmail ? "grid-cols-4" : "grid-cols-3"} max-w-2xl`}>
           <TabsTrigger value="inbox" className="gap-2">
             <Inbox className="w-4 h-4" />
             {t("adminMessages.tabMessages")}
@@ -47,10 +52,12 @@ const MessagesPage = () => {
             <MessageSquare className="w-4 h-4" />
             {t("adminMessages.tabBroadcast")}
           </TabsTrigger>
-          <TabsTrigger value="external" className="gap-2">
-            <Mail className="w-4 h-4" />
-            {t("adminMessages.tabEmail")}
-          </TabsTrigger>
+          {canEmail && (
+            <TabsTrigger value="external" className="gap-2">
+              <Mail className="w-4 h-4" />
+              {t("adminMessages.tabEmail")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="inbox" className="mt-6">
@@ -118,24 +125,26 @@ const MessagesPage = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="external" className="mt-6">
-          <div className="grid gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="w-5 h-5 text-primary" />
-                  {t("adminMessages.emailTitle")}
-                </CardTitle>
-                <CardDescription>
-                  {t("adminMessages.emailDescription")}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ExternalMessageComposer />
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+        {canEmail && (
+          <TabsContent value="external" className="mt-6">
+            <div className="grid gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    {t("adminMessages.emailTitle")}
+                  </CardTitle>
+                  <CardDescription>
+                    {t("adminMessages.emailDescription")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ExternalMessageComposer />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

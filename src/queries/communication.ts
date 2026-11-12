@@ -31,7 +31,7 @@ export const communicationQueries = {
         queryKey: ["all-users-for-messaging", tenantId],
         queryFn: async () => {
             if (!tenantId) return [];
-            const response = await apiClient.get("/communication/messaging/users/");
+            const response = await apiClient.get("/communication/messaging/recipients/");
             return response.data;
         },
         staleTime: 5 * 60 * 1000,
