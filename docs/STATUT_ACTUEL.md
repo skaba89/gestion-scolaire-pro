@@ -1052,3 +1052,17 @@ ce fichier — pas d'un document de 2025 non révisé.
   restent) et `studentsService.getSubmissions`. Le contrôle de contrat signale
   désormais un segment littéral capturé par un paramètre (et ne coupe plus
   `${a?.b}` au « ? ») : 0 appel sans route, référence vide.
+- **2026-11-12 — audit de recette permanent en CI (parcours 09).** Le
+  parcours 09, requis avant fusion, applique désormais à chaque entrée de menu
+  des 9 rôles les contrôles de l'audit de recette : appel API refusé (403) ou
+  rejeté (422) sur une page du menu du rôle, erreur de console (React,
+  exception non interceptée ; message normalisé, « Failed to load resource »
+  ignoré car déjà classé par statut HTTP), texte anormal affiché (`undefined`,
+  `NaN`, `Invalid Date`, `[object Object]`) et clé de traduction brute
+  (espace de noms présent dans `fr.json`). Même cliquet
+  `role-portals.baseline.json`, qui reste vide.
+  Premier passage : 3 refus réels corrigés dans la même PR — page Clubs du
+  directeur (`GET /clubs/memberships/` exigeait `clubs:read`, désormais
+  accordé à `DIRECTOR`), « Carrières & Stages » et « Listes de classe »
+  affichées au comptable sans les droits nécessaires (gardes du menu
+  passées à `users:read` et `enrollments:read`).

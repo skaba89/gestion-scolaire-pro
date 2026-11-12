@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, test, type Page, type Response } from '@playwright/test';
+import { expect, test, type ConsoleMessage, type Page, type Response } from '@playwright/test';
 import { API, api, credentials, stateFile, ulsUrl, type UlsRole } from './helpers';
 
 /**
@@ -11,7 +11,12 @@ import { API, api, credentials, stateFile, ulsUrl, type UlsRole } from './helper
  * - elle affiche la page 404 du frontend ou une erreur d'affichage ;
  * - elle renvoie vers la connexion ou hors du portail ;
  * - un appel API qu'elle déclenche répond 5xx (« api-5xx ») ou 404/405,
- *   c.-à-d. une route appelée qui n'existe pas (« api-404 »).
+ *   c.-à-d. une route appelée qui n'existe pas (« api-404 ») ;
+ * - un appel API est refusé alors que la page figure dans le menu du rôle
+ *   (« api-403 ») ou rejeté comme invalide (« api-422 ») ;
+ * - la console affiche une erreur (React, exception non interceptée) ;
+ * - la page affiche un texte anormal (undefined, NaN, Invalid Date,
+ *   [object Object]) ou une clé de traduction brute (« raw-i18n »).
  *
  * Clés : « <page> <défaut> » pour l'affichage, « api-<code> <MÉTHODE> <route> »
  * pour l'API (une fois par rôle).
@@ -41,6 +46,11 @@ const FOREIGN: Record<Portal, Portal> = {
   admin: 'student', teacher: 'admin', department: 'admin',
   student: 'admin', parent: 'admin', alumni: 'admin',
 };
+
+/** Espaces de noms i18n : un mot « ns.clé » affiché tel quel est une traduction manquante. */
+const I18N_NAMESPACES = new Set(
+  Object.keys(JSON.parse(fs.readFileSync(path.resolve('src/i18n/locales/fr.json'), 'utf8'))),
+);
 
 const BASELINE_FILE = path.resolve('tests/e2e/journeys/role-portals.baseline.json');
 type Baseline = Record<string, string[]>;
@@ -81,6 +91,36 @@ async function dismissTour(page: Page): Promise<void> {
   if (await skip.isVisible()) await skip.click();
 }
 
+/**
+ * Message de console normalisé (identifiants, URL, nombres) pour que la clé
+ * reste stable d'une exécution à l'autre. Les « Failed to load resource »
+ * sont ignorés : chaque statut HTTP est déjà classé par les contrôles API.
+ */
+function consoleKey(text: string): string | null {
+  if (/^Failed to load resource/.test(text)) return null;
+  const line = text.split('\n')[0]
+    .replace(/https?:\/\/\S+/g, '<url>')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, ':id')
+    .replace(/\d+/g, 'N')
+    .trim();
+  return line.slice(0, 160);
+}
+
+/** Textes anormaux et clés de traduction brutes visibles dans la page. */
+async function textAnomalies(page: Page): Promise<string[]> {
+  const main = page.locator('main').first();
+  const text = (await main.count()) ? await main.innerText() : await page.locator('body').innerText();
+  const found = new Set<string>();
+  for (const m of text.matchAll(/\b(undefined|NaN|Invalid Date)\b|\[object Object\]/g)) {
+    found.add(`text: ${m[1] ?? m[0]}`);
+  }
+  for (const token of text.split(/[\s,;:()«»"']+/)) {
+    const m = token.match(/^([a-z][a-zA-Z]+)\.[a-zA-Z0-9_.]+$/);
+    if (m && I18N_NAMESPACES.has(m[1])) found.add(`raw-i18n: ${token}`);
+  }
+  return [...found].sort();
+}
+
 async function menuLinks(page: Page, prefix: string): Promise<string[]> {
   const collect = async () =>
     page.locator('aside a[href], nav a[href]').evaluateAll((links) =>
@@ -109,6 +149,7 @@ async function inspect(page: Page, href: string, prefix: string, slug: string): 
     const status = r.status();
     const method = r.request().method();
     if (status === 429) apiErrors.add(`api-429 ${method} ${apiKey(r.url())}`);
+    else if (status === 403 || status === 422) apiErrors.add(`api-${status} ${method} ${apiKey(r.url())}`);
     else if (status >= 500) apiErrors.add(`api-5xx ${method} ${apiKey(r.url())}`);
     else if (status === 404 || status === 405) {
       // Un 404 d'API sur un identifiant précis peut être légitime ; seuls
@@ -130,7 +171,19 @@ async function inspect(page: Page, href: string, prefix: string, slug: string): 
     inflight = Math.max(0, inflight - 1);
     lastActivity = Date.now();
   };
+  const consoleErrors = new Set<string>();
+  const onConsole = (m: ConsoleMessage) => {
+    if (m.type() !== 'error') return;
+    const k = consoleKey(m.text());
+    if (k) consoleErrors.add(`console: ${k}`);
+  };
+  const onPageError = (e: Error) => {
+    const k = consoleKey(String(e));
+    if (k) consoleErrors.add(`console: ${k}`);
+  };
   await throttle();
+  page.on('console', onConsole);
+  page.on('pageerror', onPageError);
   page.on('request', onRequest);
   page.on('requestfinished', onDone);
   page.on('requestfailed', onDone);
@@ -157,13 +210,16 @@ async function inspect(page: Page, href: string, prefix: string, slug: string): 
     if (await page.getByText(/Une erreur (inattendue s'est produite|est survenue)/).count()) {
       defects.push('render-error');
     }
+    defects.push(...(await textAnomalies(page)));
   } finally {
+    page.off('console', onConsole);
+    page.off('pageerror', onPageError);
     page.off('response', onResponse);
     page.off('request', onRequest);
     page.off('requestfinished', onDone);
     page.off('requestfailed', onDone);
   }
-  return [...defects, ...[...apiErrors].sort()];
+  return [...defects, ...[...consoleErrors].sort(), ...[...apiErrors].sort()];
 }
 
 // Un chef de département sans département n'a pas de portail exploitable

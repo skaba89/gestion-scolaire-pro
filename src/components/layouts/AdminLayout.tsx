@@ -196,7 +196,7 @@ export const AdminLayout = () => {
       items: [
         { href: getTenantUrl("/admin/admissions"), label: t("nav.admissions"), icon: BookOpen, permission: "admissions:read" },
         { href: getTenantUrl("/admin/students"), label: StudentsLabel, icon: Users, permission: "students:read" },
-        { href: getTenantUrl("/admin/class-lists"), label: isUniversity ? "Listes d'Inscriptions" : "Listes de Classe", icon: ClipboardList, permission: "students:read" },
+        { href: getTenantUrl("/admin/class-lists"), label: isUniversity ? "Listes d'Inscriptions" : "Listes de Classe", icon: ClipboardList, permission: "enrollments:read" },
         { href: getTenantUrl("/admin/enrollments"), label: t("nav.enrollments"), icon: UserCheck, permission: "enrollments:read" },
         { href: getTenantUrl("/admin/teachers"), label: t("nav.teachers"), icon: GraduationCap, permission: "teachers:read" },
         { href: getTenantUrl("/admin/grades"), label: t("nav.grades"), icon: BarChart3, permission: "grades:read" },
@@ -274,7 +274,7 @@ export const AdminLayout = () => {
       icon: UsersIcon,
       items: [
         { href: getTenantUrl("/admin/clubs"), label: t("nav.clubs", "Clubs"), icon: UsersIcon, permission: "events:read" },
-        { href: getTenantUrl("/admin/careers"), label: t("nav.careers", "Carrières & Stages"), icon: GraduationCap, permission: "students:read" },
+        { href: getTenantUrl("/admin/careers"), label: t("nav.careers", "Carrières & Stages"), icon: GraduationCap, permission: "users:read" },
         { href: getTenantUrl("/admin/alumni-mentors"), label: t("nav.alumniMentors", "Mentors Alumni"), icon: Users, permission: "users:read" },
         { href: getTenantUrl("/admin/alumni-requests"), label: t("nav.alumniRequests", "Requêtes Alumni"), icon: FileText, permission: "users:read" },
         // Sensitive nominative alerts: visible only to roles accepted by the API,

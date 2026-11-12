@@ -634,7 +634,10 @@ une vraie permission — 3 fichiers concernés :
 - `operational/clubs.py::list_memberships` (`GET /clubs/memberships/`) :
   même trou, renvoyait chaque adhésion (élève + club + rôle) sur tout le
   tenant. Corrigé avec `clubs:read` (`TENANT_ADMIN` uniquement) —
-  `list_clubs` (catalogue des clubs) reste ouvert.
+  `list_clubs` (catalogue des clubs) reste ouvert. **2026-11-12** :
+  `clubs:read` accordé aussi à `DIRECTOR`, qui gère déjà clubs et membres
+  (`settings:write`) mais dont la page Clubs répondait 403 (constat du
+  parcours 09). `ACCOUNTANT`, `TEACHER` etc. restent refusés (testé).
 - `operational/inventory.py::list_categories`/`list_items`/
   `list_transactions`/`list_orders` : même trou sur les 4 — `list_orders`
   renvoyait en plus l'historique d'achats de chaque élève (nom, matricule,
@@ -1017,3 +1020,17 @@ sous RLS (FORCE) depuis la migration `20261112_0002`.
 | Demander sa réinscription / voir sa demande | `POST /students/me/reenroll/`, `GET /students/me/reenrollment/` | idem ; année et niveau de l'établissement (400 sinon), une demande en cours par année (409) ; audit `STUDENT_REENROLL_REQUEST` |
 | Choisir un destinataire (formulaire de l'administration) | `GET /communication/messaging/recipients/` | `communications:write` : personnel et parents, sans e-mail ; avec `users:read` : tous les comptes, e-mails compris |
 | E-mail externe (adresses des comptes) | onglet « E-mail externe », `GET /communication/messaging/users/` | `users:read` (inchangé ; onglet masqué sinon) |
+
+## Gardes du menu admin alignées sur l'API (2026-11-12)
+
+Le parcours 09 signale désormais tout 403 sur une page du menu d'un rôle.
+Deux entrées étaient affichées au comptable avec `students:read` alors que
+leurs appels exigent davantage :
+
+| Entrée | Garde (avant → après) | Appels de la page |
+|---|---|---|
+| Carrières & Stages (`/admin/careers`) | `students:read` → `users:read` | `GET /alumni/admin/job-applications/`, `/alumni/admin/event-registrations/` (`users:read`) |
+| Listes de classe (`/admin/class-lists`) | `students:read` → `enrollments:read` | `GET /enrollments/`, `/departments/` |
+
+Aucune permission backend ne change pour ces deux entrées : seul le menu
+du comptable les masque (test : `src/routes/admin-navigation-contract.test.ts`).

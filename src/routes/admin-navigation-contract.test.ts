@@ -28,3 +28,24 @@ describe("admin navigation integrity", () => {
         expect(nav).toContain('["TENANT_ADMIN", "DIRECTOR", "SUPER_ADMIN"]');
     });
 });
+
+describe("admin menu entries match the API permissions they need", () => {
+    const nav = source("src/components/layouts/AdminLayout.tsx");
+    const gateOf = (dest: string) =>
+        nav.match(new RegExp(`getTenantUrl\\("/admin/${dest}"\\)[^}]*permission: "([^"]+)"`))?.[1];
+
+    // Audit de recette CI (2026-11-12) : ces pages appelaient des routes que le
+    // comptable n'a pas le droit de lire (403) alors que son menu les affichait.
+    it("gates Careers on users:read and class lists on enrollments:read", async () => {
+        const { hasPermission } = await import("@/lib/permissions");
+        expect(gateOf("careers")).toBe("users:read");
+        expect(gateOf("class-lists")).toBe("enrollments:read");
+        for (const dest of ["careers", "class-lists"]) {
+            const gate = gateOf(dest) as Parameters<typeof hasPermission>[1];
+            expect(hasPermission(["ACCOUNTANT"], gate)).toBe(false);
+            for (const role of ["TENANT_ADMIN", "DIRECTOR", "SECRETARY"] as const) {
+                expect(hasPermission([role], gate)).toBe(true);
+            }
+        }
+    });
+});
