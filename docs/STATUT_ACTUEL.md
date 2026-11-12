@@ -913,3 +913,17 @@ ce fichier — pas d'un document de 2025 non révisé.
   404 sur un forum inconnu) ; `POST /classrooms/` convertit le refus d'un
   niveau d'un autre établissement en 404. Test :
   `tests/test_write_input_validation.py` (9 cas rouges avant le correctif).
+
+- **2026-11-12 — parcours de toutes les routes d'écriture dans la CI
+  (CRAWL-W, lot D).** Le job « E2E Journeys (real stack) » appelle, après le
+  parcours des lectures, chaque route POST/PUT/PATCH/DELETE avec le compte
+  administrateur de recette (API sous rôle NOBYPASSRLS) : corps vide, puis
+  corps généré depuis l'OpenAPI avec des UUID inexistants dans les champs
+  `*_id` et les chemins (rien d'existant n'est modifié). Toute réponse
+  500/501/504 absente de `scripts/ci/write-crawl-known-failures.json` fait
+  échouer la fusion ; une entrée de cette liste qui ne répond plus 5xx aussi
+  (cliquet). Les 502/503 (dépendance externe non configurée en CI) sont
+  comptés sans bloquer. Exclus : authentification, MFA, amorçage, webhooks,
+  envois externes, IA, abonnement, réglages de sécurité. Vérifié localement
+  sur le code de #533 + #534 + #535 : 305 opérations, 515 appels, 0 erreur
+  serveur ; une entrée corrigée restée dans la liste est détectée.

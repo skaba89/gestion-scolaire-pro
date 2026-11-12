@@ -74,7 +74,7 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
 | CRAWL | ~~P2~~ fait | Erreurs 500 sur des lectures invisibles des tests | **Fait** (PR ci/get-routes-crawl) : parcours de toutes les routes GET × 9 rôles dans le job E2E, échec sur toute 5xx. Un premier parcours manuel a trouvé `event-registrations` (#531) | — |
-| CRAWL-W | P3 | Écritures non parcourues | POST/PUT/PATCH non couverts par ce parcours (corps valides nécessaires) | Parcours des écritures avec corps générés depuis l'OpenAPI, sur base jetable |
+| CRAWL-W | ~~P2~~ fait | Écritures non parcourues | **Fait** : parcours exploratoire (53 opérations en 5xx) → #533 (FK d'un autre établissement, ≈25 routes), #534 (pannes), #535 (saisies → 422), puis parcours des écritures dans la CI avec liste de référence vide (`scripts/ci/crawl_write_routes.py`) | — |
 
 ## E-learning (2026-11-11)
 

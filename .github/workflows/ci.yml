@@ -258,12 +258,27 @@ jobs:
         env:
           CRAWL_REPORT: e2e-logs/get-routes-crawl.json
 
+      - name: Crawl every write route as administrator (no new 5xx)
+        # Après le parcours des lectures (qui ne doit pas voir les données
+        # créées ici). Corps vide puis corps généré depuis l'OpenAPI, UUID
+        # inexistants dans les chemins : rien d'existant n'est modifié.
+        # Échoue sur toute 500/501/504 absente de
+        # scripts/ci/write-crawl-known-failures.json (liste qui ne peut que
+        # diminuer) — cf. scripts/ci/crawl_write_routes.py (origine : #533).
+        if: (success() || failure()) && steps.start_api.outcome == 'success'
+        timeout-minutes: 15
+        run: python scripts/ci/crawl_write_routes.py
+        env:
+          CRAWL_REPORT: e2e-logs/write-routes-crawl.json
+
       - name: Upload GET-routes crawl report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: get-routes-crawl
-          path: e2e-logs/get-routes-crawl.json
+          path: |
+            e2e-logs/get-routes-crawl.json
+            e2e-logs/write-routes-crawl.json
           if-no-files-found: ignore
           retention-days: 7
 
