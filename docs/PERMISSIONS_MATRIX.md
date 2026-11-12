@@ -1008,3 +1008,12 @@ uniquement.
 Statistiques (`GET /analytics/elearning/enrollments/`, `enrolled_count`) :
 déduites de `elearning_lesson_progress` ; `elearning_enrollments` est aussi
 sous RLS (FORCE) depuis la migration `20261112_0002`.
+
+## Espace élève et destinataires de messagerie (audit de recette, 2026-11-12)
+
+| Action | Route | Qui |
+|---|---|---|
+| Lire sa fiche et ses inscriptions | `GET /students/me/` | compte relié à une fiche élève (`students.user_id`) ; 403 sinon |
+| Demander sa réinscription / voir sa demande | `POST /students/me/reenroll/`, `GET /students/me/reenrollment/` | idem ; année et niveau de l'établissement (400 sinon), une demande en cours par année (409) ; audit `STUDENT_REENROLL_REQUEST` |
+| Choisir un destinataire (formulaire de l'administration) | `GET /communication/messaging/recipients/` | `communications:write` : personnel et parents, sans e-mail ; avec `users:read` : tous les comptes, e-mails compris |
+| E-mail externe (adresses des comptes) | onglet « E-mail externe », `GET /communication/messaging/users/` | `users:read` (inchangé ; onglet masqué sinon) |

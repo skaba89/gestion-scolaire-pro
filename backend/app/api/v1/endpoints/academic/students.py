@@ -1,6 +1,7 @@
 import logging
 """Student endpoints"""
 from typing import Optional
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, or_
@@ -296,6 +297,112 @@ def _can_read_enrollment(*, db: Session, current_user: dict, student, tenant_id:
             ParentStudent.student_id == student.id,
         ).first() is not None
     return False
+
+
+# ─── Espace de l'élève connecté (/students/me/…) — 2026-11-12 ─────────────────
+# Audit de recette : « Carrières & Stages » et « Pré-inscription » appelaient
+# /students/profile/ et /students/detailed-profile/, routes inexistantes
+# (capturées par /{student_id}/ puis refusées en 403) ; la pré-inscription
+# soumettait ensuite par POST /admissions/ (réservé à l'administration).
+
+def _my_student(db: Session, request: Request, current_user: dict):
+    from sqlalchemy import bindparam, text
+    from app.models.base import GUID
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    row = db.execute(text("""
+        SELECT id, tenant_id, first_name, last_name, registration_number, date_of_birth,
+               gender, email, phone, address
+          FROM students WHERE user_id = :uid AND tenant_id = :tid LIMIT 1
+    """).bindparams(bindparam("uid", type_=GUID()), bindparam("tid", type_=GUID())),
+        {"uid": str(current_user.get("id")), "tid": tenant_id}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=403, detail="Réservé aux élèves.")
+    return tenant_id, row
+
+
+class MyReenrollmentIn(BaseModel):
+    academic_year_id: UUID
+    level_id: Optional[UUID] = None
+    notes: Optional[str] = Field(default=None, max_length=2000)
+
+
+@router.get("/me/")
+def get_my_student_profile(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Fiche de l'élève connecté et ses inscriptions (classe, niveau, année)."""
+    from sqlalchemy import bindparam, text
+    from app.models.base import GUID
+    tenant_id, student = _my_student(db, request, current_user)
+    enrollments = db.execute(text("""
+        SELECT e.id, e.status, e.class_id, c.name AS class_name, c.level_id, l.name AS level_name,
+               e.academic_year_id, ay.name AS academic_year_name, COALESCE(ay.is_current, false) AS is_current
+          FROM enrollments e
+          JOIN classes c ON c.id = e.class_id AND c.tenant_id = e.tenant_id
+          LEFT JOIN levels l ON l.id = c.level_id AND l.tenant_id = c.tenant_id
+          LEFT JOIN academic_years ay ON ay.id = e.academic_year_id AND ay.tenant_id = e.tenant_id
+         WHERE e.student_id = :sid AND e.tenant_id = :tid
+         ORDER BY ay.start_date DESC NULLS LAST, e.created_at DESC
+    """).bindparams(bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID())),
+        {"sid": str(student["id"]), "tid": tenant_id}).mappings().all()
+
+    def _plain(row):
+        return {k: (str(v) if isinstance(v, UUID) else v) for k, v in dict(row).items()}
+
+    out = _plain(student)
+    out["gender"] = getattr(student["gender"], "value", student["gender"])
+    out["enrollments"] = [_plain(e) for e in enrollments]
+    return out
+
+
+@router.get("/me/reenrollment/")
+def get_my_reenrollment(
+    request: Request,
+    academic_year_id: UUID = Query(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Demande de réinscription en cours de l'élève connecté pour cette année (ou null)."""
+    from sqlalchemy import text
+    tenant_id, student = _my_student(db, request, current_user)
+    row = db.execute(text("""
+        SELECT id, status, level_id, notes, submitted_at, created_at
+          FROM admission_applications
+         WHERE tenant_id = :tid AND academic_year_id = :ay
+           AND documents->>'student_id' = :sid
+         ORDER BY created_at DESC LIMIT 1
+    """), {"tid": tenant_id, "ay": str(academic_year_id), "sid": str(student["id"])}).mappings().first()
+    if not row:
+        return None
+    return {k: (str(v) if isinstance(v, UUID) else v) for k, v in dict(row).items()}
+
+
+@router.post("/me/reenroll/", status_code=status.HTTP_201_CREATED)
+def submit_my_reenrollment(
+    request: Request,
+    body: MyReenrollmentIn,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """L'élève connecté demande sa réinscription (mêmes règles que celle d'un parent)."""
+    from app.api.v1.endpoints.operational.admissions import (
+        _assert_year_and_level_in_tenant, create_reenrollment_request,
+    )
+    from app.utils.audit import log_audit
+    tenant_id, student = _my_student(db, request, current_user)
+    _assert_year_and_level_in_tenant(db, tenant_id, body.academic_year_id, body.level_id)
+    row = create_reenrollment_request(
+        db, tenant_id=tenant_id, student=student, academic_year_id=body.academic_year_id,
+        level_id=body.level_id, parent_email=None, parent_phone=None, notes=body.notes,
+    )
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id, action="STUDENT_REENROLL_REQUEST",
+              resource_type="ADMISSION", resource_id=str(row["id"]),
+              details={"academic_year_id": str(body.academic_year_id)})
+    db.commit()
+    return {"id": str(row["id"]), "status": row["status"],
+            "submitted_at": row["submitted_at"].isoformat() if row["submitted_at"] else None}
 
 
 @router.get("/{student_id}/enrollment/")

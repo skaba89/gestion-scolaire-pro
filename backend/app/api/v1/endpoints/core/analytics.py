@@ -762,17 +762,20 @@ def get_ministry_stats_by_level(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     try:
         rows = db.execute(text("""
+            -- 2026-11-12 (audit de recette) : COUNT(*) après la jointure sur
+            -- les notes comptait des notes, pas des élèves (effectifs gonflés) ;
+            -- NULL et '' formaient deux lignes « Non défini ».
             SELECT
-                s.level                                                     AS level_name,
-                COUNT(*)                                                    AS total,
-                COUNT(*) FILTER (WHERE s.gender = 'MALE')                   AS male,
-                COUNT(*) FILTER (WHERE s.gender = 'FEMALE')                 AS female,
+                COALESCE(NULLIF(TRIM(s.level), ''), 'Non défini')          AS level_name,
+                COUNT(DISTINCT s.id)                                        AS total,
+                COUNT(DISTINCT s.id) FILTER (WHERE s.gender = 'MALE')       AS male,
+                COUNT(DISTINCT s.id) FILTER (WHERE s.gender = 'FEMALE')     AS female,
                 ROUND(AVG(g.score / NULLIF(g.max_score, 0) * 20)::numeric, 1) AS avg_grade
             FROM students s
             LEFT JOIN grades g ON g.student_id = s.id AND g.tenant_id = :tid
             WHERE s.tenant_id = :tid AND s.status = 'ACTIVE'
-            GROUP BY s.level
-            ORDER BY s.level
+            GROUP BY 1
+            ORDER BY 1
         """), {"tid": tenant_id}).mappings().all()
 
         return [

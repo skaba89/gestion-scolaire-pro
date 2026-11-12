@@ -127,9 +127,12 @@ describe("studentsService", () => {
       const result = await studentsService.getProfile("user-1", "tenant-1");
 
       expect(result).toEqual(profile);
-      expect(mocks.get).toHaveBeenCalledWith("/students/profile/", {
-        params: { user_id: "user-1", tenant_id: "tenant-1" },
-      });
+      expect(mocks.get).toHaveBeenCalledWith("/students/me/");
+    });
+
+    it("returns null when the account is not a student (403)", async () => {
+      mocks.get.mockRejectedValue({ response: { status: 403 } });
+      await expect(studentsService.getProfile("user-1", "tenant-1")).resolves.toBeNull();
     });
 
     it("returns null without user or tenant identifiers", async () => {

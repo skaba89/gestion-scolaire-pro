@@ -11,7 +11,6 @@ vi.mock("@/features/parents/services/parentsService", () => ({ parentsService: {
   getStudentDetails: vi.fn().mockResolvedValue({ id: "s1", first_name: "Awa", last_name: "Bah" }),
   getStudentEnrollment,
   getStudentAllGradesDetailed: vi.fn().mockResolvedValue([]),
-  getStudentAllEnrollments: vi.fn().mockResolvedValue([]),
   getStudentAllAttendance: vi.fn().mockResolvedValue([]),
   getChildCheckInHistory: vi.fn().mockResolvedValue([]),
   generateTranscript,

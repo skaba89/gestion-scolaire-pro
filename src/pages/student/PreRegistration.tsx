@@ -70,12 +70,7 @@ const PreRegistration = () => {
   // Vérifier si une pré-inscription existe déjà via studentsService
   const { data: existingApplication } = useQuery({
     queryKey: ["pre-registration", studentProfile?.id, nextAcademicYear?.id],
-    queryFn: () => studentsService.getExistingAdmissionApplication(
-      tenant?.id || "",
-      nextAcademicYear?.id || "",
-      studentProfile?.first_name || "",
-      studentProfile?.last_name || ""
-    ),
+    queryFn: () => studentsService.getMyReenrollment(nextAcademicYear?.id || ""),
     enabled: !!studentProfile?.id && !!nextAcademicYear?.id && !!tenant?.id,
   });
 
@@ -86,22 +81,10 @@ const PreRegistration = () => {
         throw new Error("Données manquantes");
       }
 
-      await studentsService.submitAdmissionApplication({
-        tenant_id: tenant.id,
+      await studentsService.submitMyReenrollment({
         academic_year_id: nextAcademicYear.id,
         level_id: selectedLevelId || null,
-        student_first_name: studentProfile.first_name,
-        student_last_name: studentProfile.last_name,
-        student_date_of_birth: studentProfile.date_of_birth,
-        student_gender: studentProfile.gender,
-        student_address: studentProfile.address,
-        parent_first_name: "Pré-réinscription",
-        parent_last_name: "Interne",
-        parent_email: studentProfile.email || "preinscription@interne.local",
-        parent_phone: studentProfile.phone || "N/A",
-        notes: `[PRÉ-RÉINSCRIPTION] ${notes}`.trim(),
-        status: "SUBMITTED",
-        submitted_at: new Date().toISOString(),
+        notes: notes.trim() || undefined,
       });
     },
     onSuccess: () => {
@@ -115,9 +98,8 @@ const PreRegistration = () => {
     },
   });
 
-  const currentEnrollment = studentProfile?.enrollments?.find(
-    (e: any) => e.academic_years?.is_current
-  );
+  const currentEnrollment = studentProfile?.enrollments?.find((e: any) => e.is_current)
+    ?? studentProfile?.enrollments?.[0];
 
   const getNextLevel = () => {
     if (!currentEnrollment?.level_id || !levels) return null;
@@ -220,7 +202,7 @@ const PreRegistration = () => {
               </p>
               {currentEnrollment && (
                 <p className="text-sm text-muted-foreground">
-                  {t("preRegistration.currentLevel")} {currentEnrollment.levels?.name || "N/A"}
+                  {t("preRegistration.currentLevel")} {currentEnrollment.level_name || "N/A"}
                 </p>
               )}
             </div>

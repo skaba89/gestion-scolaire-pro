@@ -194,14 +194,6 @@ export const parentsService = {
         return Array.isArray(data) ? data : (data?.items ?? []);
     },
 
-    async getStudentAllEnrollments(studentId: string) {
-        if (!studentId) return [];
-        const { data } = await apiClient.get<any[]>("/students/enrollments/", {
-            params: { student_id: studentId },
-        });
-        return data || [];
-    },
-
     async getStudentAllAttendance(studentId: string) {
         if (!studentId) return [];
         const { data } = await apiClient.get<any>("/attendance/", {

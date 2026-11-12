@@ -11,7 +11,6 @@ import { StaffProfile as TeacherProfile } from "@/features/staff/types";
 import { TeacherRow } from "./TeacherRow";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StaggerContainer } from "@/components/layouts/PageTransition";
 import {
     Pagination,
     PaginationContent,
@@ -110,17 +109,16 @@ export const TeacherTable = ({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <StaggerContainer className="contents">
-                                    {teachers.map((teacher) => (
-                                        <TeacherRow
-                                            key={teacher.id}
-                                            teacher={teacher}
-                                            onView={onView}
-                                            onAssign={onAssign}
-                                            onDelete={onDelete}
-                                        />
-                                    ))}
-                                </StaggerContainer>
+                                {/* 2026-11-12 : pas de conteneur d'animation (div) dans <tbody>. */}
+                                {teachers.map((teacher) => (
+                                    <TeacherRow
+                                        key={teacher.id}
+                                        teacher={teacher}
+                                        onView={onView}
+                                        onAssign={onAssign}
+                                        onDelete={onDelete}
+                                    />
+                                ))}
                             </TableBody>
                         </Table>
                     </div>
