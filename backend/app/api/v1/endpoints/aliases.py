@@ -2862,6 +2862,13 @@ def delete_quiz_question(
 subject_preferred_rooms_router = APIRouter()
 
 
+class SubjectPreferredRoomCreateBody(BaseModel):
+    """2026-11-11 (CRAWL-W) : le corps était un dict lu par obj_in["..."] —
+    un champ manquant donnait un KeyError, donc une 500 au lieu d'une 422."""
+    subject_id: UUID
+    room_id: UUID
+
+
 @subject_preferred_rooms_router.get("/", response_model=List[Dict[str, Any]])
 def list_subject_preferred_rooms(
     request: Request,
@@ -2880,7 +2887,7 @@ def list_subject_preferred_rooms(
 @subject_preferred_rooms_router.post("/", status_code=status.HTTP_201_CREATED, response_model=Dict[str, Any])
 def create_subject_preferred_room(
     request: Request,
-    obj_in: Dict[str, Any],
+    obj_in: SubjectPreferredRoomCreateBody,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("subjects:write")),
 ):
@@ -2888,10 +2895,7 @@ def create_subject_preferred_room(
     from app.crud import academic as crud
     from app.schemas.academic import SubjectPreferredRoomCreate, SubjectPreferredRoom as SubjectPreferredRoomSchema
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    payload = SubjectPreferredRoomCreate(
-        subject_id=obj_in["subject_id"],
-        room_id=obj_in["room_id"],
-    )
+    payload = SubjectPreferredRoomCreate(subject_id=obj_in.subject_id, room_id=obj_in.room_id)
     try:
         result = crud.create_subject_preferred_room(db, obj_in=payload, tenant_id=tenant_id)
     except ValueError as exc:
