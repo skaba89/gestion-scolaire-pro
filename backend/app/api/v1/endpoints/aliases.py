@@ -1400,7 +1400,13 @@ def create_classroom_alias(
     from app.crud import academic as crud
     from app.schemas.academic import ClassroomCreate
     data = obj_in.model_dump()
-    return crud.create_classroom(db, obj_in=ClassroomCreate(**data), tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    # 2026-11-11 (CRAWL-W) : le ValueError de contrôle (niveau, campus… d'un
+    # autre établissement) n'était pas converti ici → 500. Même réponse que
+    # POST /infrastructure/classrooms/.
+    try:
+        return crud.create_classroom(db, obj_in=ClassroomCreate(**data), tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # ─── 15. Schedule Slots at root (/schedule-slots/) ─────────────────────────────

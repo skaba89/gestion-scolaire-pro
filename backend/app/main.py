@@ -62,11 +62,13 @@ def _init_sentry() -> None:
 
 _init_sentry()
 from app.core.logging_config import setup_logging
+from sqlalchemy.exc import DataError as SQLAlchemyDataError
 from app.core.exceptions import (
     SchoolFlowException,
     schoolflow_exception_handler,
     http_exception_handler,
     unhandled_exception_handler,
+    data_error_handler,
 )
 from app.middlewares.tenant import TenantMiddleware
 from app.middlewares.request_id import RequestIDMiddleware
@@ -413,6 +415,7 @@ Every response includes an `X-Request-ID` header for distributed tracing.
 app.add_exception_handler(SchoolFlowException, schoolflow_exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(Exception, unhandled_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(SQLAlchemyDataError, data_error_handler)  # type: ignore[arg-type]
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

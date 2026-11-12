@@ -238,6 +238,31 @@ async def http_exception_handler(
     )
 
 
+async def data_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Valeur refusée par PostgreSQL pour son type (identifiant non UUID, date
+    illisible, nombre hors bornes, texte trop long) → 422, pas 500.
+
+    2026-11-11 (CRAWL-W) : une vingtaine de routes d'écriture laissaient une
+    saisie mal formée atteindre la base et répondaient 500. Ce gestionnaire
+    ne couvre que `sqlalchemy.exc.DataError` (SQLSTATE classe 22, « data
+    exception ») : une erreur de programmation (colonne inexistante, SQL
+    invalide) reste une 500. Aucune valeur saisie n'est journalisée.
+    """
+    request_id = getattr(request.state, "request_id", "-")
+    orig = getattr(exc, "orig", None)
+    logger.warning(
+        "Data error rejected as 422: %s",
+        type(orig).__name__ if orig is not None else type(exc).__name__,
+        extra={"request_id": request_id, "path": str(request.url.path)},
+    )
+    message = "Valeur invalide pour l'un des champs (format ou type incorrect)."
+    return JSONResponse(
+        status_code=422,
+        content={"error": "INVALID_DATA", "message": message, "detail": message, "request_id": request_id},
+        headers=_cors_headers(request),
+    )
+
+
 async def unhandled_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
