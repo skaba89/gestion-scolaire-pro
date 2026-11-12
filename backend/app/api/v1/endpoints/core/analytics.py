@@ -1047,10 +1047,16 @@ def list_elearning_courses(
                s.name as subject_name, l.name as level_name,
                COALESCE(e.enrolled_count, 0) as enrolled_count
         FROM elearning_courses c
-        LEFT JOIN subjects s ON s.id = c.subject_id
-        LEFT JOIN levels l ON l.id = c.level_id
+        LEFT JOIN subjects s ON s.id = c.subject_id AND s.tenant_id = c.tenant_id
+        LEFT JOIN levels l ON l.id = c.level_id AND l.tenant_id = c.tenant_id
         LEFT JOIN (
-            SELECT course_id, COUNT(*) as enrolled_count FROM elearning_enrollments GROUP BY course_id
+            -- 2026-11-12 : élèves ayant terminé au moins une leçon du cours
+            -- (elearning_enrollments n'est alimentée par aucune route).
+            SELECT ls.course_id, COUNT(DISTINCT p.student_id) AS enrolled_count
+              FROM elearning_lesson_progress p
+              JOIN elearning_lessons ls ON ls.id = p.lesson_id AND ls.tenant_id = p.tenant_id
+             WHERE p.tenant_id = :tid
+             GROUP BY ls.course_id
         ) e ON e.course_id = c.id
         WHERE c.tenant_id = :tid
         ORDER BY c.created_at DESC
@@ -1181,17 +1187,39 @@ def list_course_enrollments(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("homework:read")),
 ):
-    """List all course enrollments for the tenant."""
+    """Participations aux cours de l'établissement, déduites de la progression.
+
+    2026-11-12 : lisait `elearning_enrollments`, qu'aucune route n'alimente —
+    les statistiques de /admin/elearning (inscriptions, élèves actifs)
+    affichaient toujours 0. Un élève « participe » à un cours dès qu'il y a
+    terminé une leçon ; `enrolled_at` = première leçon terminée,
+    `progress_pct` = leçons publiées terminées / leçons publiées,
+    `completed_at` = dernière leçon terminée quand le cours est fini.
+    `student_id` est l'identifiant de la fiche élève (students.id)."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     rows = db.execute(text("""
-        SELECT e.id, e.course_id, e.student_id, e.enrolled_at, e.progress_pct,
-               e.completed_at, c.title as course_title
-        FROM elearning_enrollments e
-        JOIN elearning_courses c ON c.id = e.course_id
-        WHERE c.tenant_id = :tid
-        ORDER BY e.enrolled_at DESC
+        WITH published AS (
+            SELECT course_id, COUNT(*) AS total
+              FROM elearning_lessons WHERE tenant_id = :tid AND is_published
+             GROUP BY course_id
+        ), done AS (
+            SELECT ls.course_id, p.student_id, COUNT(*) AS done,
+                   MIN(p.completed_at) AS first_done, MAX(p.completed_at) AS last_done
+              FROM elearning_lesson_progress p
+              JOIN elearning_lessons ls ON ls.id = p.lesson_id AND ls.tenant_id = p.tenant_id
+             WHERE p.tenant_id = :tid AND ls.is_published
+             GROUP BY ls.course_id, p.student_id
+        )
+        SELECT d.course_id, d.student_id, d.first_done AS enrolled_at,
+               LEAST(100, (100 * d.done) / NULLIF(pub.total, 0)) AS progress_pct,
+               CASE WHEN d.done >= pub.total THEN d.last_done END AS completed_at,
+               c.title AS course_title
+          FROM done d
+          JOIN published pub ON pub.course_id = d.course_id
+          JOIN elearning_courses c ON c.id = d.course_id AND c.tenant_id = :tid
+         ORDER BY d.first_done DESC
     """), {"tid": tenant_id}).mappings().all()
-    return [dict(r) for r in rows]
+    return [{"id": f"{r['course_id']}:{r['student_id']}", **dict(r)} for r in rows]
 
 
 # =============================================================================

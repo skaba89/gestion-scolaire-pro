@@ -994,3 +994,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   Tests : `tests/test_elearning_lessons.py` (PostgreSQL), Vitest (page admin,
   page élève, programme), parcours E2E 17. Production vérifiée en lecture
   seule avant la migration : 0 cours, 0 module.
+
+- **2026-11-12 — statistiques e-learning réelles, inscriptions isolées par
+  établissement.** Les statistiques de `/admin/elearning` (inscriptions,
+  élèves actifs, inscrits par cours) lisaient `elearning_enrollments`,
+  qu'aucune route n'alimente : elles restaient à 0. Elles sont désormais
+  déduites de la progression (un élève participe à un cours dès qu'il y a
+  terminé une leçon ; avancement = leçons publiées terminées). Migration
+  `20261112_0002` : `tenant_id` + RLS (FORCE) sur `elearning_enrollments`,
+  conservée pour une future inscription explicite (0 ligne en production).

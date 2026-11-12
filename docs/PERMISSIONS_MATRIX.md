@@ -1005,3 +1005,6 @@ active ; seules les leçons publiées. Tables sous RLS (FORCE) :
 `elearning_modules` (colonne `tenant_id` ajoutée), `elearning_lessons`,
 `elearning_lesson_progress`. Contenu affiché en texte brut ; lien `https://`
 uniquement.
+Statistiques (`GET /analytics/elearning/enrollments/`, `enrolled_count`) :
+déduites de `elearning_lesson_progress` ; `elearning_enrollments` est aussi
+sous RLS (FORCE) depuis la migration `20261112_0002`.

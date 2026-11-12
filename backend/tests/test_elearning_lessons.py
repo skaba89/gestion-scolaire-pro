@@ -253,3 +253,26 @@ def test_course_published_from_the_admin_form_status_is_visible():
         db.execute(text("UPDATE elearning_courses SET status = 'published' WHERE id = :id"), {"id": course})
         db.commit()
     assert [c["id"] for c in client.get(f"{ME}/courses/", headers=h).json()] == [course]
+
+
+def test_admin_statistics_follow_real_lesson_progress():
+    """Les participations viennent de la progression (elearning_enrollments
+    n'est alimentée par aucune route : les statistiques restaient à 0)."""
+    tid, other_tid = _tenant(), _tenant()
+    teacher = _user(tid)
+    level = _level(tid)
+    student = _student_in_level(tid, level)
+    course = _course(tid, teacher, level_id=level)
+    _, lesson = _build(tid, teacher, course)
+    _build(tid, teacher, course)  # 2e leçon publiée : 1 sur 2 terminée
+    admin = _as(_user(tid), tid, ["TENANT_ADMIN"])
+    assert client.get(f"{STAFF}/enrollments/", headers=admin).json() == []
+
+    assert client.post(f"{ME}/lessons/{lesson}/complete/", headers=_as(student, tid, ["STUDENT"])).status_code == 200
+    rows = client.get(f"{STAFF}/enrollments/", headers=_as(_user(tid), tid, ["TENANT_ADMIN"])).json()
+    assert len(rows) == 1
+    assert rows[0]["course_id"] == course and rows[0]["progress_pct"] == 50 and rows[0]["completed_at"] is None
+    courses = client.get(f"{STAFF}/courses/", headers=_as(_user(tid), tid, ["TENANT_ADMIN"])).json()
+    assert next(c for c in courses if str(c["id"]) == course)["enrolled_count"] == 1
+    # Un autre établissement ne voit rien.
+    assert client.get(f"{STAFF}/enrollments/", headers=_as(_user(other_tid), other_tid, ["TENANT_ADMIN"])).json() == []
