@@ -7,9 +7,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sun, Moon, Monitor } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function ThemeSwitcher() {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <DropdownMenu>
@@ -20,7 +22,7 @@ export function ThemeSwitcher() {
           ) : (
             <Sun className="h-4 w-4" />
           )}
-          <span className="sr-only">Changer le thème</span>
+          <span className="sr-only">{t("theme.toggle")}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="bg-popover">
@@ -29,21 +31,21 @@ export function ThemeSwitcher() {
           className={theme === "light" ? "bg-muted" : ""}
         >
           <Sun className="mr-2 h-4 w-4" />
-          <span>Clair</span>
+          <span>{t("theme.light")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => setTheme("dark")}
           className={theme === "dark" ? "bg-muted" : ""}
         >
           <Moon className="mr-2 h-4 w-4" />
-          <span>Sombre</span>
+          <span>{t("theme.dark")}</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => setTheme("system")}
           className={theme === "system" ? "bg-muted" : ""}
         >
           <Monitor className="mr-2 h-4 w-4" />
-          <span>Système</span>
+          <span>{t("theme.system")}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

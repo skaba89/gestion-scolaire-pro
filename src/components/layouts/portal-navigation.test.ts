@@ -61,10 +61,10 @@ describe('appointment routes are reachable through role navigation', () => {
 
   it('restricts incident navigation to tenants administrators', () => {
     const adminNav = readFileSync(resolve(process.cwd(), 'src/components/layouts/AdminLayout.tsx'), 'utf8');
-    expect(adminNav).toContain('getTenantUrl("/admin/incidents"), label: "Incidents", icon: Shield, permission: "tenant:manage"');
-    expect(adminNav).toContain('getTenantUrl("/admin/documentation"), label: "Documentation", icon: BookOpen, permission: "guides:read"');
-    expect(adminNav).toContain('getTenantUrl("/admin/surveys"), label: "Enquêtes", icon: ClipboardList, permission: "tenant:manage"');
-    expect(adminNav).toContain('getTenantUrl("/admin/forums"), label: "Forums", icon: MessageSquare, permission: "tenant:manage"');
-    expect(adminNav).toContain('getTenantUrl("/admin/academic-rules"), label: "Règles académiques", icon: ClipboardList, permission: "settings:manage"');
+    expect(adminNav).toContain('getTenantUrl("/admin/incidents"), label: t("nav.incidents"), icon: Shield, permission: "tenant:manage"');
+    expect(adminNav).toContain('getTenantUrl("/admin/documentation"), label: t("nav.documentation"), icon: BookOpen, permission: "guides:read"');
+    expect(adminNav).toContain('getTenantUrl("/admin/surveys"), label: t("nav.surveys"), icon: ClipboardList, permission: "tenant:manage"');
+    expect(adminNav).toContain('getTenantUrl("/admin/forums"), label: t("nav.forums"), icon: MessageSquare, permission: "tenant:manage"');
+    expect(adminNav).toContain('getTenantUrl("/admin/academic-rules"), label: t("nav.academicRules"), icon: ClipboardList, permission: "settings:manage"');
   });
 });

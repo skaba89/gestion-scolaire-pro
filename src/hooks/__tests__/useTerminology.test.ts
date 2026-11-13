@@ -51,3 +51,19 @@ describe("useTerminology — student label by institution type", () => {
     expect(t.coefficientLabel).toBe("Crédits (ECTS)");
   });
 });
+
+describe("useTerminology — translated vocabulary (audit des langues 2026-11-13)", () => {
+  it("follows the interface language", async () => {
+    const { default: i18n } = await import("@/i18n/config");
+    await i18n.changeLanguage("en");
+    try {
+      expect(withTenantType("primary").StudentsLabel).toBe("Pupils");
+      expect(withTenantType("UNIVERSITY").termsLabel).toBe("Semesters");
+      await i18n.changeLanguage("ar");
+      expect(withTenantType("UNIVERSITY").studentsLabel).toBe("طلاب");
+    } finally {
+      await i18n.changeLanguage("fr");
+    }
+    expect(withTenantType("UNIVERSITY").studentsLabel).toBe("étudiants");
+  });
+});

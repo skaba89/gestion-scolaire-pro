@@ -41,13 +41,13 @@ export const DepartmentLayout = () => {
     { href: getTenantUrl("/department/classrooms"), label: t("nav.classrooms"), icon: Building2 },
     { href: getTenantUrl("/department/students"), label: StudentsLabel, icon: Users },
     { href: getTenantUrl("/department/teachers"), label: t("nav.teachers"), icon: GraduationCap },
-    { href: getTenantUrl("/department/exams"), label: "Examens", icon: FileText },
+    { href: getTenantUrl("/department/exams"), label: t("nav.exams"), icon: FileText },
     { href: getTenantUrl("/department/attendance"), label: t("nav.attendance"), icon: Activity },
     { href: getTenantUrl("/department/schedule"), label: t("nav.schedule"), icon: Clock },
     { href: getTenantUrl("/department/calendar"), label: t("nav.calendar"), icon: Calendar },
     { href: getTenantUrl("/department/messages"), label: t("nav.messages"), icon: MessageSquare },
-    { href: getTenantUrl("/department/reports"), label: "Rapports", icon: BarChart3 },
-    { href: getTenantUrl("/department/alerts-history"), label: "Historique Alertes", icon: Bell },
+    { href: getTenantUrl("/department/reports"), label: t("nav.reports"), icon: BarChart3 },
+    { href: getTenantUrl("/department/alerts-history"), label: t("nav.alertsHistory"), icon: Bell },
   ];
 
   const mobileNavItems = [

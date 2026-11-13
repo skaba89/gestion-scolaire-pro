@@ -32,29 +32,29 @@ export const StudentLayout = () => {
   useRealtimeMessages();
 
   const navItems = [
-    { href: getTenantUrl("/student"), label: "Tableau de bord", icon: LayoutDashboard },
-    { href: getTenantUrl("/student/grades"), label: "Mes Notes", icon: FileText },
-    { href: getTenantUrl("/student/homework"), label: "Devoirs", icon: BookOpen },
+    { href: getTenantUrl("/student"), label: t("nav.dashboard"), icon: LayoutDashboard },
+    { href: getTenantUrl("/student/grades"), label: t("nav.myGrades"), icon: FileText },
+    { href: getTenantUrl("/student/homework"), label: t("nav.homework"), icon: BookOpen },
     { href: getTenantUrl("/student/courses"), label: t("studentElearning.nav"), icon: GraduationCap },
-    { href: getTenantUrl("/student/schedule"), label: "Emploi du temps", icon: Calendar },
-    { href: getTenantUrl("/student/careers"), label: "Carrières & Stages", icon: Briefcase },
-    { href: getTenantUrl("/student/messages"), label: "Messages", icon: MessageSquare },
-    { href: getTenantUrl("/student/pre-registration"), label: "Pré-inscription", icon: RefreshCw },
+    { href: getTenantUrl("/student/schedule"), label: t("nav.schedule"), icon: Calendar },
+    { href: getTenantUrl("/student/careers"), label: t("nav.careers"), icon: Briefcase },
+    { href: getTenantUrl("/student/messages"), label: t("nav.messages"), icon: MessageSquare },
+    { href: getTenantUrl("/student/pre-registration"), label: t("nav.preRegistration"), icon: RefreshCw },
   ];
 
   const mobileNavItems = [
-    { href: getTenantUrl("/student"), label: "Accueil", icon: LayoutDashboard },
-    { href: getTenantUrl("/student/grades"), label: "Notes", icon: FileText },
-    { href: getTenantUrl("/student/homework"), label: "Devoirs", icon: BookOpen },
-    { href: getTenantUrl("/student/schedule"), label: "Emploi", icon: Calendar },
-    { href: getTenantUrl("/student/messages"), label: "Messages", icon: MessageSquare },
+    { href: getTenantUrl("/student"), label: t("nav.home"), icon: LayoutDashboard },
+    { href: getTenantUrl("/student/grades"), label: t("nav.grades"), icon: FileText },
+    { href: getTenantUrl("/student/homework"), label: t("nav.homework"), icon: BookOpen },
+    { href: getTenantUrl("/student/schedule"), label: t("nav.timetableShort"), icon: Calendar },
+    { href: getTenantUrl("/student/messages"), label: t("nav.messages"), icon: MessageSquare },
   ];
 
   return (
     <div className="min-h-screen bg-background">
       <ScrollProgress />
       <ResponsiveSidebar
-        portalName="Espace Étudiant"
+        portalName={t("portal.studentSpace")}
         navItems={navItems}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}

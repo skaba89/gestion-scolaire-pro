@@ -32,29 +32,29 @@ export const TeacherLayout = () => {
   useRealtimeMessages();
 
   const navItems = [
-    { href: getTenantUrl("/teacher"), label: "Tableau de bord", icon: Home },
-    { href: getTenantUrl("/teacher/classes"), label: "Mes Classes", icon: Users },
-    { href: getTenantUrl("/teacher/grades"), label: "Notes", icon: BarChart3 },
-    { href: getTenantUrl("/teacher/attendance"), label: "Présences", icon: ClipboardCheck },
-    { href: getTenantUrl("/teacher/session-attendance"), label: "Badges", icon: QrCode },
-    { href: getTenantUrl("/teacher/homework"), label: "Devoirs", icon: BookOpen },
-    { href: getTenantUrl("/teacher/messages"), label: "Messages", icon: MessageSquare },
-    { href: getTenantUrl("/teacher/appointment-slots"), label: "Créneaux de rendez-vous", icon: CalendarCheck },
+    { href: getTenantUrl("/teacher"), label: t("nav.dashboard"), icon: Home },
+    { href: getTenantUrl("/teacher/classes"), label: t("nav.myClasses"), icon: Users },
+    { href: getTenantUrl("/teacher/grades"), label: t("nav.grades"), icon: BarChart3 },
+    { href: getTenantUrl("/teacher/attendance"), label: t("nav.attendance"), icon: ClipboardCheck },
+    { href: getTenantUrl("/teacher/session-attendance"), label: t("nav.badges"), icon: QrCode },
+    { href: getTenantUrl("/teacher/homework"), label: t("nav.homework"), icon: BookOpen },
+    { href: getTenantUrl("/teacher/messages"), label: t("nav.messages"), icon: MessageSquare },
+    { href: getTenantUrl("/teacher/appointment-slots"), label: t("nav.appointmentSlots"), icon: CalendarCheck },
   ];
 
   const mobileNavItems = [
-    { href: getTenantUrl("/teacher"), label: "Accueil", icon: Home },
-    { href: getTenantUrl("/teacher/classes"), label: "Classes", icon: Users },
-    { href: getTenantUrl("/teacher/grades"), label: "Notes", icon: BarChart3 },
-    { href: getTenantUrl("/teacher/attendance"), label: "Présences", icon: ClipboardCheck },
-    { href: getTenantUrl("/teacher/messages"), label: "Messages", icon: MessageSquare },
+    { href: getTenantUrl("/teacher"), label: t("nav.home"), icon: Home },
+    { href: getTenantUrl("/teacher/classes"), label: t("nav.classrooms"), icon: Users },
+    { href: getTenantUrl("/teacher/grades"), label: t("nav.grades"), icon: BarChart3 },
+    { href: getTenantUrl("/teacher/attendance"), label: t("nav.attendance"), icon: ClipboardCheck },
+    { href: getTenantUrl("/teacher/messages"), label: t("nav.messages"), icon: MessageSquare },
   ];
 
   return (
     <div className="min-h-screen bg-background">
       <ScrollProgress />
       <ResponsiveSidebar
-        portalName="Espace Professeur"
+        portalName={t("portal.teacherSpace")}
         navItems={navItems}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}

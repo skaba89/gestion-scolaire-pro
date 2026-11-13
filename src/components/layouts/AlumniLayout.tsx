@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AnimatePresence } from "framer-motion";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
@@ -24,26 +25,28 @@ export function AlumniLayout() {
 
   useRealtimeMessages();
 
+  const { t } = useTranslation();
+
   const navItems = [
     {
       href: getTenantUrl("/alumni"),
       icon: LayoutDashboard,
-      label: "Tableau de bord",
+      label: t("nav.dashboard"),
     },
     {
       href: getTenantUrl("/alumni/document-requests"),
       icon: FileText,
-      label: "Documents",
+      label: t("nav.documents"),
     },
     {
       href: getTenantUrl("/alumni/messages"),
       icon: MessageSquare,
-      label: "Messages",
+      label: t("nav.messages"),
     },
     {
       href: getTenantUrl("/alumni/careers"),
       icon: GraduationCap,
-      label: "Carrières",
+      label: t("nav.careersShort"),
     },
   ];
 
@@ -51,7 +54,7 @@ export function AlumniLayout() {
     <div className="min-h-screen bg-background">
       <ScrollProgress />
       <ResponsiveSidebar
-        portalName="Espace Alumni"
+        portalName={t("portal.alumniSpace")}
         navItems={navItems}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
