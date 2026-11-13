@@ -1,16 +1,18 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsAttendanceTabProps {
     attendanceByMonth: any[];
 }
 
 export const AnalyticsAttendanceTab = ({ attendanceByMonth }: AnalyticsAttendanceTabProps) => {
+    const { t } = useTranslation();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Taux de présence</CardTitle>
-                <CardDescription>Évolution mensuelle de l'assiduité</CardDescription>
+                <CardTitle>{t("parentPortal.attendanceTab.title")}</CardTitle>
+                <CardDescription>{t("parentPortal.attendanceTab.subtitle")}</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="h-80">

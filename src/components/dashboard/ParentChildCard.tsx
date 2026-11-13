@@ -16,6 +16,7 @@ import {
 import { Link } from "react-router-dom";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { resolveUploadUrl } from "@/utils/url";
+import { useTranslation } from "react-i18next";
 
 interface Student {
   id: string;
@@ -31,6 +32,7 @@ interface ParentChildCardProps {
 }
 
 export const ParentChildCard = ({ student, tenantId }: ParentChildCardProps) => {
+  const { t } = useTranslation();
   const { getTenantUrl } = useTenantUrl();
 
   // Fetch enrollment info
@@ -201,7 +203,7 @@ export const ParentChildCard = ({ student, tenantId }: ParentChildCardProps) => 
             to={getTenantUrl(`/parent/children/${student.id}`)}
             className="text-sm text-primary hover:underline"
           >
-            Voir détails
+            {t("parentPortal.childCard.seeDetails")}
           </Link>
         </div>
       </CardHeader>
@@ -213,13 +215,13 @@ export const ParentChildCard = ({ student, tenantId }: ParentChildCardProps) => 
           <div className="bg-muted/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Moyenne</span>
+              <span className="text-xs text-muted-foreground">{t("parentPortal.childCard.average")}</span>
             </div>
             <div className={`text-2xl font-bold ${getAverageColor(gradesStats?.average || 0)}`}>
               {gradesStats?.average ? gradesStats.average.toFixed(1) : "--"}/20
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {gradesStats?.count || 0} évaluations
+              {t("parentPortal.childCard.assessments", { count: gradesStats?.count || 0 })}
             </p>
           </div>
 
@@ -227,7 +229,7 @@ export const ParentChildCard = ({ student, tenantId }: ParentChildCardProps) => 
           <div className="bg-muted/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
               <CalendarCheck className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Présence</span>
+              <span className="text-xs text-muted-foreground">{t("parentPortal.childCard.presence")}</span>
             </div>
             <div className={`text-2xl font-bold ${getAttendanceColor(attendanceStats?.rate || 100)}`}>
               {attendanceStats?.rate?.toFixed(0) || 100}%
@@ -262,19 +264,19 @@ export const ParentChildCard = ({ student, tenantId }: ParentChildCardProps) => 
           <div className="border-t border-border pt-3">
             <div className="flex items-center gap-2 mb-2">
               <BookOpen className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Devoirs</span>
+              <span className="text-sm font-medium">{t("parentPortal.childCard.homework")}</span>
             </div>
             <div className="flex items-center gap-3 text-xs">
               {homeworkStats.pending > 0 && (
                 <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
                   <AlertCircle className="w-3 h-3 mr-1" />
-                  {homeworkStats.pending} à rendre
+                  {t("parentPortal.childCard.toSubmit", { count: homeworkStats.pending })}
                 </Badge>
               )}
               {homeworkStats.submitted > 0 && (
                 <Badge variant="outline" className="bg-success/10 text-success border-success/20">
                   <CheckCircle2 className="w-3 h-3 mr-1" />
-                  {homeworkStats.submitted} rendu(s)
+                  {t("parentPortal.childCard.submitted", { count: homeworkStats.submitted })}
                 </Badge>
               )}
             </div>

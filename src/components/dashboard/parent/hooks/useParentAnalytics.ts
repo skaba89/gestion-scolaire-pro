@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import { useTranslation } from "react-i18next";
 import { format, subMonths, differenceInDays } from "date-fns";
-import { fr } from "date-fns/locale";
 import {
     TrendingUp,
     TrendingDown,
@@ -10,6 +10,7 @@ import {
     AlertTriangle,
     Star
 } from "lucide-react";
+import { dateFnsLocale } from "@/lib/locale";
 
 export interface ParentAnalyticsData {
     gradesByMonth: any[];
@@ -33,6 +34,7 @@ export interface ParentAnalyticsData {
 }
 
 export const useParentAnalytics = (studentId: string, tenantId: string) => {
+    const { t } = useTranslation();
     // Fetch student grades over time
     const { data: gradesData = [] } = useQuery({
         queryKey: ["student_grades_analytics", studentId],
@@ -88,7 +90,7 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
                 });
                 return data?.map(d => ({
                     points: (d.achievement as any)?.points_reward || 0,
-                    category: "Achievement"
+                    category: t("parentPortal.analyticsHook.achievement")
                 })) || [];
             } catch {
                 return [];
@@ -99,7 +101,7 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
     // Transformations
     const gradesByMonth = gradesData.reduce((acc: any[], grade: any) => {
         if (!grade.created_at || grade.score === null) return acc;
-        const month = format(new Date(grade.created_at), "MMM yyyy", { locale: fr });
+        const month = format(new Date(grade.created_at), "MMM yyyy", { locale: dateFnsLocale() });
         const maxScore = grade.assessment?.max_score || 20;
         const normalizedScore = (grade.score / maxScore) * 20;
 
@@ -132,7 +134,7 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
     }, []);
 
     const attendanceByMonth = attendanceData.reduce((acc: any[], att: any) => {
-        const month = format(new Date(att.date), "MMM", { locale: fr });
+        const month = format(new Date(att.date), "MMM", { locale: dateFnsLocale() });
         const existing = acc.find(m => m.month === month);
         const status = att.status?.toUpperCase();
         if (existing) {
@@ -151,7 +153,7 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
     }, []);
 
     const assessmentTypeDistribution = gradesData.reduce((acc: any[], grade: any) => {
-        const type = grade.assessment?.type || "Autre";
+        const type = grade.assessment?.type || t("parentPortal.analyticsHook.other");
         const existing = acc.find(t => t.name === type);
         if (existing) {
             existing.value++;
@@ -162,7 +164,7 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
     }, []);
 
     const pointsByCategory = pointsData.reduce((acc: any[], point: any) => {
-        const category = point.category || "Autre";
+        const category = point.category || t("parentPortal.analyticsHook.other");
         const existing = acc.find(c => c.name === category);
         if (existing) {
             existing.value += point.points;
@@ -196,8 +198,8 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
         recommendations.push({
             type: "warning",
             icon: AlertTriangle,
-            title: "Matières à renforcer",
-            message: `Attention portée sur : ${weakSubjects.map(s => s.subject).join(", ")}. Des séances de révision supplémentaires sont recommandées.`,
+            title: t("parentPortal.analyticsHook.weakTitle"),
+            message: t("parentPortal.analyticsHook.weakMessage", { subjects: weakSubjects.map(s => s.subject).join(", ") }),
         });
     }
     const strongSubjects = subjectPerformance.filter(s => s.score >= 16);
@@ -205,39 +207,39 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
         recommendations.push({
             type: "success",
             icon: Star,
-            title: "Points forts identifiés",
-            message: `Excellence en ${strongSubjects.map(s => s.subject).join(", ")}. Encouragez à maintenir cet effort !`,
+            title: t("parentPortal.analyticsHook.strongTitle"),
+            message: t("parentPortal.analyticsHook.strongMessage", { subjects: strongSubjects.map(s => s.subject).join(", ") }),
         });
     }
     if (attendanceRate < 90) {
         recommendations.push({
             type: "warning",
             icon: Calendar,
-            title: "Assiduité à améliorer",
-            message: `Le taux de présence de ${attendanceRate}% est inférieur à l'objectif de 90%. La régularité est clé pour la réussite.`,
+            title: t("parentPortal.analyticsHook.attendanceTitle"),
+            message: t("parentPortal.analyticsHook.attendanceMessage", { rate: attendanceRate }),
         });
     }
     if (homeworkCompletionRate < 80) {
         recommendations.push({
             type: "warning",
             icon: BookOpen,
-            title: "Devoirs à rendre",
-            message: `${100 - homeworkCompletionRate}% des devoirs ne sont pas rendus. Établir un planning de travail peut aider.`,
+            title: t("parentPortal.analyticsHook.homeworkTitle"),
+            message: t("parentPortal.analyticsHook.homeworkMessage", { rate: 100 - homeworkCompletionRate }),
         });
     }
     if (trend > 2) {
         recommendations.push({
             type: "success",
             icon: TrendingUp,
-            title: "Progression remarquable",
-            message: `Amélioration de ${trend.toFixed(1)} points ce mois ! Continuez à encourager ces efforts.`,
+            title: t("parentPortal.analyticsHook.progressTitle"),
+            message: t("parentPortal.analyticsHook.progressMessage", { points: trend.toFixed(1) }),
         });
     } else if (trend < -2) {
         recommendations.push({
             type: "warning",
             icon: TrendingDown,
-            title: "Baisse de performance",
-            message: `Une baisse de ${Math.abs(trend).toFixed(1)} points a été observée. Un point avec l'enseignant pourrait être utile.`,
+            title: t("parentPortal.analyticsHook.declineTitle"),
+            message: t("parentPortal.analyticsHook.declineMessage", { points: Math.abs(trend).toFixed(1) }),
         });
     }
 
@@ -251,9 +253,9 @@ export const useParentAnalytics = (studentId: string, tenantId: string) => {
     }, { early: 0, onTime: 0, late: 0 });
 
     const homeworkTimingData = [
-        { name: "En avance", value: homeworkTiming.early, color: "hsl(var(--success))" },
-        { name: "À temps", value: homeworkTiming.onTime, color: "hsl(var(--primary))" },
-        { name: "En retard", value: homeworkTiming.late, color: "hsl(var(--destructive))" },
+        { name: t("parentPortal.analyticsHook.early"), value: homeworkTiming.early, color: "hsl(var(--success))" },
+        { name: t("parentPortal.analyticsHook.onTime"), value: homeworkTiming.onTime, color: "hsl(var(--primary))" },
+        { name: t("parentPortal.analyticsHook.late"), value: homeworkTiming.late, color: "hsl(var(--destructive))" },
     ].filter(d => d.value > 0);
 
     return {

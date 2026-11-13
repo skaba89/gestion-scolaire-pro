@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown, Calendar, BookOpen, Target, Award } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsMetricsProps {
     overallStats: {
@@ -15,6 +16,7 @@ interface AnalyticsMetricsProps {
 }
 
 export const AnalyticsMetrics = ({ overallStats }: AnalyticsMetricsProps) => {
+    const { t } = useTranslation();
     const {
         overallAverage,
         attendanceRate,
@@ -31,7 +33,7 @@ export const AnalyticsMetrics = ({ overallStats }: AnalyticsMetricsProps) => {
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Moyenne générale</p>
+                            <p className="text-sm text-muted-foreground">{t("parentPortal.metrics.average")}</p>
                             <p className="text-3xl font-bold">{overallAverage.toFixed(1)}/20</p>
                         </div>
                         <div className={`p-3 rounded-full ${trend >= 0 ? "bg-success/10" : "bg-destructive/10"}`}>
@@ -52,7 +54,7 @@ export const AnalyticsMetrics = ({ overallStats }: AnalyticsMetricsProps) => {
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Assiduité</p>
+                            <p className="text-sm text-muted-foreground">{t("parentPortal.metrics.attendance")}</p>
                             <p className="text-3xl font-bold">{attendanceRate}%</p>
                         </div>
                         <div className={`p-3 rounded-full ${attendanceRate >= 90 ? "bg-success/10" : attendanceRate >= 75 ? "bg-warning/10" : "bg-destructive/10"}`}>
@@ -67,7 +69,7 @@ export const AnalyticsMetrics = ({ overallStats }: AnalyticsMetricsProps) => {
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Devoirs rendus</p>
+                            <p className="text-sm text-muted-foreground">{t("parentPortal.metrics.homeworkSubmitted")}</p>
                             <p className="text-3xl font-bold">{homeworkCompletionRate}%</p>
                         </div>
                         <div className={`p-3 rounded-full ${homeworkCompletionRate >= 90 ? "bg-success/10" : "bg-warning/10"}`}>
@@ -82,7 +84,7 @@ export const AnalyticsMetrics = ({ overallStats }: AnalyticsMetricsProps) => {
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Points gagnés</p>
+                            <p className="text-sm text-muted-foreground">{t("parentPortal.metrics.points")}</p>
                             <p className="text-3xl font-bold">{totalPoints}</p>
                         </div>
                         <div className="p-3 rounded-full bg-primary/10">
@@ -90,7 +92,7 @@ export const AnalyticsMetrics = ({ overallStats }: AnalyticsMetricsProps) => {
                         </div>
                     </div>
                     <p className="text-sm text-muted-foreground mt-2">
-                        Points accumulés
+                        {t("parentPortal.metrics.pointsAccumulated")}
                     </p>
                 </CardContent>
             </Card>
@@ -99,7 +101,7 @@ export const AnalyticsMetrics = ({ overallStats }: AnalyticsMetricsProps) => {
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Badges</p>
+                            <p className="text-sm text-muted-foreground">{t("parentPortal.metrics.badges")}</p>
                             <p className="text-3xl font-bold">{achievementsCount}</p>
                         </div>
                         <div className="p-3 rounded-full bg-warning/10">

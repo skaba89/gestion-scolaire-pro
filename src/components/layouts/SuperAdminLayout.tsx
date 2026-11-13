@@ -162,7 +162,7 @@ export const SuperAdminLayout = () => {
                 onClick={signOut}
               >
                 <LogOut className="w-4 h-4" />
-                Déconnexion
+                {t("nav.logout")}
               </Button>
             </div>
             )}

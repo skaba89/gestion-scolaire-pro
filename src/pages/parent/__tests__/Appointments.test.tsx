@@ -16,7 +16,10 @@ const { get, post, put, success, error } = vi.hoisted(() => ({
 vi.mock("@/api/client", () => ({ apiClient: { get, post, put } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "parent-1" } }) }));
 vi.mock("@/contexts/TenantContext", () => ({ useTenant: () => ({ tenant: { id: "tenant-1" } }) }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+// t() renvoie la clé, suivie des paramètres interpolés éventuels.
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string, opts?: Record<string, unknown>) => (opts ? `${key}${JSON.stringify(opts)}` : key) }),
+}));
 vi.mock("sonner", () => ({ toast: { success, error } }));
 vi.mock("@/components/ui/select", () => ({
   Select: ({ value, onValueChange, children }: { value: string; onValueChange: (value: string) => void; children: ReactNode }) =>
@@ -77,7 +80,7 @@ it("réserve en n'envoyant que l'élève, le créneau et les notes", async () =>
   fireEvent.change(childSelect, { target: { value: "child-1" } });
   fireEvent.change(teacherSelect, { target: { value: "teacher-1" } });
   await waitFor(() => expect(within(dialog).getAllByRole("combobox")).toHaveLength(3));
-  await within(dialog).findByRole("option", { name: /16:00 à 16:30/ });
+  await within(dialog).findByRole("option", { name: /"start":"16:00","end":"16:30"/ });
   fireEvent.change(within(dialog).getAllByRole("combobox")[2], { target: { value: "slot-1" } });
   fireEvent.change(within(dialog).getByPlaceholderText("appointments.subjectPlaceholder"), { target: { value: "Suivi scolaire" } });
   fireEvent.change(within(dialog).getByPlaceholderText("appointments.notesPlaceholder"), { target: { value: "Notes de maths" } });
@@ -100,7 +103,7 @@ it("affiche la raison du refus quand le créneau vient d'être pris", async () =
   const [childSelect, teacherSelect] = within(dialog).getAllByRole("combobox");
   fireEvent.change(childSelect, { target: { value: "child-1" } });
   fireEvent.change(teacherSelect, { target: { value: "teacher-1" } });
-  await within(dialog).findByRole("option", { name: /16:00 à 16:30/ });
+  await within(dialog).findByRole("option", { name: /"start":"16:00","end":"16:30"/ });
   fireEvent.change(within(dialog).getAllByRole("combobox")[2], { target: { value: "slot-1" } });
   fireEvent.click(within(dialog).getByRole("button", { name: "appointments.confirmBtn" }));
   await waitFor(() => expect(error).toHaveBeenCalledWith("appointments.bookingError : Ce créneau n'est plus disponible"));

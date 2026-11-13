@@ -59,7 +59,8 @@
     "acceptAll": "قبول الكل",
     "decline": "رفض",
     "savePreferences": "حفظ التفضيلات",
-    "sessionStarted": "بدأت الجلسة"
+    "sessionStarted": "بدأت الجلسة",
+    "missingData": "بيانات ناقصة"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -203,7 +204,15 @@
     "saasDashboard": "لوحة SaaS",
     "subscriptionRequests": "طلبات الاشتراك",
     "newTenant": "مؤسسة جديدة",
-    "changeLanguage": "تغيير اللغة"
+    "changeLanguage": "تغيير اللغة",
+    "closeMenu": "إغلاق القائمة",
+    "openMenu": "فتح القائمة",
+    "searchShortcut": "بحث (Ctrl+K)",
+    "searchApp": "البحث في التطبيق",
+    "logout": "تسجيل الخروج",
+    "institution": "المؤسسة",
+    "availableInstitutions": "المؤسسات المتاحة",
+    "loadingInstitutions": "جارٍ التحميل أو لا توجد مؤسسة..."
   },
   "dashboard": {
     "hello": "مرحباً، {{name}} 👋",
@@ -441,7 +450,12 @@
     "unpaid": "غير مدفوع",
     "partial": "جزئي",
     "total": "الإجمالي",
-    "balance": "الرصيد"
+    "balance": "الرصيد",
+    "paymentUrlMissing": "لم يُستلم رابط الدفع من الخادم",
+    "cinetpayMethods": "Wave · Orange Money · MTN · بطاقة",
+    "cinetpayCountries": "CI · SN · ML · BF · TG · CM وغيرها",
+    "paytechCountry": "السنغال",
+    "installments": "{{count}} أقساط"
   },
   "teacherHours": {
     "pageTitle": "تتبع ساعات المعلمين",
@@ -681,7 +695,11 @@
     "offerTypeInternship": "تدريب",
     "offerTypeJob": "وظيفة",
     "offerTypeApprenticeship": "تلمذة مهنية",
-    "offerTypeVolunteer": "عمل تطوعي"
+    "offerTypeVolunteer": "عمل تطوعي",
+    "loading": "جارٍ التحميل...",
+    "appliedOn": "تم التقديم في {{date}}",
+    "requestSent": "تم إرسال الطلب",
+    "applyTo": "التقدّم إلى {{title}}"
   },
   "childDetail": {
     "back": "رجوع",
@@ -721,7 +739,9 @@
     "appliedOn": "تقدم في",
     "incompleteData": "بيانات غير مكتملة لإنشاء السجل.",
     "recordError": "خطأ أثناء إنشاء السجل الأكاديمي",
-    "popupBlocked": "النافذة المنبثقة محجوبة من المتصفح — تم تنزيل الملف بدلاً من ذلك."
+    "popupBlocked": "النافذة المنبثقة محجوبة من المتصفح — تم تنزيل الملف بدلاً من ذلك.",
+    "retry": "يرجى إعادة المحاولة",
+    "otherSubject": "أخرى"
   },
   "preRegistration": {
     "pageTitle": "التسجيل المسبق",
@@ -770,7 +790,16 @@
     "success": "تم تقديم التسجيل المسبق بنجاح!",
     "error": "خطأ أثناء التقديم. يرجى المحاولة مرة أخرى.",
     "onlineTitle": "التسجيل المسبق عبر الإنترنت",
-    "onlineDesc": "قدم طلب التسجيل المسبق لحجز مكان {{studentsLabel}}. ستتحقق الإدارة من طلبك بعد ذلك."
+    "onlineDesc": "قدم طلب التسجيل المسبق لحجز مكان {{studentsLabel}}. ستتحقق الإدارة من طلبك بعد ذلك.",
+    "notAssigned": "غير مُسنَد",
+    "desiredLevelShort": "المستوى المرغوب:",
+    "notSpecified": "غير محدد",
+    "noChildTitle": "لا يوجد {{label}} مرتبط",
+    "noChildHint": "حسابك غير مرتبط بعد بأي {{label}}. يرجى التواصل مع الإدارة.",
+    "dialogTitle": "طلب إعادة التسجيل",
+    "dialogDescription": "أكّد طلب إعادة تسجيل {{name}} للسنة {{year}}.",
+    "parentSubtitleNext": "سجّل {{label}} للسنة القادمة",
+    "parentSubtitleYear": "سجّل {{label}} للسنة {{year}}"
   },
   "teacherRisk": {
     "pageTitle": "الطلاب المعرضون للخطر",
@@ -858,7 +887,8 @@
     "statusAbsent": "غائب",
     "bookingSuccess": "تم حجز الموعد بنجاح",
     "bookingError": "خطأ أثناء الحجز",
-    "cancelled": "تم إلغاء الموعد"
+    "cancelled": "تم إلغاء الموعد",
+    "slotRange": "{{date}} - من {{start}} إلى {{end}}"
   },
   "teacherAttendance": {
     "class": "الفصل",
@@ -3234,5 +3264,397 @@
       "ofStudents": "للطلاب",
       "newStudent": "طالب جديد"
     }
+  },
+  "alumniPortal": {
+    "status": {
+      "pending": "قيد الانتظار",
+      "in_progress": "قيد المعالجة",
+      "awaiting_validation": "بانتظار المصادقة",
+      "completed": "مكتمل",
+      "rejected": "مرفوض",
+      "cancelled": "ملغى",
+      "validated": "تمت المصادقة",
+      "awaitingValidationLong": "قيد المصادقة"
+    },
+    "docType": {
+      "transcript": "كشف الدرجات",
+      "diploma": "الشهادة",
+      "certificate": "شهادة",
+      "attestation": "إفادة",
+      "other": "أخرى",
+      "certificateOfEnrollment": "شهادة مدرسية",
+      "otherDocument": "وثيقة أخرى"
+    },
+    "dashboard": {
+      "title": "بوابة الخريجين",
+      "welcome": "مرحبًا بك في فضائك الشخصي",
+      "requests": "الطلبات",
+      "messages": "الرسائل",
+      "new": "جديد",
+      "inProgress": "قيد المعالجة",
+      "completed": "المكتملة",
+      "recentRequests": "الطلبات الأخيرة",
+      "recentRequestsHint": "آخر طلبات الوثائق الخاصة بك",
+      "newRequest": "جديد",
+      "noRequest": "لا توجد طلبات",
+      "makeRequest": "تقديم طلب",
+      "allRequests": "عرض كل الطلبات",
+      "quickAccess": "وصول سريع",
+      "mainFeatures": "الميزات الرئيسية",
+      "documentRequest": "طلب الوثائق",
+      "documentRequestHint": "كشوف الدرجات، الشهادات، الإفادات",
+      "messaging": "المراسلة",
+      "messagingHint": "تواصل مع الأمانة",
+      "careers": "المسارات المهنية والإرشاد",
+      "careersHint": "عروض العمل وشبكة الخريجين"
+    },
+    "requests": {
+      "title": "طلبات الوثائق الخاصة بي",
+      "subtitle": "قدّم طلبات الوثائق الإدارية وتابعها",
+      "new": "طلب جديد",
+      "newTitle": "طلب وثيقة جديد",
+      "newHint": "املأ النموذج لتقديم طلبك",
+      "documentTypeRequired": "نوع الوثيقة *",
+      "selectType": "اختر النوع",
+      "detailedDescription": "وصف مفصل",
+      "descriptionPlaceholder": "حدّد الوثيقة المطلوبة (السنة، الشعبة، إلخ)",
+      "purposeRequired": "سبب الطلب *",
+      "purposePlaceholder": "لماذا تحتاج هذه الوثيقة؟",
+      "urgency": "الاستعجال",
+      "urgencyNormal": "عادي",
+      "urgencyUrgent": "مستعجل",
+      "deliveryMethod": "طريقة التسليم",
+      "deliveryEmail": "البريد الإلكتروني",
+      "deliveryMail": "البريد",
+      "deliveryPickup": "الاستلام من المؤسسة",
+      "deliveryAddress": "عنوان التسليم",
+      "fullAddress": "العنوان الكامل",
+      "submit": "تقديم الطلب",
+      "tabActive": "قيد المعالجة ({{count}})",
+      "tabHistory": "السجل ({{count}})",
+      "noActive": "لا توجد طلبات قيد المعالجة",
+      "noActiveHint": "انقر على «طلب جديد» لتقديم طلبك الأول",
+      "noHistory": "لا يوجد سجل",
+      "noHistoryHint": "ستظهر الطلبات المكتملة هنا",
+      "details": "تفاصيل الطلب",
+      "documentType": "نوع الوثيقة",
+      "status": "الحالة",
+      "submittedAt": "تاريخ التقديم",
+      "description": "الوصف",
+      "purpose": "السبب",
+      "validatorNote": "ملاحظة المصادِق",
+      "history": "السجل",
+      "submittedOn": "قُدِّم في {{date}}",
+      "cancel": "إلغاء"
+    },
+    "careers": {
+      "offerType": {
+        "INTERNSHIP": "تدريب",
+        "JOB": "وظيفة",
+        "APPRENTICESHIP": "تكوين بالتناوب",
+        "FREELANCE": "عمل حر"
+      },
+      "title": "المسارات المهنية وشبكة الخريجين",
+      "subtitle": "فرص مهنية وإرشاد",
+      "tabOffers": "العروض ({{count}})",
+      "tabMentors": "المرشدون ({{count}})",
+      "tabEvents": "الفعاليات ({{count}})",
+      "noOffer": "لا توجد عروض متاحة",
+      "noOfferHint": "عُد قريبًا لاكتشاف فرص جديدة",
+      "company": "الشركة",
+      "remote": "عن بُعد",
+      "deadline": "قبل {{date}}",
+      "apply": "تقدّم",
+      "noMentor": "لا يوجد مرشدون متاحون",
+      "noMentorHint": "سيتوفر برنامج الإرشاد قريبًا",
+      "noEvent": "لا توجد فعاليات قادمة",
+      "noEventHint": "ابقَ على اطلاع حتى لا تفوتك الفعاليات القادمة",
+      "online": "عبر الإنترنت"
+    },
+    "messages": {
+      "recipient": "المرسَل إليه",
+      "title": "الرسائل"
+    }
+  },
+  "messenger": {
+    "recipient": "المرسَل إليه",
+    "title": "الرسائل",
+    "fillRequired": "يرجى ملء الحقول الإلزامية",
+    "today": "اليوم",
+    "yesterday": "أمس",
+    "search": "البحث في الرسائل",
+    "noConversation": "لا توجد محادثات",
+    "conversation": "محادثة",
+    "noMessage": "بلا رسالة",
+    "yourMessages": "رسائلك",
+    "selectConversation": "اختر محادثة لبدء الدردشة",
+    "newConversation": "محادثة جديدة",
+    "choose": "اختر: {{label}}",
+    "subject": "الموضوع",
+    "subjectPlaceholder": "موضوع رسالتك",
+    "message": "الرسالة",
+    "messagePlaceholder": "رسالتك...",
+    "cancel": "إلغاء",
+    "sending": "جارٍ الإرسال...",
+    "send": "إرسال"
+  },
+  "parentPortal": {
+    "children": {
+      "title": "أبنائي",
+      "subtitle": "اطّلع على معلومات أبنائك ونتائجهم",
+      "count": "الأبناء: {{count}}",
+      "none": "لم يُعثر على أي ابن",
+      "noneHint": "يرجى التواصل مع إدارة المؤسسة لربط أبنائك بحساب وليّ الأمر.",
+      "attendanceHistory": "سجل الحضور"
+    },
+    "analytics": {
+      "title": "تحليلات مفصلة",
+      "noChild": "لا يوجد {{label}} مرتبط",
+      "noChildHint": "تواصل مع الإدارة لربط {{label}} بحسابك",
+      "subtitle": "تابع أداء {{label}} بالتفصيل"
+    },
+    "header": {
+      "welcome": "مرحبًا، {{name}}!",
+      "parent": "وليّ الأمر",
+      "enrolledChildren": "الأبناء المسجلون: {{count}}"
+    },
+    "grid": {
+      "title": "أداء أبنائي",
+      "none": "لا يوجد أبناء مرتبطون",
+      "noneHint": "تواصل مع الإدارة لربط أبنائك بحسابك."
+    },
+    "invoiceStats": {
+      "toPay": "للدفع",
+      "paid": "مدفوع",
+      "invoices": "الفواتير",
+      "overdue": "متأخرة"
+    },
+    "childCard": {
+      "primaryContact": "جهة الاتصال الرئيسية",
+      "details": "التفاصيل والدرجات",
+      "reportCards": "كشوف النقاط",
+      "invoices": "الفواتير",
+      "attendance": "الحضور",
+      "notAvailable": "غير متوفر",
+      "seeDetails": "عرض التفاصيل",
+      "average": "المعدل",
+      "assessments": "{{count}} تقييمات",
+      "presence": "الحضور",
+      "homework": "الواجبات",
+      "toSubmit": "{{count}} للتسليم",
+      "submitted": "{{count}} مُسلَّم"
+    },
+    "analyticsTabs": {
+      "grades": "الدرجات",
+      "subjects": "المواد",
+      "attendance": "الحضور",
+      "homework": "الواجبات",
+      "gamification": "التلعيب"
+    },
+    "metrics": {
+      "average": "المعدل العام",
+      "attendance": "المواظبة",
+      "homeworkSubmitted": "الواجبات المسلّمة",
+      "points": "النقاط المكتسبة",
+      "pointsAccumulated": "النقاط المتراكمة",
+      "badges": "الشارات"
+    },
+    "recommendations": {
+      "title": "توصيات مخصصة",
+      "hide": "إخفاء"
+    },
+    "attendanceTab": {
+      "title": "نسبة الحضور",
+      "subtitle": "تطور المواظبة شهريًا"
+    },
+    "homeworkTab": {
+      "title": "آخر الواجبات",
+      "subtitle": "حالة التسليم والدرجات المحصّلة",
+      "due": "آخر أجل: {{date}}",
+      "pending": "قيد الانتظار",
+      "notSubmitted": "لم يُسلَّم",
+      "none": "لم يُعثر على واجبات",
+      "punctuality": "الالتزام بالمواعيد",
+      "timing": "توقيت التسليم"
+    },
+    "gradesTab": {
+      "title": "تطور الدرجات",
+      "subtitle": "المعدل الشهري خلال الأشهر الستة الأخيرة",
+      "types": "أنواع التقييمات",
+      "typesHint": "التوزيع حسب نوع التقييم"
+    },
+    "subjectsTab": {
+      "title": "الأداء حسب المادة",
+      "subtitle": "المعدل حسب المادة"
+    },
+    "gamificationTab": {
+      "pointsTitle": "النقاط حسب الفئة",
+      "pointsHint": "توزيع النقاط المكتسبة",
+      "badgesTitle": "الشارات الأخيرة",
+      "badgesHint": "آخر الشارات المحصّلة",
+      "none": "لم تُحصَّل أي شارة"
+    },
+    "analyticsHook": {
+      "other": "أخرى",
+      "achievement": "إنجاز",
+      "weakTitle": "مواد تحتاج إلى تعزيز",
+      "weakMessage": "يُنصح بالتركيز على: {{subjects}}. ويُوصى بحصص مراجعة إضافية.",
+      "strongTitle": "نقاط القوة المحددة",
+      "strongMessage": "تميّز في {{subjects}}. شجّعه على مواصلة هذا الجهد!",
+      "attendanceTitle": "المواظبة بحاجة إلى تحسين",
+      "attendanceMessage": "نسبة الحضور {{rate}}% أقل من الهدف 90%. الانتظام مفتاح النجاح.",
+      "homeworkTitle": "واجبات للتسليم",
+      "homeworkMessage": "{{rate}}% من الواجبات لم تُسلَّم. قد يساعد وضع جدول عمل.",
+      "progressTitle": "تقدّم ملحوظ",
+      "progressMessage": "تحسّن بمقدار {{points}} نقطة هذا الشهر! واصل تشجيع هذه الجهود.",
+      "declineTitle": "تراجع في الأداء",
+      "declineMessage": "لوحظ تراجع بمقدار {{points}} نقطة. قد يفيد لقاء مع المعلم.",
+      "early": "مبكر",
+      "onTime": "في الوقت",
+      "late": "متأخر"
+    }
+  },
+  "studentPortal": {
+    "today": {
+      "title": "حصص اليوم",
+      "none": "لا توجد حصص اليوم",
+      "subject": "المادة"
+    },
+    "upcoming": {
+      "title": "الواجبات القادمة",
+      "none": "لا توجد واجبات للتسليم",
+      "urgent": "عاجل"
+    },
+    "recent": {
+      "title": "آخر الدرجات",
+      "seeAll": "عرض الكل",
+      "none": "لا توجد درجات حديثة"
+    },
+    "gradeTable": {
+      "title": "كشف الدرجات",
+      "none": "لا توجد درجات متاحة حاليًا",
+      "subject": "المادة",
+      "assessment": "التقييم",
+      "type": "النوع",
+      "date": "التاريخ",
+      "grade": "الدرجة"
+    },
+    "grades": {
+      "title": "درجاتي",
+      "subtitle": "اطّلع على نتائجك الدراسية"
+    },
+    "badge": {
+      "mine": "شارتي الرقمية",
+      "scanHint": "امسح للتسجيل",
+      "title": "الشارة المدرسية",
+      "description": "قدّم هذا الرمز للماسح عند الدخول والخروج.",
+      "schoolLogo": "شعار المؤسسة",
+      "photo": "صورة التلميذ",
+      "property": "ملك لـ {{name}} • {{year}}",
+      "theSchool": "المؤسسة",
+      "print": "طباعة",
+      "save": "حفظ"
+    },
+    "dashboard": {
+      "noProfile": "ملف {{label}} غير مُعَدّ",
+      "noProfileHint": "حسابك غير مرتبط بعد بملف {{label}}. تواصل مع إدارة مؤسستك.",
+      "average": "المعدل"
+    },
+    "messages": {
+      "recipient": "المرسَل إليه"
+    }
+  },
+  "attendanceHistory": {
+    "PRESENT": "حاضر",
+    "ABSENT": "غائب",
+    "LATE": "متأخر",
+    "EXCUSED": "غياب مبرَّر",
+    "loading": "جارٍ تحميل السجل...",
+    "title": "سجل الحضور",
+    "thisMonth": "هذا الشهر ({{month}})",
+    "lastMonth": "الشهر السابق ({{month}})",
+    "quarter": "الفصل (آخر 3 أشهر)",
+    "quarterDetail": "التفاصيل الفصلية",
+    "presences": "الحضور",
+    "absences": "الغيابات",
+    "lates": "التأخرات",
+    "excused": "المبرَّرة",
+    "recent": "السجل الحديث",
+    "date": "التاريخ",
+    "status": "الحالة",
+    "notes": "ملاحظات",
+    "none": "لا توجد سجلات حضور",
+    "presentCount": "{{count}} حضور",
+    "absentCount": "{{count}} غياب"
+  },
+  "checkInHistory": {
+    "title": "سجل التسجيلات",
+    "subtitle": "آخر 10 تسجيلات لك.",
+    "none": "لا توجد تسجيلات حديثة.",
+    "entry": "الدخول إلى المدرسة",
+    "exit": "الخروج من المدرسة",
+    "present": "حاضر",
+    "left": "غادر"
+  },
+  "homeworkSubmission": {
+    "success": "تم تسليم الواجب بنجاح",
+    "noDescription": "لم يُقدَّم وصف",
+    "grade": "الدرجة: {{grade}}/{{max}}",
+    "comment": "تعليق:",
+    "yourWork": "عملك",
+    "placeholder": "اكتب عملك هنا...",
+    "graded": "تم تنقيط هذا الواجب ولا يمكن تعديله.",
+    "editable": "يمكنك تعديل ما سلّمته إلى أن يُنقَّط.",
+    "update": "تعديل ما سلّمته",
+    "submit": "تسليم عملي"
+  },
+  "reminders": {
+    "saved": "تم حفظ التفضيلات",
+    "homework": "واجب",
+    "homeworkDue": "{{subject}} - للتسليم",
+    "invoice": "الفاتورة {{number}}",
+    "event": "فعالية",
+    "title": "التذكيرات",
+    "homeworkReminders": "تذكيرات الواجبات",
+    "paymentReminders": "تذكيرات الدفع",
+    "eventReminders": "تذكيرات الفعاليات",
+    "closeSettings": "إغلاق الإعدادات",
+    "none": "لا توجد تذكيرات حاليًا",
+    "upToDate": "كل شيء محدَّث!",
+    "urgent": "عاجل",
+    "upcoming": "قادم"
+  },
+  "sharedNotes": {
+    "shared": "تمت مشاركة الملاحظة",
+    "createError": "تعذّر إنشاء الملاحظة",
+    "commentError": "تعذّرت إضافة التعليق",
+    "deleted": "تم حذف الملاحظة",
+    "title": "الملاحظات المشتركة",
+    "new": "جديدة",
+    "shareNote": "مشاركة ملاحظة",
+    "noteTitle": "عنوان الملاحظة",
+    "noteContent": "محتوى الملاحظة...",
+    "visibility": "مستوى الظهور",
+    "myClass": "قسمي",
+    "bySubject": "حسب المادة",
+    "wholeSchool": "كل المؤسسة",
+    "submit": "مشاركة الملاحظة",
+    "loading": "جارٍ التحميل...",
+    "none": "لا توجد ملاحظات مشتركة",
+    "beFirst": "كن أول من يشارك ملاحظة!",
+    "delete": "حذف",
+    "comments": "التعليقات ({{count}})",
+    "addComment": "أضف تعليقًا..."
+  },
+  "collaboration": {
+    "title": "أدوات التعاون",
+    "courses": "الدروس",
+    "discussions": "النقاشات",
+    "clubs": "النوادي",
+    "loading": "جارٍ التحميل...",
+    "noCourse": "لا توجد دروس متاحة",
+    "noDiscussion": "لا توجد نقاشات حديثة",
+    "noClub": "لا توجد نوادٍ متاحة",
+    "members": "{{count}} أعضاء"
   }
 }

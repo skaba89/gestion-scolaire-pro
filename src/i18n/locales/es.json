@@ -59,7 +59,8 @@
     "acceptAll": "Aceptar todo",
     "decline": "Rechazar",
     "savePreferences": "Guardar preferencias",
-    "sessionStarted": "Sesión iniciada"
+    "sessionStarted": "Sesión iniciada",
+    "missingData": "Faltan datos"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -203,7 +204,15 @@
     "saasDashboard": "Panel SaaS",
     "subscriptionRequests": "Solicitudes de suscripción",
     "newTenant": "Nuevo centro",
-    "changeLanguage": "Cambiar de idioma"
+    "changeLanguage": "Cambiar de idioma",
+    "closeMenu": "Cerrar el menú",
+    "openMenu": "Abrir el menú",
+    "searchShortcut": "Buscar (Ctrl+K)",
+    "searchApp": "Buscar en la aplicación",
+    "logout": "Cerrar sesión",
+    "institution": "Centro",
+    "availableInstitutions": "Centros disponibles",
+    "loadingInstitutions": "Cargando o ningún centro..."
   },
   "dashboard": {
     "hello": "Hola, {{name}} 👋",
@@ -441,7 +450,12 @@
     "unpaid": "Impagado",
     "partial": "Parcial",
     "total": "Total",
-    "balance": "Saldo"
+    "balance": "Saldo",
+    "paymentUrlMissing": "No se recibió el enlace de pago del servidor",
+    "cinetpayMethods": "Wave · Orange Money · MTN · Tarjeta",
+    "cinetpayCountries": "CI · SN · ML · BF · TG · CM y más",
+    "paytechCountry": "Senegal",
+    "installments": "{{count}} plazos"
   },
   "teacherHours": {
     "pageTitle": "Seguimiento de Horas Docentes",
@@ -681,7 +695,11 @@
     "offerTypeInternship": "Prácticas",
     "offerTypeJob": "Empleo",
     "offerTypeApprenticeship": "Aprendizaje",
-    "offerTypeVolunteer": "Voluntariado"
+    "offerTypeVolunteer": "Voluntariado",
+    "loading": "Cargando...",
+    "appliedOn": "Postulado el {{date}}",
+    "requestSent": "Solicitud enviada",
+    "applyTo": "Postular a {{title}}"
   },
   "childDetail": {
     "back": "Volver",
@@ -721,7 +739,9 @@
     "appliedOn": "Solicitado el",
     "incompleteData": "Datos incompletos para generar el expediente.",
     "recordError": "Error al generar el expediente académico",
-    "popupBlocked": "Ventana bloqueada por el navegador — archivo descargado."
+    "popupBlocked": "Ventana bloqueada por el navegador — archivo descargado.",
+    "retry": "Inténtelo de nuevo",
+    "otherSubject": "Otra"
   },
   "preRegistration": {
     "pageTitle": "Pre-Inscripción",
@@ -770,7 +790,16 @@
     "success": "¡Pre-inscripción enviada con éxito!",
     "error": "Error durante el envío. Por favor, inténtelo de nuevo.",
     "onlineTitle": "Pre-inscripción en línea",
-    "onlineDesc": "Envíe la solicitud de pre-inscripción para reservar la plaza de sus {{studentsLabel}}. La administración validará su solicitud."
+    "onlineDesc": "Envíe la solicitud de pre-inscripción para reservar la plaza de sus {{studentsLabel}}. La administración validará su solicitud.",
+    "notAssigned": "No asignado",
+    "desiredLevelShort": "Nivel deseado:",
+    "notSpecified": "No especificado",
+    "noChildTitle": "Ningún {{label}} vinculado",
+    "noChildHint": "Su cuenta aún no está vinculada a ningún {{label}}. Contacte con la administración.",
+    "dialogTitle": "Solicitud de reinscripción",
+    "dialogDescription": "Confirme la reinscripción de {{name}} para el año {{year}}.",
+    "parentSubtitleNext": "Inscriba a sus {{label}} para el próximo año",
+    "parentSubtitleYear": "Inscriba a sus {{label}} para el año {{year}}"
   },
   "teacherRisk": {
     "pageTitle": "Estudiantes en Riesgo",
@@ -858,7 +887,8 @@
     "statusAbsent": "Ausente",
     "bookingSuccess": "Cita reservada con éxito",
     "bookingError": "Error al reservar la cita",
-    "cancelled": "Cita cancelada"
+    "cancelled": "Cita cancelada",
+    "slotRange": "{{date}} - {{start}} a {{end}}"
   },
   "teacherAttendance": {
     "class": "Clase",
@@ -3234,5 +3264,397 @@
       "ofStudents": "de los estudiantes",
       "newStudent": "nuevo estudiante"
     }
+  },
+  "alumniPortal": {
+    "status": {
+      "pending": "Pendiente",
+      "in_progress": "En curso",
+      "awaiting_validation": "En validación",
+      "completed": "Completado",
+      "rejected": "Rechazado",
+      "cancelled": "Cancelado",
+      "validated": "Validado",
+      "awaitingValidationLong": "En validación"
+    },
+    "docType": {
+      "transcript": "Expediente académico",
+      "diploma": "Diploma",
+      "certificate": "Certificado",
+      "attestation": "Constancia",
+      "other": "Otro",
+      "certificateOfEnrollment": "Certificado de escolaridad",
+      "otherDocument": "Otro documento"
+    },
+    "dashboard": {
+      "title": "Portal de exalumnos",
+      "welcome": "Bienvenido a su espacio personal",
+      "requests": "Solicitudes",
+      "messages": "Mensajes",
+      "new": "Nuevo",
+      "inProgress": "En curso",
+      "completed": "Completadas",
+      "recentRequests": "Solicitudes recientes",
+      "recentRequestsHint": "Sus últimas solicitudes de documentos",
+      "newRequest": "Nueva",
+      "noRequest": "Ninguna solicitud",
+      "makeRequest": "Hacer una solicitud",
+      "allRequests": "Ver todas las solicitudes",
+      "quickAccess": "Acceso rápido",
+      "mainFeatures": "Funciones principales",
+      "documentRequest": "Solicitud de documentos",
+      "documentRequestHint": "Expedientes, diplomas, constancias",
+      "messaging": "Mensajería",
+      "messagingHint": "Comuníquese con la secretaría",
+      "careers": "Carreras y mentoría",
+      "careersHint": "Ofertas de empleo y red de exalumnos"
+    },
+    "requests": {
+      "title": "Mis solicitudes de documentos",
+      "subtitle": "Envíe y siga sus solicitudes de documentos administrativos",
+      "new": "Nueva solicitud",
+      "newTitle": "Nueva solicitud de documento",
+      "newHint": "Complete el formulario para enviar su solicitud",
+      "documentTypeRequired": "Tipo de documento *",
+      "selectType": "Seleccione el tipo",
+      "detailedDescription": "Descripción detallada",
+      "descriptionPlaceholder": "Precise el documento (año, carrera, etc.)",
+      "purposeRequired": "Motivo de la solicitud *",
+      "purposePlaceholder": "¿Por qué necesita este documento?",
+      "urgency": "Urgencia",
+      "urgencyNormal": "Normal",
+      "urgencyUrgent": "Urgente",
+      "deliveryMethod": "Método de entrega",
+      "deliveryEmail": "Correo electrónico",
+      "deliveryMail": "Correo postal",
+      "deliveryPickup": "Retiro en el centro",
+      "deliveryAddress": "Dirección de entrega",
+      "fullAddress": "Dirección completa",
+      "submit": "Enviar solicitud",
+      "tabActive": "En curso ({{count}})",
+      "tabHistory": "Historial ({{count}})",
+      "noActive": "Ninguna solicitud en curso",
+      "noActiveHint": "Haga clic en «Nueva solicitud» para enviar su primera solicitud",
+      "noHistory": "Sin historial",
+      "noHistoryHint": "Las solicitudes finalizadas aparecerán aquí",
+      "details": "Detalles de la solicitud",
+      "documentType": "Tipo de documento",
+      "status": "Estado",
+      "submittedAt": "Fecha de envío",
+      "description": "Descripción",
+      "purpose": "Motivo",
+      "validatorNote": "Nota del validador",
+      "history": "Historial",
+      "submittedOn": "Enviado el {{date}}",
+      "cancel": "Cancelar"
+    },
+    "careers": {
+      "offerType": {
+        "INTERNSHIP": "Prácticas",
+        "JOB": "Empleo",
+        "APPRENTICESHIP": "Formación dual",
+        "FREELANCE": "Autónomo"
+      },
+      "title": "Carreras y red de exalumnos",
+      "subtitle": "Oportunidades profesionales y mentoría",
+      "tabOffers": "Ofertas ({{count}})",
+      "tabMentors": "Mentores ({{count}})",
+      "tabEvents": "Eventos ({{count}})",
+      "noOffer": "No hay ofertas disponibles",
+      "noOfferHint": "Vuelva pronto para descubrir nuevas oportunidades",
+      "company": "Empresa",
+      "remote": "Teletrabajo",
+      "deadline": "Antes del {{date}}",
+      "apply": "Postular",
+      "noMentor": "No hay mentores disponibles",
+      "noMentorHint": "El programa de mentoría estará disponible pronto",
+      "noEvent": "No hay eventos próximos",
+      "noEventHint": "Manténgase atento a los próximos eventos",
+      "online": "En línea"
+    },
+    "messages": {
+      "recipient": "Destinatario",
+      "title": "Mensajes"
+    }
+  },
+  "messenger": {
+    "recipient": "Destinatario",
+    "title": "Mensajes",
+    "fillRequired": "Complete los campos obligatorios",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "search": "Buscar en los mensajes",
+    "noConversation": "Ninguna conversación",
+    "conversation": "Conversación",
+    "noMessage": "Sin mensaje",
+    "yourMessages": "Sus mensajes",
+    "selectConversation": "Seleccione una conversación para empezar a hablar",
+    "newConversation": "Nueva conversación",
+    "choose": "Elegir: {{label}}",
+    "subject": "Asunto",
+    "subjectPlaceholder": "Asunto de su mensaje",
+    "message": "Mensaje",
+    "messagePlaceholder": "Su mensaje...",
+    "cancel": "Cancelar",
+    "sending": "Enviando...",
+    "send": "Enviar"
+  },
+  "parentPortal": {
+    "children": {
+      "title": "Mis hijos",
+      "subtitle": "Consulte la información y los resultados de sus hijos",
+      "count": "Hijos: {{count}}",
+      "none": "No se encontraron hijos",
+      "noneHint": "Póngase en contacto con la administración del centro para vincular a sus hijos con su cuenta.",
+      "attendanceHistory": "Historial de asistencia"
+    },
+    "analytics": {
+      "title": "Análisis detallado",
+      "noChild": "Ningún {{label}} vinculado",
+      "noChildHint": "Contacte con la administración para vincular a sus {{label}} con su cuenta",
+      "subtitle": "Siga en detalle el rendimiento de sus {{label}}"
+    },
+    "header": {
+      "welcome": "¡Bienvenido/a, {{name}}!",
+      "parent": "Padre/Madre",
+      "enrolledChildren": "Hijos matriculados: {{count}}"
+    },
+    "grid": {
+      "title": "Rendimiento de mis hijos",
+      "none": "Ningún hijo vinculado",
+      "noneHint": "Contacte con la administración para vincular a sus hijos con su cuenta."
+    },
+    "invoiceStats": {
+      "toPay": "Por pagar",
+      "paid": "Pagado",
+      "invoices": "Facturas",
+      "overdue": "Vencidas"
+    },
+    "childCard": {
+      "primaryContact": "Contacto principal",
+      "details": "Detalles y notas",
+      "reportCards": "Boletines",
+      "invoices": "Facturas",
+      "attendance": "Asistencia",
+      "notAvailable": "N/D",
+      "seeDetails": "Ver detalles",
+      "average": "Promedio",
+      "assessments": "{{count}} evaluaciones",
+      "presence": "Asistencia",
+      "homework": "Tareas",
+      "toSubmit": "{{count}} por entregar",
+      "submitted": "{{count}} entregada(s)"
+    },
+    "analyticsTabs": {
+      "grades": "Notas",
+      "subjects": "Asignaturas",
+      "attendance": "Asistencia",
+      "homework": "Tareas",
+      "gamification": "Gamificación"
+    },
+    "metrics": {
+      "average": "Promedio general",
+      "attendance": "Asiduidad",
+      "homeworkSubmitted": "Tareas entregadas",
+      "points": "Puntos ganados",
+      "pointsAccumulated": "Puntos acumulados",
+      "badges": "Insignias"
+    },
+    "recommendations": {
+      "title": "Recomendaciones personalizadas",
+      "hide": "Ocultar"
+    },
+    "attendanceTab": {
+      "title": "Tasa de asistencia",
+      "subtitle": "Evolución mensual de la asistencia"
+    },
+    "homeworkTab": {
+      "title": "Últimas tareas",
+      "subtitle": "Estado de las entregas y notas obtenidas",
+      "due": "Fecha límite: {{date}}",
+      "pending": "Pendiente",
+      "notSubmitted": "No entregado",
+      "none": "No se encontraron tareas",
+      "punctuality": "Puntualidad",
+      "timing": "Plazos de entrega"
+    },
+    "gradesTab": {
+      "title": "Evolución de las notas",
+      "subtitle": "Promedio mensual de los últimos 6 meses",
+      "types": "Tipos de evaluación",
+      "typesHint": "Distribución por tipo de evaluación"
+    },
+    "subjectsTab": {
+      "title": "Rendimiento por asignatura",
+      "subtitle": "Promedio por asignatura"
+    },
+    "gamificationTab": {
+      "pointsTitle": "Puntos por categoría",
+      "pointsHint": "Distribución de los puntos ganados",
+      "badgesTitle": "Insignias recientes",
+      "badgesHint": "Últimas insignias obtenidas",
+      "none": "Ninguna insignia obtenida"
+    },
+    "analyticsHook": {
+      "other": "Otro",
+      "achievement": "Logro",
+      "weakTitle": "Asignaturas a reforzar",
+      "weakMessage": "Atención a: {{subjects}}. Se recomiendan sesiones de repaso adicionales.",
+      "strongTitle": "Puntos fuertes identificados",
+      "strongMessage": "Excelente en {{subjects}}. ¡Anímele a mantener este esfuerzo!",
+      "attendanceTitle": "Asistencia a mejorar",
+      "attendanceMessage": "La tasa de asistencia del {{rate}} % está por debajo del objetivo del 90 %. La regularidad es clave para el éxito.",
+      "homeworkTitle": "Tareas por entregar",
+      "homeworkMessage": "El {{rate}} % de las tareas no se ha entregado. Un plan de estudio puede ayudar.",
+      "progressTitle": "Progreso notable",
+      "progressMessage": "¡Mejora de {{points}} puntos este mes! Siga animando estos esfuerzos.",
+      "declineTitle": "Descenso del rendimiento",
+      "declineMessage": "Se observó un descenso de {{points}} puntos. Una reunión con el docente podría ser útil.",
+      "early": "Anticipada",
+      "onTime": "A tiempo",
+      "late": "Con retraso"
+    }
+  },
+  "studentPortal": {
+    "today": {
+      "title": "Clases de hoy",
+      "none": "No hay clases hoy",
+      "subject": "Asignatura"
+    },
+    "upcoming": {
+      "title": "Próximas tareas",
+      "none": "No hay tareas pendientes",
+      "urgent": "Urgente"
+    },
+    "recent": {
+      "title": "Últimas notas",
+      "seeAll": "Ver todo",
+      "none": "No hay notas recientes"
+    },
+    "gradeTable": {
+      "title": "Boletín de notas",
+      "none": "Todavía no hay notas disponibles",
+      "subject": "Asignatura",
+      "assessment": "Evaluación",
+      "type": "Tipo",
+      "date": "Fecha",
+      "grade": "Nota"
+    },
+    "grades": {
+      "title": "Mis notas",
+      "subtitle": "Consulte sus resultados académicos"
+    },
+    "badge": {
+      "mine": "Mi credencial digital",
+      "scanHint": "Escanear para fichar",
+      "title": "Credencial escolar",
+      "description": "Presente este código al escáner al entrar y salir.",
+      "schoolLogo": "Logotipo del centro",
+      "photo": "Foto del alumno",
+      "property": "Propiedad de {{name}} • {{year}}",
+      "theSchool": "el centro",
+      "print": "Imprimir",
+      "save": "Guardar"
+    },
+    "dashboard": {
+      "noProfile": "Perfil de {{label}} no configurado",
+      "noProfileHint": "Su cuenta aún no está vinculada a una ficha de {{label}}. Contacte con la administración de su centro.",
+      "average": "Promedio"
+    },
+    "messages": {
+      "recipient": "Destinatario"
+    }
+  },
+  "attendanceHistory": {
+    "PRESENT": "Presente",
+    "ABSENT": "Ausente",
+    "LATE": "Retraso",
+    "EXCUSED": "Justificado",
+    "loading": "Cargando el historial...",
+    "title": "Historial de asistencia",
+    "thisMonth": "Este mes ({{month}})",
+    "lastMonth": "Mes anterior ({{month}})",
+    "quarter": "Trimestre (últimos 3 meses)",
+    "quarterDetail": "Detalle trimestral",
+    "presences": "Asistencias",
+    "absences": "Ausencias",
+    "lates": "Retrasos",
+    "excused": "Justificadas",
+    "recent": "Historial reciente",
+    "date": "Fecha",
+    "status": "Estado",
+    "notes": "Observaciones",
+    "none": "Ningún registro de asistencia",
+    "presentCount": "{{count}} asistencias",
+    "absentCount": "{{count}} ausencias"
+  },
+  "checkInHistory": {
+    "title": "Historial de fichajes",
+    "subtitle": "Sus 10 últimos fichajes registrados.",
+    "none": "No hay fichajes recientes.",
+    "entry": "Entrada al centro",
+    "exit": "Salida del centro",
+    "present": "Presente",
+    "left": "Salió"
+  },
+  "homeworkSubmission": {
+    "success": "Tarea enviada correctamente",
+    "noDescription": "No se proporcionó descripción",
+    "grade": "Nota: {{grade}}/{{max}}",
+    "comment": "Comentario:",
+    "yourWork": "Su trabajo",
+    "placeholder": "Escriba su trabajo aquí...",
+    "graded": "Esta tarea ya fue calificada y no puede modificarse.",
+    "editable": "Puede modificar su entrega hasta que sea calificada.",
+    "update": "Modificar mi entrega",
+    "submit": "Enviar mi trabajo"
+  },
+  "reminders": {
+    "saved": "Preferencias guardadas",
+    "homework": "Tarea",
+    "homeworkDue": "{{subject}} - Por entregar",
+    "invoice": "Factura {{number}}",
+    "event": "Evento",
+    "title": "Recordatorios",
+    "homeworkReminders": "Recordatorios de tareas",
+    "paymentReminders": "Recordatorios de pago",
+    "eventReminders": "Recordatorios de eventos",
+    "closeSettings": "Cerrar la configuración",
+    "none": "No hay recordatorios por ahora",
+    "upToDate": "¡Todo está al día!",
+    "urgent": "Urgente",
+    "upcoming": "Próximamente"
+  },
+  "sharedNotes": {
+    "shared": "Nota compartida",
+    "createError": "Error al crear la nota",
+    "commentError": "Error al añadir el comentario",
+    "deleted": "Nota eliminada",
+    "title": "Notas compartidas",
+    "new": "Nueva",
+    "shareNote": "Compartir una nota",
+    "noteTitle": "Título de la nota",
+    "noteContent": "Contenido de la nota...",
+    "visibility": "Visibilidad",
+    "myClass": "Mi clase",
+    "bySubject": "Por asignatura",
+    "wholeSchool": "Todo el centro",
+    "submit": "Compartir la nota",
+    "loading": "Cargando...",
+    "none": "Ninguna nota compartida",
+    "beFirst": "¡Sea el primero en compartir una nota!",
+    "delete": "Eliminar",
+    "comments": "Comentarios ({{count}})",
+    "addComment": "Añadir un comentario..."
+  },
+  "collaboration": {
+    "title": "Herramientas colaborativas",
+    "courses": "Cursos",
+    "discussions": "Debates",
+    "clubs": "Clubes",
+    "loading": "Cargando...",
+    "noCourse": "No hay cursos disponibles",
+    "noDiscussion": "No hay debates recientes",
+    "noClub": "No hay clubes disponibles",
+    "members": "{{count}} miembros"
   }
 }

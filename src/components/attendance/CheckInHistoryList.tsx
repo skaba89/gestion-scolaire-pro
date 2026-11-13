@@ -1,9 +1,10 @@
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { ArrowUpRight, ArrowDownRight, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface CheckIn {
     id: string;
@@ -18,13 +19,14 @@ interface CheckInHistoryListProps {
 }
 
 export const CheckInHistoryList = ({ checkIns, isLoading }: CheckInHistoryListProps) => {
+    const { t } = useTranslation();
     if (isLoading) {
         return (
             <Card className="shadow-sm border-primary/10">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center gap-2">
                         <Clock className="w-5 h-5 text-primary" />
-                        Historique des pointages
+                        {t("checkInHistory.title")}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -43,16 +45,16 @@ export const CheckInHistoryList = ({ checkIns, isLoading }: CheckInHistoryListPr
             <CardHeader className="bg-muted/30 border-b pb-3">
                 <CardTitle className="text-lg flex items-center gap-2">
                     <Clock className="w-5 h-5 text-primary" />
-                    Historique des pointages
+                    {t("checkInHistory.title")}
                 </CardTitle>
-                <CardDescription>Vos 10 derniers passages enregistrés.</CardDescription>
+                <CardDescription>{t("checkInHistory.subtitle")}</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
                 <ScrollArea className="h-[300px]">
                     {checkIns.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground">
                             <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                            <p>Aucun pointage enregistré récemment.</p>
+                            <p>{t("checkInHistory.none")}</p>
                         </div>
                     ) : (
                         <div className="divide-y">
@@ -71,10 +73,10 @@ export const CheckInHistoryList = ({ checkIns, isLoading }: CheckInHistoryListPr
                                         </div>
                                         <div>
                                             <p className="font-bold text-sm">
-                                                {checkIn.check_in_type === 'ENTRY' ? 'Entrée dans l\'école' : 'Sortie de l\'école'}
+                                                {checkIn.check_in_type === "ENTRY" ? t("checkInHistory.entry") : t("checkInHistory.exit")}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {format(new Date(checkIn.checked_at), "EEEE d MMMM HH:mm", { locale: fr })}
+                                                {format(new Date(checkIn.checked_at), "EEEE d MMMM HH:mm", { locale: dateFnsLocale() })}
                                             </p>
                                         </div>
                                     </div>
@@ -83,7 +85,7 @@ export const CheckInHistoryList = ({ checkIns, isLoading }: CheckInHistoryListPr
                                             ? 'border-emerald-500/50 text-emerald-600 bg-emerald-50/50'
                                             : 'border-rose-500/50 text-rose-600 bg-rose-50/50'
                                     }>
-                                        {checkIn.check_in_type === 'ENTRY' ? 'Présent' : 'Parti'}
+                                        {checkIn.check_in_type === "ENTRY" ? t("checkInHistory.present") : t("checkInHistory.left")}
                                     </Badge>
                                 </div>
                             ))}

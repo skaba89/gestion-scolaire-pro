@@ -1089,3 +1089,18 @@ ce fichier — pas d'un document de 2025 non révisé.
   en dur, toute clé utilisée présente dans les 5 langues. Traductions
   rédigées par l'assistant, relecture par des locuteurs natifs à prévoir.
   Reste : textes des pages (portails, puis admin).
+- **2026-11-13 — portails étudiant, parent et ancien étudiant traduits (lot
+  3a de l'audit des langues).** Les 21 pages de ces portails et leurs
+  composants (tableaux de bord, analyses parent, badge, notes, devoirs,
+  rendez-vous, factures, pré-inscription, carrières, demandes de documents),
+  ainsi que la messagerie, les rappels, l'historique de présence et des
+  pointages, la remise de devoir, les notes partagées et outils collaboratifs
+  et les recommandations de l'analyse parent (partagés avec d'autres
+  portails), n'ont plus de texte écrit en dur : ≈ 380 clés (`alumniPortal.*`,
+  `parentPortal.*`, `studentPortal.*`, `messenger.*`, `reminders.*`,
+  `attendanceHistory.*`, …) dans les 5 langues. Dates et nombres suivent la
+  langue de l'interface (`src/lib/locale.ts` : `intlLocale`,
+  `dateFnsLocale`, `formatDate`). Garde Vitest
+  `src/i18n/__tests__/no-hardcoded-text.test.ts` : aucun texte d'interface
+  en dur dans les dossiers déjà traduits (liste à étendre à chaque lot).
+  Reste : portails enseignant et département, puis pages admin.

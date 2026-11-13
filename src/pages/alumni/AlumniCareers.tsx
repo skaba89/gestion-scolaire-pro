@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
+import { dateFnsLocale } from "@/lib/locale";
 import { 
   Briefcase, 
   Calendar, 
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 
 export default function AlumniCareers() {
+  const { t } = useTranslation();
 
   // Fetch data using hooks from sovereign API
   const { data: jobOffers, isLoading: loadingJobs } = useAlumniJobOffers();
@@ -29,10 +31,10 @@ export default function AlumniCareers() {
 
 
   const offerTypeLabels: Record<string, string> = {
-    INTERNSHIP: "Stage",
-    JOB: "Emploi",
-    APPRENTICESHIP: "Alternance",
-    FREELANCE: "Freelance",
+    INTERNSHIP: t("alumniPortal.careers.offerType.INTERNSHIP"),
+    JOB: t("alumniPortal.careers.offerType.JOB"),
+    APPRENTICESHIP: t("alumniPortal.careers.offerType.APPRENTICESHIP"),
+    FREELANCE: t("alumniPortal.careers.offerType.FREELANCE"),
   };
 
   return (
@@ -40,10 +42,10 @@ export default function AlumniCareers() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">
-          Carrières & Réseau Alumni
+          {t("alumniPortal.careers.title")}
         </h1>
         <p className="text-muted-foreground">
-          Opportunités professionnelles et mentorat
+          {t("alumniPortal.careers.subtitle")}
         </p>
       </div>
 
@@ -51,15 +53,15 @@ export default function AlumniCareers() {
         <TabsList className="grid w-full grid-cols-3 max-w-lg">
           <TabsTrigger value="jobs" className="gap-2">
             <Briefcase className="w-4 h-4" />
-            Offres ({jobOffers?.length || 0})
+            {t("alumniPortal.careers.tabOffers", { count: jobOffers?.length || 0 })}
           </TabsTrigger>
           <TabsTrigger value="mentors" className="gap-2">
             <Users className="w-4 h-4" />
-            Mentors ({mentors?.length || 0})
+            {t("alumniPortal.careers.tabMentors", { count: mentors?.length || 0 })}
           </TabsTrigger>
           <TabsTrigger value="events" className="gap-2">
             <Calendar className="w-4 h-4" />
-            Événements ({events?.length || 0})
+            {t("alumniPortal.careers.tabEvents", { count: events?.length || 0 })}
           </TabsTrigger>
         </TabsList>
 
@@ -76,9 +78,9 @@ export default function AlumniCareers() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Briefcase className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <h3 className="font-semibold text-lg">Aucune offre disponible</h3>
+                <h3 className="font-semibold text-lg">{t("alumniPortal.careers.noOffer")}</h3>
                 <p className="text-muted-foreground mt-1">
-                  Revenez bientôt pour découvrir de nouvelles opportunités
+                  {t("alumniPortal.careers.noOfferHint")}
                 </p>
               </CardContent>
             </Card>
@@ -92,7 +94,7 @@ export default function AlumniCareers() {
                         <CardTitle className="text-lg">{offer.title}</CardTitle>
                         <CardDescription className="flex items-center gap-1 mt-1">
                           <Building className="h-3 w-3" />
-                          {offer.company_name || "Entreprise"}
+                          {offer.company_name || t("alumniPortal.careers.company")}
                         </CardDescription>
                       </div>
                       <Badge variant="secondary">
@@ -112,19 +114,19 @@ export default function AlumniCareers() {
                         </span>
                       )}
                       {offer.is_remote && (
-                        <Badge variant="outline" className="text-xs">Télétravail</Badge>
+                        <Badge variant="outline" className="text-xs">{t("alumniPortal.careers.remote")}</Badge>
                       )}
                       {offer.application_deadline && (
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          Avant le {format(new Date(offer.application_deadline), "d MMM", { locale: fr })}
+                          {t("alumniPortal.careers.deadline", { date: format(new Date(offer.application_deadline), "d MMM", { locale: dateFnsLocale() }) })}
                         </span>
                       )}
                     </div>
                     {offer.contact_email && (
                       <Button variant="outline" size="sm" className="w-full" asChild>
                         <a href={`mailto:${offer.contact_email}`}>
-                          Postuler
+                          {t("alumniPortal.careers.apply")}
                           <ExternalLink className="h-3 w-3 ml-2" />
                         </a>
                       </Button>
@@ -149,9 +151,9 @@ export default function AlumniCareers() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <h3 className="font-semibold text-lg">Aucun mentor disponible</h3>
+                <h3 className="font-semibold text-lg">{t("alumniPortal.careers.noMentor")}</h3>
                 <p className="text-muted-foreground mt-1">
-                  Le programme de mentorat sera bientôt disponible
+                  {t("alumniPortal.careers.noMentorHint")}
                 </p>
               </CardContent>
             </Card>
@@ -225,9 +227,9 @@ export default function AlumniCareers() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <Calendar className="h-12 w-12 text-muted-foreground/50 mb-4" />
-                <h3 className="font-semibold text-lg">Aucun événement à venir</h3>
+                <h3 className="font-semibold text-lg">{t("alumniPortal.careers.noEvent")}</h3>
                 <p className="text-muted-foreground mt-1">
-                  Restez connecté pour ne pas manquer les prochains événements
+                  {t("alumniPortal.careers.noEventHint")}
                 </p>
               </CardContent>
             </Card>
@@ -239,10 +241,10 @@ export default function AlumniCareers() {
                     <div className="flex items-start gap-4">
                       <div className="p-3 rounded-lg bg-primary/10 text-center min-w-[60px]">
                         <p className="text-2xl font-bold text-primary">
-                          {format(new Date(event.start_datetime), "d", { locale: fr })}
+                          {format(new Date(event.start_datetime), "d", { locale: dateFnsLocale() })}
                         </p>
                         <p className="text-xs text-primary uppercase">
-                          {format(new Date(event.start_datetime), "MMM", { locale: fr })}
+                          {format(new Date(event.start_datetime), "MMM", { locale: dateFnsLocale() })}
                         </p>
                       </div>
                       <div className="flex-1">
@@ -262,7 +264,7 @@ export default function AlumniCareers() {
                         <div className="flex flex-wrap gap-3 mt-2 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            {format(new Date(event.start_datetime), "HH:mm", { locale: fr })}
+                            {format(new Date(event.start_datetime), "HH:mm", { locale: dateFnsLocale() })}
                           </span>
                           {event.location && (
                             <span className="flex items-center gap-1">
@@ -271,7 +273,7 @@ export default function AlumniCareers() {
                             </span>
                           )}
                           {event.is_online && (
-                            <Badge variant="secondary" className="text-xs">En ligne</Badge>
+                            <Badge variant="secondary" className="text-xs">{t("alumniPortal.careers.online")}</Badge>
                           )}
                         </div>
                       </div>

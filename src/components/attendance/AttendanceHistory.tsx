@@ -21,7 +21,8 @@ import {
   TrendingUp
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { fr } from "date-fns/locale";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface AttendanceHistoryProps {
   studentId: string;
@@ -30,14 +31,15 @@ interface AttendanceHistoryProps {
 
 type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
 
-const statusConfig: Record<AttendanceStatus, { label: string; icon: typeof Check; color: string }> = {
-  PRESENT: { label: "Présent", icon: Check, color: "text-green-600 bg-green-100" },
-  ABSENT: { label: "Absent", icon: X, color: "text-red-600 bg-red-100" },
-  LATE: { label: "Retard", icon: Clock, color: "text-orange-600 bg-orange-100" },
-  EXCUSED: { label: "Excusé", icon: AlertCircle, color: "text-blue-600 bg-blue-100" },
+const statusConfig: Record<AttendanceStatus, { labelKey: string; icon: typeof Check; color: string }> = {
+  PRESENT: { labelKey: "attendanceHistory.PRESENT", icon: Check, color: "text-green-600 bg-green-100" },
+  ABSENT: { labelKey: "attendanceHistory.ABSENT", icon: X, color: "text-red-600 bg-red-100" },
+  LATE: { labelKey: "attendanceHistory.LATE", icon: Clock, color: "text-orange-600 bg-orange-100" },
+  EXCUSED: { labelKey: "attendanceHistory.EXCUSED", icon: AlertCircle, color: "text-blue-600 bg-blue-100" },
 };
 
 export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryProps) => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
 
   const { data: attendanceRecords, isLoading } = useQuery({
@@ -109,7 +111,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
     return (
       <Card>
         <CardContent className="p-8 text-center text-muted-foreground">
-          Chargement de l'historique...
+          {t("attendanceHistory.loading")}
         </CardContent>
       </Card>
     );
@@ -120,7 +122,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
       {studentName && (
         <div>
           <h2 className="text-xl font-semibold">{studentName}</h2>
-          <p className="text-muted-foreground">Historique des présences</p>
+          <p className="text-muted-foreground">{t("attendanceHistory.title")}</p>
         </div>
       )}
 
@@ -129,7 +131,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Ce mois ({format(now, "MMMM", { locale: fr })})
+              {t("attendanceHistory.thisMonth", { month: format(now, "MMMM", { locale: dateFnsLocale() }) })}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -139,8 +141,8 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
             </div>
             <Progress value={currentMonthStats.rate} className="h-2" />
             <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span>{currentMonthStats.present} présences</span>
-              <span>{currentMonthStats.absent} absences</span>
+              <span>{t("attendanceHistory.presentCount", { count: currentMonthStats.present })}</span>
+              <span>{t("attendanceHistory.absentCount", { count: currentMonthStats.absent })}</span>
             </div>
           </CardContent>
         </Card>
@@ -148,7 +150,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Mois précédent ({format(subMonths(now, 1), "MMMM", { locale: fr })})
+              {t("attendanceHistory.lastMonth", { month: format(subMonths(now, 1), "MMMM", { locale: dateFnsLocale() }) })}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -158,8 +160,8 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
             </div>
             <Progress value={lastMonthStats.rate} className="h-2" />
             <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span>{lastMonthStats.present} présences</span>
-              <span>{lastMonthStats.absent} absences</span>
+              <span>{t("attendanceHistory.presentCount", { count: lastMonthStats.present })}</span>
+              <span>{t("attendanceHistory.absentCount", { count: lastMonthStats.absent })}</span>
             </div>
           </CardContent>
         </Card>
@@ -167,7 +169,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Trimestre (3 derniers mois)
+              {t("attendanceHistory.quarter")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -177,7 +179,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
             </div>
             <Progress value={quarterStats.rate} className="h-2" />
             <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-              <span>{quarterStats.present} présences</span>
+              <span>{t("attendanceHistory.presentCount", { count: quarterStats.present })}</span>
               <span>{quarterStats.absent + quarterStats.late} absences/retards</span>
             </div>
           </CardContent>
@@ -189,7 +191,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarDays className="w-5 h-5" />
-            Détail trimestriel
+            {t("attendanceHistory.quarterDetail")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -197,22 +199,22 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
             <div className="text-center p-3 bg-green-50 rounded-lg">
               <Check className="w-6 h-6 text-green-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-green-600">{quarterStats.present}</p>
-              <p className="text-xs text-muted-foreground">Présences</p>
+              <p className="text-xs text-muted-foreground">{t("attendanceHistory.presences")}</p>
             </div>
             <div className="text-center p-3 bg-red-50 rounded-lg">
               <X className="w-6 h-6 text-red-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-red-600">{quarterStats.absent}</p>
-              <p className="text-xs text-muted-foreground">Absences</p>
+              <p className="text-xs text-muted-foreground">{t("attendanceHistory.absences")}</p>
             </div>
             <div className="text-center p-3 bg-orange-50 rounded-lg">
               <Clock className="w-6 h-6 text-orange-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-orange-600">{quarterStats.late}</p>
-              <p className="text-xs text-muted-foreground">Retards</p>
+              <p className="text-xs text-muted-foreground">{t("attendanceHistory.lates")}</p>
             </div>
             <div className="text-center p-3 bg-blue-50 rounded-lg">
               <AlertCircle className="w-6 h-6 text-blue-600 mx-auto mb-1" />
               <p className="text-2xl font-bold text-blue-600">{quarterStats.excused}</p>
-              <p className="text-xs text-muted-foreground">Excusés</p>
+              <p className="text-xs text-muted-foreground">{t("attendanceHistory.excused")}</p>
             </div>
           </div>
         </CardContent>
@@ -221,16 +223,16 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
       {/* Recent Records */}
       <Card>
         <CardHeader>
-          <CardTitle>Historique récent</CardTitle>
+          <CardTitle>{t("attendanceHistory.recent")}</CardTitle>
         </CardHeader>
         <CardContent>
           {attendanceRecords && attendanceRecords.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Notes</TableHead>
+                  <TableHead>{t("attendanceHistory.date")}</TableHead>
+                  <TableHead>{t("attendanceHistory.status")}</TableHead>
+                  <TableHead>{t("attendanceHistory.notes")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -242,12 +244,12 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
                   return (
                     <TableRow key={record.id}>
                       <TableCell>
-                        {format(new Date(record.date), "EEEE d MMMM yyyy", { locale: fr })}
+                        {format(new Date(record.date), "EEEE d MMMM yyyy", { locale: dateFnsLocale() })}
                       </TableCell>
                       <TableCell>
                         <Badge className={config.color}>
                           <Icon className="w-3 h-3 mr-1" />
-                          {config.label}
+                          {t(config.labelKey)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -260,7 +262,7 @@ export const AttendanceHistory = ({ studentId, studentName }: AttendanceHistoryP
             </Table>
           ) : (
             <p className="text-center py-8 text-muted-foreground">
-              Aucun enregistrement de présence
+              {t("attendanceHistory.none")}
             </p>
           )}
         </CardContent>

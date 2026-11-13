@@ -12,8 +12,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 export const TenantSwitcher = () => {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const { isSuperAdmin } = useAuth();
     const { currentTenant, allTenants, switchTenant } = useTenant();
@@ -33,7 +35,7 @@ export const TenantSwitcher = () => {
                                 <Building2 className="w-4 h-4" />
                             </div>
                             <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-xs text-primary uppercase tracking-wider leading-tight">Établissement</span>
+                                <span className="font-bold text-xs text-primary uppercase tracking-wider leading-tight">{t("nav.institution")}</span>
                                 <span className="font-semibold text-sm truncate leading-tight">
                                     {currentTenant?.name || "Sélectionner"}
                                 </span>
@@ -43,7 +45,7 @@ export const TenantSwitcher = () => {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-64 max-h-[400px] overflow-y-auto z-[60]" align="start">
-                    <DropdownMenuLabel>Établissements disponibles</DropdownMenuLabel>
+                    <DropdownMenuLabel>{t("nav.availableInstitutions")}</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {allTenants.map((t) => (
                         <DropdownMenuItem
@@ -64,7 +66,7 @@ export const TenantSwitcher = () => {
                     ))}
                     {allTenants.length === 0 && (
                         <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                            Chargement ou aucun établissement...
+                            {t("nav.loadingInstitutions")}
                         </div>
                     )}
                 </DropdownMenuContent>

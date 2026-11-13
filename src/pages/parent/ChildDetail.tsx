@@ -28,7 +28,6 @@ import {
   Download
 } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import {
   XAxis,
   YAxis,
@@ -43,6 +42,7 @@ import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { StudentDigitalBadge } from "@/components/student/StudentDigitalBadge";
 import { CheckInHistoryList } from "@/components/attendance/CheckInHistoryList";
 import { parentsService } from "@/features/parents/services/parentsService";
+import { dateFnsLocale } from "@/lib/locale";
 
 const ChildDetail = () => {
   const { t } = useTranslation();
@@ -111,7 +111,7 @@ const ChildDetail = () => {
 
     } catch (error: any) {
       toast.error(t("childDetail.recordError"), {
-        description: error?.response?.data?.detail || error.message || "Veuillez réessayer"
+        description: error?.response?.data?.detail || error.message || t("childDetail.retry")
       });
     } finally {
       setIsGeneratingTranscript(false);
@@ -134,7 +134,7 @@ const ChildDetail = () => {
 
   // Calculate grades by subject
   const gradesBySubject = grades?.reduce((acc: any, grade: any) => {
-    const subjectName = grade.assessments?.subjects?.name || "Autre";
+    const subjectName = grade.assessments?.subjects?.name || t("childDetail.otherSubject");
     if (!acc[subjectName]) {
       acc[subjectName] = { grades: [], total: 0, count: 0 };
     }
@@ -249,7 +249,7 @@ const ChildDetail = () => {
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t">
-            {student?.date_of_birth && <div className="flex items-center gap-2 text-sm"><Calendar className="w-4 h-4 text-muted-foreground" /><span>{format(new Date(student.date_of_birth), "dd MMM yyyy", { locale: fr })}</span></div>}
+            {student?.date_of_birth && <div className="flex items-center gap-2 text-sm"><Calendar className="w-4 h-4 text-muted-foreground" /><span>{format(new Date(student.date_of_birth), "dd MMM yyyy", { locale: dateFnsLocale() })}</span></div>}
             {student?.email && <div className="flex items-center gap-2 text-sm"><Mail className="w-4 h-4 text-muted-foreground" /><span className="truncate">{student.email}</span></div>}
             {student?.phone && <div className="flex items-center gap-2 text-sm"><Phone className="w-4 h-4 text-muted-foreground" /><span>{student.phone}</span></div>}
             {student?.address && <div className="flex items-center gap-2 text-sm"><MapPin className="w-4 h-4 text-muted-foreground" /><span className="truncate">{student.address}</span></div>}
@@ -321,7 +321,7 @@ const ChildDetail = () => {
                       <div className="flex-1">
                         <p className="font-medium">{grade.assessments?.name}</p>
                         <p className="text-sm text-muted-foreground">{grade.assessments?.subjects?.name} • {grade.assessments?.type}</p>
-                        {grade.assessments?.date && <p className="text-xs text-muted-foreground">{format(new Date(grade.assessments.date), "dd MMM yyyy", { locale: fr })}</p>}
+                        {grade.assessments?.date && <p className="text-xs text-muted-foreground">{format(new Date(grade.assessments.date), "dd MMM yyyy", { locale: dateFnsLocale() })}</p>}
                       </div>
                       <div className="text-right"><span className={`text-lg font-bold ${getAverageColor((grade.score / (grade.assessments?.max_score || 20)) * 20)}`}>{grade.score}/{grade.assessments?.max_score || 20}</span></div>
                     </div>
@@ -352,7 +352,7 @@ const ChildDetail = () => {
                       <div key={record.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                         <div className="flex items-center gap-3">
                           <div className={`w-3 h-3 rounded-full ${record.status === "PRESENT" ? "bg-success" : record.status === "ABSENT" ? "bg-destructive" : record.status === "LATE" ? "bg-warning" : "bg-info"}`} />
-                          <span className="font-medium">{format(new Date(record.date), "EEEE dd MMMM yyyy", { locale: fr })}</span>
+                          <span className="font-medium">{format(new Date(record.date), "EEEE dd MMMM yyyy", { locale: dateFnsLocale() })}</span>
                         </div>
                         <Badge variant={record.status === "PRESENT" ? "default" : record.status === "ABSENT" ? "destructive" : record.status === "LATE" ? "secondary" : "outline"}>
                           {record.status === "PRESENT" ? t("childDetail.statusPresent") : record.status === "ABSENT" ? t("childDetail.statusAbsent") : record.status === "LATE" ? t("childDetail.statusLate") : t("childDetail.statusExcused")}

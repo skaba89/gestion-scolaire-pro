@@ -7,6 +7,7 @@ import { AnalyticsSubjectsTab } from "./parent/tabs/AnalyticsSubjectsTab";
 import { AnalyticsAttendanceTab } from "./parent/tabs/AnalyticsAttendanceTab";
 import { AnalyticsHomeworkTab } from "./parent/tabs/AnalyticsHomeworkTab";
 import { AnalyticsGamificationTab } from "./parent/tabs/AnalyticsGamificationTab";
+import { useTranslation } from "react-i18next";
 
 interface ParentAnalyticsDashboardProps {
   studentId: string;
@@ -14,6 +15,7 @@ interface ParentAnalyticsDashboardProps {
 }
 
 export const ParentAnalyticsDashboard = ({ studentId, tenantId }: ParentAnalyticsDashboardProps) => {
+  const { t } = useTranslation();
   const {
     gradesByMonth,
     subjectPerformance,
@@ -37,11 +39,11 @@ export const ParentAnalyticsDashboard = ({ studentId, tenantId }: ParentAnalytic
 
       <Tabs defaultValue="grades">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="grades">Notes</TabsTrigger>
-          <TabsTrigger value="subjects">Matières</TabsTrigger>
-          <TabsTrigger value="attendance">Présence</TabsTrigger>
-          <TabsTrigger value="homework">Devoirs</TabsTrigger>
-          <TabsTrigger value="gamification">Gamification</TabsTrigger>
+          <TabsTrigger value="grades">{t("parentPortal.analyticsTabs.grades")}</TabsTrigger>
+          <TabsTrigger value="subjects">{t("parentPortal.analyticsTabs.subjects")}</TabsTrigger>
+          <TabsTrigger value="attendance">{t("parentPortal.analyticsTabs.attendance")}</TabsTrigger>
+          <TabsTrigger value="homework">{t("parentPortal.analyticsTabs.homework")}</TabsTrigger>
+          <TabsTrigger value="gamification">{t("parentPortal.analyticsTabs.gamification")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="grades">

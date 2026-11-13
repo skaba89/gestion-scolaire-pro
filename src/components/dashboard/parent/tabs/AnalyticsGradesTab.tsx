@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { useTranslation } from "react-i18next";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--success))", "hsl(var(--warning))", "hsl(var(--destructive))", "hsl(var(--info))"];
 
@@ -9,12 +10,13 @@ interface AnalyticsGradesTabProps {
 }
 
 export const AnalyticsGradesTab = ({ gradesByMonth, assessmentTypeDistribution }: AnalyticsGradesTabProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid gap-6 md:grid-cols-2">
             <Card>
                 <CardHeader>
-                    <CardTitle>Évolution des notes</CardTitle>
-                    <CardDescription>Moyenne mensuelle sur les 6 derniers mois</CardDescription>
+                    <CardTitle>{t("parentPortal.gradesTab.title")}</CardTitle>
+                    <CardDescription>{t("parentPortal.gradesTab.subtitle")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">
@@ -46,8 +48,8 @@ export const AnalyticsGradesTab = ({ gradesByMonth, assessmentTypeDistribution }
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Types d'évaluations</CardTitle>
-                    <CardDescription>Répartition par type d'évaluation</CardDescription>
+                    <CardTitle>{t("parentPortal.gradesTab.types")}</CardTitle>
+                    <CardDescription>{t("parentPortal.gradesTab.typesHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">

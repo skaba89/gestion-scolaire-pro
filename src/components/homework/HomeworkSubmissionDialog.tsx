@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Send, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface HomeworkSubmissionDialogProps {
   homework: {
@@ -42,6 +43,7 @@ const HomeworkSubmissionDialog = ({
   open,
   onOpenChange,
 }: HomeworkSubmissionDialogProps) => {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [content, setContent] = useState(existingSubmission?.content || "");
 
@@ -59,7 +61,7 @@ const HomeworkSubmissionDialog = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student-submissions"] });
-      toast.success("Devoir soumis avec succès");
+      toast.success(t("homeworkSubmission.success"));
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -75,7 +77,7 @@ const HomeworkSubmissionDialog = ({
         <DialogHeader>
           <DialogTitle>{homework.title}</DialogTitle>
           <DialogDescription>
-            {homework.description || "Aucune description fournie"}
+            {homework.description || t("homeworkSubmission.noDescription")}
           </DialogDescription>
         </DialogHeader>
         
@@ -83,30 +85,30 @@ const HomeworkSubmissionDialog = ({
           {isGraded && (
             <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
               <p className="font-semibold text-primary">
-                Note: {existingSubmission?.grade}/{homework.max_points || 20}
+                {t("homeworkSubmission.grade", { grade: existingSubmission?.grade, max: homework.max_points || 20 })}
               </p>
               {existingSubmission?.feedback && (
                 <p className="text-sm mt-2 text-muted-foreground">
-                  <span className="font-medium">Commentaire:</span> {existingSubmission.feedback}
+                  <span className="font-medium">{t("homeworkSubmission.comment")}</span> {existingSubmission.feedback}
                 </p>
               )}
             </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="homework-submission-content">Votre travail</Label>
+            <Label htmlFor="homework-submission-content">{t("homeworkSubmission.yourWork")}</Label>
             <Textarea
               id="homework-submission-content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Rédigez votre travail ici..."
+              placeholder={t("homeworkSubmission.placeholder")}
               rows={8}
               disabled={isGraded}
             />
             <p className="text-xs text-muted-foreground">
               {isGraded 
-                ? "Ce devoir a été noté et ne peut plus être modifié."
-                : "Vous pouvez modifier votre soumission jusqu'à ce qu'elle soit notée."
+                ? t("homeworkSubmission.graded")
+                : t("homeworkSubmission.editable")
               }
             </p>
           </div>
@@ -122,7 +124,7 @@ const HomeworkSubmissionDialog = ({
               ) : (
                 <Send className="w-4 h-4 mr-2" />
               )}
-              {existingSubmission ? "Modifier ma soumission" : "Soumettre mon travail"}
+              {existingSubmission ? t("homeworkSubmission.update") : t("homeworkSubmission.submit")}
             </Button>
           )}
         </div>

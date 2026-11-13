@@ -53,7 +53,8 @@
     "acceptAll": "Accept all",
     "decline": "Decline",
     "savePreferences": "Save preferences",
-    "sessionStarted": "Session started"
+    "sessionStarted": "Session started",
+    "missingData": "Missing data"
   },
   "auth": {
     "login": "Login",
@@ -211,7 +212,15 @@
     "saasDashboard": "SaaS dashboard",
     "subscriptionRequests": "Subscription requests",
     "newTenant": "New institution",
-    "changeLanguage": "Change language"
+    "changeLanguage": "Change language",
+    "closeMenu": "Close menu",
+    "openMenu": "Open menu",
+    "searchShortcut": "Search (Ctrl+K)",
+    "searchApp": "Search the application",
+    "logout": "Log out",
+    "institution": "Institution",
+    "availableInstitutions": "Available institutions",
+    "loadingInstitutions": "Loading, or no institution..."
   },
   "portal": {
     "adminSpace": "Admin Portal",
@@ -453,7 +462,12 @@
     "installmentsCount": "{{count}} installments",
     "colLimitDate": "Due date",
     "colDescription": "Description",
-    "colQty": "Qty"
+    "colQty": "Qty",
+    "paymentUrlMissing": "Payment link not received from the server",
+    "cinetpayMethods": "Wave · Orange Money · MTN · Card",
+    "cinetpayCountries": "CI · SN · ML · BF · TG · CM and more",
+    "paytechCountry": "Senegal",
+    "installments": "{{count}} installments"
   },
   "reports": {
     "title": "Reports",
@@ -760,7 +774,11 @@
     "offerTypeInternship": "Internship",
     "offerTypeJob": "Job",
     "offerTypeApprenticeship": "Apprenticeship",
-    "offerTypeVolunteer": "Volunteering"
+    "offerTypeVolunteer": "Volunteering",
+    "loading": "Loading...",
+    "appliedOn": "Applied on {{date}}",
+    "requestSent": "Request sent",
+    "applyTo": "Apply to {{title}}"
   },
   "childDetail": {
     "back": "Back",
@@ -800,7 +818,9 @@
     "appliedOn": "Applied on",
     "incompleteData": "Incomplete data to generate transcript.",
     "recordError": "Error generating academic record",
-    "popupBlocked": "Popup blocked by browser — file downloaded instead."
+    "popupBlocked": "Popup blocked by browser — file downloaded instead.",
+    "retry": "Please try again",
+    "otherSubject": "Other"
   },
   "preRegistration": {
     "pageTitle": "Pre-Registration",
@@ -849,7 +869,16 @@
     "success": "Pre-registration submitted successfully!",
     "error": "Error during submission. Please try again.",
     "onlineTitle": "Online pre-registration",
-    "onlineDesc": "Submit the pre-registration request to reserve your {{studentsLabel}}'s place. The administration will then validate your request."
+    "onlineDesc": "Submit the pre-registration request to reserve your {{studentsLabel}}'s place. The administration will then validate your request.",
+    "notAssigned": "Not assigned",
+    "desiredLevelShort": "Desired level:",
+    "notSpecified": "Not specified",
+    "noChildTitle": "No linked {{label}}",
+    "noChildHint": "Your account is not yet linked to any {{label}}. Please contact the administration.",
+    "dialogTitle": "Re-enrollment request",
+    "dialogDescription": "Confirm the re-enrollment of {{name}} for {{year}}.",
+    "parentSubtitleNext": "Enroll your {{label}} for next year",
+    "parentSubtitleYear": "Enroll your {{label}} for {{year}}"
   },
   "teacherRisk": {
     "pageTitle": "At-Risk Students",
@@ -937,7 +966,8 @@
     "statusAbsent": "Absent",
     "bookingSuccess": "Appointment booked successfully",
     "bookingError": "Error booking appointment",
-    "cancelled": "Appointment cancelled"
+    "cancelled": "Appointment cancelled",
+    "slotRange": "{{date}} - {{start}} to {{end}}"
   },
   "teacherAttendance": {
     "class": "Class",
@@ -3189,5 +3219,397 @@
       "ofStudents": "of the students",
       "newStudent": "new student"
     }
+  },
+  "alumniPortal": {
+    "status": {
+      "pending": "Pending",
+      "in_progress": "In progress",
+      "awaiting_validation": "Awaiting approval",
+      "completed": "Completed",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled",
+      "validated": "Approved",
+      "awaitingValidationLong": "Awaiting approval"
+    },
+    "docType": {
+      "transcript": "Transcript",
+      "diploma": "Diploma",
+      "certificate": "Certificate",
+      "attestation": "Attestation",
+      "other": "Other",
+      "certificateOfEnrollment": "Certificate of enrollment",
+      "otherDocument": "Other document"
+    },
+    "dashboard": {
+      "title": "Alumni Portal",
+      "welcome": "Welcome to your personal space",
+      "requests": "Requests",
+      "messages": "Messages",
+      "new": "New",
+      "inProgress": "In progress",
+      "completed": "Completed",
+      "recentRequests": "Recent requests",
+      "recentRequestsHint": "Your latest document requests",
+      "newRequest": "New",
+      "noRequest": "No requests",
+      "makeRequest": "Make a request",
+      "allRequests": "See all requests",
+      "quickAccess": "Quick access",
+      "mainFeatures": "Main features",
+      "documentRequest": "Document requests",
+      "documentRequestHint": "Transcripts, diplomas, attestations",
+      "messaging": "Messaging",
+      "messagingHint": "Contact the registrar's office",
+      "careers": "Careers & mentoring",
+      "careersHint": "Job offers and alumni network"
+    },
+    "requests": {
+      "title": "My document requests",
+      "subtitle": "Submit and track your administrative document requests",
+      "new": "New request",
+      "newTitle": "New document request",
+      "newHint": "Fill in the form to submit your request",
+      "documentTypeRequired": "Document type *",
+      "selectType": "Select the type",
+      "detailedDescription": "Detailed description",
+      "descriptionPlaceholder": "Specify the document (year, program, etc.)",
+      "purposeRequired": "Reason for the request *",
+      "purposePlaceholder": "Why do you need this document?",
+      "urgency": "Urgency",
+      "urgencyNormal": "Normal",
+      "urgencyUrgent": "Urgent",
+      "deliveryMethod": "Delivery method",
+      "deliveryEmail": "Email",
+      "deliveryMail": "Postal mail",
+      "deliveryPickup": "Pick up on site",
+      "deliveryAddress": "Delivery address",
+      "fullAddress": "Full address",
+      "submit": "Submit request",
+      "tabActive": "In progress ({{count}})",
+      "tabHistory": "History ({{count}})",
+      "noActive": "No request in progress",
+      "noActiveHint": "Click “New request” to submit your first request",
+      "noHistory": "No history",
+      "noHistoryHint": "Completed requests will appear here",
+      "details": "Request details",
+      "documentType": "Document type",
+      "status": "Status",
+      "submittedAt": "Submission date",
+      "description": "Description",
+      "purpose": "Reason",
+      "validatorNote": "Reviewer's note",
+      "history": "History",
+      "submittedOn": "Submitted on {{date}}",
+      "cancel": "Cancel"
+    },
+    "careers": {
+      "offerType": {
+        "INTERNSHIP": "Internship",
+        "JOB": "Job",
+        "APPRENTICESHIP": "Apprenticeship",
+        "FREELANCE": "Freelance"
+      },
+      "title": "Careers & alumni network",
+      "subtitle": "Career opportunities and mentoring",
+      "tabOffers": "Offers ({{count}})",
+      "tabMentors": "Mentors ({{count}})",
+      "tabEvents": "Events ({{count}})",
+      "noOffer": "No offers available",
+      "noOfferHint": "Come back soon to discover new opportunities",
+      "company": "Company",
+      "remote": "Remote",
+      "deadline": "Before {{date}}",
+      "apply": "Apply",
+      "noMentor": "No mentors available",
+      "noMentorHint": "The mentoring program will be available soon",
+      "noEvent": "No upcoming events",
+      "noEventHint": "Stay tuned for upcoming events",
+      "online": "Online"
+    },
+    "messages": {
+      "recipient": "Recipient",
+      "title": "Messages"
+    }
+  },
+  "messenger": {
+    "recipient": "Recipient",
+    "title": "Messages",
+    "fillRequired": "Please fill in the required fields",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "search": "Search messages",
+    "noConversation": "No conversations",
+    "conversation": "Conversation",
+    "noMessage": "No message",
+    "yourMessages": "Your messages",
+    "selectConversation": "Select a conversation to start chatting",
+    "newConversation": "New conversation",
+    "choose": "Choose: {{label}}",
+    "subject": "Subject",
+    "subjectPlaceholder": "Subject of your message",
+    "message": "Message",
+    "messagePlaceholder": "Your message...",
+    "cancel": "Cancel",
+    "sending": "Sending...",
+    "send": "Send"
+  },
+  "parentPortal": {
+    "children": {
+      "title": "My children",
+      "subtitle": "View your children's information and results",
+      "count": "Children: {{count}}",
+      "none": "No children found",
+      "noneHint": "Please contact the school administration to link your children to your parent account.",
+      "attendanceHistory": "Attendance history"
+    },
+    "analytics": {
+      "title": "Detailed analytics",
+      "noChild": "No linked {{label}}",
+      "noChildHint": "Contact the administration to link your {{label}} to your account",
+      "subtitle": "Follow your {{label}}'s performance in detail"
+    },
+    "header": {
+      "welcome": "Welcome, {{name}}!",
+      "parent": "Parent",
+      "enrolledChildren": "Enrolled children: {{count}}"
+    },
+    "grid": {
+      "title": "My children's performance",
+      "none": "No linked children",
+      "noneHint": "Contact the administration to link your children to your account."
+    },
+    "invoiceStats": {
+      "toPay": "To pay",
+      "paid": "Paid",
+      "invoices": "Invoices",
+      "overdue": "Overdue"
+    },
+    "childCard": {
+      "primaryContact": "Primary contact",
+      "details": "Details & grades",
+      "reportCards": "Report cards",
+      "invoices": "Invoices",
+      "attendance": "Attendance",
+      "notAvailable": "N/A",
+      "seeDetails": "See details",
+      "average": "Average",
+      "assessments": "{{count}} assessments",
+      "presence": "Attendance",
+      "homework": "Homework",
+      "toSubmit": "{{count}} to submit",
+      "submitted": "{{count}} submitted"
+    },
+    "analyticsTabs": {
+      "grades": "Grades",
+      "subjects": "Subjects",
+      "attendance": "Attendance",
+      "homework": "Homework",
+      "gamification": "Gamification"
+    },
+    "metrics": {
+      "average": "Overall average",
+      "attendance": "Attendance rate",
+      "homeworkSubmitted": "Homework submitted",
+      "points": "Points earned",
+      "pointsAccumulated": "Accumulated points",
+      "badges": "Badges"
+    },
+    "recommendations": {
+      "title": "Personalized recommendations",
+      "hide": "Hide"
+    },
+    "attendanceTab": {
+      "title": "Attendance rate",
+      "subtitle": "Monthly attendance trend"
+    },
+    "homeworkTab": {
+      "title": "Latest homework",
+      "subtitle": "Submission status and grades",
+      "due": "Due: {{date}}",
+      "pending": "Pending",
+      "notSubmitted": "Not submitted",
+      "none": "No homework found",
+      "punctuality": "Punctuality",
+      "timing": "Submission timing"
+    },
+    "gradesTab": {
+      "title": "Grade trend",
+      "subtitle": "Monthly average over the last 6 months",
+      "types": "Assessment types",
+      "typesHint": "Breakdown by assessment type"
+    },
+    "subjectsTab": {
+      "title": "Performance by subject",
+      "subtitle": "Average by subject"
+    },
+    "gamificationTab": {
+      "pointsTitle": "Points by category",
+      "pointsHint": "Breakdown of points earned",
+      "badgesTitle": "Recent badges",
+      "badgesHint": "Latest badges earned",
+      "none": "No badges earned"
+    },
+    "analyticsHook": {
+      "other": "Other",
+      "achievement": "Achievement",
+      "weakTitle": "Subjects to strengthen",
+      "weakMessage": "Focus on: {{subjects}}. Extra revision sessions are recommended.",
+      "strongTitle": "Strengths identified",
+      "strongMessage": "Excellent in {{subjects}}. Encourage keeping up the effort!",
+      "attendanceTitle": "Attendance to improve",
+      "attendanceMessage": "The attendance rate of {{rate}}% is below the 90% target. Regular attendance is key to success.",
+      "homeworkTitle": "Homework to submit",
+      "homeworkMessage": "{{rate}}% of homework is not submitted. A study plan can help.",
+      "progressTitle": "Remarkable progress",
+      "progressMessage": "Up {{points}} points this month! Keep encouraging these efforts.",
+      "declineTitle": "Drop in performance",
+      "declineMessage": "A drop of {{points}} points was observed. A meeting with the teacher could help.",
+      "early": "Early",
+      "onTime": "On time",
+      "late": "Late"
+    }
+  },
+  "studentPortal": {
+    "today": {
+      "title": "Today's classes",
+      "none": "No classes today",
+      "subject": "Subject"
+    },
+    "upcoming": {
+      "title": "Upcoming homework",
+      "none": "No homework due",
+      "urgent": "Urgent"
+    },
+    "recent": {
+      "title": "Latest grades",
+      "seeAll": "See all",
+      "none": "No recent grades"
+    },
+    "gradeTable": {
+      "title": "Grade report",
+      "none": "No grades available yet",
+      "subject": "Subject",
+      "assessment": "Assessment",
+      "type": "Type",
+      "date": "Date",
+      "grade": "Grade"
+    },
+    "grades": {
+      "title": "My grades",
+      "subtitle": "View your academic results"
+    },
+    "badge": {
+      "mine": "My digital badge",
+      "scanHint": "Scan to check in",
+      "title": "School badge",
+      "description": "Show this code to the scanner when you arrive and leave.",
+      "schoolLogo": "School logo",
+      "photo": "Student photo",
+      "property": "Property of {{name}} • {{year}}",
+      "theSchool": "the school",
+      "print": "Print",
+      "save": "Save"
+    },
+    "dashboard": {
+      "noProfile": "{{label}} profile not set up",
+      "noProfileHint": "Your account is not yet linked to a {{label}} record. Contact your school administration.",
+      "average": "Average"
+    },
+    "messages": {
+      "recipient": "Recipient"
+    }
+  },
+  "attendanceHistory": {
+    "PRESENT": "Present",
+    "ABSENT": "Absent",
+    "LATE": "Late",
+    "EXCUSED": "Excused",
+    "loading": "Loading history...",
+    "title": "Attendance history",
+    "thisMonth": "This month ({{month}})",
+    "lastMonth": "Last month ({{month}})",
+    "quarter": "Quarter (last 3 months)",
+    "quarterDetail": "Quarterly breakdown",
+    "presences": "Present",
+    "absences": "Absences",
+    "lates": "Late arrivals",
+    "excused": "Excused",
+    "recent": "Recent history",
+    "date": "Date",
+    "status": "Status",
+    "notes": "Notes",
+    "none": "No attendance records",
+    "presentCount": "{{count}} present",
+    "absentCount": "{{count}} absences"
+  },
+  "checkInHistory": {
+    "title": "Check-in history",
+    "subtitle": "Your last 10 recorded check-ins.",
+    "none": "No recent check-ins.",
+    "entry": "Arrived at school",
+    "exit": "Left school",
+    "present": "Present",
+    "left": "Left"
+  },
+  "homeworkSubmission": {
+    "success": "Homework submitted",
+    "noDescription": "No description provided",
+    "grade": "Grade: {{grade}}/{{max}}",
+    "comment": "Comment:",
+    "yourWork": "Your work",
+    "placeholder": "Write your work here...",
+    "graded": "This homework has been graded and can no longer be changed.",
+    "editable": "You can change your submission until it is graded.",
+    "update": "Update my submission",
+    "submit": "Submit my work"
+  },
+  "reminders": {
+    "saved": "Preferences saved",
+    "homework": "Homework",
+    "homeworkDue": "{{subject}} - Due",
+    "invoice": "Invoice {{number}}",
+    "event": "Event",
+    "title": "Reminders",
+    "homeworkReminders": "Homework reminders",
+    "paymentReminders": "Payment reminders",
+    "eventReminders": "Event reminders",
+    "closeSettings": "Close settings",
+    "none": "No reminders for now",
+    "upToDate": "You're all caught up!",
+    "urgent": "Urgent",
+    "upcoming": "Upcoming"
+  },
+  "sharedNotes": {
+    "shared": "Note shared",
+    "createError": "Could not create the note",
+    "commentError": "Could not add the comment",
+    "deleted": "Note deleted",
+    "title": "Shared notes",
+    "new": "New",
+    "shareNote": "Share a note",
+    "noteTitle": "Note title",
+    "noteContent": "Note content...",
+    "visibility": "Visibility",
+    "myClass": "My class",
+    "bySubject": "By subject",
+    "wholeSchool": "Whole school",
+    "submit": "Share the note",
+    "loading": "Loading...",
+    "none": "No shared notes",
+    "beFirst": "Be the first to share a note!",
+    "delete": "Delete",
+    "comments": "Comments ({{count}})",
+    "addComment": "Add a comment..."
+  },
+  "collaboration": {
+    "title": "Collaboration tools",
+    "courses": "Courses",
+    "discussions": "Discussions",
+    "clubs": "Clubs",
+    "loading": "Loading...",
+    "noCourse": "No courses available",
+    "noDiscussion": "No recent discussions",
+    "noClub": "No clubs available",
+    "members": "{{count}} members"
   }
 }

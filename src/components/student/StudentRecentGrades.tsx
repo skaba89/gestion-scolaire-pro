@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
 import { Award, FileText } from "lucide-react";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-container";
+import { useTranslation } from "react-i18next";
 
 interface Grade {
     id: string;
@@ -19,16 +20,17 @@ interface StudentRecentGradesProps {
 }
 
 export const StudentRecentGrades = ({ grades, getTenantUrl }: StudentRecentGradesProps) => {
+    const { t } = useTranslation();
     return (
         <Card className="lg:col-span-2">
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2 text-base font-display">
                         <Award className="w-5 h-5 text-primary" />
-                        Dernières Notes
+                        {t("studentPortal.recent.title")}
                     </CardTitle>
                     <Link to={getTenantUrl("/student/grades")} className="text-sm text-primary hover:underline font-medium">
-                        Voir tout
+                        {t("studentPortal.recent.seeAll")}
                     </Link>
                 </div>
             </CardHeader>
@@ -36,7 +38,7 @@ export const StudentRecentGrades = ({ grades, getTenantUrl }: StudentRecentGrade
                 {grades.length === 0 ? (
                     <div className="text-center py-8">
                         <FileText className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                        <p className="text-muted-foreground">Aucune note récente</p>
+                        <p className="text-muted-foreground">{t("studentPortal.recent.none")}</p>
                     </div>
                 ) : (
                     <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">

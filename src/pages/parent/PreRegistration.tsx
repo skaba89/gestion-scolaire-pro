@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { intlLocale } from "@/lib/locale";
 
 interface StudentWithEnrollments {
   id: string;
@@ -121,7 +122,7 @@ const ParentPreRegistration = () => {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!selectedChild || !nextAcademicYearRow?.id) {
-        throw new Error("Données manquantes");
+        throw new Error(t("common.missingData"));
       }
       // Le serveur vérifie que l'enfant est bien celui du parent et prend
       // les coordonnées du parent sur son compte.
@@ -179,8 +180,8 @@ const ParentPreRegistration = () => {
   if (!children || children.length === 0) {
     return (
       <div className="space-y-6">
-        <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">Inscrivez vos {studentsLabel} pour l'année suivante</p></div>
-        <Card><CardContent className="p-8 text-center"><AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" /><h2 className="text-lg font-semibold mb-2">Aucun {studentLabel} associé</h2><p className="text-muted-foreground">Votre compte n'est pas encore associé à des {studentsLabel}. Veuillez contacter l'administration.</p></CardContent></Card>
+        <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">{t("preRegistration.parentSubtitleNext", { label: studentsLabel })}</p></div>
+        <Card><CardContent className="p-8 text-center"><AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" /><h2 className="text-lg font-semibold mb-2">{t("preRegistration.noChildTitle", { label: studentLabel })}</h2><p className="text-muted-foreground">{t("preRegistration.noChildHint", { label: studentsLabel })}</p></CardContent></Card>
       </div>
     );
   }
@@ -188,7 +189,7 @@ const ParentPreRegistration = () => {
   if (!nextAcademicYearRow) {
     return (
       <div className="space-y-6">
-        <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">Inscrivez vos {studentsLabel} pour l'année suivante</p></div>
+        <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">{t("preRegistration.parentSubtitleNext", { label: studentsLabel })}</p></div>
         <Card><CardContent className="p-8 text-center"><Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" /><h2 className="text-lg font-semibold mb-2">{t("preRegistration.enrollmentsNotOpen")}</h2><p className="text-muted-foreground">{t("preRegistration.notOpenYet")}</p></CardContent></Card>
       </div>
     );
@@ -196,7 +197,7 @@ const ParentPreRegistration = () => {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">Inscrivez vos {studentsLabel} pour l'année {nextAcademicYearRow.name}</p></div>
+      <div><h1 className="text-2xl font-display font-bold text-foreground">{t("preRegistration.pageTitle")}</h1><p className="text-muted-foreground">{t("preRegistration.parentSubtitleYear", { label: studentsLabel, year: nextAcademicYearRow.name })}</p></div>
       <Card className="bg-blue-500/5 border-blue-500/20"><CardContent className="p-4"><div className="flex items-start gap-3"><RefreshCw className="w-5 h-5 text-blue-600 mt-0.5" /><div><p className="font-medium text-foreground">{t("preRegistration.onlineTitle")}</p><p className="text-sm text-muted-foreground">{t("preRegistration.onlineDesc", { studentsLabel })}</p></div></div></CardContent></Card>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {children.map((child) => {
@@ -215,7 +216,7 @@ const ParentPreRegistration = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-2 text-sm"><div><span className="text-muted-foreground">{t("preRegistration.currentLevel")}</span><p className="font-medium">{currentEnrollment?.levels?.name || t("preRegistration.notEnrolled")}</p></div><div><span className="text-muted-foreground">{t("preRegistration.suggestedLevel")}</span><p className="font-medium">{nextLevel?.name || t("preRegistration.tbd")}</p></div></div>
                 {existingApp ? (
-                  <div className="bg-muted/50 rounded-lg p-3"><div className="flex items-center gap-2 text-sm">{existingApp.status === "ACCEPTED" ? <CheckCircle className="w-4 h-4 text-green-600" /> : existingApp.status === "REJECTED" ? <AlertCircle className="w-4 h-4 text-red-600" /> : <Clock className="w-4 h-4 text-blue-600" />}<span>{t("preRegistration.submittedOn")} {(existingApp.submitted_at ? new Date(existingApp.submitted_at).toLocaleDateString('fr-FR') : "—")}</span></div></div>
+                  <div className="bg-muted/50 rounded-lg p-3"><div className="flex items-center gap-2 text-sm">{existingApp.status === "ACCEPTED" ? <CheckCircle className="w-4 h-4 text-green-600" /> : existingApp.status === "REJECTED" ? <AlertCircle className="w-4 h-4 text-red-600" /> : <Clock className="w-4 h-4 text-blue-600" />}<span>{t("preRegistration.submittedOn")} {(existingApp.submitted_at ? new Date(existingApp.submitted_at).toLocaleDateString(intlLocale()) : "—")}</span></div></div>
                 ) : (
                   <Button onClick={() => handlePreRegister(child)} className="w-full"><RefreshCw className="w-4 w-4 mr-2" />{t("preRegistration.enrollForYear", { year: nextAcademicYearRow.name })}</Button>
                 )}
@@ -226,7 +227,7 @@ const ParentPreRegistration = () => {
       </div>
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>Pré-Réinscription</DialogTitle><DialogDescription>Confirmez la pré-réinscription de {selectedChild?.first_name} {selectedChild?.last_name} pour l'année {nextAcademicYearRow?.name}.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{t("preRegistration.dialogTitle")}</DialogTitle><DialogDescription>{t("preRegistration.dialogDescription", { name: `${selectedChild?.first_name ?? ""} ${selectedChild?.last_name ?? ""}`.trim(), year: nextAcademicYearRow?.name ?? "" })}</DialogDescription></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2"><Label htmlFor="level">{t("preRegistration.desiredLevelLabel")}</Label><Select value={selectedLevelId} onValueChange={setSelectedLevelId}><SelectTrigger><SelectValue placeholder={t("preRegistration.selectLevel")} /></SelectTrigger><SelectContent>{levels?.map((level) => (<SelectItem key={level.id} value={level.id}>{level.name}{selectedChild && level.id === getNextLevel(selectedChild)?.id && ` (${t("preRegistration.suggested")})`}</SelectItem>))}</SelectContent></Select></div>
             <div className="space-y-2"><Label htmlFor="notes">{t("preRegistration.notesOptional")}</Label><Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("preRegistration.additionalInfo")} rows={3} maxLength={500} /><p className="text-xs text-muted-foreground text-right">{notes.length}/500</p></div>

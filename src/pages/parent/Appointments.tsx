@@ -38,7 +38,6 @@ import {
   isOnlineLocation,
 } from "@/lib/appointments";
 import { format, isFuture } from "date-fns";
-import { fr } from "date-fns/locale";
 import { 
   Calendar, 
   Plus, 
@@ -49,6 +48,7 @@ import {
   X,
   MessageSquare
 } from "lucide-react";
+import { dateFnsLocale } from "@/lib/locale";
 
 export default function Appointments() {
   const { t } = useTranslation();
@@ -245,7 +245,7 @@ export default function Appointments() {
                       <SelectContent>
                         {availableSlots?.map((slot) => (
                           <SelectItem key={slot.id} value={slot.id}>
-                            {format(new Date(`${slot.date}T00:00:00`), "EEEE d MMMM", { locale: fr })} - {hhmm(slot.start_time)} à {hhmm(slot.end_time)}
+                            {t("appointments.slotRange", { date: format(new Date(`${slot.date}T00:00:00`), "EEEE d MMMM", { locale: dateFnsLocale() }), start: hhmm(slot.start_time), end: hhmm(slot.end_time) })}
                             {isOnlineLocation(slot.location) && ` ${t("appointments.inOnline")}`}
                           </SelectItem>
                         ))}
@@ -314,7 +314,7 @@ export default function Appointments() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">
-                        {format(new Date(apt.appointment_date), "EEEE d MMMM", { locale: fr })}
+                        {format(new Date(apt.appointment_date), "EEEE d MMMM", { locale: dateFnsLocale() })}
                       </CardTitle>
                       {getStatusBadge(apt.status)}
                     </div>
@@ -373,7 +373,7 @@ export default function Appointments() {
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base">
-                      {format(new Date(apt.appointment_date), "d MMM yyyy", { locale: fr })}
+                      {format(new Date(apt.appointment_date), "d MMM yyyy", { locale: dateFnsLocale() })}
                     </CardTitle>
                     {getStatusBadge(apt.status)}
                   </div>

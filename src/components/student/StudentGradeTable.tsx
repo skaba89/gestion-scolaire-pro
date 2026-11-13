@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface GradeRecord {
     id: string;
@@ -32,25 +33,26 @@ interface StudentGradeTableProps {
 }
 
 export const StudentGradeTable = ({ grades }: StudentGradeTableProps) => {
+    const { t } = useTranslation();
     return (
         <Card className="border-primary/10 shadow-sm overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
-                <CardTitle className="text-lg font-display">Relevé de Notes</CardTitle>
+                <CardTitle className="text-lg font-display">{t("studentPortal.gradeTable.title")}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
                 {grades.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground">
-                        Aucune note disponible pour le moment
+                        {t("studentPortal.gradeTable.none")}
                     </div>
                 ) : (
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                <TableHead className="font-semibold px-6">Matière</TableHead>
-                                <TableHead className="font-semibold">Évaluation</TableHead>
-                                <TableHead className="font-semibold">Type</TableHead>
-                                <TableHead className="font-semibold">Date</TableHead>
-                                <TableHead className="text-right font-semibold px-6">Note</TableHead>
+                                <TableHead className="font-semibold px-6">{t("studentPortal.gradeTable.subject")}</TableHead>
+                                <TableHead className="font-semibold">{t("studentPortal.gradeTable.assessment")}</TableHead>
+                                <TableHead className="font-semibold">{t("studentPortal.gradeTable.type")}</TableHead>
+                                <TableHead className="font-semibold">{t("studentPortal.gradeTable.date")}</TableHead>
+                                <TableHead className="text-right font-semibold px-6">{t("studentPortal.gradeTable.grade")}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -76,7 +78,7 @@ export const StudentGradeTable = ({ grades }: StudentGradeTableProps) => {
                                         </TableCell>
                                         <TableCell className="py-4">
                                             {grade.assessments.date
-                                                ? format(new Date(grade.assessments.date), "dd/MM/yyyy", { locale: fr })
+                                                ? format(new Date(grade.assessments.date), "dd/MM/yyyy", { locale: dateFnsLocale() })
                                                 : "-"}
                                         </TableCell>
                                         <TableCell className="text-right px-6 py-4">

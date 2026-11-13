@@ -10,14 +10,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, BookOpen, MessageSquare, FileText, Clock, RefreshCw } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
 import { RealtimePresence } from "./RealtimePresence";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 // Realtime subscription disabled — migrated from supabase channel
 // The collaborative-discussions realtime feed is no longer active.
 // Data will refresh via manual refresh button or query invalidation.
 
 export const CollaborativeTools = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -90,7 +92,7 @@ export const CollaborativeTools = () => {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Outils Collaboratifs
+            {t("collaboration.title")}
           </CardTitle>
           <div className="flex items-center gap-2">
             <RealtimePresence 
@@ -108,19 +110,19 @@ export const CollaborativeTools = () => {
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full">
-            <TabsTrigger value="courses" className="flex-1">Cours</TabsTrigger>
-            <TabsTrigger value="discussions" className="flex-1">Discussions</TabsTrigger>
-            <TabsTrigger value="clubs" className="flex-1">Clubs</TabsTrigger>
+            <TabsTrigger value="courses" className="flex-1">{t("collaboration.courses")}</TabsTrigger>
+            <TabsTrigger value="discussions" className="flex-1">{t("collaboration.discussions")}</TabsTrigger>
+            <TabsTrigger value="clubs" className="flex-1">{t("collaboration.clubs")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="courses" className="mt-4">
             <ScrollArea className="h-[350px]">
               {coursesLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+                <div className="text-center py-8 text-muted-foreground">{t("collaboration.loading")}</div>
               ) : courses?.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>Aucun cours disponible</p>
+                  <p>{t("collaboration.noCourse")}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -147,11 +149,11 @@ export const CollaborativeTools = () => {
           <TabsContent value="discussions" className="mt-4">
             <ScrollArea className="h-[350px]">
               {discussionsLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+                <div className="text-center py-8 text-muted-foreground">{t("collaboration.loading")}</div>
               ) : discussions?.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>Aucune discussion récente</p>
+                  <p>{t("collaboration.noDiscussion")}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -163,7 +165,7 @@ export const CollaborativeTools = () => {
                         </span>
                         <span className="text-muted-foreground">•</span>
                         <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(disc.created_at), { addSuffix: true, locale: fr })}
+                          {formatDistanceToNow(new Date(disc.created_at), { addSuffix: true, locale: dateFnsLocale() })}
                         </span>
                       </div>
                       <p className="text-sm mt-1 line-clamp-2">{disc.content}</p>
@@ -180,11 +182,11 @@ export const CollaborativeTools = () => {
           <TabsContent value="clubs" className="mt-4">
             <ScrollArea className="h-[350px]">
               {clubsLoading ? (
-                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+                <div className="text-center py-8 text-muted-foreground">{t("collaboration.loading")}</div>
               ) : clubs?.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Users className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>Aucun club disponible</p>
+                  <p>{t("collaboration.noClub")}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -196,7 +198,7 @@ export const CollaborativeTools = () => {
                         {club.category && <Badge variant="secondary">{club.category}</Badge>}
                         <span className="flex items-center gap-1">
                           <Users className="w-3 h-3" />
-                          {club.club_memberships?.length || 0} membres
+                          {t("collaboration.members", { count: club.club_memberships?.length || 0 })}
                         </span>
                         {club.meeting_schedule && (
                           <span className="flex items-center gap-1">
