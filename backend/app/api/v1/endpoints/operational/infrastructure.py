@@ -10,6 +10,7 @@ from app.core.teacher_scope import teacher_teaches_class
 from app.core.tenant_resolution import resolve_current_tenant_id
 from fastapi import Query
 from app.crud import academic as crud
+from app.api.v1.endpoints.academic._structure_delete import structure_delete_guard
 from app.models.associations import subject_levels, classroom_departments, class_subjects
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -115,7 +116,9 @@ def delete_program(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("programs:write")),
 ):
-    deleted = crud.delete_program(db, program_id=program_id, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    with structure_delete_guard(db, "Ce programme est utilisé par des classes et ne peut pas être supprimé ; réaffectez-les d'abord."):
+        deleted = crud.delete_program(db, program_id=program_id, tenant_id=tenant_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Programme introuvable")
 

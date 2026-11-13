@@ -97,6 +97,35 @@ def _is_referenced(db: Session, referred_table: str, row_id: UUID, id_type, skip
     return False
 
 
+class StructureInUseError(ValueError):
+    """A level, campus, program, semester, faculty or department is still in use."""
+
+
+# Catalogue links (which subjects are taught at a level / in a department) are
+# configuration created for every level at onboarding, not history: they may
+# cascade. Every other reference (classes, rooms, subjects, departments,
+# members, alerts, exams, applications...) blocks the deletion.
+_STRUCTURE_CONFIGURATION = frozenset({"subject_levels", "subject_departments"})
+
+
+def _delete_unused_structure(db: Session, model, row_id: UUID, tenant_id: UUID) -> bool:
+    """Delete a structure row only when nothing depends on it.
+
+    FK writers take KEY SHARE on the row; FOR UPDATE serializes the check with
+    concurrent writers on PostgreSQL (SQLite ignores it).
+    """
+    db_obj = db.query(model).filter(model.id == row_id, model.tenant_id == tenant_id).with_for_update().first()
+    if not db_obj:
+        db.rollback()
+        return False
+    if _is_referenced(db, model.__tablename__, row_id, model.id.type, skip=_STRUCTURE_CONFIGURATION):
+        db.rollback()
+        raise StructureInUseError(f"{model.__tablename__} row is still referenced")
+    db.delete(db_obj)
+    db.commit()
+    return True
+
+
 def delete_academic_year(db: Session, ay_id: UUID, tenant_id: UUID) -> bool:
     """Delete only an unused academic year.
 
@@ -213,12 +242,7 @@ def update_campus(db: Session, campus_id: UUID, obj_in: CampusUpdate, tenant_id:
     return db_obj
 
 def delete_campus(db: Session, campus_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_campus(db, campus_id, tenant_id)
-    if not db_obj:
-        return False
-    db.delete(db_obj)
-    db.commit()
-    return True
+    return _delete_unused_structure(db, Campus, campus_id, tenant_id)
 
 # --- Level ---
 def get_levels(db: Session, tenant_id: UUID) -> List[Level]:
@@ -249,12 +273,7 @@ def update_level(db: Session, level_id: UUID, obj_in: LevelUpdate, tenant_id: UU
     return db_obj
 
 def delete_level(db: Session, level_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_level(db, level_id, tenant_id)
-    if not db_obj:
-        return False
-    db.delete(db_obj)
-    db.commit()
-    return True
+    return _delete_unused_structure(db, Level, level_id, tenant_id)
 
 # --- Subject ---
 def get_subjects(db: Session, tenant_id: UUID) -> List[Subject]:
@@ -440,11 +459,7 @@ def update_department(db: Session, dept_id: UUID, obj_in: DepartmentUpdate, tena
     return db_obj
 
 def delete_department(db: Session, dept_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_department(db, dept_id, tenant_id)
-    if not db_obj: return False
-    db.delete(db_obj)
-    db.commit()
-    return True
+    return _delete_unused_structure(db, Department, dept_id, tenant_id)
 
 # --- Faculty ---
 def get_faculties(db: Session, tenant_id: UUID) -> List[Faculty]:
@@ -474,11 +489,7 @@ def update_faculty(db: Session, faculty_id: UUID, obj_in: FacultyUpdate, tenant_
     return db_obj
 
 def delete_faculty(db: Session, faculty_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_faculty(db, faculty_id, tenant_id)
-    if not db_obj: return False
-    db.delete(db_obj)
-    db.commit()
-    return True
+    return _delete_unused_structure(db, Faculty, faculty_id, tenant_id)
 
 # --- Semester ---
 def get_semesters(db: Session, tenant_id: UUID) -> List[Semester]:
@@ -512,11 +523,7 @@ def update_semester(db: Session, semester_id: UUID, obj_in: SemesterUpdate, tena
     return db_obj
 
 def delete_semester(db: Session, semester_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_semester(db, semester_id, tenant_id)
-    if not db_obj: return False
-    db.delete(db_obj)
-    db.commit()
-    return True
+    return _delete_unused_structure(db, Semester, semester_id, tenant_id)
 
 # --- Program ---
 def get_programs(db: Session, tenant_id: UUID) -> List[Program]:
@@ -543,11 +550,7 @@ def update_program(db: Session, program_id: UUID, obj_in: ProgramUpdate, tenant_
     return db_obj
 
 def delete_program(db: Session, program_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_program(db, program_id, tenant_id)
-    if not db_obj: return False
-    db.delete(db_obj)
-    db.commit()
-    return True
+    return _delete_unused_structure(db, Program, program_id, tenant_id)
 
 # --- Room ---
 def get_rooms(db: Session, tenant_id: UUID) -> List[Room]:

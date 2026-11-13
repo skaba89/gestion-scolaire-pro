@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import academic as crud
+from app.api.v1.endpoints.academic._structure_delete import structure_delete_guard
 from app.schemas.academic import Department, DepartmentCreate, DepartmentUpdate
 import logging
 
@@ -109,7 +110,8 @@ def delete_department(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
-    success = crud.delete_department(db, dept_id=dept_id, tenant_id=tenant_id)
+    with structure_delete_guard(db, "Ce département a des classes, membres, alertes ou examens et ne peut pas être supprimé ; l'historique est conservé."):
+        success = crud.delete_department(db, dept_id=dept_id, tenant_id=tenant_id)
     if not success:
         raise HTTPException(status_code=404, detail="Department not found")
     return {"status": "success"}
