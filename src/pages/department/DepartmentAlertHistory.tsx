@@ -5,10 +5,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { Bell, Mail, AlertTriangle, CheckCircle, Clock, BarChart3 } from "lucide-react";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 export default function DepartmentAlertHistory() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
 
@@ -54,10 +56,10 @@ export default function DepartmentAlertHistory() {
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Bell className="h-8 w-8" />
-          Historique des Alertes
+          {t("departmentPortal.alerts.title")}
         </h1>
         <p className="text-muted-foreground">
-          Département: {(userDepartment?.departments as any)?.name || 'Non assigné'}
+          {t("departmentPortal.departmentName", { name: (userDepartment?.departments as any)?.name || t("departmentPortal.notAssigned") })}
         </p>
       </div>
 
@@ -65,7 +67,7 @@ export default function DepartmentAlertHistory() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total alertes</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("departmentPortal.alerts.total")}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -74,7 +76,7 @@ export default function DepartmentAlertHistory() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Emails envoyés</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("departmentPortal.alerts.emailsSent")}</CardTitle>
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -83,7 +85,7 @@ export default function DepartmentAlertHistory() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Ce mois</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("departmentPortal.alerts.thisMonth")}</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -95,14 +97,14 @@ export default function DepartmentAlertHistory() {
       {/* Alert History List */}
       <Card>
         <CardHeader>
-          <CardTitle>Alertes récentes</CardTitle>
+          <CardTitle>{t("departmentPortal.alerts.recent")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Chargement...</div>
+            <div className="text-center py-8">{t("departmentPortal.loading")}</div>
           ) : alertHistory?.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              Aucune alerte envoyée
+              {t("departmentPortal.alerts.none")}
             </div>
           ) : (
             <div className="space-y-4">
@@ -127,19 +129,19 @@ export default function DepartmentAlertHistory() {
                         </div>
                         <div>
                           <h4 className="font-medium">
-                            Alerte de présence - {alert.alert_type}
+                            {t("departmentPortal.alerts.attendanceAlert", { type: alert.alert_type })}
                           </h4>
                           <p className="text-sm text-muted-foreground">
-                            Période: {alert.period_label}
+                            {t("departmentPortal.alerts.period", { period: alert.period_label })}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
                         <Badge variant={alert.email_sent ? "default" : "secondary"}>
-                          {alert.email_sent ? 'Email envoyé' : 'Non envoyé'}
+                          {alert.email_sent ? t("departmentPortal.alerts.emailSent") : t("departmentPortal.alerts.notSent")}
                         </Badge>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(alert.created_at), "d MMM yyyy 'à' HH:mm", { locale: fr })}
+                          {format(new Date(alert.created_at), "PPp", { locale: dateFnsLocale() })}
                         </p>
                       </div>
                     </div>
@@ -148,7 +150,7 @@ export default function DepartmentAlertHistory() {
                     {alertsData && alertsData.length > 0 && (
                       <div className="bg-muted/50 rounded-lg p-3">
                         <p className="text-sm font-medium mb-2">
-                          Classes concernées ({alertsData.length}):
+                          {t("departmentPortal.alerts.classesConcerned", { count: alertsData.length })}
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {alertsData.map((classAlert: any, idx: number) => (
@@ -170,7 +172,7 @@ export default function DepartmentAlertHistory() {
                         <div className="flex items-center gap-1">
                           <Mail className="h-3 w-3 text-muted-foreground" />
                           <span>
-                            Envoyé à: {(alert.sent_to_profile as any).first_name} {(alert.sent_to_profile as any).last_name}
+                            {t("departmentPortal.alerts.sentTo", { name: `${(alert.sent_to_profile as any).first_name} ${(alert.sent_to_profile as any).last_name}` })}
                           </span>
                         </div>
                       )}

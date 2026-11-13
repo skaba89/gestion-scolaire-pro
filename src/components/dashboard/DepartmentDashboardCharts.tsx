@@ -4,7 +4,6 @@ import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from "recharts";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { parseDepartmentClassrooms } from "@/utils/departmentClassrooms";
 import { useClassrooms } from "@/queries/classrooms";
@@ -12,6 +11,8 @@ import { buildDepartmentEnrollmentCounts, parseDepartmentEnrollmentResponse } fr
 import { buildDepartmentAttendanceTrends } from "@/utils/departmentAttendanceTrends";
 import { buildDepartmentGradeDistribution } from "@/utils/departmentGradeDistribution";
 import { buildDepartmentExamStatusCounts } from "@/utils/departmentExamStatusCounts";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface DepartmentDashboardChartsProps {
   departmentId: string;
@@ -20,6 +21,7 @@ interface DepartmentDashboardChartsProps {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardChartsProps) {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { StudentsLabel } = useStudentLabel();
   const { data: tenantClassrooms = [], isError: tenantClassroomsError } = useClassrooms(tenant?.id || "");
@@ -65,7 +67,7 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       const dayDates = Array.from({ length: 7 }, (_, i) => subDays(now, 6 - i));
       const days = dayDates.map(day => ({
         date: format(day, 'yyyy-MM-dd'),
-        label: format(day, 'EEE', { locale: fr }),
+        label: format(day, 'EEE', { locale: dateFnsLocale() }),
       }));
       const attendance = [];
       // Scope every request at the API using classroom_id and tenant auth.
@@ -149,9 +151,9 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       {/* Students per Classroom */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">{StudentsLabel} par classe</CardTitle>
-          {(departmentClassroomsError || tenantClassroomsError) && <p role="alert" className="text-sm text-destructive">Impossible de charger les classes du département</p>}
-          {studentsPerClassroomError && <p role="alert" className="text-sm text-destructive">Impossible de charger les effectifs</p>}
+          <CardTitle className="text-sm">{t("departmentPortal.charts.perClass", { label: StudentsLabel })}</CardTitle>
+          {(departmentClassroomsError || tenantClassroomsError) && <p role="alert" className="text-sm text-destructive">{t("departmentPortal.charts.classroomsError")}</p>}
+          {studentsPerClassroomError && <p role="alert" className="text-sm text-destructive">{t("departmentPortal.charts.headcountError")}</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
@@ -171,8 +173,8 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       {/* Attendance Trends */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Tendances de présence (7 jours)</CardTitle>
-          {attendanceTrendsError && <p role="alert" className="text-sm text-destructive">Impossible de charger les présences</p>}
+          <CardTitle className="text-sm">{t("departmentPortal.charts.attendanceTrends")}</CardTitle>
+          {attendanceTrendsError && <p role="alert" className="text-sm text-destructive">{t("departmentPortal.charts.attendanceError")}</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
@@ -183,8 +185,8 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
                 <YAxis fontSize={12} />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="present" stroke="#10b981" name="Présents" strokeWidth={2} />
-                <Line type="monotone" dataKey="absent" stroke="#ef4444" name="Absents" strokeWidth={2} />
+                <Line type="monotone" dataKey="present" stroke="#10b981" name={t("departmentPortal.charts.present")} strokeWidth={2} />
+                <Line type="monotone" dataKey="absent" stroke="#ef4444" name={t("departmentPortal.charts.absent")} strokeWidth={2} />
                 <Line type="monotone" dataKey="late" stroke="#f59e0b" name="Retards" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -195,8 +197,8 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       {/* Grade Distribution */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Distribution des notes</CardTitle>
-          {gradeDistributionError && <p role="alert" className="text-sm text-destructive">Impossible de charger les notes</p>}
+          <CardTitle className="text-sm">{t("departmentPortal.charts.gradeDistribution")}</CardTitle>
+          {gradeDistributionError && <p role="alert" className="text-sm text-destructive">{t("departmentPortal.charts.gradesError")}</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">
@@ -227,8 +229,8 @@ export function DepartmentDashboardCharts({ departmentId }: DepartmentDashboardC
       {/* Exams Status */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Examens ce mois</CardTitle>
-          {examsThisMonthError && <p role="alert" className="text-sm text-destructive">Impossible de charger les examens</p>}
+          <CardTitle className="text-sm">{t("departmentPortal.charts.examsThisMonth")}</CardTitle>
+          {examsThisMonthError && <p role="alert" className="text-sm text-destructive">{t("departmentPortal.charts.examsError")}</p>}
         </CardHeader>
         <CardContent>
           <div className="h-[250px]">

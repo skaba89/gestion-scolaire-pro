@@ -1112,3 +1112,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   était en anglais en dur, même en français) : ≈ 170 clés dans les 5 langues.
   Garde `no-hardcoded-text` étendue à ces dossiers. Reste : portail
   département (lot 3c), puis pages admin.
+- **2026-11-13 — portail département traduit (lot 3c de l'audit des
+  langues).** Les 11 pages du chef de département (tableau de bord, classes,
+  étudiants, enseignants, examens, calendrier des examens, présences,
+  emploi du temps, messagerie, rapports et exports CSV/PDF, historique des
+  alertes) et les graphiques du tableau de bord : ≈ 190 clés
+  `departmentPortal.*` dans les 5 langues ; notifications des examens
+  (`useDepartment`) traduites ; jours du calendrier et en-têtes des exports
+  CSV dans la langue de l'interface. Tous les portails hors administration
+  sont désormais traduits ; reste : pages admin (≈ 560 textes).

@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Users, Search, GraduationCap } from "lucide-react";
 import { resolveUploadUrl } from "@/utils/url";
+import { useTranslation } from "react-i18next";
 
 const DepartmentStudents = () => {
+  const { t } = useTranslation();
   const [selectedClassroom, setSelectedClassroom] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -25,15 +27,15 @@ const DepartmentStudents = () => {
   const classrooms = data?.classrooms || [];
 
   if (isLoading) {
-    return <div className="p-6">Chargement...</div>;
+    return <div className="p-6">{t("departmentPortal.loading")}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Étudiants du département</h1>
+        <h1 className="text-2xl font-bold">{t("departmentPortal.students.title")}</h1>
         <p className="text-muted-foreground">
-          Liste des étudiants inscrits dans les classes de votre département
+          {t("departmentPortal.students.subtitle")}
         </p>
       </div>
 
@@ -41,7 +43,7 @@ const DepartmentStudents = () => {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Rechercher par nom ou numéro d'étudiant..."
+            placeholder={t("departmentPortal.students.search")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -49,10 +51,10 @@ const DepartmentStudents = () => {
         </div>
         <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
           <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Toutes les classes" />
+            <SelectValue placeholder={t("departmentPortal.allClasses")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Toutes les classes</SelectItem>
+            <SelectItem value="all">{t("departmentPortal.allClasses")}</SelectItem>
             {classrooms.map((c) => (
               <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
             ))}
@@ -64,25 +66,25 @@ const DepartmentStudents = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            {students.length} étudiant(s)
+            {t("departmentPortal.students.count", { count: students.length })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {students.length === 0 ? (
             <div className="text-center py-8">
               <GraduationCap className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Aucun étudiant trouvé</p>
+              <p className="text-muted-foreground">{t("departmentPortal.students.none")}</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Photo</TableHead>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>N° Étudiant</TableHead>
-                  <TableHead>Classe</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Téléphone</TableHead>
+                  <TableHead>{t("departmentPortal.col.photo")}</TableHead>
+                  <TableHead>{t("departmentPortal.col.name")}</TableHead>
+                  <TableHead>{t("departmentPortal.col.studentNumber")}</TableHead>
+                  <TableHead>{t("departmentPortal.col.class")}</TableHead>
+                  <TableHead>{t("departmentPortal.col.email")}</TableHead>
+                  <TableHead>{t("departmentPortal.col.phone")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

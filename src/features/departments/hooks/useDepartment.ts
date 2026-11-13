@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { toast } from "sonner";
+import i18n from "i18next";
 
 const BASE = "/department-portal";
 
@@ -231,9 +232,9 @@ export const useDepartmentExams = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["department-exams"] });
-            toast.success("Examen créé");
+            toast.success(i18n.t("departmentPortal.exams.created"));
         },
-        onError: () => toast.error("Erreur lors de la création"),
+        onError: () => toast.error(i18n.t("departmentPortal.exams.createError")),
     });
 
     const updateExam = useMutation({
@@ -243,9 +244,9 @@ export const useDepartmentExams = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["department-exams"] });
-            toast.success("Examen modifié");
+            toast.success(i18n.t("departmentPortal.exams.updated"));
         },
-        onError: () => toast.error("Erreur lors de la modification"),
+        onError: () => toast.error(i18n.t("departmentPortal.exams.updateError")),
     });
 
     const deleteExam = useMutation({
@@ -254,9 +255,9 @@ export const useDepartmentExams = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["department-exams"] });
-            toast.success("Examen supprimé");
+            toast.success(i18n.t("departmentPortal.exams.deleted"));
         },
-        onError: () => toast.error("Erreur lors de la suppression"),
+        onError: () => toast.error(i18n.t("departmentPortal.exams.deleteError")),
     });
 
     return { data, isLoading, createExam, updateExam, deleteExam };

@@ -6,8 +6,11 @@ import {
   Calendar, ClipboardCheck, TrendingUp, AlertCircle
 } from "lucide-react";
 import { DepartmentDashboardCharts } from "@/components/dashboard/DepartmentDashboardCharts";
+import { intlLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 const DepartmentDashboard = () => {
+  const { t } = useTranslation();
   const { data, isLoading } = useDepartmentDashboard();
 
   if (isLoading) {
@@ -22,10 +25,9 @@ const DepartmentDashboard = () => {
     return (
       <div className="text-center py-12">
         <Building2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-        <h2 className="text-xl font-bold mb-2">Aucun département assigné</h2>
+        <h2 className="text-xl font-bold mb-2">{t("departmentPortal.dashboard.noDepartment")}</h2>
         <p className="text-muted-foreground">
-          Vous n'êtes pas encore assigné comme chef de département.
-          Contactez l'administration pour obtenir l'accès.
+          {t("departmentPortal.dashboard.noDepartmentHint")}
         </p>
       </div>
     );
@@ -61,7 +63,7 @@ const DepartmentDashboard = () => {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Étudiants</p>
+                <p className="text-sm text-muted-foreground">{t("departmentPortal.dashboard.students")}</p>
                 <p className="text-2xl font-bold">{stats.totalStudents}</p>
               </div>
               <Users className="h-8 w-8 text-blue-500" />
@@ -72,7 +74,7 @@ const DepartmentDashboard = () => {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Enseignants</p>
+                <p className="text-sm text-muted-foreground">{t("departmentPortal.dashboard.teachers")}</p>
                 <p className="text-2xl font-bold">{stats.totalTeachers}</p>
               </div>
               <GraduationCap className="h-8 w-8 text-green-500" />
@@ -83,7 +85,7 @@ const DepartmentDashboard = () => {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Matières</p>
+                <p className="text-sm text-muted-foreground">{t("departmentPortal.dashboard.subjects")}</p>
                 <p className="text-2xl font-bold">{stats.totalSubjects}</p>
               </div>
               <BookOpen className="h-8 w-8 text-purple-500" />
@@ -94,7 +96,7 @@ const DepartmentDashboard = () => {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Assiduité</p>
+                <p className="text-sm text-muted-foreground">{t("departmentPortal.dashboard.attendance")}</p>
                 <p className="text-2xl font-bold">{stats.attendanceRate}%</p>
               </div>
               <ClipboardCheck className="h-8 w-8 text-orange-500" />
@@ -112,14 +114,14 @@ const DepartmentDashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              Activité Récente
+              {t("departmentPortal.dashboard.recentActivity")}
             </CardTitle>
-            <CardDescription>Dernières notes et événements du département</CardDescription>
+            <CardDescription>{t("departmentPortal.dashboard.recentActivityHint")}</CardDescription>
           </CardHeader>
           <CardContent>
             {recent_activities.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">
-                Aucune activité récente
+                {t("departmentPortal.dashboard.noActivity")}
               </p>
             ) : (
               <div className="space-y-3">
@@ -131,7 +133,7 @@ const DepartmentDashboard = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">{activity.description}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(activity.time).toLocaleDateString("fr-FR", {
+                        {new Date(activity.time).toLocaleDateString(intlLocale(), {
                           day: "numeric", month: "short",
                           hour: "2-digit", minute: "2-digit"
                         })}
@@ -149,9 +151,9 @@ const DepartmentDashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5" />
-              À surveiller
+              {t("departmentPortal.dashboard.watch")}
             </CardTitle>
-            <CardDescription>Points nécessitant votre attention</CardDescription>
+            <CardDescription>{t("departmentPortal.dashboard.watchHint")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -159,9 +161,9 @@ const DepartmentDashboard = () => {
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 border border-orange-200">
                   <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-orange-800">Taux d'assiduité faible</p>
+                    <p className="text-sm font-medium text-orange-800">{t("departmentPortal.dashboard.lowAttendance")}</p>
                     <p className="text-xs text-orange-600">
-                      Le taux d'assiduité est de {stats.attendanceRate}% (objectif: 80%)
+                      {t("departmentPortal.dashboard.lowAttendanceHint", { rate: stats.attendanceRate })}
                     </p>
                   </div>
                 </div>
@@ -169,10 +171,10 @@ const DepartmentDashboard = () => {
               <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50 border border-blue-200">
                 <Calendar className="h-5 w-5 text-blue-500 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-blue-800">Planification</p>
+                  <p className="text-sm font-medium text-blue-800">{t("departmentPortal.dashboard.planning")}</p>
                   <p className="text-xs text-blue-600">
-                    Vérifiez les emplois du temps et examens à venir
-                    {stats.upcomingExams > 0 && ` — ${stats.upcomingExams} examen(s) planifié(s)`}
+                    {t("departmentPortal.dashboard.planningHint")}
+                    {stats.upcomingExams > 0 && t("departmentPortal.dashboard.examsPlanned", { count: stats.upcomingExams })}
                   </p>
                 </div>
               </div>
