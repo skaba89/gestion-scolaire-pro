@@ -8,18 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, subDays, startOfWeek, endOfWeek, subMonths } from "date-fns";
-import { fr } from "date-fns/locale";
 import { Download, FileText, AlertTriangle, Filter, Bell, FileSpreadsheet, Mail, Loader2 } from "lucide-react";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { dateFnsLocale } from "@/lib/locale";
+import i18n from "i18next";
+import { useTranslation } from "react-i18next";
 
 const ATTENDANCE_THRESHOLD = 80;
 
 // CSV Export utility
 const exportToCSV = (data: any[], filename: string) => {
   if (!data || data.length === 0) {
-    toast.error("Aucune donnée à exporter");
+    toast.error(i18n.t("departmentPortal.reports.noData"));
     return;
   }
 
@@ -41,10 +43,13 @@ const exportToCSV = (data: any[], filename: string) => {
   link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
   link.click();
   URL.revokeObjectURL(link.href);
-  toast.success("Export CSV réussi");
+  toast.success(i18n.t("departmentPortal.reports.csvDone"));
 };
 
 export default function DepartmentReports() {
+  const { t } = useTranslation();
+  /** En-têtes et libellés des exports CSV, dans la langue de l'interface. */
+  const c = (key: string) => t(`departmentPortal.reports.csv.${key}`);
   const { tenant } = useTenant();
   const { user } = useAuth();
   const reportRef = useRef<HTMLDivElement>(null);
@@ -123,11 +128,11 @@ export default function DepartmentReports() {
 
   const getPeriodLabel = () => {
     switch (selectedPeriod) {
-      case "week": return "Cette semaine";
-      case "month": return "Ce mois";
-      case "3months": return "3 derniers mois";
+      case "week": return t("departmentPortal.reports.period.week");
+      case "month": return t("departmentPortal.reports.period.month");
+      case "3months": return t("departmentPortal.reports.period.3months");
       case "30days":
-      default: return "30 derniers jours";
+      default: return t("departmentPortal.reports.period.30days");
     }
   };
 
@@ -143,7 +148,7 @@ export default function DepartmentReports() {
             const classroom = departmentClassrooms.find(cd => cd.class_id === classId);
             alerts.push({
               classroomId: classId,
-              classroomName: (classroom?.classrooms as any)?.name || 'Classe inconnue',
+              classroomName: (classroom?.classrooms as any)?.name || t("departmentPortal.reports.unknownClass"),
               rate: rate.toFixed(1),
               total: data.total,
               absent: data.total - data.present - data.late,
@@ -155,19 +160,19 @@ export default function DepartmentReports() {
       setLowAttendanceAlerts(alerts);
 
       if (alerts.length > 0) {
-        toast.warning(`${alerts.length} classe(s) avec un taux de présence faible détectée(s)`, {
+        toast.warning(t("departmentPortal.reports.lowAttendanceDetected", { count: alerts.length }), {
           icon: <Bell className="h-4 w-4" />,
         });
       }
     }
-  }, [stats?.attendancePerClass, departmentClassrooms]);
+  }, [stats?.attendancePerClass, departmentClassrooms, t]);
 
   const [isSendingAlert, setIsSendingAlert] = useState(false);
 
   // Send email alert to department head
   const sendEmailAlert = async () => {
     if (lowAttendanceAlerts.length === 0) {
-      toast.info("Aucune alerte à envoyer");
+      toast.info(t("departmentPortal.reports.noAlert"));
       return;
     }
 
@@ -198,9 +203,9 @@ export default function DepartmentReports() {
         email_sent: true,
       });
 
-      toast.success("Alerte envoyée par email au chef de département");
+      toast.success(t("departmentPortal.reports.alertSent"));
     } catch (error: any) {
-      toast.error("Erreur lors de l'envoi de l'alerte");
+      toast.error(t("departmentPortal.reports.alertError"));
     } finally {
       setIsSendingAlert(false);
     }
@@ -212,24 +217,24 @@ export default function DepartmentReports() {
 
     const data = [
       {
-        "Catégorie": "Présents",
-        "Nombre": stats.attendance.present,
-        "Pourcentage": `${((stats.attendance.present / (stats.attendance.total || 1)) * 100).toFixed(1)}%`
+        [c("category")]: t("departmentPortal.reports.present"),
+        [c("count")]: stats.attendance.present,
+        [c("percentage")]: `${((stats.attendance.present / (stats.attendance.total || 1)) * 100).toFixed(1)}%`
       },
       {
-        "Catégorie": "Absents",
-        "Nombre": stats.attendance.absent,
-        "Pourcentage": `${((stats.attendance.absent / (stats.attendance.total || 1)) * 100).toFixed(1)}%`
+        [c("category")]: t("departmentPortal.reports.absent"),
+        [c("count")]: stats.attendance.absent,
+        [c("percentage")]: `${((stats.attendance.absent / (stats.attendance.total || 1)) * 100).toFixed(1)}%`
       },
       {
-        "Catégorie": "Retards",
-        "Nombre": stats.attendance.late,
-        "Pourcentage": `${((stats.attendance.late / (stats.attendance.total || 1)) * 100).toFixed(1)}%`
+        [c("category")]: t("departmentPortal.reports.late"),
+        [c("count")]: stats.attendance.late,
+        [c("percentage")]: `${((stats.attendance.late / (stats.attendance.total || 1)) * 100).toFixed(1)}%`
       },
       {
-        "Catégorie": "Total",
-        "Nombre": stats.attendance.total,
-        "Pourcentage": "100%"
+        [c("category")]: t("departmentPortal.reports.total"),
+        [c("count")]: stats.attendance.total,
+        [c("percentage")]: "100%"
       }
     ];
 
@@ -240,8 +245,8 @@ export default function DepartmentReports() {
     if (!stats?.studentsPerClass) return;
 
     const data = stats.studentsPerClass.map((cls: any) => ({
-      "Classe": cls.name,
-      "Nombre d'étudiants": cls.count,
+      [t("departmentPortal.reports.class")]: cls.name,
+      [t("departmentPortal.reports.studentCount")]: cls.count,
     }));
 
     exportToCSV(data, `etudiants_par_classe_${(userDepartment?.departments as any)?.code || 'dept'}`);
@@ -250,9 +255,9 @@ export default function DepartmentReports() {
   const exportTeachersCSV = () => {
     if (!stats?.teachers) return;
 
-    const data = stats.teachers.map((t: any) => ({
-      "Prénom": t.first_name || '',
-      "Nom": t.last_name || '',
+    const data = stats.teachers.map((teacher: any) => ({
+      [c("firstName")]: teacher.first_name || '',
+      [c("lastName")]: teacher.last_name || '',
     }));
 
     exportToCSV(data, `enseignants_${(userDepartment?.departments as any)?.code || 'dept'}`);
@@ -262,10 +267,10 @@ export default function DepartmentReports() {
     if (!stats?.exams) return;
 
     const data = stats.exams.map((e: any) => ({
-      "Examen": e.name,
-      "Matière": e.subjects?.name || '',
-      "Date": format(new Date(e.exam_date), 'dd/MM/yyyy'),
-      "Statut": e.status,
+      [t("departmentPortal.reports.exam")]: e.name,
+      [t("departmentPortal.reports.subject")]: e.subjects?.name || '',
+      [t("departmentPortal.reports.date")]: format(new Date(e.exam_date), 'dd/MM/yyyy'),
+      [t("departmentPortal.reports.status")]: e.status,
     }));
 
     exportToCSV(data, `examens_${(userDepartment?.departments as any)?.code || 'dept'}`);
@@ -275,22 +280,22 @@ export default function DepartmentReports() {
     if (!stats) return;
 
     const data = [
-      { "Section": "Vue d'ensemble", "Indicateur": "Étudiants", "Valeur": stats.studentCount },
-      { "Section": "Vue d'ensemble", "Indicateur": "Enseignants", "Valeur": stats.teacherCount },
-      { "Section": "Vue d'ensemble", "Indicateur": "Taux de présence", "Valeur": `${stats.attendance.rate.toFixed(1)}%` },
-      { "Section": "Vue d'ensemble", "Indicateur": "Moyenne générale", "Valeur": `${stats.averageGrade.toFixed(2)}/20` },
-      { "Section": "Présences", "Indicateur": "Présents", "Valeur": stats.attendance.present },
-      { "Section": "Présences", "Indicateur": "Absents", "Valeur": stats.attendance.absent },
-      { "Section": "Présences", "Indicateur": "Retards", "Valeur": stats.attendance.late },
+      { [c("section")]: t("departmentPortal.reports.overview"), [c("indicator")]: t("departmentPortal.reports.students"), [c("value")]: stats.studentCount },
+      { [c("section")]: t("departmentPortal.reports.overview"), [c("indicator")]: t("departmentPortal.reports.teachers"), [c("value")]: stats.teacherCount },
+      { [c("section")]: t("departmentPortal.reports.overview"), [c("indicator")]: t("departmentPortal.reports.attendanceRate"), [c("value")]: `${stats.attendance.rate.toFixed(1)}%` },
+      { [c("section")]: t("departmentPortal.reports.overview"), [c("indicator")]: t("departmentPortal.reports.average"), [c("value")]: `${stats.averageGrade.toFixed(2)}/20` },
+      { [c("section")]: t("departmentPortal.reports.attendance"), [c("indicator")]: t("departmentPortal.reports.present"), [c("value")]: stats.attendance.present },
+      { [c("section")]: t("departmentPortal.reports.attendance"), [c("indicator")]: t("departmentPortal.reports.absent"), [c("value")]: stats.attendance.absent },
+      { [c("section")]: t("departmentPortal.reports.attendance"), [c("indicator")]: t("departmentPortal.reports.late"), [c("value")]: stats.attendance.late },
       ...stats.studentsPerClass.map((cls: any) => ({
-        "Section": "Étudiants par classe",
-        "Indicateur": cls.name,
-        "Valeur": cls.count,
+        [c("section")]: t("departmentPortal.reports.studentsPerClass"),
+        [c("indicator")]: cls.name,
+        [c("value")]: cls.count,
       })),
       ...stats.exams.map((e: any) => ({
-        "Section": "Examens",
-        "Indicateur": e.name,
-        "Valeur": format(new Date(e.exam_date), 'dd/MM/yyyy'),
+        [c("section")]: t("departmentPortal.reports.exams"),
+        [c("indicator")]: e.name,
+        [c("value")]: format(new Date(e.exam_date), 'dd/MM/yyyy'),
       })),
     ];
 
@@ -302,19 +307,19 @@ export default function DepartmentReports() {
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      toast.error("Impossible d'ouvrir la fenêtre d'impression");
+      toast.error(t("departmentPortal.reports.printBlocked"));
       return;
     }
 
     // SECURITY: Sanitize innerHTML before injecting into new document
     const content = sanitizeHtml(reportRef.current.innerHTML);
-    const departmentName = (userDepartment?.departments as any)?.name || 'Département';
+    const departmentName = (userDepartment?.departments as any)?.name || t("departmentPortal.reports.department");
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Rapport - ${departmentName}</title>
+        <title>${t("departmentPortal.reports.reportTitle", { name: departmentName })}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1a1a2e; }
@@ -339,7 +344,7 @@ export default function DepartmentReports() {
       <body>
         ${content}
         <div class="footer">
-          <p>Rapport généré le ${format(new Date(), "d MMMM yyyy 'à' HH:mm", { locale: fr })}</p>
+          <p>${t("departmentPortal.reports.generatedOn", { date: format(new Date(), "PPp", { locale: dateFnsLocale() }) })}</p>
           <p>${tenant?.name || ''}</p>
         </div>
         <script>window.onload = function() { window.print(); }</script>
@@ -348,26 +353,26 @@ export default function DepartmentReports() {
     `);
 
     printWindow.document.close();
-    toast.success("Rapport PDF généré");
+    toast.success(t("departmentPortal.reports.pdfDone"));
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Rapports & Statistiques</h1>
+          <h1 className="text-3xl font-bold">{t("departmentPortal.reports.title")}</h1>
           <p className="text-muted-foreground">
-            Département: {(userDepartment?.departments as any)?.name || 'Non assigné'}
+            {t("departmentPortal.departmentName", { name: (userDepartment?.departments as any)?.name || t("departmentPortal.notAssigned") })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={exportFullReportCSV}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Export CSV
+            {t("departmentPortal.reports.exportCsv")}
           </Button>
           <Button onClick={generatePDF}>
             <Download className="h-4 w-4 mr-2" />
-            Export PDF
+            {t("departmentPortal.reports.exportPdf")}
           </Button>
         </div>
       </div>
@@ -377,33 +382,33 @@ export default function DepartmentReports() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Filter className="h-5 w-5" />
-            Filtres avancés
+            {t("departmentPortal.reports.filters")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Période</label>
+              <label className="text-sm font-medium">{t("departmentPortal.reports.periodLabel")}</label>
               <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une période" />
+                  <SelectValue placeholder={t("departmentPortal.reports.selectPeriod")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="week">Cette semaine</SelectItem>
-                  <SelectItem value="month">Ce mois</SelectItem>
-                  <SelectItem value="30days">30 derniers jours</SelectItem>
-                  <SelectItem value="3months">3 derniers mois</SelectItem>
+                  <SelectItem value="week">{t("departmentPortal.reports.period.week")}</SelectItem>
+                  <SelectItem value="month">{t("departmentPortal.reports.period.month")}</SelectItem>
+                  <SelectItem value="30days">{t("departmentPortal.reports.period.30days")}</SelectItem>
+                  <SelectItem value="3months">{t("departmentPortal.reports.period.3months")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Classe</label>
+              <label className="text-sm font-medium">{t("departmentPortal.reports.class")}</label>
               <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une classe" />
+                  <SelectValue placeholder={t("departmentPortal.reports.selectClass")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Toutes les classes</SelectItem>
+                  <SelectItem value="all">{t("departmentPortal.allClasses")}</SelectItem>
                   {departmentClassrooms?.filter(cd => cd.class_id).map((cd) => (
                     <SelectItem key={cd.class_id} value={cd.class_id}>
                       {(cd.classrooms as any)?.name}
@@ -421,7 +426,7 @@ export default function DepartmentReports() {
         <Alert variant="destructive" className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle className="text-yellow-800 dark:text-yellow-200 flex items-center justify-between">
-            <span>Alertes de présence faible</span>
+            <span>{t("departmentPortal.reports.lowAttendance")}</span>
             <Button
               variant="outline"
               size="sm"
@@ -434,12 +439,12 @@ export default function DepartmentReports() {
               ) : (
                 <Mail className="h-4 w-4 mr-2" />
               )}
-              Envoyer alerte par email
+              {t("departmentPortal.reports.sendAlert")}
             </Button>
           </AlertTitle>
           <AlertDescription className="text-yellow-700 dark:text-yellow-300">
             <p className="mb-3">
-              Les classes suivantes ont un taux de présence inférieur à {ATTENDANCE_THRESHOLD}% pour la période sélectionnée:
+              {t("departmentPortal.reports.lowAttendanceIntro", { threshold: ATTENDANCE_THRESHOLD })}
             </p>
             <div className="space-y-2">
               {lowAttendanceAlerts.map((alert) => (
@@ -454,7 +459,7 @@ export default function DepartmentReports() {
                     <span className="font-medium">{alert.classroomName}</span>
                   </div>
                   <span className="text-sm">
-                    {alert.absent} absence(s) sur {alert.total} enregistrements
+                    {t("departmentPortal.reports.absencesOf", { absent: alert.absent, total: alert.total })}
                   </span>
                 </div>
               ))}
@@ -468,22 +473,22 @@ export default function DepartmentReports() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileSpreadsheet className="h-5 w-5" />
-            Exports CSV détaillés
+            {t("departmentPortal.reports.csvExports")}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={exportAttendanceCSV}>
-              Présences
+              {t("departmentPortal.reports.attendance")}
             </Button>
             <Button variant="outline" size="sm" onClick={exportStudentsCSV}>
-              Étudiants par classe
+              {t("departmentPortal.reports.studentsPerClass")}
             </Button>
             <Button variant="outline" size="sm" onClick={exportTeachersCSV}>
-              Enseignants
+              {t("departmentPortal.reports.teachers")}
             </Button>
             <Button variant="outline" size="sm" onClick={exportExamsCSV}>
-              Examens
+              {t("departmentPortal.reports.exams")}
             </Button>
           </div>
         </CardContent>
@@ -494,7 +499,7 @@ export default function DepartmentReports() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Aperçu du rapport
+            {t("departmentPortal.reports.preview")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -502,38 +507,38 @@ export default function DepartmentReports() {
             {/* Header */}
             <div className="header text-center mb-6 pb-4 border-b-2 border-primary">
               <h1 className="text-2xl font-bold">
-                Rapport du Département: {(userDepartment?.departments as any)?.name}
+                {t("departmentPortal.reports.reportOf", { name: (userDepartment?.departments as any)?.name ?? "" })}
               </h1>
               <p className="text-muted-foreground text-sm">
-                Année académique: {stats?.academicYear} |
-                Période: {stats?.periodLabel || getPeriodLabel()}
-                {selectedClassroom !== "all" && ` | Classe: ${departmentClassrooms?.find(cd => cd.class_id === selectedClassroom)?.classrooms?.name}`}
+                {t("departmentPortal.reports.academicYear", { year: stats?.academicYear ?? "" })}
+                {t("departmentPortal.reports.periodValue", { period: stats?.periodLabel || getPeriodLabel() })}
+                {selectedClassroom !== "all" && t("departmentPortal.reports.classValue", { name: departmentClassrooms?.find(cd => cd.class_id === selectedClassroom)?.classrooms?.name ?? "" })}
               </p>
             </div>
 
             {/* Stats Grid */}
             <div className="section mb-6">
               <div className="section-title text-primary font-semibold mb-3 border-b pb-2">
-                Vue d'ensemble
+                {t("departmentPortal.reports.overview")}
               </div>
               <div className="stats-grid grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="stat-card bg-muted/50 p-4 rounded-lg text-center">
                   <div className="stat-value text-2xl font-bold">{stats?.studentCount || 0}</div>
-                  <div className="stat-label text-sm text-muted-foreground">Étudiants</div>
+                  <div className="stat-label text-sm text-muted-foreground">{t("departmentPortal.reports.students")}</div>
                 </div>
                 <div className="stat-card bg-muted/50 p-4 rounded-lg text-center">
                   <div className="stat-value text-2xl font-bold">{stats?.teacherCount || 0}</div>
-                  <div className="stat-label text-sm text-muted-foreground">Enseignants</div>
+                  <div className="stat-label text-sm text-muted-foreground">{t("departmentPortal.reports.teachers")}</div>
                 </div>
                 <div className="stat-card bg-muted/50 p-4 rounded-lg text-center">
                   <div className={`stat-value text-2xl font-bold ${(stats?.attendance?.rate || 0) < ATTENDANCE_THRESHOLD ? 'text-red-500' : ''}`}>
                     {stats?.attendance?.rate?.toFixed(1) || 0}%
                   </div>
-                  <div className="stat-label text-sm text-muted-foreground">Taux de présence</div>
+                  <div className="stat-label text-sm text-muted-foreground">{t("departmentPortal.reports.attendanceRate")}</div>
                 </div>
                 <div className="stat-card bg-muted/50 p-4 rounded-lg text-center">
                   <div className="stat-value text-2xl font-bold">{stats?.averageGrade?.toFixed(2) || 0}/20</div>
-                  <div className="stat-label text-sm text-muted-foreground">Moyenne générale</div>
+                  <div className="stat-label text-sm text-muted-foreground">{t("departmentPortal.reports.average")}</div>
                 </div>
               </div>
             </div>
@@ -541,13 +546,13 @@ export default function DepartmentReports() {
             {/* Classes */}
             <div className="section mb-6">
               <div className="section-title text-primary font-semibold mb-3 border-b pb-2">
-                Répartition par classe
+                {t("departmentPortal.reports.byClass")}
               </div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50">
-                    <th className="p-2 text-left">Classe</th>
-                    <th className="p-2 text-right">Nombre d'étudiants</th>
+                    <th className="p-2 text-left">{t("departmentPortal.reports.class")}</th>
+                    <th className="p-2 text-right">{t("departmentPortal.reports.studentCount")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -564,24 +569,24 @@ export default function DepartmentReports() {
             {/* Attendance Details */}
             <div className="section mb-6">
               <div className="section-title text-primary font-semibold mb-3 border-b pb-2">
-                Statistiques de présence ({stats?.periodLabel || getPeriodLabel()})
+                {t("departmentPortal.reports.attendanceStats", { period: stats?.periodLabel || getPeriodLabel() })}
               </div>
               <div className="grid grid-cols-4 gap-4 text-sm">
                 <div className="p-3 bg-green-50 rounded text-center">
                   <div className="font-bold text-green-700">{stats?.attendance?.present || 0}</div>
-                  <div className="text-green-600">Présents</div>
+                  <div className="text-green-600">{t("departmentPortal.reports.present")}</div>
                 </div>
                 <div className="p-3 bg-red-50 rounded text-center">
                   <div className="font-bold text-red-700">{stats?.attendance?.absent || 0}</div>
-                  <div className="text-red-600">Absents</div>
+                  <div className="text-red-600">{t("departmentPortal.reports.absent")}</div>
                 </div>
                 <div className="p-3 bg-yellow-50 rounded text-center">
                   <div className="font-bold text-yellow-700">{stats?.attendance?.late || 0}</div>
-                  <div className="text-yellow-600">Retards</div>
+                  <div className="text-yellow-600">{t("departmentPortal.reports.late")}</div>
                 </div>
                 <div className="p-3 bg-blue-50 rounded text-center">
                   <div className="font-bold text-blue-700">{stats?.attendance?.total || 0}</div>
-                  <div className="text-blue-600">Total</div>
+                  <div className="text-blue-600">{t("departmentPortal.reports.total")}</div>
                 </div>
               </div>
             </div>
@@ -589,7 +594,7 @@ export default function DepartmentReports() {
             {/* Teachers */}
             <div className="section mb-6">
               <div className="section-title text-primary font-semibold mb-3 border-b pb-2">
-                Enseignants du département
+                {t("departmentPortal.reports.departmentTeachers")}
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                 {stats?.teachers?.map((teacher: any, idx: number) => (
@@ -603,16 +608,16 @@ export default function DepartmentReports() {
             {/* Exams */}
             <div className="section">
               <div className="section-title text-primary font-semibold mb-3 border-b pb-2">
-                Examens de la période
+                {t("departmentPortal.reports.periodExams")}
               </div>
               {stats?.exams && stats.exams.length > 0 ? (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-muted/50">
-                      <th className="p-2 text-left">Examen</th>
-                      <th className="p-2 text-left">Matière</th>
-                      <th className="p-2 text-left">Date</th>
-                      <th className="p-2 text-left">Statut</th>
+                      <th className="p-2 text-left">{t("departmentPortal.reports.exam")}</th>
+                      <th className="p-2 text-left">{t("departmentPortal.reports.subject")}</th>
+                      <th className="p-2 text-left">{t("departmentPortal.reports.date")}</th>
+                      <th className="p-2 text-left">{t("departmentPortal.reports.status")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -620,14 +625,14 @@ export default function DepartmentReports() {
                       <tr key={exam.id} className="border-b">
                         <td className="p-2">{exam.name}</td>
                         <td className="p-2">{exam.subjects?.name}</td>
-                        <td className="p-2">{format(new Date(exam.exam_date), 'd MMM yyyy', { locale: fr })}</td>
+                        <td className="p-2">{format(new Date(exam.exam_date), 'd MMM yyyy', { locale: dateFnsLocale() })}</td>
                         <td className="p-2 capitalize">{exam.status}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
-                <p className="text-muted-foreground text-sm">Aucun examen programmé pour cette période</p>
+                <p className="text-muted-foreground text-sm">{t("departmentPortal.reports.noExam")}</p>
               )}
             </div>
           </div>
