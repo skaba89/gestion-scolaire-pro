@@ -14,8 +14,10 @@ import { useStudentRisks, StudentRiskScore } from "@/hooks/useStudentRisks";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { resolveUploadUrl } from "@/utils/url";
+import { useTranslation } from "react-i18next";
 
 export const StudentsAtRiskWidget = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { getTenantUrl } = useTenantUrl();
     const { studentLabel } = useStudentLabel();
@@ -63,7 +65,7 @@ export const StudentsAtRiskWidget = () => {
                             <AlertTriangle className="w-4 h-4" />
                         )}
                     </div>
-                    Réussite Académique
+                    {t("riskWidget.title")}
                 </CardTitle>
                 {currentTerm && (
                     <Button
@@ -72,7 +74,7 @@ export const StudentsAtRiskWidget = () => {
                         className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-full"
                         onClick={() => calculateRisks.mutate(currentTerm.id)}
                         disabled={calculateRisks.isPending}
-                        title="Lancer l'analyse IA"
+                        title={t("riskWidget.runAnalysis")}
                     >
                         <RefreshCw className={cn("h-4 w-4", calculateRisks.isPending && "animate-spin")} />
                     </Button>
@@ -91,8 +93,8 @@ export const StudentsAtRiskWidget = () => {
                             <div className="w-16 h-16 bg-primary/5 rounded-3xl flex items-center justify-center mb-4">
                                 <Zap className="w-8 h-8 text-primary/40" />
                             </div>
-                            <p className="text-sm font-medium">Prêt pour l'analyse</p>
-                            <p className="text-xs opacity-60 mt-1 mb-4">L'IA est prête à analyser les performances.</p>
+                            <p className="text-sm font-medium">{t("riskWidget.ready")}</p>
+                            <p className="text-xs opacity-60 mt-1 mb-4">{t("riskWidget.readyHint")}</p>
                             {currentTerm && (
                                 <Button
                                     variant="outline"
@@ -102,9 +104,9 @@ export const StudentsAtRiskWidget = () => {
                                     disabled={calculateRisks.isPending}
                                 >
                                     {calculateRisks.isPending ? (
-                                        <><RefreshCw className="w-3 h-3 mr-2 animate-spin" /> Analyse...</>
+                                        <><RefreshCw className="w-3 h-3 mr-2 animate-spin" /> {t("riskWidget.analyzing")}</>
                                     ) : (
-                                        "Lancer l'IA"
+                                        t("riskWidget.run")
                                     )}
                                 </Button>
                             )}
@@ -126,7 +128,7 @@ export const StudentsAtRiskWidget = () => {
                                             <div className="flex items-center gap-3">
                                                 <Avatar className="h-10 w-10 border-2 border-background shadow-sm ring-1 ring-primary/10">
                                                     {risk.student?.photo_url ? (
-                                                        <img src={resolveUploadUrl(risk.student.photo_url)} alt="Student" className="object-cover" />
+                                                        <img src={resolveUploadUrl(risk.student.photo_url)} alt={t("riskWidget.photo")} className="object-cover" />
                                                     ) : (
                                                         <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
                                                             {risk.student?.first_name?.[0]}{risk.student?.last_name?.[0]}
@@ -139,7 +141,7 @@ export const StudentsAtRiskWidget = () => {
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-1.5">
                                                         <p className="text-[10px] font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
-                                                            {getFactorDetail(risk, "Academic Performance") || "N/A"}
+                                                            {getFactorDetail(risk, "Academic Performance") || t("riskWidget.na")}
                                                         </p>
                                                         {getFactorDetail(risk, "Attendance") && (
                                                             <p className="text-[10px] font-medium text-destructive/70 bg-destructive/5 px-1.5 py-0.5 rounded-md">
@@ -159,7 +161,7 @@ export const StudentsAtRiskWidget = () => {
                                                             : "bg-warning/10 text-warning border-warning/20 shadow-none"
                                                     )}
                                                 >
-                                                    {risk.risk_level === 'CRITICAL' ? 'CRITIQUE' : 'À RISQUE'}
+                                                    {risk.risk_level === "CRITICAL" ? t("riskWidget.critical") : t("riskWidget.atRisk")}
                                                 </Badge>
                                                 <span className="text-[10px] font-mono font-bold text-muted-foreground/80">
                                                     {risk.risk_score}%

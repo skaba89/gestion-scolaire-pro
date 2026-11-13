@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Award } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface StudentRiskListProps {
     studentRisks: StudentRisk[];
@@ -13,6 +14,7 @@ interface StudentRiskListProps {
 }
 
 export function StudentRiskList({ studentRisks, classrooms }: StudentRiskListProps) {
+    const { t } = useTranslation();
     const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
 
     const filteredRisks = studentRisks.filter((_s) => {
@@ -36,13 +38,13 @@ export function StudentRiskList({ studentRisks, classrooms }: StudentRiskListPro
         <div className="space-y-4">
             <div className="flex items-center gap-4">
                 <div className="flex-1">
-                    <Label>Filtrer par classe</Label>
+                    <Label>{t("aiInsights.riskList.filter")}</Label>
                     <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                         <SelectTrigger className="w-64">
-                            <SelectValue placeholder="Toutes les classes" />
+                            <SelectValue placeholder={t("aiInsights.riskList.allClasses")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Toutes les classes</SelectItem>
+                            <SelectItem value="all">{t("aiInsights.riskList.allClasses")}</SelectItem>
                             {classrooms.map((c) => (
                                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                             ))}
@@ -70,8 +72,8 @@ export function StudentRiskList({ studentRisks, classrooms }: StudentRiskListPro
                     <Card className="border-dashed">
                         <CardContent className="py-12 text-center">
                             <Award className="h-12 w-12 mx-auto mb-4 text-green-500" />
-                            <h3 className="font-medium text-lg">Excellentes performances !</h3>
-                            <p className="text-muted-foreground">Aucun étudiant à risque détecté</p>
+                            <h3 className="font-medium text-lg">{t("aiInsights.riskList.excellent")}</h3>
+                            <p className="text-muted-foreground">{t("aiInsights.riskList.none")}</p>
                         </CardContent>
                     </Card>
                 )}

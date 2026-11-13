@@ -4,9 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, AlertTriangle, ShieldCheck, MapPin, Monitor, User, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 export const SecurityAlerts = () => {
+    const { t } = useTranslation();
     // Fetch only WARNING and CRITICAL alerts from the last 7 days
     const { data, isLoading } = useAuditLogs({
         severity: "CRITICAL", // Start with critical, we might want to blend WARNING too
@@ -23,7 +25,7 @@ export const SecurityAlerts = () => {
                 <CardHeader>
                     <CardTitle className="text-red-700 flex items-center gap-2">
                         <ShieldAlert className="w-5 h-5" />
-                        Alertes de Sécurité
+                        {t("securityAlerts.title")}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -41,9 +43,9 @@ export const SecurityAlerts = () => {
                 <CardHeader>
                     <CardTitle className="text-green-700 flex items-center gap-2">
                         <ShieldCheck className="w-5 h-5" />
-                        Sécurité Système
+                        {t("securityAlerts.systemOk")}
                     </CardTitle>
-                    <CardDescription>Aucune menace critique détectée récemment.</CardDescription>
+                    <CardDescription>{t("securityAlerts.noThreat")}</CardDescription>
                 </CardHeader>
             </Card>
         );
@@ -56,13 +58,13 @@ export const SecurityAlerts = () => {
                     <div>
                         <CardTitle className="text-red-700 flex items-center gap-2">
                             <ShieldAlert className="w-5 h-5 shadow-sm" />
-                            Alertes de Sécurité
+                            {t("securityAlerts.title")}
                         </CardTitle>
                         <CardDescription className="text-red-600/80 font-medium pt-1">
-                            {alerts.length} incident(s) critique(s) en attente de revue
+                            {t("securityAlerts.pending", { count: alerts.length })}
                         </CardDescription>
                     </div>
-                    <Badge variant="destructive" className="animate-pulse">Critique</Badge>
+                    <Badge variant="destructive" className="animate-pulse">{t("securityAlerts.critical")}</Badge>
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -82,10 +84,10 @@ export const SecurityAlerts = () => {
                                     </h4>
                                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                                         <User className="w-3 h-3" />
-                                        <span>{alert.user_name || alert.user_email || "Système"}</span>
+                                        <span>{alert.user_name || alert.user_email || t("securityAlerts.system")}</span>
                                         <span>•</span>
                                         <Clock className="w-3 h-3" />
-                                        <span>{format(new Date(alert.created_at), "Pp", { locale: fr })}</span>
+                                        <span>{format(new Date(alert.created_at), "Pp", { locale: dateFnsLocale() })}</span>
                                     </div>
                                 </div>
                             </div>
@@ -98,7 +100,7 @@ export const SecurityAlerts = () => {
                             </div>
                             <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-100/50 p-2 rounded-lg">
                                 <Monitor className="w-3 h-3 text-blue-500" />
-                                <span className="truncate">{alert.user_agent ? alert.user_agent.split(' ')[0] : "Navigateur Inconnu"}</span>
+                                <span className="truncate">{alert.user_agent ? alert.user_agent.split(' ')[0] : t("securityAlerts.unknownBrowser")}</span>
                             </div>
                         </div>
 

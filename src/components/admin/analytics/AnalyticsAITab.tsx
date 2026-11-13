@@ -10,6 +10,7 @@ import { BrainCircuit, AlertTriangle, RefreshCw, CheckCircle2 } from "lucide-rea
 import { toast } from "sonner";
 import { useTenant } from "@/contexts/TenantContext";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { useTranslation } from "react-i18next";
 
 const RISK_COLORS: Record<string, string> = {
     critical: "#ef4444", // red-500
@@ -19,6 +20,7 @@ const RISK_COLORS: Record<string, string> = {
 };
 
 export const AnalyticsAITab = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { studentsLabel, StudentLabel, StudentsLabel } = useStudentLabel();
     const [isCalculating, setIsCalculating] = useState(false);
@@ -38,9 +40,9 @@ export const AnalyticsAITab = () => {
         setIsCalculating(true);
         try {
             await refetch();
-            toast.success("Analyse IA terminée avec succès");
+            toast.success(t("adminAnalytics.ai.done"));
         } catch (error: any) {
-            toast.error("Échec de l'analyse IA: " + error.message);
+            toast.error(t("adminAnalytics.ai.failed", { message: error.message }));
         } finally {
             setIsCalculating(false);
         }
@@ -51,10 +53,10 @@ export const AnalyticsAITab = () => {
 
     // Process data for chart
     const distributionData = [
-        { name: "Critique", value: summary.critical, level: "critical" },
-        { name: "Élevé", value: summary.high, level: "high" },
-        { name: "Modéré", value: summary.moderate, level: "moderate" },
-        { name: "Faible", value: summary.low, level: "low" },
+        { name: t("adminAnalytics.risk.critical"), value: summary.critical, level: "critical" },
+        { name: t("adminAnalytics.risk.high"), value: summary.high, level: "high" },
+        { name: t("adminAnalytics.risk.moderate"), value: summary.moderate, level: "moderate" },
+        { name: t("adminAnalytics.risk.low"), value: summary.low, level: "low" },
     ].filter(d => d.value > 0);
 
     const atRiskStudents = riskScores.filter((s: any) => ["critical", "high"].includes(s.risk_level));
@@ -65,10 +67,10 @@ export const AnalyticsAITab = () => {
                 <div className="space-y-1">
                     <h3 className="text-lg font-medium flex items-center gap-2">
                         <BrainCircuit className="w-5 h-5 text-primary" />
-                        Analyse Prédictive IA
+                        {t("adminAnalytics.ai.title")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                        Identification proactive des {studentsLabel.toLowerCase()} en difficulté basée sur les performances, l'assiduité et le comportement.
+                        {t("adminAnalytics.ai.subtitle", { label: studentsLabel.toLowerCase() })}
                     </p>
                 </div>
                 <Button
@@ -77,7 +79,7 @@ export const AnalyticsAITab = () => {
                     className="gap-2"
                 >
                     <RefreshCw className={`w-4 h-4 ${isCalculating ? "animate-spin" : ""}`} />
-                    {isCalculating ? "Calcul en cours..." : "Recalculer les scores"}
+                    {isCalculating ? t("adminAnalytics.ai.calculating") : t("adminAnalytics.ai.recalculate")}
                 </Button>
             </div>
 
@@ -85,8 +87,8 @@ export const AnalyticsAITab = () => {
                 {/* Risk Distribution Chart */}
                 <Card className="lg:col-span-1 shadow-sm">
                     <CardHeader>
-                        <CardTitle className="text-base font-semibold">Répartition des Risques</CardTitle>
-                        <CardDescription>Vue d'ensemble du niveau d'alerte global</CardDescription>
+                        <CardTitle className="text-base font-semibold">{t("adminAnalytics.ai.distribution")}</CardTitle>
+                        <CardDescription>{t("adminAnalytics.ai.distributionHint")}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="h-64">
@@ -111,7 +113,7 @@ export const AnalyticsAITab = () => {
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground gap-2">
                                     <CheckCircle2 className="w-8 h-8 text-green-500" />
-                                    <span className="italic">Aucun score calculé</span>
+                                    <span className="italic">{t("adminAnalytics.ai.noScore")}</span>
                                 </div>
                             )}
                         </div>
@@ -123,9 +125,9 @@ export const AnalyticsAITab = () => {
                     <CardHeader>
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5 text-destructive" />
-                            {StudentsLabel} avec Alerte Critique ou Élevée
+                            {t("adminAnalytics.ai.priority", { label: StudentsLabel })}
                         </CardTitle>
-                        <CardDescription>Actions recommandées pour les profils prioritaires</CardDescription>
+                        <CardDescription>{t("adminAnalytics.ai.priorityHint")}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="rounded-md border overflow-hidden">
@@ -133,9 +135,9 @@ export const AnalyticsAITab = () => {
                                 <TableHeader>
                                     <TableRow className="bg-muted/50">
                                         <TableHead>{StudentLabel}</TableHead>
-                                        <TableHead>Niveau de Risque</TableHead>
-                                        <TableHead className="text-center">Moyenne</TableHead>
-                                        <TableHead>Analyse Synthétique</TableHead>
+                                        <TableHead>{t("adminAnalytics.ai.riskLevel")}</TableHead>
+                                        <TableHead className="text-center">{t("adminAnalytics.ai.average")}</TableHead>
+                                        <TableHead>{t("adminAnalytics.ai.summary")}</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -157,11 +159,11 @@ export const AnalyticsAITab = () => {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-center font-bold">
-                                                    {score.avg_grade}/20 ({score.grade_count} notes)
+                                                    {t("adminAnalytics.ai.gradeCount", { avg: score.avg_grade, count: score.grade_count })}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="text-xs space-y-1 text-muted-foreground italic">
-                                                        L'IA détecte une moyenne globale faible ({score.avg_grade}). Un entretien pédagogique est conseillé pour comprendre les difficultés rencontrées en cours.
+                                                        {t("adminAnalytics.ai.lowAverage", { avg: score.avg_grade })}
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
@@ -169,7 +171,7 @@ export const AnalyticsAITab = () => {
                                     ) : (
                                         <TableRow>
                                             <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                                Aucun élève à haut risque identifié.
+                                                {t("adminAnalytics.ai.noHighRisk")}
                                             </TableCell>
                                         </TableRow>
                                     )}

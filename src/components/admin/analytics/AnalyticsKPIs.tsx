@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, UserCheck, Award, DollarSign } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsKPIsProps {
     totalStudents: number;
@@ -16,6 +17,7 @@ export const AnalyticsKPIs = ({
     collectionRate,
     studentsLabel
 }: AnalyticsKPIsProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="hover:shadow-md transition-shadow">
@@ -36,7 +38,7 @@ export const AnalyticsKPIs = ({
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Taux de présence</p>
+                            <p className="text-sm text-muted-foreground">{t("adminAnalytics.kpi.attendance")}</p>
                             <p className="text-2xl font-bold">{attendanceRate || 0}%</p>
                         </div>
                         <div className="p-3 rounded-lg bg-green-500/10">
@@ -50,7 +52,7 @@ export const AnalyticsKPIs = ({
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Moyenne générale</p>
+                            <p className="text-sm text-muted-foreground">{t("adminAnalytics.kpi.average")}</p>
                             <p className="text-2xl font-bold">{avgGrade || "—"}/20</p>
                         </div>
                         <div className="p-3 rounded-lg bg-blue-500/10">
@@ -64,7 +66,7 @@ export const AnalyticsKPIs = ({
                 <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-muted-foreground">Taux recouvrement</p>
+                            <p className="text-sm text-muted-foreground">{t("adminAnalytics.kpi.collection")}</p>
                             <p className="text-2xl font-bold">{collectionRate || 0}%</p>
                         </div>
                         <div className="p-3 rounded-lg bg-amber-500/10">

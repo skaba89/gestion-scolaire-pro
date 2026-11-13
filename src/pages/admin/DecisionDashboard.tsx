@@ -110,7 +110,7 @@ export default function DecisionDashboard() {
                             <CardContent>
                                 <div className="flex items-center text-xs text-green-600 font-medium">
                                     <ArrowUpRight className="h-4 w-4" />
-                                    <span>{financialData?.collectionRate ? financialData?.collectionRate.toFixed(1) + "% Recouvrés" : "..."}</span>
+                                    <span>{financialData?.collectionRate ? t("decision.collectedSuffix", { rate: financialData?.collectionRate.toFixed(1) }) : "..."}</span>
                                 </div>
                             </CardContent>
                         </Card>
@@ -341,7 +341,7 @@ export default function DecisionDashboard() {
                             <CardContent>
                                 <div className="flex items-center text-xs text-blue-600 font-medium">
                                     <TrendingUp className="h-4 w-4" />
-                                    <span>{formatCurrency(financialData?.paidRevenue || 0)} encaissés</span>
+                                    <span>{t("decision.cashedSuffix", { amount: formatCurrency(financialData?.paidRevenue || 0) })}</span>
                                 </div>
                             </CardContent>
                         </Card>

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { PieChart as PieChartIcon, Target } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface GradeDistData {
     range: string;
@@ -22,15 +23,16 @@ export const AnalyticsGradesTab = ({
     gradesDistribution,
     subjectPerformance
 }: AnalyticsGradesTabProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid lg:grid-cols-2 gap-6">
             <Card className="shadow-sm">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
                         <PieChartIcon className="w-5 h-5 text-primary" />
-                        Distribution des Notes
+                        {t("adminAnalytics.grades.distribution")}
                     </CardTitle>
-                    <CardDescription>Répartition par tranches de 0 à 20</CardDescription>
+                    <CardDescription>{t("adminAnalytics.grades.distributionHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">
@@ -56,7 +58,7 @@ export const AnalyticsGradesTab = ({
                             </ResponsiveContainer>
                         ) : (
                             <div className="h-full flex items-center justify-center text-muted-foreground italic">
-                                Aucune donnée disponible
+                                {t("adminAnalytics.noData")}
                             </div>
                         )}
                     </div>
@@ -67,9 +69,9 @@ export const AnalyticsGradesTab = ({
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
                         <Target className="w-5 h-5 text-primary" />
-                        Moyennes par Matière
+                        {t("adminAnalytics.grades.bySubject")}
                     </CardTitle>
-                    <CardDescription>Top 10 des matières les plus performantes</CardDescription>
+                    <CardDescription>{t("adminAnalytics.grades.bySubjectHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">
@@ -85,14 +87,14 @@ export const AnalyticsGradesTab = ({
                                             border: "1px solid hsl(var(--border))",
                                             borderRadius: "8px",
                                         }}
-                                        formatter={(value: number) => [`${value}/20`, "Moyenne"]}
+                                        formatter={(value: number) => [`${value}/20`, t("adminAnalytics.grades.average")]}
                                     />
                                     <Bar dataKey="moyenne" fill="hsl(217, 91%, 50%)" radius={[0, 4, 4, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
                             <div className="h-full flex items-center justify-center text-muted-foreground italic">
-                                Aucune donnée disponible
+                                {t("adminAnalytics.noData")}
                             </div>
                         )}
                     </div>

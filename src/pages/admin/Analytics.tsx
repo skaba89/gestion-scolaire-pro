@@ -4,7 +4,6 @@ import { useTenant } from "@/contexts/TenantContext";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, subMonths, eachMonthOfInterval, startOfMonth, endOfMonth, subDays } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { adminQueries } from "@/queries/admin";
@@ -18,6 +17,7 @@ import { AnalyticsAttendanceTab } from "@/components/admin/analytics/AnalyticsAt
 import { AnalyticsGradesTab } from "@/components/admin/analytics/AnalyticsGradesTab";
 import { AnalyticsFinancesTab } from "@/components/admin/analytics/AnalyticsFinancesTab";
 import { AnalyticsAITab } from "@/components/admin/analytics/AnalyticsAITab";
+import { dateFnsLocale } from "@/lib/locale";
 
 export default function Analytics() {
   const { t } = useTranslation();
@@ -45,7 +45,7 @@ export default function Analytics() {
       const items = Array.isArray(response.data) ? response.data : [];
       return items.map((item: any) => ({
         ...item,
-        date: format(new Date(item.date), "dd/MM", { locale: fr })
+        date: format(new Date(item.date), "dd/MM", { locale: dateFnsLocale() })
       }));
     },
     enabled: !!tenant?.id,
@@ -85,7 +85,7 @@ export default function Analytics() {
       // We want to format "period" into "MMM" (ex: "janv.")
       const data = Array.isArray(response.data) ? response.data : [];
       return data.map((item: any) => ({
-        month: format(new Date(item.period + "-01"), "MMM", { locale: fr }),
+        month: format(new Date(item.period + "-01"), "MMM", { locale: dateFnsLocale() }),
         montant: item.revenue
       }));
     },
@@ -140,11 +140,11 @@ export default function Analytics() {
 
       <Tabs defaultValue="attendance" className="space-y-6">
         <TabsList className="bg-muted/50 p-1">
-          <TabsTrigger value="attendance" className="px-6">Assiduité</TabsTrigger>
-          <TabsTrigger value="grades" className="px-6">Notes</TabsTrigger>
-          <TabsTrigger value="finances" className="px-6">Finances</TabsTrigger>
+          <TabsTrigger value="attendance" className="px-6">{t("adminAnalytics.tabs.attendance")}</TabsTrigger>
+          <TabsTrigger value="grades" className="px-6">{t("adminAnalytics.tabs.grades")}</TabsTrigger>
+          <TabsTrigger value="finances" className="px-6">{t("adminAnalytics.tabs.finances")}</TabsTrigger>
           <TabsTrigger value="ai" className="px-6">
-            AI Insights
+            {t("adminAnalytics.tabs.ai")}
           </TabsTrigger>
         </TabsList>
 

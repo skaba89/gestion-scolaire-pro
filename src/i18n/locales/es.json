@@ -1129,7 +1129,11 @@
       "complianceTitle": "Cumplimiento MEN Guinea",
       "complianceContent": "Complete la información oficial requerida por el Ministerio de Educación."
     },
-    "whyReason": "Motivo"
+    "whyReason": "Motivo",
+    "example": "ej.: {{value}}",
+    "guinea": "🇬🇳 Guinea",
+    "error": "Error",
+    "undefinedLevel": "No definido"
   },
   "executiveDashboard": {
     "forecastSuccess": "Previsiones generadas exitosamente",
@@ -1736,6 +1740,40 @@
       "bandsTitle": "Medias de los alumnos señalados",
       "bandsDescription": "Distribución por tramo de media (sobre 20)",
       "studentsSeries": "Alumnos"
+    },
+    "risk": {
+      "high": "Riesgo alto",
+      "medium": "Riesgo medio",
+      "low": "Riesgo bajo"
+    },
+    "pdfDone": "Informe PDF generado",
+    "pdfError": "Error al generar el PDF",
+    "exportPdf": "Exportar PDF",
+    "alertParents": "Avisar a los padres ({{count}})",
+    "noHighRisk": "Ningún estudiante de alto riesgo: no hay alertas que enviar",
+    "sending": "Enviando {{count}} alertas a los padres...",
+    "sent": "{{count}} alertas enviadas",
+    "sendError": "Error al enviar las alertas",
+    "refresh": "Actualizar",
+    "assistant": {
+      "title": "Asistente educativo con IA",
+      "subtitle": "Pregunte sobre rendimiento, tendencias y recomendaciones basadas en sus datos",
+      "clear": "Borrar",
+      "intro": "Puedo analizar los datos de su centro. Pruebe:",
+      "q1": "¿Cuáles son los principales factores de abandono?",
+      "q1Label": "⚠️ Factores de abandono",
+      "q2": "¿Cómo mejorar el promedio en Matemáticas?",
+      "q2Label": "📈 Mejorar los resultados",
+      "q3": "Redacta un mensaje para los padres de los {{label}} ausentes.",
+      "q3Label": "✉️ Mensaje a los padres",
+      "placeholder": "Haga una pregunta a la IA...",
+      "language": "español"
+    },
+    "riskList": {
+      "filter": "Filtrar por clase",
+      "allClasses": "Todas las clases",
+      "excellent": "¡Excelente rendimiento!",
+      "none": "No se detectó ningún estudiante en riesgo"
     }
   },
   "admissions": {
@@ -2573,7 +2611,9 @@
     "activeBeneficiaries": "Beneficiarios activos",
     "pendingBills": "Facturas pendientes",
     "cashFlow": "Flujo de Caja",
-    "cashFlowDesc": "Evolución mensual de ingresos y egresos"
+    "cashFlowDesc": "Evolución mensual de ingresos y egresos",
+    "collectedSuffix": "{{rate}} % cobrado",
+    "cashedSuffix": "{{amount}} cobrados"
   },
   "earlyWarnings": {
     "pageTitle": "Alertas Tempranas",
@@ -4087,6 +4127,150 @@
         "indicator": "Indicador",
         "value": "Valor"
       }
+    }
+  },
+  "adminDashboard": {
+    "attendanceRate30": "Tasa de asistencia (30 d)",
+    "overallAverage": "Promedio general",
+    "headcountByLevel": "Efectivos por nivel ({{label}})",
+    "noEnrollmentData": "No hay datos de matrícula disponibles",
+    "attendanceBreakdown": "Distribución de la asistencia (últimos 30 días)",
+    "noAttendanceData": "No hay datos de asistencia disponibles",
+    "classAverages": "Promedios por clase",
+    "average": "Promedio",
+    "noGrades": "No hay notas disponibles"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": {
+        "title": "¡Bienvenido a su espacio!",
+        "description": "Descubra cómo gestionar eficazmente su centro con nuestra plataforma completa."
+      },
+      "students": {
+        "title": "Gestión de estudiantes",
+        "description": "Gestione las matrículas, siga la asistencia y consulte los expedientes en pocos clics."
+      },
+      "courses": {
+        "title": "Cursos y programas",
+        "description": "Organice sus cursos, cree horarios y siga el progreso académico."
+      },
+      "analytics": {
+        "title": "Análisis e informes",
+        "description": "Obtenga información detallada sobre el rendimiento y las tendencias de su centro."
+      },
+      "messages": {
+        "title": "Comunicación integrada",
+        "description": "Comuníquese fácilmente con padres, docentes y estudiantes mediante nuestra mensajería."
+      },
+      "settings": {
+        "title": "Personalice su espacio",
+        "description": "Configure los parámetros según sus necesidades y personalice su panel."
+      }
+    },
+    "previous": "Anterior",
+    "skip": "Omitir",
+    "finish": "Terminar",
+    "next": "Siguiente"
+  },
+  "securityAlerts": {
+    "title": "Alertas de seguridad",
+    "systemOk": "Seguridad del sistema",
+    "noThreat": "No se detectaron amenazas críticas recientemente.",
+    "pending": "{{count}} incidente(s) crítico(s) pendiente(s) de revisión",
+    "critical": "Crítico",
+    "system": "Sistema",
+    "unknownBrowser": "Navegador desconocido"
+  },
+  "riskWidget": {
+    "title": "Éxito académico",
+    "runAnalysis": "Ejecutar el análisis de IA",
+    "ready": "Listo para el análisis",
+    "readyHint": "La IA está lista para analizar el rendimiento.",
+    "analyzing": "Analizando...",
+    "run": "Ejecutar IA",
+    "na": "N/D",
+    "critical": "CRÍTICO",
+    "atRisk": "EN RIESGO",
+    "photo": "Foto del alumno"
+  },
+  "reportButton": {
+    "success": "Informe generado",
+    "error": "Error al generar el informe",
+    "label": "Exportar informe (PDF)"
+  },
+  "adminAnalytics": {
+    "tabs": {
+      "attendance": "Asistencia",
+      "grades": "Notas",
+      "finances": "Finanzas",
+      "ai": "Análisis de IA"
+    },
+    "ai": {
+      "done": "Análisis de IA completado",
+      "failed": "Error en el análisis de IA: {{message}}",
+      "title": "Análisis predictivo con IA",
+      "subtitle": "Identificación proactiva de {{label}} en dificultad según el rendimiento, la asistencia y el comportamiento.",
+      "calculating": "Calculando...",
+      "recalculate": "Recalcular las puntuaciones",
+      "distribution": "Distribución de riesgos",
+      "distributionHint": "Resumen del nivel de alerta global",
+      "noScore": "Ninguna puntuación calculada",
+      "priority": "{{label}} con alerta crítica o alta",
+      "priorityHint": "Acciones recomendadas para los perfiles prioritarios",
+      "riskLevel": "Nivel de riesgo",
+      "average": "Promedio",
+      "summary": "Análisis de síntesis",
+      "gradeCount": "{{avg}}/20 ({{count}} notas)",
+      "lowAverage": "La IA detecta un promedio global bajo ({{avg}}). Se aconseja una entrevista pedagógica para entender las dificultades en clase.",
+      "noHighRisk": "No se identificó ningún alumno de alto riesgo."
+    },
+    "risk": {
+      "critical": "Crítico",
+      "high": "Alto",
+      "moderate": "Moderado",
+      "low": "Bajo"
+    },
+    "attendance": {
+      "trend": "Evolución de la tasa de asistencia",
+      "trendHint": "Tendencia en el período seleccionado",
+      "rate": "Tasa",
+      "presentVsAbsent": "Presentes vs ausentes",
+      "daily": "Comparación diaria",
+      "present": "Presentes",
+      "absent": "Ausentes"
+    },
+    "noData": "No hay datos disponibles",
+    "finances": {
+      "revenue": "Evolución de los ingresos",
+      "revenueHint": "Pagos recibidos en los últimos 12 meses",
+      "billed": "Total facturado",
+      "collected": "Importe cobrado",
+      "outstanding": "Pendiente de cobro"
+    },
+    "grades": {
+      "distribution": "Distribución de notas",
+      "distributionHint": "Distribución por tramos de 0 a 20",
+      "bySubject": "Promedios por asignatura",
+      "bySubjectHint": "Las 10 asignaturas con mejor rendimiento",
+      "average": "Promedio"
+    },
+    "header": {
+      "period": "Período",
+      "week": "Últimos 7 días",
+      "month": "Últimos 30 días",
+      "year": "Últimos 12 meses",
+      "export": "Exportar"
+    },
+    "kpi": {
+      "attendance": "Tasa de asistencia",
+      "average": "Promedio general",
+      "collection": "Tasa de cobro"
+    },
+    "secondary": {
+      "teachers": "Docentes",
+      "classes": "Clases",
+      "collected": "Cobrado",
+      "pending": "Pendiente"
     }
   }
 }

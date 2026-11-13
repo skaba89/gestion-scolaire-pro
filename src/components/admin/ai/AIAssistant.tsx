@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useTenant } from "@/contexts/TenantContext";
 import type { SchoolKpis, StudentRisk } from "@/types/ai";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { useTranslation } from "react-i18next";
 
 interface AIAssistantProps {
     studentRisks: StudentRisk[];
@@ -33,6 +34,7 @@ N'invente aucun chiffre absent de cette liste.
 }
 
 export function AIAssistant({ studentRisks, kpis }: AIAssistantProps) {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { studentsLabel } = useStudentLabel();
     const [aiQuestion, setAiQuestion] = useState("");
@@ -50,7 +52,7 @@ export function AIAssistant({ studentRisks, kpis }: AIAssistantProps) {
             tenantId: tenant?.id,
             tenantName: tenant?.name,
             language: "fr",
-            systemContext: `En tant qu'expert en éducation et analyse de données scolaires, réponds à cette question basée sur les données suivantes:\n${context}`,
+            systemContext: `En tant qu'expert en éducation et analyse de données scolaires, réponds à cette question basée sur les données suivantes:\n${context}\nRéponds en ${t("aiInsights.assistant.language")}.`,
         });
 
         setAiQuestion("");
@@ -69,7 +71,7 @@ export function AIAssistant({ studentRisks, kpis }: AIAssistantProps) {
             tenantId: tenant?.id,
             tenantName: tenant?.name,
             language: "fr",
-            systemContext: `En tant qu'expert en éducation et analyse de données scolaires, réponds à cette question basée sur les données suivantes:\n${context}`,
+            systemContext: `En tant qu'expert en éducation et analyse de données scolaires, réponds à cette question basée sur les données suivantes:\n${context}\nRéponds en ${t("aiInsights.assistant.language")}.`,
         });
         setAiQuestion("");
     };
@@ -81,16 +83,16 @@ export function AIAssistant({ studentRisks, kpis }: AIAssistantProps) {
                 <div>
                     <CardTitle className="flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-primary" />
-                        Assistant IA Éducatif
+                        {t("aiInsights.assistant.title")}
                     </CardTitle>
                     <CardDescription>
-                        Posez des questions sur les performances, tendances et recommandations basées sur vos données
+                        {t("aiInsights.assistant.subtitle")}
                     </CardDescription>
                 </div>
                 {aiMessages.length > 0 && (
                     <Button variant="outline" size="sm" onClick={clearHistory}>
                         <Trash2 className="h-4 w-4 mr-2" />
-                        Effacer
+                        {t("aiInsights.assistant.clear")}
                     </Button>
                 )}
             </CardHeader>
@@ -140,16 +142,16 @@ export function AIAssistant({ studentRisks, kpis }: AIAssistantProps) {
                 {aiMessages.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground border rounded-lg border-dashed">
                         <Bot className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                        <p className="mb-4">Je peux analyser vos données scolaires. Essayez :</p>
+                        <p className="mb-4">{t("aiInsights.assistant.intro")}</p>
                         <div className="flex flex-wrap justify-center gap-2 px-4">
-                            <Button variant="outline" size="sm" onClick={() => handleQuickAIAction("Quels sont les principaux facteurs de décrochage ?")}>
-                                ⚠️ Facteurs de décrochage
+                            <Button variant="outline" size="sm" onClick={() => handleQuickAIAction(t("aiInsights.assistant.q1"))}>
+                                {t("aiInsights.assistant.q1Label")}
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleQuickAIAction("Comment améliorer la moyenne en Mathématiques ?")}>
-                                📈 Améliorer les résultats
+                            <Button variant="outline" size="sm" onClick={() => handleQuickAIAction(t("aiInsights.assistant.q2"))}>
+                                {t("aiInsights.assistant.q2Label")}
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleQuickAIAction(`Rédige un message pour les parents des ${studentsLabel} absents.`)}>
-                                ✉️ Message aux parents
+                            <Button variant="outline" size="sm" onClick={() => handleQuickAIAction(t("aiInsights.assistant.q3", { label: studentsLabel }))}>
+                                {t("aiInsights.assistant.q3Label")}
                             </Button>
                         </div>
                     </div>
@@ -158,7 +160,7 @@ export function AIAssistant({ studentRisks, kpis }: AIAssistantProps) {
                 {/* Input Area */}
                 <div className="flex gap-2">
                     <Input
-                        placeholder="Posez une question à l'IA..."
+                        placeholder={t("aiInsights.assistant.placeholder")}
                         value={aiQuestion}
                         onChange={(e) => setAiQuestion(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleAskAI()}
