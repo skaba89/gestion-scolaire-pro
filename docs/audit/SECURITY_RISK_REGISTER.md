@@ -7,10 +7,10 @@ ou le schéma, avec sa preuve. Statuts : **VÉRIFIÉ**, **CORRIGÉ**, **À CONFI
 
 | ID | Priorité | Domaine | Risque | Preuve | Statut | PR |
 |---|---|---|---|---|---|---|
-| PERIOD-DELETE-01 | P0 | Intégrité scolaire | Suppression d'une année scolaire = inscriptions de l'année effacées | `test_academic_period_delete_history.py` | CORRIGÉ (non déployé) | fix/period-delete-history |
-| PERIOD-DELETE-02 | P0 | Intégrité scolaire | Suppression d'un trimestre = notes détachées de leur période | idem | CORRIGÉ (non déployé) | fix/period-delete-history |
-| PERIOD-DELETE-03 | P2 | Robustesse | 500 (SQL exposé en DEBUG) sur année avec trimestres | idem | CORRIGÉ (non déployé) | fix/period-delete-history |
-| STRUCT-DELETE-01 | P1 | Intégrité scolaire | Niveaux, campus, semestres, filières, facultés, départements supprimables en détachant classes/matières | Schéma (`INTEGRITY_DELETES_20261113.md`) | À CONFIRMER | — |
+| PERIOD-DELETE-01 | P0 | Intégrité scolaire | Suppression d'une année scolaire = inscriptions de l'année effacées | `test_academic_period_delete_history.py` | CORRIGÉ (non déployé) | #548 |
+| PERIOD-DELETE-02 | P0 | Intégrité scolaire | Suppression d'un trimestre = notes détachées de leur période | idem | CORRIGÉ (non déployé) | #548 |
+| PERIOD-DELETE-03 | P2 | Robustesse | 500 (SQL exposé en DEBUG) sur année avec trimestres | idem | CORRIGÉ (non déployé) | #548 |
+| STRUCT-DELETE-01 | P1 | Intégrité scolaire | Niveaux, campus, semestres, programmes, facultés, départements supprimables en détachant classes/matières, salles et membres effacés | `test_structure_delete_history.py` | CORRIGÉ (non déployé) | fix/structure-delete-history |
 | USER-DELETE-02 | P1 | Intégrité RH/finance | Compte enseignant : affectations et heures travaillées supprimées en cascade | Schéma | À CONFIRMER | — |
 | INVOICE-DELETE-02 | P1 | Finance | Course entre suppression de facture et paiement concurrent (paiement orphelin) | Lecture de code | À CONFIRMER | — |
 | TENANT-DELETE-01 | P1 | Gouvernance | Suppression définitive d'un établissement sans archivage | Lecture de code | À CONFIRMER | — |

@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import academic as crud_academic
+from app.api.v1.endpoints.academic._structure_delete import structure_delete_guard
 from app.models.campus import Campus as CampusModel
 from app.models.tenant import Tenant
 from app.services.plan_catalog import PLANS_BY_SLUG
@@ -121,7 +122,8 @@ def delete_campus(
     if not resolved:
         raise HTTPException(status_code=400, detail="Tenant ID required")
     tenant_id = str(resolved)
-    success = crud_academic.delete_campus(db, campus_id, tenant_id=tenant_id)
+    with structure_delete_guard(db, "Ce campus a des salles ou des classes et ne peut pas être supprimé ; réaffectez-les d'abord."):
+        success = crud_academic.delete_campus(db, campus_id, tenant_id=tenant_id)
     if not success:
         raise HTTPException(status_code=404, detail="Campus not found")
     return None

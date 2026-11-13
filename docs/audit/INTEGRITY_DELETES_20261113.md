@@ -51,7 +51,7 @@ après correctif dont concurrence PostgreSQL et 503.
 
 | ID | Priorité | Constat (lecture du schéma) | Piste |
 |---|---|---|---|
-| STRUCT-DELETE-01 | P1 | Niveau, campus, semestre, filière, faculté, département : suppression sans garde ; `classes.level_id`/`campus_id`/`program_id`, `subjects.semester_id`, `departments.faculty_id` passent à NULL ; campus → salles en cascade ; département → membres et alertes en cascade | Même garde `_is_referenced` |
+| STRUCT-DELETE-01 | ~~P1~~ corrigé | Niveau, campus, programme, semestre, faculté, département : 204 en détachant classes/matières/départements, salles d'un campus et membres/alertes d'un département effacés (reproduit : 16 échecs PostgreSQL, 14 SQLite) | **Corrigé** (PR fix/structure-delete-history) : verrou + `_is_referenced` ; seuls les liens de catalogue `subject_levels` / `subject_departments` peuvent partir avec la structure ; 409 si utilisé (y compris candidature ou cours en ligne sur un niveau, auparavant 500), 503 si vérification impossible |
 | USER-DELETE-02 | P1 | Compte enseignant : `teacher_assignments` et `teacher_work_hours` (heures payables) en cascade ; annonces de l'auteur en cascade | 409 si historique, désactivation |
 | INVOICE-DELETE-02 | P1 | Contrôle « aucun paiement » sans verrou de la facture : un paiement concurrent peut être orphelin (`payments.invoice_id` `SET NULL`) | `FOR UPDATE` avant contrôle + test de concurrence |
 | TENANT-DELETE-01 | P1 (gouvernance) | `DELETE /tenants/{id}` (SUPER_ADMIN) efface toutes les données de l'établissement | Archivage + export obligatoire, double confirmation |
@@ -61,3 +61,14 @@ après correctif dont concurrence PostgreSQL et 503.
 
 Imports CSV, webhooks, tâches ARQ, `UPDATE` massifs, réinitialisations hors
 onboarding : à couvrir dans les lots suivants.
+
+## Lot 2 — STRUCT-DELETE-01 (2026-11-13)
+
+Base `main` `dc071b6` (#549). Fonction commune `_delete_unused_structure`
+(`crud/academic.py`) et correspondance HTTP partagée
+(`endpoints/academic/_structure_delete.py`) pour les six routes. Tests :
+`backend/tests/test_structure_delete_history.py` (35 tests, dont concurrence
+PostgreSQL : une classe créée en parallèle bloque la suppression de son niveau).
+Les règles de notation par niveau stockées dans les paramètres de l'établissement
+ne sont pas modifiées (une entrée orpheline après suppression d'un niveau vide est
+sans effet).
