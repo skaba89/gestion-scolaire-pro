@@ -1,6 +1,7 @@
 import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -91,7 +92,14 @@ def delete_academic_year(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
-    success = crud_academic.delete_academic_year(db, ay_id, tenant_id=tenant_id)
+    try:
+        success = crud_academic.delete_academic_year(db, ay_id, tenant_id=tenant_id)
+    except crud_academic.PeriodInUseError:
+        raise HTTPException(status_code=409, detail="Cette année scolaire contient des trimestres, semestres, inscriptions, classes ou notes et ne peut pas être supprimée ; l'historique scolaire est conservé.")
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Could not verify period deletion dependencies")
+        raise HTTPException(status_code=503, detail="Vérification des dépendances indisponible ; aucune suppression effectuée.")
     if not success:
         raise HTTPException(status_code=404, detail="Academic year not found")
     return None

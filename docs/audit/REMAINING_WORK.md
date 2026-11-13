@@ -26,6 +26,18 @@ code, ou une preuve absente. Voir `PROJECT_READINESS.md` pour la matrice.
 
 
 
+## AUD-P0-INTEGRITY — suppressions (2026-11-13)
+
+Détail et matrice : `INTEGRITY_DELETES_20261113.md` ; registre : `SECURITY_RISK_REGISTER.md`.
+
+| # | Priorité | Sujet | Constat | Critère d'acceptation |
+|---|---|---|---|---|
+| PERIOD-DELETE-01/02 | ~~P0~~ corrigé | Suppression d'année / de trimestre | **Corrigé** (PR fix/period-delete-history) : l'année effaçait ses inscriptions (cascade), le trimestre détachait ses notes ; désormais 409 si utilisés, verrou, 503 si vérification impossible | Déploiement |
+| STRUCT-DELETE-01 | P1 | Niveaux, campus, semestres, filières, facultés, départements | Suppression sans garde, détachement des classes/matières | 409 si utilisés, tests PostgreSQL |
+| USER-DELETE-02 | P1 | Suppression d'un compte enseignant | Affectations et heures travaillées en cascade | 409 + désactivation |
+| INVOICE-DELETE-02 | P1 | Suppression de facture concurrente à un paiement | Contrôle sans verrou | Verrou + test de concurrence |
+| TENANT-DELETE-01 | P1 | Suppression d'établissement | Effacement total sans archivage | Export/archivage préalable |
+
 ## Recette B2 — admissions (2026-11-09)
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |

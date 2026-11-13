@@ -68,10 +68,58 @@ def update_academic_year(db: Session, ay_id: UUID, obj_in: AcademicYearUpdate, t
     db.refresh(db_obj)
     return db_obj
 
+class PeriodInUseError(ValueError):
+    """The academic year or term still carries school history."""
+
+
+def _is_referenced(db: Session, referred_table: str, row_id: UUID, id_type, skip=frozenset()) -> bool:
+    """True if any real foreign key to ``referred_table.id`` points at ``row_id``.
+
+    Reads the live catalog, so migrated operational tables without an ORM
+    model (exams, homework, teacher assignments...) are covered too. Catalog
+    identifiers are quoted by SQLAlchemy and the id is a bound parameter.
+    """
+    inspector = inspect(db.connection())
+    for (schema, name), foreign_keys in inspector.get_multi_foreign_keys().items():
+        if name in skip:
+            continue
+        for fk in foreign_keys:
+            if fk["referred_table"] != referred_table or fk.get("referred_schema") not in (None, inspector.default_schema_name):
+                continue
+            for local, remote in zip(fk["constrained_columns"], fk["referred_columns"]):
+                if remote != "id":
+                    continue
+                dependent = table(name, column(local, id_type), schema=schema)
+                if db.execute(select(literal(1)).select_from(dependent).where(
+                    dependent.c[local] == row_id,
+                ).limit(1)).first() is not None:
+                    return True
+    return False
+
+
 def delete_academic_year(db: Session, ay_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_academic_year(db, ay_id, tenant_id)
+    """Delete only an unused academic year.
+
+    enrollments.academic_year_id is ON DELETE CASCADE and classes/assessments/
+    teacher assignments are ON DELETE SET NULL: deleting a year in use would
+    erase its enrollments or detach its classes and grades. Terms and
+    semesters must be removed first, and only while they are unused.
+    """
+    # FK writers take KEY SHARE on this row; FOR UPDATE serializes the check
+    # with concurrent enrollments/classes/assessments on PostgreSQL.
+    db_obj = db.query(AcademicYear).filter(
+        AcademicYear.id == ay_id, AcademicYear.tenant_id == tenant_id,
+    ).with_for_update().first()
     if not db_obj:
+        db.rollback()
         return False
+    from app.models.grade import Grade
+    # grades.academic_year_id is declared as a FK in the model but has no
+    # constraint in the migrated schema: check it explicitly.
+    in_use = db.query(Grade.id).filter(Grade.academic_year_id == ay_id).first() is not None
+    if in_use or _is_referenced(db, "academic_years", ay_id, AcademicYear.id.type):
+        db.rollback()
+        raise PeriodInUseError("Academic year has terms, enrollments, classes or grades")
     db.delete(db_obj)
     db.commit()
     return True
@@ -109,9 +157,20 @@ def update_term(db: Session, term_id: UUID, obj_in: TermUpdate, tenant_id: UUID)
     return db_obj
 
 def delete_term(db: Session, term_id: UUID, tenant_id: UUID) -> bool:
-    db_obj = get_term(db, term_id, tenant_id)
+    """Delete only an unused term.
+
+    assessments.term_id and exams.term_id are ON DELETE SET NULL: deleting a
+    term in use would move its grades out of every report card of the period.
+    """
+    db_obj = db.query(Term).filter(
+        Term.id == term_id, Term.tenant_id == tenant_id,
+    ).with_for_update().first()
     if not db_obj:
+        db.rollback()
         return False
+    if _is_referenced(db, "terms", term_id, Term.id.type):
+        db.rollback()
+        raise PeriodInUseError("Term has assessments or exams")
     db.delete(db_obj)
     db.commit()
     return True
@@ -346,25 +405,9 @@ def delete_subject(db: Session, subject_id: UUID, tenant_id: UUID) -> bool:
     # ORM model (homework, teacher assignments, exams, check-in sessions...).
     # Only disposable subject configuration may cascade; academic use may not.
     disposable_configuration = {"subject_levels", "subject_departments", "subject_preferred_rooms"}
-    inspector = inspect(db.connection())
-    for (schema, name), foreign_keys in inspector.get_multi_foreign_keys().items():
-        if name in disposable_configuration:
-            continue
-        for fk in foreign_keys:
-            if fk["referred_table"] != "subjects" or fk.get("referred_schema") not in (None, inspector.default_schema_name):
-                continue
-            for local, remote in zip(fk["constrained_columns"], fk["referred_columns"]):
-                if remote != "id":
-                    continue
-                # SQLAlchemy quotes catalog identifiers and binds the UUID;
-                # no identifier or value comes from request interpolation.
-                dependent = table(name, column(local, Subject.id.type), schema=schema)
-                exists = db.execute(select(literal(1)).select_from(dependent).where(
-                    dependent.c[local] == subject_id,
-                ).limit(1)).first()
-                if exists is not None:
-                    db.rollback()
-                    raise SubjectInUseError("Subject has academic records or assignments")
+    if _is_referenced(db, "subjects", subject_id, Subject.id.type, skip=disposable_configuration):
+        db.rollback()
+        raise SubjectInUseError("Subject has academic records or assignments")
     db.delete(db_obj)
     db.commit()
     return True
