@@ -32,6 +32,8 @@ const GUARDED = [
     "src/components/badges/QRScanner.tsx",
     "src/components/announcements/RecentAnnouncements.tsx",
     "src/features/homework/components",
+    "src/pages/department",
+    "src/components/dashboard/DepartmentDashboardCharts.tsx",
 ];
 
 /** Noms propres et codes affichés tels quels. */

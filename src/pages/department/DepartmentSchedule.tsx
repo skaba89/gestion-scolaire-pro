@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Calendar } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const HOURS = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
@@ -18,6 +19,7 @@ const SUBJECT_COLORS = [
 ];
 
 export default function DepartmentSchedule() {
+  const { t } = useTranslation();
   const [selectedClassroom, setSelectedClassroom] = useState("all");
   const { data, isLoading } = useDepartmentSchedule();
 
@@ -49,17 +51,17 @@ export default function DepartmentSchedule() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Emploi du temps</h1>
-        <p className="text-muted-foreground">Département: {department?.name || "Non assigné"}</p>
+        <h1 className="text-3xl font-bold">{t("departmentPortal.schedule.title")}</h1>
+        <p className="text-muted-foreground">{t("departmentPortal.departmentName", { name: department?.name || t("departmentPortal.notAssigned") })}</p>
       </div>
 
       <div className="flex gap-4">
         <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
           <SelectTrigger className="w-[250px]">
-            <SelectValue placeholder="Toutes les classes" />
+            <SelectValue placeholder={t("departmentPortal.allClasses")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Toutes les classes</SelectItem>
+            <SelectItem value="all">{t("departmentPortal.allClasses")}</SelectItem>
             {classroomsInSchedule.map((c) => (
               <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
             ))}
@@ -71,7 +73,7 @@ export default function DepartmentSchedule() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Planning hebdomadaire
+            {t("departmentPortal.schedule.weekly")}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -124,7 +126,7 @@ export default function DepartmentSchedule() {
       {/* Legend */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Légende des matières</CardTitle>
+          <CardTitle className="text-sm">{t("departmentPortal.schedule.legend")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">

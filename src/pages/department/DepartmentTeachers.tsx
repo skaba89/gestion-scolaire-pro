@@ -6,10 +6,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Users, Clock, BookOpen, GraduationCap } from "lucide-react";
 import { resolveUploadUrl } from "@/utils/url";
+import { useTranslation } from "react-i18next";
 
 const MAX_MONTHLY_HOURS = 40;
 
 export default function DepartmentTeachers() {
+  const { t } = useTranslation();
   const { data, isLoading } = useDepartmentTeachers();
 
   const department = data?.department;
@@ -21,15 +23,15 @@ export default function DepartmentTeachers() {
   const uniqueSubjects = new Set(teachers.flatMap((t) => t.subjects)).size;
 
   if (isLoading) {
-    return <div className="p-6">Chargement...</div>;
+    return <div className="p-6">{t("departmentPortal.loading")}</div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Enseignants du département</h1>
+        <h1 className="text-3xl font-bold">{t("departmentPortal.teachers.title")}</h1>
         <p className="text-muted-foreground">
-          Département: {department?.name || "Non assigné"}
+          {t("departmentPortal.departmentName", { name: department?.name || t("departmentPortal.notAssigned") })}
         </p>
       </div>
 
@@ -37,7 +39,7 @@ export default function DepartmentTeachers() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Enseignants</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("departmentPortal.teachers.teachers")}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -47,7 +49,7 @@ export default function DepartmentTeachers() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Affectations</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("departmentPortal.teachers.assignments")}</CardTitle>
             <GraduationCap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -57,7 +59,7 @@ export default function DepartmentTeachers() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Matières</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("departmentPortal.teachers.subjects")}</CardTitle>
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -67,7 +69,7 @@ export default function DepartmentTeachers() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Heures (ce mois)</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("departmentPortal.teachers.hoursThisMonth")}</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -79,17 +81,17 @@ export default function DepartmentTeachers() {
       {/* Teachers List */}
       <Card>
         <CardHeader>
-          <CardTitle>Liste des enseignants</CardTitle>
+          <CardTitle>{t("departmentPortal.teachers.list")}</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Enseignant</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Matières</TableHead>
-                <TableHead>Classes</TableHead>
-                <TableHead>Heures (mois)</TableHead>
+                <TableHead>{t("departmentPortal.col.teacher")}</TableHead>
+                <TableHead>{t("departmentPortal.col.email")}</TableHead>
+                <TableHead>{t("departmentPortal.col.subjects")}</TableHead>
+                <TableHead>{t("departmentPortal.col.classes")}</TableHead>
+                <TableHead>{t("departmentPortal.col.hoursMonth")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -137,7 +139,7 @@ export default function DepartmentTeachers() {
               {teachers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Aucun enseignant assigné à ce département
+                    {t("departmentPortal.teachers.none")}
                   </TableCell>
                 </TableRow>
               )}

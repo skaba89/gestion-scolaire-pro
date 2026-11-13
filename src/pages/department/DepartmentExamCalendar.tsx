@@ -8,10 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, getDay, startOfWeek, endOfWeek } from "date-fns";
-import { fr } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Calendar, Clock, MapPin, BookOpen } from "lucide-react";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 export default function DepartmentExamCalendar() {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -53,8 +55,8 @@ export default function DepartmentExamCalendar() {
   // Generate calendar days
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
-  const calendarStart = startOfWeek(monthStart, { locale: fr });
-  const calendarEnd = endOfWeek(monthEnd, { locale: fr });
+  const calendarStart = startOfWeek(monthStart, { locale: dateFnsLocale() });
+  const calendarEnd = endOfWeek(monthEnd, { locale: dateFnsLocale() });
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   const getExamsForDay = (date: Date) => {
@@ -81,26 +83,26 @@ export default function DepartmentExamCalendar() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'scheduled':
-        return 'Programmé';
+        return t("departmentPortal.calendar.scheduled");
       case 'in_progress':
-        return 'En cours';
+        return t("departmentPortal.exams.status.in_progress");
       case 'completed':
-        return 'Terminé';
+        return t("departmentPortal.exams.status.completed");
       case 'cancelled':
-        return 'Annulé';
+        return t("departmentPortal.exams.status.cancelled");
       default:
         return status;
     }
   };
 
-  const weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const weekDays = t("departmentPortal.calendar.weekdays").split(",");
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Calendrier des examens</h1>
+        <h1 className="text-3xl font-bold">{t("departmentPortal.calendar.title")}</h1>
         <p className="text-muted-foreground">
-          Département: {(userDepartment?.departments as any)?.name || 'Non assigné'}
+          {t("departmentPortal.departmentName", { name: (userDepartment?.departments as any)?.name || t("departmentPortal.notAssigned") })}
         </p>
       </div>
 
@@ -111,7 +113,7 @@ export default function DepartmentExamCalendar() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
-                {format(currentDate, 'MMMM yyyy', { locale: fr })}
+                {format(currentDate, 'MMMM yyyy', { locale: dateFnsLocale() })}
               </CardTitle>
               <div className="flex gap-2">
                 <Button
@@ -187,7 +189,7 @@ export default function DepartmentExamCalendar() {
         <Card>
           <CardHeader>
             <CardTitle>
-              {selectedExam ? 'Détails de l\'examen' : 'Examens ce mois'}
+              {selectedExam ? t("departmentPortal.calendar.details") : t("departmentPortal.calendar.thisMonth")}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -209,7 +211,7 @@ export default function DepartmentExamCalendar() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    {format(new Date(selectedExam.exam_date), 'EEEE d MMMM yyyy', { locale: fr })}
+                    {format(new Date(selectedExam.exam_date), 'EEEE d MMMM yyyy', { locale: dateFnsLocale() })}
                   </div>
 
                   {(selectedExam.start_time || selectedExam.end_time) && (
@@ -234,12 +236,12 @@ export default function DepartmentExamCalendar() {
 
                 <div className="pt-2 border-t">
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Classe: </span>
-                    {selectedExam.classrooms?.name || 'Non spécifiée'}
+                    <span className="text-muted-foreground">{t("departmentPortal.calendar.class")}</span>
+                    {selectedExam.classrooms?.name || t("departmentPortal.calendar.unspecified")}
                   </div>
                   <div className="text-sm">
-                    <span className="text-muted-foreground">Note max: </span>
-                    {selectedExam.max_score} points
+                    <span className="text-muted-foreground">{t("departmentPortal.calendar.maxScore")}</span>
+                    {t("departmentPortal.calendar.points", { count: selectedExam.max_score })}
                   </div>
                 </div>
 
@@ -248,7 +250,7 @@ export default function DepartmentExamCalendar() {
                   className="w-full"
                   onClick={() => setSelectedExam(null)}
                 >
-                  Retour à la liste
+                  {t("departmentPortal.calendar.backToList")}
                 </Button>
               </div>
             ) : (
@@ -266,8 +268,8 @@ export default function DepartmentExamCalendar() {
                           {exam.subjects?.name}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(exam.exam_date), 'd MMMM', { locale: fr })}
-                          {exam.start_time && ` à ${exam.start_time.slice(0, 5)}`}
+                          {format(new Date(exam.exam_date), 'd MMMM', { locale: dateFnsLocale() })}
+                          {exam.start_time && t("departmentPortal.calendar.at", { time: exam.start_time.slice(0, 5) })}
                         </div>
                       </div>
                       <Badge className={getStatusColor(exam.status)} variant="secondary">
@@ -278,7 +280,7 @@ export default function DepartmentExamCalendar() {
                 ))}
                 {(!exams || exams.length === 0) && (
                   <p className="text-center text-muted-foreground py-4">
-                    Aucun examen ce mois
+                    {t("departmentPortal.calendar.none")}
                   </p>
                 )}
               </div>
