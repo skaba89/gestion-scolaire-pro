@@ -1078,3 +1078,14 @@ ce fichier — pas d'un document de 2025 non révisé.
   écrits en dur en français (≈ 40 dans menus et en-têtes, ≈ 215 dans les
   portails enseignant/département/étudiant/parent/ancien, ≈ 560 dans les
   pages admin) ; 68 fichiers de page sur 166 n'utilisent pas i18n.
+- **2026-11-13 — menus, en-têtes et vocabulaire traduits (lot 2 de l'audit
+  des langues).** Les 7 layouts de portail, le sélecteur de thème et celui de
+  langue n'ont plus de libellé écrit en dur : ≈ 50 clés `nav.*`, `portal.*`,
+  `theme.*` dans les 5 langues. Le vocabulaire élève/étudiant,
+  trimestre/semestre, matière/UE… (`useTerminology`, `useStudentLabel`) vient
+  désormais de `terminology.school.*` / `terminology.higherEd.*` et suit la
+  langue de l'interface. Garde Vitest
+  (`src/components/layouts/navigation-i18n.test.ts`) : aucun libellé de menu
+  en dur, toute clé utilisée présente dans les 5 langues. Traductions
+  rédigées par l'assistant, relecture par des locuteurs natifs à prévoir.
+  Reste : textes des pages (portails, puis admin).
