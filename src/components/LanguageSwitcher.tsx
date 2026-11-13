@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Globe } from "lucide-react";
 import { languages } from "@/lib/i18n";
+import { setUserLanguage } from "@/i18n/config";
 
 export function LanguageSwitcher() {
   const { t, i18n } = useTranslation();
@@ -17,13 +18,9 @@ export function LanguageSwitcher() {
   const currentLang = languages.find((l) => l.code === i18n.language) || languages[0];
 
   const handleLanguageChange = (code: string) => {
-    i18n.changeLanguage(code);
-    // Update document direction for RTL languages
-    const lang = languages.find((l) => l.code === code);
-    if (lang) {
-      document.documentElement.dir = lang.dir;
-      document.documentElement.lang = code;
-    }
+    // Choix explicite : mémorisé, il prime sur la langue de l'établissement ;
+    // lang/dir du document suivent (i18n/config).
+    setUserLanguage(code);
     setOpen(false);
   };
 
