@@ -1,6 +1,13 @@
 
 import { useTenant } from "@/contexts/TenantContext";
 import { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import "@/i18n/config";
+
+const TERMINOLOGY_KEYS = new Set([
+    "term", "terms", "subject", "subjects", "level", "classroom", "student", "students",
+    "teacher", "coefficient", "grade", "ofStudent", "ofStudents", "newStudent",
+]);
 
 export type InstitutionType = 'primary' | 'middle' | 'high' | 'university' | 'training' | 'school' | string;
 
@@ -29,52 +36,20 @@ export const useTerminology = () => {
     // align getLabel with that same distinction.
     const isHigherEd = isUniversity || isTraining;
 
+    const { t, i18n } = useTranslation();
+
+    // Vocabulaire traduit (terminology.school.* / terminology.higherEd.*) ;
+    // une clé inconnue est renvoyée telle quelle, comme avant.
     const getLabel = useCallback((key: string, capitalize = false) => {
-        let label = "";
-
-        switch (key) {
-            case "term":
-                label = isHigherEd ? "semestre" : "trimestre";
-                break;
-            case "terms":
-                label = isHigherEd ? "semestres" : "trimestres";
-                break;
-            case "subject":
-                label = isHigherEd ? "unité d'enseignement (UE)" : "matière";
-                break;
-            case "subjects":
-                label = isHigherEd ? "modules / UE" : "matières";
-                break;
-            case "level":
-                label = isHigherEd ? "niveau / année" : "niveau";
-                break;
-            case "classroom":
-                label = isHigherEd ? "groupe / amphi" : "classe";
-                break;
-            case "student":
-                label = isHigherEd ? "étudiant" : "élève";
-                break;
-            case "students":
-                label = isHigherEd ? "étudiants" : "élèves";
-                break;
-            case "teacher":
-                label = "enseignant";
-                break;
-            case "coefficient":
-                label = isHigherEd ? "crédits (ECTS)" : "coefficient";
-                break;
-            case "grade":
-                label = "note";
-                break;
-            default:
-                label = key;
-        }
-
+        const variant = isHigherEd ? "higherEd" : "school";
+        const label = TERMINOLOGY_KEYS.has(key) ? t(`terminology.${variant}.${key}`) : key;
         if (capitalize) {
             return label.charAt(0).toUpperCase() + label.slice(1);
         }
         return label;
-    }, [isHigherEd]);
+        // i18n.language : recalcul des libellés au changement de langue.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isHigherEd, t, i18n.language]);
 
     return useMemo(() => ({
         getLabel,

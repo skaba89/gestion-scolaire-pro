@@ -32,29 +32,29 @@ export const ParentLayout = () => {
   useRealtimeMessages();
 
   const navItems = [
-    { href: getTenantUrl("/parent"), label: "Tableau de bord", icon: Home },
-    { href: getTenantUrl("/parent/children"), label: "Mes Enfants", icon: Users },
-    { href: getTenantUrl("/parent/analytics"), label: "Statistiques", icon: BarChart3 },
-    { href: getTenantUrl("/parent/pre-registration"), label: "Pré-inscription", icon: RefreshCw },
-    { href: getTenantUrl("/parent/report-cards"), label: "Bulletins", icon: FileText },
-    { href: getTenantUrl("/parent/invoices"), label: "Factures", icon: CreditCard },
-    { href: getTenantUrl("/parent/messages"), label: "Messages", icon: MessageSquare },
-    { href: getTenantUrl("/parent/appointments"), label: "Rendez-vous", icon: CalendarCheck },
+    { href: getTenantUrl("/parent"), label: t("nav.dashboard"), icon: Home },
+    { href: getTenantUrl("/parent/children"), label: t("nav.myChildren"), icon: Users },
+    { href: getTenantUrl("/parent/analytics"), label: t("nav.statistics"), icon: BarChart3 },
+    { href: getTenantUrl("/parent/pre-registration"), label: t("nav.preRegistration"), icon: RefreshCw },
+    { href: getTenantUrl("/parent/report-cards"), label: t("nav.reportCards"), icon: FileText },
+    { href: getTenantUrl("/parent/invoices"), label: t("nav.invoices"), icon: CreditCard },
+    { href: getTenantUrl("/parent/messages"), label: t("nav.messages"), icon: MessageSquare },
+    { href: getTenantUrl("/parent/appointments"), label: t("nav.appointments"), icon: CalendarCheck },
   ];
 
   const mobileNavItems = [
-    { href: getTenantUrl("/parent"), label: "Accueil", icon: Home },
-    { href: getTenantUrl("/parent/children"), label: "Enfants", icon: Users },
-    { href: getTenantUrl("/parent/invoices"), label: "Factures", icon: CreditCard },
-    { href: getTenantUrl("/parent/report-cards"), label: "Bulletins", icon: FileText },
-    { href: getTenantUrl("/parent/messages"), label: "Messages", icon: MessageSquare },
+    { href: getTenantUrl("/parent"), label: t("nav.home"), icon: Home },
+    { href: getTenantUrl("/parent/children"), label: t("nav.children"), icon: Users },
+    { href: getTenantUrl("/parent/invoices"), label: t("nav.invoices"), icon: CreditCard },
+    { href: getTenantUrl("/parent/report-cards"), label: t("nav.reportCards"), icon: FileText },
+    { href: getTenantUrl("/parent/messages"), label: t("nav.messages"), icon: MessageSquare },
   ];
 
   return (
     <div className="min-h-screen bg-background">
       <ScrollProgress />
       <ResponsiveSidebar
-        portalName="Espace Parent"
+        portalName={t("portal.parentSpace")}
         navItems={navItems}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}

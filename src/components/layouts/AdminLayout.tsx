@@ -166,80 +166,80 @@ export const AdminLayout = () => {
   const allNavSections: NavSection[] = useMemo(() => [
     {
       id: "overview",
-      title: t("nav.overview", "Vue d'ensemble"),
+      title: t("nav.overview"),
       icon: LayoutDashboard,
       defaultOpen: true,
       items: [
         { href: getTenantUrl("/admin"), label: t("nav.dashboard"), icon: Home, permission: "dashboard:admin" },
         { href: getTenantUrl("/admin/analytics"), label: t("nav.analytics"), icon: BarChart3, permission: "dashboard:admin" },
         { href: getTenantUrl("/admin/ai-insights"), label: t("nav.aiInsights"), icon: Brain, permission: "ai:read" },
-        { href: getTenantUrl("/admin/decision-support"), label: isUniversity ? "Analyse Stratégique" : "Tableau Décisionnel", icon: Target, permission: "dashboard:admin" },
-        { href: getTenantUrl("/admin/ministry-reporting"), label: isUniversity ? "Reporting de l'Enseignement Supérieur" : "Reporting Institutionnel", icon: Shield, permission: "dashboard:admin" },
-        ...(isSuperAdmin ? [{ href: getTenantUrl("/admin/tenants"), label: "Établissements", icon: Building2 }] : []),
+        { href: getTenantUrl("/admin/decision-support"), label: isUniversity ? t("nav.strategicAnalysis") : t("nav.decisionBoard"), icon: Target, permission: "dashboard:admin" },
+        { href: getTenantUrl("/admin/ministry-reporting"), label: isUniversity ? t("nav.higherEdReporting") : t("nav.institutionalReporting"), icon: Shield, permission: "dashboard:admin" },
+        ...(isSuperAdmin ? [{ href: getTenantUrl("/admin/tenants"), label: t("nav.tenants"), icon: Building2 }] : []),
       ],
     },
     {
       id: "guides",
-      title: t("nav.guides", "Guides"),
+      title: t("nav.guides"),
       icon: BookOpen,
       defaultOpen: true,
       items: [
-        { href: getTenantUrl("/admin/testing-guide"), label: t("nav.testingGuide", "Guide de test"), icon: TestTube2, permission: "guides:read" },
-        { href: getTenantUrl("/admin/university-guide"), label: isUniversity ? "Guide Universitaire" : "Guide de l'école", icon: BookOpen, permission: "guides:read" },
-        { href: getTenantUrl("/admin/documentation"), label: "Documentation", icon: BookOpen, permission: "guides:read" },
+        { href: getTenantUrl("/admin/testing-guide"), label: t("nav.testingGuide"), icon: TestTube2, permission: "guides:read" },
+        { href: getTenantUrl("/admin/university-guide"), label: isUniversity ? t("nav.universityGuide") : t("nav.schoolGuide"), icon: BookOpen, permission: "guides:read" },
+        { href: getTenantUrl("/admin/documentation"), label: t("nav.documentation"), icon: BookOpen, permission: "guides:read" },
       ],
     },
     {
       id: "academicManagement",
-      title: t("nav.academicManagement", "Gestion Académique"),
+      title: t("nav.academicManagement"),
       icon: GraduationCap,
       items: [
         { href: getTenantUrl("/admin/admissions"), label: t("nav.admissions"), icon: BookOpen, permission: "admissions:read" },
         { href: getTenantUrl("/admin/students"), label: StudentsLabel, icon: Users, permission: "students:read" },
-        { href: getTenantUrl("/admin/class-lists"), label: isUniversity ? "Listes d'Inscriptions" : "Listes de Classe", icon: ClipboardList, permission: "enrollments:read" },
+        { href: getTenantUrl("/admin/class-lists"), label: isUniversity ? t("nav.enrollmentLists") : t("nav.classLists"), icon: ClipboardList, permission: "enrollments:read" },
         { href: getTenantUrl("/admin/enrollments"), label: t("nav.enrollments"), icon: UserCheck, permission: "enrollments:read" },
         { href: getTenantUrl("/admin/teachers"), label: t("nav.teachers"), icon: GraduationCap, permission: "teachers:read" },
         { href: getTenantUrl("/admin/grades"), label: t("nav.grades"), icon: BarChart3, permission: "grades:read" },
         { href: getTenantUrl("/admin/report-cards"), label: t("nav.reportCards"), icon: FileText, permission: "report_cards:read" },
         { href: getTenantUrl("/admin/certificates"), label: t("nav.certificates"), icon: Award, permission: "certificates:read" },
-        { href: getTenantUrl("/admin/scan"), label: "Scan Présence", icon: ScanLine, permission: "attendance:read" },
-        { href: getTenantUrl("/admin/kiosk-devices"), label: "Appareils kiosque", icon: ScanLine, permission: "settings:read" },
+        { href: getTenantUrl("/admin/scan"), label: t("nav.attendanceScan"), icon: ScanLine, permission: "attendance:read" },
+        { href: getTenantUrl("/admin/kiosk-devices"), label: t("nav.kioskDevices"), icon: ScanLine, permission: "settings:read" },
       ],
     },
     {
       id: "structure",
-      title: t("nav.structure", "Structure"),
+      title: t("nav.structure"),
       icon: Building2,
       defaultOpen: true,
       items: [
         { href: getTenantUrl("/admin/academic-years"), label: t("nav.academicYears"), icon: Calendar, permission: "academic_years:manage" },
         { href: getTenantUrl("/admin/terms"), label: termsLabel, icon: CalendarDays, permission: "terms:manage" },
-        { href: getTenantUrl("/admin/semesters"), label: "Semestres", icon: CalendarDays, permission: "terms:manage" },
+        { href: getTenantUrl("/admin/semesters"), label: t("nav.semesters"), icon: CalendarDays, permission: "terms:manage" },
         { href: getTenantUrl("/admin/levels"), label: levelLabel, icon: Layers, permission: "levels:manage" },
         { href: getTenantUrl("/admin/classrooms"), label: classroomLabel, icon: School, permission: "classrooms:manage" },
         { href: getTenantUrl("/admin/subjects"), label: subjectsLabel, icon: FileText, permission: "subjects:manage" },
-        { href: getTenantUrl("/admin/academic-rules"), label: "Règles académiques", icon: ClipboardList, permission: "settings:manage" },
+        { href: getTenantUrl("/admin/academic-rules"), label: t("nav.academicRules"), icon: ClipboardList, permission: "settings:manage" },
         { href: getTenantUrl("/admin/campuses"), label: t("nav.campuses"), icon: Home, permission: "settings:manage" },
-        { href: getTenantUrl("/admin/faculties"), label: "Facultés", icon: Landmark, permission: "faculties:manage" },
+        { href: getTenantUrl("/admin/faculties"), label: t("nav.faculties"), icon: Landmark, permission: "faculties:manage" },
         { href: getTenantUrl("/admin/departments"), label: t("nav.departments"), icon: Building2, permission: "departments:read" },
-        { href: getTenantUrl("/admin/programs"), label: "Filières / Programmes", icon: GraduationCap, permission: "classrooms:manage" },
+        { href: getTenantUrl("/admin/programs"), label: t("nav.programs"), icon: GraduationCap, permission: "classrooms:manage" },
       ],
     },
     {
       id: "planning",
-      title: t("nav.planning", "Planification"),
+      title: t("nav.planning"),
       icon: Calendar,
       defaultOpen: true,
       items: [
         { href: getTenantUrl("/admin/schedule"), label: t("nav.schedule"), icon: Clock, permission: "schedule:read" },
         { href: getTenantUrl("/admin/calendar"), label: t("nav.calendar"), icon: CalendarDays, permission: "settings:read" }, // Calendar often global
         { href: getTenantUrl("/admin/bookings"), label: t("nav.bookings"), icon: CalendarCheck, permission: "rooms:read" },
-        { href: getTenantUrl("/admin/events"), label: t("nav.events", "Événements"), icon: PartyPopper, permission: "events:read" },
+        { href: getTenantUrl("/admin/events"), label: t("nav.events"), icon: PartyPopper, permission: "events:read" },
       ],
     },
     {
       id: "attendance",
-      title: t("nav.attendance", "Présences"),
+      title: t("nav.attendance"),
       icon: Activity,
       items: [
         { href: getTenantUrl("/admin/badges"), label: t("nav.badges"), icon: QrCode, permission: "attendance:manage" },
@@ -249,18 +249,18 @@ export const AdminLayout = () => {
     },
     {
       id: "financesSection",
-      title: t("nav.financesSection", "Finances"),
+      title: t("nav.financesSection"),
       icon: Wallet,
       items: [
         { href: getTenantUrl("/admin/finances"), label: t("nav.finances"), icon: CreditCard, permission: "fees:read" },
-        { href: getTenantUrl("/admin/inventory"), label: "Inventaire", icon: Package, permission: "invoices:read" },
-        { href: getTenantUrl("/admin/orders"), label: "Réception Commandes", icon: ShoppingCart, permission: "invoices:read" },
-        { href: getTenantUrl("/admin/accounting-exports"), label: t("nav.accountingExports", "Exports Comptables"), icon: Receipt, permission: "fees:manage" },
+        { href: getTenantUrl("/admin/inventory"), label: t("nav.inventory"), icon: Package, permission: "invoices:read" },
+        { href: getTenantUrl("/admin/orders"), label: t("nav.orderReception"), icon: ShoppingCart, permission: "invoices:read" },
+        { href: getTenantUrl("/admin/accounting-exports"), label: t("nav.accountingExports"), icon: Receipt, permission: "fees:manage" },
       ],
     },
     {
       id: "learning",
-      title: t("nav.learning", "Apprentissage"),
+      title: t("nav.learning"),
       icon: Monitor,
       items: [
         { href: getTenantUrl("/admin/elearning"), label: t("nav.elearning"), icon: Monitor, permission: "homework:read" },
@@ -270,46 +270,46 @@ export const AdminLayout = () => {
     },
     {
       id: "studentLife",
-      title: t("nav.studentLife", "Vie Étudiante"),
+      title: t("nav.studentLife"),
       icon: UsersIcon,
       items: [
-        { href: getTenantUrl("/admin/clubs"), label: t("nav.clubs", "Clubs"), icon: UsersIcon, permission: "events:read" },
-        { href: getTenantUrl("/admin/careers"), label: t("nav.careers", "Carrières & Stages"), icon: GraduationCap, permission: "users:read" },
-        { href: getTenantUrl("/admin/alumni-mentors"), label: t("nav.alumniMentors", "Mentors Alumni"), icon: Users, permission: "users:read" },
-        { href: getTenantUrl("/admin/alumni-requests"), label: t("nav.alumniRequests", "Requêtes Alumni"), icon: FileText, permission: "users:read" },
+        { href: getTenantUrl("/admin/clubs"), label: t("nav.clubs"), icon: UsersIcon, permission: "events:read" },
+        { href: getTenantUrl("/admin/careers"), label: t("nav.careers"), icon: GraduationCap, permission: "users:read" },
+        { href: getTenantUrl("/admin/alumni-mentors"), label: t("nav.alumniMentors"), icon: Users, permission: "users:read" },
+        { href: getTenantUrl("/admin/alumni-requests"), label: t("nav.alumniRequests"), icon: FileText, permission: "users:read" },
         // Sensitive nominative alerts: visible only to roles accepted by the API,
         // never to teachers, students or parents with broad read permissions.
         ...(roles.some(role => ["TENANT_ADMIN", "DIRECTOR", "SUPER_ADMIN"].includes(role))
-          ? [{ href: getTenantUrl("/admin/early-warnings"), label: "Alertes précoces", icon: Brain, permission: "students:read" as Permission }]
+          ? [{ href: getTenantUrl("/admin/early-warnings"), label: t("nav.earlyWarnings"), icon: Brain, permission: "students:read" as Permission }]
           : []),
       ],
     },
     {
       id: "communication",
-      title: t("nav.communication", "Communication"),
+      title: t("nav.communication"),
       icon: Megaphone,
       items: [
         { href: getTenantUrl("/admin/messages"), label: t("nav.messages"), icon: MessageSquare, permission: "messages:read" },
-        { href: getTenantUrl("/admin/announcements"), label: t("nav.announcements", "Annonces"), icon: Megaphone, permission: "messages:admin" },
-        { href: getTenantUrl("/admin/surveys"), label: "Enquêtes", icon: ClipboardList, permission: "tenant:manage" },
-        { href: getTenantUrl("/admin/forums"), label: "Forums", icon: MessageSquare, permission: "tenant:manage" },
+        { href: getTenantUrl("/admin/announcements"), label: t("nav.announcements"), icon: Megaphone, permission: "messages:admin" },
+        { href: getTenantUrl("/admin/surveys"), label: t("nav.surveys"), icon: ClipboardList, permission: "tenant:manage" },
+        { href: getTenantUrl("/admin/forums"), label: t("nav.forums"), icon: MessageSquare, permission: "tenant:manage" },
       ],
     },
     {
       id: "administration",
-      title: t("nav.administration", "Administration"),
+      title: t("nav.administration"),
       icon: Cog,
       items: [
         { href: getTenantUrl("/admin/users"), label: t("nav.users"), icon: UsersRound, permission: "users:read" },
-        { href: getTenantUrl("/admin/hr"), label: t("nav.hr", "Ressources Humaines"), icon: Briefcase, permission: "users:update" }, // HR requires restricted access
-        { href: getTenantUrl("/admin/security"), label: t("nav.security", "Sécurité"), icon: Shield, permission: "tenant:manage" },
+        { href: getTenantUrl("/admin/hr"), label: t("nav.hr"), icon: Briefcase, permission: "users:update" }, // HR requires restricted access
+        { href: getTenantUrl("/admin/security"), label: t("nav.security"), icon: Shield, permission: "tenant:manage" },
         { href: getTenantUrl("/admin/exports"), label: t("nav.exports"), icon: Download, permission: "students:export" },
-        { href: getTenantUrl("/admin/data-import"), label: "Import de données", icon: Upload, permission: "students:import" },
+        { href: getTenantUrl("/admin/data-import"), label: t("nav.dataImport"), icon: Upload, permission: "students:import" },
         { href: getTenantUrl("/admin/audit-logs"), label: t("nav.auditLogs"), icon: Activity, permission: "tenant:manage" },
-        { href: getTenantUrl("/admin/incidents"), label: "Incidents", icon: Shield, permission: "tenant:manage" },
-        { href: getTenantUrl("/admin/data-quality"), label: "Qualité des Données", icon: Activity, permission: "settings:manage" },
-        { href: getTenantUrl("/admin/public-pages"), label: "Pages publiques", icon: Globe, permission: "settings:manage" },
-        { href: getTenantUrl("/admin/public-pages/messages"), label: "Messages reçus", icon: Inbox, permission: "settings:manage" },
+        { href: getTenantUrl("/admin/incidents"), label: t("nav.incidents"), icon: Shield, permission: "tenant:manage" },
+        { href: getTenantUrl("/admin/data-quality"), label: t("nav.dataQuality"), icon: Activity, permission: "settings:manage" },
+        { href: getTenantUrl("/admin/public-pages"), label: t("nav.publicPages"), icon: Globe, permission: "settings:manage" },
+        { href: getTenantUrl("/admin/public-pages/messages"), label: t("nav.receivedMessages"), icon: Inbox, permission: "settings:manage" },
         { href: getTenantUrl("/admin/settings"), label: t("nav.settings"), icon: Settings, permission: "settings:read" },
       ],
     },
@@ -341,7 +341,7 @@ export const AdminLayout = () => {
   const mobileNavItems = useMemo(() => [
     { href: getTenantUrl("/admin"), label: t("nav.dashboard"), icon: Home },
     { href: getTenantUrl("/admin/students"), label: StudentsLabel, icon: Users },
-    { href: getTenantUrl("/admin/scan"), label: "Scan", icon: ScanLine },
+    { href: getTenantUrl("/admin/scan"), label: t("nav.scan"), icon: ScanLine },
     { href: getTenantUrl("/admin/finances"), label: t("nav.finances"), icon: CreditCard },
     { href: getTenantUrl("/admin/messages"), label: t("nav.messages"), icon: MessageSquare },
     { href: getTenantUrl("/admin/settings"), label: t("nav.settings"), icon: Settings },
@@ -455,8 +455,8 @@ export const AdminLayout = () => {
               <div className="p-2 border-t border-border bg-muted/30 flex flex-col items-center gap-1">
                 <Link
                   to={getTenantUrl("/admin/profile")}
-                  title={t("nav.profile", "Mon Profil")}
-                  aria-label={t("nav.profile", "Mon Profil")}
+                  title={t("nav.profile")}
+                  aria-label={t("nav.profile")}
                   className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center text-white font-semibold shadow-colored"
                 >
                   {profile?.first_name?.[0]}{profile?.last_name?.[0]}
@@ -502,7 +502,7 @@ export const AdminLayout = () => {
                   className="w-full justify-start gap-2 rounded-xl h-11 mb-2 text-muted-foreground hover:text-foreground hover:bg-muted"
                 >
                   <UserCog className="w-4 h-4" />
-                  {t("nav.profile", "Mon Profil")}
+                  {t("nav.profile")}
                 </Button>
               </Link>
               <Button
