@@ -2,12 +2,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Brain } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsRecommendationsProps {
     recommendations: any[];
 }
 
 export const AnalyticsRecommendations = ({ recommendations }: AnalyticsRecommendationsProps) => {
+    const { t } = useTranslation();
     const [isVisible, setIsVisible] = useState(true);
 
     if (!isVisible || recommendations.length === 0) return null;
@@ -18,10 +20,10 @@ export const AnalyticsRecommendations = ({ recommendations }: AnalyticsRecommend
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Brain className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-lg">Recommandations personnalisées</CardTitle>
+                        <CardTitle className="text-lg">{t("parentPortal.recommendations.title")}</CardTitle>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => setIsVisible(false)}>
-                        Masquer
+                        {t("parentPortal.recommendations.hide")}
                     </Button>
                 </div>
             </CardHeader>

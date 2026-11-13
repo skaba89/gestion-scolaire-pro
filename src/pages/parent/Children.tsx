@@ -14,8 +14,10 @@ import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { ParentChildInfoCard } from "@/components/parent/ParentChildInfoCard";
 
 import { useParentData } from "@/features/parents/hooks/useParentData";
+import { useTranslation } from "react-i18next";
 
 const Children = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { getTenantUrl } = useTenantUrl();
   const [selectedStudentForAttendance, setSelectedStudentForAttendance] = useState<{ id: string, name: string } | null>(null);
@@ -31,12 +33,12 @@ const Children = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Mes Enfants</h1>
-          <p className="text-muted-foreground">Consultez les informations et résultats de vos enfants</p>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t("parentPortal.children.title")}</h1>
+          <p className="text-muted-foreground">{t("parentPortal.children.subtitle")}</p>
         </div>
         <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full border border-primary/5">
           <Users className="w-4 h-4 text-primary" />
-          <span className="text-sm font-bold text-primary">{children?.length || 0} enfant(s)</span>
+          <span className="text-sm font-bold text-primary">{t("parentPortal.children.count", { count: children?.length || 0 })}</span>
         </div>
       </div>
 
@@ -46,9 +48,9 @@ const Children = () => {
             <div className="w-20 h-20 bg-muted rounded-3xl flex items-center justify-center mx-auto mb-6">
               <Users className="w-10 h-10 text-muted-foreground/30" />
             </div>
-            <p className="text-xl font-bold font-display mb-2">Aucun enfant trouvé</p>
+            <p className="text-xl font-bold font-display mb-2">{t("parentPortal.children.none")}</p>
             <p className="text-muted-foreground max-w-sm mx-auto">
-              Veuillez contacter l'administration de l'établissement pour associer vos enfants à votre compte parent.
+              {t("parentPortal.children.noneHint")}
             </p>
           </CardContent>
         </Card>
@@ -75,7 +77,7 @@ const Children = () => {
           <Card className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border-primary/10 animate-in zoom-in-95 duration-300">
             <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-card z-10 border-b p-6">
               <div>
-                <CardTitle className="font-display text-xl">Historique des présences</CardTitle>
+                <CardTitle className="font-display text-xl">{t("parentPortal.children.attendanceHistory")}</CardTitle>
                 <p className="text-sm text-primary font-bold mt-1">{selectedStudentForAttendance.name}</p>
               </div>
               <Button

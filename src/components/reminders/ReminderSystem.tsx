@@ -21,13 +21,14 @@ import {
   X
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { useCurrency } from "@/hooks/useCurrency";
 import { canLoadPaymentReminders } from "./reminderAccess";
 import { useStudentData } from "@/features/students/hooks/useStudentData";
+import { intlLocale, dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 // SECURITY: Prevent open redirect attacks by validating URLs before navigation
 function isSafeRedirect(url: string): boolean {
@@ -101,6 +102,7 @@ type StudentHomeworkItem = {
 };
 
 export const ReminderSystem = () => {
+  const { t } = useTranslation();
   const { user, roles } = useAuth();
   const { tenant } = useTenant();
   const { getTenantUrl } = useTenantUrl();
@@ -136,7 +138,7 @@ export const ReminderSystem = () => {
   const savePreferences = (newPrefs: ReminderPreferences) => {
     setPreferences(newPrefs);
     localStorage.setItem(`reminder-prefs-${user?.id}`, JSON.stringify(newPrefs));
-    toast.success("Préférences sauvegardées");
+    toast.success(t("reminders.saved"));
   };
 
   // Dismiss reminder
@@ -219,7 +221,7 @@ export const ReminderSystem = () => {
           id: `homework-${hw.id}`,
           type: "homework",
           title: hw.title,
-          description: `${hw.subject_name || "Devoir"} - À rendre`,
+          description: t("reminders.homeworkDue", { subject: hw.subject_name || t("reminders.homework") }),
           dueDate,
           isUrgent: daysUntilDue <= 1,
           urgencyLevel: getUrgencyLevel(daysUntilDue),
@@ -241,8 +243,8 @@ export const ReminderSystem = () => {
         reminders.push({
           id: `invoice-${inv.id}`,
           type: "payment",
-          title: `Facture ${inv.invoice_number}`,
-          description: `${inv.students?.first_name ?? ""} ${inv.students?.last_name ?? ""} - ${remainingAmount(inv).toLocaleString("fr-FR")} ${currency.symbol}`.trim(),
+          title: t("reminders.invoice", { number: inv.invoice_number }),
+          description: `${inv.students?.first_name ?? ""} ${inv.students?.last_name ?? ""} - ${remainingAmount(inv).toLocaleString(intlLocale())} ${currency.symbol}`.trim(),
           dueDate,
           isUrgent: isOverdue || daysUntilDue <= 3,
           urgencyLevel: getUrgencyLevel(daysUntilDue),
@@ -264,7 +266,7 @@ export const ReminderSystem = () => {
           id: `event-${event.id}`,
           type: "event",
           title: event.title,
-          description: event.location || event.event_type || "Événement",
+          description: event.location || event.event_type || t("reminders.event"),
           dueDate: eventDate,
           isUrgent: daysUntilEvent <= 1,
           urgencyLevel: getUrgencyLevel(daysUntilEvent),
@@ -310,7 +312,7 @@ export const ReminderSystem = () => {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Bell className="w-5 h-5" />
-          Rappels
+          {t("reminders.title")}
           {activeReminders.length > 0 && (
             <Badge variant="secondary">{activeReminders.length}</Badge>
           )}
@@ -326,7 +328,7 @@ export const ReminderSystem = () => {
             <div className="flex items-center justify-between">
               <Label htmlFor="homework-reminders" className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4" />
-                Rappels de devoirs
+                {t("reminders.homeworkReminders")}
               </Label>
               <Switch
                 id="homework-reminders"
@@ -339,7 +341,7 @@ export const ReminderSystem = () => {
             <div className="flex items-center justify-between">
               <Label htmlFor="payment-reminders" className="flex items-center gap-2">
                 <CreditCard className="w-4 h-4" />
-                Rappels de paiement
+                {t("reminders.paymentReminders")}
               </Label>
               <Switch
                 id="payment-reminders"
@@ -352,7 +354,7 @@ export const ReminderSystem = () => {
             <div className="flex items-center justify-between">
               <Label htmlFor="event-reminders" className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                Rappels d'événements
+                {t("reminders.eventReminders")}
               </Label>
               <Switch
                 id="event-reminders"
@@ -368,14 +370,14 @@ export const ReminderSystem = () => {
               className="w-full mt-2"
               onClick={() => setShowSettings(false)}
             >
-              Fermer les paramètres
+              {t("reminders.closeSettings")}
             </Button>
           </div>
         ) : activeReminders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <CheckCircle2 className="w-10 h-10 text-success/50 mb-2" />
-            <p className="text-sm text-muted-foreground">Aucun rappel pour le moment</p>
-            <p className="text-xs text-muted-foreground mt-1">Tout est à jour !</p>
+            <p className="text-sm text-muted-foreground">{t("reminders.none")}</p>
+            <p className="text-xs text-muted-foreground mt-1">{t("reminders.upToDate")}</p>
           </div>
         ) : (
           <ScrollArea className="h-[300px] pr-4">
@@ -383,7 +385,7 @@ export const ReminderSystem = () => {
               <div className="mb-4">
                 <div className="flex items-center gap-2 mb-2">
                   <AlertTriangle className="w-4 h-4 text-destructive" />
-                  <span className="text-sm font-semibold text-destructive">Urgent</span>
+                  <span className="text-sm font-semibold text-destructive">{t("reminders.urgent")}</span>
                 </div>
                 <div className="space-y-2">
                   {urgentReminders.map((reminder) => (
@@ -403,7 +405,7 @@ export const ReminderSystem = () => {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-sm font-semibold text-muted-foreground">À venir</span>
+                  <span className="text-sm font-semibold text-muted-foreground">{t("reminders.upcoming")}</span>
                 </div>
                 <div className="space-y-2">
                   {upcomingReminders.map((reminder) => (
@@ -468,7 +470,7 @@ const ReminderItem = ({ reminder, getIcon, getTypeColor, onDismiss }: ReminderIt
           <p className="font-medium text-sm truncate pr-6">{reminder.title}</p>
           <p className="text-xs opacity-75 truncate">{reminder.description}</p>
           <p className="text-xs mt-1 opacity-75">
-            {formatDistanceToNow(reminder.dueDate, { addSuffix: true, locale: fr })}
+            {formatDistanceToNow(reminder.dueDate, { addSuffix: true, locale: dateFnsLocale() })}
           </p>
         </div>
       </div>

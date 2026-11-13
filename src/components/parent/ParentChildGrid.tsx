@@ -2,6 +2,7 @@ import { TrendingUp, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ParentChildCard } from "@/components/dashboard/ParentChildCard";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-container";
+import { useTranslation } from "react-i18next";
 
 // La forme réelle renvoyée par GET /parents/dashboard/ est PLATE
 // (student_id, first_name...), pas imbriquée sous .student — contrairement
@@ -21,11 +22,12 @@ interface ParentChildGridProps {
 }
 
 export const ParentChildGrid = ({ children, tenantId }: ParentChildGridProps) => {
+    const { t } = useTranslation();
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-primary" />
-                <h2 className="text-lg font-semibold font-display">Performance de mes enfants</h2>
+                <h2 className="text-lg font-semibold font-display">{t("parentPortal.grid.title")}</h2>
             </div>
 
             {children.length === 0 ? (
@@ -33,9 +35,9 @@ export const ParentChildGrid = ({ children, tenantId }: ParentChildGridProps) =>
                     <CardContent className="py-12">
                         <div className="text-center">
                             <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-                            <p className="text-muted-foreground font-medium">Aucun enfant associé</p>
+                            <p className="text-muted-foreground font-medium">{t("parentPortal.grid.none")}</p>
                             <p className="text-sm text-muted-foreground/70">
-                                Contactez l'administration pour associer vos enfants à votre compte.
+                                {t("parentPortal.grid.noneHint")}
                             </p>
                         </div>
                     </CardContent>

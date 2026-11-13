@@ -2,8 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsHomeworkTabProps {
     homeworkData: any[];
@@ -11,12 +12,13 @@ interface AnalyticsHomeworkTabProps {
 }
 
 export const AnalyticsHomeworkTab = ({ homeworkData, homeworkTimingData }: AnalyticsHomeworkTabProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid gap-6 md:grid-cols-3">
             <Card className="md:col-span-2">
                 <CardHeader>
-                    <CardTitle>Derniers devoirs</CardTitle>
-                    <CardDescription>État des rendus et notes obtenues</CardDescription>
+                    <CardTitle>{t("parentPortal.homeworkTab.title")}</CardTitle>
+                    <CardDescription>{t("parentPortal.homeworkTab.subtitle")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
@@ -31,7 +33,7 @@ export const AnalyticsHomeworkTab = ({ homeworkData, homeworkTimingData }: Analy
                                     <div>
                                         <p className="font-medium">{hw.homework?.title}</p>
                                         <p className="text-sm text-muted-foreground">
-                                            Échéance: {hw.homework?.due_date ? format(new Date(hw.homework.due_date), "dd MMM yyyy", { locale: fr }) : "-"}
+                                            {t("parentPortal.homeworkTab.due", { date: hw.homework?.due_date ? format(new Date(hw.homework.due_date), "dd MMM yyyy", { locale: dateFnsLocale() }) : "-" })}
                                         </p>
                                     </div>
                                 </div>
@@ -41,15 +43,15 @@ export const AnalyticsHomeworkTab = ({ homeworkData, homeworkTimingData }: Analy
                                             {hw.grade}/{hw.homework?.max_points || 20}
                                         </Badge>
                                     ) : hw.submitted_at ? (
-                                        <Badge variant="outline">En attente</Badge>
+                                        <Badge variant="outline">{t("parentPortal.homeworkTab.pending")}</Badge>
                                     ) : (
-                                        <Badge variant="destructive">Non rendu</Badge>
+                                        <Badge variant="destructive">{t("parentPortal.homeworkTab.notSubmitted")}</Badge>
                                     )}
                                 </div>
                             </div>
                         ))}
                         {homeworkData.length === 0 && (
-                            <p className="text-center text-muted-foreground py-8">Aucun devoir trouvé</p>
+                            <p className="text-center text-muted-foreground py-8">{t("parentPortal.homeworkTab.none")}</p>
                         )}
                     </div>
                 </CardContent>
@@ -57,8 +59,8 @@ export const AnalyticsHomeworkTab = ({ homeworkData, homeworkTimingData }: Analy
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Ponctualité</CardTitle>
-                    <CardDescription>Timing des rendus</CardDescription>
+                    <CardTitle>{t("parentPortal.homeworkTab.punctuality")}</CardTitle>
+                    <CardDescription>{t("parentPortal.homeworkTab.timing")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-64">

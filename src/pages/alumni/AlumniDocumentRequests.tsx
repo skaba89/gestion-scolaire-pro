@@ -18,7 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
+import { dateFnsLocale } from "@/lib/locale";
 import { 
   FileText, 
   Plus, 
@@ -35,24 +36,31 @@ import {
 } from "lucide-react";
 
 const DOCUMENT_TYPES = [
-  { value: "transcript", label: "Relevé de notes" },
-  { value: "diploma", label: "Diplôme" },
-  { value: "certificate", label: "Certificat de scolarité" },
-  { value: "attestation", label: "Attestation" },
-  { value: "other", label: "Autre document" },
+  { value: "transcript", labelKey: "alumniPortal.docType.transcript" },
+  { value: "diploma", labelKey: "alumniPortal.docType.diploma" },
+  { value: "certificate", labelKey: "alumniPortal.docType.certificateOfEnrollment" },
+  { value: "attestation", labelKey: "alumniPortal.docType.attestation" },
+  { value: "other", labelKey: "alumniPortal.docType.otherDocument" },
 ];
 
-const STATUS_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  pending: { label: "En attente", color: "bg-yellow-100 text-yellow-800", icon: <Clock className="w-3 h-3" /> },
-  in_progress: { label: "En cours", color: "bg-blue-100 text-blue-800", icon: <Loader2 className="w-3 h-3" /> },
-  awaiting_validation: { label: "En validation", color: "bg-purple-100 text-purple-800", icon: <AlertCircle className="w-3 h-3" /> },
-  validated: { label: "Validé", color: "bg-green-100 text-green-800", icon: <CheckCircle2 className="w-3 h-3" /> },
-  rejected: { label: "Rejeté", color: "bg-red-100 text-red-800", icon: <XCircle className="w-3 h-3" /> },
-  completed: { label: "Terminé", color: "bg-emerald-100 text-emerald-800", icon: <CheckCircle2 className="w-3 h-3" /> },
-  cancelled: { label: "Annulé", color: "bg-gray-100 text-gray-800", icon: <XCircle className="w-3 h-3" /> },
+const DELIVERY_KEYS: Record<string, string> = {
+  email: "alumniPortal.requests.deliveryEmail",
+  mail: "alumniPortal.requests.deliveryMail",
+  pickup: "alumniPortal.requests.deliveryPickup",
+};
+
+const STATUS_LABELS: Record<string, { labelKey: string; color: string; icon: React.ReactNode }> = {
+  pending: { labelKey: "alumniPortal.status.pending", color: "bg-yellow-100 text-yellow-800", icon: <Clock className="w-3 h-3" /> },
+  in_progress: { labelKey: "alumniPortal.status.in_progress", color: "bg-blue-100 text-blue-800", icon: <Loader2 className="w-3 h-3" /> },
+  awaiting_validation: { labelKey: "alumniPortal.status.awaitingValidationLong", color: "bg-purple-100 text-purple-800", icon: <AlertCircle className="w-3 h-3" /> },
+  validated: { labelKey: "alumniPortal.status.validated", color: "bg-green-100 text-green-800", icon: <CheckCircle2 className="w-3 h-3" /> },
+  rejected: { labelKey: "alumniPortal.status.rejected", color: "bg-red-100 text-red-800", icon: <XCircle className="w-3 h-3" /> },
+  completed: { labelKey: "alumniPortal.status.completed", color: "bg-emerald-100 text-emerald-800", icon: <CheckCircle2 className="w-3 h-3" /> },
+  cancelled: { labelKey: "alumniPortal.status.cancelled", color: "bg-gray-100 text-gray-800", icon: <XCircle className="w-3 h-3" /> },
 };
 
 export default function AlumniDocumentRequests() {
+  const { t } = useTranslation();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
 
@@ -115,36 +123,36 @@ export default function AlumniDocumentRequests() {
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Mes demandes de documents</h1>
+          <h1 className="text-2xl font-bold">{t("alumniPortal.requests.title")}</h1>
           <p className="text-muted-foreground">
-            Soumettez et suivez vos demandes de documents administratifs
+            {t("alumniPortal.requests.subtitle")}
           </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="w-4 h-4 mr-2" />
-              Nouvelle demande
+              {t("alumniPortal.requests.new")}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Nouvelle demande de document</DialogTitle>
+              <DialogTitle>{t("alumniPortal.requests.newTitle")}</DialogTitle>
               <DialogDescription>
-                Remplissez le formulaire pour soumettre votre demande
+                {t("alumniPortal.requests.newHint")}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>Type de document *</Label>
+                <Label>{t("alumniPortal.requests.documentTypeRequired")}</Label>
                 <Select value={documentType} onValueChange={setDocumentType}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionnez le type" />
+                    <SelectValue placeholder={t("alumniPortal.requests.selectType")} />
                   </SelectTrigger>
                   <SelectContent>
                     {DOCUMENT_TYPES.map(type => (
                       <SelectItem key={type.value} value={type.value}>
-                        {type.label}
+                        {t(type.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -152,41 +160,41 @@ export default function AlumniDocumentRequests() {
               </div>
 
               <div className="space-y-2">
-                <Label>Description détaillée</Label>
+                <Label>{t("alumniPortal.requests.detailedDescription")}</Label>
                 <Textarea
                   value={documentDescription}
                   onChange={(e) => setDocumentDescription(e.target.value)}
-                  placeholder="Précisez le document demandé (année, filière, etc.)"
+                  placeholder={t("alumniPortal.requests.descriptionPlaceholder")}
                   rows={3}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Motif de la demande *</Label>
+                <Label>{t("alumniPortal.requests.purposeRequired")}</Label>
                 <Textarea
                   value={purpose}
                   onChange={(e) => setPurpose(e.target.value)}
-                  placeholder="Pourquoi avez-vous besoin de ce document ?"
+                  placeholder={t("alumniPortal.requests.purposePlaceholder")}
                   rows={2}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Urgence</Label>
+                  <Label>{t("alumniPortal.requests.urgency")}</Label>
                   <Select value={urgency} onValueChange={setUrgency}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="normal">{t("alumniPortal.requests.urgencyNormal")}</SelectItem>
+                      <SelectItem value="urgent">{t("alumniPortal.requests.urgencyUrgent")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Mode de livraison</Label>
+                  <Label>{t("alumniPortal.requests.deliveryMethod")}</Label>
                   <Select value={deliveryMethod} onValueChange={setDeliveryMethod}>
                     <SelectTrigger>
                       <SelectValue />
@@ -194,17 +202,17 @@ export default function AlumniDocumentRequests() {
                     <SelectContent>
                       <SelectItem value="email">
                         <span className="flex items-center gap-2">
-                          <Mail className="w-4 h-4" /> Email
+                          <Mail className="w-4 h-4" /> {t("alumniPortal.requests.deliveryEmail")}
                         </span>
                       </SelectItem>
                       <SelectItem value="mail">
                         <span className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4" /> Courrier
+                          <MapPin className="w-4 h-4" /> {t("alumniPortal.requests.deliveryMail")}
                         </span>
                       </SelectItem>
                       <SelectItem value="pickup">
                         <span className="flex items-center gap-2">
-                          <Building className="w-4 h-4" /> Retrait sur place
+                          <Building className="w-4 h-4" /> {t("alumniPortal.requests.deliveryPickup")}
                         </span>
                       </SelectItem>
                     </SelectContent>
@@ -214,11 +222,11 @@ export default function AlumniDocumentRequests() {
 
               {deliveryMethod !== "email" && (
                 <div className="space-y-2">
-                  <Label>Adresse de livraison</Label>
+                  <Label>{t("alumniPortal.requests.deliveryAddress")}</Label>
                   <Textarea
                     value={deliveryAddress}
                     onChange={(e) => setDeliveryAddress(e.target.value)}
-                    placeholder="Adresse complète"
+                    placeholder={t("alumniPortal.requests.fullAddress")}
                     rows={2}
                   />
                 </div>
@@ -234,7 +242,7 @@ export default function AlumniDocumentRequests() {
                 ) : (
                   <Send className="w-4 h-4 mr-2" />
                 )}
-                Soumettre la demande
+                {t("alumniPortal.requests.submit")}
               </Button>
             </div>
           </DialogContent>
@@ -245,11 +253,11 @@ export default function AlumniDocumentRequests() {
         <TabsList>
           <TabsTrigger value="active" className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            En cours ({activeRequests.length})
+            {t("alumniPortal.requests.tabActive", { count: activeRequests.length })}
           </TabsTrigger>
           <TabsTrigger value="history" className="flex items-center gap-2">
             <History className="w-4 h-4" />
-            Historique ({historyRequests.length})
+            {t("alumniPortal.requests.tabHistory", { count: historyRequests.length })}
           </TabsTrigger>
         </TabsList>
 
@@ -262,9 +270,9 @@ export default function AlumniDocumentRequests() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <FileText className="w-12 h-12 text-muted-foreground/50 mb-4" />
-                <h3 className="font-semibold text-lg">Aucune demande en cours</h3>
+                <h3 className="font-semibold text-lg">{t("alumniPortal.requests.noActive")}</h3>
                 <p className="text-muted-foreground mt-1">
-                  Cliquez sur "Nouvelle demande" pour soumettre votre première demande
+                  {t("alumniPortal.requests.noActiveHint")}
                 </p>
               </CardContent>
             </Card>
@@ -287,9 +295,9 @@ export default function AlumniDocumentRequests() {
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <History className="w-12 h-12 text-muted-foreground/50 mb-4" />
-                <h3 className="font-semibold text-lg">Aucun historique</h3>
+                <h3 className="font-semibold text-lg">{t("alumniPortal.requests.noHistory")}</h3>
                 <p className="text-muted-foreground mt-1">
-                  Les demandes terminées apparaîtront ici
+                  {t("alumniPortal.requests.noHistoryHint")}
                 </p>
               </CardContent>
             </Card>
@@ -311,49 +319,49 @@ export default function AlumniDocumentRequests() {
       <Dialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Détails de la demande</DialogTitle>
+            <DialogTitle>{t("alumniPortal.requests.details")}</DialogTitle>
           </DialogHeader>
           {selectedRequest && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-muted-foreground">Type de document</Label>
+                  <Label className="text-muted-foreground">{t("alumniPortal.requests.documentType")}</Label>
                   <p className="font-medium">
-                    {DOCUMENT_TYPES.find(t => t.value === selectedRequest.document_type)?.label}
+                    {t(DOCUMENT_TYPES.find((d) => d.value === selectedRequest.document_type)?.labelKey ?? "alumniPortal.docType.otherDocument")}
                   </p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Statut</Label>
+                  <Label className="text-muted-foreground">{t("alumniPortal.requests.status")}</Label>
                   <Badge className={STATUS_LABELS[selectedRequest.status]?.color}>
                     {STATUS_LABELS[selectedRequest.status]?.icon}
-                    <span className="ml-1">{STATUS_LABELS[selectedRequest.status]?.label}</span>
+                    <span className="ml-1">{STATUS_LABELS[selectedRequest.status] ? t(STATUS_LABELS[selectedRequest.status].labelKey) : selectedRequest.status}</span>
                   </Badge>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Date de soumission</Label>
-                  <p>{format(new Date(selectedRequest.created_at), "PPP", { locale: fr })}</p>
+                  <Label className="text-muted-foreground">{t("alumniPortal.requests.submittedAt")}</Label>
+                  <p>{format(new Date(selectedRequest.created_at), "PPP", { locale: dateFnsLocale() })}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Mode de livraison</Label>
-                  <p className="capitalize">{selectedRequest.delivery_method}</p>
+                  <Label className="text-muted-foreground">{t("alumniPortal.requests.deliveryMethod")}</Label>
+                  <p>{DELIVERY_KEYS[selectedRequest.delivery_method] ? t(DELIVERY_KEYS[selectedRequest.delivery_method]) : selectedRequest.delivery_method}</p>
                 </div>
               </div>
 
               {selectedRequest.document_description && (
                 <div>
-                  <Label className="text-muted-foreground">Description</Label>
+                  <Label className="text-muted-foreground">{t("alumniPortal.requests.description")}</Label>
                   <p>{selectedRequest.document_description}</p>
                 </div>
               )}
 
               <div>
-                <Label className="text-muted-foreground">Motif</Label>
+                <Label className="text-muted-foreground">{t("alumniPortal.requests.purpose")}</Label>
                 <p>{selectedRequest.purpose}</p>
               </div>
 
               {selectedRequest.validation_notes && (
                 <div className="p-3 rounded-lg bg-muted">
-                  <Label className="text-muted-foreground">Note du validateur</Label>
+                  <Label className="text-muted-foreground">{t("alumniPortal.requests.validatorNote")}</Label>
                   <p>{selectedRequest.validation_notes}</p>
                 </div>
               )}
@@ -361,7 +369,7 @@ export default function AlumniDocumentRequests() {
               <Separator />
 
               <div>
-                <Label className="text-muted-foreground mb-2 block">Historique</Label>
+                <Label className="text-muted-foreground mb-2 block">{t("alumniPortal.requests.history")}</Label>
                 <ScrollArea className="h-48">
                   <div className="space-y-3">
                     {requestHistory?.map((history: any) => (
@@ -371,7 +379,7 @@ export default function AlumniDocumentRequests() {
                           <p className="font-medium">{history.action}</p>
                           {history.notes && <p className="text-muted-foreground">{history.notes}</p>}
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(history.created_at), "PPp", { locale: fr })}
+                            {format(new Date(history.created_at), "PPp", { locale: dateFnsLocale() })}
                             {history.performer && ` • ${history.performer.first_name} ${history.performer.last_name}`}
                           </p>
                         </div>
@@ -397,8 +405,9 @@ function RequestCard({
   onSelect: () => void; 
   onCancel?: () => void;
 }) {
+  const { t } = useTranslation();
   const status = STATUS_LABELS[request.status];
-  const docType = DOCUMENT_TYPES.find(t => t.value === request.document_type);
+  const docType = DOCUMENT_TYPES.find((d) => d.value === request.document_type);
 
   return (
     <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onSelect}>
@@ -409,22 +418,22 @@ function RequestCard({
               <FileText className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold">{docType?.label || request.document_type}</h3>
+              <h3 className="font-semibold">{docType ? t(docType.labelKey) : request.document_type}</h3>
               <p className="text-sm text-muted-foreground line-clamp-1">
                 {request.purpose}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Soumis le {format(new Date(request.created_at), "PPP", { locale: fr })}
+                {t("alumniPortal.requests.submittedOn", { date: format(new Date(request.created_at), "PPP", { locale: dateFnsLocale() }) })}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Badge className={status?.color}>
               {status?.icon}
-              <span className="ml-1">{status?.label}</span>
+              <span className="ml-1">{status ? t(status.labelKey) : request.status}</span>
             </Badge>
             {request.urgency === "urgent" && (
-              <Badge variant="destructive">Urgent</Badge>
+              <Badge variant="destructive">{t("alumniPortal.requests.urgencyUrgent")}</Badge>
             )}
           </div>
         </div>
@@ -439,7 +448,7 @@ function RequestCard({
               }}
             >
               <XCircle className="w-4 h-4 mr-1" />
-              Annuler
+              {t("alumniPortal.requests.cancel")}
             </Button>
           </div>
         )}

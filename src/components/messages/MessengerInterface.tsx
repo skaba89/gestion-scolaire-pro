@@ -47,7 +47,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format, formatDistanceToNow, isToday, isYesterday } from "date-fns";
-import { fr } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
+import { dateFnsLocale } from "@/lib/locale";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageReactions } from "./MessageReactions";
 import { TypingIndicator } from "./TypingIndicator";
@@ -88,10 +89,13 @@ function conversationInitials(conv: any): string {
 
 export function MessengerInterface({
   recipients = [],
-  recipientLabel = "Destinataire",
-  title = "Messages",
+  recipientLabel: recipientLabelProp,
+  title: titleProp,
   showNewConversation = true,
 }: MessengerInterfaceProps) {
+  const { t } = useTranslation();
+  const recipientLabel = recipientLabelProp ?? t("messenger.recipient");
+  const title = titleProp ?? t("messenger.title");
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -157,7 +161,7 @@ export function MessengerInterface({
 
   const handleCreateConversation = () => {
     if (!selectedRecipient || !newConversationMessage.trim()) {
-      toast.error("Veuillez remplir les champs obligatoires");
+      toast.error(t("messenger.fillRequired"));
       return;
     }
     createConversationMutation.mutate({
@@ -208,11 +212,11 @@ export function MessengerInterface({
     let dateKey: string;
     
     if (isToday(date)) {
-      dateKey = "Aujourd'hui";
+      dateKey = t("messenger.today");
     } else if (isYesterday(date)) {
-      dateKey = "Hier";
+      dateKey = t("messenger.yesterday");
     } else {
-      dateKey = format(date, "d MMMM yyyy", { locale: fr });
+      dateKey = format(date, "d MMMM yyyy", { locale: dateFnsLocale() });
     }
     
     if (!groups[dateKey]) groups[dateKey] = [];
@@ -304,7 +308,7 @@ export function MessengerInterface({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Rechercher dans Messenger"
+              placeholder={t("messenger.search")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={() => setShowAdvancedSearch(true)}
@@ -332,7 +336,7 @@ export function MessengerInterface({
         ) : filteredConversations?.length === 0 ? (
           <div className="p-8 text-center">
             <MessageSquare className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Aucune conversation</p>
+            <p className="text-sm text-muted-foreground">{t("messenger.noConversation")}</p>
           </div>
         ) : (
           <div className="p-2">
@@ -366,11 +370,11 @@ export function MessengerInterface({
                       "font-medium truncate",
                       conv.unread_count > 0 ? "text-foreground" : "text-foreground/80"
                     )}>
-                      {conv.title || conv.sender_name || "Conversation"}
+                      {conv.title || conv.sender_name || t("messenger.conversation")}
                     </p>
                     <span className="text-[11px] text-muted-foreground flex-shrink-0">
                       {conv.last_message_at && formatDistanceToNow(new Date(conv.last_message_at), { 
-                        locale: fr 
+                        locale: dateFnsLocale() 
                       })}
                     </span>
                   </div>
@@ -380,7 +384,7 @@ export function MessengerInterface({
                       "text-sm truncate flex-1",
                       conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground"
                     )}>
-                      {conv.last_message || "Sans message"}
+                      {conv.last_message || t("messenger.noMessage")}
                     </p>
                     {conv.unread_count > 0 && (
                       <Badge className="h-5 min-w-[20px] rounded-full text-[10px] px-1.5">
@@ -545,14 +549,14 @@ export function MessengerInterface({
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center mx-auto mb-4">
               <MessageSquare className="w-10 h-10 text-primary/50" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Vos messages</h3>
+            <h3 className="text-lg font-semibold mb-2">{t("messenger.yourMessages")}</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              Sélectionnez une conversation pour commencer à discuter
+              {t("messenger.selectConversation")}
             </p>
             {showNewConversation && recipients.length > 0 && (
               <Button onClick={() => setIsNewConversationOpen(true)} className="rounded-full">
                 <Plus className="w-4 h-4 mr-2" />
-                Nouvelle conversation
+                {t("messenger.newConversation")}
               </Button>
             )}
           </div>
@@ -597,14 +601,14 @@ export function MessengerInterface({
         <Dialog open={isNewConversationOpen} onOpenChange={setIsNewConversationOpen}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Nouvelle conversation</DialogTitle>
+              <DialogTitle>{t("messenger.newConversation")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">{recipientLabel}</label>
                 <Select value={selectedRecipient} onValueChange={setSelectedRecipient}>
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder={`Choisir un ${recipientLabel.toLowerCase()}`} />
+                    <SelectValue placeholder={t("messenger.choose", { label: recipientLabel.toLowerCase() })} />
                   </SelectTrigger>
                   <SelectContent>
                     {recipients.map((recipient) => (
@@ -624,34 +628,34 @@ export function MessengerInterface({
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Sujet</label>
+                <label className="text-sm font-medium">{t("messenger.subject")}</label>
                 <Input
                   value={newConversationSubject}
                   onChange={(e) => setNewConversationSubject(e.target.value)}
-                  placeholder="Objet de votre message"
+                  placeholder={t("messenger.subjectPlaceholder")}
                   className="rounded-xl"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Message</label>
+                <label className="text-sm font-medium">{t("messenger.message")}</label>
                 <Textarea
                   value={newConversationMessage}
                   onChange={(e) => setNewConversationMessage(e.target.value)}
-                  placeholder="Votre message..."
+                  placeholder={t("messenger.messagePlaceholder")}
                   rows={4}
                   className="rounded-xl"
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsNewConversationOpen(false)} className="rounded-full">
-                  Annuler
+                  {t("messenger.cancel")}
                 </Button>
                 <Button 
                   onClick={handleCreateConversation}
                   disabled={createConversationMutation.isPending || !selectedRecipient || !newConversationSubject.trim() || !newConversationMessage.trim()}
                   className="rounded-full"
                 >
-                  {createConversationMutation.isPending ? "Envoi..." : "Envoyer"}
+                  {createConversationMutation.isPending ? t("messenger.sending") : t("messenger.send")}
                 </Button>
               </div>
             </div>
@@ -680,14 +684,14 @@ export function MessengerInterface({
       <Dialog open={isNewConversationOpen} onOpenChange={setIsNewConversationOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Nouvelle conversation</DialogTitle>
+            <DialogTitle>{t("messenger.newConversation")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">{recipientLabel}</label>
               <Select value={selectedRecipient} onValueChange={setSelectedRecipient}>
                 <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder={`Choisir un ${recipientLabel.toLowerCase()}`} />
+                  <SelectValue placeholder={t("messenger.choose", { label: recipientLabel.toLowerCase() })} />
                 </SelectTrigger>
                 <SelectContent>
                   {recipients.map((recipient) => (
@@ -707,34 +711,34 @@ export function MessengerInterface({
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Sujet</label>
+              <label className="text-sm font-medium">{t("messenger.subject")}</label>
               <Input
                 value={newConversationSubject}
                 onChange={(e) => setNewConversationSubject(e.target.value)}
-                placeholder="Objet de votre message"
+                placeholder={t("messenger.subjectPlaceholder")}
                 className="rounded-xl"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Message</label>
+              <label className="text-sm font-medium">{t("messenger.message")}</label>
               <Textarea
                 value={newConversationMessage}
                 onChange={(e) => setNewConversationMessage(e.target.value)}
-                placeholder="Votre message..."
+                placeholder={t("messenger.messagePlaceholder")}
                 rows={4}
                 className="rounded-xl"
               />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsNewConversationOpen(false)} className="rounded-full">
-                Annuler
+                {t("messenger.cancel")}
               </Button>
               <Button 
                 onClick={handleCreateConversation}
                 disabled={createConversationMutation.isPending || !selectedRecipient || !newConversationSubject.trim() || !newConversationMessage.trim()}
                 className="rounded-full"
               >
-                {createConversationMutation.isPending ? "Envoi..." : "Envoyer"}
+                {createConversationMutation.isPending ? t("messenger.sending") : t("messenger.send")}
               </Button>
             </div>
           </div>

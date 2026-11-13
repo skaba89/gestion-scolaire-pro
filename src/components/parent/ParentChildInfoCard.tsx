@@ -13,9 +13,10 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { resolveUploadUrl } from "@/utils/url";
 import { useGenderLabel } from "@/lib/gender";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface Student {
     id: string;
@@ -42,6 +43,7 @@ export const ParentChildInfoCard = ({
     getTenantUrl,
     onViewAttendance
 }: ParentChildInfoCardProps) => {
+    const { t } = useTranslation();
     const genderLabel = useGenderLabel();
     return (
         <Card className="overflow-hidden h-full flex flex-col border-primary/10 hover:shadow-lg transition-all duration-300">
@@ -70,7 +72,7 @@ export const ParentChildInfoCard = ({
                             </Badge>
                             {isPrimary && (
                                 <Badge variant="secondary" className="bg-primary/10 text-primary border-none text-[10px]">
-                                    Contact principal
+                                    {t("parentPortal.childCard.primaryContact")}
                                 </Badge>
                             )}
                         </div>
@@ -83,7 +85,7 @@ export const ParentChildInfoCard = ({
                         <Calendar className="w-3.5 h-3.5 text-primary/60 shrink-0" />
                         <span className="font-medium truncate">
                             {student.date_of_birth
-                                ? format(new Date(student.date_of_birth), "dd MMM yyyy", { locale: fr })
+                                ? format(new Date(student.date_of_birth), "dd MMM yyyy", { locale: dateFnsLocale() })
                                 : "N/A"
                             }
                         </span>
@@ -91,7 +93,7 @@ export const ParentChildInfoCard = ({
                     <div className="flex items-center gap-2.5 text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg">
                         <Users className="w-3.5 h-3.5 text-primary/60 shrink-0" />
                         <span className="font-medium">
-                            {genderLabel(student.gender, "N/A")}
+                            {genderLabel(student.gender, t("parentPortal.childCard.notAvailable"))}
                         </span>
                     </div>
                 </div>
@@ -114,19 +116,19 @@ export const ParentChildInfoCard = ({
                     <Link to={getTenantUrl(`/parent/children/${student.id}`)} className="flex-1 min-w-[140px]">
                         <Button variant="default" size="sm" className="w-full bg-primary hover:bg-primary/90 font-semibold shadow-sm">
                             <Eye className="w-4 h-4 mr-2" />
-                            Détails & Notes
+                            {t("parentPortal.childCard.details")}
                         </Button>
                     </Link>
                     <Link to={getTenantUrl(`/parent/report-cards?student=${student.id}`)}>
                         <Button variant="outline" size="sm" className="h-9">
                             <FileText className="w-4 h-4 mr-2" />
-                            Bulletins
+                            {t("parentPortal.childCard.reportCards")}
                         </Button>
                     </Link>
                     <Link to={getTenantUrl(`/parent/invoices?student=${student.id}`)}>
                         <Button variant="outline" size="sm" className="h-9">
                             <CreditCard className="w-4 h-4 mr-2" />
-                            Factures
+                            {t("parentPortal.childCard.invoices")}
                         </Button>
                     </Link>
                     <Button
@@ -139,7 +141,7 @@ export const ParentChildInfoCard = ({
                         })}
                     >
                         <ClipboardList className="w-4 h-4 mr-2" />
-                        Présences
+                        {t("parentPortal.childCard.attendance")}
                     </Button>
                 </div>
             </CardContent>

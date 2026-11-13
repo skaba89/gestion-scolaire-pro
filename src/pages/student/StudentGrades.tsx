@@ -6,8 +6,10 @@ import { TableSkeleton } from "@/components/ui/TableSkeleton";
 import { StudentGradeTable } from "@/components/student/StudentGradeTable";
 
 import { useStudentData } from "@/features/students/hooks/useStudentData";
+import { useTranslation } from "react-i18next";
 
 const StudentGrades = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
 
@@ -21,10 +23,10 @@ const StudentGrades = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-display font-bold text-foreground">
-          Mes Notes
+          {t("studentPortal.grades.title")}
         </h1>
         <p className="text-muted-foreground">
-          Consultez vos résultats scolaires
+          {t("studentPortal.grades.subtitle")}
         </p>
       </div>
 

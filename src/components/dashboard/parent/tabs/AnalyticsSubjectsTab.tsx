@@ -1,17 +1,19 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsSubjectsTabProps {
     subjectPerformance: any[];
 }
 
 export const AnalyticsSubjectsTab = ({ subjectPerformance }: AnalyticsSubjectsTabProps) => {
+    const { t } = useTranslation();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Performance par matière</CardTitle>
-                <CardDescription>Moyenne par discipline</CardDescription>
+                <CardTitle>{t("parentPortal.subjectsTab.title")}</CardTitle>
+                <CardDescription>{t("parentPortal.subjectsTab.subtitle")}</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="grid gap-6 md:grid-cols-2">

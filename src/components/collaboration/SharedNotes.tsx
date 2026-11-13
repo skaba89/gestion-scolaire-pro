@@ -36,9 +36,10 @@ import {
   Users
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 // Realtime subscription disabled — migrated from supabase.channel()
 // Notes will refresh via manual query invalidation.
@@ -72,6 +73,7 @@ interface SharedNote {
 }
 
 export const SharedNotes = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
@@ -159,10 +161,10 @@ export const SharedNotes = () => {
       queryClient.invalidateQueries({ queryKey: ["shared-notes"] });
       setIsCreateOpen(false);
       setNewNote({ title: "", content: "", visibility: "class" });
-      toast.success("Note partagée avec succès");
+      toast.success(t("sharedNotes.shared"));
     },
     onError: () => {
-      toast.error("Erreur lors de la création de la note");
+      toast.error(t("sharedNotes.createError"));
     },
   });
 
@@ -204,7 +206,7 @@ export const SharedNotes = () => {
       setNewComment("");
     },
     onError: () => {
-      toast.error("Erreur lors de l'ajout du commentaire");
+      toast.error(t("sharedNotes.commentError"));
     },
   });
 
@@ -216,7 +218,7 @@ export const SharedNotes = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shared-notes"] });
       setSelectedNote(null);
-      toast.success("Note supprimée");
+      toast.success(t("sharedNotes.deleted"));
     },
   });
 
@@ -229,27 +231,27 @@ export const SharedNotes = () => {
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="flex items-center gap-2">
           <FileText className="w-5 h-5" />
-          Notes Partagées
+          {t("sharedNotes.title")}
         </CardTitle>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="w-4 h-4 mr-1" />
-              Nouvelle
+              {t("sharedNotes.new")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Partager une note</DialogTitle>
+              <DialogTitle>{t("sharedNotes.shareNote")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <Input
-                placeholder="Titre de la note"
+                placeholder={t("sharedNotes.noteTitle")}
                 value={newNote.title}
                 onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
               />
               <Textarea
-                placeholder="Contenu de la note..."
+                placeholder={t("sharedNotes.noteContent")}
                 value={newNote.content}
                 onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
                 rows={6}
@@ -259,12 +261,12 @@ export const SharedNotes = () => {
                 onValueChange={(value) => setNewNote({ ...newNote, visibility: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Visibilité" />
+                  <SelectValue placeholder={t("sharedNotes.visibility")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="class">Ma classe</SelectItem>
-                  <SelectItem value="subject">Par matière</SelectItem>
-                  <SelectItem value="public">Tout l'établissement</SelectItem>
+                  <SelectItem value="class">{t("sharedNotes.myClass")}</SelectItem>
+                  <SelectItem value="subject">{t("sharedNotes.bySubject")}</SelectItem>
+                  <SelectItem value="public">{t("sharedNotes.wholeSchool")}</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -272,7 +274,7 @@ export const SharedNotes = () => {
                 onClick={() => createNoteMutation.mutate(newNote)}
                 disabled={!newNote.title || !newNote.content || createNoteMutation.isPending}
               >
-                Partager la note
+                {t("sharedNotes.submit")}
               </Button>
             </div>
           </DialogContent>
@@ -281,12 +283,12 @@ export const SharedNotes = () => {
 
       <CardContent>
         {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+          <div className="text-center py-8 text-muted-foreground">{t("sharedNotes.loading")}</div>
         ) : notes?.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p>Aucune note partagée</p>
-            <p className="text-xs mt-1">Soyez le premier à partager une note !</p>
+            <p>{t("sharedNotes.none")}</p>
+            <p className="text-xs mt-1">{t("sharedNotes.beFirst")}</p>
           </div>
         ) : (
           <ScrollArea className="h-[350px]">
@@ -332,7 +334,7 @@ export const SharedNotes = () => {
                       {note.view_count}
                     </span>
                     <span className="ml-auto">
-                      {formatDistanceToNow(new Date(note.created_at), { addSuffix: true, locale: fr })}
+                      {formatDistanceToNow(new Date(note.created_at), { addSuffix: true, locale: dateFnsLocale() })}
                     </span>
                   </div>
                 </div>
@@ -362,7 +364,7 @@ export const SharedNotes = () => {
                     </span>
                     <span>•</span>
                     <span>
-                      {formatDistanceToNow(new Date(selectedNote.created_at), { addSuffix: true, locale: fr })}
+                      {formatDistanceToNow(new Date(selectedNote.created_at), { addSuffix: true, locale: dateFnsLocale() })}
                     </span>
                   </div>
                 </DialogHeader>
@@ -401,7 +403,7 @@ export const SharedNotes = () => {
                         onClick={() => deleteNoteMutation.mutate(selectedNote.id)}
                       >
                         <Trash2 className="w-4 h-4 mr-1" />
-                        Supprimer
+                        {t("sharedNotes.delete")}
                       </Button>
                     )}
                   </div>
@@ -410,7 +412,7 @@ export const SharedNotes = () => {
                   <div className="mt-4 pt-4 border-t space-y-3">
                     <h4 className="font-medium flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />
-                      Commentaires ({comments?.length || 0})
+                      {t("sharedNotes.comments", { count: comments?.length || 0 })}
                     </h4>
                     {comments?.map((comment: any) => (
                       <div key={comment.id} className="flex gap-3 p-3 bg-muted/50 rounded-lg">
@@ -425,7 +427,7 @@ export const SharedNotes = () => {
                               {comment.author?.first_name} {comment.author?.last_name}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: fr })}
+                              {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: dateFnsLocale() })}
                             </span>
                           </div>
                           <p className="text-sm mt-1">{comment.content}</p>
@@ -438,7 +440,7 @@ export const SharedNotes = () => {
                 {/* Add comment */}
                 <div className="flex gap-2 pt-4 border-t">
                   <Input
-                    placeholder="Ajouter un commentaire..."
+                    placeholder={t("sharedNotes.addComment")}
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyDown={(e) => {

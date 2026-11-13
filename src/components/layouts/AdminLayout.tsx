@@ -379,7 +379,7 @@ export const AdminLayout = () => {
             size="icon"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="touch-target"
-            aria-label={sidebarOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-label={sidebarOpen ? t("nav.closeMenu") : t("nav.openMenu")}
           >
             {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
@@ -422,7 +422,7 @@ export const AdminLayout = () => {
             {/* Mobile close button */}
             <div className="p-3 border-b border-border lg:hidden flex items-center justify-between mt-14">
               <TenantBranding size="sm" showName={true} />
-              <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} aria-label="Fermer le menu">
+              <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(false)} aria-label={t("nav.closeMenu")}>
                 <X className="h-5 w-5" />
               </Button>
             </div>
@@ -483,8 +483,8 @@ export const AdminLayout = () => {
                     variant="ghost"
                     size="icon"
                     onClick={() => setSearchOpen(true)}
-                    title="Rechercher (Ctrl+K)"
-                    aria-label="Rechercher dans l'application"
+                    title={t("nav.searchShortcut")}
+                    aria-label={t("nav.searchApp")}
                   >
                     <Search className="h-4 w-4" />
                   </Button>

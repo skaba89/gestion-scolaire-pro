@@ -36,6 +36,7 @@ import {
 import { toast } from "sonner";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { studentsService } from "@/features/students/services/studentsService";
+import { intlLocale } from "@/lib/locale";
 
 const PreRegistration = () => {
   const { t } = useTranslation();
@@ -78,7 +79,7 @@ const PreRegistration = () => {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!studentProfile || !tenant?.id || !nextAcademicYear?.id) {
-        throw new Error("Données manquantes");
+        throw new Error(t("common.missingData"));
       }
 
       await studentsService.submitMyReenrollment({
@@ -198,7 +199,7 @@ const PreRegistration = () => {
                 {studentProfile.first_name} {studentProfile.last_name}
               </p>
               <p className="text-sm text-muted-foreground">
-                {t("preRegistration.studentNumber")} {studentProfile.registration_number || "Non attribué"}
+                {t("preRegistration.studentNumber")} {studentProfile.registration_number || t("preRegistration.notAssigned")}
               </p>
               {currentEnrollment && (
                 <p className="text-sm text-muted-foreground">
@@ -219,7 +220,7 @@ const PreRegistration = () => {
           <CardContent>
             <p className="font-medium text-foreground">{nextAcademicYear.name}</p>
             <p className="text-sm text-muted-foreground">
-              {t("preRegistration.dateRange")} {new Date(nextAcademicYear.start_date).toLocaleDateString('fr-FR')} {new Date(nextAcademicYear.end_date).toLocaleDateString('fr-FR')}
+              {t("preRegistration.dateRange")} {new Date(nextAcademicYear.start_date).toLocaleDateString(intlLocale())} {new Date(nextAcademicYear.end_date).toLocaleDateString(intlLocale())}
             </p>
           </CardContent>
         </Card>
@@ -239,7 +240,7 @@ const PreRegistration = () => {
               </Badge>
             </div>
             <CardDescription>
-              {t("preRegistration.submittedOn")} {new Date(existingApplication.submitted_at || existingApplication.created_at).toLocaleDateString('fr-FR')}
+              {t("preRegistration.submittedOn")} {new Date(existingApplication.submitted_at || existingApplication.created_at).toLocaleDateString(intlLocale())}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -337,9 +338,9 @@ const PreRegistration = () => {
               <span className="font-medium">{studentProfile.first_name} {studentProfile.last_name}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Niveau souhaité:</span>
+              <span className="text-muted-foreground">{t("preRegistration.desiredLevelShort")}</span>
               <span className="font-medium">
-                {levels?.find(l => l.id === (selectedLevelId || nextLevel?.id))?.name || "Non spécifié"}
+                {levels?.find(l => l.id === (selectedLevelId || nextLevel?.id))?.name || t("preRegistration.notSpecified")}
               </span>
             </div>
           </div>

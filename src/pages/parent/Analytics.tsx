@@ -9,8 +9,10 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 import { useParentData } from "@/features/parents/hooks/useParentData";
 import { resolveUploadUrl } from "@/utils/url";
+import { useTranslation } from "react-i18next";
 
 const ParentAnalytics = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tenant } = useTenant();
   const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
@@ -31,9 +33,9 @@ const ParentAnalytics = () => {
         <CardContent className="py-12">
           <div className="text-center">
             <Users className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Aucun {studentLabel} associé</h3>
+            <h3 className="text-lg font-medium mb-2">{t("parentPortal.analytics.noChild", { label: studentLabel })}</h3>
             <p className="text-muted-foreground">
-              Contactez l'administration pour associer vos {studentsLabel} à votre compte
+              {t("parentPortal.analytics.noChildHint", { label: studentsLabel })}
             </p>
           </div>
         </CardContent>
@@ -48,9 +50,9 @@ const ParentAnalytics = () => {
           <BarChart3 className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-display font-bold">Analytics détaillés</h1>
+          <h1 className="text-2xl font-display font-bold">{t("parentPortal.analytics.title")}</h1>
           <p className="text-muted-foreground">
-            Suivez les performances de vos {studentsLabel} en détail
+            {t("parentPortal.analytics.subtitle", { label: studentsLabel })}
           </p>
         </div>
       </div>

@@ -117,10 +117,9 @@ const StudentDashboard = () => {
   if (!student) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3 text-center p-8">
-        <p className="text-lg font-semibold">Profil {StudentLabel.toLowerCase()} non configuré</p>
+        <p className="text-lg font-semibold">{t("studentPortal.dashboard.noProfile", { label: StudentLabel.toLowerCase() })}</p>
         <p className="text-sm text-muted-foreground max-w-sm">
-          Votre compte n'est pas encore rattaché à une fiche {StudentLabel.toLowerCase()}.
-          Contactez l'administration de votre établissement.
+          {t("studentPortal.dashboard.noProfileHint", { label: StudentLabel.toLowerCase() })}
         </p>
       </div>
     );
@@ -197,7 +196,7 @@ const StudentDashboard = () => {
                       fontSize: '12px',
                       boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}
-                    formatter={(value: number) => [value.toFixed(1) + "/20", "Moyenne"]}
+                    formatter={(value: number) => [value.toFixed(1) + "/20", t("studentPortal.dashboard.average")]}
                   />
                   <Area
                     type="monotone"

@@ -13,9 +13,9 @@ import { FileText, Download, BarChart3, Users, AlertCircle, Loader2, Calendar } 
 import { isStudentMinor } from "@/lib/studentAge";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useParentData } from "@/features/parents/hooks/useParentData";
 import { parentsService } from "@/features/parents/services/parentsService";
+import { dateFnsLocale } from "@/lib/locale";
 
 interface ParentTerm {
   id: string;
@@ -145,7 +145,7 @@ const ReportCards = () => {
                         <Badge variant="outline">{assessment.subjects.name}</Badge>
                         {assessment.terms && <Badge variant="secondary">{assessment.terms.name}</Badge>}
                         {selectedChild === "all" && <span>{grade.students.first_name} {grade.students.last_name}</span>}
-                        {assessment.date && <span>{format(new Date(assessment.date), "dd MMM yyyy", { locale: fr })}</span>}
+                        {assessment.date && <span>{format(new Date(assessment.date), "dd MMM yyyy", { locale: dateFnsLocale() })}</span>}
                       </div>
                     </div>
                     <div className="text-right"><p className="font-bold">{grade.score ?? "—"} {t("parentReportCards.on")} {grade.max_score}</p><p className="text-xs text-muted-foreground">{grade.score === null ? "—" : `${percentage.toFixed(0)}%`}</p></div>

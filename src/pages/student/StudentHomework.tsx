@@ -15,12 +15,12 @@ import {
   Send
 } from "lucide-react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
-import { fr } from "date-fns/locale";
 import HomeworkSubmissionDialog from "@/components/homework/HomeworkSubmissionDialog";
 import { studentQueries } from "@/queries/students";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 
 import { useStudentData } from "@/features/students/hooks/useStudentData";
+import { dateFnsLocale } from "@/lib/locale";
 
 const StudentHomework = () => {
   const { t } = useTranslation();
@@ -155,7 +155,7 @@ const StudentHomework = () => {
                             <div className="text-right space-y-1">
                               <div className="flex items-center justify-end gap-1.5 text-xs font-semibold text-muted-foreground">
                                 <Calendar className="w-3.5 h-3.5" />
-                                {format(new Date(hw.due_date), "EEEE d MMMM", { locale: fr })}
+                                {format(new Date(hw.due_date), "EEEE d MMMM", { locale: dateFnsLocale() })}
                               </div>
                               {hw.due_time && (
                                 <div className="flex items-center justify-end gap-1.5 text-xs font-semibold text-primary">
@@ -218,7 +218,7 @@ const StudentHomework = () => {
                           <h3 className="font-semibold text-sm truncate">{hw.title}</h3>
                           <p className="text-[10px] text-muted-foreground">
                             {(hw.subjects as any)?.name} •
-                            {format(new Date(hw.due_date), " d MMM yyyy", { locale: fr })}
+                            {format(new Date(hw.due_date), " d MMM yyyy", { locale: dateFnsLocale() })}
                           </p>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">

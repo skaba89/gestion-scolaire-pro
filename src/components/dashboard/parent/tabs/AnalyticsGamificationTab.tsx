@@ -2,8 +2,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Award } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsGamificationTabProps {
     pointsByCategory: any[];
@@ -11,12 +12,13 @@ interface AnalyticsGamificationTabProps {
 }
 
 export const AnalyticsGamificationTab = ({ pointsByCategory, achievements }: AnalyticsGamificationTabProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid gap-6 md:grid-cols-2">
             <Card>
                 <CardHeader>
-                    <CardTitle>Points par catégorie</CardTitle>
-                    <CardDescription>Répartition des points gagnés</CardDescription>
+                    <CardTitle>{t("parentPortal.gamificationTab.pointsTitle")}</CardTitle>
+                    <CardDescription>{t("parentPortal.gamificationTab.pointsHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">
@@ -35,8 +37,8 @@ export const AnalyticsGamificationTab = ({ pointsByCategory, achievements }: Ana
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Badges récents</CardTitle>
-                    <CardDescription>Derniers badges obtenus</CardDescription>
+                    <CardTitle>{t("parentPortal.gamificationTab.badgesTitle")}</CardTitle>
+                    <CardDescription>{t("parentPortal.gamificationTab.badgesHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-3">
@@ -52,7 +54,7 @@ export const AnalyticsGamificationTab = ({ pointsByCategory, achievements }: Ana
                                 <div className="flex-1">
                                     <p className="font-medium">{ach.achievement?.name}</p>
                                     <p className="text-xs text-muted-foreground">
-                                        {ach.earned_at ? format(new Date(ach.earned_at), "dd MMM yyyy", { locale: fr }) : ""}
+                                        {ach.earned_at ? format(new Date(ach.earned_at), "dd MMM yyyy", { locale: dateFnsLocale() }) : ""}
                                         {ach.achievement?.points_reward && ` • +${ach.achievement.points_reward} pts`}
                                     </p>
                                 </div>
@@ -62,7 +64,7 @@ export const AnalyticsGamificationTab = ({ pointsByCategory, achievements }: Ana
                             </div>
                         ))}
                         {achievements.length === 0 && (
-                            <p className="text-center text-muted-foreground py-8">Aucun badge obtenu</p>
+                            <p className="text-center text-muted-foreground py-8">{t("parentPortal.gamificationTab.none")}</p>
                         )}
                     </div>
                 </CardContent>

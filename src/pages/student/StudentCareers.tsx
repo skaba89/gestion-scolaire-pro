@@ -4,7 +4,6 @@ import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { studentsService } from "@/features/students/services/studentsService";
 import { useTranslation } from "react-i18next";
@@ -24,6 +23,7 @@ import {
   Briefcase, Calendar, Users, Search, MapPin, Building2,
   ExternalLink, Clock, Send, GraduationCap, Linkedin, Check, FileText
 } from "lucide-react";
+import { dateFnsLocale } from "@/lib/locale";
 
 type JobOfferType = "INTERNSHIP" | "JOB" | "APPRENTICESHIP" | "VOLUNTEER";
 
@@ -333,7 +333,7 @@ const StudentCareers = () => {
                   {offer.application_deadline && (
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-4 w-4" />
-                      {t("careers.deadline")} {format(new Date(offer.application_deadline), "dd MMM yyyy", { locale: fr })}
+                      {t("careers.deadline")} {format(new Date(offer.application_deadline), "dd MMM yyyy", { locale: dateFnsLocale() })}
                     </div>
                   )}
                 </CardContent>
@@ -341,7 +341,7 @@ const StudentCareers = () => {
                   {isLoadingApplications ? (
                     <Button variant="secondary" disabled className="flex-1">
                       <span className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                      Chargement...
+                      {t("careers.loading")}
                     </Button>
                   ) : hasApplied(offer.id) ? (
                     <Button variant="secondary" disabled className="flex-1">
@@ -361,7 +361,7 @@ const StudentCareers = () => {
                       </DialogTrigger>
                       <DialogContent>
                         <DialogHeader>
-                          <DialogTitle>Postuler à {offer.title}</DialogTitle>
+                          <DialogTitle>{t("careers.applyTo", { title: offer.title })}</DialogTitle>
                           <DialogDescription>{offer.company_name}</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4 py-4">
@@ -421,7 +421,7 @@ const StudentCareers = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>Postulé le {app.applied_at ? format(new Date(app.applied_at), "dd MMM yyyy", { locale: fr }) : "—"}</span>
+                    <span>{t("careers.appliedOn", { date: app.applied_at ? format(new Date(app.applied_at), "dd MMM yyyy", { locale: dateFnsLocale() }) : "—" })}</span>
                     {app.job_offers && getOfferTypeBadge(app.job_offers.offer_type)}
                   </div>
                 </CardContent>
@@ -456,7 +456,7 @@ const StudentCareers = () => {
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-muted-foreground" />
                       <span>
-                        {format(new Date(event.start_datetime), "dd MMM yyyy 'à' HH:mm", { locale: fr })}
+                        {format(new Date(event.start_datetime), "PPp", { locale: dateFnsLocale() })}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -578,7 +578,7 @@ const StudentCareers = () => {
                     {hasMentorshipRequest(mentor.id) ? (
                       <Button variant="secondary" disabled className="flex-1">
                         <Check className="h-4 w-4 mr-2" />
-                        Demande envoyée
+                        {t("careers.requestSent")}
                       </Button>
                     ) : (
                       <Dialog open={showMentorDialog && selectedMentor?.id === mentor.id} onOpenChange={(open) => {

@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { CreditCard, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface ParentInvoiceStatsProps {
     totalDue: string;
@@ -14,6 +15,7 @@ export const ParentInvoiceStats = ({
     count,
     overdueCount
 }: ParentInvoiceStatsProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20 shadow-sm border-2">
@@ -26,7 +28,7 @@ export const ParentInvoiceStats = ({
                             <p className="text-xl font-bold text-orange-600 font-display">
                                 {totalDue}
                             </p>
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">À payer</p>
+                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">{t("parentPortal.invoiceStats.toPay")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -41,7 +43,7 @@ export const ParentInvoiceStats = ({
                             <p className="text-xl font-bold text-green-600 font-display">
                                 {totalPaid}
                             </p>
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">Payé</p>
+                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">{t("parentPortal.invoiceStats.paid")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -54,7 +56,7 @@ export const ParentInvoiceStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold font-display">{count}</p>
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">Factures</p>
+                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">{t("parentPortal.invoiceStats.invoices")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -67,7 +69,7 @@ export const ParentInvoiceStats = ({
                         </div>
                         <div>
                             <p className={`text-2xl font-bold font-display ${overdueCount > 0 ? "text-destructive" : ""}`}>{overdueCount}</p>
-                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">En retard</p>
+                            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">{t("parentPortal.invoiceStats.overdue")}</p>
                         </div>
                     </div>
                 </CardContent>

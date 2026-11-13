@@ -42,7 +42,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
@@ -54,6 +53,7 @@ type PaymentStatus = "PENDING" | "PARTIAL" | "PAID" | "OVERDUE" | "CANCELLED";
 
 import { useParentData } from "@/features/parents/hooks/useParentData";
 import { parentsService } from "@/features/parents/services/parentsService";
+import { dateFnsLocale } from "@/lib/locale";
 
 const STATUS_COLORS: Record<PaymentStatus, { variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
   PENDING: { variant: "outline", color: "text-orange-600 bg-orange-50 border-orange-200" },
@@ -136,7 +136,7 @@ const Invoices = () => {
       } else if (data?.status === "pending" || data?.reference) {
         toast.success(t("finance.paymentInitiated"));
       } else {
-        throw new Error("URL de paiement non reçue du serveur");
+        throw new Error(t("finance.paymentUrlMissing"));
       }
     } catch (error: any) {
       const detail = error?.response?.data?.detail;
@@ -263,13 +263,13 @@ const Invoices = () => {
                         <TableCell>
                           <div className="flex flex-col gap-1">
                             <Badge variant="outline" className="font-mono bg-background w-fit">{invoice.invoice_number}</Badge>
-                            {invoice.has_payment_plan && <Badge variant="secondary" className="text-[9px] w-fit bg-primary/10 text-primary border-primary/20"><CalendarDays className="w-3 h-3 mr-1" />{invoice.installments_count} échéances</Badge>}
+                            {invoice.has_payment_plan && <Badge variant="secondary" className="text-[9px] w-fit bg-primary/10 text-primary border-primary/20"><CalendarDays className="w-3 h-3 mr-1" />{t("finance.installments", { count: invoice.installments_count })}</Badge>}
                           </div>
                         </TableCell>
                         <TableCell><p className="font-bold text-sm">{student?.first_name} {student?.last_name}</p></TableCell>
                         <TableCell className="font-bold text-sm">{formatCurrency(Number(invoice.total_amount))}</TableCell>
                         <TableCell className={`font-bold text-sm ${remaining > 0 ? "text-orange-600" : "text-green-600"}`}>{remaining > 0 ? formatCurrency(remaining) : t("finance.settled")}</TableCell>
-                        <TableCell className="text-xs font-medium text-muted-foreground">{invoice.due_date ? format(new Date(invoice.due_date), "dd MMM yyyy", { locale: fr }) : "-"}</TableCell>
+                        <TableCell className="text-xs font-medium text-muted-foreground">{invoice.due_date ? format(new Date(invoice.due_date), "dd MMM yyyy", { locale: dateFnsLocale() }) : "-"}</TableCell>
                         <TableCell><Badge className={`${status?.color || ""} border-none shadow-none text-[10px] uppercase font-bold`}>{status?.label || invoice.status}</Badge></TableCell>
                         <TableCell className="text-right px-6">
                           <div className="flex items-center justify-end gap-2">
@@ -342,8 +342,8 @@ const Invoices = () => {
                   <Smartphone className="w-5 h-5 text-orange-500" />
                   <span className="font-bold text-sm">CinetPay</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Wave · Orange Money · MTN · Carte</span>
-                <span className="text-[9px] text-orange-600 font-medium">CI · SN · ML · BF · TG · CM et +</span>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{t("finance.cinetpayMethods")}</span>
+                <span className="text-[9px] text-orange-600 font-medium">{t("finance.cinetpayCountries")}</span>
               </Button>
             )}
             {mobileMoneyEnabled && (
@@ -353,7 +353,7 @@ const Invoices = () => {
                   <span className="font-bold text-sm">Mobile Money (PayTech)</span>
                 </div>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-widest">Wave · Orange Money · MTN</span>
-                <span className="text-[9px] text-green-600 font-medium">Sénégal</span>
+                <span className="text-[9px] text-green-600 font-medium">{t("finance.paytechCountry")}</span>
               </Button>
             )}
           </div>

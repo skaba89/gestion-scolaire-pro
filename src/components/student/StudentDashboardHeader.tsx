@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { dateFnsLocale } from "@/lib/locale";
 
 interface StudentDashboardHeaderProps {
     name: string;
@@ -15,7 +15,7 @@ export const StudentDashboardHeader = ({ name, className, studentLabel }: Studen
                 Bienvenue, {name || studentLabel} !
             </h1>
             <p className="text-primary-foreground/80">
-                {format(new Date(), "EEEE d MMMM yyyy", { locale: fr })}
+                {format(new Date(), "EEEE d MMMM yyyy", { locale: dateFnsLocale() })}
             </p>
             {className && (
                 <div className="mt-3 flex flex-wrap gap-2">

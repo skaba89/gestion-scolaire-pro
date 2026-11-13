@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/contexts/TenantContext";
 import { resolveUploadUrl } from "@/utils/url";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { useTranslation } from "react-i18next";
 
 interface StudentDigitalBadgeProps {
     student: {
@@ -26,6 +27,7 @@ interface StudentDigitalBadgeProps {
 }
 
 export const StudentDigitalBadge = ({ student, className }: StudentDigitalBadgeProps) => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { StudentLabel } = useStudentLabel();
 
@@ -63,16 +65,16 @@ export const StudentDigitalBadge = ({ student, className }: StudentDigitalBadgeP
                         <QrCode className="w-6 h-6" />
                     </div>
                     <div className="text-left">
-                        <p className="font-bold text-sm">Mon Badge Numérique</p>
-                        <p className="text-xs text-muted-foreground">Scanner pour pointage</p>
+                        <p className="font-bold text-sm">{t("studentPortal.badge.mine")}</p>
+                        <p className="text-xs text-muted-foreground">{t("studentPortal.badge.scanHint")}</p>
                     </div>
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md bg-gradient-to-br from-background to-muted/30 border-primary/20">
                 <DialogHeader>
-                    <DialogTitle className="text-center font-display text-2xl font-bold">Badge Scolaire</DialogTitle>
+                    <DialogTitle className="text-center font-display text-2xl font-bold">{t("studentPortal.badge.title")}</DialogTitle>
                     <DialogDescription className="text-center">
-                        Présentez ce code au scanner lors de vos entrées et sorties.
+                        {t("studentPortal.badge.description")}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -86,7 +88,7 @@ export const StudentDigitalBadge = ({ student, className }: StudentDigitalBadgeP
                             <div className="flex justify-between w-full items-start">
                                 <div className="bg-primary/10 p-2 rounded-xl">
                                     {tenant?.logo_url ? (
-                                        <img src={resolveUploadUrl(tenant.logo_url)} alt="School Logo" className="w-8 h-8 object-contain" />
+                                        <img src={resolveUploadUrl(tenant.logo_url)} alt={t("studentPortal.badge.schoolLogo")} className="w-8 h-8 object-contain" />
                                     ) : (
                                         <School className="w-6 h-6 text-primary" />
                                     )}
@@ -99,7 +101,7 @@ export const StudentDigitalBadge = ({ student, className }: StudentDigitalBadgeP
                             {/* Student Photo */}
                             <div className="w-24 h-24 rounded-2xl border-4 border-background shadow-lg overflow-hidden bg-muted">
                                 {student.photo_url ? (
-                                    <img src={resolveUploadUrl(student.photo_url)} alt="Student" className="w-full h-full object-cover" />
+                                    <img src={resolveUploadUrl(student.photo_url)} alt={t("studentPortal.badge.photo")} className="w-full h-full object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-primary/5">
                                         <User className="w-12 h-12 text-primary/20" />
@@ -132,17 +134,17 @@ export const StudentDigitalBadge = ({ student, className }: StudentDigitalBadgeP
 
                             {/* Footer */}
                             <p className="text-[10px] text-muted-foreground italic text-center">
-                                Propriété de {tenant?.name || "l'établissement"} • {new Date().getFullYear()}
+                                {t("studentPortal.badge.property", { name: tenant?.name || t("studentPortal.badge.theSchool"), year: new Date().getFullYear() })}
                             </p>
                         </div>
                     </div>
 
                     <div className="flex w-full gap-3">
                         <Button onClick={handleDownload} variant="secondary" className="flex-1 gap-2">
-                            <Download className="w-4 h-4" /> Enregistrer
+                            <Download className="w-4 h-4" /> {t("studentPortal.badge.save")}
                         </Button>
                         <Button onClick={() => window.print()} variant="outline" className="flex-1 gap-2">
-                            Imprimer
+                            {t("studentPortal.badge.print")}
                         </Button>
                     </div>
                 </div>

@@ -59,7 +59,8 @@
     "acceptAll": "全部接受",
     "decline": "拒绝",
     "savePreferences": "保存偏好设置",
-    "sessionStarted": "会话已开始"
+    "sessionStarted": "会话已开始",
+    "missingData": "数据缺失"
   },
   "auth": {
     "login": "登录",
@@ -203,7 +204,15 @@
     "saasDashboard": "SaaS 仪表板",
     "subscriptionRequests": "订阅申请",
     "newTenant": "新建院校",
-    "changeLanguage": "切换语言"
+    "changeLanguage": "切换语言",
+    "closeMenu": "关闭菜单",
+    "openMenu": "打开菜单",
+    "searchShortcut": "搜索 (Ctrl+K)",
+    "searchApp": "在应用中搜索",
+    "logout": "退出登录",
+    "institution": "院校",
+    "availableInstitutions": "可用院校",
+    "loadingInstitutions": "加载中或没有院校…"
   },
   "dashboard": {
     "hello": "您好，{{name}} 👋",
@@ -475,7 +484,12 @@
     "unpaid": "未付款",
     "partial": "部分付款",
     "total": "总计",
-    "balance": "余额"
+    "balance": "余额",
+    "paymentUrlMissing": "未从服务器收到支付链接",
+    "cinetpayMethods": "Wave · Orange Money · MTN · 银行卡",
+    "cinetpayCountries": "CI · SN · ML · BF · TG · CM 等",
+    "paytechCountry": "塞内加尔",
+    "installments": "{{count}} 期"
   },
   "teacherHours": {
     "pageTitle": "教师工时跟踪",
@@ -715,7 +729,11 @@
     "offerTypeInternship": "实习",
     "offerTypeJob": "工作",
     "offerTypeApprenticeship": "学徒",
-    "offerTypeVolunteer": "志愿服务"
+    "offerTypeVolunteer": "志愿服务",
+    "loading": "加载中…",
+    "appliedOn": "申请于 {{date}}",
+    "requestSent": "请求已发送",
+    "applyTo": "申请 {{title}}"
   },
   "childDetail": {
     "back": "返回",
@@ -755,7 +773,9 @@
     "appliedOn": "申请于",
     "incompleteData": "数据不完整，无法生成成绩单。",
     "recordError": "生成学业档案时出错",
-    "popupBlocked": "浏览器阻止了弹窗 — 文件已下载。"
+    "popupBlocked": "浏览器阻止了弹窗 — 文件已下载。",
+    "retry": "请重试",
+    "otherSubject": "其他"
   },
   "preRegistration": {
     "pageTitle": "预注册",
@@ -804,7 +824,16 @@
     "success": "预注册提交成功！",
     "error": "提交时出错，请重试。",
     "onlineTitle": "在线预注册",
-    "onlineDesc": "提交预注册申请以为您的{{studentsLabel}}保留名额。管理部门随后将验证您的申请。"
+    "onlineDesc": "提交预注册申请以为您的{{studentsLabel}}保留名额。管理部门随后将验证您的申请。",
+    "notAssigned": "未分配",
+    "desiredLevelShort": "期望年级：",
+    "notSpecified": "未指定",
+    "noChildTitle": "没有关联的{{label}}",
+    "noChildHint": "您的账户尚未关联任何{{label}}，请联系管理部门。",
+    "dialogTitle": "续读申请",
+    "dialogDescription": "确认 {{name}} 在 {{year}} 学年的续读申请。",
+    "parentSubtitleNext": "为您的{{label}}办理下一学年注册",
+    "parentSubtitleYear": "为您的{{label}}办理 {{year}} 学年注册"
   },
   "teacherRisk": {
     "pageTitle": "高风险学生",
@@ -892,7 +921,8 @@
     "statusAbsent": "缺席",
     "bookingSuccess": "预约成功",
     "bookingError": "预约时出错",
-    "cancelled": "预约已取消"
+    "cancelled": "预约已取消",
+    "slotRange": "{{date}} - {{start}} 至 {{end}}"
   },
   "teacherAttendance": {
     "class": "班级",
@@ -3268,5 +3298,397 @@
       "ofStudents": "学生们的",
       "newStudent": "新学生"
     }
+  },
+  "alumniPortal": {
+    "status": {
+      "pending": "待处理",
+      "in_progress": "处理中",
+      "awaiting_validation": "待审核",
+      "completed": "已完成",
+      "rejected": "已拒绝",
+      "cancelled": "已取消",
+      "validated": "已批准",
+      "awaitingValidationLong": "审核中"
+    },
+    "docType": {
+      "transcript": "成绩单",
+      "diploma": "毕业证书",
+      "certificate": "证明",
+      "attestation": "证明信",
+      "other": "其他",
+      "certificateOfEnrollment": "在读证明",
+      "otherDocument": "其他文件"
+    },
+    "dashboard": {
+      "title": "校友门户",
+      "welcome": "欢迎来到您的个人空间",
+      "requests": "申请",
+      "messages": "消息",
+      "new": "新",
+      "inProgress": "处理中",
+      "completed": "已完成",
+      "recentRequests": "最近的申请",
+      "recentRequestsHint": "您最近的文件申请",
+      "newRequest": "新建",
+      "noRequest": "暂无申请",
+      "makeRequest": "提交申请",
+      "allRequests": "查看全部申请",
+      "quickAccess": "快捷入口",
+      "mainFeatures": "主要功能",
+      "documentRequest": "文件申请",
+      "documentRequestHint": "成绩单、毕业证书、证明信",
+      "messaging": "消息中心",
+      "messagingHint": "与教务处联系",
+      "careers": "职业与导师计划",
+      "careersHint": "招聘信息与校友网络"
+    },
+    "requests": {
+      "title": "我的文件申请",
+      "subtitle": "提交并跟踪您的行政文件申请",
+      "new": "新申请",
+      "newTitle": "新的文件申请",
+      "newHint": "填写表格以提交申请",
+      "documentTypeRequired": "文件类型 *",
+      "selectType": "选择类型",
+      "detailedDescription": "详细说明",
+      "descriptionPlaceholder": "请说明所需文件（年份、专业等）",
+      "purposeRequired": "申请原因 *",
+      "purposePlaceholder": "您为什么需要这份文件？",
+      "urgency": "紧急程度",
+      "urgencyNormal": "普通",
+      "urgencyUrgent": "紧急",
+      "deliveryMethod": "交付方式",
+      "deliveryEmail": "电子邮件",
+      "deliveryMail": "邮寄",
+      "deliveryPickup": "现场领取",
+      "deliveryAddress": "收件地址",
+      "fullAddress": "完整地址",
+      "submit": "提交申请",
+      "tabActive": "处理中（{{count}}）",
+      "tabHistory": "历史（{{count}}）",
+      "noActive": "暂无处理中的申请",
+      "noActiveHint": "点击“新申请”提交您的第一份申请",
+      "noHistory": "暂无历史",
+      "noHistoryHint": "已完成的申请将显示在这里",
+      "details": "申请详情",
+      "documentType": "文件类型",
+      "status": "状态",
+      "submittedAt": "提交日期",
+      "description": "说明",
+      "purpose": "原因",
+      "validatorNote": "审核人备注",
+      "history": "历史",
+      "submittedOn": "提交于 {{date}}",
+      "cancel": "取消"
+    },
+    "careers": {
+      "offerType": {
+        "INTERNSHIP": "实习",
+        "JOB": "工作",
+        "APPRENTICESHIP": "学徒制",
+        "FREELANCE": "自由职业"
+      },
+      "title": "职业与校友网络",
+      "subtitle": "职业机会与导师计划",
+      "tabOffers": "职位（{{count}}）",
+      "tabMentors": "导师（{{count}}）",
+      "tabEvents": "活动（{{count}}）",
+      "noOffer": "暂无职位",
+      "noOfferHint": "请稍后再来查看新机会",
+      "company": "公司",
+      "remote": "远程",
+      "deadline": "截止 {{date}}",
+      "apply": "申请",
+      "noMentor": "暂无导师",
+      "noMentorHint": "导师计划即将推出",
+      "noEvent": "暂无即将举行的活动",
+      "noEventHint": "敬请关注后续活动",
+      "online": "线上"
+    },
+    "messages": {
+      "recipient": "收件人",
+      "title": "消息"
+    }
+  },
+  "messenger": {
+    "recipient": "收件人",
+    "title": "消息",
+    "fillRequired": "请填写必填项",
+    "today": "今天",
+    "yesterday": "昨天",
+    "search": "搜索消息",
+    "noConversation": "暂无会话",
+    "conversation": "会话",
+    "noMessage": "无消息",
+    "yourMessages": "您的消息",
+    "selectConversation": "选择一个会话开始聊天",
+    "newConversation": "新建会话",
+    "choose": "选择：{{label}}",
+    "subject": "主题",
+    "subjectPlaceholder": "消息主题",
+    "message": "消息",
+    "messagePlaceholder": "您的消息…",
+    "cancel": "取消",
+    "sending": "发送中…",
+    "send": "发送"
+  },
+  "parentPortal": {
+    "children": {
+      "title": "我的孩子",
+      "subtitle": "查看孩子的信息和成绩",
+      "count": "孩子：{{count}}",
+      "none": "未找到孩子",
+      "noneHint": "请联系学校管理部门，将孩子关联到您的家长账户。",
+      "attendanceHistory": "出勤记录"
+    },
+    "analytics": {
+      "title": "详细分析",
+      "noChild": "没有关联的{{label}}",
+      "noChildHint": "请联系管理部门将您的{{label}}关联到账户",
+      "subtitle": "详细了解您{{label}}的表现"
+    },
+    "header": {
+      "welcome": "欢迎，{{name}}！",
+      "parent": "家长",
+      "enrolledChildren": "已注册的孩子：{{count}}"
+    },
+    "grid": {
+      "title": "孩子的表现",
+      "none": "没有关联的孩子",
+      "noneHint": "请联系管理部门将孩子关联到您的账户。"
+    },
+    "invoiceStats": {
+      "toPay": "待支付",
+      "paid": "已支付",
+      "invoices": "发票",
+      "overdue": "逾期"
+    },
+    "childCard": {
+      "primaryContact": "主要联系人",
+      "details": "详情与成绩",
+      "reportCards": "成绩报告",
+      "invoices": "发票",
+      "attendance": "出勤",
+      "notAvailable": "无",
+      "seeDetails": "查看详情",
+      "average": "平均分",
+      "assessments": "{{count}} 次评估",
+      "presence": "出勤",
+      "homework": "作业",
+      "toSubmit": "{{count}} 份待交",
+      "submitted": "{{count}} 份已交"
+    },
+    "analyticsTabs": {
+      "grades": "成绩",
+      "subjects": "科目",
+      "attendance": "出勤",
+      "homework": "作业",
+      "gamification": "游戏化"
+    },
+    "metrics": {
+      "average": "总平均分",
+      "attendance": "出勤率",
+      "homeworkSubmitted": "已交作业",
+      "points": "获得积分",
+      "pointsAccumulated": "累计积分",
+      "badges": "徽章"
+    },
+    "recommendations": {
+      "title": "个性化建议",
+      "hide": "隐藏"
+    },
+    "attendanceTab": {
+      "title": "出勤率",
+      "subtitle": "每月出勤趋势"
+    },
+    "homeworkTab": {
+      "title": "最近的作业",
+      "subtitle": "提交状态和成绩",
+      "due": "截止：{{date}}",
+      "pending": "待批改",
+      "notSubmitted": "未提交",
+      "none": "未找到作业",
+      "punctuality": "准时情况",
+      "timing": "提交时间"
+    },
+    "gradesTab": {
+      "title": "成绩趋势",
+      "subtitle": "近 6 个月的月平均分",
+      "types": "评估类型",
+      "typesHint": "按评估类型分布"
+    },
+    "subjectsTab": {
+      "title": "各科表现",
+      "subtitle": "各科平均分"
+    },
+    "gamificationTab": {
+      "pointsTitle": "按类别的积分",
+      "pointsHint": "获得积分的分布",
+      "badgesTitle": "最近的徽章",
+      "badgesHint": "最近获得的徽章",
+      "none": "尚未获得徽章"
+    },
+    "analyticsHook": {
+      "other": "其他",
+      "achievement": "成就",
+      "weakTitle": "需要加强的科目",
+      "weakMessage": "需关注：{{subjects}}。建议增加复习时间。",
+      "strongTitle": "已发现的优势",
+      "strongMessage": "在{{subjects}}方面表现优秀，鼓励继续保持！",
+      "attendanceTitle": "出勤有待提高",
+      "attendanceMessage": "出勤率为 {{rate}}%，低于 90% 的目标。坚持出勤是成功的关键。",
+      "homeworkTitle": "待交作业",
+      "homeworkMessage": "{{rate}}% 的作业未提交，制定学习计划会有帮助。",
+      "progressTitle": "进步显著",
+      "progressMessage": "本月提高了 {{points}} 分！请继续鼓励。",
+      "declineTitle": "成绩下降",
+      "declineMessage": "成绩下降了 {{points}} 分，建议与老师沟通。",
+      "early": "提前",
+      "onTime": "按时",
+      "late": "迟交"
+    }
+  },
+  "studentPortal": {
+    "today": {
+      "title": "今日课程",
+      "none": "今天没有课",
+      "subject": "科目"
+    },
+    "upcoming": {
+      "title": "即将到期的作业",
+      "none": "没有待交作业",
+      "urgent": "紧急"
+    },
+    "recent": {
+      "title": "最新成绩",
+      "seeAll": "查看全部",
+      "none": "暂无最新成绩"
+    },
+    "gradeTable": {
+      "title": "成绩单",
+      "none": "暂无成绩",
+      "subject": "科目",
+      "assessment": "评估",
+      "type": "类型",
+      "date": "日期",
+      "grade": "成绩"
+    },
+    "grades": {
+      "title": "我的成绩",
+      "subtitle": "查看您的学习成绩"
+    },
+    "badge": {
+      "mine": "我的电子胸卡",
+      "scanHint": "扫码签到",
+      "title": "学生证",
+      "description": "进出校园时请向扫码器出示此码。",
+      "schoolLogo": "学校标志",
+      "photo": "学生照片",
+      "property": "{{name}} 所有 • {{year}}",
+      "theSchool": "学校",
+      "print": "打印",
+      "save": "保存"
+    },
+    "dashboard": {
+      "noProfile": "{{label}}档案尚未设置",
+      "noProfileHint": "您的账户尚未关联{{label}}档案，请联系学校管理部门。",
+      "average": "平均分"
+    },
+    "messages": {
+      "recipient": "收件人"
+    }
+  },
+  "attendanceHistory": {
+    "PRESENT": "出勤",
+    "ABSENT": "缺勤",
+    "LATE": "迟到",
+    "EXCUSED": "已请假",
+    "loading": "正在加载记录…",
+    "title": "出勤记录",
+    "thisMonth": "本月（{{month}}）",
+    "lastMonth": "上月（{{month}}）",
+    "quarter": "季度（近 3 个月）",
+    "quarterDetail": "季度明细",
+    "presences": "出勤",
+    "absences": "缺勤",
+    "lates": "迟到",
+    "excused": "请假",
+    "recent": "最近记录",
+    "date": "日期",
+    "status": "状态",
+    "notes": "备注",
+    "none": "暂无出勤记录",
+    "presentCount": "出勤 {{count}} 次",
+    "absentCount": "缺勤 {{count}} 次"
+  },
+  "checkInHistory": {
+    "title": "签到记录",
+    "subtitle": "您最近的 10 次签到。",
+    "none": "近期没有签到记录。",
+    "entry": "入校",
+    "exit": "离校",
+    "present": "在校",
+    "left": "已离开"
+  },
+  "homeworkSubmission": {
+    "success": "作业已提交",
+    "noDescription": "未提供说明",
+    "grade": "成绩：{{grade}}/{{max}}",
+    "comment": "评语：",
+    "yourWork": "您的作业",
+    "placeholder": "在此填写您的作业…",
+    "graded": "此作业已评分，无法再修改。",
+    "editable": "在评分前您可以修改提交内容。",
+    "update": "修改提交",
+    "submit": "提交作业"
+  },
+  "reminders": {
+    "saved": "偏好已保存",
+    "homework": "作业",
+    "homeworkDue": "{{subject}} - 待提交",
+    "invoice": "发票 {{number}}",
+    "event": "活动",
+    "title": "提醒",
+    "homeworkReminders": "作业提醒",
+    "paymentReminders": "付款提醒",
+    "eventReminders": "活动提醒",
+    "closeSettings": "关闭设置",
+    "none": "暂无提醒",
+    "upToDate": "一切都已处理！",
+    "urgent": "紧急",
+    "upcoming": "即将到来"
+  },
+  "sharedNotes": {
+    "shared": "笔记已分享",
+    "createError": "创建笔记失败",
+    "commentError": "添加评论失败",
+    "deleted": "笔记已删除",
+    "title": "共享笔记",
+    "new": "新建",
+    "shareNote": "分享笔记",
+    "noteTitle": "笔记标题",
+    "noteContent": "笔记内容…",
+    "visibility": "可见范围",
+    "myClass": "我的班级",
+    "bySubject": "按科目",
+    "wholeSchool": "全校",
+    "submit": "分享笔记",
+    "loading": "加载中…",
+    "none": "暂无共享笔记",
+    "beFirst": "成为第一个分享笔记的人！",
+    "delete": "删除",
+    "comments": "评论（{{count}}）",
+    "addComment": "添加评论…"
+  },
+  "collaboration": {
+    "title": "协作工具",
+    "courses": "课程",
+    "discussions": "讨论",
+    "clubs": "社团",
+    "loading": "加载中…",
+    "noCourse": "暂无课程",
+    "noDiscussion": "暂无最近讨论",
+    "noClub": "暂无社团",
+    "members": "{{count}} 名成员"
   }
 }

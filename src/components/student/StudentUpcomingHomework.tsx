@@ -3,8 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { ClipboardList, AlertCircle, BookOpen, CheckCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-container";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface Homework {
     id: string;
@@ -19,19 +20,20 @@ interface StudentUpcomingHomeworkProps {
 }
 
 export const StudentUpcomingHomework = ({ homework, getTenantUrl }: StudentUpcomingHomeworkProps) => {
+    const { t } = useTranslation();
     return (
         <Card className="h-full">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base font-display">
                     <ClipboardList className="w-5 h-5 text-primary" />
-                    Devoirs à venir
+                    {t("studentPortal.upcoming.title")}
                 </CardTitle>
             </CardHeader>
             <CardContent>
                 {homework.length === 0 ? (
                     <div className="text-center py-8">
                         <CheckCircle className="w-12 h-12 text-success/30 mx-auto mb-3" />
-                        <p className="text-muted-foreground">Aucun devoir à rendre</p>
+                        <p className="text-muted-foreground">{t("studentPortal.upcoming.none")}</p>
                     </div>
                 ) : (
                     <StaggerContainer className="space-y-3">
@@ -60,13 +62,13 @@ export const StudentUpcomingHomework = ({ homework, getTenantUrl }: StudentUpcom
                                             <p className="text-xs text-muted-foreground">
                                                 {hw.subjects?.name} • {formatDistanceToNow(new Date(hw.due_date), {
                                                     addSuffix: true,
-                                                    locale: fr
+                                                    locale: dateFnsLocale()
                                                 })}
                                             </p>
                                         </div>
                                         {isUrgent && (
                                             <Badge variant="destructive" className="text-[10px] h-5">
-                                                Urgent
+                                                {t("studentPortal.upcoming.urgent")}
                                             </Badge>
                                         )}
                                     </Link>

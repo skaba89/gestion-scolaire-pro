@@ -53,7 +53,8 @@
         "acceptAll": "Tout accepter",
         "decline": "Refuser",
         "savePreferences": "Enregistrer les préférences",
-        "sessionStarted": "Session démarrée"
+        "sessionStarted": "Session démarrée",
+        "missingData": "Données manquantes"
     },
     "auth": {
         "login": "Se connecter",
@@ -211,7 +212,15 @@
         "saasDashboard": "Tableau de bord SaaS",
         "subscriptionRequests": "Demandes d'abonnement",
         "newTenant": "Nouvel établissement",
-        "changeLanguage": "Changer de langue"
+        "changeLanguage": "Changer de langue",
+        "closeMenu": "Fermer le menu",
+        "openMenu": "Ouvrir le menu",
+        "searchShortcut": "Rechercher (Ctrl+K)",
+        "searchApp": "Rechercher dans l'application",
+        "logout": "Déconnexion",
+        "institution": "Établissement",
+        "availableInstitutions": "Établissements disponibles",
+        "loadingInstitutions": "Chargement ou aucun établissement..."
     },
     "portal": {
         "adminSpace": "Espace Admin",
@@ -453,7 +462,12 @@
         "installmentsCount": "{{count}} échéances",
         "colLimitDate": "Date limite",
         "colDescription": "Description",
-        "colQty": "Qté"
+        "colQty": "Qté",
+        "paymentUrlMissing": "URL de paiement non reçue du serveur",
+        "cinetpayMethods": "Wave · Orange Money · MTN · Carte",
+        "cinetpayCountries": "CI · SN · ML · BF · TG · CM et +",
+        "paytechCountry": "Sénégal",
+        "installments": "{{count}} échéances"
     },
     "reports": {
         "title": "Rapports",
@@ -760,7 +774,11 @@
         "offerTypeInternship": "Stage",
         "offerTypeJob": "Emploi",
         "offerTypeApprenticeship": "Apprentissage",
-        "offerTypeVolunteer": "Bénévolat"
+        "offerTypeVolunteer": "Bénévolat",
+        "loading": "Chargement...",
+        "appliedOn": "Postulé le {{date}}",
+        "requestSent": "Demande envoyée",
+        "applyTo": "Postuler à {{title}}"
     },
     "childDetail": {
         "back": "Retour",
@@ -800,7 +818,9 @@
         "appliedOn": "Postulé le",
         "incompleteData": "Données incomplètes pour générer le relevé.",
         "recordError": "Erreur lors de la génération du dossier scolaire",
-        "popupBlocked": "Ouverture bloquée par le navigateur — fichier téléchargé à la place."
+        "popupBlocked": "Ouverture bloquée par le navigateur — fichier téléchargé à la place.",
+        "retry": "Veuillez réessayer",
+        "otherSubject": "Autre"
     },
     "preRegistration": {
         "pageTitle": "Pré-Réinscription",
@@ -849,7 +869,16 @@
         "success": "Pré-réinscription soumise avec succès!",
         "error": "Erreur lors de la soumission. Veuillez réessayer.",
         "onlineTitle": "Pré-réinscription en ligne",
-        "onlineDesc": "Soumettez la demande de pré-réinscription pour réserver la place de vos {{studentsLabel}}. L'administration validera ensuite votre demande."
+        "onlineDesc": "Soumettez la demande de pré-réinscription pour réserver la place de vos {{studentsLabel}}. L'administration validera ensuite votre demande.",
+        "notAssigned": "Non attribué",
+        "desiredLevelShort": "Niveau souhaité :",
+        "notSpecified": "Non spécifié",
+        "noChildTitle": "Aucun {{label}} associé",
+        "noChildHint": "Votre compte n'est pas encore associé à des {{label}}. Veuillez contacter l'administration.",
+        "dialogTitle": "Pré-Réinscription",
+        "dialogDescription": "Confirmez la pré-réinscription de {{name}} pour l'année {{year}}.",
+        "parentSubtitleNext": "Inscrivez vos {{label}} pour l'année suivante",
+        "parentSubtitleYear": "Inscrivez vos {{label}} pour l'année {{year}}"
     },
     "teacherRisk": {
         "pageTitle": "{{Label}} à Risque",
@@ -937,7 +966,8 @@
         "statusAbsent": "Absent",
         "bookingSuccess": "Rendez-vous réservé avec succès",
         "bookingError": "Erreur lors de la réservation",
-        "cancelled": "Rendez-vous annulé"
+        "cancelled": "Rendez-vous annulé",
+        "slotRange": "{{date}} - {{start}} à {{end}}"
     },
     "teacherAttendance": {
         "class": "Classe",
@@ -3189,5 +3219,397 @@
             "ofStudents": "des élèves/étudiants",
             "newStudent": "nouvel étudiant"
         }
+    },
+    "alumniPortal": {
+        "status": {
+            "pending": "En attente",
+            "in_progress": "En cours",
+            "awaiting_validation": "Validation",
+            "completed": "Terminé",
+            "rejected": "Rejeté",
+            "cancelled": "Annulé",
+            "validated": "Validé",
+            "awaitingValidationLong": "En validation"
+        },
+        "docType": {
+            "transcript": "Relevé de notes",
+            "diploma": "Diplôme",
+            "certificate": "Certificat",
+            "attestation": "Attestation",
+            "other": "Autre",
+            "certificateOfEnrollment": "Certificat de scolarité",
+            "otherDocument": "Autre document"
+        },
+        "dashboard": {
+            "title": "Espace Alumni",
+            "welcome": "Bienvenue dans votre espace personnel",
+            "requests": "Demandes",
+            "messages": "Messages",
+            "new": "Nouveau",
+            "inProgress": "En cours",
+            "completed": "Terminées",
+            "recentRequests": "Demandes récentes",
+            "recentRequestsHint": "Vos dernières demandes de documents",
+            "newRequest": "Nouvelle",
+            "noRequest": "Aucune demande",
+            "makeRequest": "Faire une demande",
+            "allRequests": "Voir toutes les demandes",
+            "quickAccess": "Accès rapide",
+            "mainFeatures": "Fonctionnalités principales",
+            "documentRequest": "Demande de documents",
+            "documentRequestHint": "Relevés, diplômes, attestations",
+            "messaging": "Messagerie",
+            "messagingHint": "Communiquez avec le secrétariat",
+            "careers": "Carrières & Mentorat",
+            "careersHint": "Offres d'emploi et réseau alumni"
+        },
+        "requests": {
+            "title": "Mes demandes de documents",
+            "subtitle": "Soumettez et suivez vos demandes de documents administratifs",
+            "new": "Nouvelle demande",
+            "newTitle": "Nouvelle demande de document",
+            "newHint": "Remplissez le formulaire pour soumettre votre demande",
+            "documentTypeRequired": "Type de document *",
+            "selectType": "Sélectionnez le type",
+            "detailedDescription": "Description détaillée",
+            "descriptionPlaceholder": "Précisez le document demandé (année, filière, etc.)",
+            "purposeRequired": "Motif de la demande *",
+            "purposePlaceholder": "Pourquoi avez-vous besoin de ce document ?",
+            "urgency": "Urgence",
+            "urgencyNormal": "Normal",
+            "urgencyUrgent": "Urgent",
+            "deliveryMethod": "Mode de livraison",
+            "deliveryEmail": "Email",
+            "deliveryMail": "Courrier",
+            "deliveryPickup": "Retrait sur place",
+            "deliveryAddress": "Adresse de livraison",
+            "fullAddress": "Adresse complète",
+            "submit": "Soumettre la demande",
+            "tabActive": "En cours ({{count}})",
+            "tabHistory": "Historique ({{count}})",
+            "noActive": "Aucune demande en cours",
+            "noActiveHint": "Cliquez sur « Nouvelle demande » pour soumettre votre première demande",
+            "noHistory": "Aucun historique",
+            "noHistoryHint": "Les demandes terminées apparaîtront ici",
+            "details": "Détails de la demande",
+            "documentType": "Type de document",
+            "status": "Statut",
+            "submittedAt": "Date de soumission",
+            "description": "Description",
+            "purpose": "Motif",
+            "validatorNote": "Note du validateur",
+            "history": "Historique",
+            "submittedOn": "Soumis le {{date}}",
+            "cancel": "Annuler"
+        },
+        "careers": {
+            "offerType": {
+                "INTERNSHIP": "Stage",
+                "JOB": "Emploi",
+                "APPRENTICESHIP": "Alternance",
+                "FREELANCE": "Freelance"
+            },
+            "title": "Carrières & Réseau Alumni",
+            "subtitle": "Opportunités professionnelles et mentorat",
+            "tabOffers": "Offres ({{count}})",
+            "tabMentors": "Mentors ({{count}})",
+            "tabEvents": "Événements ({{count}})",
+            "noOffer": "Aucune offre disponible",
+            "noOfferHint": "Revenez bientôt pour découvrir de nouvelles opportunités",
+            "company": "Entreprise",
+            "remote": "Télétravail",
+            "deadline": "Avant le {{date}}",
+            "apply": "Postuler",
+            "noMentor": "Aucun mentor disponible",
+            "noMentorHint": "Le programme de mentorat sera bientôt disponible",
+            "noEvent": "Aucun événement à venir",
+            "noEventHint": "Restez connecté pour ne pas manquer les prochains événements",
+            "online": "En ligne"
+        },
+        "messages": {
+            "recipient": "Destinataire",
+            "title": "Messages"
+        }
+    },
+    "messenger": {
+        "recipient": "Destinataire",
+        "title": "Messages",
+        "fillRequired": "Veuillez remplir les champs obligatoires",
+        "today": "Aujourd'hui",
+        "yesterday": "Hier",
+        "search": "Rechercher dans les messages",
+        "noConversation": "Aucune conversation",
+        "conversation": "Conversation",
+        "noMessage": "Sans message",
+        "yourMessages": "Vos messages",
+        "selectConversation": "Sélectionnez une conversation pour commencer à discuter",
+        "newConversation": "Nouvelle conversation",
+        "choose": "Choisir : {{label}}",
+        "subject": "Sujet",
+        "subjectPlaceholder": "Objet de votre message",
+        "message": "Message",
+        "messagePlaceholder": "Votre message...",
+        "cancel": "Annuler",
+        "sending": "Envoi...",
+        "send": "Envoyer"
+    },
+    "parentPortal": {
+        "children": {
+            "title": "Mes Enfants",
+            "subtitle": "Consultez les informations et résultats de vos enfants",
+            "count": "Enfants : {{count}}",
+            "none": "Aucun enfant trouvé",
+            "noneHint": "Veuillez contacter l'administration de l'établissement pour associer vos enfants à votre compte parent.",
+            "attendanceHistory": "Historique des présences"
+        },
+        "analytics": {
+            "title": "Analytics détaillés",
+            "noChild": "Aucun {{label}} associé",
+            "noChildHint": "Contactez l'administration pour associer vos {{label}} à votre compte",
+            "subtitle": "Suivez les performances de vos {{label}} en détail"
+        },
+        "header": {
+            "welcome": "Bienvenue, {{name}} !",
+            "parent": "Parent",
+            "enrolledChildren": "Enfants inscrits : {{count}}"
+        },
+        "grid": {
+            "title": "Performance de mes enfants",
+            "none": "Aucun enfant associé",
+            "noneHint": "Contactez l'administration pour associer vos enfants à votre compte."
+        },
+        "invoiceStats": {
+            "toPay": "À payer",
+            "paid": "Payé",
+            "invoices": "Factures",
+            "overdue": "En retard"
+        },
+        "childCard": {
+            "primaryContact": "Contact principal",
+            "details": "Détails & Notes",
+            "reportCards": "Bulletins",
+            "invoices": "Factures",
+            "attendance": "Présences",
+            "notAvailable": "N/D",
+            "seeDetails": "Voir détails",
+            "average": "Moyenne",
+            "assessments": "{{count}} évaluations",
+            "presence": "Présence",
+            "homework": "Devoirs",
+            "toSubmit": "{{count}} à rendre",
+            "submitted": "{{count}} rendu(s)"
+        },
+        "analyticsTabs": {
+            "grades": "Notes",
+            "subjects": "Matières",
+            "attendance": "Présence",
+            "homework": "Devoirs",
+            "gamification": "Gamification"
+        },
+        "metrics": {
+            "average": "Moyenne générale",
+            "attendance": "Assiduité",
+            "homeworkSubmitted": "Devoirs rendus",
+            "points": "Points gagnés",
+            "pointsAccumulated": "Points accumulés",
+            "badges": "Badges"
+        },
+        "recommendations": {
+            "title": "Recommandations personnalisées",
+            "hide": "Masquer"
+        },
+        "attendanceTab": {
+            "title": "Taux de présence",
+            "subtitle": "Évolution mensuelle de l'assiduité"
+        },
+        "homeworkTab": {
+            "title": "Derniers devoirs",
+            "subtitle": "État des rendus et notes obtenues",
+            "due": "Échéance : {{date}}",
+            "pending": "En attente",
+            "notSubmitted": "Non rendu",
+            "none": "Aucun devoir trouvé",
+            "punctuality": "Ponctualité",
+            "timing": "Timing des rendus"
+        },
+        "gradesTab": {
+            "title": "Évolution des notes",
+            "subtitle": "Moyenne mensuelle sur les 6 derniers mois",
+            "types": "Types d'évaluations",
+            "typesHint": "Répartition par type d'évaluation"
+        },
+        "subjectsTab": {
+            "title": "Performance par matière",
+            "subtitle": "Moyenne par discipline"
+        },
+        "gamificationTab": {
+            "pointsTitle": "Points par catégorie",
+            "pointsHint": "Répartition des points gagnés",
+            "badgesTitle": "Badges récents",
+            "badgesHint": "Derniers badges obtenus",
+            "none": "Aucun badge obtenu"
+        },
+        "analyticsHook": {
+            "other": "Autre",
+            "achievement": "Réussite",
+            "weakTitle": "Matières à renforcer",
+            "weakMessage": "Attention portée sur : {{subjects}}. Des séances de révision supplémentaires sont recommandées.",
+            "strongTitle": "Points forts identifiés",
+            "strongMessage": "Excellence en {{subjects}}. Encouragez à maintenir cet effort !",
+            "attendanceTitle": "Assiduité à améliorer",
+            "attendanceMessage": "Le taux de présence de {{rate}}% est inférieur à l'objectif de 90%. La régularité est clé pour la réussite.",
+            "homeworkTitle": "Devoirs à rendre",
+            "homeworkMessage": "{{rate}}% des devoirs ne sont pas rendus. Établir un planning de travail peut aider.",
+            "progressTitle": "Progression remarquable",
+            "progressMessage": "Amélioration de {{points}} points ce mois ! Continuez à encourager ces efforts.",
+            "declineTitle": "Baisse de performance",
+            "declineMessage": "Une baisse de {{points}} points a été observée. Un point avec l'enseignant pourrait être utile.",
+            "early": "En avance",
+            "onTime": "À temps",
+            "late": "En retard"
+        }
+    },
+    "studentPortal": {
+        "today": {
+            "title": "Cours d'aujourd'hui",
+            "none": "Aucun cours aujourd'hui",
+            "subject": "Matière"
+        },
+        "upcoming": {
+            "title": "Devoirs à venir",
+            "none": "Aucun devoir à rendre",
+            "urgent": "Urgent"
+        },
+        "recent": {
+            "title": "Dernières Notes",
+            "seeAll": "Voir tout",
+            "none": "Aucune note récente"
+        },
+        "gradeTable": {
+            "title": "Relevé de Notes",
+            "none": "Aucune note disponible pour le moment",
+            "subject": "Matière",
+            "assessment": "Évaluation",
+            "type": "Type",
+            "date": "Date",
+            "grade": "Note"
+        },
+        "grades": {
+            "title": "Mes Notes",
+            "subtitle": "Consultez vos résultats scolaires"
+        },
+        "badge": {
+            "mine": "Mon Badge Numérique",
+            "scanHint": "Scanner pour pointage",
+            "title": "Badge Scolaire",
+            "description": "Présentez ce code au scanner lors de vos entrées et sorties.",
+            "schoolLogo": "Logo de l'établissement",
+            "photo": "Photo de l'élève",
+            "property": "Propriété de {{name}} • {{year}}",
+            "theSchool": "l'établissement",
+            "print": "Imprimer",
+            "save": "Enregistrer"
+        },
+        "dashboard": {
+            "noProfile": "Profil {{label}} non configuré",
+            "noProfileHint": "Votre compte n'est pas encore rattaché à une fiche {{label}}. Contactez l'administration de votre établissement.",
+            "average": "Moyenne"
+        },
+        "messages": {
+            "recipient": "Destinataire"
+        }
+    },
+    "attendanceHistory": {
+        "PRESENT": "Présent",
+        "ABSENT": "Absent",
+        "LATE": "Retard",
+        "EXCUSED": "Excusé",
+        "loading": "Chargement de l'historique...",
+        "title": "Historique des présences",
+        "thisMonth": "Ce mois ({{month}})",
+        "lastMonth": "Mois précédent ({{month}})",
+        "quarter": "Trimestre (3 derniers mois)",
+        "quarterDetail": "Détail trimestriel",
+        "presences": "Présences",
+        "absences": "Absences",
+        "lates": "Retards",
+        "excused": "Excusés",
+        "recent": "Historique récent",
+        "date": "Date",
+        "status": "Statut",
+        "notes": "Notes",
+        "none": "Aucun enregistrement de présence",
+        "presentCount": "{{count}} présences",
+        "absentCount": "{{count}} absences"
+    },
+    "checkInHistory": {
+        "title": "Historique des pointages",
+        "subtitle": "Vos 10 derniers passages enregistrés.",
+        "none": "Aucun pointage enregistré récemment.",
+        "entry": "Entrée dans l'école",
+        "exit": "Sortie de l'école",
+        "present": "Présent",
+        "left": "Parti"
+    },
+    "homeworkSubmission": {
+        "success": "Devoir soumis avec succès",
+        "noDescription": "Aucune description fournie",
+        "grade": "Note : {{grade}}/{{max}}",
+        "comment": "Commentaire :",
+        "yourWork": "Votre travail",
+        "placeholder": "Rédigez votre travail ici...",
+        "graded": "Ce devoir a été noté et ne peut plus être modifié.",
+        "editable": "Vous pouvez modifier votre soumission jusqu'à ce qu'elle soit notée.",
+        "update": "Modifier ma soumission",
+        "submit": "Soumettre mon travail"
+    },
+    "reminders": {
+        "saved": "Préférences sauvegardées",
+        "homework": "Devoir",
+        "homeworkDue": "{{subject}} - À rendre",
+        "invoice": "Facture {{number}}",
+        "event": "Événement",
+        "title": "Rappels",
+        "homeworkReminders": "Rappels de devoirs",
+        "paymentReminders": "Rappels de paiement",
+        "eventReminders": "Rappels d'événements",
+        "closeSettings": "Fermer les paramètres",
+        "none": "Aucun rappel pour le moment",
+        "upToDate": "Tout est à jour !",
+        "urgent": "Urgent",
+        "upcoming": "À venir"
+    },
+    "sharedNotes": {
+        "shared": "Note partagée avec succès",
+        "createError": "Erreur lors de la création de la note",
+        "commentError": "Erreur lors de l'ajout du commentaire",
+        "deleted": "Note supprimée",
+        "title": "Notes Partagées",
+        "new": "Nouvelle",
+        "shareNote": "Partager une note",
+        "noteTitle": "Titre de la note",
+        "noteContent": "Contenu de la note...",
+        "visibility": "Visibilité",
+        "myClass": "Ma classe",
+        "bySubject": "Par matière",
+        "wholeSchool": "Tout l'établissement",
+        "submit": "Partager la note",
+        "loading": "Chargement...",
+        "none": "Aucune note partagée",
+        "beFirst": "Soyez le premier à partager une note !",
+        "delete": "Supprimer",
+        "comments": "Commentaires ({{count}})",
+        "addComment": "Ajouter un commentaire..."
+    },
+    "collaboration": {
+        "title": "Outils Collaboratifs",
+        "courses": "Cours",
+        "discussions": "Discussions",
+        "clubs": "Clubs",
+        "loading": "Chargement...",
+        "noCourse": "Aucun cours disponible",
+        "noDiscussion": "Aucune discussion récente",
+        "noClub": "Aucun club disponible",
+        "members": "{{count}} membres"
     }
 }
