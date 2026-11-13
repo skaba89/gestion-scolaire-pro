@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { DollarSign } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface RevenueData {
     month: string;
@@ -24,15 +25,16 @@ export const AnalyticsFinancesTab = ({
     formatCurrency,
     formatCurrencyCompact
 }: AnalyticsFinancesTabProps) => {
+    const { t } = useTranslation();
     return (
         <div className="space-y-6">
             <Card className="shadow-sm">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
                         <DollarSign className="w-5 h-5 text-primary" />
-                        Évolution des Recettes
+                        {t("adminAnalytics.finances.revenue")}
                     </CardTitle>
-                    <CardDescription>Paiements reçus sur les 12 derniers mois</CardDescription>
+                    <CardDescription>{t("adminAnalytics.finances.revenueHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">
@@ -67,7 +69,7 @@ export const AnalyticsFinancesTab = ({
                             </ResponsiveContainer>
                         ) : (
                             <div className="h-full flex items-center justify-center text-muted-foreground italic">
-                                Aucune donnée disponible
+                                {t("adminAnalytics.noData")}
                             </div>
                         )}
                     </div>
@@ -77,19 +79,19 @@ export const AnalyticsFinancesTab = ({
             <div className="grid md:grid-cols-3 gap-4">
                 <Card className="border-l-4 border-l-primary shadow-sm">
                     <CardContent className="pt-6">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">Total facturation</p>
+                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">{t("adminAnalytics.finances.billed")}</p>
                         <p className="text-2xl font-bold mt-1">{formatCurrency(totalRevenue || 0)}</p>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-green-600 shadow-sm">
                     <CardContent className="pt-6">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">Montant encaissé</p>
+                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">{t("adminAnalytics.finances.collected")}</p>
                         <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(collectedRevenue || 0)}</p>
                     </CardContent>
                 </Card>
                 <Card className="border-l-4 border-l-red-600 shadow-sm">
                     <CardContent className="pt-6">
-                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">Reste à recouvrer</p>
+                        <p className="text-sm text-muted-foreground uppercase tracking-wider font-medium">{t("adminAnalytics.finances.outstanding")}</p>
                         <p className="text-2xl font-bold text-red-600 mt-1">{formatCurrency(pendingRevenue || 0)}</p>
                     </CardContent>
                 </Card>

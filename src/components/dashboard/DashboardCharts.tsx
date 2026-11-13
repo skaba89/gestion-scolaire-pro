@@ -21,10 +21,12 @@ import { Users, TrendingUp, UserCheck } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 import { dashboardQueries } from "@/queries/dashboard";
+import { useTranslation } from "react-i18next";
 
 export const COLORS = ['hsl(217, 91%, 40%)', 'hsl(199, 89%, 48%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(16, 85%, 57%)', 'hsl(168, 76%, 42%)'];
 
 export const DashboardCharts = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { StudentsLabel, studentsLabel } = useStudentLabel();
 
@@ -35,11 +37,15 @@ export const DashboardCharts = () => {
   });
 
   const studentsByLevel = data?.studentsByLevel || [];
-  const attendanceStats = data?.attendanceStats || [];
+  // Libellés traduits à l'affichage ; « key » (present/absent) reste stable.
+  const attendanceStats = (data?.attendanceStats || []).map((a: { key?: string; name: string; value: number; percentage: number }) => ({
+    ...a,
+    name: a.key === "present" ? t("adminAnalytics.attendance.present") : a.key === "absent" ? t("adminAnalytics.attendance.absent") : a.name,
+  }));
   const classAverages = data?.classAverages || [];
 
 
-  const presentRate = attendanceStats?.find(a => a.name === "Présents")?.percentage || 0;
+  const presentRate = attendanceStats?.find(a => a.key === "present")?.percentage || 0;
 
   return (
     <div className="space-y-6">
@@ -68,7 +74,7 @@ export const DashboardCharts = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{presentRate}%</p>
-                <p className="text-xs text-muted-foreground">Taux de présence (30j)</p>
+                <p className="text-xs text-muted-foreground">{t("adminDashboard.attendanceRate30")}</p>
               </div>
             </div>
           </CardContent>
@@ -83,7 +89,7 @@ export const DashboardCharts = () => {
                 <p className="text-2xl font-bold">
                   {classAverages?.length ? (classAverages.reduce((a, b) => a + b.moyenne, 0) / classAverages.length).toFixed(1) : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground">Moyenne générale</p>
+                <p className="text-xs text-muted-foreground">{t("adminDashboard.overallAverage")}</p>
               </div>
             </div>
           </CardContent>
@@ -95,7 +101,7 @@ export const DashboardCharts = () => {
         {/* Students by Level */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Effectifs par Niveau ({studentsLabel})</CardTitle>
+            <CardTitle className="text-base">{t("adminDashboard.headcountByLevel", { label: studentsLabel })}</CardTitle>
           </CardHeader>
           <CardContent>
             {studentsByLevel && studentsByLevel.length > 0 ? (
@@ -125,7 +131,7 @@ export const DashboardCharts = () => {
               </ResponsiveContainer>
             ) : (
               <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-                Aucune donnée d'inscription disponible
+                {t("adminDashboard.noEnrollmentData")}
               </div>
             )}
           </CardContent>
@@ -134,7 +140,7 @@ export const DashboardCharts = () => {
         {/* Attendance Rate */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Répartition des Présences (30 derniers jours)</CardTitle>
+            <CardTitle className="text-base">{t("adminDashboard.attendanceBreakdown")}</CardTitle>
           </CardHeader>
           <CardContent>
             {attendanceStats && attendanceStats.length > 0 ? (
@@ -166,7 +172,7 @@ export const DashboardCharts = () => {
               </ResponsiveContainer>
             ) : (
               <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-                Aucune donnée de présence disponible
+                {t("adminDashboard.noAttendanceData")}
               </div>
             )}
           </CardContent>
@@ -176,7 +182,7 @@ export const DashboardCharts = () => {
       {/* Class Averages */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Moyennes par Classe</CardTitle>
+          <CardTitle className="text-base">{t("adminDashboard.classAverages")}</CardTitle>
         </CardHeader>
         <CardContent>
           {classAverages && classAverages.length > 0 ? (
@@ -191,7 +197,7 @@ export const DashboardCharts = () => {
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number) => [`${value}/20`, "Moyenne"]}
+                  formatter={(value: number) => [`${value}/20`, t("adminDashboard.average")]}
                 />
                 <Bar
                   dataKey="moyenne"
@@ -202,7 +208,7 @@ export const DashboardCharts = () => {
             </ResponsiveContainer>
           ) : (
             <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-              Aucune note disponible
+              {t("adminDashboard.noGrades")}
             </div>
           )}
         </CardContent>

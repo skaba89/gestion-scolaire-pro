@@ -1208,7 +1208,11 @@
       "complianceTitle": "MEN Guinea Compliance",
       "complianceContent": "Fill in the official information required by the Ministry of National Education."
     },
-    "whyReason": "Reason"
+    "whyReason": "Reason",
+    "example": "e.g. {{value}}",
+    "guinea": "🇬🇳 Guinea",
+    "error": "Error",
+    "undefinedLevel": "Not specified"
   },
   "executiveDashboard": {
     "forecastSuccess": "Forecasts generated successfully",
@@ -1815,6 +1819,40 @@
       "bandsTitle": "Averages of flagged students",
       "bandsDescription": "Distribution by average band (out of 20)",
       "studentsSeries": "Students"
+    },
+    "risk": {
+      "high": "High risk",
+      "medium": "Medium risk",
+      "low": "Low risk"
+    },
+    "pdfDone": "PDF report generated",
+    "pdfError": "Could not generate the PDF",
+    "exportPdf": "Export PDF",
+    "alertParents": "Alert parents ({{count}})",
+    "noHighRisk": "No high-risk student - no alerts to send",
+    "sending": "Sending {{count}} alerts to parents...",
+    "sent": "{{count}} alerts sent",
+    "sendError": "Could not send the alerts",
+    "refresh": "Refresh",
+    "assistant": {
+      "title": "Education AI assistant",
+      "subtitle": "Ask about performance, trends and recommendations based on your data",
+      "clear": "Clear",
+      "intro": "I can analyze your school data. Try:",
+      "q1": "What are the main dropout factors?",
+      "q1Label": "⚠️ Dropout factors",
+      "q2": "How can we improve the average in Mathematics?",
+      "q2Label": "📈 Improve results",
+      "q3": "Write a message to the parents of absent {{label}}.",
+      "q3Label": "✉️ Message to parents",
+      "placeholder": "Ask the AI a question...",
+      "language": "English"
+    },
+    "riskList": {
+      "filter": "Filter by class",
+      "allClasses": "All classes",
+      "excellent": "Excellent performance!",
+      "none": "No student at risk detected"
     }
   },
   "admissions": {
@@ -2528,7 +2566,9 @@
     "activeBeneficiaries": "Active beneficiaries",
     "pendingBills": "Pending bills",
     "cashFlow": "Cash Flow",
-    "cashFlowDesc": "Monthly evolution of inflows and outflows"
+    "cashFlowDesc": "Monthly evolution of inflows and outflows",
+    "collectedSuffix": "{{rate}}% collected",
+    "cashedSuffix": "{{amount}} collected"
   },
   "earlyWarnings": {
     "pageTitle": "Early Warnings",
@@ -4042,6 +4082,150 @@
         "indicator": "Indicator",
         "value": "Value"
       }
+    }
+  },
+  "adminDashboard": {
+    "attendanceRate30": "Attendance rate (30d)",
+    "overallAverage": "Overall average",
+    "headcountByLevel": "Headcount by level ({{label}})",
+    "noEnrollmentData": "No enrollment data available",
+    "attendanceBreakdown": "Attendance breakdown (last 30 days)",
+    "noAttendanceData": "No attendance data available",
+    "classAverages": "Averages by class",
+    "average": "Average",
+    "noGrades": "No grades available"
+  },
+  "onboarding": {
+    "steps": {
+      "welcome": {
+        "title": "Welcome to your space!",
+        "description": "Discover how to run your school efficiently with our complete platform."
+      },
+      "students": {
+        "title": "Student management",
+        "description": "Manage enrollments, track attendance and view student records in a few clicks."
+      },
+      "courses": {
+        "title": "Courses and programs",
+        "description": "Organize your courses, build timetables and follow academic progress."
+      },
+      "analytics": {
+        "title": "Analytics and reports",
+        "description": "Get detailed insights into your school's performance and trends."
+      },
+      "messages": {
+        "title": "Built-in communication",
+        "description": "Easily reach parents, teachers and students through our messaging."
+      },
+      "settings": {
+        "title": "Customize your space",
+        "description": "Set things up to suit your needs and customize your dashboard."
+      }
+    },
+    "previous": "Previous",
+    "skip": "Skip",
+    "finish": "Finish",
+    "next": "Next"
+  },
+  "securityAlerts": {
+    "title": "Security alerts",
+    "systemOk": "System security",
+    "noThreat": "No critical threat detected recently.",
+    "pending": "{{count}} critical incident(s) awaiting review",
+    "critical": "Critical",
+    "system": "System",
+    "unknownBrowser": "Unknown browser"
+  },
+  "riskWidget": {
+    "title": "Academic success",
+    "runAnalysis": "Run the AI analysis",
+    "ready": "Ready for analysis",
+    "readyHint": "The AI is ready to analyze performance.",
+    "analyzing": "Analyzing...",
+    "run": "Run AI",
+    "na": "N/A",
+    "critical": "CRITICAL",
+    "atRisk": "AT RISK",
+    "photo": "Student photo"
+  },
+  "reportButton": {
+    "success": "Report generated",
+    "error": "Could not generate the report",
+    "label": "Export report (PDF)"
+  },
+  "adminAnalytics": {
+    "tabs": {
+      "attendance": "Attendance",
+      "grades": "Grades",
+      "finances": "Finances",
+      "ai": "AI insights"
+    },
+    "ai": {
+      "done": "AI analysis complete",
+      "failed": "AI analysis failed: {{message}}",
+      "title": "AI predictive analysis",
+      "subtitle": "Proactive identification of struggling {{label}} based on performance, attendance and behavior.",
+      "calculating": "Calculating...",
+      "recalculate": "Recalculate scores",
+      "distribution": "Risk distribution",
+      "distributionHint": "Overview of the overall alert level",
+      "noScore": "No score calculated",
+      "priority": "{{label}} with critical or high alert",
+      "priorityHint": "Recommended actions for priority profiles",
+      "riskLevel": "Risk level",
+      "average": "Average",
+      "summary": "Summary",
+      "gradeCount": "{{avg}}/20 ({{count}} grades)",
+      "lowAverage": "The AI detects a low overall average ({{avg}}). A meeting is advised to understand the difficulties met in class.",
+      "noHighRisk": "No high-risk student identified."
+    },
+    "risk": {
+      "critical": "Critical",
+      "high": "High",
+      "moderate": "Moderate",
+      "low": "Low"
+    },
+    "attendance": {
+      "trend": "Attendance rate trend",
+      "trendHint": "Trend over the selected period",
+      "rate": "Rate",
+      "presentVsAbsent": "Present vs absent",
+      "daily": "Daily comparison",
+      "present": "Present",
+      "absent": "Absent"
+    },
+    "noData": "No data available",
+    "finances": {
+      "revenue": "Revenue trend",
+      "revenueHint": "Payments received over the last 12 months",
+      "billed": "Total billed",
+      "collected": "Amount collected",
+      "outstanding": "Outstanding"
+    },
+    "grades": {
+      "distribution": "Grade distribution",
+      "distributionHint": "Breakdown by bands from 0 to 20",
+      "bySubject": "Averages by subject",
+      "bySubjectHint": "Top 10 best-performing subjects",
+      "average": "Average"
+    },
+    "header": {
+      "period": "Period",
+      "week": "Last 7 days",
+      "month": "Last 30 days",
+      "year": "Last 12 months",
+      "export": "Export"
+    },
+    "kpi": {
+      "attendance": "Attendance rate",
+      "average": "Overall average",
+      "collection": "Collection rate"
+    },
+    "secondary": {
+      "teachers": "Teachers",
+      "classes": "Classes",
+      "collected": "Collected",
+      "pending": "Pending"
     }
   }
 }

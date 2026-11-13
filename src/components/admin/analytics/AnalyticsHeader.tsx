@@ -7,6 +7,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Download } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsHeaderProps {
     title: string;
@@ -23,6 +24,7 @@ export const AnalyticsHeader = ({
     onPeriodChange,
     onExport
 }: AnalyticsHeaderProps) => {
+    const { t } = useTranslation();
     return (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -36,17 +38,17 @@ export const AnalyticsHeader = ({
             <div className="flex gap-2">
                 <Select value={selectedPeriod} onValueChange={onPeriodChange}>
                     <SelectTrigger className="w-40 bg-background shadow-sm hover:shadow transition-shadow">
-                        <SelectValue placeholder="Période" />
+                        <SelectValue placeholder={t("adminAnalytics.header.period")} />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="week">Derniers 7 jours</SelectItem>
-                        <SelectItem value="month">Derniers 30 jours</SelectItem>
-                        <SelectItem value="year">Derniers 12 mois</SelectItem>
+                        <SelectItem value="week">{t("adminAnalytics.header.week")}</SelectItem>
+                        <SelectItem value="month">{t("adminAnalytics.header.month")}</SelectItem>
+                        <SelectItem value="year">{t("adminAnalytics.header.year")}</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button variant="outline" onClick={onExport} className="shadow-sm hover:shadow transition-shadow">
                     <Download className="w-4 h-4 mr-2" />
-                    Exporter
+                    {t("adminAnalytics.header.export")}
                 </Button>
             </div>
         </div>

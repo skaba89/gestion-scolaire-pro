@@ -16,6 +16,7 @@ import {
   Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from "react-i18next";
 
 interface OnboardingStep {
   id: string;
@@ -84,6 +85,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
   onComplete,
   onSkip
 }) => {
+  const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -199,9 +201,9 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
                     {step.icon}
                   </motion.div>
 
-                  <h2 className="text-2xl font-bold mb-3">{step.title}</h2>
+                  <h2 className="text-2xl font-bold mb-3">{t(`onboarding.steps.${step.id}.title`, { defaultValue: step.title })}</h2>
                   <p className="text-muted-foreground leading-relaxed">
-                    {step.description}
+                    {t(`onboarding.steps.${step.id}.description`, { defaultValue: step.description })}
                   </p>
                 </motion.div>
               </AnimatePresence>
@@ -215,7 +217,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
                   className="gap-1"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Précédent
+                  {t("onboarding.previous")}
                 </Button>
 
                 <Button
@@ -223,7 +225,7 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
                   onClick={handleSkip}
                   className="text-muted-foreground"
                 >
-                  Passer
+                  {t("onboarding.skip")}
                 </Button>
 
                 <Button
@@ -232,12 +234,12 @@ export const OnboardingTour: React.FC<OnboardingTourProps> = ({
                 >
                   {currentStep === steps.length - 1 ? (
                     <>
-                      Terminer
+                      {t("onboarding.finish")}
                       <Check className="h-4 w-4" />
                     </>
                   ) : (
                     <>
-                      Suivant
+                      {t("onboarding.next")}
                       <ChevronRight className="h-4 w-4" />
                     </>
                   )}
