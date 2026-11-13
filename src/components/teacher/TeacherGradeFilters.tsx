@@ -8,6 +8,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import type { Assessment } from "@/features/grades/services/gradesService";
+import { useTranslation } from "react-i18next";
 
 interface TeacherGradeFiltersProps {
     selectedClassroom: string;
@@ -26,18 +27,19 @@ export const TeacherGradeFilters = ({
     assignedClassrooms,
     assessments,
 }: TeacherGradeFiltersProps) => {
+    const { t } = useTranslation();
     return (
         <Card className="border-primary/10 shadow-sm overflow-hidden">
             <div className="bg-primary/5 px-4 py-2 border-b border-primary/10">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Sélection</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70">{t("teacherPortal.gradeFilters.selection")}</p>
             </div>
             <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <Label className="text-sm font-medium">Classe</Label>
+                        <Label className="text-sm font-medium">{t("teacherPortal.gradeFilters.class")}</Label>
                         <Select value={selectedClassroom} onValueChange={onClassroomChange}>
                             <SelectTrigger className="bg-background/50 hover:bg-background transition-colors hover:border-primary/30">
-                                <SelectValue placeholder="Sélectionner une classe" />
+                                <SelectValue placeholder={t("teacherPortal.gradeFilters.selectClass")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {assignedClassrooms?.map(c => (
@@ -47,14 +49,14 @@ export const TeacherGradeFilters = ({
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-sm font-medium">Évaluation</Label>
+                        <Label className="text-sm font-medium">{t("teacherPortal.gradeFilters.assessment")}</Label>
                         <Select
                             value={selectedAssessment}
                             onValueChange={onAssessmentChange}
                             disabled={!selectedClassroom}
                         >
                             <SelectTrigger className="bg-background/50 hover:bg-background transition-colors hover:border-primary/30">
-                                <SelectValue placeholder={selectedClassroom ? "Sélectionner une évaluation" : "Choisissez une classe d'abord"} />
+                                <SelectValue placeholder={selectedClassroom ? t("teacherPortal.gradeFilters.selectAssessment") : t("teacherPortal.gradeFilters.chooseClassFirst")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {assessments?.filter(a => !selectedClassroom || a.class_id === selectedClassroom).map(a => (

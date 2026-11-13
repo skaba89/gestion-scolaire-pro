@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, UserX, Clock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface SessionAttendanceStatsProps {
     totalStudents: number;
@@ -16,6 +17,7 @@ export const SessionAttendanceStats = ({
     attendanceRate,
     studentsLabel,
 }: SessionAttendanceStatsProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid gap-4 md:grid-cols-4">
             <Card>
@@ -29,7 +31,7 @@ export const SessionAttendanceStats = ({
             </Card>
             <Card className="border-green-200 bg-green-50">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-green-800">Présents</CardTitle>
+                    <CardTitle className="text-sm font-medium text-green-800">{t("teacherPortal.qr.present")}</CardTitle>
                     <UserCheck className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
@@ -38,7 +40,7 @@ export const SessionAttendanceStats = ({
             </Card>
             <Card className="border-red-200 bg-red-50">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium text-red-800">Absents</CardTitle>
+                    <CardTitle className="text-sm font-medium text-red-800">{t("teacherPortal.qr.absent")}</CardTitle>
                     <UserX className="h-4 w-4 text-red-600" />
                 </CardHeader>
                 <CardContent>
@@ -47,7 +49,7 @@ export const SessionAttendanceStats = ({
             </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                    <CardTitle className="text-sm font-medium">Taux</CardTitle>
+                    <CardTitle className="text-sm font-medium">{t("teacherPortal.qr.rate")}</CardTitle>
                     <Clock className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>

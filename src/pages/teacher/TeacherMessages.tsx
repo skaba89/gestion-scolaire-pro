@@ -19,7 +19,7 @@ const TeacherMessages = () => {
   return (
     <MessengerInterface
       recipients={recipients || []}
-      recipientLabel="Destinataire"
+      recipientLabel={t("teacherPortal.messages.recipient")}
       title={t("nav.messages")}
       showNewConversation={true}
     />

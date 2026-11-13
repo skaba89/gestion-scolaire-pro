@@ -92,7 +92,7 @@ const TeacherAttendance = () => {
         toast.success(t("teacherAttendance.presentRecorded"));
       }
     } catch (error: any) {
-      toast.error("Erreur: " + error.message);
+      toast.error(t("teacherPortal.attendance.error", { message: error.message }));
     }
   };
 
@@ -117,7 +117,7 @@ const TeacherAttendance = () => {
     if (failed > 0) {
       toast.warning(`${failed} erreur(s) sur ${students.length} enregistrements`);
     }
-    toast.success(`Tous les ${studentsLabel} marqués présents`);
+    toast.success(t("teacherPortal.attendance.allPresent", { label: studentsLabel }));
   };
 
   const attendanceStats = {
@@ -165,7 +165,7 @@ const TeacherAttendance = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Date</Label>
+              <Label className="text-sm font-medium">{t("teacherPortal.attendance.date")}</Label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <Input
@@ -220,8 +220,8 @@ const TeacherAttendance = () => {
                 <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
                   <AlertCircle className="w-8 h-8 text-muted-foreground/50" />
                 </div>
-                <h3 className="text-lg font-medium text-foreground">Aucun {studentLabel} trouvé</h3>
-                <p className="text-muted-foreground mt-1">Aucun {studentLabel} n'est actuellement inscrit dans cette classe.</p>
+                <h3 className="text-lg font-medium text-foreground">{t("teacherPortal.attendance.noneFound", { label: studentLabel })}</h3>
+                <p className="text-muted-foreground mt-1">{t("teacherPortal.attendance.noneEnrolled", { label: studentLabel })}</p>
               </CardContent>
             </Card>
           ) : (

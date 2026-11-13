@@ -1741,7 +1741,9 @@
         "roleDirector": "Directeur",
         "roleTeacher": "Enseignant",
         "roleParent": "Parent",
-        "roleStaff": "Personnel"
+        "roleStaff": "Personnel",
+        "title": "Annonces Officielles",
+        "subtitle": "Dernières communications de l'établissement"
     },
     "events": {
         "createSuccess": "Événement créé avec succès",
@@ -3611,5 +3613,187 @@
         "noDiscussion": "Aucune discussion récente",
         "noClub": "Aucun club disponible",
         "members": "{{count}} membres"
+    },
+    "teacherPortal": {
+        "slots": {
+            "deleted": "Créneau supprimé",
+            "onlinePlaceholder": "https://meet.google.com/...",
+            "roomPlaceholder": "Salle 101, Bureau..."
+        },
+        "session": {
+            "ended": "Session terminée",
+            "alreadyRecorded": "{{label}} déjà enregistré",
+            "recorded": "{{label}} enregistré",
+            "notInClass": "Cet {{label}} n'est pas dans cette classe"
+        },
+        "attendance": {
+            "error": "Erreur : {{message}}",
+            "allPresent": "Tous les {{label}} marqués présents",
+            "date": "Date",
+            "noneFound": "Aucun {{label}} trouvé",
+            "noneEnrolled": "Aucun {{label}} n'est actuellement inscrit dans cette classe.",
+            "title": "Gestion des Présences",
+            "subtitle": "Enregistrez les présences de vos {{label}}",
+            "allPresentBtn": "Tous présents",
+            "present": "Présents",
+            "absent": "Absents",
+            "late": "Retards",
+            "excused": "Excusés",
+            "studentNumber": "N° Étudiant",
+            "actions": "Actions"
+        },
+        "classes": {
+            "title": "Mes Classes",
+            "subtitle": "Gérez vos classes et {{label}}",
+            "none": "Aucune classe assignée",
+            "noneHint": "Contactez l'administration pour être assigné à des classes et commencer à gérer vos {{label}}."
+        },
+        "grades": {
+            "noAssignment": "Information : vous n'avez pas encore d'affectation de classe. Contactez l'administration pour configurer vos droits.",
+            "entry": "Saisie des notes",
+            "entryHint": "Veuillez sélectionner une classe et une évaluation dans les filtres ci-dessus pour commencer à saisir les notes des {{label}}.",
+            "newAssessment": "Créer une nouvelle évaluation"
+        },
+        "homework": {
+            "lateBy": "En retard de {{days}} j",
+            "dueToday": "À rendre aujourd'hui",
+            "dueIn": "Dans {{days}} jour(s)"
+        },
+        "messages": {
+            "recipient": "Destinataire"
+        },
+        "qr": {
+            "title": "Pointage par QR Code",
+            "subtitle": "Scanner les badges QR pour enregistrer la présence pendant un cours",
+            "present": "Présents",
+            "absent": "Absents",
+            "rate": "Taux",
+            "courseSelection": "Sélection du cours",
+            "class": "Classe",
+            "subject": "Matière",
+            "selectClass": "Sélectionner une classe",
+            "selectSubject": "Sélectionner une matière",
+            "start": "Démarrer la session",
+            "scan": "Scanner un badge",
+            "end": "Terminer la session"
+        },
+        "assessment": {
+            "title": "Créer une Évaluation",
+            "name": "Nom de l'évaluation *",
+            "namePlaceholder": "Ex: Devoir de Mathématiques Trimestre 1",
+            "class": "Classe *",
+            "subject": "Matière *",
+            "select": "Sélectionner",
+            "chooseClassFirst": "Choisir une classe",
+            "period": "Période (Trimestre/Semestre) *",
+            "selectPeriod": "Sélectionner une période",
+            "maxScore": "Note maximale",
+            "coefficient": "Coefficient",
+            "cancel": "Annuler",
+            "create": "Créer l'évaluation"
+        },
+        "classCard": {
+            "class": "Classe",
+            "grades": "Notes",
+            "attendance": "Présences"
+        },
+        "header": {
+            "welcome": "Bienvenue, {{name}} !",
+            "teacher": "Professeur"
+        },
+        "gradeFilters": {
+            "selection": "Sélection",
+            "class": "Classe",
+            "assessment": "Évaluation",
+            "selectClass": "Sélectionner une classe",
+            "selectAssessment": "Sélectionner une évaluation",
+            "chooseClassFirst": "Choisissez une classe d'abord"
+        },
+        "gradeHeader": {
+            "title": "Gestion des Notes",
+            "subtitle": "Créez des évaluations et saisissez les notes",
+            "new": "Nouvelle Évaluation"
+        },
+        "gradeTable": {
+            "title": "Saisie des Notes",
+            "grade": "Note"
+        },
+        "today": {
+            "title": "Emploi du Temps - Aujourd'hui",
+            "untitled": "Sans titre",
+            "none": "Aucun cours aujourd'hui"
+        }
+    },
+    "offlineAttendance": {
+        "PRESENT": "Présent(e)",
+        "ABSENT": "Absent(e)",
+        "LATE": "En retard",
+        "EXCUSED": "Absent(e) just.",
+        "nothing": "Rien à enregistrer",
+        "selectStatus": "Sélectionnez le statut de chaque {{label}}",
+        "saved": "{{count}} présence(s) enregistrée(s) hors-ligne",
+        "willSync": "Les données seront synchronisées au retour de la connexion",
+        "error": "Erreur",
+        "saveFailed": "Impossible d'enregistrer hors-ligne",
+        "deleted": "Enregistrement supprimé",
+        "noCache": "Aucune donnée en cache pour cette classe",
+        "noCacheHint": "Connectez-vous au moins une fois avec internet pour mettre en cache les données des {{label}}.",
+        "offlineMode": "Mode hors-ligne — {{name}}",
+        "class": "Classe",
+        "offlineHint": "Les absences sont enregistrées localement et synchronisées automatiquement dès le retour de la connexion.",
+        "date": "Date",
+        "allPresent": "Tous présents",
+        "presentCount": "{{count}} présent(s)",
+        "loading": "Chargement...",
+        "tapStatus": "Appuyez sur un statut pour l'enregistrer hors-ligne",
+        "sync": "Synchroniser"
+    },
+    "qrScanner": {
+        "noCamera": "Aucune caméra détectée",
+        "denied": "Accès à la caméra refusé.",
+        "startFailed": "Impossible de démarrer le scanner.",
+        "start": "Activer le Lecteur",
+        "pause": "Pause",
+        "close": "Fermer",
+        "multiScan": "Mode Multi-Scan Actif",
+        "placeCode": "Placez le QR code face à la caméra"
+    },
+    "teacherCharts": {
+        "average": "Moyenne",
+        "attendanceToday": "Présence (auj.)",
+        "headcount": "Effectifs par Classe",
+        "noData": "Aucune donnée disponible",
+        "gradeDistribution": "Répartition des Notes",
+        "noGrades": "Aucune note saisie",
+        "classAverages": "Moyennes par Classe"
+    },
+    "homeworkFeature": {
+        "due": "Échéance : ",
+        "class": "Classe : ",
+        "view": "Voir",
+        "edit": "Modifier",
+        "delete": "Supprimer",
+        "titleRequired": "Le titre est obligatoire",
+        "titleTooLong": "Le titre doit faire moins de 255 caractères",
+        "descriptionTooLong": "La description doit faire moins de 2000 caractères",
+        "title": "Titre *",
+        "titlePlaceholder": "Titre du devoir",
+        "description": "Description",
+        "descriptionPlaceholder": "Description du devoir",
+        "dueDate": "Date limite",
+        "status": "Statut",
+        "selectStatus": "Choisir un statut",
+        "DRAFT": "Brouillon",
+        "PUBLISHED": "Publié",
+        "COMPLETED": "Terminé",
+        "ARCHIVED": "Archivé",
+        "cancel": "Annuler",
+        "saving": "Enregistrement...",
+        "update": "Mettre à jour",
+        "create": "Créer",
+        "confirmDelete": "Voulez-vous vraiment supprimer ce devoir ?",
+        "loadFailed": "Impossible de charger les devoirs : {{message}}",
+        "unknownError": "Erreur inconnue",
+        "none": "Aucun devoir. Créez-en un pour commencer."
     }
 }

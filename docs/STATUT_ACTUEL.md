@@ -1104,3 +1104,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   `src/i18n/__tests__/no-hardcoded-text.test.ts` : aucun texte d'interface
   en dur dans les dossiers déjà traduits (liste à étendre à chaque lot).
   Reste : portails enseignant et département, puis pages admin.
+- **2026-11-13 — portail enseignant traduit (lot 3b de l'audit des
+  langues).** Les 8 pages enseignant et leurs composants (notes, évaluations,
+  présences, pointage QR, créneaux de rendez-vous, devoirs, emploi du temps),
+  plus la présence hors ligne, le lecteur QR, les graphiques du tableau de
+  bord, les annonces et la liste des devoirs (`src/features/homework`, qui
+  était en anglais en dur, même en français) : ≈ 170 clés dans les 5 langues.
+  Garde `no-hardcoded-text` étendue à ces dossiers. Reste : portail
+  département (lot 3c), puis pages admin.

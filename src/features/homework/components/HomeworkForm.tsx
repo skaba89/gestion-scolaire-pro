@@ -10,14 +10,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { Homework } from "../types/homework";
+import { useTranslation } from "react-i18next";
 
 // Zod schema for form validation
 const homeworkFormSchema = z.object({
   title: z.string()
-    .min(1, "Title is required")
-    .max(255, "Title must be less than 255 characters"),
+    .min(1, "homeworkFeature.titleRequired")
+    .max(255, "homeworkFeature.titleTooLong"),
   description: z.string()
-    .max(2000, "Description must be less than 2000 characters")
+    .max(2000, "homeworkFeature.descriptionTooLong")
     .optional(),
   due_date: z.string()
     .datetime()
@@ -44,6 +45,7 @@ interface HomeworkFormProps {
 }
 
 export function HomeworkForm({ homework, onSuccess, onCancel }: HomeworkFormProps) {
+  const { t } = useTranslation();
   const { create, update, isCreating, isUpdating } = useHomework();
   const isLoading = isCreating || isUpdating;
 
@@ -91,39 +93,39 @@ export function HomeworkForm({ homework, onSuccess, onCancel }: HomeworkFormProp
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <div>
         <label className="block text-sm font-medium mb-2">
-          Title *
+          {t("homeworkFeature.title")}
         </label>
         <Input
           {...register("title")}
-          placeholder="Homework title"
+          placeholder={t("homeworkFeature.titlePlaceholder")}
           disabled={isLoading}
           className={errors.title ? "border-red-500" : ""}
         />
         {errors.title && (
-          <p className="text-sm text-red-500 mt-1">{errors.title.message}</p>
+          <p className="text-sm text-red-500 mt-1">{errors.title.message ? t(errors.title.message) : null}</p>
         )}
       </div>
 
       <div>
         <label className="block text-sm font-medium mb-2">
-          Description
+          {t("homeworkFeature.description")}
         </label>
         <Textarea
           {...register("description")}
-          placeholder="Homework description"
+          placeholder={t("homeworkFeature.descriptionPlaceholder")}
           disabled={isLoading}
           rows={4}
           className={errors.description ? "border-red-500" : ""}
         />
         {errors.description && (
-          <p className="text-sm text-red-500 mt-1">{errors.description.message}</p>
+          <p className="text-sm text-red-500 mt-1">{errors.description.message ? t(errors.description.message) : null}</p>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-2">
-            Due Date
+            {t("homeworkFeature.dueDate")}
           </label>
           <Input
             {...register("due_date")}
@@ -132,24 +134,24 @@ export function HomeworkForm({ homework, onSuccess, onCancel }: HomeworkFormProp
             className={errors.due_date ? "border-red-500" : ""}
           />
           {errors.due_date && (
-            <p className="text-sm text-red-500 mt-1">{errors.due_date.message}</p>
+            <p className="text-sm text-red-500 mt-1">{errors.due_date.message ? t(errors.due_date.message) : null}</p>
           )}
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-2">
-            Status
+            {t("homeworkFeature.status")}
           </label>
           <select
             {...register("status")}
             disabled={isLoading}
             className="w-full px-3 py-2 border rounded-md"
           >
-            <option value="">Select status</option>
-            <option value="DRAFT">Draft</option>
-            <option value="PUBLISHED">Published</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="ARCHIVED">Archived</option>
+            <option value="">{t("homeworkFeature.selectStatus")}</option>
+            <option value="DRAFT">{t("homeworkFeature.DRAFT")}</option>
+            <option value="PUBLISHED">{t("homeworkFeature.PUBLISHED")}</option>
+            <option value="COMPLETED">{t("homeworkFeature.COMPLETED")}</option>
+            <option value="ARCHIVED">{t("homeworkFeature.ARCHIVED")}</option>
           </select>
         </div>
       </div>
@@ -162,14 +164,14 @@ export function HomeworkForm({ homework, onSuccess, onCancel }: HomeworkFormProp
             onClick={onCancel}
             disabled={isLoading}
           >
-            Cancel
+            {t("homeworkFeature.cancel")}
           </Button>
         )}
         <Button
           type="submit"
           disabled={isLoading}
         >
-          {isLoading ? "Saving..." : homework ? "Update" : "Create"}
+          {isLoading ? t("homeworkFeature.saving") : homework ? t("homeworkFeature.update") : t("homeworkFeature.create")}
         </Button>
       </div>
     </form>

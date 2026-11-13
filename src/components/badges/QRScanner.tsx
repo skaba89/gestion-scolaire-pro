@@ -3,6 +3,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Camera, CameraOff, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface QRScannerProps {
   onScan: (data: string) => void;
@@ -12,6 +13,7 @@ interface QRScannerProps {
 }
 
 export default function QRScanner({ onScan, onClose, continuous = false, scanDelay = 3000 }: QRScannerProps) {
+  const { t } = useTranslation();
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastScan, setLastScan] = useState<{ data: string; time: number } | null>(null);
@@ -30,7 +32,7 @@ export default function QRScanner({ onScan, onClose, continuous = false, scanDel
       const cameras = await Html5Qrcode.getCameras();
 
       if (cameras.length === 0) {
-        setError("Aucune caméra détectée");
+        setError(t("qrScanner.noCamera"));
         return;
       }
 
@@ -58,9 +60,9 @@ export default function QRScanner({ onScan, onClose, continuous = false, scanDel
     } catch (err: any) {
       console.error("Error starting scanner:", err);
       if (err.message?.includes("Permission denied") || err.name === "NotAllowedError") {
-        setError("Accès à la caméra refusé.");
+        setError(t("qrScanner.denied"));
       } else {
-        setError("Impossible de démarrer le scanner.");
+        setError(t("qrScanner.startFailed"));
       }
     }
   };
@@ -139,16 +141,16 @@ export default function QRScanner({ onScan, onClose, continuous = false, scanDel
         {!isScanning ? (
           <Button onClick={startScanner} className="flex-1 h-12 text-lg">
             <Camera className="h-5 w-5 mr-2" />
-            Activer le Lecteur
+            {t("qrScanner.start")}
           </Button>
         ) : (
           <Button onClick={stopScanner} variant="outline" className="flex-1 h-12 text-lg">
             <CameraOff className="h-5 w-5 mr-2" />
-            Pause
+            {t("qrScanner.pause")}
           </Button>
         )}
         <Button variant="ghost" onClick={onClose} className="h-12">
-          Fermer
+          {t("qrScanner.close")}
         </Button>
       </div>
 
@@ -156,10 +158,10 @@ export default function QRScanner({ onScan, onClose, continuous = false, scanDel
         {continuous ? (
           <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-            Mode Multi-Scan Actif
+            {t("qrScanner.multiScan")}
           </span>
         ) : (
-          "Placez le QR code face à la caméra"
+          t("qrScanner.placeCode")
         )}
       </p>
     </div>

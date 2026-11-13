@@ -1662,7 +1662,9 @@
     "roleDirector": "مدير",
     "roleTeacher": "معلم",
     "roleParent": "ولي الأمر",
-    "roleStaff": "موظف"
+    "roleStaff": "موظف",
+    "title": "الإعلانات الرسمية",
+    "subtitle": "آخر بلاغات المؤسسة"
   },
   "events": {
     "createSuccess": "تم إنشاء الحدث بنجاح",
@@ -3656,5 +3658,187 @@
     "noDiscussion": "لا توجد نقاشات حديثة",
     "noClub": "لا توجد نوادٍ متاحة",
     "members": "{{count}} أعضاء"
+  },
+  "teacherPortal": {
+    "slots": {
+      "deleted": "تم حذف الموعد",
+      "onlinePlaceholder": "https://meet.google.com/...",
+      "roomPlaceholder": "القاعة 101، المكتب..."
+    },
+    "session": {
+      "ended": "انتهت الحصة",
+      "alreadyRecorded": "{{label}} مسجَّل مسبقًا",
+      "recorded": "تم تسجيل {{label}}",
+      "notInClass": "هذا {{label}} ليس في هذا القسم"
+    },
+    "attendance": {
+      "error": "خطأ: {{message}}",
+      "allPresent": "تم تسجيل جميع {{label}} حاضرين",
+      "date": "التاريخ",
+      "noneFound": "لم يُعثر على أي {{label}}",
+      "noneEnrolled": "لا يوجد حاليًا أي {{label}} مسجَّل في هذا القسم.",
+      "title": "إدارة الحضور",
+      "subtitle": "سجّل حضور {{label}}",
+      "allPresentBtn": "الجميع حاضر",
+      "present": "الحاضرون",
+      "absent": "الغائبون",
+      "late": "المتأخرون",
+      "excused": "المعذورون",
+      "studentNumber": "رقم الطالب",
+      "actions": "الإجراءات"
+    },
+    "classes": {
+      "title": "أقسامي",
+      "subtitle": "أدِر أقسامك و{{label}}",
+      "none": "لا يوجد قسم مُسنَد",
+      "noneHint": "تواصل مع الإدارة ليُسنَد إليك قسم وتبدأ في إدارة {{label}}."
+    },
+    "grades": {
+      "noAssignment": "معلومة: لم يُسنَد إليك أي قسم بعد. تواصل مع الإدارة لضبط صلاحياتك.",
+      "entry": "إدخال الدرجات",
+      "entryHint": "اختر قسمًا وتقييمًا من المرشحات أعلاه لبدء إدخال درجات {{label}}.",
+      "newAssessment": "إنشاء تقييم جديد"
+    },
+    "homework": {
+      "lateBy": "متأخر بـ {{days}} يوم",
+      "dueToday": "للتسليم اليوم",
+      "dueIn": "خلال {{days}} يوم"
+    },
+    "messages": {
+      "recipient": "المرسَل إليه"
+    },
+    "qr": {
+      "title": "التسجيل برمز QR",
+      "subtitle": "امسح شارات QR لتسجيل الحضور أثناء الحصة",
+      "present": "الحاضرون",
+      "absent": "الغائبون",
+      "rate": "النسبة",
+      "courseSelection": "اختيار الحصة",
+      "class": "القسم",
+      "subject": "المادة",
+      "selectClass": "اختر قسمًا",
+      "selectSubject": "اختر مادة",
+      "start": "بدء الحصة",
+      "scan": "مسح شارة",
+      "end": "إنهاء الحصة"
+    },
+    "assessment": {
+      "title": "إنشاء تقييم",
+      "name": "اسم التقييم *",
+      "namePlaceholder": "مثال: فرض الرياضيات، الفصل الأول",
+      "class": "القسم *",
+      "subject": "المادة *",
+      "select": "اختر",
+      "chooseClassFirst": "اختر قسمًا",
+      "period": "الفترة (فصل/فصل جامعي) *",
+      "selectPeriod": "اختر فترة",
+      "maxScore": "الدرجة القصوى",
+      "coefficient": "المعامل",
+      "cancel": "إلغاء",
+      "create": "إنشاء التقييم"
+    },
+    "classCard": {
+      "class": "القسم",
+      "grades": "الدرجات",
+      "attendance": "الحضور"
+    },
+    "header": {
+      "welcome": "مرحبًا، {{name}}!",
+      "teacher": "الأستاذ"
+    },
+    "gradeFilters": {
+      "selection": "الاختيار",
+      "class": "القسم",
+      "assessment": "التقييم",
+      "selectClass": "اختر قسمًا",
+      "selectAssessment": "اختر تقييمًا",
+      "chooseClassFirst": "اختر قسمًا أولًا"
+    },
+    "gradeHeader": {
+      "title": "إدارة الدرجات",
+      "subtitle": "أنشئ التقييمات وأدخل الدرجات",
+      "new": "تقييم جديد"
+    },
+    "gradeTable": {
+      "title": "إدخال الدرجات",
+      "grade": "الدرجة"
+    },
+    "today": {
+      "title": "الجدول الزمني - اليوم",
+      "untitled": "بلا عنوان",
+      "none": "لا توجد حصص اليوم"
+    }
+  },
+  "offlineAttendance": {
+    "PRESENT": "حاضر",
+    "ABSENT": "غائب",
+    "LATE": "متأخر",
+    "EXCUSED": "غياب مبرَّر",
+    "nothing": "لا شيء للحفظ",
+    "selectStatus": "اختر حالة كل {{label}}",
+    "saved": "تم حفظ {{count}} سجل حضور دون اتصال",
+    "willSync": "ستُزامَن البيانات عند عودة الاتصال",
+    "error": "خطأ",
+    "saveFailed": "تعذّر الحفظ دون اتصال",
+    "deleted": "تم حذف السجل",
+    "noCache": "لا توجد بيانات مخزنة لهذا القسم",
+    "noCacheHint": "سجّل الدخول مرة واحدة على الأقل مع الإنترنت لتخزين بيانات {{label}}.",
+    "offlineMode": "وضع عدم الاتصال — {{name}}",
+    "class": "القسم",
+    "offlineHint": "تُحفَظ الغيابات محليًا وتُزامَن تلقائيًا عند عودة الاتصال.",
+    "date": "التاريخ",
+    "allPresent": "الجميع حاضر",
+    "presentCount": "{{count}} حاضر",
+    "loading": "جارٍ التحميل...",
+    "tapStatus": "اضغط على حالة لحفظها دون اتصال",
+    "sync": "مزامنة"
+  },
+  "qrScanner": {
+    "noCamera": "لم يُكتشف أي كاميرا",
+    "denied": "تم رفض الوصول إلى الكاميرا.",
+    "startFailed": "تعذّر تشغيل الماسح.",
+    "start": "تشغيل القارئ",
+    "pause": "إيقاف مؤقت",
+    "close": "إغلاق",
+    "multiScan": "وضع المسح المتعدد مفعّل",
+    "placeCode": "ضع رمز QR أمام الكاميرا"
+  },
+  "teacherCharts": {
+    "average": "المعدل",
+    "attendanceToday": "الحضور (اليوم)",
+    "headcount": "عدد التلاميذ حسب القسم",
+    "noData": "لا توجد بيانات متاحة",
+    "gradeDistribution": "توزيع الدرجات",
+    "noGrades": "لم تُدخَل أي درجة",
+    "classAverages": "المعدلات حسب القسم"
+  },
+  "homeworkFeature": {
+    "due": "آخر أجل: ",
+    "class": "القسم: ",
+    "view": "عرض",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "titleRequired": "العنوان إلزامي",
+    "titleTooLong": "يجب ألا يتجاوز العنوان 255 حرفًا",
+    "descriptionTooLong": "يجب ألا يتجاوز الوصف 2000 حرف",
+    "title": "العنوان *",
+    "titlePlaceholder": "عنوان الواجب",
+    "description": "الوصف",
+    "descriptionPlaceholder": "وصف الواجب",
+    "dueDate": "آخر أجل",
+    "status": "الحالة",
+    "selectStatus": "اختر الحالة",
+    "DRAFT": "مسودة",
+    "PUBLISHED": "منشور",
+    "COMPLETED": "مكتمل",
+    "ARCHIVED": "مؤرشف",
+    "cancel": "إلغاء",
+    "saving": "جارٍ الحفظ...",
+    "update": "تحديث",
+    "create": "إنشاء",
+    "confirmDelete": "هل تريد حقًا حذف هذا الواجب؟",
+    "loadFailed": "تعذّر تحميل الواجبات: {{message}}",
+    "unknownError": "خطأ غير معروف",
+    "none": "لا توجد واجبات. أنشئ واجبًا للبدء."
   }
 }

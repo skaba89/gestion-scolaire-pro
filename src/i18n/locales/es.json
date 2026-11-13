@@ -1662,7 +1662,9 @@
     "roleDirector": "Director",
     "roleTeacher": "Profesor",
     "roleParent": "Padre/Madre",
-    "roleStaff": "Personal"
+    "roleStaff": "Personal",
+    "title": "Anuncios oficiales",
+    "subtitle": "Últimas comunicaciones del centro"
   },
   "events": {
     "createSuccess": "Evento creado con éxito",
@@ -3656,5 +3658,187 @@
     "noDiscussion": "No hay debates recientes",
     "noClub": "No hay clubes disponibles",
     "members": "{{count}} miembros"
+  },
+  "teacherPortal": {
+    "slots": {
+      "deleted": "Horario eliminado",
+      "onlinePlaceholder": "https://meet.google.com/...",
+      "roomPlaceholder": "Aula 101, Despacho..."
+    },
+    "session": {
+      "ended": "Sesión terminada",
+      "alreadyRecorded": "{{label}} ya registrado",
+      "recorded": "{{label}} registrado",
+      "notInClass": "Este {{label}} no está en esta clase"
+    },
+    "attendance": {
+      "error": "Error: {{message}}",
+      "allPresent": "Todos los {{label}} marcados como presentes",
+      "date": "Fecha",
+      "noneFound": "No se encontró ningún {{label}}",
+      "noneEnrolled": "Ningún {{label}} está matriculado actualmente en esta clase.",
+      "title": "Gestión de la asistencia",
+      "subtitle": "Registre la asistencia de sus {{label}}",
+      "allPresentBtn": "Todos presentes",
+      "present": "Presentes",
+      "absent": "Ausentes",
+      "late": "Retrasos",
+      "excused": "Justificados",
+      "studentNumber": "N.º de estudiante",
+      "actions": "Acciones"
+    },
+    "classes": {
+      "title": "Mis clases",
+      "subtitle": "Gestione sus clases y {{label}}",
+      "none": "Ninguna clase asignada",
+      "noneHint": "Contacte con la administración para que le asignen clases y empezar a gestionar a sus {{label}}."
+    },
+    "grades": {
+      "noAssignment": "Información: todavía no tiene clases asignadas. Contacte con la administración para configurar sus permisos.",
+      "entry": "Introducción de notas",
+      "entryHint": "Seleccione una clase y una evaluación en los filtros de arriba para empezar a introducir las notas de los {{label}}.",
+      "newAssessment": "Crear una nueva evaluación"
+    },
+    "homework": {
+      "lateBy": "Con {{days}} d de retraso",
+      "dueToday": "Para hoy",
+      "dueIn": "En {{days}} día(s)"
+    },
+    "messages": {
+      "recipient": "Destinatario"
+    },
+    "qr": {
+      "title": "Fichaje por código QR",
+      "subtitle": "Escanee las credenciales QR para registrar la asistencia durante una clase",
+      "present": "Presentes",
+      "absent": "Ausentes",
+      "rate": "Tasa",
+      "courseSelection": "Selección de la clase",
+      "class": "Clase",
+      "subject": "Asignatura",
+      "selectClass": "Seleccione una clase",
+      "selectSubject": "Seleccione una asignatura",
+      "start": "Iniciar la sesión",
+      "scan": "Escanear una credencial",
+      "end": "Terminar la sesión"
+    },
+    "assessment": {
+      "title": "Crear una evaluación",
+      "name": "Nombre de la evaluación *",
+      "namePlaceholder": "Ej.: Examen de Matemáticas, Trimestre 1",
+      "class": "Clase *",
+      "subject": "Asignatura *",
+      "select": "Seleccionar",
+      "chooseClassFirst": "Elija una clase",
+      "period": "Período (trimestre/semestre) *",
+      "selectPeriod": "Seleccione un período",
+      "maxScore": "Nota máxima",
+      "coefficient": "Coeficiente",
+      "cancel": "Cancelar",
+      "create": "Crear la evaluación"
+    },
+    "classCard": {
+      "class": "Clase",
+      "grades": "Notas",
+      "attendance": "Asistencia"
+    },
+    "header": {
+      "welcome": "¡Bienvenido/a, {{name}}!",
+      "teacher": "Profesor/a"
+    },
+    "gradeFilters": {
+      "selection": "Selección",
+      "class": "Clase",
+      "assessment": "Evaluación",
+      "selectClass": "Seleccione una clase",
+      "selectAssessment": "Seleccione una evaluación",
+      "chooseClassFirst": "Elija primero una clase"
+    },
+    "gradeHeader": {
+      "title": "Gestión de notas",
+      "subtitle": "Cree evaluaciones e introduzca las notas",
+      "new": "Nueva evaluación"
+    },
+    "gradeTable": {
+      "title": "Introducción de notas",
+      "grade": "Nota"
+    },
+    "today": {
+      "title": "Horario - Hoy",
+      "untitled": "Sin título",
+      "none": "No hay clases hoy"
+    }
+  },
+  "offlineAttendance": {
+    "PRESENT": "Presente",
+    "ABSENT": "Ausente",
+    "LATE": "Con retraso",
+    "EXCUSED": "Ausencia justificada",
+    "nothing": "Nada que guardar",
+    "selectStatus": "Seleccione el estado de cada {{label}}",
+    "saved": "{{count}} asistencia(s) guardada(s) sin conexión",
+    "willSync": "Los datos se sincronizarán cuando vuelva la conexión",
+    "error": "Error",
+    "saveFailed": "No se pudo guardar sin conexión",
+    "deleted": "Registro eliminado",
+    "noCache": "No hay datos en caché para esta clase",
+    "noCacheHint": "Conéctese al menos una vez con internet para guardar en caché los datos de los {{label}}.",
+    "offlineMode": "Modo sin conexión — {{name}}",
+    "class": "Clase",
+    "offlineHint": "Las ausencias se guardan localmente y se sincronizan automáticamente cuando vuelve la conexión.",
+    "date": "Fecha",
+    "allPresent": "Todos presentes",
+    "presentCount": "{{count}} presente(s)",
+    "loading": "Cargando...",
+    "tapStatus": "Pulse un estado para guardarlo sin conexión",
+    "sync": "Sincronizar"
+  },
+  "qrScanner": {
+    "noCamera": "No se detectó ninguna cámara",
+    "denied": "Acceso a la cámara denegado.",
+    "startFailed": "No se pudo iniciar el escáner.",
+    "start": "Activar el lector",
+    "pause": "Pausa",
+    "close": "Cerrar",
+    "multiScan": "Modo multiescaneo activo",
+    "placeCode": "Coloque el código QR frente a la cámara"
+  },
+  "teacherCharts": {
+    "average": "Promedio",
+    "attendanceToday": "Asistencia (hoy)",
+    "headcount": "Efectivos por clase",
+    "noData": "No hay datos disponibles",
+    "gradeDistribution": "Distribución de notas",
+    "noGrades": "No hay notas introducidas",
+    "classAverages": "Promedios por clase"
+  },
+  "homeworkFeature": {
+    "due": "Fecha límite: ",
+    "class": "Clase: ",
+    "view": "Ver",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "titleRequired": "El título es obligatorio",
+    "titleTooLong": "El título debe tener menos de 255 caracteres",
+    "descriptionTooLong": "La descripción debe tener menos de 2000 caracteres",
+    "title": "Título *",
+    "titlePlaceholder": "Título de la tarea",
+    "description": "Descripción",
+    "descriptionPlaceholder": "Descripción de la tarea",
+    "dueDate": "Fecha límite",
+    "status": "Estado",
+    "selectStatus": "Seleccione un estado",
+    "DRAFT": "Borrador",
+    "PUBLISHED": "Publicado",
+    "COMPLETED": "Completado",
+    "ARCHIVED": "Archivado",
+    "cancel": "Cancelar",
+    "saving": "Guardando...",
+    "update": "Actualizar",
+    "create": "Crear",
+    "confirmDelete": "¿Seguro que desea eliminar esta tarea?",
+    "loadFailed": "No se pudieron cargar las tareas: {{message}}",
+    "unknownError": "Error desconocido",
+    "none": "No hay tareas. Cree una para empezar."
   }
 }

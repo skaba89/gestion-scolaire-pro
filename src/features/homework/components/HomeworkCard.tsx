@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { Homework } from "../types/homework";
+import { useTranslation } from "react-i18next";
+import { dateFnsLocale } from "@/lib/locale";
 
 interface HomeworkCardProps {
   homework: Homework;
@@ -23,6 +25,7 @@ export function HomeworkCard({
   onView,
   showActions = true,
 }: HomeworkCardProps) {
+  const { t } = useTranslation();
   const statusColors: Record<string, string> = {
     DRAFT: "bg-gray-100 text-gray-800",
     PUBLISHED: "bg-blue-100 text-blue-800",
@@ -47,15 +50,15 @@ export function HomeworkCard({
         <div className="space-y-2 text-sm">
           {homework.due_date && (
             <div>
-              <span className="font-medium">Due: </span>
+              <span className="font-medium">{t("homeworkFeature.due")}</span>
               <span>
-                {format(new Date(homework.due_date), "MMM dd, yyyy")}
+                {format(new Date(homework.due_date), "PP", { locale: dateFnsLocale() })}
               </span>
             </div>
           )}
           {homework.class_id && (
             <div>
-              <span className="font-medium">Class: </span>
+              <span className="font-medium">{t("homeworkFeature.class")}</span>
               <span>{homework.class_id}</span>
             </div>
           )}
@@ -69,7 +72,7 @@ export function HomeworkCard({
                 variant="outline"
                 onClick={() => onView(homework.id)}
               >
-                View
+                {t("homeworkFeature.view")}
               </Button>
             )}
             {onEdit && (
@@ -78,7 +81,7 @@ export function HomeworkCard({
                 variant="outline"
                 onClick={() => onEdit(homework)}
               >
-                Edit
+                {t("homeworkFeature.edit")}
               </Button>
             )}
             {onDelete && (
@@ -87,7 +90,7 @@ export function HomeworkCard({
                 variant="destructive"
                 onClick={() => onDelete(homework.id)}
               >
-                Delete
+                {t("homeworkFeature.delete")}
               </Button>
             )}
           </div>

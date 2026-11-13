@@ -25,6 +25,13 @@ const GUARDED = [
     "src/components/collaboration/SharedNotes.tsx",
     "src/components/collaboration/CollaborativeTools.tsx",
     "src/components/dashboard/ParentChildCard.tsx",
+    "src/pages/teacher",
+    "src/components/teacher",
+    "src/components/offline/OfflineAttendance.tsx",
+    "src/components/dashboard/TeacherDashboardCharts.tsx",
+    "src/components/badges/QRScanner.tsx",
+    "src/components/announcements/RecentAnnouncements.tsx",
+    "src/features/homework/components",
 ];
 
 /** Noms propres et codes affichés tels quels. */

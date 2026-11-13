@@ -4,15 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ClipboardCheck, Check, X, Clock, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { AttendanceStatus } from "@/hooks/queries/useTeacherAttendance";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
-const statusConfig: Record<AttendanceStatus, { label: string; icon: any; color: string }> = {
-    PRESENT: { label: "Présent", icon: Check, color: "text-green-600 bg-green-500/20" },
-    ABSENT: { label: "Absent", icon: X, color: "text-red-600 bg-red-500/20" },
-    LATE: { label: "Retard", icon: Clock, color: "text-orange-600 bg-orange-500/20" },
-    EXCUSED: { label: "Excusé", icon: AlertCircle, color: "text-blue-600 bg-blue-500/20" },
+const statusConfig: Record<AttendanceStatus, { labelKey: string; icon: any; color: string }> = {
+    PRESENT: { labelKey: "attendanceHistory.PRESENT", icon: Check, color: "text-green-600 bg-green-500/20" },
+    ABSENT: { labelKey: "attendanceHistory.ABSENT", icon: X, color: "text-red-600 bg-red-500/20" },
+    LATE: { labelKey: "attendanceHistory.LATE", icon: Clock, color: "text-orange-600 bg-orange-500/20" },
+    EXCUSED: { labelKey: "attendanceHistory.EXCUSED", icon: AlertCircle, color: "text-blue-600 bg-blue-500/20" },
 };
 
 interface TeacherAttendanceTableProps {
@@ -32,21 +33,22 @@ export const TeacherAttendanceTable = ({
     selectedDate,
     studentLabel,
 }: TeacherAttendanceTableProps) => {
+    const { t } = useTranslation();
     return (
         <Card className="border-primary/10 shadow-sm overflow-hidden">
             <CardHeader className="bg-muted/30 border-b">
                 <CardTitle className="flex items-center gap-2 text-base">
                     <ClipboardCheck className="w-5 h-5 text-primary" />
-                    Feuille de Présence - {format(new Date(selectedDate), "EEEE d MMMM yyyy", { locale: fr })}
+                    Feuille de Présence - {format(new Date(selectedDate), "EEEE d MMMM yyyy", { locale: dateFnsLocale() })}
                 </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-muted/50">
-                            <TableHead className="py-4 px-6 font-semibold">N° Étudiant</TableHead>
+                            <TableHead className="py-4 px-6 font-semibold">{t("teacherPortal.attendance.studentNumber")}</TableHead>
                             <TableHead className="py-4 px-6 font-semibold">{studentLabel}</TableHead>
-                            <TableHead className="py-4 px-6 text-center font-semibold">Actions</TableHead>
+                            <TableHead className="py-4 px-6 text-center font-semibold">{t("teacherPortal.attendance.actions")}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -76,7 +78,7 @@ export const TeacherAttendanceTable = ({
                                                     <Button
                                                         key={status}
                                                         // Boutons-icônes : libellé pour les lecteurs d'écran.
-                                                        aria-label={config.label}
+                                                        aria-label={t(config.labelKey)}
                                                         aria-pressed={isActive}
                                                         size="sm"
                                                         variant={isActive ? "default" : "outline"}

@@ -9,8 +9,10 @@ import { classroomQueries } from "@/queries/classrooms";
 
 // Modular Components
 import { TeacherClassCard } from "@/components/teacher/TeacherClassCard";
+import { useTranslation } from "react-i18next";
 
 const TeacherClasses = () => {
+  const { t } = useTranslation();
   const { assignedClassrooms, isLoading: assignmentsLoading } = useTeacherData();
   const { studentsLabel } = useStudentLabel();
   const { getTenantUrl } = useTenantUrl();
@@ -27,8 +29,8 @@ const TeacherClasses = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Mes Classes</h1>
-        <p className="text-muted-foreground">Gérez vos classes et {studentsLabel}</p>
+        <h1 className="text-2xl font-display font-bold text-foreground">{t("teacherPortal.classes.title")}</h1>
+        <p className="text-muted-foreground">{t("teacherPortal.classes.subtitle", { label: studentsLabel })}</p>
       </div>
 
       {/* Classes Grid */}
@@ -42,9 +44,9 @@ const TeacherClasses = () => {
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <Users className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-            <p className="font-medium">Aucune classe assignée</p>
+            <p className="font-medium">{t("teacherPortal.classes.none")}</p>
             <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
-              Contactez l'administration pour être assigné à des classes et commencer à gérer vos {studentsLabel}.
+              {t("teacherPortal.classes.noneHint", { label: studentsLabel })}
             </p>
           </CardContent>
         </Card>

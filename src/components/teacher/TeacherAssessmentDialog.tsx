@@ -16,6 +16,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface TeacherAssessmentDialogProps {
     open: boolean;
@@ -36,6 +37,7 @@ export const TeacherAssessmentDialog = ({
     getSubjectsForClassroom,
     terms,
 }: TeacherAssessmentDialogProps) => {
+    const { t } = useTranslation();
     const [formData, setFormData] = useState({
         name: "",
         subject_id: "",
@@ -71,29 +73,29 @@ export const TeacherAssessmentDialog = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
-                    <DialogTitle className="text-xl font-bold">Créer une Évaluation</DialogTitle>
+                    <DialogTitle className="text-xl font-bold">{t("teacherPortal.assessment.title")}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-6 pt-4">
                     <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Nom de l'évaluation *</Label>
+                        <Label className="text-sm font-semibold">{t("teacherPortal.assessment.name")}</Label>
                         <Input
                             value={formData.name}
                             onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="Ex: Devoir de Mathématiques Trimestre 1"
+                            placeholder={t("teacherPortal.assessment.namePlaceholder")}
                             required
                             className="bg-muted/30 focus-visible:ring-primary/30"
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Classe *</Label>
+                            <Label className="text-sm font-semibold">{t("teacherPortal.assessment.class")}</Label>
                             <Select
                                 value={formData.class_id}
                                 onValueChange={(value) => setFormData(prev => ({ ...prev, class_id: value, subject_id: "" }))}
                                 required
                             >
                                 <SelectTrigger className="bg-muted/30 border-muted-foreground/20">
-                                    <SelectValue placeholder="Sélectionner" />
+                                    <SelectValue placeholder={t("teacherPortal.assessment.select")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {assignedClassrooms?.map(c => (
@@ -103,7 +105,7 @@ export const TeacherAssessmentDialog = ({
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Matière *</Label>
+                            <Label className="text-sm font-semibold">{t("teacherPortal.assessment.subject")}</Label>
                             <Select
                                 value={formData.subject_id}
                                 onValueChange={(value) => setFormData(prev => ({ ...prev, subject_id: value }))}
@@ -111,7 +113,7 @@ export const TeacherAssessmentDialog = ({
                                 required
                             >
                                 <SelectTrigger className="bg-muted/30 border-muted-foreground/20">
-                                    <SelectValue placeholder={formData.class_id ? "Sélectionner" : "Choisir une classe"} />
+                                    <SelectValue placeholder={formData.class_id ? t("teacherPortal.assessment.select") : t("teacherPortal.assessment.chooseClassFirst")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {dialogSubjects?.map(s => (
@@ -123,14 +125,14 @@ export const TeacherAssessmentDialog = ({
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Période (Trimestre/Semestre) *</Label>
+                        <Label className="text-sm font-semibold">{t("teacherPortal.assessment.period")}</Label>
                         <Select
                             value={formData.term_id}
                             onValueChange={(value) => setFormData(prev => ({ ...prev, term_id: value }))}
                             required
                         >
                             <SelectTrigger className="bg-muted/30 border-muted-foreground/20">
-                                <SelectValue placeholder="Sélectionner une période" />
+                                <SelectValue placeholder={t("teacherPortal.assessment.selectPeriod")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {terms?.map(t => (
@@ -142,7 +144,7 @@ export const TeacherAssessmentDialog = ({
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Note maximale</Label>
+                            <Label className="text-sm font-semibold">{t("teacherPortal.assessment.maxScore")}</Label>
                             <Input
                                 type="number"
                                 value={formData.max_score}
@@ -151,7 +153,7 @@ export const TeacherAssessmentDialog = ({
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-sm font-semibold">Coefficient</Label>
+                            <Label className="text-sm font-semibold">{t("teacherPortal.assessment.coefficient")}</Label>
                             <Input
                                 type="number"
                                 step="0.5"
@@ -163,11 +165,11 @@ export const TeacherAssessmentDialog = ({
                     </div>
                     <div className="flex justify-end gap-3 pt-6 border-t">
                         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                            Annuler
+                            {t("teacherPortal.assessment.cancel")}
                         </Button>
                         <Button type="submit" disabled={isPending} className="px-8">
                             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Créer l'évaluation
+                            {t("teacherPortal.assessment.create")}
                         </Button>
                     </div>
                 </form>

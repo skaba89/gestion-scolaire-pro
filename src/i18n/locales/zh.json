@@ -1696,7 +1696,9 @@
     "roleDirector": "校长",
     "roleTeacher": "教师",
     "roleParent": "家长",
-    "roleStaff": "员工"
+    "roleStaff": "员工",
+    "title": "官方公告",
+    "subtitle": "学校最新通知"
   },
   "events": {
     "createSuccess": "活动创建成功",
@@ -3690,5 +3692,187 @@
     "noDiscussion": "暂无最近讨论",
     "noClub": "暂无社团",
     "members": "{{count}} 名成员"
+  },
+  "teacherPortal": {
+    "slots": {
+      "deleted": "时段已删除",
+      "onlinePlaceholder": "https://meet.google.com/...",
+      "roomPlaceholder": "101 教室、办公室…"
+    },
+    "session": {
+      "ended": "课程已结束",
+      "alreadyRecorded": "{{label}}已登记",
+      "recorded": "{{label}}已登记",
+      "notInClass": "该{{label}}不在本班级"
+    },
+    "attendance": {
+      "error": "错误：{{message}}",
+      "allPresent": "所有{{label}}已标记为出勤",
+      "date": "日期",
+      "noneFound": "未找到{{label}}",
+      "noneEnrolled": "本班目前没有注册的{{label}}。",
+      "title": "考勤管理",
+      "subtitle": "记录您的{{label}}出勤",
+      "allPresentBtn": "全部出勤",
+      "present": "出勤",
+      "absent": "缺勤",
+      "late": "迟到",
+      "excused": "请假",
+      "studentNumber": "学号",
+      "actions": "操作"
+    },
+    "classes": {
+      "title": "我的班级",
+      "subtitle": "管理您的班级和{{label}}",
+      "none": "未分配班级",
+      "noneHint": "请联系管理部门为您分配班级，以便开始管理您的{{label}}。"
+    },
+    "grades": {
+      "noAssignment": "提示：您尚未被分配班级，请联系管理部门设置权限。",
+      "entry": "成绩录入",
+      "entryHint": "请在上方筛选中选择班级和评估，开始录入{{label}}的成绩。",
+      "newAssessment": "创建新评估"
+    },
+    "homework": {
+      "lateBy": "逾期 {{days}} 天",
+      "dueToday": "今天截止",
+      "dueIn": "{{days}} 天后"
+    },
+    "messages": {
+      "recipient": "收件人"
+    },
+    "qr": {
+      "title": "二维码签到",
+      "subtitle": "上课时扫描二维码胸卡记录出勤",
+      "present": "出勤",
+      "absent": "缺勤",
+      "rate": "比率",
+      "courseSelection": "选择课程",
+      "class": "班级",
+      "subject": "科目",
+      "selectClass": "选择班级",
+      "selectSubject": "选择科目",
+      "start": "开始课程",
+      "scan": "扫描胸卡",
+      "end": "结束课程"
+    },
+    "assessment": {
+      "title": "创建评估",
+      "name": "评估名称 *",
+      "namePlaceholder": "例如：数学测验 第一学期",
+      "class": "班级 *",
+      "subject": "科目 *",
+      "select": "选择",
+      "chooseClassFirst": "选择班级",
+      "period": "学期 *",
+      "selectPeriod": "选择学期",
+      "maxScore": "满分",
+      "coefficient": "权重",
+      "cancel": "取消",
+      "create": "创建评估"
+    },
+    "classCard": {
+      "class": "班级",
+      "grades": "成绩",
+      "attendance": "出勤"
+    },
+    "header": {
+      "welcome": "欢迎，{{name}}！",
+      "teacher": "老师"
+    },
+    "gradeFilters": {
+      "selection": "选择",
+      "class": "班级",
+      "assessment": "评估",
+      "selectClass": "选择班级",
+      "selectAssessment": "选择评估",
+      "chooseClassFirst": "请先选择班级"
+    },
+    "gradeHeader": {
+      "title": "成绩管理",
+      "subtitle": "创建评估并录入成绩",
+      "new": "新建评估"
+    },
+    "gradeTable": {
+      "title": "成绩录入",
+      "grade": "成绩"
+    },
+    "today": {
+      "title": "课表 - 今天",
+      "untitled": "无标题",
+      "none": "今天没有课"
+    }
+  },
+  "offlineAttendance": {
+    "PRESENT": "出勤",
+    "ABSENT": "缺勤",
+    "LATE": "迟到",
+    "EXCUSED": "请假",
+    "nothing": "没有需要保存的内容",
+    "selectStatus": "请为每位{{label}}选择状态",
+    "saved": "已离线保存 {{count}} 条出勤记录",
+    "willSync": "连接恢复后将自动同步数据",
+    "error": "错误",
+    "saveFailed": "无法离线保存",
+    "deleted": "记录已删除",
+    "noCache": "此班级没有缓存数据",
+    "noCacheHint": "请至少联网登录一次，以缓存{{label}}数据。",
+    "offlineMode": "离线模式 — {{name}}",
+    "class": "班级",
+    "offlineHint": "缺勤记录保存在本机，连接恢复后自动同步。",
+    "date": "日期",
+    "allPresent": "全部出勤",
+    "presentCount": "{{count}} 人出勤",
+    "loading": "加载中…",
+    "tapStatus": "点击状态即可离线保存",
+    "sync": "同步"
+  },
+  "qrScanner": {
+    "noCamera": "未检测到摄像头",
+    "denied": "摄像头访问被拒绝。",
+    "startFailed": "无法启动扫描器。",
+    "start": "启动扫描",
+    "pause": "暂停",
+    "close": "关闭",
+    "multiScan": "连续扫描模式已开启",
+    "placeCode": "请将二维码对准摄像头"
+  },
+  "teacherCharts": {
+    "average": "平均分",
+    "attendanceToday": "出勤（今天）",
+    "headcount": "各班人数",
+    "noData": "暂无数据",
+    "gradeDistribution": "成绩分布",
+    "noGrades": "尚未录入成绩",
+    "classAverages": "各班平均分"
+  },
+  "homeworkFeature": {
+    "due": "截止：",
+    "class": "班级：",
+    "view": "查看",
+    "edit": "编辑",
+    "delete": "删除",
+    "titleRequired": "标题为必填项",
+    "titleTooLong": "标题须少于 255 个字符",
+    "descriptionTooLong": "说明须少于 2000 个字符",
+    "title": "标题 *",
+    "titlePlaceholder": "作业标题",
+    "description": "说明",
+    "descriptionPlaceholder": "作业说明",
+    "dueDate": "截止日期",
+    "status": "状态",
+    "selectStatus": "选择状态",
+    "DRAFT": "草稿",
+    "PUBLISHED": "已发布",
+    "COMPLETED": "已完成",
+    "ARCHIVED": "已归档",
+    "cancel": "取消",
+    "saving": "保存中…",
+    "update": "更新",
+    "create": "创建",
+    "confirmDelete": "确定要删除此作业吗？",
+    "loadFailed": "加载作业失败：{{message}}",
+    "unknownError": "未知错误",
+    "none": "暂无作业，创建一个开始吧。"
   }
 }

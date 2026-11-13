@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, School, BarChart3, ClipboardCheck } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 interface TeacherClassCardProps {
     classroom: { id: string; name: string };
@@ -17,6 +18,7 @@ export const TeacherClassCard = ({
     studentsLabel,
     getTenantUrl,
 }: TeacherClassCardProps) => {
+    const { t } = useTranslation();
     return (
         <Card className="hover:shadow-lg transition-all duration-300 border-transparent hover:border-primary/20 group">
             <CardHeader className="pb-2">
@@ -28,7 +30,7 @@ export const TeacherClassCard = ({
                         <div className="flex items-center gap-2">
                             <Badge variant="outline" className="bg-primary/5">
                                 <School className="w-3 h-3 mr-1" />
-                                Classe
+                                {t("teacherPortal.classCard.class")}
                             </Badge>
                         </div>
                     </div>
@@ -54,13 +56,13 @@ export const TeacherClassCard = ({
                     <Link to={getTenantUrl(`/teacher/grades?classroom=${classroom.id}`)}>
                         <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 transition-colors">
                             <BarChart3 className="w-4 h-4 mr-1.5" />
-                            Notes
+                            {t("teacherPortal.classCard.grades")}
                         </Button>
                     </Link>
                     <Link to={getTenantUrl(`/teacher/attendance?classroom=${classroom.id}`)}>
                         <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 transition-colors">
                             <ClipboardCheck className="w-4 h-4 mr-1.5" />
-                            Présences
+                            {t("teacherPortal.classCard.attendance")}
                         </Button>
                     </Link>
                 </div>
