@@ -40,7 +40,7 @@
   "src/pages/admin/AuditLogs.tsx": 1,
   "src/pages/admin/Classrooms.tsx": 1,
   "src/pages/admin/Finances.tsx": 1,
-  "src/pages/alumni/AlumniDashboard.tsx": 3,
+  "src/pages/alumni/AlumniDashboard.tsx": 2,
   "src/pages/Bootstrap.tsx": 5,
   "src/pages/parent/ChildDetail.tsx": 4,
   "src/pages/parent/Children.tsx": 1,
