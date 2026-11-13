@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import i18n from "@/i18n/config";
+import i18n, { getUserLanguage } from "@/i18n/config";
 import { apiClient } from "@/api/client";
 
 // Types from existing useSettings
@@ -109,11 +109,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         };
     }, [tenant, cachedSettings]);
 
-    // Sync language with i18n
+    // Langue de l'établissement = langue par défaut. Un choix explicite de
+    // l'utilisateur (sélecteur de l'en-tête) prime et n'est jamais écrasé.
     useEffect(() => {
+        if (getUserLanguage()) return;
         if (settings?.language && settings.language !== i18n.language) {
             i18n.changeLanguage(settings.language);
-            document.documentElement.lang = settings.language;
         }
     }, [settings?.language]);
 

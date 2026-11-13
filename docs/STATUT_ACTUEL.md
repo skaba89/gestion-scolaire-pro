@@ -1066,3 +1066,15 @@ ce fichier — pas d'un document de 2025 non révisé.
   accordé à `DIRECTOR`), « Carrières & Stages » et « Listes de classe »
   affichées au comptable sans les droits nécessaires (gardes du menu
   passées à `users:read` et `enrollments:read`).
+- **2026-11-13 — audit des langues ; la langue choisie survit au
+  rechargement.** Audit local des 9 rôles en anglais et en arabe (117 pages).
+  Défaut corrigé : la langue choisie dans l'en-tête revenait au français à
+  chaque rechargement (`lng: 'fr'` forcé à l'initialisation d'i18next, puis
+  langue de l'établissement appliquée par-dessus) et l'arabe perdait le sens
+  droite-à-gauche (posé seulement au clic). Désormais : choix explicite
+  mémorisé (`schoolflow:language`), prioritaire sur la langue de
+  l'établissement, qui reste la langue par défaut ; `lang`/`dir` du document
+  suivent chaque changement de langue. Reste (lots suivants) : ≈ 700 textes
+  écrits en dur en français (≈ 40 dans menus et en-têtes, ≈ 215 dans les
+  portails enseignant/département/étudiant/parent/ancien, ≈ 560 dans les
+  pages admin) ; 68 fichiers de page sur 166 n'utilisent pas i18n.
