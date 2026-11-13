@@ -2,18 +2,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Clock } from "lucide-react";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger-container";
 import { TeacherScheduleSlot } from "@/hooks/queries/useTeacherData";
+import { useTranslation } from "react-i18next";
 
 interface TeacherTodayScheduleProps {
     schedule: TeacherScheduleSlot[];
 }
 
 export const TeacherTodaySchedule = ({ schedule }: TeacherTodayScheduleProps) => {
+    const { t } = useTranslation();
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <Calendar className="w-5 h-5" />
-                    Emploi du Temps - Aujourd'hui
+                    {t("teacherPortal.today.title")}
                 </CardTitle>
             </CardHeader>
             <CardContent>
@@ -28,7 +30,7 @@ export const TeacherTodaySchedule = ({ schedule }: TeacherTodayScheduleProps) =>
                                             {slot.start_time?.slice(0, 5)} - {slot.end_time?.slice(0, 5)}
                                         </div>
                                         <div>
-                                            <p className="font-medium">{slot.subject?.name || "Sans titre"}</p>
+                                            <p className="font-medium">{slot.subject?.name || t("teacherPortal.today.untitled")}</p>
                                             <p className="text-sm text-muted-foreground">
                                                 {slot.classroom?.name}
                                                 {slot.room?.name && ` • Salle ${slot.room.name}`}
@@ -42,7 +44,7 @@ export const TeacherTodaySchedule = ({ schedule }: TeacherTodayScheduleProps) =>
                 ) : (
                     <div className="text-center py-8">
                         <Calendar className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-                        <p className="text-muted-foreground">Aucun cours aujourd'hui</p>
+                        <p className="text-muted-foreground">{t("teacherPortal.today.none")}</p>
                     </div>
                 )}
             </CardContent>

@@ -4,10 +4,12 @@ import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Megaphone, Pin, Calendar, Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 export const RecentAnnouncements = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
 
     const { data: announcements = [], isLoading } = useQuery({
@@ -39,9 +41,9 @@ export const RecentAnnouncements = () => {
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Megaphone className="h-5 w-5 text-primary" />
-                    Annonces Officielles
+                    {t("announcements.title")}
                 </CardTitle>
-                <CardDescription>Dernières communications de l'établissement</CardDescription>
+                <CardDescription>{t("announcements.subtitle")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 {announcements.map((announcement: any) => (
@@ -59,7 +61,7 @@ export const RecentAnnouncements = () => {
                             </h4>
                             <span className="text-[10px] text-muted-foreground whitespace-nowrap flex items-center gap-1">
                                 <Calendar className="h-2.5 w-2.5" />
-                                {format(new Date(announcement.created_at), "d MMM", { locale: fr })}
+                                {format(new Date(announcement.created_at), "d MMM", { locale: dateFnsLocale() })}
                             </span>
                         </div>
                         <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">

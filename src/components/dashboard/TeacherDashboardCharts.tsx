@@ -18,10 +18,12 @@ import {
 } from "recharts";
 import { Users, TrendingUp, ClipboardCheck } from "lucide-react";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { useTranslation } from "react-i18next";
 
 const COLORS = ['hsl(217, 91%, 40%)', 'hsl(199, 89%, 48%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(16, 85%, 57%)', 'hsl(168, 76%, 42%)'];
 
 export const TeacherDashboardCharts = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { user } = useAuth();
   const { StudentsLabel, studentsLabel } = useStudentLabel();
@@ -193,7 +195,7 @@ export const TeacherDashboardCharts = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{overallAverage}</p>
-                <p className="text-xs text-muted-foreground">Moyenne</p>
+                <p className="text-xs text-muted-foreground">{t("teacherCharts.average")}</p>
               </div>
             </div>
           </CardContent>
@@ -206,7 +208,7 @@ export const TeacherDashboardCharts = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{attendanceStats?.rate || 0}%</p>
-                <p className="text-xs text-muted-foreground">Présence (auj.)</p>
+                <p className="text-xs text-muted-foreground">{t("teacherCharts.attendanceToday")}</p>
               </div>
             </div>
           </CardContent>
@@ -218,7 +220,7 @@ export const TeacherDashboardCharts = () => {
         {/* Students by Classroom */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Effectifs par Classe</CardTitle>
+            <CardTitle className="text-base">{t("teacherCharts.headcount")}</CardTitle>
           </CardHeader>
           <CardContent>
             {classroomStats && classroomStats.length > 0 ? (
@@ -239,7 +241,7 @@ export const TeacherDashboardCharts = () => {
               </ResponsiveContainer>
             ) : (
               <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
-                Aucune donnée disponible
+                {t("teacherCharts.noData")}
               </div>
             )}
           </CardContent>
@@ -248,7 +250,7 @@ export const TeacherDashboardCharts = () => {
         {/* Grade Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Répartition des Notes</CardTitle>
+            <CardTitle className="text-base">{t("teacherCharts.gradeDistribution")}</CardTitle>
           </CardHeader>
           <CardContent>
             {gradeDistribution && gradeDistribution.length > 0 ? (
@@ -279,7 +281,7 @@ export const TeacherDashboardCharts = () => {
               </ResponsiveContainer>
             ) : (
               <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
-                Aucune note saisie
+                {t("teacherCharts.noGrades")}
               </div>
             )}
           </CardContent>
@@ -290,7 +292,7 @@ export const TeacherDashboardCharts = () => {
       {classAverages && classAverages.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Moyennes par Classe</CardTitle>
+            <CardTitle className="text-base">{t("teacherCharts.classAverages")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
@@ -304,7 +306,7 @@ export const TeacherDashboardCharts = () => {
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px'
                   }}
-                  formatter={(value: number) => [`${value}/20`, "Moyenne"]}
+                  formatter={(value: number) => [`${value}/20`, t("teacherCharts.average")]}
                 />
                 <Bar dataKey="moyenne" fill="hsl(142, 76%, 36%)" radius={[0, 4, 4, 0]} />
               </BarChart>

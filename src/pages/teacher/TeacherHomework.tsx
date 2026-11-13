@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, BookOpen, Calendar, Clock, BookMarked, FileText } from "lucide-react";
 import type { Homework } from "@/features/homework";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { dateFnsLocale } from "@/lib/locale";
 
 export default function TeacherHomework() {
   const { t } = useTranslation();
@@ -58,10 +58,10 @@ export default function TeacherHomework() {
     const date = new Date(dueDate);
     const now = new Date();
     const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return { text: `En retard de ${Math.abs(diffDays)}j`, variant: "destructive" as const };
-    if (diffDays === 0) return { text: "À rendre aujourd'hui", variant: "default" as const };
-    if (diffDays <= 3) return { text: `Dans ${diffDays} jour(s)`, variant: "secondary" as const };
-    return { text: format(date, "dd MMM yyyy", { locale: fr }), variant: "outline" as const };
+    if (diffDays < 0) return { text: t("teacherPortal.homework.lateBy", { days: Math.abs(diffDays) }), variant: "destructive" as const };
+    if (diffDays === 0) return { text: t("teacherPortal.homework.dueToday"), variant: "default" as const };
+    if (diffDays <= 3) return { text: t("teacherPortal.homework.dueIn", { days: diffDays }), variant: "secondary" as const };
+    return { text: format(date, "dd MMM yyyy", { locale: dateFnsLocale() }), variant: "outline" as const };
   };
 
   const submissions = (viewingHomework as any)?.homework_submissions || [];
@@ -169,7 +169,7 @@ export default function TeacherHomework() {
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span className="text-muted-foreground">{t("homework.deadline")}</span>
                     <span className="font-medium">
-                      {format(new Date(viewingHomework.due_date), "dd MMM yyyy", { locale: fr })}
+                      {format(new Date(viewingHomework.due_date), "dd MMM yyyy", { locale: dateFnsLocale() })}
                     </span>
                   </div>
                 )}

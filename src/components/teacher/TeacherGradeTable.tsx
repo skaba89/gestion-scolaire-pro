@@ -52,7 +52,7 @@ export const TeacherGradeTable = ({
                                     <BarChart3 className="w-5 h-5 text-primary" />
                                 </div>
                                 <div>
-                                    <span className="text-lg">Saisie des Notes</span>
+                                    <span className="text-lg">{t("teacherPortal.gradeTable.title")}</span>
                                     <p className="text-xs font-normal text-muted-foreground mt-0.5">
                                         {assessment.name} — {assessment.subjects?.name}
                                     </p>
@@ -67,10 +67,10 @@ export const TeacherGradeTable = ({
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                    <TableHead className="py-4 px-6 font-semibold">N° Étudiant</TableHead>
+                                    <TableHead className="py-4 px-6 font-semibold">{t("teacherPortal.attendance.studentNumber")}</TableHead>
                                     <TableHead className="py-4 px-6 font-semibold">{studentLabel}</TableHead>
-                                    <TableHead className="py-4 px-6 w-32 font-semibold">Note</TableHead>
-                                    <TableHead className="py-4 px-6 w-32 text-right font-semibold">Actions</TableHead>
+                                    <TableHead className="py-4 px-6 w-32 font-semibold">{t("teacherPortal.gradeTable.grade")}</TableHead>
+                                    <TableHead className="py-4 px-6 w-32 text-right font-semibold">{t("teacherPortal.attendance.actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>

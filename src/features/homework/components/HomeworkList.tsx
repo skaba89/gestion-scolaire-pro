@@ -8,6 +8,7 @@ import { HomeworkCard } from "./HomeworkCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Homework, HomeworkFilters } from "../types/homework";
+import { useTranslation } from "react-i18next";
 
 // Loading spinner component
 function LoadingSpinner() {
@@ -35,11 +36,12 @@ export function HomeworkList({
   onView,
   showActions = true,
 }: HomeworkListProps) {
+  const { t } = useTranslation();
   const { homeworkList, isLoading, error, delete: deleteHomework } = useHomework(filters);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this homework?")) {
+    if (confirm(t("homeworkFeature.confirmDelete"))) {
       setDeletingId(id);
       try {
         if (onDelete) {
@@ -61,7 +63,7 @@ export function HomeworkList({
     return (
       <Alert variant="destructive">
         <AlertDescription>
-          Failed to load homework: {error instanceof Error ? error.message : "Unknown error"}
+          {t("homeworkFeature.loadFailed", { message: error instanceof Error ? error.message : t("homeworkFeature.unknownError") })}
         </AlertDescription>
       </Alert>
     );
@@ -71,7 +73,7 @@ export function HomeworkList({
     return (
       <Alert>
         <AlertDescription>
-          No homework found. Create one to get started.
+          {t("homeworkFeature.none")}
         </AlertDescription>
       </Alert>
     );

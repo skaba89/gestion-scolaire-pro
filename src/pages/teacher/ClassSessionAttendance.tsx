@@ -168,7 +168,7 @@ export default function ClassSessionAttendance() {
     onSuccess: () => {
       setActiveSession(null);
       queryClient.invalidateQueries({ queryKey: ['active-session'] });
-      toast.success("Session terminée");
+      toast.success(t("teacherPortal.session.ended"));
     },
   });
 
@@ -182,14 +182,14 @@ export default function ClassSessionAttendance() {
         });
       } catch (error: any) {
         if (error.response?.status === 409 || error.response?.data?.detail?.includes('duplicate')) {
-          throw new Error(`${StudentLabel} déjà enregistré`);
+          throw new Error(t("teacherPortal.session.alreadyRecorded", { label: StudentLabel }));
         }
         throw error;
       }
     },
     onSuccess: () => {
       refetchCheckIns();
-      toast.success(`${StudentLabel} enregistré`);
+      toast.success(t("teacherPortal.session.recorded", { label: StudentLabel }));
     },
   });
 
@@ -204,10 +204,10 @@ export default function ClassSessionAttendance() {
 
       if (!badge) return toast.error(t("badges.invalidQR"));
       if (!enrolledStudents?.some(e => e.student_id === badge.student_id)) {
-        return toast.error(`Cet ${studentLabel} n'est pas dans cette classe`);
+        return toast.error(t("teacherPortal.session.notInClass", { label: studentLabel }));
       }
       if (sessionCheckIns?.some(c => c.student_id === badge.student_id)) {
-        return toast.info(`${StudentLabel} déjà enregistré`);
+        return toast.info(t("teacherPortal.session.alreadyRecorded", { label: StudentLabel }));
       }
 
       await checkInMutation.mutateAsync(badge.student_id);

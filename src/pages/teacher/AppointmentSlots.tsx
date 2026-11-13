@@ -28,7 +28,6 @@ import {
   isOnlineLocation,
 } from "@/lib/appointments";
 import { format, addDays, startOfWeek } from "date-fns";
-import { fr } from "date-fns/locale";
 import { 
   Calendar, 
   Plus, 
@@ -38,6 +37,7 @@ import {
   Trash2,
   CheckCircle2
 } from "lucide-react";
+import { dateFnsLocale } from "@/lib/locale";
 
 export default function AppointmentSlots() {
   const { t } = useTranslation();
@@ -106,7 +106,7 @@ export default function AppointmentSlots() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-slots"] });
-      toast.success("Créneau supprimé");
+      toast.success(t("teacherPortal.slots.deleted"));
     },
     onError: (error) => toast.error(apiErrorDetail(error)),
   });
@@ -233,7 +233,7 @@ export default function AppointmentSlots() {
                     <Input
                       value={formData.meeting_url}
                       onChange={(e) => setFormData({ ...formData, meeting_url: e.target.value })}
-                      placeholder="https://meet.google.com/..."
+                      placeholder={t("teacherPortal.slots.onlinePlaceholder")}
                     />
                   </div>
                 ) : (
@@ -242,7 +242,7 @@ export default function AppointmentSlots() {
                     <Input
                       value={formData.location}
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      placeholder="Salle 101, Bureau..."
+                      placeholder={t("teacherPortal.slots.roomPlaceholder")}
                     />
                   </div>
                 )}
@@ -304,7 +304,7 @@ export default function AppointmentSlots() {
                 <Card key={date}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg">
-                      {format(new Date(date), "EEEE d MMMM yyyy", { locale: fr })}
+                      {format(new Date(date), "EEEE d MMMM yyyy", { locale: dateFnsLocale() })}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -372,7 +372,7 @@ export default function AppointmentSlots() {
                 <Card key={apt.id}>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center justify-between">
-                      {format(new Date(apt.appointment_date), "EEEE d MMMM", { locale: fr })}
+                      {format(new Date(apt.appointment_date), "EEEE d MMMM", { locale: dateFnsLocale() })}
                       <Badge variant={apt.status === "CONFIRMED" ? "default" : "outline"}>
                         {t(STATUS_LABEL_KEYS[apt.status] ?? "appointments.statusScheduled")}
                       </Badge>

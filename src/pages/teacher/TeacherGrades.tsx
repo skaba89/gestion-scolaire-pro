@@ -12,8 +12,10 @@ import { TeacherGradeHeader } from "@/components/teacher/TeacherGradeHeader";
 import { TeacherGradeFilters } from "@/components/teacher/TeacherGradeFilters";
 import { TeacherGradeTable } from "@/components/teacher/TeacherGradeTable";
 import { TeacherAssessmentDialog } from "@/components/teacher/TeacherAssessmentDialog";
+import { useTranslation } from "react-i18next";
 
 const TeacherGrades = () => {
+  const { t } = useTranslation();
   const {
     assignedClassrooms,
     getSubjectsForClassroom,
@@ -70,7 +72,7 @@ const TeacherGrades = () => {
           <CardContent className="p-4 flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600" />
             <p className="text-amber-800 font-medium">
-              Information : Vous n'avez pas encore d'assignations de classes. Contactez l'administration pour configurer vos droits.
+              {t("teacherPortal.grades.noAssignment")}
             </p>
           </CardContent>
         </Card>
@@ -107,9 +109,9 @@ const TeacherGrades = () => {
                 <div className="w-16 h-16 rounded-full bg-primary/5 flex items-center justify-center mx-auto mb-4">
                   <BarChart3 className="w-8 h-8 text-primary/30" />
                 </div>
-                <h3 className="text-xl font-semibold text-foreground">Saisie des notes</h3>
+                <h3 className="text-xl font-semibold text-foreground">{t("teacherPortal.grades.entry")}</h3>
                 <p className="text-muted-foreground mt-2 max-w-xs mx-auto">
-                  Veuillez sélectionner une classe et une évaluation dans les filtres ci-dessus pour commencer à saisir les notes des {studentsLabel}.
+                  {t("teacherPortal.grades.entryHint", { label: studentsLabel })}
                 </p>
                 {selectedClassroom && (
                   <Button
@@ -118,7 +120,7 @@ const TeacherGrades = () => {
                     onClick={() => setIsNewAssessmentOpen(true)}
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Créer une nouvelle évaluation
+                    {t("teacherPortal.grades.newAssessment")}
                   </Button>
                 )}
               </CardContent>

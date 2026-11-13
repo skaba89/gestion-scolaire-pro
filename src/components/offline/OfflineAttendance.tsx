@@ -24,16 +24,17 @@ import {
   CheckCircle2, Trash2, RefreshCw, Database
 } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 type StatusChoice = AttendanceStatus | "";
 
-const STATUS_CONFIG: Record<AttendanceStatus, { label: string; color: string; icon: React.ReactNode }> = {
-  PRESENT:  { label: "Présent(e)",    color: "bg-green-100 text-green-800 border-green-300", icon: <UserCheck className="w-4 h-4" /> },
-  ABSENT:   { label: "Absent(e)",     color: "bg-red-100 text-red-800 border-red-300",       icon: <UserX className="w-4 h-4" /> },
-  LATE:     { label: "En retard",     color: "bg-amber-100 text-amber-800 border-amber-300", icon: <Clock className="w-4 h-4" /> },
-  EXCUSED:  { label: "Absent(e) just.",color: "bg-blue-100 text-blue-800 border-blue-300",   icon: <AlertCircle className="w-4 h-4" /> },
+const STATUS_CONFIG: Record<AttendanceStatus, { labelKey: string; color: string; icon: React.ReactNode }> = {
+  PRESENT:  { labelKey: "offlineAttendance.PRESENT",    color: "bg-green-100 text-green-800 border-green-300", icon: <UserCheck className="w-4 h-4" /> },
+  ABSENT:   { labelKey: "offlineAttendance.ABSENT",     color: "bg-red-100 text-red-800 border-red-300",       icon: <UserX className="w-4 h-4" /> },
+  LATE:     { labelKey: "offlineAttendance.LATE",     color: "bg-amber-100 text-amber-800 border-amber-300", icon: <Clock className="w-4 h-4" /> },
+  EXCUSED:  { labelKey: "offlineAttendance.EXCUSED",color: "bg-blue-100 text-blue-800 border-blue-300",   icon: <AlertCircle className="w-4 h-4" /> },
 };
 
 interface Props {
@@ -43,6 +44,7 @@ interface Props {
 }
 
 export function OfflineAttendance({ classroomId, classroomName, onSyncRequested }: Props) {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { studentLabel, studentsLabel } = useStudentLabel();
   const { toast } = useToast();
@@ -108,7 +110,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
     if (!tenant) return;
     const entries = Object.entries(attendanceMap).filter(([, status]) => status !== "");
     if (entries.length === 0) {
-      toast({ title: "Rien à enregistrer", description: `Sélectionnez le statut de chaque ${studentLabel}` });
+      toast({ title: t("offlineAttendance.nothing"), description: t("offlineAttendance.selectStatus", { label: studentLabel }) });
       return;
     }
 
@@ -141,11 +143,11 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
       setPending(todayPending);
 
       toast({
-        title: `${entries.length} présence(s) enregistrée(s) hors-ligne`,
-        description: "Les données seront synchronisées au retour de la connexion",
+        title: t("offlineAttendance.saved", { count: entries.length }),
+        description: t("offlineAttendance.willSync"),
       });
     } catch (err) {
-      toast({ title: "Erreur", description: "Impossible d'enregistrer hors-ligne", variant: "destructive" });
+      toast({ title: t("offlineAttendance.error"), description: t("offlineAttendance.saveFailed"), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -156,7 +158,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
   const deletePending = async (id: number) => {
     await offlineDb.pendingAttendance.delete(id);
     setPending((prev) => prev.filter((p) => p.id !== id));
-    toast({ title: "Enregistrement supprimé" });
+    toast({ title: t("offlineAttendance.deleted") });
   };
 
   // ── No cached students ────────────────────────────────────────────────────
@@ -166,9 +168,9 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
       <Card className="border-amber-200 bg-amber-50">
         <CardContent className="p-6 text-center">
           <Database className="w-10 h-10 mx-auto mb-3 text-amber-500" />
-          <p className="font-semibold text-amber-800">Aucune donnée en cache pour cette classe</p>
+          <p className="font-semibold text-amber-800">{t("offlineAttendance.noCache")}</p>
           <p className="text-sm text-amber-700 mt-1">
-            Connectez-vous au moins une fois avec internet pour mettre en cache les données des {studentsLabel}.
+            {t("offlineAttendance.noCacheHint", { label: studentsLabel })}
           </p>
         </CardContent>
       </Card>
@@ -185,9 +187,9 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
       <div className="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-200">
         <WifiOff className="w-5 h-5 text-red-500 shrink-0" />
         <div>
-          <p className="text-sm font-semibold text-red-800">Mode hors-ligne — {classroomName || "Classe"}</p>
+          <p className="text-sm font-semibold text-red-800">{t("offlineAttendance.offlineMode", { name: classroomName || t("offlineAttendance.class") })}</p>
           <p className="text-xs text-red-700">
-            Les absences sont enregistrées localement et synchronisées automatiquement dès le retour de la connexion.
+            {t("offlineAttendance.offlineHint")}
           </p>
         </div>
         {pending.length > 0 && (
@@ -200,7 +202,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
       {/* Date + quick actions */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="offlineDate">Date</Label>
+          <Label htmlFor="offlineDate">{t("offlineAttendance.date")}</Label>
           <Input
             id="offlineDate"
             type="date"
@@ -212,10 +214,10 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
         </div>
         <Button variant="outline" size="sm" onClick={markAllPresent}>
           <UserCheck className="w-4 h-4 mr-1.5 text-green-600" />
-          Tous présents
+          {t("offlineAttendance.allPresent")}
         </Button>
         <div className="ml-auto flex items-center gap-3 text-sm">
-          <span className="text-green-700 font-medium">{presentCount} présent(s)</span>
+          <span className="text-green-700 font-medium">{t("offlineAttendance.presentCount", { count: presentCount })}</span>
           <span className="text-red-700 font-medium">{absentCount} absent(s)</span>
         </div>
       </div>
@@ -224,9 +226,9 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            {loadingStudents ? "Chargement..." : `${students.length} ${studentsLabel} — ${format(new Date(selectedDate + "T00:00:00"), "EEEE d MMMM yyyy", { locale: fr })}`}
+            {loadingStudents ? t("offlineAttendance.loading") : `${students.length} ${studentsLabel} — ${format(new Date(selectedDate + "T00:00:00"), "EEEE d MMMM yyyy", { locale: dateFnsLocale() })}`}
           </CardTitle>
-          <CardDescription>Appuyez sur un statut pour l'enregistrer hors-ligne</CardDescription>
+          <CardDescription>{t("offlineAttendance.tapStatus")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {students.map((student) => {
@@ -252,7 +254,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
                         key={status}
                         type="button"
                         onClick={() => setStatus(student.id, status)}
-                        title={cfg.label}
+                        title={t(cfg.labelKey)}
                         className={cn(
                           "p-1.5 rounded-md border transition-all",
                           currentStatus === status
@@ -270,7 +272,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
                     variant="outline"
                     className={cn("text-xs shrink-0", STATUS_CONFIG[currentStatus as AttendanceStatus]?.color)}
                   >
-                    {STATUS_CONFIG[currentStatus as AttendanceStatus]?.label}
+                    {STATUS_CONFIG[currentStatus as AttendanceStatus] ? t(STATUS_CONFIG[currentStatus as AttendanceStatus].labelKey) : null}
                   </Badge>
                 )}
               </div>
@@ -292,7 +294,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
         {onSyncRequested && (
           <Button variant="outline" onClick={onSyncRequested}>
             <RefreshCw className="w-4 h-4 mr-2" />
-            Synchroniser
+            {t("offlineAttendance.sync")}
           </Button>
         )}
       </div>
@@ -317,7 +319,7 @@ export function OfflineAttendance({ classroomId, classroomName, onSyncRequested 
                   </span>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className={cn("text-xs", cfg?.color)}>
-                      {cfg?.label || item.status}
+                      {cfg ? t(cfg.labelKey) : item.status}
                     </Badge>
                     {item.syncError && (
                       <span className="text-xs text-red-600" title={item.syncError}>⚠️</span>

@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Play, Square, Camera } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 
 interface SessionCourseSelectionProps {
     classrooms: any[];
@@ -30,22 +31,23 @@ export const SessionCourseSelection = ({
     onShowScanner,
     isPending,
 }: SessionCourseSelectionProps) => {
+    const { t } = useTranslation();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Sélection du cours</CardTitle>
+                <CardTitle>{t("teacherPortal.qr.courseSelection")}</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Classe</label>
+                        <label className="text-sm font-medium">{t("teacherPortal.qr.class")}</label>
                         <Select
                             value={selectedClassroom}
                             onValueChange={onClassroomChange}
                             disabled={!!activeSession}
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner une classe" />
+                                <SelectValue placeholder={t("teacherPortal.qr.selectClass")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {classrooms.map((c) => (
@@ -57,14 +59,14 @@ export const SessionCourseSelection = ({
                         </Select>
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Matière</label>
+                        <label className="text-sm font-medium">{t("teacherPortal.qr.subject")}</label>
                         <Select
                             value={selectedSubject}
                             onValueChange={onSubjectChange}
                             disabled={!selectedClassroom || !!activeSession}
                         >
                             <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner une matière" />
+                                <SelectValue placeholder={t("teacherPortal.qr.selectSubject")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {subjects.map((s) => (
@@ -85,7 +87,7 @@ export const SessionCourseSelection = ({
                                 disabled={isPending}
                             >
                                 <Play className="h-4 w-4 mr-2" />
-                                Démarrer la session
+                                {t("teacherPortal.qr.start")}
                             </Button>
                         ) : (
                             <>
@@ -95,7 +97,7 @@ export const SessionCourseSelection = ({
                                     className="bg-green-600 hover:bg-green-700"
                                 >
                                     <Camera className="h-4 w-4 mr-2" />
-                                    Scanner un badge
+                                    {t("teacherPortal.qr.scan")}
                                 </Button>
                                 <Button
                                     onClick={onEndSession}
@@ -103,7 +105,7 @@ export const SessionCourseSelection = ({
                                     disabled={isPending}
                                 >
                                     <Square className="h-4 w-4 mr-2" />
-                                    Terminer la session
+                                    {t("teacherPortal.qr.end")}
                                 </Button>
                             </>
                         )}
