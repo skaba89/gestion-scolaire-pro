@@ -194,6 +194,43 @@ const humanizeMissingKey = (key: string): string => {
     return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
 };
 
+/**
+ * Langue choisie explicitement par l'utilisateur (sélecteur de l'en-tête).
+ * Elle prime sur la langue par défaut de l'établissement et survit au
+ * rechargement. Clé distincte de celle du détecteur i18next, qui mémorisait
+ * aussi la langue appliquée automatiquement : on ne pouvait plus distinguer
+ * un vrai choix d'une valeur par défaut.
+ */
+export const USER_LANGUAGE_KEY = 'schoolflow:language';
+export const RTL_LANGUAGES = new Set(['ar']);
+
+export function getUserLanguage(): string | null {
+    try {
+        return localStorage.getItem(USER_LANGUAGE_KEY);
+    } catch {
+        return null; // stockage indisponible (navigation privée stricte)
+    }
+}
+
+export function setUserLanguage(code: string): void {
+    try {
+        localStorage.setItem(USER_LANGUAGE_KEY, code);
+    } catch {
+        // stockage indisponible : le choix vaut pour la session en cours
+    }
+    void i18n.changeLanguage(code);
+}
+
+/** Attributs lang/dir du document, à chaque changement de langue (RTL pour l'arabe). */
+function applyDocumentLanguage(code: string | undefined): void {
+    if (typeof document === 'undefined' || !code) return;
+    const base = code.split('-')[0];
+    document.documentElement.lang = base;
+    document.documentElement.dir = RTL_LANGUAGES.has(base) ? 'rtl' : 'ltr';
+}
+
+i18n.on('languageChanged', applyDocumentLanguage);
+
 i18n
     .use(LanguageDetector)
     .use(initReactI18next)
@@ -211,7 +248,6 @@ i18n
         load: 'languageOnly',
         cleanCode: true,
         fallbackLng: 'fr',
-        lng: 'fr',
         debug: false,
         returnNull: false,
         returnEmptyString: false,
@@ -226,12 +262,18 @@ i18n
             // raw translation keys to display instead of translated text.
             useSuspense: false,
         },
+        // Seul un choix explicite de l'utilisateur est relu au démarrage ;
+        // sinon le français, puis la langue de l'établissement
+        // (SettingsProvider). Pas de détection par le navigateur : l'interface
+        // de référence est le français.
         detection: {
-            order: ['localStorage', 'navigator'],
-            caches: ['localStorage'],
-            lookupLocalStorage: 'i18nextLng',
+            order: ['localStorage'],
+            caches: [],
+            lookupLocalStorage: USER_LANGUAGE_KEY,
         },
         parseMissingKeyHandler: (key) => readableFallbacks[key] || humanizeMissingKey(key),
     });
+
+applyDocumentLanguage(i18n.language);
 
 export default i18n;
