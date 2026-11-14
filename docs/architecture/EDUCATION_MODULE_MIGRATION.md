@@ -14,6 +14,14 @@ avec leurs capacités antérieures, jusqu'à une première validation explicite.
 Les trois créations (`/tenants/`, `/tenants/create-with-admin/`, inscription
 publique) initialisent le profil et l'audit dans leur transaction existante.
 
+La migration additive suivante `20261114_0003` crée `education_cycles` et ajoute
+`levels.cycle_id` nullable. Sa clé étrangère composite
+`(tenant_id, cycle_id) → (education_cycles.tenant_id, id)` interdit en base le
+rattachement à un cycle d'un autre établissement. Elle ne réaffecte aucun niveau
+historique : une attribution ambiguë reste explicitement vide. Les nouveaux
+établissements non mixtes reçoivent un cycle concret unique et leurs niveaux
+initiaux y sont rattachés ; un établissement mixte ne reçoit aucun cycle inventé.
+
 ## API et cohérence
 
 - GET `/education/catalog/` : catalogue/version et propositions de niveaux.
@@ -21,6 +29,10 @@ publique) initialisent le profil et l'audit dans leur transaction existante.
 - POST `/education/preview/` : profil/overrides/révision attendue ; aucune écriture.
 - PUT `/education/configuration/` : verrou FOR UPDATE du tenant, contrôle de
   révision, validation stricte, audit obligatoire puis commit atomique.
+- GET/POST `/education/cycles/` : consultation et création de cycles concrets.
+- PATCH `/education/cycles/{id}/` : modification ou archivage sans suppression.
+- PUT `/education/cycles/{id}/levels/` : affectation complète des niveaux, avec
+  verrou, révision attendue et refus des niveaux étrangers ou déjà affectés.
 
 Les écritures exigent `settings:write` et TENANT_ADMIN ou SUPER_ADMIN. Les champs
 supplémentaires, dépendances manquantes, valeurs non booléennes, modules inconnus
@@ -35,8 +47,8 @@ protégés même par l'API générique des matières. Le reporting historique du
 reste disponible avec son RBAC. L'inventaire des opérations et les tests d'alias
 précisent cette frontière ; ce n'est pas une isolation par cycle.
 
-RLS ENABLE + FORCE et politique USING/WITH CHECK sur tenant_id s'appliquent à
-la nouvelle table. Les tests utilisent un rôle NOSUPERUSER NOBYPASSRLS, lisent
+RLS ENABLE + FORCE et politique USING/WITH CHECK sur tenant_id s'appliquent aux
+deux nouvelles tables de configuration. Les tests utilisent un rôle NOSUPERUSER NOBYPASSRLS, lisent
 sans contexte/avec contexte, tentent une insertion étrangère et appellent l'API.
 Les deux premiers writes concurrents ne peuvent pas gagner la même révision.
 Aucun cache global de politique ne retarde une révocation côté serveur.
@@ -58,8 +70,9 @@ données ont été conservées. Privilégier un correctif forward.
 
 ## Lots restant à construire et à vérifier
 
-Cycles internes, rattachement validé des niveaux et des ressources, permissions
-par cycle/utilisateur, règles pédagogiques héritées tenant → cycle → niveau,
+Le registre de cycles et le rattachement validé des niveaux sont présents. Il
+reste le rattachement dérivé des ressources, les permissions par cycle/utilisateur,
+les règles pédagogiques héritées tenant → cycle → niveau,
 compétences, ECUE, compensation et diplômes complets. Les historiques sans cycle
 ne seront pas attribués automatiquement. Tant que toutes les routes concernées
 ne dérivent pas leur périmètre de la ressource réelle, `cycle_policy_available`

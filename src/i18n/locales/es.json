@@ -4687,5 +4687,18 @@
       "vocational": "Formación profesional",
       "mixed": "Institución mixta de varios ciclos"
     }
+  },
+  "educationCycles": {
+    "title": "Ciclos educativos",
+    "description": "Agrupe los niveles de una institución mixta sin duplicar cuentas ni datos administrativos.",
+    "loading": "Cargando ciclos…", "loadError": "No se pudieron cargar los ciclos.",
+    "historyPreserved": "El archivado conserva niveles, clases, matrículas, notas e historial.",
+    "policyPending": "Los permisos diferentes por ciclo aún no están activados.",
+    "code": "Código", "name": "Nombre", "profile": "Tipo de ciclo", "period": "Periodicidad",
+    "create": "Crear ciclo", "created": "Ciclo creado.", "assigned": "Niveles asignados.",
+    "saveError": "No se pudo guardar el ciclo.", "statusSaved": "Estado del ciclo guardado.",
+    "empty": "No hay ciclos definidos. Los niveles existentes no cambian.", "active": "Activo", "archived": "Archivado",
+    "otherCycle": "otro ciclo", "saveLevels": "Guardar niveles", "archive": "Archivar", "reactivate": "Reactivar",
+    "periods": { "TRIMESTER": "Trimestres", "SEMESTER": "Semestres", "CUSTOM": "Personalizada" }
   }
 }

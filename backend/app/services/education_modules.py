@@ -4,8 +4,16 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.education_catalog import AVAILABLE_MODULES, CORE_MODULES, proposed_profile, resolve_modules, InvalidModuleConfiguration
+from app.core.education_catalog import (
+    AVAILABLE_MODULES,
+    CORE_MODULES,
+    PROFILES,
+    InvalidModuleConfiguration,
+    proposed_profile,
+    resolve_modules,
+)
 from app.models.education_configuration import EducationConfiguration
+from app.models.education_cycle import EducationCycle
 from app.models.tenant import Tenant
 
 
@@ -32,14 +40,38 @@ def configuration_payload(db: Session, tenant: Tenant) -> dict:
             "scope": "institution", "cycle_policy_available": False}
 
 
-def initialize_new_tenant(db: Session, tenant: Tenant, actor_id: str) -> None:
-    """Called only during creation, in the new tenant's RLS context/transaction."""
+def initialize_new_tenant(db: Session, tenant: Tenant, actor_id: str) -> EducationCycle | None:
+    """Initialize a new tenant and return its sole concrete cycle, if any.
+
+    Mixed institutions deliberately start without an invented cycle: an
+    administrator must describe their real cycles explicitly. Existing
+    tenants are never backfilled by this creation-only function.
+    """
     profile = proposed_profile(tenant.type)
     db.add(EducationConfiguration(tenant_id=tenant.id, profile_id=profile, overrides={}, revision=1))
     tenant.education_modules_configured = True
+    cycle = None
+    if profile != "mixed":
+        profile_definition = PROFILES[profile]
+        cycle = EducationCycle(
+            tenant_id=tenant.id,
+            code="MAIN",
+            name=profile_definition.label,
+            institution_type=profile,
+            period_type=profile_definition.period_type,
+            order_index=1,
+            revision=1,
+        )
+        db.add(cycle)
+    # Materialise UUID defaults before embedding the cycle identifier in the
+    # mandatory audit record. This is still the same uncommitted transaction.
+    db.flush()
     record_configuration_audit(db, user_id=actor_id, tenant_id=str(tenant.id), action="INITIALIZE_EDUCATION_MODULES",
               resource_type="EDUCATION_CONFIGURATION", resource_id=str(tenant.id),
-              details={"profile_id": profile, "revision": 1})
+              details={"profile_id": profile, "revision": 1,
+                       "cycle_id": str(cycle.id) if cycle else None,
+                       "cycle_policy_available": False})
+    return cycle
 
 
 def require_enabled_module(db: Session, tenant: Tenant, module_id: str) -> None:

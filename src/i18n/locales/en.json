@@ -4642,5 +4642,19 @@
       "vocational": "Vocational education",
       "mixed": "Mixed multi-cycle institution"
     }
+  },
+  "educationCycles": {
+    "title": "Education cycles",
+    "description": "Group levels in a mixed institution without duplicating accounts or administrative data.",
+    "loading": "Loading cycles…",
+    "loadError": "Cycles could not be loaded.",
+    "historyPreserved": "Archiving preserves levels, classes, enrolments, grades and history.",
+    "policyPending": "Different permissions per cycle are not enabled yet.",
+    "code": "Code", "name": "Name", "profile": "Cycle type", "period": "Period structure",
+    "create": "Create cycle", "created": "Cycle created.", "assigned": "Levels assigned.",
+    "saveError": "The cycle could not be saved.", "statusSaved": "Cycle status saved.",
+    "empty": "No cycle defined. Existing levels remain unchanged.", "active": "Active", "archived": "Archived",
+    "otherCycle": "another cycle", "saveLevels": "Save levels", "archive": "Archive", "reactivate": "Reactivate",
+    "periods": { "TRIMESTER": "Terms", "SEMESTER": "Semesters", "CUSTOM": "Custom" }
   }
 }

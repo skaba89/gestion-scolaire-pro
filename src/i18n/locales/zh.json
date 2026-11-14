@@ -4721,5 +4721,18 @@
       "vocational": "职业教育",
       "mixed": "多学段综合机构"
     }
+  },
+  "educationCycles": {
+    "title": "教育学段",
+    "description": "为综合机构划分学段，无需重复账户或行政数据。",
+    "loading": "正在加载学段…", "loadError": "无法加载学段。",
+    "historyPreserved": "归档会保留年级、班级、注册、成绩和历史记录。",
+    "policyPending": "按学段设置不同权限的功能尚未启用。",
+    "code": "代码", "name": "名称", "profile": "学段类型", "period": "学期制度",
+    "create": "创建学段", "created": "学段已创建。", "assigned": "年级已分配。",
+    "saveError": "无法保存学段。", "statusSaved": "学段状态已保存。",
+    "empty": "尚未定义学段。现有年级保持不变。", "active": "启用", "archived": "已归档",
+    "otherCycle": "其他学段", "saveLevels": "保存年级", "archive": "归档", "reactivate": "重新启用",
+    "periods": { "TRIMESTER": "三学期制", "SEMESTER": "两学期制", "CUSTOM": "自定义" }
   }
 }

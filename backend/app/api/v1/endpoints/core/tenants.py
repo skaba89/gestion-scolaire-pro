@@ -114,7 +114,7 @@ async def create_tenant(
         # (this route is middleware-exempt, so none is set yet).
         enter_tenant_context_or_404(db, new_tenant.id)
         from app.services.education_modules import initialize_new_tenant
-        initialize_new_tenant(db, new_tenant, str(current_user["id"]))
+        default_cycle = initialize_new_tenant(db, new_tenant, str(current_user["id"]))
 
         # 1. Create Academic Year
         logger.info("Initializing academic year...")
@@ -184,7 +184,8 @@ async def create_tenant(
             level = Level(
                 tenant_id=new_tenant.id,
                 name=lvl_name,
-                order_index=i + 1
+                order_index=i + 1,
+                cycle_id=default_cycle.id if default_cycle else None,
             )
             db.add(level)
 
@@ -935,7 +936,7 @@ async def create_tenant_with_admin(
         # context (middleware-exempt route, none is set yet).
         enter_tenant_context_or_404(db, new_tenant.id)
         from app.services.education_modules import initialize_new_tenant
-        initialize_new_tenant(db, new_tenant, str(current_user["id"]))
+        default_cycle = initialize_new_tenant(db, new_tenant, str(current_user["id"]))
 
         # 2. Create Academic Year
         current_year = datetime.now().year
@@ -966,7 +967,12 @@ async def create_tenant_with_admin(
         from app.core.guinea_presets import guinea_levels_for_type
         levels_to_create = tenant_in.levels or guinea_levels_for_type(tenant_in.type)
         for i, lvl_name in enumerate(levels_to_create):
-            level = Level(tenant_id=new_tenant.id, name=lvl_name, order_index=i + 1)
+            level = Level(
+                tenant_id=new_tenant.id,
+                name=lvl_name,
+                order_index=i + 1,
+                cycle_id=default_cycle.id if default_cycle else None,
+            )
             db.add(level)
 
         # 5. Create default Subjects

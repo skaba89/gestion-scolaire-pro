@@ -29,8 +29,15 @@ aux historiques. La réactivation restaure l'accès selon les droits existants.
 Les abonnements et quotas continuent à s'appliquer séparément.
 
 Les profils « mixte » et « professionnel » sont créables, avec un seul dossier
-administratif par établissement. Ce premier lot n'autorise pas encore des
-politiques différentes selon le cycle ni des permissions individuelles par cycle.
+administratif par établissement. Dans **Administration → Paramètres → Cycles
+pédagogiques**, l'administrateur crée les cycles concrets, leur associe des
+niveaux, puis peut les archiver sans supprimer les classes, inscriptions ou notes.
+Un niveau ne peut appartenir qu'à un cycle du même établissement. Un conflit de
+révision impose de recharger avant de recommencer ; aucune modification concurrente
+n'est écrasée silencieusement. Les actions apparaissent dans le journal d'audit.
+
+Ce deuxième lot n'autorise pas encore des politiques différentes selon le cycle
+ni des permissions individuelles par cycle. L'écran le signale explicitement.
 L'évaluation par compétences reste indisponible. Les périodes du catalogue sont
 indicatives ; elles ne modifient pas le calcul existant des bulletins sur 20.
 
