@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, 
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 import uuid as _uuid
@@ -885,15 +885,23 @@ def delete_invoice_endpoint(
     references this invoice, so the audit trail can't be severed this way.
     """
     tenant_id = _get_tenant_id(request, current_user, db)
-    invoice_row = db.execute(text("""
-        SELECT id FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
-    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
+    from app.models.payment import Invoice as InvoiceModel, Payment as PaymentModel
+    try:
+        UUID(str(invoice_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Facture introuvable")
+    # FOR UPDATE conflicts with the KEY SHARE taken by FK inserts. A payment
+    # committed while this query waits is visible to the following check at
+    # READ COMMITTED; no insert can slip between that check and deletion.
+    invoice_row = db.execute(select(InvoiceModel.id).where(
+        InvoiceModel.id == invoice_id, InvoiceModel.tenant_id == tenant_id,
+    ).with_for_update()).first()
     if not invoice_row:
         raise HTTPException(status_code=404, detail="Facture introuvable")
 
-    has_payments = db.execute(text("""
-        SELECT 1 FROM payments WHERE invoice_id = :invoice_id LIMIT 1
-    """), {"invoice_id": invoice_id}).first()
+    has_payments = db.execute(select(PaymentModel.id).where(
+        PaymentModel.invoice_id == invoice_id,
+    ).limit(1)).first()
     if has_payments:
         raise HTTPException(
             status_code=400,
@@ -905,9 +913,9 @@ def delete_invoice_endpoint(
             ),
         )
 
-    result = db.execute(text("""
-        DELETE FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
-    """), {"invoice_id": invoice_id, "tenant_id": tenant_id})
+    result = db.execute(delete(InvoiceModel).where(
+        InvoiceModel.id == invoice_id, InvoiceModel.tenant_id == tenant_id,
+    ).execution_options(synchronize_session=False))
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Facture introuvable")
 
