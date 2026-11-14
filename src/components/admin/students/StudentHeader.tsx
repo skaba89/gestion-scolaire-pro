@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { StudentExport } from "@/components/students/StudentExport";
 import { StudentImport } from "@/components/students/StudentImport";
 import type { StudentLabelType } from "@/hooks/useStudentLabel";
+import { useTranslation } from "react-i18next";
 
 interface StudentHeaderProps {
     studentsLabel: string;
@@ -23,13 +24,14 @@ export const StudentHeader = ({
     onAIAnalysis,
     onAddClick,
 }: StudentHeaderProps) => {
+    const { t } = useTranslation();
     return (
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             {/* Title and actions on one line from lg; actions keep their natural
                 width instead of wrapping under each other next to a squeezed title. */}
             <div className="min-w-0">
-                <h1 className="text-2xl font-display font-bold text-foreground">Gestion des {StudentsLabel}</h1>
-                <p className="text-muted-foreground">Gérez les dossiers et inscriptions {getLabel("of_students")}</p>
+                <h1 className="text-2xl font-display font-bold text-foreground">{t("studentsAdmin.gestionDesStudentslabel", { StudentsLabel })}</h1>
+                <p className="text-muted-foreground">{t("studentsAdmin.gerezLesDossiersEtInscriptions", { of_students: getLabel("of_students") })}</p>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end lg:shrink-0">
                 <Button variant="outline" onClick={onAIAnalysis} disabled={isAnalyzing}>
@@ -38,13 +40,13 @@ export const StudentHeader = ({
                     ) : (
                         <Sparkles className="w-4 h-4 mr-2 text-purple-600" />
                     )}
-                    Analyser avec l'IA
+                    {t("studentsAdmin.analyserAvecLIa")}
                 </Button>
                 <StudentExport />
                 <StudentImport />
                 <Button onClick={onAddClick} className="w-full sm:w-auto">
                     <Plus className="w-4 h-4 mr-2" />
-                    Ajouter un {studentLabel}
+                    {t("studentsAdmin.ajouterUnStudentlabel", { studentLabel })}
                 </Button>
             </div>
         </div>

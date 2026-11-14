@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, Clock, Eye, FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
 
 interface AdmissionStatsProps {
     stats: {
@@ -13,6 +14,7 @@ interface AdmissionStatsProps {
 }
 
 export const AdmissionStats = ({ stats, isLoading }: AdmissionStatsProps) => {
+    const { t } = useTranslation();
     if (isLoading) {
         return (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -43,7 +45,7 @@ export const AdmissionStats = ({ stats, isLoading }: AdmissionStatsProps) => {
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{stats.total}</p>
-                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-xs text-muted-foreground">{t("admissions.stats.total")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -56,7 +58,7 @@ export const AdmissionStats = ({ stats, isLoading }: AdmissionStatsProps) => {
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{stats.submitted}</p>
-                            <p className="text-xs text-muted-foreground">Soumises</p>
+                            <p className="text-xs text-muted-foreground">{t("admissions.stats.submitted")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -69,7 +71,7 @@ export const AdmissionStats = ({ stats, isLoading }: AdmissionStatsProps) => {
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{stats.underReview}</p>
-                            <p className="text-xs text-muted-foreground">En cours</p>
+                            <p className="text-xs text-muted-foreground">{t("admissions.stats.inProgress")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -82,7 +84,7 @@ export const AdmissionStats = ({ stats, isLoading }: AdmissionStatsProps) => {
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{stats.accepted}</p>
-                            <p className="text-xs text-muted-foreground">Acceptées</p>
+                            <p className="text-xs text-muted-foreground">{t("admissions.stats.accepted")}</p>
                         </div>
                     </div>
                 </CardContent>

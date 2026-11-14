@@ -218,10 +218,10 @@ const ClassLists = () => {
                                             <CardTitle className="text-lg">{classroom.name}</CardTitle>
                                             <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
                                                 <Badge variant="secondary" className="text-[10px] h-4 uppercase">
-                                                    {classroom.level?.name || "Niveau non défini"}
+                                                    {classroom.level?.name || t("studentsAdmin.niveauNonDefini")}
                                                 </Badge>
                                                 <span>•</span>
-                                                <span>{classroom.campus?.name || "Campus principal"}</span>
+                                                <span>{classroom.campus?.name || t("studentsAdmin.campusPrincipal")}</span>
                                                 <span>•</span>
                                                 <span className="flex items-center gap-1 font-medium text-foreground">
                                                     <Users className="w-3 h-3" />

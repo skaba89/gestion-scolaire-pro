@@ -1,8 +1,9 @@
 import { CheckCircle2, Circle, XCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { AdmissionStep } from "@/queries/admissions";
 import { cn } from "@/lib/utils";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 /**
  * Frise verticale de l'évolution d'une candidature — signalé par un
@@ -35,6 +36,7 @@ function StepIcon({ state }: { state: AdmissionStep["state"] }) {
 }
 
 export function AdmissionTimeline({ steps, compact = false }: AdmissionTimelineProps) {
+    const { t } = useTranslation();
     if (steps.length === 0) return null;
 
     return (
@@ -63,15 +65,15 @@ export function AdmissionTimeline({ steps, compact = false }: AdmissionTimelineP
                                     step.state === "rejected" && "text-destructive",
                                 )}
                             >
-                                {step.label}
+                                {t(`admissions.timeline.${step.key}`, { defaultValue: step.label })}
                             </p>
                             {!compact && (
                                 <p className="text-xs text-muted-foreground">
                                     {step.date
-                                        ? format(new Date(step.date), "dd MMM yyyy 'à' HH:mm", { locale: fr })
+                                        ? format(new Date(step.date), "PPp", { locale: dateFnsLocale() })
                                         : step.state === "current"
-                                            ? "En cours"
-                                            : "En attente"}
+                                            ? t("admissions.timeline.current")
+                                            : t("admissions.timeline.pending")}
                                 </p>
                             )}
                         </div>

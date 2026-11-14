@@ -32,6 +32,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Upload, FileSpreadsheet, Check, AlertCircle, X } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface ParsedRow {
   [key: string]: string;
@@ -43,17 +44,17 @@ interface ColumnMapping {
 }
 
 const DB_COLUMNS = [
-  { value: "first_name", label: "Prénom" },
-  { value: "last_name", label: "Nom" },
-  { value: "email", label: "Email" },
-  { value: "date_of_birth", label: "Date de naissance" },
-  { value: "gender", label: "Genre" },
-  { value: "phone", label: "Téléphone" },
-  { value: "address", label: "Adresse" },
-  { value: "emergency_contact", label: "Contact d'urgence" },
-  { value: "emergency_phone", label: "Téléphone d'urgence" },
-  { value: "registration_number", label: "N° Étudiant" },
-  { value: "skip", label: "— Ignorer —" },
+  { value: "first_name", label: "studentsAdmin.col.first_name" },
+  { value: "last_name", label: "studentsAdmin.col.last_name" },
+  { value: "email", label: "studentsAdmin.col.email" },
+  { value: "date_of_birth", label: "studentsAdmin.col.date_of_birth" },
+  { value: "gender", label: "studentsAdmin.col.gender" },
+  { value: "phone", label: "studentsAdmin.col.phone" },
+  { value: "address", label: "studentsAdmin.col.address" },
+  { value: "emergency_contact", label: "studentsAdmin.col.emergency_contact" },
+  { value: "emergency_phone", label: "studentsAdmin.col.emergency_phone" },
+  { value: "registration_number", label: "studentsAdmin.col.registration_number" },
+  { value: "skip", label: "studentsAdmin.col.skip" },
 ];
 
 const AUTO_MAPPING: Record<string, string> = {
@@ -97,6 +98,7 @@ const AUTO_MAPPING: Record<string, string> = {
 };
 
 export const StudentImport = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { studentsLabel, StudentsLabel } = useStudentLabel();
   const studentsLabelLower = studentsLabel.toLowerCase();
@@ -141,7 +143,7 @@ export const StudentImport = () => {
       const { headers, data } = parseCSV(text);
 
       if (headers.length === 0 || data.length === 0) {
-        toast.error("Fichier vide ou format invalide");
+        toast.error(t("studentsAdmin.fichierVideOuFormatInvalide"));
         return;
       }
 
@@ -158,7 +160,7 @@ export const StudentImport = () => {
       setStep("mapping");
     };
     reader.readAsText(file);
-  }, []);
+  }, [t]);
 
   const updateMapping = (csvColumn: string, dbColumn: string) => {
     setColumnMappings(prev =>
@@ -193,7 +195,7 @@ export const StudentImport = () => {
 
         // Validate required fields
         if (!student.first_name || !student.last_name) {
-          results.errors.push(`Ligne ${i + 2}: Prénom et nom requis`);
+          results.errors.push(t("studentsAdmin.importRowMissingName", { row: i + 2 }));
           continue;
         }
 
@@ -260,11 +262,11 @@ export const StudentImport = () => {
       queryClient.invalidateQueries({ queryKey: ["students"] });
 
       if (results.success > 0) {
-        toast.success(`${results.success} ${studentsLabelLower} importé(s) avec succès`);
+        toast.success(t("studentsAdmin.successStudentslabellowerImporteSAvec", { success: results.success, studentsLabelLower }));
       }
     },
     onError: () => {
-      toast.error("Erreur lors de l'import");
+      toast.error(t("studentsAdmin.erreurLorsDeLImport"));
     },
   });
 
@@ -290,14 +292,14 @@ export const StudentImport = () => {
       <DialogTrigger asChild>
         <Button variant="outline">
           <Upload className="w-4 h-4 mr-2" />
-          Importer CSV
+          {t("studentsAdmin.importerCsv")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5" />
-            Import en masse des {studentsLabelLower}
+            {t("studentsAdmin.importEnMasseDesStudentslabellower", { studentsLabelLower })}
           </DialogTitle>
         </DialogHeader>
 
@@ -307,9 +309,9 @@ export const StudentImport = () => {
               <CardContent className="p-8">
                 <div className="text-center">
                   <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-lg font-medium mb-2">Glissez un fichier CSV ou Excel</p>
+                  <p className="text-lg font-medium mb-2">{t("studentsAdmin.glissezUnFichierCsvOu")}</p>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Format supporté: CSV (séparateur virgule ou point-virgule)
+                    {t("studentsAdmin.supportedFormat")}
                   </p>
                   <input
                     type="file"
@@ -320,16 +322,16 @@ export const StudentImport = () => {
                   />
                   <label htmlFor="csv-upload">
                     <Button asChild>
-                      <span>Sélectionner un fichier</span>
+                      <span>{t("studentsAdmin.selectionnerUnFichier")}</span>
                     </Button>
                   </label>
                 </div>
               </CardContent>
             </Card>
             <div className="bg-muted/50 p-4 rounded-lg">
-              <p className="text-sm font-medium mb-2">Colonnes recommandées:</p>
+              <p className="text-sm font-medium mb-2">{t("studentsAdmin.colonnesRecommandees")}</p>
               <p className="text-xs text-muted-foreground">
-                Prénom, Nom, Email, Date de naissance, Genre, Téléphone, Adresse
+                {t("studentsAdmin.prenomNomEmailDateDe")}
               </p>
             </div>
           </div>
@@ -338,8 +340,8 @@ export const StudentImport = () => {
         {step === "mapping" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Associez les colonnes de votre fichier aux champs de la base de données.
-              {csvData.length} lignes détectées.
+              {t("studentsAdmin.associezLesColonnesDeVotre")}
+              {t("studentsAdmin.countLignesDetectees", { count: csvData.length })}
             </p>
 
             <div className="grid gap-3">
@@ -362,7 +364,7 @@ export const StudentImport = () => {
                     <SelectContent>
                       {DB_COLUMNS.map((col) => (
                         <SelectItem key={col.value} value={col.value}>
-                          {col.label}
+                          {t(col.label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -374,16 +376,16 @@ export const StudentImport = () => {
             {!hasRequiredFields && (
               <div className="flex items-center gap-2 text-destructive text-sm">
                 <AlertCircle className="w-4 h-4" />
-                Vous devez mapper au moins le Prénom et le Nom
+                {t("studentsAdmin.vousDevezMapperAuMoins")}
               </div>
             )}
 
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={resetImport}>
-                Retour
+                {t("studentsAdmin.retour")}
               </Button>
               <Button onClick={() => setStep("preview")} disabled={!hasRequiredFields}>
-                Prévisualiser
+                {t("studentsAdmin.previsualiser")}
               </Button>
             </div>
           </div>
@@ -392,7 +394,7 @@ export const StudentImport = () => {
         {step === "preview" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Aperçu des 5 premières lignes. Total: {csvData.length} {studentsLabelLower} à importer.
+              {t("studentsAdmin.apercuDes5PremieresLignes", { count: csvData.length, studentsLabelLower })}
             </p>
 
             <div className="overflow-x-auto">
@@ -403,7 +405,7 @@ export const StudentImport = () => {
                       .filter(m => m.dbColumn !== "skip")
                       .map(m => (
                         <TableHead key={m.dbColumn}>
-                          {DB_COLUMNS.find(c => c.value === m.dbColumn)?.label}
+                          {(() => { const col = DB_COLUMNS.find(c => c.value === m.dbColumn); return col ? t(col.label) : null; })()}
                         </TableHead>
                       ))}
                   </TableRow>
@@ -426,10 +428,10 @@ export const StudentImport = () => {
 
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={() => setStep("mapping")}>
-                Modifier le mapping
+                {t("studentsAdmin.modifierLeMapping")}
               </Button>
               <Button onClick={handleImport} disabled={importMutation.isPending}>
-                {importMutation.isPending ? "Import en cours..." : `Importer ${csvData.length} ${studentsLabelLower}`}
+                {importMutation.isPending ? t("studentsAdmin.importEnCours") : `Importer ${csvData.length} ${studentsLabelLower}`}
               </Button>
             </div>
           </div>
@@ -440,7 +442,7 @@ export const StudentImport = () => {
             <div className="flex items-center gap-4 p-4 bg-success/10 rounded-lg">
               <Check className="w-8 h-8 text-success" />
               <div>
-                <p className="font-medium">{importResult.success} {studentsLabelLower} importé(s) avec succès</p>
+                <p className="font-medium">{t("studentsAdmin.successStudentslabellowerImporteSAvec", { success: importResult.success, studentsLabelLower })}</p>
                 {importResult.errors.length > 0 && (
                   <p className="text-sm text-muted-foreground">
                     {importResult.errors.length} erreur(s)
@@ -454,7 +456,7 @@ export const StudentImport = () => {
                 <CardHeader>
                   <CardTitle className="text-sm flex items-center gap-2 text-destructive">
                     <AlertCircle className="w-4 h-4" />
-                    Erreurs d'import
+                    {t("studentsAdmin.erreursDImport")}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -474,7 +476,7 @@ export const StudentImport = () => {
 
             <div className="flex justify-end">
               <Button onClick={() => { setIsOpen(false); resetImport(); }}>
-                Fermer
+                {t("studentsAdmin.fermer")}
               </Button>
             </div>
           </div>

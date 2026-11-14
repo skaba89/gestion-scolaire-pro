@@ -1,5 +1,6 @@
 import { AlertTriangle, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 interface StudentRiskBannerProps {
     count: number;
@@ -16,6 +17,7 @@ export const StudentRiskBanner = ({
     onFilterRisk,
     onClose,
 }: StudentRiskBannerProps) => {
+    const { t } = useTranslation();
     if (count === 0) return null;
 
     return (
@@ -24,9 +26,9 @@ export const StudentRiskBanner = ({
                 <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div className="flex-1">
-                <h3 className="font-semibold text-red-900">Système d'alerte - {StudentsLabel} à risque</h3>
+                <h3 className="font-semibold text-red-900">{t("studentsAdmin.systemeDAlerteStudentslabelA", { StudentsLabel })}</h3>
                 <p className="text-sm text-red-700 mt-1">
-                    L'analyse a décelé {count} {studentsLabel} décrocheurs potentiels (Moyenne &lt; 8 ou Présence &lt; 70%).
+                    {t("studentsAdmin.riskBannerText", { count, label: studentsLabel })}
                 </p>
                 <div className="mt-3 flex gap-2">
                     <Button
@@ -35,7 +37,7 @@ export const StudentRiskBanner = ({
                         className="border-red-200 text-red-700 hover:bg-red-100 hover:text-red-800 bg-white"
                         onClick={onFilterRisk}
                     >
-                        Filtrer la liste
+                        {t("studentsAdmin.filtrerLaListe")}
                     </Button>
                 </div>
             </div>

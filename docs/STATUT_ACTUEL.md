@@ -1121,3 +1121,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   (`useDepartment`) traduites ; jours du calendrier et en-têtes des exports
   CSV dans la langue de l'interface. Tous les portails hors administration
   sont désormais traduits ; reste : pages admin (≈ 560 textes).
+- **2026-11-14 — administration, lot 2a traduit (admissions, élèves,
+  inscriptions).** Pages Admissions, Élèves, Listes de classe et Inscriptions
+  et leurs composants (tableau et filtres d'élèves, fiche détaillée et ses
+  onglets, formulaire, import/export CSV, liaison des parents, dossier de
+  candidature et sa frise, gestion des inscriptions), plus la pagination
+  partagée (`DataTablePagination`) : ≈ 250 clés dans les 5 langues. Les
+  libellés de statut et d'étapes d'admission envoyés par l'API sont traduits
+  à partir de leur code. Reste de l'administration : lot 2b (enseignants,
+  notes, bulletins, certificats, scan, bornes), puis structure,
+  planification, finances, vie étudiante et administration, guides en dernier.

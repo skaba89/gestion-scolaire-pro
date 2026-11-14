@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useCurrency } from "@/hooks/useCurrency";
+import { intlLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface Invoice {
     id: string;
@@ -17,6 +19,7 @@ interface StudentInvoicesTabProps {
 }
 
 export function StudentInvoicesTab({ invoices }: StudentInvoicesTabProps) {
+    const { t } = useTranslation();
     const { formatCurrency } = useCurrency();
     const getPaymentStatusBadge = (status: string) => {
         const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -26,10 +29,10 @@ export function StudentInvoicesTab({ invoices }: StudentInvoicesTabProps) {
             OVERDUE: "destructive",
         };
         const labels: Record<string, string> = {
-            PAID: "Payé",
-            PARTIAL: "Partiel",
-            PENDING: "En attente",
-            OVERDUE: "En retard",
+            PAID: t("studentsAdmin.paye"),
+            PARTIAL: t("studentsAdmin.status.PARTIAL"),
+            PENDING: t("studentsAdmin.enAttente"),
+            OVERDUE: t("studentsAdmin.enRetard"),
         };
         return <Badge variant={variants[status] || "outline"}>{labels[status] || status}</Badge>;
     };
@@ -37,25 +40,25 @@ export function StudentInvoicesTab({ invoices }: StudentInvoicesTabProps) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Historique Financier</CardTitle>
-                <CardDescription>Factures et paiements</CardDescription>
+                <CardTitle>{t("studentsAdmin.historiqueFinancier")}</CardTitle>
+                <CardDescription>{t("studentsAdmin.facturesEtPaiements")}</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>N° Facture</TableHead>
-                            <TableHead>Montant</TableHead>
-                            <TableHead>Payé</TableHead>
-                            <TableHead>Statut</TableHead>
-                            <TableHead>Échéance</TableHead>
+                            <TableHead>{t("studentsAdmin.nFacture")}</TableHead>
+                            <TableHead>{t("studentsAdmin.montant")}</TableHead>
+                            <TableHead>{t("studentsAdmin.paye")}</TableHead>
+                            <TableHead>{t("studentsAdmin.statut")}</TableHead>
+                            <TableHead>{t("studentsAdmin.echeance")}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {invoices.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                    Aucune facture
+                                    {t("studentsAdmin.aucuneFacture")}
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -66,7 +69,7 @@ export function StudentInvoicesTab({ invoices }: StudentInvoicesTabProps) {
                                     <TableCell>{formatCurrency(invoice.paid_amount || 0)}</TableCell>
                                     <TableCell>{getPaymentStatusBadge(invoice.status)}</TableCell>
                                     <TableCell>
-                                        {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString("fr-FR") : "-"}
+                                        {invoice.due_date ? new Date(invoice.due_date).toLocaleDateString(intlLocale()) : "-"}
                                     </TableCell>
                                 </TableRow>
                             ))

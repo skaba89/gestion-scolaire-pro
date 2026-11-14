@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { QuickEnrollmentDialog } from "@/components/students/QuickEnrollmentDialog";
+import { useTranslation } from "react-i18next";
 
 interface Enrollment {
     id: string;
@@ -30,13 +31,14 @@ export function StudentEnrollmentsTab({
     studentLabel,
     onRefresh
 }: StudentEnrollmentsTabProps) {
+    const { t } = useTranslation();
     return (
         <Card>
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>
-                        <CardTitle>Historique des Inscriptions</CardTitle>
-                        <CardDescription>Parcours scolaire de l'{studentLabel.toLowerCase()}</CardDescription>
+                        <CardTitle>{t("studentsAdmin.historiqueDesInscriptions")}</CardTitle>
+                        <CardDescription>{t("studentsAdmin.parcoursScolaireDeLStudentlabel", { studentLabel: studentLabel.toLowerCase() })}</CardDescription>
                     </div>
                     <QuickEnrollmentDialog
                         studentId={studentId}
@@ -46,7 +48,7 @@ export function StudentEnrollmentsTab({
                         trigger={
                             <Button size="sm">
                                 <Plus className="h-4 w-4 mr-2" />
-                                Nouvelle Inscription
+                                {t("studentsAdmin.nouvelleInscription")}
                             </Button>
                         }
                     />
@@ -56,17 +58,17 @@ export function StudentEnrollmentsTab({
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Année Académique</TableHead>
-                            <TableHead>Niveau</TableHead>
-                            <TableHead>Classe</TableHead>
-                            <TableHead>Statut</TableHead>
+                            <TableHead>{t("studentsAdmin.anneeAcademique")}</TableHead>
+                            <TableHead>{t("studentsAdmin.niveau")}</TableHead>
+                            <TableHead>{t("studentsAdmin.classe")}</TableHead>
+                            <TableHead>{t("studentsAdmin.statut")}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {enrollments.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={4} className="text-center text-muted-foreground">
-                                    Aucune inscription enregistrée
+                                    {t("studentsAdmin.aucuneInscriptionEnregistree")}
                                 </TableCell>
                             </TableRow>
                         ) : (

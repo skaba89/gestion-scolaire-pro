@@ -19,6 +19,7 @@ import { exportToCSV } from "@/utils/exportUtils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface StudentTableProps {
     students: Student[];
@@ -61,6 +62,7 @@ export const StudentTable = ({
     onEnrollClick,
     tenantId,
 }: StudentTableProps) => {
+    const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
 
     const rowVirtualizer = useVirtualizer({
@@ -82,7 +84,7 @@ export const StudentTable = ({
                 <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Users className="w-5 h-5" />
-                        {showArchived ? `${studentsLabel} Archivés` : `${studentsLabel} Actifs`} ({totalCount})
+                        {showArchived ? t("studentsAdmin.archivedCount", { label: studentsLabel, count: totalCount }) : t("studentsAdmin.activeCount", { label: studentsLabel, count: totalCount })}
                     </div>
                     <Button
                         variant="outline"
@@ -100,12 +102,12 @@ export const StudentTable = ({
                                 })),
                                 studentsLabel.toLowerCase()
                             );
-                            toast.success(`${count} ${studentsLabel.toLowerCase()} exportés`);
+                            toast.success(t("studentsAdmin.countStudentslabelExportes", { count, studentsLabel: studentsLabel.toLowerCase() }));
                         }}
                         disabled={students.length === 0}
                     >
                         <Download className="w-4 h-4 mr-2" />
-                        Export CSV
+                        {t("studentsAdmin.exportCsv")}
                     </Button>
                 </CardTitle>
             </CardHeader>
@@ -115,8 +117,8 @@ export const StudentTable = ({
                 ) : students.length === 0 ? (
                     <EmptyState
                         icon={Users}
-                        title={`Aucun ${studentLabel} trouvé`}
-                        description={`Commencez par ajouter des ${studentsLabel.toLowerCase()} ou vérifiez vos filtres de recherche.`}
+                        title={t("studentsAdmin.aucunStudentlabelTrouve", { studentLabel })}
+                        description={t("studentsAdmin.commencezParAjouterDesStudentslabel", { studentsLabel: studentsLabel.toLowerCase() })}
                         actionLabel={`Ajouter un ${studentLabel}`}
                         onAction={() => document.getElementById("add-student-trigger")?.click()}
                     />
@@ -125,16 +127,16 @@ export const StudentTable = ({
                         ref={parentRef}
                         className="h-[600px] overflow-auto border rounded-md relative"
                     >
-                        <Table role="grid" aria-label={`Tableau des ${studentsLabel}`}>
+                        <Table role="grid" aria-label={t("studentsAdmin.tableauDesStudentslabel", { studentsLabel })}>
                             <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                                 <TableRow>
-                                    <TableHead className="w-12" role="columnheader">Photo</TableHead>
+                                    <TableHead className="w-12" role="columnheader">{t("studentsAdmin.photo")}</TableHead>
                                     <TableHead className="hidden sm:table-cell" role="columnheader">N° {studentLabel.charAt(0).toUpperCase() + studentLabel.slice(1)}</TableHead>
-                                    <TableHead role="columnheader">Nom Complet</TableHead>
-                                    <TableHead className="hidden md:table-cell" role="columnheader">Email / Responsable</TableHead>
-                                    <TableHead className="hidden lg:table-cell" role="columnheader">Date de naissance</TableHead>
-                                    <TableHead className="hidden lg:table-cell" role="columnheader">Genre</TableHead>
-                                    <TableHead className="text-right" role="columnheader">Actions</TableHead>
+                                    <TableHead role="columnheader">{t("studentsAdmin.nomComplet")}</TableHead>
+                                    <TableHead className="hidden md:table-cell" role="columnheader">{t("studentsAdmin.emailResponsable")}</TableHead>
+                                    <TableHead className="hidden lg:table-cell" role="columnheader">{t("studentsAdmin.dateDeNaissance")}</TableHead>
+                                    <TableHead className="hidden lg:table-cell" role="columnheader">{t("studentsAdmin.genre")}</TableHead>
+                                    <TableHead className="text-right" role="columnheader">{t("studentsAdmin.actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>

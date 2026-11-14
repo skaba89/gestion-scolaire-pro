@@ -20,10 +20,11 @@ import {
     Paperclip
 } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { AdmissionApplication, AdmissionStatus, isReenrollment } from "@/queries/admissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AdmissionDetailDialog } from "./AdmissionDetailDialog";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface AdmissionTableProps {
     applications: AdmissionApplication[];
@@ -38,13 +39,13 @@ interface AdmissionTableProps {
     isConverting?: boolean;
 }
 
-const statusConfig: Record<AdmissionStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    DRAFT: { label: "Brouillon", variant: "outline" },
-    SUBMITTED: { label: "Soumis", variant: "secondary" },
-    UNDER_REVIEW: { label: "En cours", variant: "default" },
-    ACCEPTED: { label: "Accepté", variant: "default" },
-    REJECTED: { label: "Refusé", variant: "destructive" },
-    CONVERTED_TO_STUDENT: { label: "Inscrit", variant: "default" },
+const statusConfig: Record<AdmissionStatus, { variant: "default" | "secondary" | "destructive" | "outline" }> = {
+    DRAFT: { variant: "outline" },
+    SUBMITTED: { variant: "secondary" },
+    UNDER_REVIEW: { variant: "default" },
+    ACCEPTED: { variant: "default" },
+    REJECTED: { variant: "destructive" },
+    CONVERTED_TO_STUDENT: { variant: "default" },
 };
 
 export const AdmissionTable = ({
@@ -55,6 +56,7 @@ export const AdmissionTable = ({
     onConvert,
     isConverting = false,
 }: AdmissionTableProps) => {
+    const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
     const [detailApplication, setDetailApplication] = useState<AdmissionApplication | null>(null);
 
@@ -92,9 +94,9 @@ export const AdmissionTable = ({
         return (
             <div className="text-center py-12">
                 <BookOpen className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-                <p className="text-muted-foreground">Aucune candidature trouvée</p>
+                <p className="text-muted-foreground">{t("admissions.table.none")}</p>
                 <p className="text-sm text-muted-foreground/70">
-                    Les candidatures soumises apparaîtront ici
+                    {t("admissions.table.noneHint")}
                 </p>
             </div>
         );
@@ -110,10 +112,10 @@ export const AdmissionTable = ({
                 <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                     <TableRow>
                         <TableHead>{studentLabel}</TableHead>
-                        <TableHead>Parent</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Statut</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead>{t("admissions.table.parent")}</TableHead>
+                        <TableHead>{t("admissions.table.date")}</TableHead>
+                        <TableHead>{t("admissions.table.status")}</TableHead>
+                        <TableHead className="text-right">{t("admissions.table.actions")}</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -133,12 +135,12 @@ export const AdmissionTable = ({
                                                 {app.student_first_name} {app.student_last_name}
                                             </p>
                                             {isReenrollment(app) && (
-                                                <Badge variant="secondary" className="text-xs">Réinscription</Badge>
+                                                <Badge variant="secondary" className="text-xs">{t("admissions.table.reenrollment")}</Badge>
                                             )}
                                             {Array.isArray(app.documents) && app.documents.length > 0 && (
                                                 <span
                                                     className="inline-flex items-center gap-0.5 text-xs text-muted-foreground"
-                                                    title={`${app.documents!.length} document(s) déposé(s)`}
+                                                    title={t("admissions.table.documentCount", { count: app.documents!.length })}
                                                 >
                                                     <Paperclip className="w-3 h-3" />
                                                     {app.documents!.length}
@@ -146,7 +148,7 @@ export const AdmissionTable = ({
                                             )}
                                         </div>
                                         <p className="text-sm text-muted-foreground">
-                                            {app.student_date_of_birth && format(new Date(app.student_date_of_birth), "dd MMM yyyy", { locale: fr })}
+                                            {app.student_date_of_birth && format(new Date(app.student_date_of_birth), "dd MMM yyyy", { locale: dateFnsLocale() })}
                                         </p>
                                     </div>
                                 </TableCell>
@@ -160,13 +162,13 @@ export const AdmissionTable = ({
                                 </TableCell>
                                 <TableCell>
                                     {app.submitted_at
-                                        ? format(new Date(app.submitted_at), "dd MMM yyyy", { locale: fr })
-                                        : format(new Date(app.created_at!), "dd MMM yyyy", { locale: fr })
+                                        ? format(new Date(app.submitted_at), "dd MMM yyyy", { locale: dateFnsLocale() })
+                                        : format(new Date(app.created_at!), "dd MMM yyyy", { locale: dateFnsLocale() })
                                     }
                                 </TableCell>
                                 <TableCell>
                                     <Badge variant={statusConfig[app.status as AdmissionStatus]?.variant || "outline"}>
-                                        {statusConfig[app.status as AdmissionStatus]?.label || app.status}
+                                        {statusConfig[app.status as AdmissionStatus] ? t(`admissions.status.${app.status}`) : app.status}
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-right">
@@ -174,7 +176,7 @@ export const AdmissionTable = ({
                                         <Button
                                             size="sm"
                                             variant="ghost"
-                                            title="Voir le dossier complet"
+                                            title={t("admissions.table.viewFile")}
                                             onClick={() => setDetailApplication(app)}
                                         >
                                             <FileSearch className="w-4 h-4" />
@@ -214,7 +216,7 @@ export const AdmissionTable = ({
                                                 onClick={() => onConvert(app.id, app)}
                                             >
                                                 <UserPlus className="w-4 h-4 mr-1" />
-                                                {isReenrollment(app) ? "Valider la réinscription" : "Inscrire"}
+                                                {isReenrollment(app) ? t("admissions.table.validateReenrollment") : t("admissions.table.enroll")}
                                             </Button>
                                         )}
                                     </div>

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User, Upload } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { useTranslation } from "react-i18next";
 
 interface StudentIdentitySectionProps {
     form: UseFormReturn<StudentFormValues>;
@@ -15,12 +16,13 @@ interface StudentIdentitySectionProps {
 }
 
 export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }: StudentIdentitySectionProps) => {
+    const { t } = useTranslation();
     return (
         <div className="space-y-6">
             <div className="flex flex-col items-center gap-4 p-4 border rounded-lg bg-muted/10">
                 <Avatar className="w-24 h-24">
                     {photoPreview ? (
-                        <AvatarImage src={photoPreview} alt="Aperçu" className="object-cover" />
+                        <AvatarImage src={photoPreview} alt={t("studentsAdmin.apercu")} className="object-cover" />
                     ) : (
                         <AvatarFallback>
                             <User className="w-12 h-12 text-muted-foreground" />
@@ -31,7 +33,7 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                     <Label htmlFor="photo-upload" className="cursor-pointer">
                         <div className="flex items-center gap-2 px-4 py-2 text-sm font-medium border rounded-md hover:bg-muted transition-colors">
                             <Upload className="w-4 h-4" />
-                            {photoPreview ? "Changer la photo" : "Ajouter une photo"}
+                            {photoPreview ? t("studentsAdmin.changerLaPhoto") : t("studentsAdmin.ajouterUnePhoto")}
                         </div>
                     </Label>
                     <Input
@@ -42,7 +44,7 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                         onChange={handlePhotoSelect}
                     />
                     <p className="text-xs text-muted-foreground">
-                        Format recommandé : JPG ou PNG. Max 2 Mo.
+                        {t("studentsAdmin.formatRecommandeJpgOuPng")}
                     </p>
                 </div>
             </div>
@@ -53,9 +55,9 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                     name="first_name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Prénom *</FormLabel>
+                            <FormLabel>{t("studentsAdmin.prenom2")}</FormLabel>
                             <FormControl>
-                                <Input placeholder="Jean" {...field} />
+                                <Input placeholder={t("studentsAdmin.jean")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -67,9 +69,9 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                     name="last_name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Nom *</FormLabel>
+                            <FormLabel>{t("studentsAdmin.nom2")}</FormLabel>
                             <FormControl>
-                                <Input placeholder="Dupont" {...field} />
+                                <Input placeholder={t("studentsAdmin.dupont")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -81,7 +83,7 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                     name="date_of_birth"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Date de naissance</FormLabel>
+                            <FormLabel>{t("studentsAdmin.dateDeNaissance")}</FormLabel>
                             <FormControl>
                                 <Input type="date" {...field} />
                             </FormControl>
@@ -95,17 +97,17 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                     name="gender"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Genre</FormLabel>
+                            <FormLabel>{t("studentsAdmin.genre")}</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Sélectionner le genre" />
+                                        <SelectValue placeholder={t("studentsAdmin.selectionnerLeGenre")} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="M">Masculin</SelectItem>
-                                    <SelectItem value="F">Féminin</SelectItem>
-                                    <SelectItem value="O">Autre</SelectItem>
+                                    <SelectItem value="M">{t("studentsAdmin.masculin")}</SelectItem>
+                                    <SelectItem value="F">{t("studentsAdmin.feminin")}</SelectItem>
+                                    <SelectItem value="O">{t("studentsAdmin.autre")}</SelectItem>
                                 </SelectContent>
                             </Select>
                             <FormMessage />
@@ -118,9 +120,9 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                     name="nationality"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Nationalité</FormLabel>
+                            <FormLabel>{t("studentsAdmin.nationalite")}</FormLabel>
                             <FormControl>
-                                <Input placeholder="Française" {...field} />
+                                <Input placeholder={t("studentsAdmin.francaise")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -133,11 +135,11 @@ export const StudentIdentitySection = ({ form, photoPreview, handlePhotoSelect }
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>
-                                Numéro CNI / Passeport
-                                <HelpTooltip content="Numéro unique de la Carte Nationale d'Identité ou du Passeport de l'étudiant." />
+                                {t("studentsAdmin.numeroCniPasseport")}
+                                <HelpTooltip content={t("studentsAdmin.numeroUniqueDeLaCarte")} />
                             </FormLabel>
                             <FormControl>
-                                <Input placeholder="AB123456" {...field} />
+                                <Input placeholder={t("studentsAdmin.ab123456")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>

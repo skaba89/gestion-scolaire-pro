@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { UserCheck, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "react-i18next";
 
 interface StudentStatsProps {
     stats: {
@@ -12,6 +13,7 @@ interface StudentStatsProps {
 }
 
 export const StudentStats = ({ stats, isLoading, studentsLabel }: StudentStatsProps) => {
+    const { t } = useTranslation();
     if (isLoading) {
         return (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -55,7 +57,7 @@ export const StudentStats = ({ stats, isLoading, studentsLabel }: StudentStatsPr
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{stats.total}</p>
-                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-xs text-muted-foreground">{t("studentsAdmin.total")}</p>
                         </div>
                     </div>
                 </CardContent>

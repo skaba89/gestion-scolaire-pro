@@ -6,6 +6,8 @@ import { StudentAvatar } from "@/components/students/StudentAvatar";
 import { LinkParentDialog } from "@/components/students/LinkParentDialog";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { isStudentMinor } from "@/lib/studentAge";
+import { intlLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface StudentDetailInfoProps {
     student: any;
@@ -24,6 +26,7 @@ export function StudentDetailInfo({
     onRefresh,
     onRemoveParent
 }: StudentDetailInfoProps) {
+    const { t } = useTranslation();
     const isMinor = isStudentMinor(student.date_of_birth);
     const hasNoParents = linkedParents.length === 0;
 
@@ -36,7 +39,7 @@ export function StudentDetailInfo({
                     <AlertTitle>Attention : {studentLabel} Mineur</AlertTitle>
                     <AlertDescription className="flex items-center justify-between">
                         <span>
-                            Cet {studentLabel.toLowerCase()} est mineur et n'a pas de responsable légal lié. Veuillez lier un parent ou un tuteur.
+                            {t("studentsAdmin.cetStudentlabelEstMineurEt", { studentLabel: studentLabel.toLowerCase() })}
                         </span>
                         <LinkParentDialog
                             studentId={student.id}
@@ -67,7 +70,7 @@ export function StudentDetailInfo({
                                     {student.date_of_birth && (
                                         <p className="flex items-center gap-2">
                                             <Calendar className="h-4 w-4" />
-                                            {new Date(student.date_of_birth).toLocaleDateString("fr-FR")}
+                                            {new Date(student.date_of_birth).toLocaleDateString(intlLocale())}
                                         </p>
                                     )}
                                     {student.email && (
@@ -93,21 +96,21 @@ export function StudentDetailInfo({
                             <div>
                                 <h3 className="font-medium mb-2 flex items-center gap-2">
                                     <MapPin className="h-4 w-4" />
-                                    Adresse
+                                    {t("studentsAdmin.adresse")}
                                 </h3>
                                 <div className="text-sm text-muted-foreground">
                                     {student.address && <p>{student.address}</p>}
                                     {(student.city || student.country) && (
                                         <p>{[student.city, student.country].filter(Boolean).join(", ")}</p>
                                     )}
-                                    {student.nationality && <p>Nationalité: {student.nationality}</p>}
+                                    {student.nationality && <p>{t("studentsAdmin.nationaliteNationality", { nationality: student.nationality })}</p>}
                                 </div>
                             </div>
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="font-medium flex items-center gap-2">
                                         <Users className="h-4 w-4" />
-                                        Responsables
+                                        {t("studentsAdmin.responsables")}
                                     </h3>
                                     <LinkParentDialog
                                         studentId={student.id}
@@ -117,20 +120,20 @@ export function StudentDetailInfo({
                                 </div>
                                 <div className="space-y-3">
                                     {linkedParents.length === 0 ? (
-                                        <p className="text-muted-foreground text-sm">Aucun responsable lié</p>
+                                        <p className="text-muted-foreground text-sm">{t("studentsAdmin.aucunResponsableLie")}</p>
                                     ) : (
                                         linkedParents.map((link) => (
                                             <div key={`${link.type}-${link.id}`} className="bg-muted p-3 rounded border">
                                                 <div className="flex items-start justify-between">
                                                     <div className="text-sm flex-1">
                                                         <div className="flex items-center gap-2 mb-1">
-                                                            {link.is_primary && <Badge variant="default">Principal</Badge>}
+                                                            {link.is_primary && <Badge variant="default">{t("studentsAdmin.principal")}</Badge>}
                                                             <Badge variant={link.type === 'user' ? "secondary" : "outline"} className="text-[10px]">
                                                                 {link.type === 'user' ? "Compte" : "Contact"}
                                                             </Badge>
                                                         </div>
                                                         <p className="font-medium">{link.parent.first_name} {link.parent.last_name}</p>
-                                                        <p className="text-muted-foreground truncate">{link.parent.email || link.parent.phone || "Sans contact"}</p>
+                                                        <p className="text-muted-foreground truncate">{link.parent.email || link.parent.phone || t("studentsAdmin.sansContact")}</p>
                                                         {link.relationship && (
                                                             <p className="text-xs text-muted-foreground mt-1">Relation: {link.relationship}</p>
                                                         )}

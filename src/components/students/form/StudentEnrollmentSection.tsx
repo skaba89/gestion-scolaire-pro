@@ -86,11 +86,11 @@ export const StudentEnrollmentSection = ({
                     render={({ field }) => (
                         <FormItem>
                             <FormLabel>
-                                Matricule (généré aut. si vide)
-                                <HelpTooltip content="Identifiant unique. Laissez vide pour une génération automatique." />
+                                {t("studentsAdmin.registrationAuto")}
+                                <HelpTooltip content={t("studentsAdmin.identifiantUniqueLaissezVidePour")} />
                             </FormLabel>
                             <FormControl>
-                                <Input placeholder="2025-SCI-001" {...field} />
+                                <Input placeholder={t("studentsAdmin.2025Sci001")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -102,7 +102,7 @@ export const StudentEnrollmentSection = ({
                     name="admission_date"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Date d'admission</FormLabel>
+                            <FormLabel>{t("studentsAdmin.dateDAdmission")}</FormLabel>
                             <FormControl>
                                 <Input type="date" {...field} />
                             </FormControl>
@@ -116,15 +116,15 @@ export const StudentEnrollmentSection = ({
                     name="department_id"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Département / Filière</FormLabel>
+                            <FormLabel>{t("studentsAdmin.departementFiliere")}</FormLabel>
                             <Select onValueChange={(val) => { field.onChange(val); form.setValue("class_id", "none"); }} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Choisir un département" />
+                                        <SelectValue placeholder={t("studentsAdmin.choisirUnDepartement")} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="none">Aucun</SelectItem>
+                                    <SelectItem value="none">{t("studentsAdmin.aucun")}</SelectItem>
                                     {departments?.map((dept) => (
                                         <SelectItem key={dept.id} value={dept.id}>
                                             {dept.code ? `[${dept.code}] ` : ""}{dept.name}
@@ -142,15 +142,15 @@ export const StudentEnrollmentSection = ({
                     name="level_id"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Niveau</FormLabel>
+                            <FormLabel>{t("studentsAdmin.niveau")}</FormLabel>
                             <Select onValueChange={(val) => { field.onChange(val); form.setValue("class_id", "none"); }} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Choisir un niveau" />
+                                        <SelectValue placeholder={t("studentsAdmin.choisirUnNiveau")} />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value="none">Aucun</SelectItem>
+                                    <SelectItem value="none">{t("studentsAdmin.aucun")}</SelectItem>
                                     {levels?.map((lvl) => (
                                         <SelectItem key={lvl.id} value={lvl.id}>
                                             {lvl.name}
@@ -171,16 +171,16 @@ export const StudentEnrollmentSection = ({
                             <FormItem>
                                 <FormLabel>
                                     Classe (pour inscription)
-                                    <HelpTooltip content="Sélectionnez la classe pour l'année scolaire en cours." />
+                                    <HelpTooltip content={t("studentsAdmin.selectionnezLaClassePourL")} />
                                 </FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isEdit}>
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Choisir une classe" />
+                                            <SelectValue placeholder={t("studentsAdmin.choisirUneClasse")} />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value="none">Aucune</SelectItem>
+                                        <SelectItem value="none">{t("studentsAdmin.aucune")}</SelectItem>
                                         {classes.map((cls) => (
                                             <SelectItem key={cls.id} value={cls.id}>
                                                 {cls.name}
@@ -200,7 +200,7 @@ export const StudentEnrollmentSection = ({
 
             {optionalSubjects.length > 0 && (
                 <div className="space-y-4 pt-4 border-t">
-                    <h4 className="text-sm font-medium">Matières Optionnelles</h4>
+                    <h4 className="text-sm font-medium">{t("studentsAdmin.matieresOptionnelles")}</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {optionalSubjects.map((subject) => (
                             <div key={subject.id} className="flex items-center space-x-2">

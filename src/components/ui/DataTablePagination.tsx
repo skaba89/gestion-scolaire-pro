@@ -7,6 +7,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface DataTablePaginationProps {
     currentPage: number;
@@ -25,6 +26,7 @@ export const DataTablePagination = ({
     onPageSizeChange,
     pageSizeOptions = [10, 20, 50, 100]
 }: DataTablePaginationProps) => {
+    const { t } = useTranslation();
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
     if (totalCount === 0) return null;
@@ -32,7 +34,7 @@ export const DataTablePagination = ({
     return (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="hidden sm:inline">Afficher</span>
+                <span className="hidden sm:inline">{t("pagination.show")}</span>
                 <Select
                     value={pageSize.toString()}
                     onValueChange={(v) => {
@@ -51,9 +53,9 @@ export const DataTablePagination = ({
                         ))}
                     </SelectContent>
                 </Select>
-                <span className="hidden sm:inline">par page</span>
+                <span className="hidden sm:inline">{t("pagination.perPage")}</span>
                 <span className="ml-2 sm:ml-4">
-                    {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalCount)} sur {totalCount}
+                    {t("pagination.range", { from: (currentPage - 1) * pageSize + 1, to: Math.min(currentPage * pageSize, totalCount), total: totalCount })}
                 </span>
             </div>
 
@@ -64,7 +66,7 @@ export const DataTablePagination = ({
                     onClick={() => onPageChange(1)}
                     disabled={currentPage === 1}
                 >
-                    <span className="sr-only">Première page</span>
+                    <span className="sr-only">{t("pagination.first")}</span>
                     <ChevronsLeft className="h-4 w-4" />
                 </Button>
                 <Button
@@ -73,12 +75,12 @@ export const DataTablePagination = ({
                     onClick={() => onPageChange(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
                 >
-                    <span className="sr-only">Précédent</span>
+                    <span className="sr-only">{t("pagination.previous")}</span>
                     <ChevronLeft className="h-4 w-4" />
                 </Button>
 
                 <div className="text-sm font-medium min-w-[80px] text-center">
-                    Page {currentPage} / {totalPages}
+                    {t("pagination.pageOf", { page: currentPage, total: totalPages })}
                 </div>
 
                 <Button
@@ -87,7 +89,7 @@ export const DataTablePagination = ({
                     onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
                 >
-                    <span className="sr-only">Suivant</span>
+                    <span className="sr-only">{t("pagination.next")}</span>
                     <ChevronRight className="h-4 w-4" />
                 </Button>
                 <Button
@@ -96,7 +98,7 @@ export const DataTablePagination = ({
                     onClick={() => onPageChange(totalPages)}
                     disabled={currentPage === totalPages}
                 >
-                    <span className="sr-only">Dernière page</span>
+                    <span className="sr-only">{t("pagination.last")}</span>
                     <ChevronsRight className="h-4 w-4" />
                 </Button>
             </div>

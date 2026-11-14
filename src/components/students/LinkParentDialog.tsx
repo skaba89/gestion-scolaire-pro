@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Check, UserPlus, Search, User } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Trans, useTranslation } from "react-i18next";
 
 interface LinkParentDialogProps {
   studentId: string;
@@ -43,6 +44,7 @@ interface LinkParentDialogProps {
 }
 
 export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentDialogProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [selectedParentId, setSelectedParentId] = useState<string>("");
   const [relationship, setRelationship] = useState("parent");
@@ -95,12 +97,12 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
       });
     },
     onSuccess: () => {
-      toast.success("Compte parent lié avec succès!");
+      toast.success(t("studentsAdmin.compteParentLieAvecSucces"));
       handleClose();
     },
     onError: (error) => {
       console.error("Error linking parent user:", error);
-      toast.error("Erreur lors de la liaison du compte parent");
+      toast.error(t("studentsAdmin.erreurLorsDeLaLiaison"));
     },
   });
 
@@ -116,11 +118,11 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
       // apiClient throws on error
     },
     onSuccess: () => {
-      toast.success("Fiche parent ajoutée avec succès");
+      toast.success(t("studentsAdmin.ficheParentAjouteeAvecSucces"));
       handleClose();
     },
     onError: (error: any) => {
-      toast.error("Erreur: " + error.message);
+      toast.error(t("studentsAdmin.erreur") + error.message);
     }
   });
 
@@ -136,7 +138,7 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
 
   const createNewParent = async () => {
     if (!newParent.first_name || !newParent.last_name || !newParent.email) {
-      toast.error("Nom, prénom et email requis");
+      toast.error(t("studentsAdmin.nomPrenomEtEmailRequis"));
       return;
     }
 
@@ -171,27 +173,27 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <Plus className="w-4 h-4 mr-2" />
-          Ajouter Parent
+          {t("studentsAdmin.ajouterParent")}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Ajouter un Responsable</DialogTitle>
+          <DialogTitle>{t("studentsAdmin.ajouterUnResponsable")}</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="account" className="w-full">
           <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="account">Compte Utilisateur</TabsTrigger>
-            <TabsTrigger value="data">Fiche Contact</TabsTrigger>
+            <TabsTrigger value="account">{t("studentsAdmin.compteUtilisateur")}</TabsTrigger>
+            <TabsTrigger value="data">{t("studentsAdmin.ficheContact")}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="account" className="space-y-4">
             <div className="bg-blue-50 text-blue-800 p-3 rounded-md text-xs mb-4">
-              Utilisez cette option pour donner accès au <strong>Portail Parents</strong> à un utilisateur existant.
+              <Trans i18nKey="studentsAdmin.linkAccountHint" components={{ strong: <strong /> }} />
             </div>
             {/* Parent Selection */}
             <div className="space-y-2">
-              <Label>Utilisateur Parent *</Label>
+              <Label>{t("studentsAdmin.utilisateurParent")}</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -205,14 +207,14 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
                     {selectedParentId
                       ? availableParents?.find(p => p.id === selectedParentId)
                         ? `${availableParents.find(p => p.id === selectedParentId)?.first_name} ${availableParents.find(p => p.id === selectedParentId)?.last_name}`
-                        : "Sélectionner un utilisateur..."
-                      : "Sélectionner un utilisateur..."}
+                        : t("studentsAdmin.selectionnerUnUtilisateur")
+                      : t("studentsAdmin.selectionnerUnUtilisateur")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0">
                   <Command>
-                    <CommandInput placeholder="Chercher un compte..." />
-                    <CommandEmpty>Aucun compte parent trouvé.</CommandEmpty>
+                    <CommandInput placeholder={t("studentsAdmin.chercherUnCompte")} />
+                    <CommandEmpty>{t("studentsAdmin.aucunCompteParentTrouve")}</CommandEmpty>
                     <CommandList>
                       <CommandGroup>
                         {availableParents?.map((parent) => (
@@ -251,15 +253,15 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
             </div>
 
             <div className="space-y-2">
-              <Label>Relation</Label>
+              <Label>{t("studentsAdmin.relation")}</Label>
               <Select value={relationship} onValueChange={setRelationship}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="parent">Parent</SelectItem>
-                  <SelectItem value="guardian">Tuteur</SelectItem>
-                  <SelectItem value="foster_parent">Parent d'accueil</SelectItem>
-                  <SelectItem value="grandparent">Grand-parent</SelectItem>
-                  <SelectItem value="other">Autre</SelectItem>
+                  <SelectItem value="parent">{t("studentsAdmin.parent")}</SelectItem>
+                  <SelectItem value="guardian">{t("studentsAdmin.tuteur")}</SelectItem>
+                  <SelectItem value="foster_parent">{t("studentsAdmin.parentDAccueil")}</SelectItem>
+                  <SelectItem value="grandparent">{t("studentsAdmin.grandParent")}</SelectItem>
+                  <SelectItem value="other">{t("studentsAdmin.autre")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -269,21 +271,21 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
               disabled={!selectedParentId || linkUserParentMutation.isPending}
               className="w-full"
             >
-              {linkUserParentMutation.isPending ? "Liaison..." : "Lier le Compte"}
+              {linkUserParentMutation.isPending ? "Liaison..." : t("studentsAdmin.lierLeCompte")}
             </Button>
           </TabsContent>
 
           <TabsContent value="data" className="space-y-4">
             <div className="bg-amber-50 text-amber-800 p-3 rounded-md text-xs mb-4">
-              Utilisez cette option pour ajouter les coordonnées d'un parent (téléphone, email) <strong>sans créer de compte utilisateur</strong>.
+              <Trans i18nKey="studentsAdmin.contactRecordHint" components={{ strong: <strong /> }} />
             </div>
 
             {!showNewParentForm ? (
               <div className="space-y-3">
-                <Label>Rechercher une fiche existante</Label>
+                <Label>{t("studentsAdmin.rechercherUneFicheExistante")}</Label>
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Nom, tel..."
+                    placeholder={t("studentsAdmin.nomTel")}
                     value={parentSearchTerm}
                     onChange={e => setParentSearchTerm(e.target.value)}
                   />
@@ -302,7 +304,7 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
                           <div className="text-sm font-bold">{p.first_name} {p.last_name}</div>
                           <div className="text-xs text-muted-foreground">{p.phone}</div>
                         </div>
-                        <Button size="sm" variant="secondary" className="opacity-0 group-hover:opacity-100">Choisir</Button>
+                        <Button size="sm" variant="secondary" className="opacity-0 group-hover:opacity-100">{t("studentsAdmin.choisir")}</Button>
                       </div>
                     ))}
                   </div>
@@ -310,38 +312,38 @@ export function LinkParentDialog({ studentId, tenantId, onSuccess }: LinkParentD
 
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Ou</span></div>
+                  <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">{t("studentsAdmin.ou")}</span></div>
                 </div>
 
                 <Button type="button" variant="outline" className="w-full" onClick={() => setShowNewParentForm(true)}>
-                  <UserPlus className="w-4 h-4 mr-2" /> Créer une nouvelle fiche
+                  <UserPlus className="w-4 h-4 mr-2" /> {t("studentsAdmin.createNewRecord")}
                 </Button>
               </div>
             ) : (
               <div className="space-y-3 bg-muted/20 p-4 rounded-lg border">
                 <h4 className="font-semibold text-sm flex justify-between items-center">
-                  Nouveau Parent
+                  {t("studentsAdmin.nouveauParent")}
                   <Button variant="ghost" size="sm" onClick={() => setShowNewParentForm(false)} className="h-6 w-6 p-0 rounded-full">X</Button>
                 </h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Nom" value={newParent.last_name} onChange={e => setNewParent({ ...newParent, last_name: e.target.value })} />
-                  <Input placeholder="Prénom" value={newParent.first_name} onChange={e => setNewParent({ ...newParent, first_name: e.target.value })} />
+                  <Input placeholder={t("studentsAdmin.nom")} value={newParent.last_name} onChange={e => setNewParent({ ...newParent, last_name: e.target.value })} />
+                  <Input placeholder={t("studentsAdmin.prenom")} value={newParent.first_name} onChange={e => setNewParent({ ...newParent, first_name: e.target.value })} />
                 </div>
-                <Input placeholder="Téléphone" value={newParent.phone} onChange={e => setNewParent({ ...newParent, phone: e.target.value })} />
-                <Input placeholder="Email" value={newParent.email} onChange={e => setNewParent({ ...newParent, email: e.target.value })} />
+                <Input placeholder={t("studentsAdmin.telephone")} value={newParent.phone} onChange={e => setNewParent({ ...newParent, phone: e.target.value })} />
+                <Input placeholder={t("studentsAdmin.email")} value={newParent.email} onChange={e => setNewParent({ ...newParent, email: e.target.value })} />
 
                 <div className="space-y-2 pt-2">
-                  <Label>Relation</Label>
+                  <Label>{t("studentsAdmin.relation")}</Label>
                   <Select value={relationship} onValueChange={setRelationship}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="parent">Parent</SelectItem>
-                      <SelectItem value="guardian">Tuteur</SelectItem>
+                      <SelectItem value="parent">{t("studentsAdmin.parent")}</SelectItem>
+                      <SelectItem value="guardian">{t("studentsAdmin.tuteur")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <Button className="w-full mt-2" onClick={createNewParent}>Enregistrer & Lier</Button>
+                <Button className="w-full mt-2" onClick={createNewParent}>{t("studentsAdmin.enregistrerLier")}</Button>
               </div>
             )}
           </TabsContent>

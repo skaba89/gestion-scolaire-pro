@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { intlLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface Grade {
     id: string;
@@ -20,28 +22,29 @@ interface StudentGradesTabProps {
 }
 
 export function StudentGradesTab({ grades, studentLabel }: StudentGradesTabProps) {
+    const { t } = useTranslation();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Historique des Notes</CardTitle>
-                <CardDescription>Toutes les évaluations et notes de l'{studentLabel.toLowerCase()}</CardDescription>
+                <CardTitle>{t("studentsAdmin.historiqueDesNotes")}</CardTitle>
+                <CardDescription>{t("studentsAdmin.toutesLesEvaluationsEtNotes", { studentLabel: studentLabel.toLowerCase() })}</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Matière</TableHead>
-                            <TableHead>Évaluation</TableHead>
-                            <TableHead>Trimestre</TableHead>
-                            <TableHead>Note</TableHead>
-                            <TableHead>Date</TableHead>
+                            <TableHead>{t("studentsAdmin.matiere")}</TableHead>
+                            <TableHead>{t("studentsAdmin.evaluation")}</TableHead>
+                            <TableHead>{t("studentsAdmin.trimestre")}</TableHead>
+                            <TableHead>{t("studentsAdmin.note")}</TableHead>
+                            <TableHead>{t("studentsAdmin.date")}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {grades.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                    Aucune note enregistrée
+                                    {t("studentsAdmin.aucuneNoteEnregistree")}
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -55,7 +58,7 @@ export function StudentGradesTab({ grades, studentLabel }: StudentGradesTabProps
                                             {grade.score !== null ? `${grade.score}/${grade.assessment.max_score}` : "-"}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>{new Date(grade.created_at).toLocaleDateString("fr-FR")}</TableCell>
+                                    <TableCell>{new Date(grade.created_at).toLocaleDateString(intlLocale())}</TableCell>
                                 </TableRow>
                             ))
                         )}
