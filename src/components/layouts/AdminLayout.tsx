@@ -1,3 +1,5 @@
+import { EducationModuleGate } from "@/components/EducationModuleGate";
+import { useEducationModules } from "@/hooks/useEducationModules";
 import { Link, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTenant } from "@/contexts/TenantContext";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
@@ -102,6 +104,7 @@ interface NavSection {
 }
 
 export const AdminLayout = () => {
+  const { isPathEnabled } = useEducationModules();
   const location = useLocation();
   const navigate = useNavigate();
   const { tenantSlug } = useParams<{ tenantSlug: string }>(); // Hook for tenant-aware routing
@@ -321,6 +324,7 @@ export const AdminLayout = () => {
       .map(section => {
         // Filter items based on permission
         const filteredItems = section.items.filter(item => {
+          if (!isPathEnabled(item.href)) return false;
           if (!item.permission) return true; // Show if no permission required (public/basic)
           return hasPermission(roles, item.permission);
         });
@@ -335,7 +339,7 @@ export const AdminLayout = () => {
         // Only show section if it has items and is enabled in config
         return section.items.length > 0 && menuConfig[section.id]?.enabled !== false;
       });
-  }, [allNavSections, roles, menuConfig]); // Recalculate when roles change
+  }, [allNavSections, roles, menuConfig, isPathEnabled]); // Recalculate when roles change
 
   // Mobile bottom nav items - most used actions (memoized to prevent infinite re-renders)
   const mobileNavItems = useMemo(() => [
@@ -537,7 +541,7 @@ export const AdminLayout = () => {
           <AnimatePresence mode="wait">
             <PageTransition key={location.pathname}>
               <div className="page-container">
-                <Outlet />
+                <EducationModuleGate><Outlet /></EducationModuleGate>
               </div>
             </PageTransition>
           </AnimatePresence>

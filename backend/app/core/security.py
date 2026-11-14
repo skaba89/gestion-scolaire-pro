@@ -557,6 +557,18 @@ async def get_current_user(
                 ):
                     _enforce_subscription_access(request, tenant_obj)
 
+                # A menu is presentation only. This shared authentication
+                # boundary covers canonical HTTP routes and aliases alike.
+                # Resolve the tenant from the database, never a caller's role
+                # claim or an untrusted cycle/header supplied for another school.
+                from app.core.education_paths import module_for_path
+                module_id = module_for_path(request.url.path, settings.API_V1_STR)
+                if module_id and tenant_obj.education_modules_configured is True:
+                    from app.core.database import switch_tenant_context
+                    from app.services.education_modules import require_enabled_module
+                    switch_tenant_context(db, resolved_tenant_id)
+                    require_enabled_module(db, tenant_obj, module_id)
+
         return {
             "id": str(user_db.id),
             "email": user_db.email,

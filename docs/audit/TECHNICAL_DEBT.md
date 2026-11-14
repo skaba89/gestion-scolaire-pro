@@ -20,3 +20,15 @@ Point de mesure : 2026-11-14, main vérifié `f5f0134` (#553), migration #555 en
 Éviter les nettoyages cosmétiques qui dispersent les corrections d'intégrité.
 Chaque lot technique doit disposer d'une preuve de défaut et d'une validation
 utile ; ne pas créer des tests qui ne font que recopier l'implémentation.
+
+## Moteur modulaire — 2026-11-14, PR #556
+
+Le lot réutilise les services existants et introduit les profils/configurations
+par établissement, sans recalcul ni suppression des historiques. Dette encore
+ouverte : périmètres par cycle/utilisateur et propagation aux ressources réelles,
+versionnement pédagogique historique, compétences/ECUE/compensation/diplômes,
+validation terrain offline/mobile, charge et migration sur copie anonymisée.
+TypeScript conserve ses 146 erreurs historiques et ESLint ses 1735 avertissements.
+Voir `MODULAR_EDUCATION_VERIFICATION_20261114.md` pour les exécutions exactes
+et les cinq échecs DNS du PostgreSQL complet local. Aucun test ignoré ou échec
+n'est transformé en preuve de réussite.

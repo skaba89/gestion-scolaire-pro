@@ -1,3 +1,4 @@
+import { EducationModuleFeature } from "@/components/EducationModuleGate";
 import { Suspense, lazy, memo, useEffect } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from "@/components/ui/toaster";
@@ -129,7 +130,7 @@ const AppContent = memo(() => {
       <OfflineIndicator />
       <SkipLinks />
       <NotificationPrompt />
-      <AIChatWidget />
+      <EducationModuleFeature module="ai"><AIChatWidget /></EducationModuleFeature>
       <main id="main-content">
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>

@@ -1,3 +1,4 @@
+import { useEducationModules } from "@/hooks/useEducationModules";
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -46,6 +47,9 @@ export const ResponsiveSidebar = ({
   sidebarOpen,
   setSidebarOpen,
 }: ResponsiveSidebarProps) => {
+  const { isPathEnabled } = useEducationModules();
+  navItems = navItems?.filter(item => isPathEnabled(item.href));
+  navGroups = navGroups?.map(group => ({ ...group, items: group.items.filter(item => isPathEnabled(item.href)) })).filter(group => group.items.length > 0);
   const location = useLocation();
   const { signOut, profile } = useAuth();
   const { t } = useTranslation();

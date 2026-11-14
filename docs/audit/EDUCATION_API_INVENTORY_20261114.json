@@ -1,0 +1,3474 @@
+{
+  "source_commit": "c45da0ffc6d8ed91df0f6bb792fea8fafbdb647f",
+  "catalog_version": 1,
+  "scope": "institution",
+  "operation_count": 690,
+  "counts": {
+    "common_or_platform": 319,
+    "ai": 6,
+    "elearning": 30,
+    "academics": 101,
+    "assessments": 27,
+    "lmd": 12,
+    "schedule": 21,
+    "attendance": 32,
+    "homework": 11,
+    "hr": 24,
+    "student_life": 67,
+    "admissions": 17,
+    "inventory": 12,
+    "library": 11
+  },
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/health/live",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/health/ready",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/health/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/education/catalog/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/education/configuration/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/education/configuration/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/education/preview/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/refresh/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/logout/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/change-password/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/logout-all/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/sessions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/auth/sessions/{session_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/reset-forced-password/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register-school/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/bootstrap/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/diag/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/login-diagnostics/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/forgot-password/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/reset-password/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/validate-reset-token/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/auth/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/roles/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/roles/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/roles/{role_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/profiles/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/pending/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{user_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/users/{user_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/{user_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/users/{user_id}/toggle-status/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/{user_id}/sessions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/{user_id}/sessions/{session_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/{user_id}/roles/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/{user_id}/roles/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/{user_id}/roles/{role}",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/{user_id}/reset-password/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/users/convert/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/users/profiles/{user_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenants/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/INFOS/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/slug/{slug}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/settings/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenants/settings/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/settings/academic-rules/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/tenants/settings/academic-rules/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/security-settings/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenants/security-settings/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/public/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/public/{slug}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/by-domain/{domain}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenants/create-with-admin/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenants/{tenant_id}/create-admin/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/{tenant_id}/admins/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenants/{tenant_id}/admins/{user_id}/reset-password/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/super-admin/stats/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenants/{tenant_id}/toggle-status/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tenants/{tenant_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/{tenant_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenants/{tenant_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/men-guinea/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenants/men-guinea/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/men-guinea/rapport/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenants/onboarding/levels/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenants/onboarding/subjects/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tenants/onboarding/complete/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/slug/{slug}/levels/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/slug/{slug}/academic-years/current/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ministry/overview/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ministry/overview/export/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/requests/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/rgpd/requests/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/rgpd/requests/{request_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/stats/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/check-retention/{user_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/search/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/audit-logs/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/rgpd/direct-delete/{user_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/rgpd/export/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/export-history/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/export-history/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rgpd/retention-risks/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/financial-kpis/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/revenue-trend/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/academic-kpis/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/academic-stats/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/students-at-risk/",
+      "module": "ai"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/operational-kpis/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/debt-aging/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/revenue-by-category/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/attendance-trend/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/grades-distribution/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/dashboard-kpis/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/ministry-kpis/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/ministry-stats/levels/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/ministry-export/csv/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/analytics/cash-flow-forecast/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/elearning/courses/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/analytics/elearning/courses/",
+      "module": "elearning"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/analytics/elearning/courses/{course_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/analytics/elearning/courses/{course_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/elearning/courses/{course_id}/modules/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/analytics/elearning/courses/{course_id}/modules/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/elearning/enrollments/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/risk-scores/summary/",
+      "module": "ai"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/risk-scores/",
+      "module": "ai"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/analytics/elearning/courses/{course_id}/content/",
+      "module": "elearning"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/analytics/elearning/modules/{module_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/analytics/elearning/modules/{module_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/analytics/elearning/modules/{module_id}/lessons/",
+      "module": "elearning"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/analytics/elearning/lessons/{lesson_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/analytics/elearning/lessons/{lesson_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/elearning/courses/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/me/elearning/courses/{course_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/me/elearning/lessons/{lesson_id}/complete/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/audit/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/audit/data-quality/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/audit/data-quality/run-checks/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/audit/data-quality/{anomaly_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/audit/log",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/backup-codes/generate/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/backup-codes/verify/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mfa/backup-codes/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mfa/backup-codes/count/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/otp/request/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/otp/verify/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mfa/otp/remaining/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/totp/enroll/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/totp/verify/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/totp/disable/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mfa/totp/status/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/login/verify/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/setup/enroll/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/setup/verify/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/mfa/status/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/mfa/toggle/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/storage/upload/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/storage/upload",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/presigned-url/{object_name}",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/storage/presigned-url/{object_name}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/preferences/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/notifications/preferences/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/subscriptions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/subscriptions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifications/subscriptions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/bulk/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/settings/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/notifications/settings/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/whatsapp/test/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/notifications/{notification_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifications/{notification_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/mark-all-read/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifications/clear-read/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/send-parent-alert/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/ai/chat",
+      "module": "ai"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/ai/audit",
+      "module": "ai"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/webhooks/events/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/webhooks/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/webhooks/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/webhooks/{webhook_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/webhooks/{webhook_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/webhooks/{webhook_id}/test/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/whatsapp/webhook",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/whatsapp/webhook",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/whatsapp/webhook/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/whatsapp/webhook/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/billing/subscription/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/billing/plans/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/billing/subscribe/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/billing/cancel/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/billing/requests/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/billing/requests/{subscription_id}/confirm/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/billing/requests/{subscription_id}/reject/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/billing/maintenance/expire/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/saas-metrics/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/platform/tenants/{tenant_id}/impersonate/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/platform/tenants/{tenant_id}/subscription/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/{tenant_id}/health/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/tenants/{tenant_id}/integrations-health/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/email/health/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/security/database-role/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/platform/email/test-send/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/jobs/health/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/webhooks/recent-failures/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/plans/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/usage/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/usage/tenants/{tenant_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/branding/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/platform/branding/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/platform/domains/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/platform/domains/me/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/search/types/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/students/preview/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/students/confirm/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/import/jobs/{job_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/import/students/template/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/parents/preview/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/parents/confirm/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/import/parents/template/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/teachers/preview/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/import/teachers/confirm/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/import/teachers/template/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/students/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/students/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/students/dashboard/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/students/messaging-recipients/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/students/me/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/students/me/reenrollment/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/students/me/reenroll/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/students/{student_id}/enrollment/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/students/{student_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/students/{student_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/students/{student_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/students/{student_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/grades/",
+      "module": "assessments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/grades/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/grades/student/{student_id}/average/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/grades/{grade_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/grades/{grade_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/grades/{grade_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/grades/bulk",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/grades/history/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/transcripts/{student_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/academic-years/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/academic-years/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/academic-years/{ay_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/academic-years/{ay_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/academic-years/{ay_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campuses/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/campuses/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/campuses/{campus_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/campuses/{campus_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/campuses/{campus_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/levels/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/levels/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/levels/{level_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/levels/{level_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/levels/{level_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/levels/{level_id}/subjects/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/subjects/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/subjects/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/subjects/{subject_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/subjects/{subject_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/subjects/{subject_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/subjects/{subject_id}/levels/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/subjects/{subject_id}/departments/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/subjects/{subject_id}/prerequisites/",
+      "module": "lmd"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/subjects/{subject_id}/levels/{level_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/subjects/{subject_id}/levels/{level_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/departments/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/departments/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/departments/{dept_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/departments/{dept_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/departments/{dept_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/faculties/",
+      "module": "lmd"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/faculties/",
+      "module": "lmd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/faculties/{faculty_id}/",
+      "module": "lmd"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/faculties/{faculty_id}/",
+      "module": "lmd"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/faculties/{faculty_id}/",
+      "module": "lmd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/terms/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/terms/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/terms/{term_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/terms/{term_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/terms/{term_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/semesters/",
+      "module": "lmd"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/semesters/",
+      "module": "lmd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/semesters/{semester_id}/",
+      "module": "lmd"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/semesters/{semester_id}/",
+      "module": "lmd"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/semesters/{semester_id}/",
+      "module": "lmd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/semesters/{semester_id}/progression/{student_id}/",
+      "module": "lmd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assessments/",
+      "module": "assessments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/assessments/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/assessments/{id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/assessments/{id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/assessments/{id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teachers/{teacher_id}/schedule/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teachers/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/teachers/",
+      "module": "academics"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/teachers/{assignment_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/teachers/{assignment_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/teachers/dashboard/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/attendance/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/attendance/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/attendance/stats/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/attendance/bulk/",
+      "module": "attendance"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/attendance/{attendance_id}/",
+      "module": "attendance"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/attendance/{attendance_id}/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/homework/",
+      "module": "homework"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/homework/",
+      "module": "homework"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/homework/{homework_id}/",
+      "module": "homework"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/homework/{homework_id}/",
+      "module": "homework"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/homework/{homework_id}/",
+      "module": "homework"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/homework/submissions/{student_id}/",
+      "module": "homework"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/homework/{homework_id}/submit/",
+      "module": "homework"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/homework/{homework_id}/submissions/{submission_id}/",
+      "module": "homework"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/homework/submissions/{submission_id}/grade/",
+      "module": "homework"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/overview/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/payments/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/export/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/{payment_id}/receipt/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payments/register/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payments/{payment_id}/reverse/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/sequence/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/invoices/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payments/invoices/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/payments/invoices/{invoice_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/payments/invoices/{invoice_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payments/send-reminders/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payments/fees/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payments/fees/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/payments/fees/{fee_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/payments/fees/{fee_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payments/send-invoice-email/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payments/intent/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payment-schedules/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/payment-schedules/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/payment-schedules/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/payment-schedules/{schedule_id}",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/payment-schedules/{schedule_id}",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/payment-schedules/{schedule_id}",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/rooms/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/rooms/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/infrastructure/rooms/{room_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/programs/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/programs/",
+      "module": "academics"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/infrastructure/programs/{program_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/infrastructure/programs/{program_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/classrooms/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/classrooms/",
+      "module": "academics"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/infrastructure/classrooms/{class_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/infrastructure/classrooms/{class_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/enrollments/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/enrollments/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/all-subject-levels/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/classroom-departments/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/classrooms/{class_id}/subjects/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/classrooms/{class_id}/departments/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/rooms/count/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/infrastructure/enrollments/counts/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/infrastructure/classrooms/{class_id}/subjects/{subject_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/infrastructure/classrooms/{class_id}/subjects/{subject_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hr/employees/",
+      "module": "hr"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/employees/",
+      "module": "hr"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hr/employees/{employee_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/employees/{employee_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/hr/employees/{employee_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hr/contracts/",
+      "module": "hr"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/contracts/",
+      "module": "hr"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/contracts/{contract_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/hr/contracts/{contract_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hr/leave-requests/",
+      "module": "hr"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/leave-requests/",
+      "module": "hr"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/leave-requests/{leave_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/hr/leave-requests/{leave_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hr/payslips/",
+      "module": "hr"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/payslips/",
+      "module": "hr"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/payslips/{payslip_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/hr/payslips/{payslip_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hr/last-employee-number/",
+      "module": "hr"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/hr/teacher-work-hours/",
+      "module": "hr"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/teacher-work-hours/",
+      "module": "hr"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/job-offers/",
+      "module": "hr"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/job-offers/{offer_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/hr/job-offers/{offer_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/job-applications/{application_id}/",
+      "module": "hr"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/career-events/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/career-events/{event_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/hr/career-events/{event_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/alumni-mentors/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/alumni-mentors/{mentor_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/hr/alumni-mentors/{mentor_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/hr/alumni-document-requests/{request_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/hr/alumni-request-history/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/assessments/",
+      "module": "assessments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/assessments/",
+      "module": "assessments"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/school-life/assessments/{assessment_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/school-life/assessments/{assessment_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/grades/",
+      "module": "assessments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/grades/",
+      "module": "assessments"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/school-life/grades/{grade_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/school-life/grades/{grade_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/attendance/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/attendance/",
+      "module": "attendance"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/school-life/attendance/{attendance_id}/",
+      "module": "attendance"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/school-life/attendance/{attendance_id}/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/events/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/events/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/school-life/events/{event_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/school-life/events/{event_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/events/export.ics",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/appointment-slots/appointments/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/school-life/appointment-slots/appointments/{appointment_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/appointment-slots/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/appointment-slots/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/appointment-slots/bulk/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/school-life/appointment-slots/{slot_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/bookable-resources/",
+      "module": "schedule"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/bookable-resources/",
+      "module": "schedule"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/school-life/bookable-resources/{resource_id}/",
+      "module": "schedule"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/school-life/bookable-resources/{resource_id}/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/bookings/",
+      "module": "schedule"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/bookings/",
+      "module": "schedule"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/school-life/bookings/{booking_id}/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/check-ins/sessions/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/check-ins/sessions/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/check-ins/sessions/start/",
+      "module": "attendance"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/school-life/check-ins/sessions/{session_id}/end/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/check-ins/assignments/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/check-ins/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/check-ins/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/check-ins/badges/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/badges/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/students-without-badges/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/event-registrations/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/event-registrations/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/gamification/stats/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/generate-report-card/v2/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/generate-report-card/pdf/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/report-cards/class-summary/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/generate-certificate/pdf/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/generate-report-cards/batch/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/jobs/{job_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/student-cards/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/student-cards/issue/",
+      "module": "attendance"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/school-life/student-cards/{student_id}/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/early-warnings/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/school-life/early-warnings/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/early-warnings/paginated/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-life/early-warnings/summary/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/school-life/early-warnings/{warning_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/kiosk/devices/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/kiosk/devices/",
+      "module": "attendance"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/kiosk/devices/{device_id}/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/kiosk/scan/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/parents/pending/{parent_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/children/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/children-teachers/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/students/{student_id}/parents/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/link/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/parents/link/{link_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/unlinked-students/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/dashboard/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/terms/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/risk-scores/",
+      "module": "ai"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/payment-schedules/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/payments/create/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/payments/webhook/cinetpay/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/payments/webhook/paytech/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/payments/return/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/grades/",
+      "module": "assessments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/report-cards/generate/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/transcript/generate/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/invoices/pdf/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/appointments/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/appointments/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/appointments/{appointment_id}/cancel/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/parents/appointment-slots/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/parents/appointment-slots/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admissions/",
+      "module": "admissions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admissions/",
+      "module": "admissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admissions/stats/",
+      "module": "admissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admissions/{admission_id}/",
+      "module": "admissions"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/admissions/{admission_id}/",
+      "module": "admissions"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/admissions/{admission_id}/",
+      "module": "admissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admissions/{admission_id}/timeline/",
+      "module": "admissions"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/admissions/{admission_id}/status/",
+      "module": "admissions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admissions/{admission_id}/convert/",
+      "module": "admissions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admissions/public/upload-document/",
+      "module": "admissions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admissions/public/apply/",
+      "module": "admissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admissions/public/status/",
+      "module": "admissions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admissions/public/verify-student/",
+      "module": "admissions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admissions/public/reenroll/",
+      "module": "admissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admissions/public/tenant-info/{slug}/",
+      "module": "admissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admissions/reenrollments/mine/",
+      "module": "admissions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admissions/reenrollments/",
+      "module": "admissions"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/schedule/",
+      "module": "schedule"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/schedule/",
+      "module": "schedule"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/schedule/classes/{class_id}/replace/",
+      "module": "schedule"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/schedule/{slot_id}/",
+      "module": "schedule"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/schedule/{slot_id}/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/schedule/{slot_id}/roster/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/announcements/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/communication/announcements/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/communication/announcements/{announcement_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/messaging/users/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/messaging/recipients/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/messaging/teacher-recipients/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/conversations/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/communication/conversations/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/conversations/{conversation_id}/messages/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/communication/conversations/{conversation_id}/messages/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/whatsapp-threads/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/whatsapp-threads/{thread_id}/messages/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/communication/conversations/{conversation_id}/reply-whatsapp/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/messages/{message_id}/reactions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/communication/messages/{message_id}/reactions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/communication/messages/{message_id}/reactions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/messaging/unread-count/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/messaging/poll/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/forums/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/communication/forums/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/forums/post-counts/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/communication/forums/{forum_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/communication/forums/{forum_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/communication/send-notification-email/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/presence/{user_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/conversations/{conversation_id}/typing/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/communication/messages/search/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/my-department/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/members/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/dashboard/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/classrooms/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/students/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/teachers/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/attendance/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/exams/",
+      "module": "assessments"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/department-portal/exams/",
+      "module": "assessments"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/department-portal/exams/{exam_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/department-portal/exams/{exam_id}/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/schedule/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/reports/grades/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/reports/stats/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/department-portal/alerts/send/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/department-portal/alerts/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/department-portal/alerts/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/dashboard/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/document-requests/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/alumni/document-requests/",
+      "module": "student_life"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/alumni/document-requests/{request_id}/cancel/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/document-requests/{request_id}/history/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/careers/jobs/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/careers/mentors/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/careers/events/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/careers/applications/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/alumni/careers/applications/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/mentorship-requests/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/alumni/mentorship-requests/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/messaging/staff-recipients/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/admin/mentors/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/admin/mentorship-requests/",
+      "module": "student_life"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/alumni/admin/mentorship-requests/{request_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/admin/document-requests/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/admin/job-applications/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/alumni/admin/event-registrations/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/categories/",
+      "module": "inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/categories/",
+      "module": "inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/items/",
+      "module": "inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/items/",
+      "module": "inventory"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/inventory/items/{item_id}/",
+      "module": "inventory"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/inventory/items/{item_id}/",
+      "module": "inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/transactions/",
+      "module": "inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/adjust/",
+      "module": "inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/orders/",
+      "module": "inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/orders/",
+      "module": "inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/inventory/orders/{order_id}/items/",
+      "module": "inventory"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/inventory/orders/{order_id}/cancel/",
+      "module": "inventory"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/library/categories/",
+      "module": "library"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/library/categories/",
+      "module": "library"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/library/categories/{category_id}/",
+      "module": "library"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/library/categories/{category_id}/",
+      "module": "library"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/library/resources/",
+      "module": "library"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/library/resources/",
+      "module": "library"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/library/resources/{resource_id}/",
+      "module": "library"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/library/resources/{resource_id}/",
+      "module": "library"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/library/borrow/",
+      "module": "library"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/library/return/",
+      "module": "library"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/library/borrowers/",
+      "module": "library"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/clubs/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/clubs/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/clubs/{club_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/clubs/{club_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/clubs/memberships/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/clubs/memberships/",
+      "module": "student_life"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/clubs/memberships/{membership_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/incidents/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/incidents/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/incidents/{incident_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/incidents/{incident_id}/resolve/",
+      "module": "student_life"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/incidents/{incident_id}/assign/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/surveys/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/surveys/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/surveys/response-counts/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/surveys/{survey_id}/questions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/questions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/surveys/{survey_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/surveys/{survey_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/surveys/{survey_id}/questions/{qid}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/surveys/{survey_id}/questions/{qid}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/surveys/{survey_id}/submit/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/surveys/{survey_id}/results/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/public-pages/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/public-pages/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/public-pages/submissions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/public-pages/submissions/{submission_id}/mark-read/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/public-pages/submissions/{submission_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/public-pages/submissions/export/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/public-pages/nav/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/public-pages/{page_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/public-pages/{page_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/public-pages/{page_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/public-pages/reorder/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/public/{tenant_slug}/pages/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/public/{tenant_slug}/nav/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tenants/public/{tenant_slug}/pages/{page_slug}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tenants/public/{tenant_slug}/submit-form/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/enrollments/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/enrollments/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/enrollments/{enrollment_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/enrollments/{enrollment_id}/transfer/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/enrollments/counts/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/invoices/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/invoices/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/invoices/{invoice_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/invoices/{invoice_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/class-sessions/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/class-sessions/active/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/school-events/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/student-parents/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/student-parents/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/student-parents/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/student-subjects/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/student-subjects/",
+      "module": "academics"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/student-subjects/{subject_id}/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/push-subscriptions/upsert/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/push-subscriptions/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/push-subscriptions/onesignal-link/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/presence/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rooms/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/rooms/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/rooms/{room_id}/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rooms/count/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/classrooms/",
+      "module": "academics"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/classrooms/",
+      "module": "academics"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/schedule-slots/",
+      "module": "schedule"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/achievement-definitions/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/achievement-definitions/",
+      "module": "student_life"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/achievement-definitions/{achievement_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/achievement-definitions/{achievement_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/student-achievements/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/student-achievements/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/gamification/process-event/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/gamification/rules/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/gamification/rules/",
+      "module": "student_life"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/gamification/rules/{rule_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/gamification/rules/{rule_id}/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/gamification/event-logs/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/homework-submissions/",
+      "module": "homework"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/homework-submissions/{submission_id}",
+      "module": "homework"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/grade-history/",
+      "module": "assessments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/shared-notes/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/shared-notes/",
+      "module": "elearning"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/shared-notes/{note_id}",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/shared-note-likes/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/shared-note-likes/",
+      "module": "elearning"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/shared-note-likes/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/shared-note-comments/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/shared-note-comments/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/consent/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/consent/record/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/courses/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/course-discussions/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/course-discussions/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/student-check-ins/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/student-badges/",
+      "module": "attendance"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/student-badges/",
+      "module": "attendance"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/student-badges/{badge_id}/",
+      "module": "attendance"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/trusted-devices/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/trusted-devices/",
+      "module": "common_or_platform"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/point-transactions/",
+      "module": "student_life"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/point-transactions/",
+      "module": "student_life"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/quiz-questions/",
+      "module": "elearning"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quiz-questions/",
+      "module": "elearning"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/quiz-questions/{question_id}/",
+      "module": "elearning"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/subject-preferred-rooms/",
+      "module": "schedule"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/subject-preferred-rooms/",
+      "module": "schedule"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/subject-preferred-rooms/{link_id}/",
+      "module": "schedule"
+    }
+  ]
+}

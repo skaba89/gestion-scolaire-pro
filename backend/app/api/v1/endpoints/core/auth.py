@@ -1126,7 +1126,7 @@ async def register(
 class RegisterSchoolRequest(BaseModel):
     # School info
     school_name: str = Field(..., min_length=2, max_length=255)
-    school_type: str = Field(..., description="primary | middle | high | university | training")
+    school_type: str = Field(..., description="Profil d'établissement du catalogue pédagogique")
     country: str = Field(default="GN", max_length=2)
     # Admin account
     first_name: str = Field(..., min_length=1, max_length=255)
@@ -1140,10 +1140,8 @@ class RegisterSchoolRequest(BaseModel):
     @field_validator("school_type")
     @classmethod
     def validate_type(cls, v: str) -> str:
-        allowed = {"primary", "middle", "high", "university", "training"}
-        if v not in allowed:
-            raise ValueError(f"Type d'établissement invalide. Valeurs acceptées : {', '.join(sorted(allowed))}")
-        return v
+        from app.core.education_catalog import validate_institution_type
+        return validate_institution_type(v)
 
 
 def _slugify(text: str) -> str:
@@ -1290,6 +1288,9 @@ async def register_school(
     )
     db.add(new_user)
     db.flush()
+    from app.services.education_modules import initialize_new_tenant
+    initialize_new_tenant(db, tenant, user_id)
+
 
     user_role = UserRole(
         user_id=user_id,

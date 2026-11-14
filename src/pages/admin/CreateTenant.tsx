@@ -1,3 +1,4 @@
+import { INSTITUTION_TYPES } from "@/lib/education-modules";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -145,14 +146,9 @@ const CreateTenant = () => {
   const { toast } = useToast();
   const { getTenantUrl } = useTenantUrl();
 
-  const TENANT_TYPES = useMemo(() => [
-    { value: "school", label: t("createTenant.types.school") },
-    { value: "primary", label: t("createTenant.types.primary") },
-    { value: "middle", label: t("createTenant.types.middle") },
-    { value: "high", label: t("createTenant.types.high") },
-    { value: "university", label: t("createTenant.types.university") },
-    { value: "training", label: t("createTenant.types.training") },
-  ], [t]);
+  const TENANT_TYPES = useMemo(() => INSTITUTION_TYPES.map(type => ({
+    value: type.value, label: t(`educationModules.profiles.${type.value}`),
+  })), [t]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",

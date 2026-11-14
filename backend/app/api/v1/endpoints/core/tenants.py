@@ -113,6 +113,8 @@ async def create_tenant(
         # subjects) are tenant-scoped: write them under its own RLS context
         # (this route is middleware-exempt, so none is set yet).
         enter_tenant_context_or_404(db, new_tenant.id)
+        from app.services.education_modules import initialize_new_tenant
+        initialize_new_tenant(db, new_tenant, str(current_user["id"]))
 
         # 1. Create Academic Year
         logger.info("Initializing academic year...")
@@ -932,6 +934,8 @@ async def create_tenant_with_admin(
         # Every row below belongs to the new tenant: write under its own RLS
         # context (middleware-exempt route, none is set yet).
         enter_tenant_context_or_404(db, new_tenant.id)
+        from app.services.education_modules import initialize_new_tenant
+        initialize_new_tenant(db, new_tenant, str(current_user["id"]))
 
         # 2. Create Academic Year
         current_year = datetime.now().year
@@ -1815,6 +1819,15 @@ async def update_tenant(
             detail=f"Fields not allowed: {', '.join(sorted(unknown_fields))}"
         )
 
+    if "type" in tenant_updates and tenant_updates["type"] != tenant.type:
+        from app.core.education_catalog import validate_institution_type
+        if tenant.education_modules_configured:
+            raise HTTPException(status_code=409, detail="Modifiez le profil depuis la configuration des modules")
+        try:
+            tenant_updates["type"] = validate_institution_type(tenant_updates["type"])
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+
     # "slug" is allowed here (SUPER_ADMIN only) but this endpoint takes a
     # raw dict + setattr, entirely bypassing the Pydantic schema validators
     # (validate_tenant_slug in app/schemas/tenants.py) that guard slug
@@ -1986,6 +1999,8 @@ async def get_public_tenant_levels(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     enter_tenant_context_or_404(db, tenant.id)
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, tenant.id, "academics")
 
     rows = db.execute(
         text("SELECT id, name, order_index FROM levels WHERE tenant_id = :tid ORDER BY order_index"),

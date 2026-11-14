@@ -1,3 +1,6 @@
+import { INSTITUTION_TYPES } from "@/lib/education-modules";
+import { useEducationModules } from "@/hooks/useEducationModules";
+import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
@@ -16,17 +19,12 @@ import {
 } from "@/components/ui/select";
 import { Building2, Save, Upload } from "lucide-react";
 
-const TENANT_TYPES = [
-  { value: "primary", label: "École Primaire" },
-  { value: "middle", label: "Collège" },
-  { value: "high", label: "Lycée" },
-  { value: "university", label: "Université" },
-  { value: "training", label: "Centre de Formation" },
-];
-
 const EstablishmentSettings = () => {
   const { tenant, setCurrentTenant } = useTenant();
   const { toast } = useToast();
+  const { t } = useTranslation();
+  const policy = useEducationModules();
+  const TENANT_TYPES = INSTITUTION_TYPES;
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -123,6 +121,7 @@ const EstablishmentSettings = () => {
           <div className="space-y-2">
             <Label htmlFor="type">Type d'établissement</Label>
             <Select
+              disabled={policy.data?.mode === "configured" || policy.isLoading || !!policy.error}
               value={formData.type}
               onValueChange={(value) => setFormData({ ...formData, type: value })}
             >
@@ -130,13 +129,15 @@ const EstablishmentSettings = () => {
                 <SelectValue placeholder="Sélectionner le type" />
               </SelectTrigger>
               <SelectContent>
+                {formData.type && !TENANT_TYPES.some(type => type.value === formData.type) && <SelectItem value={formData.type}>{formData.type}</SelectItem>}
                 {TENANT_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
-                    {type.label}
+                    {t(`educationModules.profiles.${type.value}`)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {policy.data?.mode === "configured" && <p className="text-xs text-muted-foreground">{t("educationModules.changeProfileInModules")}</p>}
           </div>
 
           <div className="space-y-2">

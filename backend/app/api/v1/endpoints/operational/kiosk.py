@@ -250,6 +250,8 @@ def kiosk_scan(
     # the device's own tenant (middleware-exempt route — no RLS context yet,
     # under which strict RLS would hide every student).
     enter_tenant_context_or_404(db, device.tenant_id)
+    from app.services.education_modules import require_enabled_module
+    require_enabled_module(db, tenant, "attendance")
 
     direction = body.direction.upper() if body.direction else "IN"
     if direction not in ("IN", "OUT"):
@@ -303,7 +305,10 @@ def kiosk_scan(
             subject = db.execute(text("SELECT name FROM subjects WHERE id = :id"), {"id": slot["subject_id"]}).scalar()
             course_name = subject
 
-    library_overdue_titles = _find_overdue_library_loans(db, tenant_id=device.tenant_id, student=student)
+    from app.services.education_modules import current_configuration
+    _, active_modules = current_configuration(db, tenant)
+    library_overdue_titles = (_find_overdue_library_loans(db, tenant_id=device.tenant_id, student=student)
+                              if "library" in active_modules else [])
 
     db.commit()
 

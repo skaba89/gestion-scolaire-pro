@@ -46,3 +46,13 @@ commercial n'est déclaré respecté sans mesure et accord métier.
 référence. 73/100 était une estimation de suivi. **Score actuel non recalculé** :
 reprendre les neuf domaines de la grille et associer chaque point à une preuve.
 Les 76,87 % de couverture backend PostgreSQL CI ne sont pas un score de maturité.
+
+## Lot modulaire du 14 novembre 2026 — PR #556
+
+Catalogue des neuf profils et moteur de modules au niveau établissement proposés
+sur `feature/modular-education-platform`. Preuves et limites :
+`MODULAR_EDUCATION_VERIFICATION_20261114.md`. Les six contrôles requis du
+SHA courant doivent être verts avant fusion. Aucune opération de production.
+Les cycles ne sont pas encore des périmètres d'autorisation, les compétences
+restent indisponibles et les périodes du catalogue sont indicatives. Ce lot
+n'accorde donc pas le GO national et ne relève pas mécaniquement le score global.

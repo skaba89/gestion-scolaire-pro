@@ -1,3 +1,4 @@
+import { useEducationModules } from "@/hooks/useEducationModules";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useTenant } from "@/contexts/TenantContext";
@@ -34,6 +35,7 @@ interface MobileBottomNavProps {
 }
 
 export const MobileBottomNav = ({ items }: MobileBottomNavProps) => {
+  const { isPathEnabled } = useEducationModules();
   const location = useLocation();
   const { tenant } = useTenant();
 
@@ -41,7 +43,7 @@ export const MobileBottomNav = ({ items }: MobileBottomNavProps) => {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-16 bg-background/80 backdrop-blur-lg border-t z-50 flex items-center justify-around px-2 lg:hidden safe-area-bottom shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-      {items.map((item) => {
+      {items.filter(item => isPathEnabled(item.href)).map((item) => {
         const isActive = location.pathname === item.href || (item.href !== `/${tenant.slug}/admin` && location.pathname.startsWith(item.href));
         return (
           <NavItem

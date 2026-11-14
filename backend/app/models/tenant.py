@@ -1,7 +1,7 @@
 """Tenant model"""
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Column, String, Boolean, JSON, Text, DateTime
+from sqlalchemy import Column, String, Boolean, JSON, Text, DateTime, false
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base, UUIDMixin, TimestampMixin
@@ -27,6 +27,9 @@ class Tenant(Base, UUIDMixin, TimestampMixin):
     website = Column(String(255))
     is_active = Column(Boolean, default=True)
     settings = Column(JSON, default=dict)
+    # Protected server-owned switch. Generic settings/type PATCH cannot turn
+    # enforcement off. Existing tenants keep legacy access until explicit setup.
+    education_modules_configured = Column(Boolean, nullable=False, default=False, server_default=false())
 
     # ── Stripe Billing ─────────────────────────────────────────────────────────
     stripe_customer_id = Column(String(255), nullable=True, index=True)

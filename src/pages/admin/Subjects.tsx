@@ -1,3 +1,4 @@
+import { useEducationModules } from "@/hooks/useEducationModules";
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useTenant } from "@/contexts/TenantContext";
@@ -42,6 +43,8 @@ import { SubjectFormDialog, SubjectFormValues } from "@/components/subjects/Subj
 const Subjects = () => {
   const { t } = useTranslation();
   const { tenant } = useTenant();
+  const { isModuleEnabled } = useEducationModules();
+  const lmdEnabled = isModuleEnabled("lmd");
   const { isAdmin, hasRole, roles } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -89,8 +92,8 @@ const Subjects = () => {
   const { data: classSubjectIds = [] } = useClassSubjects(selectedClass);
   const { data: selectedLevelIds = [] } = useSubjectLevels(selectedSubject?.id);
   const { data: editingSubjectDeptIds = [] } = useSubjectDepartmentAssociations(editingSubject?.id, tenant?.id);
-  const { data: editingSubjectPrerequisiteIds = [] } = useSubjectPrerequisites(editingSubject?.id, tenant?.id);
-  const { data: semesters = [] } = useSemesters(tenant?.id);
+  const { data: editingSubjectPrerequisiteIds = [] } = useSubjectPrerequisites(lmdEnabled ? editingSubject?.id : undefined, tenant?.id);
+  const { data: semesters = [] } = useSemesters(lmdEnabled ? tenant?.id : undefined);
 
   // Mutations
   const createMutation = useCreateSubject();
@@ -122,12 +125,11 @@ const Subjects = () => {
       name: formData.name,
       code: formData.code || null,
       coefficient: parseFloat(formData.coefficient) || 1,
-      ects: parseFloat(formData.ects) || 0,
+      ...(lmdEnabled ? { ects: parseFloat(formData.ects) || 0, semester_id: formData.semester_id || null } : {}),
       cm_hours: parseInt(formData.cm_hours) || 0,
       td_hours: parseInt(formData.td_hours) || 0,
       tp_hours: parseInt(formData.tp_hours) || 0,
       description: formData.description || null,
-      semester_id: formData.semester_id || null,
     };
 
     try {
@@ -136,13 +138,13 @@ const Subjects = () => {
           id: editingSubject.id,
           updates: payload,
           departmentIds: deptIds,
-          prerequisiteSubjectIds: prerequisiteIds,
+          prerequisiteSubjectIds: lmdEnabled ? prerequisiteIds : undefined,
         });
       } else {
         await createMutation.mutateAsync({
           subject: { ...payload, tenant_id: tenant.id },
           departmentIds: deptIds,
-          prerequisiteSubjectIds: prerequisiteIds,
+          prerequisiteSubjectIds: lmdEnabled ? prerequisiteIds : undefined,
         });
       }
       setFormDialogOpen(false);

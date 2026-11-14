@@ -1,3 +1,4 @@
+import { EducationModuleGate, EducationModuleFeature } from "@/components/EducationModuleGate";
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -65,7 +66,7 @@ export function AlumniLayout() {
         <AnimatePresence mode="wait">
           <PageTransition key={location.pathname}>
             <div className="page-container">
-              <Outlet />
+              <EducationModuleGate><Outlet /></EducationModuleGate>
             </div>
           </PageTransition>
         </AnimatePresence>
