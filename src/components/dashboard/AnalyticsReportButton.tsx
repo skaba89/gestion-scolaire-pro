@@ -7,8 +7,10 @@ import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { FileText, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 export const AnalyticsReportButton = () => {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const { profile } = useAuth();
     const { currency } = useCurrency();
@@ -56,10 +58,10 @@ export const AnalyticsReportButton = () => {
                 }
             });
 
-            toast.success("Rapport généré avec succès");
+            toast.success(t("reportButton.success"));
         } catch (error) {
             console.error("Export error:", error);
-            toast.error("Erreur lors de la génération du rapport");
+            toast.error(t("reportButton.error"));
         } finally {
             setIsGenerating(false);
         }
@@ -78,7 +80,7 @@ export const AnalyticsReportButton = () => {
             ) : (
                 <Download className="w-4 h-4" />
             )}
-            Exporter le Rapport (PDF)
+            {t("reportButton.label")}
         </Button>
     );
 };

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar, Legend } from "recharts";
 import { Activity, BarChart3 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface AttendanceTrendData {
     date: string;
@@ -14,15 +15,16 @@ interface AnalyticsAttendanceTabProps {
 }
 
 export const AnalyticsAttendanceTab = ({ data }: AnalyticsAttendanceTabProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid lg:grid-cols-2 gap-6">
             <Card className="shadow-sm">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
                         <Activity className="w-5 h-5 text-primary" />
-                        Évolution du Taux de Présence
+                        {t("adminAnalytics.attendance.trend")}
                     </CardTitle>
-                    <CardDescription>Tendance sur la période sélectionnée</CardDescription>
+                    <CardDescription>{t("adminAnalytics.attendance.trendHint")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">
@@ -45,7 +47,7 @@ export const AnalyticsAttendanceTab = ({ data }: AnalyticsAttendanceTabProps) =>
                                             borderRadius: "8px",
                                             boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
                                         }}
-                                        formatter={(value: number) => [`${value}%`, "Taux"]}
+                                        formatter={(value: number) => [`${value}%`, t("adminAnalytics.attendance.rate")]}
                                     />
                                     <Area
                                         type="monotone"
@@ -58,7 +60,7 @@ export const AnalyticsAttendanceTab = ({ data }: AnalyticsAttendanceTabProps) =>
                             </ResponsiveContainer>
                         ) : (
                             <div className="h-full flex items-center justify-center text-muted-foreground italic">
-                                Aucune donnée disponible
+                                {t("adminAnalytics.noData")}
                             </div>
                         )}
                     </div>
@@ -69,9 +71,9 @@ export const AnalyticsAttendanceTab = ({ data }: AnalyticsAttendanceTabProps) =>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-lg">
                         <BarChart3 className="w-5 h-5 text-primary" />
-                        Présents vs Absents
+                        {t("adminAnalytics.attendance.presentVsAbsent")}
                     </CardTitle>
-                    <CardDescription>Comparaison quotidienne</CardDescription>
+                    <CardDescription>{t("adminAnalytics.attendance.daily")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="h-72">
@@ -90,13 +92,13 @@ export const AnalyticsAttendanceTab = ({ data }: AnalyticsAttendanceTabProps) =>
                                         }}
                                     />
                                     <Legend iconType="circle" />
-                                    <Bar dataKey="présents" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} />
-                                    <Bar dataKey="absents" fill="hsl(0, 84%, 60%)" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="présents" fill="hsl(142, 76%, 36%)" radius={[4, 4, 0, 0]} name={t("adminAnalytics.attendance.present")} />
+                                    <Bar dataKey="absents" fill="hsl(0, 84%, 60%)" radius={[4, 4, 0, 0]} name={t("adminAnalytics.attendance.absent")} />
                                 </BarChart>
                             </ResponsiveContainer>
                         ) : (
                             <div className="h-full flex items-center justify-center text-muted-foreground italic">
-                                Aucune donnée disponible
+                                {t("adminAnalytics.noData")}
                             </div>
                         )}
                     </div>

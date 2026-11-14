@@ -111,6 +111,9 @@ function scoreColor(score: number) {
 
 // ── Print rapport as HTML popup ────────────────────────────────────────────────
 
+// i18n-official-start : déclaration statistique officielle du MEN guinéen,
+// document administratif rédigé en français quelle que soit la langue de
+// l'interface (garde no-hardcoded-text : zone exclue).
 function printRapport(data: RapportData) {
   const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -225,6 +228,7 @@ ${data.effectifs_par_niveau.length > 0 ? `
   win.focus();
   setTimeout(() => win.print(), 500);
 }
+// i18n-official-end
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
@@ -326,7 +330,7 @@ export default function MinistryDashboard() {
       const r = await apiClient.get("/tenants/men-guinea/rapport/");
       printRapport(r.data);
     } catch (err: any) {
-      toastService.error("Erreur", err.response?.data?.detail || err.message);
+      toastService.error(t("ministryDashboard.error"), err.response?.data?.detail || err.message);
     }
   };
 
@@ -361,7 +365,7 @@ export default function MinistryDashboard() {
             <ShieldCheck className="h-7 w-7 text-primary" />
             {t("ministryDashboard.title")}
             <Badge variant="outline" className="ml-2 text-xs border-green-500 text-green-700 bg-green-50">
-              🇬🇳 Guinée
+              {t("ministryDashboard.guinea")}
             </Badge>
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -503,7 +507,7 @@ export default function MinistryDashboard() {
                             const girlRate = row.total > 0 ? Math.round(row.female / row.total * 100) : 0;
                             return (
                               <tr key={row.level} className="border-b last:border-0 hover:bg-muted/30">
-                                <td className="py-2 font-medium">{row.level}</td>
+                                <td className="py-2 font-medium">{row.level === "Non défini" ? t("ministryDashboard.undefinedLevel") : row.level}</td>
                                 <td className="py-2 text-right font-bold">{row.total}</td>
                                 <td className="py-2 text-right text-blue-600">{row.male}</td>
                                 <td className="py-2 text-right text-pink-600">{row.female}</td>
@@ -659,7 +663,7 @@ export default function MinistryDashboard() {
                     </Label>
                     <Input
                       id="numero_agrement"
-                      placeholder="ex: AG/MEN/2024/001"
+                      placeholder={t("ministryDashboard.example", { value: "AG/MEN/2024/001" })}
                       value={merged.numero_agrement || ""}
                       onChange={e => setField("numero_agrement", e.target.value)}
                     />
@@ -749,7 +753,7 @@ export default function MinistryDashboard() {
                     </Label>
                     <Input
                       id="prefecture"
-                      placeholder="ex: Matam, Ratoma, Kindia..."
+                      placeholder={t("ministryDashboard.example", { value: "Matam, Ratoma, Kindia..." })}
                       value={merged.prefecture || ""}
                       onChange={e => setField("prefecture", e.target.value)}
                     />
@@ -758,7 +762,7 @@ export default function MinistryDashboard() {
                     <Label htmlFor="commune" className="text-xs">{t("ministryDashboard.fieldCommune")}</Label>
                     <Input
                       id="commune"
-                      placeholder="ex: Hamdallaye, Madina..."
+                      placeholder={t("ministryDashboard.example", { value: "Hamdallaye, Madina..." })}
                       value={merged.commune || ""}
                       onChange={e => setField("commune", e.target.value)}
                     />
@@ -770,7 +774,7 @@ export default function MinistryDashboard() {
                     </Label>
                     <Input
                       id="inspection_district"
-                      placeholder="ex: DPE Ratoma, IRE Kindia..."
+                      placeholder={t("ministryDashboard.example", { value: "DPE Ratoma, IRE Kindia..." })}
                       value={merged.inspection_district || ""}
                       onChange={e => setField("inspection_district", e.target.value)}
                     />
@@ -795,7 +799,7 @@ export default function MinistryDashboard() {
                       id="capacite_accueil"
                       type="number"
                       min={0}
-                      placeholder="ex: 500"
+                      placeholder={t("ministryDashboard.example", { value: "500" })}
                       value={merged.capacite_accueil || ""}
                       onChange={e => setField("capacite_accueil", e.target.value)}
                     />
@@ -808,7 +812,7 @@ export default function MinistryDashboard() {
                       id="nombre_salles"
                       type="number"
                       min={0}
-                      placeholder="ex: 12"
+                      placeholder={t("ministryDashboard.example", { value: "12" })}
                       value={merged.nombre_salles || ""}
                       onChange={e => setField("nombre_salles", e.target.value)}
                     />

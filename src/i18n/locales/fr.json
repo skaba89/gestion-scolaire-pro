@@ -1208,7 +1208,11 @@
             "complianceTitle": "Conformité MEN Guinée",
             "complianceContent": "Renseignez les informations officielles requises par le Ministère de l'Éducation Nationale."
         },
-        "whyReason": "Raison"
+        "whyReason": "Raison",
+        "example": "ex : {{value}}",
+        "guinea": "🇬🇳 Guinée",
+        "error": "Erreur",
+        "undefinedLevel": "Non défini"
     },
     "executiveDashboard": {
         "forecastSuccess": "Prévisions générées avec succès",
@@ -1815,6 +1819,40 @@
             "bandsTitle": "Moyennes des élèves signalés",
             "bandsDescription": "Répartition par tranche de moyenne (sur 20)",
             "studentsSeries": "Élèves"
+        },
+        "risk": {
+            "high": "Risque élevé",
+            "medium": "Risque moyen",
+            "low": "Risque faible"
+        },
+        "pdfDone": "Rapport PDF généré avec succès",
+        "pdfError": "Erreur lors de la génération du PDF",
+        "exportPdf": "Exporter PDF",
+        "alertParents": "Alerter parents ({{count}})",
+        "noHighRisk": "Aucun étudiant à risque élevé - pas d'alertes à envoyer",
+        "sending": "Envoi de {{count}} alertes aux parents...",
+        "sent": "{{count}} alertes envoyées avec succès",
+        "sendError": "Erreur lors de l'envoi des alertes",
+        "refresh": "Actualiser",
+        "assistant": {
+            "title": "Assistant IA Éducatif",
+            "subtitle": "Posez des questions sur les performances, tendances et recommandations basées sur vos données",
+            "clear": "Effacer",
+            "intro": "Je peux analyser vos données scolaires. Essayez :",
+            "q1": "Quels sont les principaux facteurs de décrochage ?",
+            "q1Label": "⚠️ Facteurs de décrochage",
+            "q2": "Comment améliorer la moyenne en Mathématiques ?",
+            "q2Label": "📈 Améliorer les résultats",
+            "q3": "Rédige un message pour les parents des {{label}} absents.",
+            "q3Label": "✉️ Message aux parents",
+            "placeholder": "Posez une question à l'IA...",
+            "language": "français"
+        },
+        "riskList": {
+            "filter": "Filtrer par classe",
+            "allClasses": "Toutes les classes",
+            "excellent": "Excellentes performances !",
+            "none": "Aucun étudiant à risque détecté"
         }
     },
     "admissions": {
@@ -2602,7 +2640,9 @@
         "activeBeneficiaries": "Bénéficiaires actifs",
         "pendingBills": "Factures en attente",
         "cashFlow": "Flux de Trésorerie",
-        "cashFlowDesc": "Évolution mensuelle des entrées et sorties"
+        "cashFlowDesc": "Évolution mensuelle des entrées et sorties",
+        "collectedSuffix": "{{rate}} % recouvrés",
+        "cashedSuffix": "{{amount}} encaissés"
     },
     "earlyWarnings": {
         "pageTitle": "Alertes Précoces",
@@ -4116,6 +4156,150 @@
                 "indicator": "Indicateur",
                 "value": "Valeur"
             }
+        }
+    },
+    "adminDashboard": {
+        "attendanceRate30": "Taux de présence (30j)",
+        "overallAverage": "Moyenne générale",
+        "headcountByLevel": "Effectifs par Niveau ({{label}})",
+        "noEnrollmentData": "Aucune donnée d'inscription disponible",
+        "attendanceBreakdown": "Répartition des Présences (30 derniers jours)",
+        "noAttendanceData": "Aucune donnée de présence disponible",
+        "classAverages": "Moyennes par Classe",
+        "average": "Moyenne",
+        "noGrades": "Aucune note disponible"
+    },
+    "onboarding": {
+        "steps": {
+            "welcome": {
+                "title": "Bienvenue sur votre espace !",
+                "description": "Découvrez comment gérer efficacement votre établissement scolaire avec notre plateforme complète."
+            },
+            "students": {
+                "title": "Gestion des étudiants",
+                "description": "Gérez les inscriptions, suivez les présences et consultez les dossiers étudiants en quelques clics."
+            },
+            "courses": {
+                "title": "Cours et programmes",
+                "description": "Organisez vos cours, créez des emplois du temps et suivez la progression académique."
+            },
+            "analytics": {
+                "title": "Analyses et rapports",
+                "description": "Obtenez des insights détaillés sur les performances et tendances de votre établissement."
+            },
+            "messages": {
+                "title": "Communication intégrée",
+                "description": "Communiquez facilement avec les parents, enseignants et étudiants via notre messagerie."
+            },
+            "settings": {
+                "title": "Personnalisez votre espace",
+                "description": "Configurez les paramètres selon vos besoins et personnalisez votre tableau de bord."
+            }
+        },
+        "previous": "Précédent",
+        "skip": "Passer",
+        "finish": "Terminer",
+        "next": "Suivant"
+    },
+    "securityAlerts": {
+        "title": "Alertes de Sécurité",
+        "systemOk": "Sécurité Système",
+        "noThreat": "Aucune menace critique détectée récemment.",
+        "pending": "{{count}} incident(s) critique(s) en attente de revue",
+        "critical": "Critique",
+        "system": "Système",
+        "unknownBrowser": "Navigateur Inconnu"
+    },
+    "riskWidget": {
+        "title": "Réussite Académique",
+        "runAnalysis": "Lancer l'analyse IA",
+        "ready": "Prêt pour l'analyse",
+        "readyHint": "L'IA est prête à analyser les performances.",
+        "analyzing": "Analyse...",
+        "run": "Lancer l'IA",
+        "na": "N/D",
+        "critical": "CRITIQUE",
+        "atRisk": "À RISQUE",
+        "photo": "Photo de l'élève"
+    },
+    "reportButton": {
+        "success": "Rapport généré avec succès",
+        "error": "Erreur lors de la génération du rapport",
+        "label": "Exporter le Rapport (PDF)"
+    },
+    "adminAnalytics": {
+        "tabs": {
+            "attendance": "Assiduité",
+            "grades": "Notes",
+            "finances": "Finances",
+            "ai": "Analyse IA"
+        },
+        "ai": {
+            "done": "Analyse IA terminée avec succès",
+            "failed": "Échec de l'analyse IA : {{message}}",
+            "title": "Analyse Prédictive IA",
+            "subtitle": "Identification proactive des {{label}} en difficulté basée sur les performances, l'assiduité et le comportement.",
+            "calculating": "Calcul en cours...",
+            "recalculate": "Recalculer les scores",
+            "distribution": "Répartition des Risques",
+            "distributionHint": "Vue d'ensemble du niveau d'alerte global",
+            "noScore": "Aucun score calculé",
+            "priority": "{{label}} avec Alerte Critique ou Élevée",
+            "priorityHint": "Actions recommandées pour les profils prioritaires",
+            "riskLevel": "Niveau de Risque",
+            "average": "Moyenne",
+            "summary": "Analyse Synthétique",
+            "gradeCount": "{{avg}}/20 ({{count}} notes)",
+            "lowAverage": "L'IA détecte une moyenne globale faible ({{avg}}). Un entretien pédagogique est conseillé pour comprendre les difficultés rencontrées en cours.",
+            "noHighRisk": "Aucun élève à haut risque identifié."
+        },
+        "risk": {
+            "critical": "Critique",
+            "high": "Élevé",
+            "moderate": "Modéré",
+            "low": "Faible"
+        },
+        "attendance": {
+            "trend": "Évolution du Taux de Présence",
+            "trendHint": "Tendance sur la période sélectionnée",
+            "rate": "Taux",
+            "presentVsAbsent": "Présents vs Absents",
+            "daily": "Comparaison quotidienne",
+            "present": "Présents",
+            "absent": "Absents"
+        },
+        "noData": "Aucune donnée disponible",
+        "finances": {
+            "revenue": "Évolution des Recettes",
+            "revenueHint": "Paiements reçus sur les 12 derniers mois",
+            "billed": "Total facturation",
+            "collected": "Montant encaissé",
+            "outstanding": "Reste à recouvrer"
+        },
+        "grades": {
+            "distribution": "Distribution des Notes",
+            "distributionHint": "Répartition par tranches de 0 à 20",
+            "bySubject": "Moyennes par Matière",
+            "bySubjectHint": "Top 10 des matières les plus performantes",
+            "average": "Moyenne"
+        },
+        "header": {
+            "period": "Période",
+            "week": "Derniers 7 jours",
+            "month": "Derniers 30 jours",
+            "year": "Derniers 12 mois",
+            "export": "Exporter"
+        },
+        "kpi": {
+            "attendance": "Taux de présence",
+            "average": "Moyenne générale",
+            "collection": "Taux recouvrement"
+        },
+        "secondary": {
+            "teachers": "Enseignants",
+            "classes": "Classes",
+            "collected": "Encaissé",
+            "pending": "En attente"
         }
     },
     "studentsAdmin": {

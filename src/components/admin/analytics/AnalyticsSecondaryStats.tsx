@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { GraduationCap, BookOpen, TrendingUp, TrendingDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface AnalyticsSecondaryStatsProps {
     teacherCount: number;
@@ -16,6 +17,7 @@ export const AnalyticsSecondaryStats = ({
     pendingRevenue,
     formatCurrency
 }: AnalyticsSecondaryStatsProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card className="bg-muted/30 border-none">
@@ -24,7 +26,7 @@ export const AnalyticsSecondaryStats = ({
                         <GraduationCap className="w-5 h-5 text-muted-foreground" />
                         <div>
                             <p className="text-lg font-semibold">{teacherCount || 0}</p>
-                            <p className="text-xs text-muted-foreground">Enseignants</p>
+                            <p className="text-xs text-muted-foreground">{t("adminAnalytics.secondary.teachers")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -35,7 +37,7 @@ export const AnalyticsSecondaryStats = ({
                         <BookOpen className="w-5 h-5 text-muted-foreground" />
                         <div>
                             <p className="text-lg font-semibold">{classroomCount || 0}</p>
-                            <p className="text-xs text-muted-foreground">Classes</p>
+                            <p className="text-xs text-muted-foreground">{t("adminAnalytics.secondary.classes")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -46,7 +48,7 @@ export const AnalyticsSecondaryStats = ({
                         <TrendingUp className="w-5 h-5 text-green-600" />
                         <div>
                             <p className="text-lg font-semibold">{formatCurrency(collectedRevenue || 0)}</p>
-                            <p className="text-xs text-muted-foreground">Encaissé</p>
+                            <p className="text-xs text-muted-foreground">{t("adminAnalytics.secondary.collected")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -57,7 +59,7 @@ export const AnalyticsSecondaryStats = ({
                         <TrendingDown className="w-5 h-5 text-red-600" />
                         <div>
                             <p className="text-lg font-semibold">{formatCurrency(pendingRevenue || 0)}</p>
-                            <p className="text-xs text-muted-foreground">En attente</p>
+                            <p className="text-xs text-muted-foreground">{t("adminAnalytics.secondary.pending")}</p>
                         </div>
                     </div>
                 </CardContent>

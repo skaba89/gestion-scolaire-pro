@@ -1121,6 +1121,17 @@ ce fichier — pas d'un document de 2025 non révisé.
   (`useDepartment`) traduites ; jours du calendrier et en-têtes des exports
   CSV dans la langue de l'interface. Tous les portails hors administration
   sont désormais traduits ; reste : pages admin (≈ 560 textes).
+- **2026-11-13 — administration, lot 1 traduit (tableau de bord et
+  analyses).** Tableau de bord admin, analyses (onglets assiduité, notes,
+  finances, IA), analyse IA (assistant, liste des élèves à risque, actions),
+  aide à la décision et reporting institutionnel : ≈ 140 clés dans les
+  5 langues ; l'assistant IA répond dans la langue de l'interface. Restent en
+  français, délimités par des marqueurs reconnus par la garde
+  (`i18n-official-*`, `i18n-ignore-*`) : la déclaration statistique
+  officielle du MEN guinéen et le contenu du rapport PDF d'analyse IA (les
+  polices par défaut de jsPDF n'ont ni l'arabe ni le chinois). Constat hors
+  traduction : le bouton « Alerter parents » de l'analyse IA simule l'envoi
+  (aucun message n'est réellement envoyé) — à corriger ou retirer.
 - **2026-11-14 — administration, lot 2a traduit (admissions, élèves,
   inscriptions).** Pages Admissions, Élèves, Listes de classe et Inscriptions
   et leurs composants (tableau et filtres d'élèves, fiche détaillée et ses

@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface RiskLevelBadgeProps {
     level: "high" | "medium" | "low";
@@ -8,6 +9,7 @@ interface RiskLevelBadgeProps {
 }
 
 export const RiskLevelBadge = ({ level, className, children }: RiskLevelBadgeProps) => {
+    const { t } = useTranslation();
     const riskLevelColors = {
         high: "bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20",
         medium: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20 hover:bg-yellow-500/20",
@@ -15,9 +17,9 @@ export const RiskLevelBadge = ({ level, className, children }: RiskLevelBadgePro
     };
 
     const labels = {
-        high: "Risque élevé",
-        medium: "Risque moyen",
-        low: "Risque faible",
+        high: t("aiInsights.risk.high"),
+        medium: t("aiInsights.risk.medium"),
+        low: t("aiInsights.risk.low"),
     };
 
     return (

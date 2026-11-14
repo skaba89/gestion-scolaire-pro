@@ -47,8 +47,8 @@ export const dashboardQueries = {
                     count: c.total_students || 0
                 })),
                 attendanceStats: [
-                    { name: 'Présents', value: attendanceRate, percentage: attendanceRate },
-                    { name: 'Absents', value: 100 - attendanceRate, percentage: 100 - attendanceRate }
+                    { key: 'present', name: 'Présents', value: attendanceRate, percentage: attendanceRate },
+                    { key: 'absent', name: 'Absents', value: 100 - attendanceRate, percentage: 100 - attendanceRate }
                 ],
                 classAverages: (academicStats.data.byClass || []).map((c: any) => ({
                     name: c.name || c.class_name,

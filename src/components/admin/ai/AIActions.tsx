@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Download, Bell, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { StudentRisk, Prediction, Recommendation } from "@/types/ai";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface AIActionsProps {
     tenantName?: string;
@@ -15,10 +16,13 @@ interface AIActionsProps {
 }
 
 export function AIActions({ tenantName, studentRisks, predictions, recommendations, onRefresh, isAnalyzing }: AIActionsProps) {
+  const { t } = useTranslation();
 
     const handleExportPDF = async () => {
         try {
             // jspdf (~600 kB) est chargé au clic seulement, pas avec la page.
+            // i18n-ignore-start : contenu du PDF laissé en français — les polices
+            // par défaut de jsPDF ne contiennent ni l'arabe ni le chinois.
             const [{ jsPDF }, { default: autoTable }] = await Promise.all([
                 import("jspdf"),
                 import("jspdf-autotable"),
@@ -34,7 +38,7 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
             doc.setFontSize(10);
             doc.setTextColor(100);
             doc.text(`Établissement : ${tenantName || "Non défini"}`, 14, 25);
-            doc.text(`Date : ${format(new Date(), "dd MMMM yyyy à HH:mm", { locale: fr })}`, 14, 30);
+            doc.text(`Date : ${format(new Date(), "dd MMMM yyyy à HH:mm", { locale: dateFnsLocale() })}`, 14, 30);
 
             doc.line(14, 35, pageWidth - 14, 35);
 
@@ -112,25 +116,26 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
             }
 
             doc.save(`rapport-ia-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-            toast.success("Rapport PDF généré avec succès");
+            // i18n-ignore-end
+            toast.success(t("aiInsights.pdfDone"));
         } catch (error) {
             console.error("PDF Export Error:", error);
-            toast.error("Erreur lors de la génération du PDF");
+            toast.error(t("aiInsights.pdfError"));
         }
     };
 
     const handleSendAlerts = () => {
         const highRiskCount = studentRisks.filter(s => s.riskLevel === "high").length;
         if (highRiskCount === 0) {
-            toast.info("Aucun étudiant à risque élevé - pas d'alertes à envoyer");
+            toast.info(t("aiInsights.noHighRisk"));
             return;
         }
         toast.promise(
             new Promise((resolve) => setTimeout(resolve, 2000)),
             {
-                loading: `Envoi de ${highRiskCount} alertes aux parents...`,
-                success: `${highRiskCount} alertes envoyées avec succès`,
-                error: "Erreur lors de l'envoi des alertes",
+                loading: t("aiInsights.sending", { count: highRiskCount }),
+                success: t("aiInsights.sent", { count: highRiskCount }),
+                error: t("aiInsights.sendError"),
             }
         );
     };
@@ -141,7 +146,7 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
         <div className="flex gap-2">
             <Button variant="outline" onClick={handleExportPDF}>
                 <Download className="mr-2 h-4 w-4" />
-                Exporter PDF
+                {t("aiInsights.exportPdf")}
             </Button>
             <Button
                 variant="outline"
@@ -149,11 +154,11 @@ export function AIActions({ tenantName, studentRisks, predictions, recommendatio
                 className={highRiskCount > 0 ? "border-orange-500/50 text-orange-600 hover:bg-orange-50" : ""}
             >
                 <Bell className="mr-2 h-4 w-4" />
-                Alerter parents ({highRiskCount})
+                {t("aiInsights.alertParents", { count: highRiskCount })}
             </Button>
             <Button onClick={onRefresh} disabled={isAnalyzing}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isAnalyzing ? "animate-spin" : ""}`} />
-                Actualiser
+                {t("aiInsights.refresh")}
             </Button>
         </div>
     );

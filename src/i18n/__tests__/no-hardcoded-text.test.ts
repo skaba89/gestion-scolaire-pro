@@ -34,6 +34,19 @@ const GUARDED = [
     "src/features/homework/components",
     "src/pages/department",
     "src/components/dashboard/DepartmentDashboardCharts.tsx",
+    "src/pages/admin/Dashboard.tsx",
+    "src/pages/admin/Analytics.tsx",
+    "src/pages/admin/AIInsights.tsx",
+    "src/pages/admin/DecisionDashboard.tsx",
+    "src/pages/admin/MinistryDashboard.tsx",
+    "src/components/dashboard/DashboardCharts.tsx",
+    "src/components/dashboard/DashboardSkeleton.tsx",
+    "src/components/onboarding/OnboardingTour.tsx",
+    "src/components/admin/security/SecurityAlerts.tsx",
+    "src/components/dashboard/widgets/StudentsAtRiskWidget.tsx",
+    "src/components/dashboard/AnalyticsReportButton.tsx",
+    "src/components/admin/analytics",
+    "src/components/admin/ai",
     "src/pages/admin/Admissions.tsx",
     "src/pages/admin/Students.tsx",
     "src/pages/admin/ClassLists.tsx",
@@ -66,6 +79,11 @@ function files(target: string): string[] {
 const WORD = /[A-Za-zÀ-ÿ]{3,}/;
 function findings(source: string): string[] {
     const code = source
+        // Documents officiels rédigés en français (ex. déclaration MEN) :
+        // zone délimitée par i18n-official-start / i18n-official-end.
+        .replace(/i18n-official-start[\s\S]*?i18n-official-end/g, "")
+        // Contenu volontairement non traduit, avec sa raison en commentaire.
+        .replace(/i18n-ignore-start[\s\S]*?i18n-ignore-end/g, "")
         .replace(/^import[\s\S]*?;$/gm, "")
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")

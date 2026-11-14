@@ -116,9 +116,10 @@ class TestDeleteProgram:
         with SessionLocal() as db:
             assert db.query(Program).filter(Program.id == program_id).first() is not None
 
-    def test_deleting_program_nulls_classroom_link_instead_of_cascading(self):
-        """Classroom.program_id is ON DELETE SET NULL — deleting a program
-        must not take its classrooms down with it."""
+    def test_program_used_by_a_classroom_is_kept_and_classroom_stays_attached(self):
+        """Classroom.program_id is ON DELETE SET NULL: deleting a program in
+        use would silently detach its classrooms (STRUCT-DELETE-01). The
+        deletion is refused and neither the classroom nor its link is lost."""
         tenant_id, program_id = _make_tenant_and_program("Génie Informatique")
         classroom_id = str(uuid.uuid4())
         with SessionLocal() as db:
@@ -126,9 +127,10 @@ class TestDeleteProgram:
             db.commit()
 
         resp = client.delete(f"{URL}{program_id}/", headers=_as(tenant_id))
-        assert resp.status_code == 204
+        assert resp.status_code == 409, resp.text
 
         with SessionLocal() as db:
             classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
             assert classroom is not None
-            assert classroom.program_id is None
+            assert str(classroom.program_id) == str(program_id)
+            assert db.query(Program).filter(Program.id == program_id).first() is not None

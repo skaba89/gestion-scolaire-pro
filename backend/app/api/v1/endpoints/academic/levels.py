@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import academic as crud_academic
+from app.api.v1.endpoints.academic._structure_delete import structure_delete_guard
 from app.schemas.academic import Level, LevelCreate, LevelUpdate, Subject
 import logging
 
@@ -84,7 +85,8 @@ def delete_level(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
-    success = crud_academic.delete_level(db, level_id, tenant_id=tenant_id)
+    with structure_delete_guard(db, "Ce niveau est utilisé (classes, candidatures ou cours) et ne peut pas être supprimé ; réaffectez d'abord ces éléments."):
+        success = crud_academic.delete_level(db, level_id, tenant_id=tenant_id)
     if not success:
         raise HTTPException(status_code=404, detail="Level not found")
     return None
