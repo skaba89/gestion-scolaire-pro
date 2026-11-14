@@ -800,6 +800,13 @@ def _check_semester_progression_or_raise(
     that hasn't opted into per-semester subjects) is entirely unaffected."""
     if not subject_ids:
         return
+    from app.models.subject import Subject
+    from app.services.education_modules import require_tenant_module
+    if subject_ids and db.query(Subject.id).filter(
+        Subject.tenant_id == tenant_id, Subject.id.in_(subject_ids),
+        (Subject.semester_id.is_not(None) | (Subject.ects > 0)),
+    ).first():
+        require_tenant_module(db, tenant_id, "lmd")
     from app.services.progression import check_semester_progression_eligibility
 
     stmt = text(

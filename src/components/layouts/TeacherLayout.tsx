@@ -1,3 +1,4 @@
+import { EducationModuleGate, EducationModuleFeature } from "@/components/EducationModuleGate";
 import { Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
@@ -65,7 +66,7 @@ export const TeacherLayout = () => {
         <AnimatePresence mode="wait">
           <PageTransition key={location.pathname}>
             <div className="page-container">
-              <Outlet />
+              <EducationModuleGate><Outlet /></EducationModuleGate>
             </div>
           </PageTransition>
         </AnimatePresence>
@@ -75,7 +76,7 @@ export const TeacherLayout = () => {
       <MobileBottomNav items={mobileNavItems} />
 
       {/* ChatBot */}
-      <ChatBot />
+      <EducationModuleFeature module="ai"><ChatBot /></EducationModuleFeature>
     </div>
   );
 };

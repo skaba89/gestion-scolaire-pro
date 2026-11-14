@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from uuid import UUID
 from datetime import datetime
+from app.core.education_catalog import VALID_INSTITUTION_TYPES, validate_institution_type
 
 # Le slug devient le segment d'URL /:tenantSlug qui identifie
 # l'établissement dans toute l'app (login, pages publiques, annuaire —
@@ -55,7 +56,7 @@ class TenantBase(BaseModel):
 # exact set. Both CreateTenant.tsx and CreateTenantWithAdmin.tsx (the only
 # two UIs that hit this endpoint) already only ever send one of these five
 # values, so this closes the gap without touching any real usage.
-VALID_TENANT_TYPES = {"primary", "middle", "high", "university", "training"}
+VALID_TENANT_TYPES = VALID_INSTITUTION_TYPES
 
 
 class TenantCreate(TenantBase):
@@ -74,11 +75,7 @@ class TenantCreate(TenantBase):
     @field_validator("type")
     @classmethod
     def _validate_type(cls, v: str) -> str:
-        if v not in VALID_TENANT_TYPES:
-            raise ValueError(
-                f"Type d'établissement invalide. Valeurs acceptées : {', '.join(sorted(VALID_TENANT_TYPES))}"
-            )
-        return v
+        return validate_institution_type(v)
 
 
 class TenantUpdate(BaseModel):
@@ -139,11 +136,7 @@ class TenantWithAdminCreate(BaseModel):
     @field_validator("type")
     @classmethod
     def _validate_type(cls, v: str) -> str:
-        if v not in VALID_TENANT_TYPES:
-            raise ValueError(
-                f"Type d'établissement invalide. Valeurs acceptées : {', '.join(sorted(VALID_TENANT_TYPES))}"
-            )
-        return v
+        return validate_institution_type(v)
 
 
 class TenantAdminUserCreate(BaseModel):

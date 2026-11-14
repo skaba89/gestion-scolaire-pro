@@ -40,6 +40,9 @@ from app.api.v1.endpoints.core.rgpd import consent_router
 
 api_router = APIRouter()
 
+from app.api.v1.endpoints.core import education
+api_router.include_router(education.router, prefix="/education", tags=["Education modules"])
+
 # Core routes
 api_router.include_router(health.router, prefix="/health", tags=["Health"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])

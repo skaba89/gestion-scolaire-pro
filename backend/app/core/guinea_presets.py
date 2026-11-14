@@ -23,12 +23,21 @@ GUINEA_LEVELS_FULL: list[str] = (
     + GUINEA_LEVELS_BY_TYPE["high"]
 )
 
+# Propositions modifiables, pas un référentiel réglementaire imposé. Un mixte
+# commence sans niveaux inventés : ses cycles/niveaux sont choisis explicitement.
+GUINEA_LEVELS_BY_TYPE.update({
+    "preschool": ["Petite section", "Moyenne section", "Grande section"],
+    "higher_education": list(GUINEA_LEVELS_BY_TYPE["university"]),
+    "vocational": ["Niveau 1", "Niveau 2", "Niveau 3"],
+    "mixed": [],
+})
+
 
 def guinea_levels_for_type(school_type: str | None) -> list[str]:
     """Retourne les niveaux guinéens par défaut pour un type d'établissement."""
     if not school_type:
-        return GUINEA_LEVELS_FULL
-    return GUINEA_LEVELS_BY_TYPE.get(school_type.lower(), GUINEA_LEVELS_FULL)
+        return list(GUINEA_LEVELS_FULL)
+    return list(GUINEA_LEVELS_BY_TYPE.get(school_type.lower(), GUINEA_LEVELS_FULL))
 
 
 # ─── Types de frais scolaires ────────────────────────────────────────────────

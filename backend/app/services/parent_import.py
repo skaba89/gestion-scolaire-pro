@@ -62,6 +62,8 @@ def run_parent_import(
     student(s). Returns {created_parents, reused_parents, created_links,
     skipped_links, skipped_rows, error_rows} — the same shape the endpoint
     has always returned, now shared with the async job path."""
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, tenant_id, "academics")
     mapping = detect_columns(headers, PARENT_COLUMN_MAP)
 
     created_parents = 0

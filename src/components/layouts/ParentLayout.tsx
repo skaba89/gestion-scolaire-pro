@@ -1,3 +1,4 @@
+import { EducationModuleGate, EducationModuleFeature } from "@/components/EducationModuleGate";
 import { Outlet, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
@@ -64,7 +65,7 @@ export const ParentLayout = () => {
       <main className={cn(sidebarOffsetClass(collapsed), "pt-16 lg:pt-0 pb-20 lg:pb-0 min-h-screen transition-[margin] duration-300")}>
         <AnimatePresence mode="wait">
           <PageTransition key={location.pathname} className="page-container">
-            <Outlet />
+            <EducationModuleGate><Outlet /></EducationModuleGate>
           </PageTransition>
         </AnimatePresence>
       </main>
@@ -73,7 +74,7 @@ export const ParentLayout = () => {
       <MobileBottomNav items={mobileNavItems} />
 
       {/* ChatBot */}
-      <ChatBot />
+      <EducationModuleFeature module="ai"><ChatBot /></EducationModuleFeature>
     </div>
   );
 };
