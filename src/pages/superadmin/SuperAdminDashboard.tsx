@@ -24,7 +24,7 @@ import type { TFunction } from "i18next";
 import { PLAN_SLUGS, planLabel } from "@/lib/pricing";
 import {
   Building2, Search, Plus, Users, GraduationCap, CheckCircle, XCircle,
-  Eye, UserPlus, Shield, ExternalLink, School, Power, Trash2, AlertTriangle, Settings,
+  Eye, UserPlus, Shield, ExternalLink, School, Power, AlertTriangle, Settings,
   CreditCard, Activity,
 } from "lucide-react";
 
@@ -290,7 +290,6 @@ const SuperAdminDashboard = () => {
                               <AddAdminDialog tenant={tenant} onSuccess={() => refetch()} />
                               <TenantSubscriptionDialog tenant={tenant} onSuccess={() => refetch()} />
                               <TenantToggleDialog tenant={tenant} onSuccess={() => refetch()} />
-                              <TenantDeleteDialog tenant={tenant} onSuccess={() => refetch()} />
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -758,131 +757,6 @@ function TenantToggleDialog({ tenant, onSuccess }: { tenant: TenantStat; onSucce
                   : t(`${NS}.toggle.reactivate`)}
             </Button>
           </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Tenant Delete Dialog ────────────────────────────────────────────────────
-
-function TenantDeleteDialog({ tenant, onSuccess }: { tenant: TenantStat; onSuccess: () => void }) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [confirmStep, setConfirmStep] = useState(0); // 0 = not confirmed, 1 = first confirm, 2 = second confirm
-  const [loading, setLoading] = useState(false);
-
-  const handleDelete = async () => {
-    setLoading(true);
-    try {
-      await apiClient.delete(`/tenants/${tenant.id}/`);
-      toast.success(t(`${NS}.remove.deleted`, { name: tenant.name }));
-      setOpen(false);
-      setConfirmStep(0);
-      onSuccess();
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || t(`${NS}.remove.error`);
-      toast.error(detail);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resetAndClose = () => {
-    setOpen(false);
-    setConfirmStep(0);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) resetAndClose(); else setOpen(true); }}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" title={t(`${NS}.remove.title`)}>
-          <Trash2 className="w-4 h-4 text-red-500" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Trash2 className="w-5 h-5 text-red-500" />
-            {t(`${NS}.remove.title`)}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          {confirmStep === 0 && (
-            <>
-              <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
-                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-                <div className="text-sm">
-                  <p className="font-medium text-red-800 dark:text-red-200">{t(`${NS}.remove.irreversible`)}</p>
-                  <p className="text-red-700 dark:text-red-300 mt-1">
-                    <Trans i18nKey={`${NS}.remove.irreversibleText`} values={{ name: tenant.name }} {...boldSafe} />
-                  </p>
-                </div>
-              </div>
-              <div className="text-sm text-muted-foreground space-y-1">
-                <p><strong>{t(`${NS}.remove.tenant`)}</strong> {tenant.name}</p>
-                <p><strong>{t(`${NS}.remove.users`)}</strong> {tenant.user_count}</p>
-                <p><strong>{t(`${NS}.remove.students`)}</strong> {tenant.student_count}</p>
-              </div>
-              <ul className="text-sm text-red-600 dark:text-red-400 list-disc list-inside space-y-1">
-                {(["users", "grades", "payments", "attendance", "messages"] as const).map((item) => (
-                  <li key={item}>{t(`${NS}.remove.items.${item}`)}</li>
-                ))}
-              </ul>
-              <Button
-                variant="destructive"
-                className="w-full"
-                onClick={() => setConfirmStep(1)}
-              >
-                {t(`${NS}.remove.understand`)}
-              </Button>
-            </>
-          )}
-          {confirmStep === 1 && (
-            <>
-              <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
-                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  {t(`${NS}.remove.typeName`)}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>
-                  <Trans i18nKey={`${NS}.remove.typeLabel`} values={{ name: tenant.name }} {...boldSafe} />
-                </Label>
-                <Input
-                  placeholder={tenant.name}
-                  onChange={(e) => {
-                    if (e.target.value === tenant.name) setConfirmStep(2);
-                    else setConfirmStep(1);
-                  }}
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={resetAndClose}>{t(`${NS}.cancel`)}</Button>
-              </DialogFooter>
-            </>
-          )}
-          {confirmStep === 2 && (
-            <>
-              <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-200 dark:border-red-800">
-                <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-                <p className="text-sm font-medium text-red-700 dark:text-red-300">
-                  {t(`${NS}.remove.lastChance`)}
-                </p>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={resetAndClose}>{t(`${NS}.cancel`)}</Button>
-                <Button
-                  variant="destructive"
-                  disabled={loading}
-                  onClick={handleDelete}
-                >
-                  {loading ? t(`${NS}.remove.deleting`) : t(`${NS}.remove.confirm`)}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
         </div>
       </DialogContent>
     </Dialog>

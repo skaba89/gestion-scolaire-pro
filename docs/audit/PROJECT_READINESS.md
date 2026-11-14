@@ -73,3 +73,17 @@ réussis. Ce sont des résultats de CI, pas des preuves de production.
 INVOICE-DELETE-02 est reproduit puis corrigé dans la branche suivante ; preuves,
 limites et procédure de retour dans `INVOICE_DELETE_CONCURRENCY_20261114.md`.
 Aucun nouveau score de maturité. Aucun déploiement national autorisé par ces tests seuls.
+
+
+## Intégrité consolidée — 2026-11-14
+
+Référence : `f5f0134` (#553 après #554 et #552). Les trois PR ont passé les six
+contrôles requis ; #553 a été revalidée après mise à jour avec #554 (CI #1541).
+La migration #555 est préparée : 25 tests PostgreSQL / 20 SQLite réussis (5 ignorés
+SQLite), arrêt sur orphelins sans suppression. Les quatre correctifs réunis ont passé
+168 tests PostgreSQL / 1 ignoré. La nouvelle CI de #555 intègre ce main consolidé.
+
+Les documents `NATIONAL_DEPLOYMENT_READINESS.md`, `TECHNICAL_DEBT.md` et
+`PRODUCTION_RECOVERY_PLAN.md` distinguent preuves et limites. Aucun déploiement,
+aucun score actuel certifié, aucun GO national. L'archivage/export complet et les
+validations opérationnelles réelles restent ouverts.

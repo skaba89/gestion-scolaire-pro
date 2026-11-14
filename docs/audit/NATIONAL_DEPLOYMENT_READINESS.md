@@ -1,6 +1,6 @@
 # Préparation au déploiement national — décision fondée sur preuves
 
-Date : 2026-11-14. Référence vérifiée de main : `03084c6` (#552).
+Date : 2026-11-14. Référence vérifiée de main : `f5f0134` (#553, après #552 et #554).
 Décision sur les preuves de ce lot : **NO-GO pour une généralisation nationale**.
 Aucune décision défavorable sur un pilote précis n'est déduite sans sa recette.
 
@@ -9,8 +9,8 @@ Aucune décision défavorable sur un pilote précis n'est déduite sans sa recet
 | Domaine | État | Preuve / reste à démontrer |
 |---|---|---|
 | Historiques des enseignants | CORRIGÉ, fusionné, non déployé | #552, CI #1532 : six contrôles réussis |
-| Facture et paiement concurrents | CORRIGÉ en PR, non déployé | #554 ; deux ordres de concurrence, RLS ; CI/fusion à vérifier |
-| Effacement des établissements | Protection immédiate en PR | #553 ; purge refusée, désactivation conservatrice ; archivage/export complet restant |
+| Facture et paiement concurrents | CORRIGÉ, fusionné, non déployé | #554 fusionnée, CI 6/6 ; deux ordres de concurrence et RLS |
+| Effacement des établissements | CORRIGÉ contre l'effacement, fusionné, non déployé | #553, CI #1541 6/6 ; archivage/export complet restant |
 | FK notes/année scolaire | Migration préparée en PR | #555 ; orphelins bloquants, 25 tests PostgreSQL ; copie anonymisée réelle NON TESTÉE |
 | Intégration des quatre correctifs | VÉRIFIÉ localement | 168 tests PostgreSQL réussis / 1 ignoré ; données synthétiques, pas production |
 | Recette par rôle | Couverture CI existante | Parcours E2E et crawls réussis sur #552 ; actions exhaustives de tous les rôles NON TESTÉES dans ce lot |

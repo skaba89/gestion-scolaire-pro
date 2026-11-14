@@ -35,8 +35,8 @@ Détail et matrice : `INTEGRITY_DELETES_20261113.md` ; registre : `SECURITY_RISK
 | PERIOD-DELETE-01/02 | ~~P0~~ corrigé | Suppression d'année / de trimestre | **Corrigé** (#548) : l'année effaçait ses inscriptions (cascade), le trimestre détachait ses notes ; désormais 409 si utilisés, verrou, 503 si vérification impossible | Déploiement |
 | STRUCT-DELETE-01 | ~~P1~~ corrigé | Niveaux, campus, semestres, programmes, facultés, départements | **Corrigé** (PR fix/structure-delete-history) : 409 si utilisés, verrou, 503 si vérification impossible | Déploiement |
 | USER-DELETE-02 | ~~P1~~ corrigé #552, CI 6/6 | Suppression d'un compte enseignant | Verrou + garde de toutes les FK réelles ; désactivation réversible ; tests PostgreSQL/RLS/SQLite | Déploiement autorisé restant |
-| INVOICE-DELETE-02 | ~~P1~~ corrigé dans la branche | Suppression de facture concurrente à un paiement | Verrou partagé entre les deux URL ; tests des deux ordres de concurrence et RLS | CI / fusion de fix/invoice-delete-concurrency, puis déploiement autorisé |
-| TENANT-DELETE-01 | P1 | Suppression d'établissement | Effacement total sans archivage | Export/archivage préalable |
+| INVOICE-DELETE-02 | ~~P1~~ corrigé #554, CI 6/6 | Suppression de facture concurrente à un paiement | Verrou partagé entre les deux URL ; tests des deux ordres de concurrence et RLS | Déploiement autorisé restant |
+| TENANT-DELETE-01 | Protection fusionnée #553, CI 6/6 | Suppression d'établissement | DELETE interdit, désactivation réversible et historiques conservés | Export complet, conservation et restauration à valider avant toute purge |
 
 ## Recette B2 — admissions (2026-11-09)
 
@@ -114,3 +114,12 @@ test de charge sur une copie de production.
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
 | AUD-ROUTES | ~~P1~~ fait | Appels vers des routes inexistantes « capturées » | **Fait** (PR fix/aud-routes) : Certificats, Listes de classe, Statistiques d'inscription rebranchés sur les routes réelles ; code mort retiré ; contrôle de contrat étendu (référence vide) | — |
+
+
+## Schéma et rétention — 2026-11-14
+
+#552, #554 et #553 sont fusionnées, chacune après six contrôles réussis.
+La migration additive #555 rétablit la FK des notes vers leur année sans réécrire
+les historiques ; elle refuse les orphelins. Validation sur copie anonymisée réelle
+et déploiement restent NON TESTÉS. Export/archivage d'établissement, audit des autres
+écritures, recette terrain, PRA représentatif et capacité nationale restent ouverts.
