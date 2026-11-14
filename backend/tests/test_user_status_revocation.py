@@ -23,6 +23,7 @@ async def test_dedicated_status_endpoint_revokes_tokens_on_deactivation():
     tenant, admin_id, target_id = str(uuid4()), str(uuid4()), str(uuid4())
     db = MagicMock()
     db.execute.return_value.rowcount = 1
+    db.execute.return_value.fetchone.return_value = None
     revoke = AsyncMock(return_value=1)
     with patch(
         "app.core.tenant_resolution.resolve_current_tenant_id",
@@ -46,6 +47,7 @@ async def test_dedicated_activation_does_not_revoke_sessions():
     tenant, admin_id, target_id = str(uuid4()), str(uuid4()), str(uuid4())
     db = MagicMock()
     db.execute.return_value.rowcount = 1
+    db.execute.return_value.fetchone.return_value = None
     revoke = AsyncMock(return_value=1)
     with patch(
         "app.core.tenant_resolution.resolve_current_tenant_id",

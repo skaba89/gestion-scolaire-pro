@@ -68,3 +68,8 @@ def test_unlinked_student_guard_only_scopes_to_authorized_tenant():
     assert db.execute.call_count == 4
     assert "tenant_id = :tenant_id" in str(db.execute.call_args_list[1].args[0])
     db.commit.assert_not_called()
+
+
+@pytest.fixture(autouse=True)
+def _catalog_covered_by_integration_tests(monkeypatch):
+    monkeypatch.setattr("app.crud.academic._is_referenced", lambda *args, **kwargs: False)

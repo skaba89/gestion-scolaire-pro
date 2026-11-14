@@ -3,8 +3,8 @@ from typing import Literal, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import bindparam, text
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from uuid import UUID
 import math
 
@@ -59,6 +59,14 @@ class RoleUpdateRequest(BaseModel):
 
 class ToggleStatusRequest(BaseModel):
     is_active: bool
+
+
+def _user_params(sql):
+    """Bind UUIDs consistently on PostgreSQL and SQLite (hex storage)."""
+    return text(sql).bindparams(
+        bindparam("user_id", type_=User.id.type),
+        bindparam("tenant_id", type_=User.tenant_id.type),
+    )
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -722,8 +730,17 @@ async def toggle_user_status(
             detail="Cannot deactivate your own account"
         )
 
-    sql = text("""
-        UPDATE users SET is_active = :is_active, updated_at = NOW()
+    if "SUPER_ADMIN" not in (current_user.get("roles") or []):
+        privileged = db.execute(_user_params("""
+            SELECT 1 FROM user_roles
+            WHERE user_id = :user_id AND tenant_id = :tenant_id
+              AND role IN ('SUPER_ADMIN', 'TENANT_ADMIN') LIMIT 1
+        """), {"user_id": user_id, "tenant_id": tenant_id}).fetchone()
+        if privileged:
+            raise HTTPException(status_code=403, detail="Only SUPER_ADMIN can change privileged account status")
+
+    sql = _user_params("""
+        UPDATE users SET is_active = :is_active, updated_at = CURRENT_TIMESTAMP
         WHERE id = :user_id AND tenant_id = :tenant_id
     """)
     result = db.execute(sql, {"is_active": body.is_active, "user_id": user_id, "tenant_id": tenant_id})
@@ -1025,7 +1042,7 @@ def delete_user(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("users:delete")),
 ):
-    """Permanently delete a user from the tenant."""
+    """Delete only an unused account; keep school and payroll history intact."""
     from app.core.tenant_resolution import resolve_current_tenant_id
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
 
@@ -1035,12 +1052,31 @@ def delete_user(
             detail="Cannot delete your own account"
         )
 
+    try:
+        UUID(str(user_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # FK writers acquire KEY SHARE: lock before inspecting roles/history so
+    # an assignment or payable hour cannot slip between the check and DELETE.
+    try:
+        target = db.query(User).filter(
+            User.id == user_id, User.tenant_id == tenant_id,
+        ).with_for_update().first()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Unable to lock account for deletion")
+        raise HTTPException(status_code=503, detail="Account verification unavailable; retry later")
+    if target is None:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="User not found")
+
     # Protect platform/tenant administrators from deletion by tenant-level
     # operators, even when those operators have users:delete permission.
     # The tenant-scoped lookup prevents probing roles in other institutions.
     if "SUPER_ADMIN" not in (current_user.get("roles") or []):
         privileged = db.execute(
-            text("""
+            _user_params("""
                 SELECT 1 FROM user_roles
                 WHERE user_id = :user_id AND tenant_id = :tenant_id
                   AND role IN ('SUPER_ADMIN', 'TENANT_ADMIN')
@@ -1060,7 +1096,7 @@ def delete_user(
     # Require status deactivation instead; any future erasure must be handled
     # by a dedicated retention-aware workflow.
     linked_student = db.execute(
-        text("""
+        _user_params("""
             SELECT 1 FROM students
             WHERE user_id = :user_id AND tenant_id = :tenant_id
             LIMIT 1
@@ -1078,7 +1114,7 @@ def delete_user(
     # permanent school record. Keep those relationships and deactivate the
     # account instead until a dedicated retention-aware workflow exists.
     linked_parent = db.execute(
-        text("""
+        _user_params("""
             SELECT 1 FROM parent_students
             WHERE parent_id = :user_id AND tenant_id = :tenant_id
             LIMIT 1
@@ -1091,8 +1127,29 @@ def delete_user(
             detail="Account is linked to a parent-student relationship; deactivate instead",
         )
 
+    # Read the live FK catalog, including operational tables absent from the
+    # ORM: teacher_assignments, teacher_work_hours, announcements, homework,
+    # payments, schedules, etc. Current role is deliberately irrelevant.
+    # Only identity configuration may be removed with an unused account.
+    from app.crud.academic import _is_referenced
+    from app.models.profile import Profile
+    try:
+        in_use = _is_referenced(db, "users", UUID(str(user_id)), User.id.type,
+                                skip=frozenset({"user_roles", "profiles"}))
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Unable to verify account references")
+        raise HTTPException(status_code=503, detail="Account history verification unavailable; retry later")
+    if in_use:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Account is linked to school or payroll history; deactivate instead")
+
+    # NO ACTION in SQLite / some migrated schemas; remove disposable account
+    # configuration explicitly, atomically with deletion and its audit entry.
+    db.query(UserRole).filter(UserRole.user_id == user_id, UserRole.tenant_id == tenant_id).delete(synchronize_session=False)
+    db.query(Profile).filter(Profile.id == user_id, Profile.tenant_id == tenant_id).delete(synchronize_session=False)
     result = db.execute(
-        text("DELETE FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
+        _user_params("DELETE FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
         {"user_id": user_id, "tenant_id": tenant_id}
     )
 

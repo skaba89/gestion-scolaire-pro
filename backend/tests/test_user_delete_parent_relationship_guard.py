@@ -63,3 +63,8 @@ def test_unlinked_account_remains_deletable():
     assert result is None
     assert db.execute.call_count == 4
     db.commit.assert_called_once()
+
+
+@pytest.fixture(autouse=True)
+def _catalog_covered_by_integration_tests(monkeypatch):
+    monkeypatch.setattr("app.crud.academic._is_referenced", lambda *args, **kwargs: False)
