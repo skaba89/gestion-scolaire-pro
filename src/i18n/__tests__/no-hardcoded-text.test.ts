@@ -47,6 +47,15 @@ const GUARDED = [
     "src/components/dashboard/AnalyticsReportButton.tsx",
     "src/components/admin/analytics",
     "src/components/admin/ai",
+    "src/pages/admin/Admissions.tsx",
+    "src/pages/admin/Students.tsx",
+    "src/pages/admin/ClassLists.tsx",
+    "src/pages/admin/Enrollments.tsx",
+    "src/components/students",
+    "src/components/admin/students",
+    "src/components/admin/admissions",
+    "src/components/enrollments",
+    "src/components/ui/DataTablePagination.tsx",
 ];
 
 /** Noms propres et codes affichés tels quels. */
@@ -83,7 +92,8 @@ function findings(source: string): string[] {
         .join("\n");
     const out: string[] = [];
     // Texte JSX entre balises : >Texte<
-    for (const m of code.matchAll(/>([^<>{}`]*?)</g)) {
+    // (?<![=-]) : exclut les flèches « => Promise<…> ».
+    for (const m of code.matchAll(/(?<![=-])>([^<>{}`]*?)</g)) {
         const text = m[1].trim();
         if (text && WORD.test(text) && !/[(){};=&|?$]/.test(text)) out.push(text);
     }
@@ -92,7 +102,7 @@ function findings(source: string): string[] {
         out.push(m[1].trim());
     }
     // Attributs et notifications
-    for (const m of code.matchAll(/\b(?:placeholder|title|aria-label|alt|recipientLabel|portalName)="([^"]*)"/g)) {
+    for (const m of code.matchAll(/\b(?:placeholder|title|aria-label|alt|recipientLabel|portalName|content|heading|tooltip)="([^"]*)"/g)) {
         if (WORD.test(m[1])) out.push(m[1]);
     }
     for (const m of code.matchAll(/toast\.(?:success|error|info|warning)\(\s*["'`]([^"'`]+)["'`]/g)) out.push(m[1]);

@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Edit } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
+import { useTranslation } from "react-i18next";
 
 interface StudentDetailHeaderProps {
     title: string;
@@ -10,6 +11,7 @@ interface StudentDetailHeaderProps {
 }
 
 export function StudentDetailHeader({ title, subtitle, onEditClick }: StudentDetailHeaderProps) {
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const { getTenantUrl } = useTenantUrl();
 
@@ -25,7 +27,7 @@ export function StudentDetailHeader({ title, subtitle, onEditClick }: StudentDet
             <div className="ml-auto">
                 <Button onClick={onEditClick} variant="outline" className="gap-2">
                     <Edit className="h-4 w-4" />
-                    Modifier le Profil
+                    {t("studentsAdmin.modifierLeProfil")}
                 </Button>
             </div>
         </div>

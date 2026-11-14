@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface CreateParentDialogProps {
     open: boolean;
@@ -36,6 +37,7 @@ export const CreateParentDialog = ({
     onSuccess,
     tenantId,
 }: CreateParentDialogProps) => {
+    const { t } = useTranslation();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const form = useForm<ParentFormValues>({
@@ -59,13 +61,13 @@ export const CreateParentDialog = ({
 
             const createdParent = data.data || data;
 
-            toast.success("Parent créé avec succès");
+            toast.success(t("studentsAdmin.parentCreeAvecSucces"));
             onSuccess(createdParent);
             onOpenChange(false);
             form.reset();
         } catch (error: any) {
             console.error("Error creating parent:", error);
-            toast.error("Erreurlors de la création: " + error.message);
+            toast.error(t("studentsAdmin.erreurlorsDeLaCreation") + error.message);
         } finally {
             setIsSubmitting(false);
         }
@@ -75,9 +77,9 @@ export const CreateParentDialog = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Nouveau Parent</DialogTitle>
+                    <DialogTitle>{t("studentsAdmin.nouveauParent")}</DialogTitle>
                     <DialogDescription>
-                        Ajoutez un nouveau parent à la base de données.
+                        {t("studentsAdmin.ajoutezUnNouveauParentA")}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -88,9 +90,9 @@ export const CreateParentDialog = ({
                             name="first_name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Prénom *</FormLabel>
+                                    <FormLabel>{t("studentsAdmin.prenom2")}</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Jean" {...field} />
+                                        <Input placeholder={t("studentsAdmin.jean")} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -102,9 +104,9 @@ export const CreateParentDialog = ({
                             name="last_name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nom *</FormLabel>
+                                    <FormLabel>{t("studentsAdmin.nom2")}</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Dupont" {...field} />
+                                        <Input placeholder={t("studentsAdmin.dupont")} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -116,9 +118,9 @@ export const CreateParentDialog = ({
                             name="email"
                             render={({ field }) => (
                                 <FormItem>
-                            <FormLabel>Email *</FormLabel>
+                            <FormLabel>{t("studentsAdmin.email2")}</FormLabel>
                                     <FormControl>
-                                        <Input type="email" placeholder="email@example.com" {...field} />
+                                        <Input type="email" placeholder={t("studentsAdmin.emailExampleCom")} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -130,9 +132,9 @@ export const CreateParentDialog = ({
                             name="phone"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Téléphone *</FormLabel>
+                                    <FormLabel>{t("studentsAdmin.telephone2")}</FormLabel>
                                     <FormControl>
-                                        <Input type="tel" placeholder="+224 6XX XX XX XX" {...field} />
+                                        <Input type="tel" placeholder={t("studentsAdmin.2246xxXxXxXx")} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -144,9 +146,9 @@ export const CreateParentDialog = ({
                             name="address"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Adresse</FormLabel>
+                                    <FormLabel>{t("studentsAdmin.adresse")}</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Adresse complète" {...field} />
+                                        <Input placeholder={t("studentsAdmin.adresseComplete")} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -155,11 +157,11 @@ export const CreateParentDialog = ({
 
                         <div className="flex justify-end pt-4">
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="mr-2">
-                                Annuler
+                                {t("studentsAdmin.annuler")}
                             </Button>
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                Créer
+                                {t("studentsAdmin.creer")}
                             </Button>
                         </div>
                     </form>

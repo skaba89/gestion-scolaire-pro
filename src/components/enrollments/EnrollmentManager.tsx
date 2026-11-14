@@ -106,7 +106,7 @@ export const EnrollmentManager = () => {
 
   const handleEnrollStudents = async () => {
     if (!selectedYear || !selectedClassroom || selectedStudents.length === 0 || !tenant?.id) {
-      toast.error(`Veuillez sélectionner une année, une classe et des ${studentsLabel}`);
+      toast.error(t("studentsAdmin.selectYearClassStudents", { label: studentsLabel }));
       return;
     }
 
@@ -123,26 +123,26 @@ export const EnrollmentManager = () => {
     try {
       await enrollStudents(enrollmentData);
       setSelectedStudents([]);
-      toast.success(`${selectedStudents.length} ${studentsLabel} inscrits avec succès`);
+      toast.success(t("studentsAdmin.countStudentslabelInscritsAvecSucces", { count: selectedStudents.length, studentsLabel }));
     } catch (error) {
-      toast.error("Erreur lors de l'inscription");
+      toast.error(t("studentsAdmin.erreurLorsDeLInscription"));
     }
   };
 
   const handleAutoAssign = async () => {
     if (!selectedYear || !tenant?.id) {
-      toast.error("Veuillez sélectionner une année académique");
+      toast.error(t("studentsAdmin.veuillezSelectionnerUneAnneeAcademique"));
       return;
     }
 
     if (unenrolledStudents.length === 0) {
-      toast.info(`Tous les ${studentsLabel} sont déjà inscrits`);
+      toast.info(t("studentsAdmin.allAlreadyEnrolled", { label: studentsLabel }));
       return;
     }
 
     const classroomsWithSpace = classrooms.filter((c) => c.capacity && c.capacity > 0);
     if (classroomsWithSpace.length === 0) {
-      toast.error("Aucune classe avec capacité disponible");
+      toast.error(t("studentsAdmin.aucuneClasseAvecCapaciteDisponible"));
       return;
     }
 
@@ -164,9 +164,9 @@ export const EnrollmentManager = () => {
 
     try {
       await enrollStudents(enrollmentData);
-      toast.success("Affectation automatique terminée");
+      toast.success(t("studentsAdmin.affectationAutomatiqueTerminee"));
     } catch (error) {
-      toast.error("Erreur lors de l'affectation automatique");
+      toast.error(t("studentsAdmin.erreurLorsDeLAffectation"));
     }
   };
 
@@ -186,16 +186,16 @@ export const EnrollmentManager = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Gestion des Inscriptions {getLabel("of_students", true)}
+            {t("studentsAdmin.gestionDesInscriptionsTrue", { label: getLabel("of_students", true) })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Année Académique</label>
+              <label className="text-sm font-medium mb-2 block">{t("studentsAdmin.anneeAcademique")}</label>
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une année" />
+                  <SelectValue placeholder={t("studentsAdmin.selectionnerUneAnnee")} />
                 </SelectTrigger>
                 <SelectContent>
                   {academicYears.map((year) => (
@@ -207,10 +207,10 @@ export const EnrollmentManager = () => {
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Classe</label>
+              <label className="text-sm font-medium mb-2 block">{t("studentsAdmin.classe")}</label>
               <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une classe" />
+                  <SelectValue placeholder={t("studentsAdmin.selectionnerUneClasse")} />
                 </SelectTrigger>
                 <SelectContent>
                   {classrooms.map((classroom) => (
@@ -224,7 +224,7 @@ export const EnrollmentManager = () => {
             <div className="flex items-end">
               <Button onClick={handleAutoAssign} variant="outline" className="w-full">
                 <RefreshCw className="h-4 w-4 mr-2" />
-                Affectation Automatique
+                {t("studentsAdmin.affectationAutomatique")}
               </Button>
             </div>
           </div>
@@ -247,7 +247,7 @@ export const EnrollmentManager = () => {
                 >
                   {unenrolledStudents.length === 0 ? (
                     <p className="text-muted-foreground text-center py-4">
-                      Tous les {studentsLabel} sont inscrits
+                      {t("studentsAdmin.allEnrolled", { label: studentsLabel })}
                     </p>
                   ) : (
                     <StaggerContainer className="contents">
@@ -300,7 +300,7 @@ export const EnrollmentManager = () => {
               </>
             ) : (
               <p className="text-muted-foreground text-center py-4">
-                Sélectionnez une année académique
+                {t("studentsAdmin.selectionnezUneAnneeAcademique")}
               </p>
             )}
           </CardContent>
@@ -323,9 +323,9 @@ export const EnrollmentManager = () => {
                 <Table>
                   <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                     <TableRow>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>N° Étudiant</TableHead>
-                      <TableHead>Statut</TableHead>
+                      <TableHead>{t("studentsAdmin.nom")}</TableHead>
+                      <TableHead>{t("studentsAdmin.nEtudiant")}</TableHead>
+                      <TableHead>{t("studentsAdmin.statut")}</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -333,7 +333,7 @@ export const EnrollmentManager = () => {
                     {classroomEnrollments.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                          Aucun {studentLabel} inscrit dans cette classe
+                          {t("studentsAdmin.aucunStudentlabelInscritDansCette", { studentLabel })}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -403,7 +403,7 @@ export const EnrollmentManager = () => {
               </div>
             ) : (
               <p className="text-muted-foreground text-center py-4">
-                Sélectionnez une classe pour voir les {studentsLabel} inscrits
+                {t("studentsAdmin.selectionnezUneClassePourVoir", { studentsLabel })}
               </p>
             )}
           </CardContent>

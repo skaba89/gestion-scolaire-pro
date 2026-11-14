@@ -26,11 +26,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useTenantUrl } from "@/hooks/useTenantUrl";
 import { resolveUploadUrl } from "@/utils/url";
 import { useGenderLabel } from "@/lib/gender";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface StudentRowProps {
   student: any;
@@ -64,6 +65,7 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
   ariaRole,
   ariaRowIndex,
 }: StudentRowProps) {
+  const { t } = useTranslation();
   const genderLabel = useGenderLabel();
   const { studentLabel } = useStudentLabel();
   const { getTenantUrl } = useTenantUrl();
@@ -82,10 +84,10 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
   }, [onArchive, student]);
 
   const handleDelete = useCallback(() => {
-    if (confirm(`Êtes-vous sûr de vouloir supprimer définitivement cet ${studentLabel} ? Cette action est irréversible et supprimera toutes les données associées (notes, présences, etc.).`)) {
+    if (confirm(t("studentsAdmin.etesVousSurDeVouloir", { studentLabel }))) {
       onDelete(student.id);
     }
-  }, [onDelete, student, studentLabel]);
+  }, [onDelete, student, studentLabel, t]);
 
   const handleCreateAccount = useCallback(() => {
     onCreateAccount(student);
@@ -133,7 +135,7 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
       </TableCell>
       <TableCell className="hidden lg:table-cell text-sm">
         {student.date_of_birth
-          ? format(new Date(student.date_of_birth), "dd MMM yyyy", { locale: fr })
+          ? format(new Date(student.date_of_birth), "dd MMM yyyy", { locale: dateFnsLocale() })
           : "-"
         }
       </TableCell>
@@ -177,7 +179,7 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
                     ) : (
                       <UserPlus className="w-4 h-4 mr-2" />
                     )}
-                    Créer compte
+                    {t("studentsAdmin.creerCompte")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
@@ -188,7 +190,7 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
                 <>
                   <DropdownMenuItem disabled className="text-green-600">
                     <UserCheck className="w-4 h-4 mr-2" />
-                    Compte lié
+                    {t("studentsAdmin.compteLie")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                 </>
@@ -197,14 +199,14 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
               {/* Link to parents tab */}
               <DropdownMenuItem onClick={handleEdit}>
                 <Link2 className="w-4 h-4 mr-2" />
-                Gérer les parents liés
+                {t("studentsAdmin.gererLesParentsLies")}
               </DropdownMenuItem>
 
               {!student.is_archived && tenantId && (
                 <>
                   <DropdownMenuItem onClick={onEnrollClick}>
                     <UserPlus className="w-4 h-4 mr-2" />
-                    Inscrire dans une classe
+                    {t("studentsAdmin.inscrireDansUneClasse")}
                   </DropdownMenuItem>
                 </>
               )}
@@ -216,12 +218,12 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
                 {student.is_archived ? (
                   <>
                     <UserCheck className="w-4 h-4 mr-2" />
-                    Restaurer
+                    {t("studentsAdmin.restaurer")}
                   </>
                 ) : (
                   <>
                     <Archive className="w-4 h-4 mr-2" />
-                    Archiver
+                    {t("studentsAdmin.archiver")}
                   </>
                 )}
               </DropdownMenuItem>
@@ -231,24 +233,24 @@ export const StudentRowOptimized = memo(function StudentRowOptimized({
                 onClick={handleDelete}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Supprimer définitivement
+                {t("studentsAdmin.supprimerDefinitivement")}
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
 
               <DropdownMenuItem>
                 <Mail className="w-4 h-4 mr-2" />
-                Contacter parents
+                {t("studentsAdmin.contacterParents")}
               </DropdownMenuItem>
 
               <DropdownMenuItem>
                 <FileText className="w-4 h-4 mr-2" />
-                Générer Bulletin
+                {t("studentsAdmin.genererBulletin")}
               </DropdownMenuItem>
 
               <DropdownMenuItem onClick={handleView}>
                 <UserCheck className="w-4 h-4 mr-2" />
-                Voir Profil Détaillé
+                {t("studentsAdmin.voirProfilDetaille")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import { useTranslation } from "react-i18next";
 import { useLevels } from "@/queries/levels"; // Using existing hook if available
 
 interface StudentFormDialogProps {
@@ -28,6 +29,7 @@ export const StudentFormDialog = ({
   onSuccess,
   editStudent,
 }: StudentFormDialogProps) => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
 
   // Fetch reference data here or inside sections. 
@@ -79,10 +81,10 @@ export const StudentFormDialog = ({
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>
-            {editStudent ? "Modifier l'étudiant" : "Nouvel étudiant"}
+            {editStudent ? t("studentsAdmin.modifierLEtudiant") : t("studentsAdmin.nouvelEtudiant")}
           </DialogTitle>
           <DialogDescription>
-            Remplissez les informations ci-dessous pour {editStudent ? "modifier" : "créer"} un dossier étudiant.
+            {editStudent ? t("studentsAdmin.formHintEdit") : t("studentsAdmin.formHintCreate")}
           </DialogDescription>
         </DialogHeader>
 
@@ -91,10 +93,10 @@ export const StudentFormDialog = ({
             <ScrollArea className="flex-1 px-6 py-4">
               <Tabs defaultValue="identity" className="w-full">
                 <TabsList className="grid w-full grid-cols-4 mb-6">
-                  <TabsTrigger value="identity">Identité</TabsTrigger>
-                  <TabsTrigger value="contact">Contact</TabsTrigger>
-                  <TabsTrigger value="academic">Scolarité</TabsTrigger>
-                  <TabsTrigger value="parents">Parents</TabsTrigger>
+                  <TabsTrigger value="identity">{t("studentsAdmin.identite")}</TabsTrigger>
+                  <TabsTrigger value="contact">{t("studentsAdmin.contact")}</TabsTrigger>
+                  <TabsTrigger value="academic">{t("studentsAdmin.scolarite")}</TabsTrigger>
+                  <TabsTrigger value="parents">{t("studentsAdmin.parents")}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="identity" className="space-y-6">
@@ -134,11 +136,11 @@ export const StudentFormDialog = ({
 
             <div className="p-6 border-t bg-muted/20 flex justify-end space-x-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Annuler
+                {t("studentsAdmin.annuler")}
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {editStudent ? "Mettre à jour" : "Créer l'étudiant"}
+                {editStudent ? t("studentsAdmin.mettreAJour") : t("studentsAdmin.creerLEtudiant")}
               </Button>
             </div>
           </form>

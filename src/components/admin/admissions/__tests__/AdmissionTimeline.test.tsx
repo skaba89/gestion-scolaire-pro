@@ -7,6 +7,7 @@
  * vit côté serveur (_build_admission_steps), ce composant n'est que de
  * la présentation.
  */
+import "@/i18n/config";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -32,7 +33,7 @@ describe("AdmissionTimeline", () => {
       { key: "SUBMITTED", label: "Soumis", date: "2026-08-01T10:00:00Z", state: "done" },
     ];
     render(<AdmissionTimeline steps={steps} />);
-    expect(screen.getByText(/01 août 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/1 août 2026/)).toBeInTheDocument();
   });
 
   it('affiche "En cours" pour l\'étape courante sans date', () => {
@@ -69,7 +70,7 @@ describe("AdmissionTimeline", () => {
     ];
     render(<AdmissionTimeline steps={steps} compact />);
     expect(screen.getByText("Soumis")).toBeInTheDocument();
-    expect(screen.queryByText(/01 août 2026/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/1 août 2026/)).not.toBeInTheDocument();
   });
 
   it("ne rend rien pour une liste d'étapes vide", () => {

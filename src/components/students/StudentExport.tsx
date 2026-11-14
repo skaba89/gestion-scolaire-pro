@@ -22,6 +22,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
+import { intlLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface ExportColumn {
   key: string;
@@ -30,20 +32,21 @@ interface ExportColumn {
 }
 
 const DEFAULT_COLUMNS: ExportColumn[] = [
-  { key: "registration_number", label: "N° Étudiant", selected: true },
-  { key: "last_name", label: "Nom", selected: true },
-  { key: "first_name", label: "Prénom", selected: true },
-  { key: "email", label: "Email", selected: true },
-  { key: "date_of_birth", label: "Date de naissance", selected: true },
-  { key: "gender", label: "Genre", selected: true },
-  { key: "phone", label: "Téléphone", selected: false },
-  { key: "address", label: "Adresse", selected: false },
-  { key: "emergency_contact", label: "Contact d'urgence", selected: false },
-  { key: "emergency_phone", label: "Téléphone d'urgence", selected: false },
-  { key: "created_at", label: "Date d'inscription", selected: false },
+  { key: "registration_number", label: "studentsAdmin.col.registration_number", selected: true },
+  { key: "last_name", label: "studentsAdmin.col.last_name", selected: true },
+  { key: "first_name", label: "studentsAdmin.col.first_name", selected: true },
+  { key: "email", label: "studentsAdmin.col.email", selected: true },
+  { key: "date_of_birth", label: "studentsAdmin.col.date_of_birth", selected: true },
+  { key: "gender", label: "studentsAdmin.col.gender", selected: true },
+  { key: "phone", label: "studentsAdmin.col.phone", selected: false },
+  { key: "address", label: "studentsAdmin.col.address", selected: false },
+  { key: "emergency_contact", label: "studentsAdmin.col.emergency_contact", selected: false },
+  { key: "emergency_phone", label: "studentsAdmin.col.emergency_phone", selected: false },
+  { key: "created_at", label: "studentsAdmin.col.created_at", selected: false },
 ];
 
 export const StudentExport = () => {
+  const { t } = useTranslation();
   const { tenant } = useTenant();
   const { studentsLabel, StudentsLabel } = useStudentLabel();
   const studentsLabelLower = studentsLabel.toLowerCase();
@@ -92,7 +95,7 @@ export const StudentExport = () => {
     if (value === null || value === undefined) return "";
     if (key === "date_of_birth" || key === "created_at") {
       try {
-        return new Date(value).toLocaleDateString("fr-FR");
+        return new Date(value).toLocaleDateString(intlLocale());
       } catch {
         return String(value);
       }
@@ -102,13 +105,13 @@ export const StudentExport = () => {
 
   const exportToCSV = () => {
     if (!students || students.length === 0) {
-      toast.error("Aucune donnée à exporter");
+      toast.error(t("studentsAdmin.aucuneDonneeAExporter"));
       return;
     }
 
     const selectedColumns = columns.filter(col => col.selected);
     if (selectedColumns.length === 0) {
-      toast.error("Sélectionnez au moins une colonne");
+      toast.error(t("studentsAdmin.selectionnezAuMoinsUneColonne"));
       return;
     }
 
@@ -116,7 +119,7 @@ export const StudentExport = () => {
 
     try {
       // Build CSV content
-      const headers = selectedColumns.map(col => col.label).join(";");
+      const headers = selectedColumns.map(col => t(col.label)).join(";");
       const rows = students.map(student =>
         selectedColumns
           .map(col => {
@@ -143,11 +146,11 @@ export const StudentExport = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      toast.success(`${students.length} ${studentsLabelLower} exporté(s)`);
+      toast.success(t("studentsAdmin.countStudentslabellowerExporteS", { count: students.length, studentsLabelLower }));
       setIsOpen(false);
     } catch (error) {
       console.error("Export error:", error);
-      toast.error("Erreur lors de l'export");
+      toast.error(t("studentsAdmin.erreurLorsDeLExport"));
     } finally {
       setIsExporting(false);
     }
@@ -160,14 +163,14 @@ export const StudentExport = () => {
       <DialogTrigger asChild>
         <Button variant="outline">
           <Download className="w-4 h-4 mr-2" />
-          Exporter
+          {t("studentsAdmin.exporter")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5" />
-            Exporter les {StudentsLabel}
+            {t("studentsAdmin.exporterLesStudentslabel", { StudentsLabel })}
           </DialogTitle>
         </DialogHeader>
 
@@ -180,20 +183,20 @@ export const StudentExport = () => {
               onCheckedChange={(checked) => setIncludeArchived(!!checked)}
             />
             <Label htmlFor="includeArchived" className="text-sm">
-              Inclure les {studentsLabelLower} archivés
+              {t("studentsAdmin.inclureLesStudentslabellowerArchives", { studentsLabelLower })}
             </Label>
           </div>
 
           {/* Column Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Colonnes à exporter</Label>
+              <Label className="text-sm font-medium">{t("studentsAdmin.colonnesAExporter")}</Label>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={selectAll}>
-                  Tout
+                  {t("studentsAdmin.tout")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={deselectAll}>
-                  Aucun
+                  {t("studentsAdmin.aucun")}
                 </Button>
               </div>
             </div>
@@ -206,7 +209,7 @@ export const StudentExport = () => {
                     onCheckedChange={() => toggleColumn(col.key)}
                   />
                   <Label htmlFor={col.key} className="text-sm cursor-pointer">
-                    {col.label}
+                    {t(col.label)}
                   </Label>
                 </div>
               ))}
@@ -216,7 +219,7 @@ export const StudentExport = () => {
           {/* Summary */}
           <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
             {isLoading ? (
-              <p>Chargement des données...</p>
+              <p>{t("studentsAdmin.chargementDesDonnees")}</p>
             ) : (
               <p>{students?.length || 0} {studentsLabelLower} • {selectedCount} colonne(s)</p>
             )}
@@ -225,13 +228,13 @@ export const StudentExport = () => {
           {/* Actions */}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => handleOpenChange(false)}>
-              Annuler
+              {t("studentsAdmin.annuler")}
             </Button>
             <Button
               onClick={exportToCSV}
               disabled={isExporting || selectedCount === 0 || isLoading || !students?.length}
             >
-              {isExporting ? "Export..." : isLoading ? "Chargement..." : "Télécharger CSV"}
+              {isExporting ? "Export..." : isLoading ? "Chargement..." : t("studentsAdmin.telechargerCsv")}
             </Button>
           </div>
         </div>

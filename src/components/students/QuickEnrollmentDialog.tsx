@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { UserPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { useTranslation } from "react-i18next";
 
 interface QuickEnrollmentDialogProps {
     studentId: string;
@@ -38,6 +39,7 @@ export function QuickEnrollmentDialog({
     onSuccess,
     trigger,
 }: QuickEnrollmentDialogProps) {
+    const { t } = useTranslation();
     const { studentLabel } = useStudentLabel();
     const [open, setOpen] = useState(false);
     const [academicYearId, setAcademicYearId] = useState<string>("");
@@ -114,7 +116,7 @@ export function QuickEnrollmentDialog({
             });
         },
         onSuccess: () => {
-            toast.success(`${studentName} a été inscrit avec succès`);
+            toast.success(t("studentsAdmin.studentnameAEteInscritAvec", { studentName }));
             queryClient.invalidateQueries({ queryKey: ["students"] });
             queryClient.invalidateQueries({ queryKey: ["enrollments"] });
             queryClient.invalidateQueries({ queryKey: ["classrooms"] });
@@ -122,7 +124,7 @@ export function QuickEnrollmentDialog({
             if (onSuccess) onSuccess();
         },
         onError: (error: any) => {
-            toast.error(error.message || "Erreur lors de l'inscription");
+            toast.error(error.message || t("studentsAdmin.enrollError"));
         },
     });
 
@@ -132,7 +134,7 @@ export function QuickEnrollmentDialog({
                 {trigger || (
                     <Button variant="outline" size="sm">
                         <UserPlus className="w-4 h-4 mr-2" />
-                        Inscrire
+                        {t("studentsAdmin.inscrire")}
                     </Button>
                 )}
             </DialogTrigger>
@@ -140,15 +142,15 @@ export function QuickEnrollmentDialog({
                 <DialogHeader>
                     <DialogTitle>Inscrire {studentLabel}</DialogTitle>
                     <DialogDescription>
-                        Choisissez une classe pour inscrire {studentName}.
+                        {t("studentsAdmin.choisissezUneClassePourInscrire", { studentName })}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="year">Année Académique</Label>
+                        <Label htmlFor="year">{t("studentsAdmin.anneeAcademique")}</Label>
                         <Select value={academicYearId} onValueChange={setAcademicYearId}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner l'année" />
+                                <SelectValue placeholder={t("studentsAdmin.selectionnerLAnnee")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {academicYears?.map((year) => (
@@ -160,13 +162,13 @@ export function QuickEnrollmentDialog({
                         </Select>
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="level">Niveau (Optionnel)</Label>
+                        <Label htmlFor="level">{t("studentsAdmin.levelOptional")}</Label>
                         <Select value={levelId} onValueChange={setLevelId}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Tous les niveaux" />
+                                <SelectValue placeholder={t("studentsAdmin.tousLesNiveaux")} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="none">Tous les niveaux</SelectItem>
+                                <SelectItem value="none">{t("studentsAdmin.tousLesNiveaux")}</SelectItem>
                                 {levels?.map((level) => (
                                     <SelectItem key={level.id} value={level.id}>
                                         {level.name}
@@ -176,10 +178,10 @@ export function QuickEnrollmentDialog({
                         </Select>
                     </div>
                     <div className="grid gap-2">
-                        <Label htmlFor="classroom">Classe</Label>
+                        <Label htmlFor="classroom">{t("studentsAdmin.classe")}</Label>
                         <Select value={classroomId} onValueChange={setClassroomId}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Sélectionner la classe" />
+                                <SelectValue placeholder={t("studentsAdmin.selectionnerLaClasse")} />
                             </SelectTrigger>
                             <SelectContent>
                                 {classrooms?.map((room) => (
@@ -193,14 +195,14 @@ export function QuickEnrollmentDialog({
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setOpen(false)}>
-                        Annuler
+                        {t("studentsAdmin.annuler")}
                     </Button>
                     <Button
                         onClick={() => enrollMutation.mutate()}
                         disabled={enrollMutation.isPending || !academicYearId || !classroomId}
                     >
                         {enrollMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Confirmer l'inscription
+                        {t("studentsAdmin.confirmerLInscription")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

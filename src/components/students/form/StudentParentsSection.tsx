@@ -17,6 +17,7 @@ import {
 import { Parent } from "./schema";
 import { useState } from "react";
 import { CreateParentDialog } from "./CreateParentDialog";
+import { useTranslation } from "react-i18next";
 
 interface StudentParentsSectionProps {
     selectedParents: Parent[];
@@ -33,6 +34,7 @@ export const StudentParentsSection = ({
     searchParents,
     tenantId,
 }: StudentParentsSectionProps) => {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [searchResults, setSearchResults] = useState<Parent[]>([]);
@@ -49,10 +51,10 @@ export const StudentParentsSection = ({
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">Parents / Tuteurs</h3>
+                <h3 className="text-sm font-medium">{t("studentsAdmin.parentsTuteurs")}</h3>
                 <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)} type="button">
                     <UserPlus className="w-4 h-4 mr-2" />
-                    Nouveau Parent
+                    {t("studentsAdmin.nouveauParent")}
                 </Button>
             </div>
 
@@ -70,7 +72,7 @@ export const StudentParentsSection = ({
                     </Badge>
                 ))}
                 {selectedParents.length === 0 && (
-                    <span className="text-sm text-muted-foreground italic">Aucun parent sélectionné</span>
+                    <span className="text-sm text-muted-foreground italic">{t("studentsAdmin.aucunParentSelectionne")}</span>
                 )}
             </div>
 
@@ -84,19 +86,19 @@ export const StudentParentsSection = ({
                     >
                         <span className="flex items-center text-muted-foreground">
                             <Search className="mr-2 h-4 w-4" />
-                            Rechercher un parent existant...
+                            {t("studentsAdmin.rechercherUnParentExistant")}
                         </span>
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[400px] p-0" align="start">
                     <Command shouldFilter={false}>
                         <CommandInput
-                            placeholder="Rechercher par nom..."
+                            placeholder={t("studentsAdmin.rechercherParNom")}
                             onValueChange={handleSearch}
                         />
                         <CommandList>
-                            <CommandEmpty>Aucun parent trouvé.</CommandEmpty>
-                            <CommandGroup heading="Résultats">
+                            <CommandEmpty>{t("studentsAdmin.aucunParentTrouve")}</CommandEmpty>
+                            <CommandGroup heading={t("studentsAdmin.resultats")}>
                                 {searchResults.map((parent) => (
                                     <CommandItem
                                         key={parent.id}

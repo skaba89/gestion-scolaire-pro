@@ -3,12 +3,14 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/comp
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StudentFormValues } from "./schema";
+import { useTranslation } from "react-i18next";
 
 interface StudentContactSectionProps {
     form: UseFormReturn<StudentFormValues>;
 }
 
 export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
+    const { t } = useTranslation();
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -18,9 +20,9 @@ export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
                     name="email"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>{t("studentsAdmin.email")}</FormLabel>
                             <FormControl>
-                                <Input type="email" placeholder="jean.dupont@example.com" {...field} />
+                                <Input type="email" placeholder={t("studentsAdmin.jeanDupontExampleCom")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -33,7 +35,7 @@ export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
                     name="phone"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Téléphone</FormLabel>
+                            <FormLabel>{t("studentsAdmin.telephone")}</FormLabel>
                             <FormControl>
                                 <Input type="tel" placeholder="+33 6 12 34 56 78" {...field} />
                             </FormControl>
@@ -49,9 +51,9 @@ export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
                 name="address"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Adresse</FormLabel>
+                        <FormLabel>{t("studentsAdmin.adresse")}</FormLabel>
                         <FormControl>
-                            <Textarea placeholder="123 Rue de la Paix" className="resize-none" {...field} />
+                            <Textarea placeholder={t("studentsAdmin.123RueDeLaPaix")} className="resize-none" {...field} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -65,7 +67,7 @@ export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
                     name="postal_code"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Code Postal</FormLabel>
+                            <FormLabel>{t("studentsAdmin.codePostal")}</FormLabel>
                             <FormControl>
                                 <Input placeholder="75001" {...field} />
                             </FormControl>
@@ -80,9 +82,9 @@ export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
                     name="city"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Ville</FormLabel>
+                            <FormLabel>{t("studentsAdmin.ville")}</FormLabel>
                             <FormControl>
-                                <Input placeholder="Paris" {...field} />
+                                <Input placeholder={t("studentsAdmin.paris")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -95,9 +97,9 @@ export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
                     name="state"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Région / État</FormLabel>
+                            <FormLabel>{t("studentsAdmin.regionEtat")}</FormLabel>
                             <FormControl>
-                                <Input placeholder="Île-de-France" {...field} />
+                                <Input placeholder={t("studentsAdmin.ileDeFrance")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -110,9 +112,9 @@ export const StudentContactSection = ({ form }: StudentContactSectionProps) => {
                     name="country"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Pays</FormLabel>
+                            <FormLabel>{t("studentsAdmin.pays")}</FormLabel>
                             <FormControl>
-                                <Input placeholder="France" {...field} />
+                                <Input placeholder={t("studentsAdmin.france")} {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>

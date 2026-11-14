@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface StudentPhotoUploadProps {
   studentId: string;
@@ -19,6 +20,7 @@ export function StudentPhotoUpload({
   studentName,
   onPhotoUpdated,
 }: StudentPhotoUploadProps) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,13 +30,13 @@ export function StudentPhotoUpload({
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      toast.error("Veuillez sélectionner une image");
+      toast.error(t("studentsAdmin.veuillezSelectionnerUneImage"));
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("L'image ne doit pas dépasser 5MB");
+      toast.error(t("studentsAdmin.imageTooLarge"));
       return;
     }
 
@@ -60,10 +62,10 @@ export function StudentPhotoUpload({
       await apiClient.put(`/students/${studentId}/`, { photo_url: publicUrl });
 
       onPhotoUpdated(publicUrl);
-      toast.success("Photo mise à jour avec succès");
+      toast.success(t("studentsAdmin.photoMiseAJourAvec"));
     } catch (error: unknown) {
       console.error("Error uploading photo:", error);
-      toast.error("Erreur lors du téléchargement de la photo");
+      toast.error(t("studentsAdmin.erreurLorsDuTelechargementDe"));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -82,10 +84,10 @@ export function StudentPhotoUpload({
       await apiClient.put(`/students/${studentId}/`, { photo_url: null });
 
       onPhotoUpdated(null);
-      toast.success("Photo supprimée");
+      toast.success(t("studentsAdmin.photoSupprimee"));
     } catch (error: any) {
       console.error("Error removing photo:", error);
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("studentsAdmin.erreurLorsDeLaSuppression"));
     } finally {
       setUploading(false);
     }
@@ -126,7 +128,7 @@ export function StudentPhotoUpload({
           ) : (
             <Camera className="h-4 w-4 mr-2" />
           )}
-          {currentPhotoUrl ? "Changer" : "Ajouter photo"}
+          {currentPhotoUrl ? "Changer" : t("studentsAdmin.ajouterPhoto")}
         </Button>
         
         {currentPhotoUrl && (
