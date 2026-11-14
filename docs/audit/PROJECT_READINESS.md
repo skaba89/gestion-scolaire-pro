@@ -61,3 +61,15 @@ n'est accordé à partir de ce seul lot. Le déploiement national reste **NO-GO*
 faute de recette complète, PRA représentatif, capacité de charge et validation
 terrain documentés ; les risques INVOICE-DELETE-02 et TENANT-DELETE-01 restent
 à traiter.
+
+
+## Mise à jour vérifiée — 2026-11-14, après #552
+
+`main` = `03084c6`. PR #552 fusionnée ; CI #1532 (run 43569446810) : **6/6 réussis**.
+Backend PostgreSQL : 3273 réussis / 1 ignoré, couverture 76,87 % ; SQLite CI :
+2347 réussis / 927 ignorés, couverture 59,86 %. Parcours E2E et crawl GET/écritures
+réussis. Ce sont des résultats de CI, pas des preuves de production.
+
+INVOICE-DELETE-02 est reproduit puis corrigé dans la branche suivante ; preuves,
+limites et procédure de retour dans `INVOICE_DELETE_CONCURRENCY_20261114.md`.
+Aucun nouveau score de maturité. Aucun déploiement national autorisé par ces tests seuls.

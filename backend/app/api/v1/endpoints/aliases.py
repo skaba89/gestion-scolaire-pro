@@ -403,48 +403,11 @@ def delete_invoice_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """DELETE /invoices/{id}/ — mirrors DELETE /payments/invoices/{id}/
-
-    SECURITY/DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
-    this alias duplicated the canonical endpoint's pre-fix logic — an
-    unconditional DELETE with no payment-history check. Payment.invoice_id
-    is ON DELETE SET NULL, so deleting a paid invoice through this route
-    would silently orphan every payment ever registered against it. Now
-    mirrors finance/payments.py's delete_invoice_endpoint() exactly.
-    """
-    from app.utils.audit import log_audit
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        raise HTTPException(status_code=400, detail="Tenant ID required")
-    invoice_row = db.execute(text("""
-        SELECT id FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
-    """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).first()
-    if not invoice_row:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-
-    has_payments = db.execute(text("""
-        SELECT 1 FROM payments WHERE invoice_id = :invoice_id LIMIT 1
-    """), {"invoice_id": invoice_id}).first()
-    if has_payments:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Impossible de supprimer une facture ayant des paiements "
-                "enregistrés, même annulés — l'historique financier ne peut "
-                "jamais être effacé. Utilisez le statut de la facture pour "
-                "la marquer autrement si besoin."
-            ),
-        )
-
-    result = db.execute(text("""
-        DELETE FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
-    """), {"invoice_id": invoice_id, "tenant_id": tenant_id})
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
-              action="DELETE", resource_type="INVOICE", resource_id=invoice_id)
-    db.commit()
-    return None
+    """Use the canonical lock and history guard for both invoice URLs."""
+    from app.api.v1.endpoints.finance.payments import delete_invoice_endpoint
+    return delete_invoice_endpoint(
+        request=request, invoice_id=invoice_id, db=db, current_user=current_user,
+    )
 
 
 # ─── 5. Class Sessions (/class-sessions/) ─────────────────────────────────────
