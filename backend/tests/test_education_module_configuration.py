@@ -328,3 +328,38 @@ def test_audit_failure_rolls_back_the_entire_configuration(school):
             assert not db.get(Tenant, school["tenant"]).education_modules_configured
     finally:
         event.remove(AuditLog, "before_insert", refuse_audit)
+
+
+@pytest.mark.parametrize("corrupt", [None, [], False, ["library"]])
+def test_corrupt_json_policy_never_becomes_an_implicit_default(school, corrupt):
+    assert _save(school, {"library": False}).status_code == 200
+    with SessionLocal() as db:
+        config = db.get(EducationConfiguration, school["tenant"])
+        config.overrides = corrupt
+        db.commit()
+    response = client.get("/api/v1/library/resources/", headers=school["headers"]())
+    assert response.status_code == 503, response.text
+
+
+@pytest.mark.skipif(engine.dialect.name != "postgresql", reason="PostgreSQL additive migration lifecycle")
+def test_migration_reentry_and_non_destructive_downgrade_preserve_policy_and_audit(school):
+    import runpy
+    from pathlib import Path
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from app.models.audit_log import AuditLog
+    assert _save(school, {"library": False}).status_code == 200
+    migration = runpy.run_path(str(Path(__file__).parents[1] / "alembic/versions/20261114_0002_education_module_configuration.py"))
+    with SessionLocal() as db:
+        before = db.query(AuditLog).filter(AuditLog.tenant_id == school["tenant"]).count()
+    with engine.begin() as connection:
+        with Operations.context(MigrationContext.configure(connection)):
+            migration["upgrade"]()
+            migration["downgrade"]()
+            migration["upgrade"]()
+    with SessionLocal() as db:
+        config = db.get(EducationConfiguration, school["tenant"])
+        assert config.revision == 1 and config.overrides == {"library": False}
+        assert db.get(Tenant, school["tenant"]).education_modules_configured
+        assert db.query(AuditLog).filter(AuditLog.tenant_id == school["tenant"]).count() == before
+    assert client.get("/api/v1/library/resources/", headers=school["headers"]()).status_code == 403

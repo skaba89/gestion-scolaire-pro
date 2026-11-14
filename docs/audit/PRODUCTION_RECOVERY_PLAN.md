@@ -59,3 +59,15 @@ Le VPS unique décrit reste un point de défaillance unique. Évaluer, sans enga
 de dépense ici, la séparation des sauvegardes/objets, une supervision externe et
 un environnement de secours restaurable ; dimensionner les coûts après mesure
 et objectifs de service convenus pour les établissements guinéens.
+
+## Récupération du moteur modulaire — PR #556
+
+Migration additive `20261114_0002` après `20261114_0001`, lock_timeout PostgreSQL
+5 s, aucune réécriture métier. Son downgrade conserve la politique et son audit.
+Après activation d'une politique, le code antérieur au moteur ne la respecte pas :
+conserver une version avec contrôle serveur ou restreindre l'accès pendant
+l'incident, puis privilégier un correctif forward. Une simple conservation du
+schéma ne prouve pas qu'un rollback applicatif est sûr. Ordre d'installation,
+RLS, prérequis de copie anonymisée/restauration :
+`../architecture/EDUCATION_MODULE_MIGRATION.md`. Aucun exercice de production ni
+restauration réelle VPS n'a été effectué dans ce lot.

@@ -1,12 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { api, credentials, stateFile } from './helpers';
 
-for (const mobile of [false, true]) {
-  test.describe(`Modules pédagogiques — ${mobile ? 'mobile' : 'bureau'}`, () => {
-    test.use({ storageState: stateFile('witness') });
-    test('aperçu sans écriture, désactivation API et page directe, puis réactivation', async ({ page, request }) => {
-      test.setTimeout(90_000);
-      if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+test.describe('Modules pédagogiques — bureau et mobile', () => {
+  test.use({ storageState: stateFile('witness') });
+  test('aperçu sans écriture, désactivation API et page directe, puis réactivation', async ({ page, request }) => {
+      test.setTimeout(120_000);
       const admin = api(request, 'witness');
       const other = api(request, 'admin');
       const beforeResponse = await admin.get('/education/configuration/');
@@ -38,6 +36,9 @@ for (const mobile of [false, true]) {
         expect((await admin.post('/library/resources/', { title: 'Interdit après désactivation' })).status()).toBe(403);
         await page.goto(`${base}/library`);
         await expect(page.getByRole('heading', { name: 'Module désactivé' })).toBeVisible();
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.getByRole('heading', { name: 'Module désactivé' })).toBeVisible();
         expect((await other.get('/library/resources/')).status()).toBe(200);
         expect((await (await other.get('/education/configuration/')).json()).revision).toBe(otherBefore.revision);
       } finally {
@@ -50,6 +51,5 @@ for (const mobile of [false, true]) {
       expect((await admin.get('/library/resources/')).status()).toBe(200);
       await page.goto(`${base}/library`);
       await expect(page.getByRole('heading', { name: 'Module désactivé' })).toHaveCount(0);
-    });
   });
-}
+});

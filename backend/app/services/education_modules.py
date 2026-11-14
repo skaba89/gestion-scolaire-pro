@@ -15,6 +15,8 @@ def current_configuration(db: Session, tenant: Tenant) -> tuple[EducationConfigu
     configuration = db.query(EducationConfiguration).filter(EducationConfiguration.tenant_id == tenant.id).first()
     if configuration is None:
         raise HTTPException(status_code=503, detail="Configuration des modules indisponible")
+    if not isinstance(configuration.overrides, dict):
+        raise HTTPException(status_code=503, detail="Configuration des modules invalide ; contactez l'administration")
     try:
         enabled = resolve_modules(configuration.profile_id, configuration.overrides)
     except (InvalidModuleConfiguration, TypeError, AttributeError):

@@ -111,4 +111,3 @@ Les rôles ne changent pas avec le profil. Aucun compte administratif ou familia
 ### COMMUNE_ADMIN
 
 `ministry:read`
-
