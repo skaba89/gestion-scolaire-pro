@@ -109,3 +109,13 @@ Suite SQLite complète : **2346 réussis, 928 ignorés**, couverture **60,15 %**
 Impact : suppression physique plus restrictive sur les comptes référencés ;
 les comptes inutilisés restent supprimables, rôles compris. Retour arrière :
 revert du commit, sans migration, réintroduisant le risque de pertes.
+
+
+## Lot 4 — INVOICE-DELETE-02 (2026-11-14)
+
+#552 est fusionnée en `03084c6`, CI #1532 6/6. Sur la référence `8461420`, deux
+courses reproduites (route facture et alias). Correctif : verrou FOR UPDATE avant
+la recherche des paiements, alias délégué à la route canonique, UUID typés.
+33 tests PostgreSQL réussis, dont les deux ordres de concurrence et quatre cas
+sous RLS sans BYPASSRLS ; 39 SQLite réussis / 8 ignorés. Détail :
+`INVOICE_DELETE_CONCURRENCY_20261114.md`. Correctif de ce lot non déployé ; CI/fusion à vérifier.

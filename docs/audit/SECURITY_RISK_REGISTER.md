@@ -11,8 +11,8 @@ ou le schéma, avec sa preuve. Statuts : **VÉRIFIÉ**, **CORRIGÉ**, **À CONFI
 | PERIOD-DELETE-02 | P0 | Intégrité scolaire | Suppression d'un trimestre = notes détachées de leur période | idem | CORRIGÉ (non déployé) | #548 |
 | PERIOD-DELETE-03 | P2 | Robustesse | 500 (SQL exposé en DEBUG) sur année avec trimestres | idem | CORRIGÉ (non déployé) | #548 |
 | STRUCT-DELETE-01 | P1 | Intégrité scolaire | Niveaux, campus, semestres, programmes, facultés, départements supprimables en détachant classes/matières, salles et membres effacés | `test_structure_delete_history.py` | CORRIGÉ (non déployé) | fix/structure-delete-history |
-| USER-DELETE-02 | P1 | Intégrité RH/finance | Compte enseignant : affectations et heures travaillées supprimées en cascade | 6 reproductions HTTP PostgreSQL sur 8461420 ; test_user_delete_teacher_history.py (FK, concurrence, RLS, désactivation) | CORRIGÉ dans la branche (non déployé) | fix/user-delete-teacher-history |
-| INVOICE-DELETE-02 | P1 | Finance | Course entre suppression de facture et paiement concurrent (paiement orphelin) | Lecture de code | À CONFIRMER | — |
+| USER-DELETE-02 | P1 | Intégrité RH/finance | Compte enseignant : affectations et heures travaillées supprimées en cascade | 6 reproductions HTTP PostgreSQL sur 8461420 ; test_user_delete_teacher_history.py (FK, concurrence, RLS, désactivation) | CORRIGÉ, fusionné, CI 6/6 (non déployé) | #552 |
+| INVOICE-DELETE-02 | P1 | Finance | Course entre suppression de facture et paiement concurrent (paiement orphelin) | Deux courses reproduites sur 8461420 ; test_invoice_delete_concurrency.py, 33 tests PostgreSQL réussis | CORRIGÉ dans la branche (non déployé) | fix/invoice-delete-concurrency |
 | TENANT-DELETE-01 | P1 | Gouvernance | Suppression définitive d'un établissement sans archivage | Lecture de code | À CONFIRMER | — |
 | SCHEMA-DRIFT-01 | P2 | Schéma | FK `grades.academic_year_id` absente en base | `pg_constraint` | VÉRIFIÉ | — |
 | IMPORT-WEBHOOK-ARQ | — | Intégrité | Imports CSV, webhooks, tâches asynchrones non audités dans ce lot | — | NON TESTÉ | — |
