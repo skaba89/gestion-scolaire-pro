@@ -94,3 +94,8 @@ def test_cross_tenant_target_cannot_be_deleted():
         _call(db, admin, target, tenant, ["TENANT_ADMIN"])
     assert exc.value.status_code == 404
     db.commit.assert_not_called()
+
+
+@pytest.fixture(autouse=True)
+def _catalog_covered_by_integration_tests(monkeypatch):
+    monkeypatch.setattr("app.crud.academic._is_referenced", lambda *args, **kwargs: False)

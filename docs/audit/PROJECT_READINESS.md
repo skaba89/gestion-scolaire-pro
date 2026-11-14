@@ -45,3 +45,19 @@ parent/ancien élève/enseignant) sont couvertes par pytest (`backend/tests/test
 | REPORT-CARDS-ROSTER-01 | P0 (émission des bulletins) | La page admin « Bulletins » croisait les inscriptions de la classe avec `GET /students/?page_size=100` (100 élèves les plus récents, plafond serveur `le=100`, tri `created_at desc`). Dans un établissement de plus de 100 élèves, les inscrits plus anciens disparaissaient de la liste et du compteur « Tous les bulletins », sans erreur (`.catch` silencieux). | `src/pages/admin/__tests__/ReportCards.test.tsx` (ex-`ReportCards.roster.test.tsx`) rouge avant, vert après ; contrat d'embarquement de l'élève vérifié dans `03-grades-report-card.spec.ts` | [#498](https://github.com/skaba89/gestion-scolaire-pro/pull/498), fusionnée (`8412460`), CI 6/6 |
 | REPORT-CARDS-SUMMARY-01 | P1 | « Moy. estimée » recalculée dans le navigateur sur toutes les périodes, regroupée par nom de matière, note absente = 0 : pouvait différer du PDF. N requêtes `/grades/` à chaque affichage. | `test_report_card_class_summary.py` (SQLite + PostgreSQL), `ReportCards.test.tsx`, parcours E2E 03 | à ouvrir |
 | PDF-FILENAME-01 | P2 | `Content-Disposition` des PDF de bulletin/attestation contenait des octets non ASCII (prénoms accentués) ; la réponse échouait sous le client de test. | Échec reproduit sur PostgreSQL avant correctif ; tests d'en-tête | à ouvrir |
+
+
+## Intégrité des comptes — 2026-11-14
+
+Référence auditée : `8461420` (#551). USER-DELETE-02 reproduit puis corrigé dans
+`fix/user-delete-teacher-history` : suppression refusée en présence d'historique,
+désactivation réversible, verrou contre affectation concurrente, tests sur le
+schéma migré PostgreSQL 16.2 et rôle sans BYPASSRLS. Détail et limites dans
+`INTEGRITY_DELETES_20261113.md`, lot 3. CI/fusion à confirmer. Non déployé.
+
+Le score formel **60/100** reste une mesure historique, pas une mesure de ce
+commit. L'estimation 73/100 n'est pas une certification. Aucun nouveau score
+n'est accordé à partir de ce seul lot. Le déploiement national reste **NO-GO**
+faute de recette complète, PRA représentatif, capacité de charge et validation
+terrain documentés ; les risques INVOICE-DELETE-02 et TENANT-DELETE-01 restent
+à traiter.

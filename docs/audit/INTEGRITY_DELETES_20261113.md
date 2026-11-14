@@ -72,3 +72,40 @@ PostgreSQL : une classe créée en parallèle bloque la suppression de son nivea
 Les règles de notation par niveau stockées dans les paramètres de l'établissement
 ne sont pas modifiées (une entrée orpheline après suppression d'un niveau vide est
 sans effet).
+
+
+## Lot 3 — USER-DELETE-02 (2026-11-14)
+
+Base vérifiée : `8461420cc713bf2f7b668cf125cafbeb7a036806` (#551).
+
+**VÉRIFIÉ** : sur une copie du code de ce commit et PostgreSQL 16.2 jetable,
+les six tests HTTP (TENANT_ADMIN / SUPER_ADMIN × affectation, heures travaillées,
+annonce) échouent : suppression autorisée au lieu de 409. Les rôles courants sont
+retirés avant l'appel pour démontrer que la présence d'historique, et non le rôle
+TEACHER actuel, doit gouverner la conservation. Un test transactionnel reproduit
+la disparition des trois dépendances par CASCADE puis annule la transaction et
+vérifie la restitution des lignes.
+
+**CORRIGÉ dans cette branche, non déployé** : verrou du compte `FOR UPDATE`
+avant les vérifications, recherche de toute FK réelle vers `users` par le
+catalogue existant `_is_referenced`. Seuls `user_roles` et `profiles`, configuration
+d'identité sans historique métier, sont retirés explicitement avec un compte
+inutilisé. Toute autre référence, y compris opérationnelle sans modèle ORM,
+provoque 409 avec invitation à désactiver ; catalogue indisponible : 503.
+Les gardes parent/élève et administrateur sont conservées.
+
+La désactivation existante conserve les liens et heures, révoque les sessions,
+et reste réversible. Les UUID sont maintenant liés avec le type GUID réel
+(correction des faux 404 SQLite). Un administrateur d'établissement ne peut plus
+changer le statut d'un compte privilégié. Aucune migration / suppression de données.
+
+Preuves : `backend/tests/test_user_delete_teacher_history.py` et tests de gardes
+utilisateur existants. Après correction : **38 tests ciblés PostgreSQL réussis**,
+dont attente de verrou observée avec `pg_blocking_pids` et deux scénarios sous
+rôle `NOSUPERUSER NOBYPASSRLS` avec RLS active (établissement courant / étranger).
+Suite SQLite complète : **2346 réussis, 928 ignorés**, couverture **60,15 %**
+(seuil requis 43 %). Les six contrôles GitHub restent à confirmer dans la PR ; ne pas confondre validation du code et déploiement.
+
+Impact : suppression physique plus restrictive sur les comptes référencés ;
+les comptes inutilisés restent supprimables, rôles compris. Retour arrière :
+revert du commit, sans migration, réintroduisant le risque de pertes.
