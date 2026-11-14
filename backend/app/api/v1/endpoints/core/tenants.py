@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 20497)
+Total output lines: 2042
+
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Query, Request, Response
@@ -114,7 +117,7 @@ async def create_tenant(
         # (this route is middleware-exempt, so none is set yet).
         enter_tenant_context_or_404(db, new_tenant.id)
         from app.services.education_modules import initialize_new_tenant
-        initialize_new_tenant(db, new_tenant, str(current_user["id"]))
+        default_cycle = initialize_new_tenant(db, new_tenant, str(current_user["id"]))
 
         # 1. Create Academic Year
         logger.info("Initializing academic year...")
@@ -184,7 +187,8 @@ async def create_tenant(
             level = Level(
                 tenant_id=new_tenant.id,
                 name=lvl_name,
-                order_index=i + 1
+                order_index=i + 1,
+                cycle_id=default_cycle.id if default_cycle else None,
             )
             db.add(level)
 
@@ -935,7 +939,7 @@ async def create_tenant_with_admin(
         # context (middleware-exempt route, none is set yet).
         enter_tenant_context_or_404(db, new_tenant.id)
         from app.services.education_modules import initialize_new_tenant
-        initialize_new_tenant(db, new_tenant, str(current_user["id"]))
+        default_cycle = initialize_new_tenant(db, new_tenant, str(current_user["id"]))
 
         # 2. Create Academic Year
         current_year = datetime.now().year
@@ -966,7 +970,12 @@ async def create_tenant_with_admin(
         from app.core.guinea_presets import guinea_levels_for_type
         levels_to_create = tenant_in.levels or guinea_levels_for_type(tenant_in.type)
         for i, lvl_name in enumerate(levels_to_create):
-            level = Level(tenant_id=new_tenant.id, name=lvl_name, order_index=i + 1)
+            level = Level(
+                tenant_id=new_tenant.id,
+                name=lvl_name,
+                order_index=i + 1,
+                cycle_id=default_cycle.id if default_cycle else None,
+            )
             db.add(level)
 
         # 5. Create default Subjects
@@ -976,62 +985,7 @@ async def create_tenant_with_admin(
             {"name": "Anglais", "code": "ANG", "coefficient": 2}
         ]:
             subject = Subject(
-                tenant_id=new_tenant.id,
-                name=sub["name"], code=sub["code"], coefficient=sub["coefficient"]
-            )
-            db.add(subject)
-
-        # 6. Create Admin User for this tenant — SUPER_ADMIN never sets or
-        # sees this password (see create_tenant_admin_user's docstring for
-        # the rationale). A random, never-disclosed value is set and a
-        # single-use activation link is emailed instead.
-        import secrets
-        from app.core.security import get_password_hash
-        admin_user = User(
-            email=tenant_in.admin_email,
-            username=tenant_in.admin_email,
-            first_name=tenant_in.admin_first_name,
-            last_name=tenant_in.admin_last_name,
-            password_hash=get_password_hash(secrets.token_urlsafe(32)),
-            tenant_id=new_tenant.id,
-            is_active=True,
-            is_verified=True,
-            must_change_password=True,
-        )
-        db.add(admin_user)
-        db.flush()
-
-        # 7. Assign TENANT_ADMIN role
-        admin_role = UserRole(
-            user_id=admin_user.id,
-            tenant_id=new_tenant.id,
-            role="TENANT_ADMIN"
-        )
-        db.add(admin_role)
-
-        log_audit(
-            db,
-            user_id=current_user.get("id"),
-            tenant_id=new_tenant.id,
-            action="CREATE_TENANT_WITH_ADMIN",
-            resource_type="TENANT",
-            resource_id=new_tenant.id,
-            details={
-                "tenant_name": new_tenant.name,
-                "admin_email": tenant_in.admin_email,
-            }
-        )
-        log_platform_audit(
-            db,
-            actor_user_id=current_user.get("id"),
-            action="CREATE_TENANT_WITH_ADMIN",
-            target_type="TENANT",
-            target_id=str(new_tenant.id),
-            details={"name": new_tenant.name, "slug": new_tenant.slug},
-        )
-
-        # 8. Email the activation link — if this fails, roll back the whole
-        # tenant rather than leave an establishment with an admin who can
+                tenant_id=new_tenant.…497 tokens truncated…nt with an admin who can
         # never log in (same all-or-nothing rule as create_tenant_admin_user).
         try:
             delivery = await deliver_password_setup_link(

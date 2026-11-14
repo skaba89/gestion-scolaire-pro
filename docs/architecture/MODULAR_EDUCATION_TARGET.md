@@ -40,8 +40,9 @@ erDiagram
 2. Moteur tenant et interfaces : aperçu sans écriture, activation/désactivation
    atomique, contrôle des dépendances, conflits de révision 409, audit, refus API
    direct et état de disponibilité visible. Le socle commun reste indispensable.
-3. Cycles : migrations additives, association validée des niveaux, rôles et
-   ressources ; pas de migration automatique des historiques ambigus. Toute
+3. Cycles : le registre additif et l'association validée des niveaux sont
+   livrés ; les rôles et ressources restent le lot suivant. Il n'y a aucune
+   migration automatique des historiques ambigus. Toute
    route non encore capable de filtrer un cycle doit être explicitement marquée
    non couverte avant d'autoriser des politiques différentes entre cycles.
 4. Pédagogie : étendre les règles existantes avec tests du résultat des bulletins,

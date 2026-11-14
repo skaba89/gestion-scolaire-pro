@@ -7,6 +7,7 @@ export interface Level {
     name: string;
     code?: string | null;
     label?: string | null;
+    cycle_id?: string | null;
     order_index: number;
 }
 

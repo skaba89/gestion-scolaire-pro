@@ -59,3 +59,4 @@ from app.models.survey import Survey, SurveyQuestion, SurveyResponse
 from app.models.library import LibraryCategory, LibraryResource, LibraryBorrowRecord
 from app.models.mfa import MfaBackupCode, EmailOtp, MfaTotpSecret
 from app.models.education_configuration import EducationConfiguration
+from app.models.education_cycle import EducationCycle

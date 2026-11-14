@@ -1,4 +1,5 @@
 import { EducationModuleSettings } from "@/components/settings/EducationModuleSettings";
+import { EducationCycleSettings } from "@/components/settings/EducationCycleSettings";
 import { useState } from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,6 +56,7 @@ const Settings = () => {
     { id: "establishment", label: "Établissement", icon: Building2 },
     { id: "branding", label: "Personnalisation", icon: SettingsIcon },
     { id: "modules", label: t("educationModules.title"), icon: GraduationCap },
+    { id: "cycles", label: t("educationCycles.title", { defaultValue: "Cycles pédagogiques" }), icon: GraduationCap },
     { id: "menu", label: "Menu", icon: ListFilter },
     { id: "system", label: "Système", icon: SettingsIcon },
     { id: "signatures", label: "Signatures", icon: PenTool },
@@ -123,6 +125,10 @@ const Settings = () => {
 
         <TabsContent value="modules">
           <EducationModuleSettings />
+        </TabsContent>
+
+        <TabsContent value="cycles">
+          <EducationCycleSettings />
         </TabsContent>
 
         <TabsContent value="menu">

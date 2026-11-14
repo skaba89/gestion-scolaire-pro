@@ -103,6 +103,7 @@ class LevelUpdate(BaseModel):
 class Level(LevelBase):
     id: UUID
     tenant_id: UUID
+    cycle_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 
