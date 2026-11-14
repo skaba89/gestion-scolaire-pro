@@ -119,3 +119,17 @@ la recherche des paiements, alias délégué à la route canonique, UUID typés.
 33 tests PostgreSQL réussis, dont les deux ordres de concurrence et quatre cas
 sous RLS sans BYPASSRLS ; 39 SQLite réussis / 8 ignorés. Détail :
 `INVOICE_DELETE_CONCURRENCY_20261114.md`. Correctif de ce lot non déployé ; CI/fusion à vérifier.
+
+
+## Lots 5–6 : établissement et schéma, état consolidé
+
+`main` = `f5f0134`. #552 (enseignants), #554 (factures) et #553 (établissements)
+sont fusionnées avec six contrôles requis réussis ; #553 a été revalidée avec #554.
+Aucun correctif n'est déclaré déployé. L'effacement des établissements est interdit,
+la désactivation préserve les historiques ; le workflow d'export/archivage reste
+ouvert. Détail : `TENANT_RETENTION_20261114.md`.
+
+#555 prépare la FK manquante notes/année et son index sans UPDATE/DELETE des notes.
+25 tests PostgreSQL réussis et 20 SQLite / 5 ignorés, plus 168 tests PostgreSQL des
+quatre correctifs réunis / 1 ignoré. Préflight, verrous et récupération détaillés dans
+`SCHEMA_DRIFT_20261114.md`. Copie anonymisée réelle et déploiement NON TESTÉS.
