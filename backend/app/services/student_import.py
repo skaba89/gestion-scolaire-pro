@@ -176,6 +176,8 @@ def run_student_import(
     """Write every row to the students table. Returns
     {created, skipped, error_rows} — the same shape the endpoint has
     always returned, now shared with the async job path."""
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, tenant_id, "academics")
     mapping = detect_columns(headers, STUDENT_COLUMN_MAP)
 
     existing_regs = set(

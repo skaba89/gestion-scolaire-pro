@@ -766,6 +766,9 @@ async def public_upload_document(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found or inactive")
 
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, tenant.id, "admissions")
+
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
     extension = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
@@ -844,6 +847,8 @@ def public_apply(
         raise HTTPException(status_code=404, detail="Tenant not found or inactive")
     # Public portal (middleware-exempt): write under the tenant's RLS context.
     enter_tenant_context_or_404(db, tenant.id)
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, tenant.id, "admissions")
 
     # level_id/academic_year_id are optional in the public form — the frontend
     # sends "" (not omitted) when nothing is selected, which Postgres rejects
@@ -935,6 +940,8 @@ def public_check_status(
     """Check candidature status by parent email (and optionally application ID)."""
     # Public portal (middleware-exempt): read under the tenant's RLS context.
     enter_tenant_context_or_404(db, tenant_id)
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, tenant_id, "admissions")
     # bindparam(type_=GUID()) sur tenant_id/reference : sans ça, un bind
     # texte brut compare la valeur avec tirets de l'appelant à la valeur
     # sans tirets stockée par le GUID TypeDecorator sur SQLite et ne
@@ -1070,6 +1077,8 @@ def public_verify_student(payload: VerifyStudentPayload, db: Session = Depends(g
     """Verify that a student exists for re-enrollment (returns masked data)."""
     # Public portal (middleware-exempt): read under the tenant's RLS context.
     enter_tenant_context_or_404(db, payload.tenant_id)
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, payload.tenant_id, "admissions")
     row = _find_student_for_requester(
         db, tenant_id=payload.tenant_id, registration_number=payload.registration_number,
         parent_email=payload.parent_email,
@@ -1192,6 +1201,8 @@ def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Établissement introuvable ou inactif.")
     # Public portal (middleware-exempt): read/write under the tenant's RLS context.
     enter_tenant_context_or_404(db, tenant.id)
+    from app.services.education_modules import require_tenant_module
+    require_tenant_module(db, tenant.id, "admissions")
 
     # Le demandeur doit prouver le lien avec l'élève : matricule ET e-mail
     # du parent (ou de l'élève) — exactement le critère de

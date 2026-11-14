@@ -1,3 +1,4 @@
+import { useEducationModules } from "@/hooks/useEducationModules";
 import { useState, useEffect } from "react";
 import {
     Dialog,
@@ -62,6 +63,8 @@ export const SubjectFormDialog = ({
     onSubmit,
     isPending
 }: SubjectFormDialogProps) => {
+    const { isModuleEnabled } = useEducationModules();
+    const lmdEnabled = isModuleEnabled("lmd");
     const [formData, setFormData] = useState<SubjectFormValues>({
         name: "",
         code: "",
@@ -166,7 +169,7 @@ export const SubjectFormDialog = ({
                             </div>
                         </div>
 
-                        {semesters.length > 0 && (
+                        {lmdEnabled && semesters.length > 0 && (
                             <div className="space-y-2">
                                 <Label>Semestre (LMD — optionnel)</Label>
                                 <Select
@@ -193,7 +196,7 @@ export const SubjectFormDialog = ({
                         )}
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
+                            {lmdEnabled && <div className="space-y-2">
                                 <Label>ECTS</Label>
                                 <Input
                                     type="number"
@@ -202,7 +205,7 @@ export const SubjectFormDialog = ({
                                     value={formData.ects}
                                     onChange={(e) => setFormData({ ...formData, ects: e.target.value })}
                                 />
-                            </div>
+                            </div>}
                             <div className="space-y-2">
                                 <Label>Coefficient (Poids)</Label>
                                 <Input
@@ -245,7 +248,7 @@ export const SubjectFormDialog = ({
                             </div>
                         </div>
 
-                        {editingSubject && otherSubjects.length > 0 && (
+                        {lmdEnabled && editingSubject && otherSubjects.length > 0 && (
                             <div className="space-y-2">
                                 <Label>Prérequis (LMD — optionnel)</Label>
                                 <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">

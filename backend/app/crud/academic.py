@@ -321,6 +321,9 @@ def _validate_subject_association_fks(
 
 
 def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subject:
+    if obj_in.ects or obj_in.semester_id or obj_in.prerequisite_subject_ids:
+        from app.services.education_modules import require_tenant_module
+        require_tenant_module(db, tenant_id, "lmd")
     ensure_refs_in_tenant(db, tenant_id, ("semesters", obj_in.semester_id))
     _validate_subject_association_fks(
         db, tenant_id=tenant_id,
@@ -371,9 +374,21 @@ def update_subject(db: Session, subject_id: UUID, obj_in: SubjectUpdate, tenant_
         return None
 
     update_data = obj_in.model_dump(exclude_unset=True)
+    if (("ects" in update_data and update_data["ects"] != db_obj.ects and (update_data["ects"] or db_obj.ects))
+            or ("semester_id" in update_data and update_data["semester_id"] != db_obj.semester_id)):
+        from app.services.education_modules import require_tenant_module
+        require_tenant_module(db, tenant_id, "lmd")
     dept_ids = update_data.pop("department_ids", None)
     level_ids = update_data.pop("level_ids", None)
     prereq_ids = update_data.pop("prerequisite_subject_ids", None)
+    if prereq_ids is not None:
+        existing_prerequisites = {r.prerequisite_subject_id for r in db.execute(subject_prerequisites.select().where(
+            (subject_prerequisites.c.subject_id == subject_id) & (subject_prerequisites.c.tenant_id == tenant_id)
+        ))}
+        if set(prereq_ids) != existing_prerequisites:
+            from app.services.education_modules import require_tenant_module
+            require_tenant_module(db, tenant_id, "lmd")
+
     ensure_refs_in_tenant(db, tenant_id, ("semesters", update_data.get("semester_id")))
 
     _validate_subject_association_fks(

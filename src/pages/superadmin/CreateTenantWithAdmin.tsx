@@ -1,3 +1,5 @@
+import { INSTITUTION_TYPES } from "@/lib/education-modules";
+import { useEducationCatalog } from "@/hooks/useEducationModules";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -13,21 +15,11 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Building2, UserPlus, GraduationCap, Shield, CheckCircle2, Copy, ExternalLink } from "lucide-react";
 
-// Système guinéen — modifiable après création
-const defaultLevels = [
-  "CP1", "CP2", "CE1", "CE2", "CM1", "CM2",
-  "7ème", "8ème", "9ème", "10ème",
-  "11ème", "12ème", "Terminale",
-];
-
-const universityLevels = [
-  "Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2",
-];
-
 const CreateTenantWithAdmin = () => {
   const { hasRole } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const catalog = useEducationCatalog();
   const [loading, setLoading] = useState(false);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [createdName, setCreatedName] = useState<string>("");
@@ -35,7 +27,7 @@ const CreateTenantWithAdmin = () => {
   // Tenant fields
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [type, setType] = useState("school");
+  const [type, setType] = useState("primary");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -93,9 +85,6 @@ const CreateTenantWithAdmin = () => {
 
     setLoading(true);
     try {
-      // Determine levels based on type
-      const levels = type === "university" ? universityLevels : defaultLevels;
-
       await apiClient.post("/tenants/create-with-admin/", {
         name,
         slug,
@@ -106,7 +95,6 @@ const CreateTenantWithAdmin = () => {
         admin_email: adminEmail,
         admin_first_name: adminFirstName,
         admin_last_name: adminLastName,
-        levels,
       });
 
       toast.success(tenantCreatedMessage(name));
@@ -242,12 +230,9 @@ const CreateTenantWithAdmin = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="school">École</SelectItem>
-                  <SelectItem value="primary">École Primaire</SelectItem>
-                  <SelectItem value="middle">Collège</SelectItem>
-                  <SelectItem value="high">Lycée</SelectItem>
-                  <SelectItem value="university">Université</SelectItem>
-                  <SelectItem value="training">Centre de Formation</SelectItem>
+                  {INSTITUTION_TYPES.map(type => <SelectItem key={type.value} value={type.value}>
+                    {t(`educationModules.profiles.${type.value}`)}
+                  </SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -349,8 +334,8 @@ const CreateTenantWithAdmin = () => {
               <div className="text-sm space-y-1">
                 <p className="font-medium">Résumé de la création</p>
                 <ul className="text-muted-foreground space-y-0.5">
-                  <li>• Établissement : <strong>{name || "..."}</strong> ({getTypeLabel(type)})</li>
-                  <li>• Niveaux créés automatiquement : {type === "university" ? universityLevels.join(", ") : defaultLevels.join(", ")}</li>
+                  <li>• Établissement : <strong>{name || "..."}</strong> ({t(`educationModules.profiles.${type}`)})</li>
+                  <li>• Niveaux créés automatiquement : {catalog.data?.profiles.find(p => p.id === type)?.default_levels.join(", ") || t("educationModules.levelsFromProfile")}</li>
                   <li>• Année scolaire : 2025-2026</li>
                   <li>• Admin : <strong>{adminFirstName} {adminLastName}</strong> ({adminEmail || "..."})</li>
                   <li>• Rôle de l'admin : <strong>Administrateur de l'établissement</strong></li>
@@ -383,17 +368,5 @@ const CreateTenantWithAdmin = () => {
     </div>
   );
 };
-
-function getTypeLabel(type: string) {
-  const map: Record<string, string> = {
-    school: "École",
-    primary: "École Primaire",
-    middle: "Collège",
-    high: "Lycée",
-    university: "Université",
-    training: "Centre de Formation",
-  };
-  return map[type] || type;
-}
 
 export default CreateTenantWithAdmin;

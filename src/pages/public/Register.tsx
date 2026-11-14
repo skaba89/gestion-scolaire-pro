@@ -1,3 +1,4 @@
+import { INSTITUTION_TYPES } from "@/lib/education-modules";
 /**
  * Self-service school registration — 3-step wizard
  *
@@ -23,13 +24,7 @@ import {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
-const SCHOOL_TYPES = [
-  { value: "primary",    label: "École primaire" },
-  { value: "middle",     label: "Collège" },
-  { value: "high",       label: "Lycée" },
-  { value: "university", label: "Université / Grandes écoles" },
-  { value: "training",   label: "Centre de formation" },
-];
+const SCHOOL_TYPES = INSTITUTION_TYPES;
 
 const COUNTRIES = [
   { value: "GN", label: "🇬🇳 Guinée" },
