@@ -235,7 +235,7 @@ class TestPlatformRoutesUnderRestrictedRole:
             "SELECT count(*) FROM audit_logs WHERE resource_id = :u AND action = 'RESET_PASSWORD'", u=admin_id
         ) == 1
 
-    def test_delete_tenant_removes_it_and_its_data(self, seeded, caplog):
+    def test_delete_tenant_retains_it_and_its_data(self, seeded, caplog):
         with engine.begin() as conn:
             tid = _uid()
             conn.execute(text(
@@ -256,14 +256,13 @@ class TestPlatformRoutesUnderRestrictedRole:
 
         with caplog.at_level(logging.WARNING, logger="app.api.v1.endpoints.core.tenants"):
             resp = client.delete(f"/api/v1/tenants/{tid}/", headers=self._super(seeded))
-        assert resp.status_code == 200, resp.text
-        assert any(f"Tenant deleted: id={tid}" in r.getMessage() and "users=1" in r.getMessage() for r in caplog.records)
-        assert _admin_scalar("SELECT count(*) FROM tenants WHERE id = :t", t=tid) == 0
-        assert _admin_scalar("SELECT count(*) FROM users WHERE tenant_id = :t", t=tid) == 0
-        # The platform trail survives the tenant (20261011_0001).
+        assert resp.status_code == 409, resp.text
+        assert not any(f"Tenant deleted: id={tid}" in r.getMessage() for r in caplog.records)
+        assert _admin_scalar("SELECT count(*) FROM tenants WHERE id = :t", t=tid) == 1
+        assert _admin_scalar("SELECT count(*) FROM users WHERE tenant_id = :t", t=tid) == 1
         assert _admin_scalar(
             "SELECT count(*) FROM platform_audit_logs WHERE action = 'DELETE_TENANT' AND target_id = :t", t=tid
-        ) == 1
+        ) == 0
 
     def test_list_tenant_admins_is_not_empty(self, seeded):
         tid, admin_id = seeded["B"]["tenant_id"], seeded["B"]["admin_id"]

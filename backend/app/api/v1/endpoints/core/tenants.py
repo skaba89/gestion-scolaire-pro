@@ -1481,133 +1481,24 @@ async def delete_tenant(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("tenants:delete"))
 ):
-    """
-    Hard-delete a tenant and all related data (ON DELETE CASCADE handles FKs).
-    SUPER_ADMIN only — the ``tenants:delete`` permission is exclusive to SUPER_ADMIN
-    (TENANT_ADMIN explicitly excludes it).
-    """
-    # Defense in depth on top of the tenants:delete permission check — this is
-    # an irreversible hard delete, worth a second explicit guard.
-    _require_super_admin(current_user)
+    """Refuse irreversible deletion until a verified retention workflow exists.
 
+    Disabling an institution through toggle-status preserves every school and
+    financial record and is reversible. An export alone is not authorization
+    to erase records: retention, attachments and restoration must be verified.
+    """
+    _require_super_admin(current_user)
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Établissement non trouvé")
-
-    tenant_name = tenant.name
-
-    # Platform screen: SUPER_ADMIN has no tenant context — count the users and
-    # write the audit row under the target tenant's own RLS context (with
-    # none, users are invisible and the audit INSERT is rejected, aborting
-    # the transaction: 500, tenant never deleted).
-    enter_tenant_context_or_404(db, tenant.id)
-    user_count = db.query(User.id).filter(User.tenant_id == tenant.id).count()
-    if user_count > 0:
-        logger.warning(
-            "Deleting tenant '%s' (%s) which still has %d active user(s)",
-            tenant_name, tenant.id, user_count,
-        )
-
-    try:
-        log_audit(
-            db,
-            user_id=current_user.get("id"),
-            tenant_id=str(tenant.id),
-            action="DELETE_TENANT",
-            resource_type="TENANT",
-            resource_id=str(tenant.id),
-            details={"name": tenant_name, "user_count": user_count},
-            severity="WARNING",
-        )
-        # audit_logs.tenant_id is NOT NULL and cascades on tenant deletion: the
-        # row above disappears with the tenant. The platform trail survives it
-        # (committed atomically with the deletion — no trace of a failed one).
-        log_platform_audit(
-            db,
-            actor_user_id=current_user.get("id"),
-            action="DELETE_TENANT",
-            target_type="TENANT",
-            target_id=str(tenant.id),
-            details={"name": tenant_name, "slug": tenant.slug, "user_count": user_count},
-        )
-
-        db.delete(tenant)
-        db.commit()
-        logger.warning(
-            "Tenant deleted: id=%s name=%r users=%d by user_id=%s",
-            tenant_id, tenant_name, user_count, current_user.get("id"),
-        )
-    except IntegrityError as exc:
-        db.rollback()
-        # Pull the offending table/constraint straight from the driver's
-        # diagnostics (psycopg 3 — `.orig.diag`) instead of guessing across
-        # ~70 tenant-scoped tables every time this happens. Previously this
-        # branch fell into the generic `except Exception` below and always
-        # returned the same static "check your CASCADE constraints"
-        # message, with the real Postgres error only ever reaching the
-        # server log — not visible to the SUPER_ADMIN who hit the button
-        # and has no way to check Render's logs themselves. This endpoint
-        # is SUPER_ADMIN-only (see _require_super_admin above), so surfacing
-        # the raw constraint/table name here is not a cross-tenant leak.
-        diag = getattr(getattr(exc, "orig", None), "diag", None)
-        constraint = getattr(diag, "constraint_name", None)
-        blocking_table = getattr(diag, "table_name", None)
-        # Le driver ne remplit pas toujours .diag.constraint_name (déjà vu :
-        # 'None' malgré un blocking_table connu) — mais le message Postgres
-        # brut, lui, contient quasi-systématiquement le vrai texte de
-        # l'erreur (SQLSTATE + nom de contrainte + table), même quand les
-        # champs .diag structurés sont absents. On l'expose tel quel : ce
-        # n'est ni une fuite (endpoint SUPER_ADMIN-only) ni une donnée
-        # tenant, seulement de la métadonnée de schéma.
-        raw_pg_error = str(getattr(exc, "orig", None) or exc).strip()
-        live_delete_rule = None
-        if blocking_table:
-            try:
-                live_check = db.execute(
-                    text("""
-                        SELECT rc.delete_rule
-                        FROM information_schema.table_constraints tc
-                        JOIN information_schema.referential_constraints rc
-                            ON tc.constraint_name = rc.constraint_name
-                            AND tc.table_schema = rc.constraint_schema
-                        WHERE tc.table_schema = 'public'
-                          AND tc.table_name = :table_name
-                          AND tc.constraint_type = 'FOREIGN KEY'
-                    """),
-                    {"table_name": blocking_table},
-                ).fetchall()
-                live_delete_rule = [row[0] for row in live_check]
-            except Exception:
-                db.rollback()
-        logger.error(
-            "Failed to delete tenant '%s' (%s): IntegrityError constraint=%s table=%s live_delete_rules=%s — %s",
-            tenant_name, tenant_id, constraint, blocking_table, live_delete_rule, exc,
-        )
-        if blocking_table:
-            detail = (
-                f"Suppression bloquée par la table '{blocking_table}' "
-                f"(contrainte '{constraint}', delete_rule(s) FK actuel(s)={live_delete_rule}). "
-                f"Erreur Postgres brute : {raw_pg_error} "
-                "Signalez ce détail précis pour un correctif de migration."
-            )
-        else:
-            detail = (
-                "Suppression bloquée par une contrainte de base de données non identifiée. "
-                f"Erreur Postgres brute : {raw_pg_error}"
-            )
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=detail)
-    except Exception as exc:
-        db.rollback()
-        logger.error(
-            "Failed to delete tenant '%s' (%s): %s",
-            tenant_name, tenant_id, exc,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erreur lors de la suppression de l'établissement. Vérifiez que toutes les contraintes de base de données sont correctement configurées (CASCADE).",
-        )
-
-    return {"detail": "Établissement supprimé définitivement"}
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            "Suppression définitive indisponible : les historiques scolaires et financiers doivent être conservés. "
+            "Désactivez l'établissement pour suspendre les accès de façon réversible. "
+            "Une purge nécessite un export vérifié, un test de restauration et une politique de conservation validée."
+        ),
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
