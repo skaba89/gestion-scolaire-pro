@@ -13,6 +13,7 @@ import { GraduationCap, Calendar } from "lucide-react";
 import { useTeacherSchedule } from "@/features/staff/hooks/useStaff";
 import { StaffProfile as TeacherProfile } from "@/features/staff/types";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 // Helper type for schedule slot since it was also imported from useTeachers
 interface TeacherScheduleSlot {
@@ -38,6 +39,7 @@ export const TeacherViewDialog = ({
     teacher,
     schedule,
 }: TeacherViewDialogProps) => {
+    const { t } = useTranslation();
     const getDayName = (day: number) => {
         const days = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
         return days[day] || "";
@@ -65,30 +67,30 @@ export const TeacherViewDialog = ({
                 <ScrollArea className="flex-1 px-1 overflow-y-auto">
                     <Tabs defaultValue="info" className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="info">Informations</TabsTrigger>
-                            <TabsTrigger value="schedule">Emploi du temps</TabsTrigger>
+                            <TabsTrigger value="info">{t("teachingAdmin.informations")}</TabsTrigger>
+                            <TabsTrigger value="schedule">{t("teachingAdmin.emploiDuTemps")}</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="info" className="space-y-4 pt-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label className="text-muted-foreground">Prénom</Label>
+                                    <Label className="text-muted-foreground">{t("teachingAdmin.prenom")}</Label>
                                     <p className="font-medium">{teacher?.first_name || "—"}</p>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-muted-foreground">Nom</Label>
+                                    <Label className="text-muted-foreground">{t("teachingAdmin.nom")}</Label>
                                     <p className="font-medium">{teacher?.last_name || "—"}</p>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-muted-foreground">Email</Label>
+                                    <Label className="text-muted-foreground">{t("teachingAdmin.email")}</Label>
                                     <p className="font-medium">{teacher?.email}</p>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-muted-foreground">Téléphone</Label>
+                                    <Label className="text-muted-foreground">{t("teachingAdmin.telephone")}</Label>
                                     <p className="font-medium">{teacher?.phone || "—"}</p>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label className="text-muted-foreground">Statut</Label>
+                                    <Label className="text-muted-foreground">{t("teachingAdmin.statut")}</Label>
                                     <div>
                                         <Badge variant={teacher?.is_active ? "default" : "secondary"}>
                                             {teacher?.is_active ? "Actif" : "Inactif"}
@@ -137,7 +139,7 @@ export const TeacherViewDialog = ({
                             ) : (
                                 <div className="text-center py-8 text-muted-foreground">
                                     <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                                    <p>Aucun cours assigné</p>
+                                    <p>{t("teachingAdmin.aucunCoursAssigne")}</p>
                                 </div>
                             )}
                         </TabsContent>

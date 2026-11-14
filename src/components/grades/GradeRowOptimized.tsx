@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Edit, Trash2, MoreHorizontal } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface GradeRowProps {
   grade: any;
@@ -22,6 +23,7 @@ export const GradeRowOptimized = memo(function GradeRowOptimized({
   onEdit,
   onDelete,
 }: GradeRowProps) {
+  const { t } = useTranslation();
   // Callbacks locaux pour éviter créations multiples
   const handleEdit = useCallback(() => {
     onEdit(grade);
@@ -73,14 +75,14 @@ export const GradeRowOptimized = memo(function GradeRowOptimized({
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleEdit}>
               <Edit className="w-4 h-4 mr-2" />
-              Modifier
+              {t("teachingAdmin.modifier")}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-red-600 focus:text-red-600 focus:bg-red-50"
               onClick={handleDelete}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              Supprimer
+              {t("teachingAdmin.supprimer")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

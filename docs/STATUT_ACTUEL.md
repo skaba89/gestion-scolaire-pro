@@ -1142,3 +1142,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   à partir de leur code. Reste de l'administration : lot 2b (enseignants,
   notes, bulletins, certificats, scan, bornes), puis structure,
   planification, finances, vie étudiante et administration, guides en dernier.
+- **2026-11-16 — i18n administration, lot 2b.** Enseignants, notes (y
+  compris le rattachement LMD aux sessions d'examen), bulletins, analyse des
+  résultats, certificats, scan QR et bornes suivent la langue de
+  l'interface : ≈ 170 clés dans les 5 langues, dossiers ajoutés à la garde
+  `no-hardcoded-text`. Reste de l'administration : structure, planification,
+  finances, vie étudiante et administration, guides en dernier.

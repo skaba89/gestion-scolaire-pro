@@ -323,7 +323,7 @@ const Grades = () => {
                     <TableHead>{t("grades.type")}</TableHead>
                     <TableHead>{t("grades.colMaxScore")}</TableHead>
                     <TableHead>{t("grades.coefficient")}</TableHead>
-                    {lmdEnabled && <TableHead>Session LMD</TableHead>}
+                    {lmdEnabled && <TableHead>{t("grades.lmdSession")}</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -418,21 +418,21 @@ const Grades = () => {
               </div>
             </div>
             {lmdEnabled && canManageSessions && selectedSubject?.semester_id && <div className="space-y-2">
-              <Label>Session d'examen LMD</Label>
+              <Label>{t("grades.lmdExamSession")}</Label>
               <Select value={newAssessment.exam_session_id || "none"}
                 onValueChange={(value) => setNewAssessment({
                   ...newAssessment, exam_session_id: value === "none" ? "" : value,
                 })}>
-                <SelectTrigger><SelectValue placeholder="Hors session" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("grades.outsideSession")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Hors session</SelectItem>
+                  <SelectItem value="none">{t("grades.outsideSession")}</SelectItem>
                   {availableSessions.map(session => <SelectItem key={session.id} value={session.id}>
                     {session.code} — {session.name} ({session.status})
                   </SelectItem>)}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Une session clôturée disparaît de la sélection et son historique devient immuable.
+                {t("grades.closedSessionHint")}
               </p>
             </div>}
             <div className="grid grid-cols-2 gap-4">

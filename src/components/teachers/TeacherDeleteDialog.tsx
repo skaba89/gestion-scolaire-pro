@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Trash2 } from "lucide-react";
 import { StaffProfile as TeacherProfile } from "@/features/staff/types";
+import { Trans, useTranslation } from "react-i18next";
 
 interface TeacherDeleteDialogProps {
     open: boolean;
@@ -26,18 +27,22 @@ export const TeacherDeleteDialog = ({
     onConfirm,
     isPending,
 }: TeacherDeleteDialogProps) => {
+    const { t } = useTranslation();
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                    <AlertDialogTitle>{t("teachingAdmin.confirmerLaSuppression")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                        Êtes-vous sûr de vouloir retirer le rôle de professeur à **{teacher?.first_name} {teacher?.last_name}** ?
-                        L'utilisateur conservera son compte mais n'aura plus accès aux fonctions d'enseignant dans cet établissement.
+                        <Trans
+                            i18nKey="teachingAdmin.removeTeacherConfirm"
+                            values={{ name: `${teacher?.first_name ?? ""} ${teacher?.last_name ?? ""}`.trim() }}
+                            components={{ strong: <strong /> }}
+                        />
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                    <AlertDialogCancel>{t("teachingAdmin.annuler")}</AlertDialogCancel>
                     <AlertDialogAction
                         onClick={(e) => {
                             e.preventDefault();
@@ -47,7 +52,7 @@ export const TeacherDeleteDialog = ({
                         disabled={isPending}
                     >
                         {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                        Supprimer
+                        {t("teachingAdmin.supprimer")}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

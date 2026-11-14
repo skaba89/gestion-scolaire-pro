@@ -1,5 +1,6 @@
 import { GraduationCap, Users, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
 
 interface TeacherStatsProps {
     totalTeachers: number;
@@ -12,6 +13,7 @@ export const TeacherStats = ({
     activeTeachers,
     totalSubjects,
 }: TeacherStatsProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
@@ -22,7 +24,7 @@ export const TeacherStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{totalTeachers}</p>
-                            <p className="text-sm text-muted-foreground">Professeurs</p>
+                            <p className="text-sm text-muted-foreground">{t("teachingAdmin.professeurs")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -35,7 +37,7 @@ export const TeacherStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{activeTeachers}</p>
-                            <p className="text-sm text-muted-foreground">Actifs</p>
+                            <p className="text-sm text-muted-foreground">{t("teachingAdmin.actifs")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -48,7 +50,7 @@ export const TeacherStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{totalSubjects}</p>
-                            <p className="text-sm text-muted-foreground">Matières</p>
+                            <p className="text-sm text-muted-foreground">{t("teachingAdmin.matieres")}</p>
                         </div>
                     </div>
                 </CardContent>

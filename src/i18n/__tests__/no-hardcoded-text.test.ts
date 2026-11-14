@@ -56,6 +56,16 @@ const GUARDED = [
     "src/components/admin/admissions",
     "src/components/enrollments",
     "src/components/ui/DataTablePagination.tsx",
+    "src/pages/admin/Teachers.tsx",
+    "src/pages/admin/Grades.tsx",
+    "src/pages/admin/ReportCards.tsx",
+    "src/pages/admin/Certificates.tsx",
+    "src/pages/admin/QrScanPage.tsx",
+    "src/pages/admin/KioskDevices.tsx",
+    "src/components/teachers",
+    "src/components/admin/teachers",
+    "src/components/grades",
+    "src/components/reports",
 ];
 
 /** Noms propres et codes affichés tels quels. */

@@ -1,3 +1,4 @@
+import "@/i18n/config";
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 

@@ -104,7 +104,7 @@ export default function QrScanPage() {
                 </div>
                 <Badge variant="outline" className="gap-1 animate-pulse border-primary/50 text-primary">
                     <span className="w-2 h-2 bg-primary rounded-full" />
-                    Live
+                    {t("teachingAdmin.live")}
                 </Badge>
             </div>
 

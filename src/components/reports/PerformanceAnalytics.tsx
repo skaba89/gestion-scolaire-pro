@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { TrendingUp, Users, Award, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 /**
  * Onglet « Analyse des résultats » de la page Bulletins.
@@ -73,6 +74,7 @@ export function computeClassStats(averages: number[], passingGrade: number) {
 }
 
 export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termName }: PerformanceAnalyticsProps) => {
+    const { t } = useTranslation();
     const stats = useMemo(() => computeClassStats(averages, passingGrade), [averages, passingGrade]);
 
     const subjectData = useMemo(() => subjects
@@ -89,7 +91,7 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
     if (stats.studentCount === 0) {
         return (
             <div className="text-center py-12 text-muted-foreground">
-                Aucune moyenne calculable pour cette période{termName ? ` (${termName})` : ""}.
+                {termName ? t("teachingAdmin.noAverageForTerm", { termName }) : t("teachingAdmin.noAverage")}
             </div>
         );
     }
@@ -104,7 +106,7 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
                         </div>
                         <div>
                             <p className="text-2xl font-bold" data-testid="analytics-average">{stats.average.toFixed(2)}/20</p>
-                            <p className="text-sm text-muted-foreground">Moyenne générale</p>
+                            <p className="text-sm text-muted-foreground">{t("teachingAdmin.moyenneGenerale")}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -115,7 +117,7 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
                         </div>
                         <div>
                             <p className="text-2xl font-bold" data-testid="analytics-success-rate">{stats.successRate.toFixed(0)}%</p>
-                            <p className="text-sm text-muted-foreground">Taux de réussite (≥ {passingGrade}/20)</p>
+                            <p className="text-sm text-muted-foreground">{t("teachingAdmin.tauxDeReussitePassinggrade20", { passingGrade })}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -126,7 +128,7 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{stats.median.toFixed(2)}/20</p>
-                            <p className="text-sm text-muted-foreground">Médiane</p>
+                            <p className="text-sm text-muted-foreground">{t("teachingAdmin.mediane")}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -137,7 +139,7 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{stats.max.toFixed(2)}/20</p>
-                            <p className="text-sm text-muted-foreground">Meilleure moyenne</p>
+                            <p className="text-sm text-muted-foreground">{t("teachingAdmin.meilleureMoyenne")}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -146,7 +148,7 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Distribution des moyennes</CardTitle>
+                        <CardTitle>{t("teachingAdmin.distributionDesMoyennes")}</CardTitle>
                         <CardDescription>{termName}</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -157,7 +159,7 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
                                     <XAxis dataKey="name" />
                                     <YAxis allowDecimals={false} />
                                     <Tooltip />
-                                    <Bar dataKey="count" name="Élèves" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                                    <Bar dataKey="count" name={t("teachingAdmin.chartStudents")} fill="#3b82f6" radius={[4, 4, 0, 0]}>
                                         {stats.distribution.map((entry) => (
                                             <Cell key={entry.name} fill={entry.fill} />
                                         ))}
@@ -169,8 +171,8 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Performance par matière</CardTitle>
-                        <CardDescription>Moyennes de classe de la période</CardDescription>
+                        <CardTitle>{t("teachingAdmin.performanceParMatiere")}</CardTitle>
+                        <CardDescription>{t("teachingAdmin.moyennesDeClasseDeLa")}</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="h-[300px]">
@@ -180,8 +182,8 @@ export const PerformanceAnalytics = ({ averages, passingGrade, subjects, termNam
                                     <XAxis type="number" domain={[0, 20]} />
                                     <YAxis dataKey="subject" type="category" width={100} tick={{ fontSize: 12 }} />
                                     <Tooltip />
-                                    <Bar dataKey="moyenne" name="Moyenne de classe" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
-                                    <Bar dataKey="max" name="Meilleure moyenne" fill="#10b981" radius={[0, 4, 4, 0]} />
+                                    <Bar dataKey="moyenne" name={t("teachingAdmin.chartClassAverage")} fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                                    <Bar dataKey="max" name={t("teachingAdmin.chartBestAverage")} fill="#10b981" radius={[0, 4, 4, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>

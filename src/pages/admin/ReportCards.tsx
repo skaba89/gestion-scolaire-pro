@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import axios from "axios";
 import { useTenant } from "@/contexts/TenantContext";
 import { apiClient } from "@/api/client";
@@ -353,7 +353,7 @@ const ReportCards = () => {
     return (
       <Card className="border-warning/50 bg-warning/5">
         <CardContent className="p-6">
-          <p className="text-muted-foreground">Veuillez d'abord configurer votre établissement.</p>
+          <p className="text-muted-foreground">{t("teachingAdmin.veuillezDAbordConfigurerVotre")}</p>
         </CardContent>
       </Card>
     );
@@ -368,13 +368,13 @@ const ReportCards = () => {
       {/* ── Page header ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Bulletins de Notes</h1>
+          <h1 className="text-2xl font-display font-bold text-foreground">{t("teachingAdmin.bulletinsDeNotes")}</h1>
           <p className="text-muted-foreground">
-            Format officiel Guinée · Rang · Absences · Décision du conseil
+            {t("teachingAdmin.formatOfficielGuineeRangAbsences")}
           </p>
         </div>
         <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50 px-3 py-1.5">
-          🇬🇳 République de Guinée
+          {t("teachingAdmin.republiqueDeGuinee")}
         </Badge>
       </div>
 
@@ -383,10 +383,10 @@ const ReportCards = () => {
         <CardContent className="p-4 space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label>Trimestre / Période</Label>
+              <Label>{t("teachingAdmin.trimestrePeriode")}</Label>
               <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un trimestre" />
+                  <SelectValue placeholder={t("teachingAdmin.selectionnerUnTrimestre")} />
                 </SelectTrigger>
                 <SelectContent>
                   {terms.map((term) => (
@@ -398,10 +398,10 @@ const ReportCards = () => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Classe</Label>
+              <Label>{t("teachingAdmin.classe")}</Label>
               <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner une classe" />
+                  <SelectValue placeholder={t("teachingAdmin.selectionnerUneClasse")} />
                 </SelectTrigger>
                 <SelectContent>
                   {classrooms.map((classroom) => (
@@ -419,11 +419,11 @@ const ReportCards = () => {
                 className="flex-1"
               >
                 {generating === "batch" ? (
-                  <span className="animate-pulse">Génération...</span>
+                  <span className="animate-pulse">{t("teachingAdmin.generation")}</span>
                 ) : (
                   <>
                     <Printer className="w-4 h-4 mr-2" />
-                    Tous les bulletins ({students.length})
+                    {t("teachingAdmin.tousLesBulletinsCount", { count: students.length })}
                   </>
                 )}
               </Button>
@@ -439,7 +439,7 @@ const ReportCards = () => {
             >
               <span className="flex items-center gap-2">
                 <Award className="w-4 h-4 text-primary" />
-                Décision du conseil de classe &amp; options
+                {t("teachingAdmin.councilDecision")}
               </span>
               <ChevronDown className={`w-4 h-4 transition-transform ${showCouncilOptions ? "rotate-180" : ""}`} />
             </button>
@@ -449,17 +449,16 @@ const ReportCards = () => {
                 <div className="flex items-start gap-2 p-3 rounded-md bg-blue-50 border border-blue-200">
                   <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                   <p className="text-xs text-blue-700">
-                    La décision et l'appréciation s'appliquent à <strong>tous les bulletins</strong> générés depuis cette page.
-                    Pour des décisions individualisées, générez les bulletins un par un.
+                    <Trans i18nKey="teachingAdmin.reportDecisionHint" components={{ strong: <strong /> }} />
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="decision">Décision du conseil de classe</Label>
+                    <Label htmlFor="decision">{t("teachingAdmin.decisionDuConseilDeClasse")}</Label>
                     <Select value={decision} onValueChange={setDecision}>
                       <SelectTrigger id="decision">
-                        <SelectValue placeholder="— À déterminer —" />
+                        <SelectValue placeholder={t("teachingAdmin.aDeterminer")} />
                       </SelectTrigger>
                       <SelectContent>
                         {DECISIONS.map((d) => (
@@ -469,12 +468,12 @@ const ReportCards = () => {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="dirComment">Appréciation générale du professeur principal</Label>
+                    <Label htmlFor="dirComment">{t("teachingAdmin.appreciationGeneraleDuProfesseurPrincipa")}</Label>
                     <Textarea
                       id="dirComment"
                       value={directorComment}
                       onChange={(e) => setDirectorComment(e.target.value)}
-                      placeholder="Trimestre satisfaisant, des efforts notables en mathématiques..."
+                      placeholder={t("teachingAdmin.trimestreSatisfaisantDesEffortsNotables")}
                       rows={2}
                       className="text-sm resize-none"
                     />
@@ -488,7 +487,7 @@ const ReportCards = () => {
                     onCheckedChange={setShowGuineaHeader}
                   />
                   <Label htmlFor="guineaHeader" className="cursor-pointer">
-                    Afficher l'en-tête officielle « République de Guinée »
+                    {t("teachingAdmin.afficherLEnTeteOfficielle")}
                   </Label>
                 </div>
               </div>
@@ -502,11 +501,11 @@ const ReportCards = () => {
         <TabsList>
           <TabsTrigger value="reports">
             <FileText className="w-4 h-4 mr-2" />
-            Bulletins individuels
+            {t("teachingAdmin.bulletinsIndividuels")}
           </TabsTrigger>
           <TabsTrigger value="overview">
             <BarChart3 className="w-4 h-4 mr-2" />
-            Analyse des résultats
+            {t("teachingAdmin.analyseDesResultats")}
           </TabsTrigger>
         </TabsList>
 
@@ -524,34 +523,34 @@ const ReportCards = () => {
                 {selectedTermName ? ` · ${selectedTermName}` : ""}
                 {" · "}
                 <span className="text-primary font-medium">
-                  Données récupérées en temps réel (rang, absences, notes)
+                  {t("teachingAdmin.liveData")}
                 </span>
               </CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+                <div className="text-center py-8 text-muted-foreground">{t("teachingAdmin.chargement")}</div>
               ) : students.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <GraduationCap className="w-12 h-12 mx-auto mb-4 opacity-40" />
-                  <p>Aucun {studentLabel} inscrit dans cette classe</p>
-                  <p className="text-xs mt-1">Sélectionnez une autre classe ou vérifiez les inscriptions</p>
+                  <p>{t("teachingAdmin.aucunStudentlabelInscritDansCette", { studentLabel })}</p>
+                  <p className="text-xs mt-1">{t("teachingAdmin.selectionnezUneAutreClasseOu")}</p>
                 </div>
               ) : (
                 <>
                 {summaryError && (
                   <div role="alert" className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-                    Impossible de charger les moyennes et rangs officiels. Réessayez ; les bulletins restent générables.
+                    {t("teachingAdmin.officialLoadError")}
                   </div>
                 )}
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Matricule</TableHead>
-                      <TableHead>Nom &amp; Prénom</TableHead>
-                      <TableHead>Moyenne</TableHead>
-                      <TableHead>Rang</TableHead>
-                      <TableHead className="text-right">Bulletin</TableHead>
+                      <TableHead>{t("teachingAdmin.matricule")}</TableHead>
+                      <TableHead>{t("teachingAdmin.fullName")}</TableHead>
+                      <TableHead>{t("teachingAdmin.moyenne")}</TableHead>
+                      <TableHead>{t("teachingAdmin.rang")}</TableHead>
+                      <TableHead className="text-right">{t("teachingAdmin.bulletin")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -602,11 +601,11 @@ const ReportCards = () => {
                               disabled={!!generating}
                             >
                               {isGenerating ? (
-                                <span className="animate-pulse text-xs">Génération...</span>
+                                <span className="animate-pulse text-xs">{t("teachingAdmin.generation")}</span>
                               ) : (
                                 <>
                                   <Download className="w-3.5 h-3.5 mr-1.5" />
-                                  Bulletin officiel
+                                  {t("teachingAdmin.bulletinOfficiel")}
                                 </>
                               )}
                             </Button>
@@ -615,14 +614,14 @@ const ReportCards = () => {
                               size="sm"
                               onClick={() => downloadBulletinPdf(student.id)}
                               disabled={!!generating}
-                              title="Télécharger un fichier PDF réel (archivable), plutôt que la version imprimable du navigateur"
+                              title={t("teachingAdmin.downloadRealPdf")}
                             >
                               {isGenerating ? (
-                                <span className="animate-pulse text-xs">Génération...</span>
+                                <span className="animate-pulse text-xs">{t("teachingAdmin.generation")}</span>
                               ) : (
                                 <>
                                   <FileText className="w-3.5 h-3.5 mr-1.5" />
-                                  PDF
+                                  {t("teachingAdmin.pdf")}
                                 </>
                               )}
                             </Button>
@@ -641,10 +640,10 @@ const ReportCards = () => {
         {/* ── Analytics ─────────────────────────────────────────────── */}
         <TabsContent value="overview">
           {loading || summaryLoading ? (
-            <div className="text-center py-12">Chargement des données...</div>
+            <div className="text-center py-12">{t("teachingAdmin.chargementDesDonnees")}</div>
           ) : summaryError || !summary ? (
             <div role="alert" className="text-center py-12 text-destructive">
-              Impossible de charger les résultats officiels de la classe.
+              {t("teachingAdmin.impossibleDeChargerLesResultats")}
             </div>
           ) : (
             <PerformanceAnalytics
