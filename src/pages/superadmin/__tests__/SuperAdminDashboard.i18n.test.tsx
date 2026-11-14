@@ -50,6 +50,14 @@ describe("SuperAdminDashboard — traduction", () => {
     expect(document.body.textContent).not.toMatch(/Établissements|Abonnement|École primaire/);
   });
 
+  it("propose la désactivation réversible et aucune suppression définitive", async () => {
+    await i18n.changeLanguage("fr");
+    renderPage();
+    await screen.findByText("Établissements (1)");
+    expect(screen.queryByTitle("Supprimer l'établissement")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Désactiver l'établissement")).toBeInTheDocument();
+  });
+
   it("n'interprète pas le nom d'établissement comme du balisage", async () => {
     await i18n.changeLanguage("fr");
     renderPage();
