@@ -25,6 +25,20 @@ export interface TeachingUnitInput {
   is_active: boolean;
 }
 
+export interface LmdValidationRules {
+  intra_ue_compensation_enabled: boolean;
+  semester_compensation_enabled: boolean;
+  semester_pass_grade: number;
+  minimum_compensable_ue_grade: number;
+  require_all_ecues_graded: boolean;
+}
+
+export interface LmdValidationRulesPayload {
+  revision: number;
+  rules: LmdValidationRules;
+  effective_ecue_pass_grade: number;
+}
+
 const detail = (error: unknown, fallback: string) =>
   axios.isAxiosError<{ detail?: string }>(error) ? error.response?.data?.detail || fallback : fallback;
 
@@ -33,6 +47,30 @@ export const useTeachingUnits = (tenantId?: string) => useQuery({
   queryFn: () => apiClient.get<TeachingUnit[]>("/teaching-units/").then((response) => response.data),
   enabled: !!tenantId,
 });
+
+export const useLmdValidationRules = (tenantId?: string, allowed = true) => useQuery({
+  queryKey: ["lmd-validation-rules", tenantId],
+  queryFn: () => apiClient.get<LmdValidationRulesPayload>("/teaching-units/validation-rules/")
+    .then((response) => response.data),
+  enabled: !!tenantId && allowed,
+});
+
+export const useUpdateLmdValidationRules = () => {
+  const client = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: (body: { expected_revision: number; rules: LmdValidationRules }) =>
+      apiClient.put<LmdValidationRulesPayload>("/teaching-units/validation-rules/", body)
+        .then((response) => response.data),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["lmd-validation-rules"] });
+      toast({ title: "Succès", description: "Règles de validation LMD mises à jour" });
+    },
+    onError: (error: unknown) => toast({
+      title: "Erreur", description: detail(error, "Mise à jour des règles impossible"), variant: "destructive",
+    }),
+  });
+};
 
 export const useCreateTeachingUnit = () => {
   const client = useQueryClient();

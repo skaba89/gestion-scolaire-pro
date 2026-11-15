@@ -4,7 +4,10 @@ import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasPermission } from "@/lib/permissions";
 import { useSemesters } from "@/queries/semesters";
-import { TeachingUnit, TeachingUnitInput, useCreateTeachingUnit, useTeachingUnits, useUpdateTeachingUnit } from "@/queries/teaching-units";
+import {
+  LmdValidationRules, TeachingUnit, TeachingUnitInput, useCreateTeachingUnit,
+  useLmdValidationRules, useTeachingUnits, useUpdateLmdValidationRules, useUpdateTeachingUnit,
+} from "@/queries/teaching-units";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,18 +17,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 
 const empty: TeachingUnitInput = { semester_id: "", code: "", name: "", ects: 0, is_active: true };
+const defaultRules: LmdValidationRules = {
+  intra_ue_compensation_enabled: false,
+  semester_compensation_enabled: false,
+  semester_pass_grade: 10,
+  minimum_compensable_ue_grade: 5,
+  require_all_ecues_graded: true,
+};
 
 export default function TeachingUnits() {
   const { tenant } = useTenant();
   const { roles } = useAuth();
   const canEdit = hasPermission(roles, "subjects:manage");
+  const canReadRules = hasPermission(roles, "settings:read");
+  const canConfigureRules = hasPermission(roles, "settings:manage");
   const { data: units = [], isLoading } = useTeachingUnits(tenant?.id);
+  const { data: validation } = useLmdValidationRules(tenant?.id, canReadRules);
   const { data: semesters = [] } = useSemesters(tenant?.id);
   const create = useCreateTeachingUnit();
   const update = useUpdateTeachingUnit();
+  const updateRules = useUpdateLmdValidationRules();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<TeachingUnit | null>(null);
   const [form, setForm] = useState<TeachingUnitInput>(empty);
+  const [rules, setRules] = useState<LmdValidationRules>(defaultRules);
   const soleSemesterId = semesters.length === 1 ? semesters[0].id : "";
 
   useEffect(() => {
@@ -36,6 +51,10 @@ export default function TeachingUnits() {
     } : { ...empty, semester_id: soleSemesterId });
   }, [editing, open, soleSemesterId]);
 
+  useEffect(() => {
+    if (validation) setRules(validation.rules);
+  }, [validation]);
+
   const semesterNames = useMemo(() => new Map(semesters.map(s => [s.id, s.name])), [semesters]);
   const submit = async () => {
     if (!form.semester_id || !form.code.trim() || !form.name.trim()) return;
@@ -43,6 +62,10 @@ export default function TeachingUnits() {
     else await create.mutateAsync(form);
     setOpen(false);
     setEditing(null);
+  };
+  const saveRules = () => {
+    if (!validation || rules.minimum_compensable_ue_grade > rules.semester_pass_grade) return;
+    updateRules.mutate({ expected_revision: validation.revision, rules });
   };
 
   if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -61,6 +84,56 @@ export default function TeachingUnits() {
     {semesters.length === 0 && <Card><CardContent className="py-6 text-sm text-muted-foreground">
       Créez d'abord un semestre avant de définir une unité d'enseignement.
     </CardContent></Card>}
+
+    {canReadRules && validation && <Card>
+      <CardHeader><CardTitle className="text-lg">Règles de validation LMD</CardTitle></CardHeader>
+      <CardContent className="space-y-5">
+        <p className="text-sm text-muted-foreground">
+          Le seuil ECUE effectif est {validation.effective_ecue_pass_grade}/20. Par défaut, chaque ECUE est capitalisé
+          séparément. L'aperçu de validation ne modifie ni les notes ni les décisions historiques.
+        </p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+            <Label htmlFor="lmd-intra-ue">Compensation au sein de l'UE</Label>
+            <Switch id="lmd-intra-ue" checked={rules.intra_ue_compensation_enabled}
+              onCheckedChange={value => setRules({ ...rules, intra_ue_compensation_enabled: value })}
+              disabled={!canConfigureRules} />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+            <Label htmlFor="lmd-semester">Compensation semestrielle</Label>
+            <Switch id="lmd-semester" checked={rules.semester_compensation_enabled}
+              onCheckedChange={value => setRules({ ...rules, semester_compensation_enabled: value })}
+              disabled={!canConfigureRules} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="lmd-semester-pass">Moyenne semestrielle minimale</Label>
+            <Input id="lmd-semester-pass" type="number" min="0.01" max="20" step="0.01"
+              value={rules.semester_pass_grade} disabled={!canConfigureRules}
+              onChange={event => setRules({ ...rules, semester_pass_grade: Number(event.target.value) })} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="lmd-eliminatory-floor">Note éliminatoire par UE</Label>
+            <Input id="lmd-eliminatory-floor" type="number" min="0" max="20" step="0.01"
+              value={rules.minimum_compensable_ue_grade} disabled={!canConfigureRules}
+              onChange={event => setRules({ ...rules, minimum_compensable_ue_grade: Number(event.target.value) })} />
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+          <div><Label htmlFor="lmd-complete">Exiger toutes les notes ECUE</Label>
+            <p className="text-xs text-muted-foreground">Empêche toute compensation d'un semestre incomplet.</p></div>
+          <Switch id="lmd-complete" checked={rules.require_all_ecues_graded}
+            onCheckedChange={value => setRules({ ...rules, require_all_ecues_graded: value })}
+            disabled={!canConfigureRules} />
+        </div>
+        {rules.minimum_compensable_ue_grade > rules.semester_pass_grade &&
+          <p role="alert" className="text-sm text-destructive">La note éliminatoire ne peut pas dépasser la moyenne semestrielle.</p>}
+        {canConfigureRules && <Button onClick={saveRules}
+          disabled={updateRules.isPending || rules.minimum_compensable_ue_grade > rules.semester_pass_grade}>
+          {updateRules.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Enregistrer les règles
+        </Button>}
+        {!canConfigureRules && <p className="text-sm text-muted-foreground">Consultation uniquement — modification réservée à l'administration.</p>}
+      </CardContent>
+    </Card>}
 
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {units.map(unit => <Card key={unit.id} className={!unit.is_active ? "opacity-70" : ""}>

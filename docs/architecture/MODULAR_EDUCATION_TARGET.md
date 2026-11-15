@@ -50,8 +50,11 @@ erDiagram
    par niveau conservent leur priorité et les bulletins dérivent le cycle depuis
    le niveau réel. Les UE sont désormais des ressources tenant-isolated et les
    matières peuvent devenir leurs ECUE sans réécriture historique. La
-   capitalisation configurable, les compétences, la compensation et les diplômes
-   ne sont activables que lorsque leurs parcours réels existent et sont vérifiés.
+   capitalisation ECUE et les compensations intra-UE/semestrielles disposent
+   désormais d'un moteur central et de valeurs par défaut rétrocompatibles. Cet
+   aperçu n'est pas une décision de jury. Les compétences, rattrapages, jurys et
+   diplômes ne sont activables que lorsque leurs parcours historiques existent
+   et sont vérifiés.
 
 ## Compatibilité et sécurité
 

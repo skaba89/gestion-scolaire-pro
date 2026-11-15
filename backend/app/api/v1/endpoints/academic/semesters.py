@@ -123,6 +123,28 @@ def get_semester_progression_eligibility(
     )
 
 
+@router.get("/{semester_id}/validation/{student_id}/")
+def get_semester_validation(
+    request: Request, semester_id: UUID, student_id: UUID,
+    db: Session = Depends(get_db), current_user: dict = Depends(require_permission("grades:read")),
+):
+    """Read-only UE/ECUE validation preview; never writes a jury decision."""
+    from app.api.v1.endpoints.academic.transcripts import _can_view_transcript
+    from app.services.lmd_validation import build_semester_validation
+
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Contexte établissement requis")
+    if not _can_view_transcript(db, current_user=current_user, student_id=str(student_id), tenant_id=tenant_id):
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    result = build_semester_validation(
+        db, tenant_id=tenant_id, student_id=str(student_id), semester_id=str(semester_id),
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Étudiant ou semestre introuvable")
+    return result
+
+
 @router.delete("/{semester_id}/", status_code=status.HTTP_204_NO_CONTENT)
 def delete_semester(
     *,
