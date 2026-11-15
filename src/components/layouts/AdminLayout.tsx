@@ -218,6 +218,7 @@ export const AdminLayout = () => {
         { href: getTenantUrl("/admin/academic-years"), label: t("nav.academicYears"), icon: Calendar, permission: "academic_years:manage" },
         { href: getTenantUrl("/admin/terms"), label: termsLabel, icon: CalendarDays, permission: "terms:manage" },
         { href: getTenantUrl("/admin/semesters"), label: t("nav.semesters"), icon: CalendarDays, permission: "terms:manage" },
+        { href: getTenantUrl("/admin/teaching-units"), label: t("nav.teachingUnits"), icon: BookOpen, permission: "subjects:manage" },
         { href: getTenantUrl("/admin/levels"), label: levelLabel, icon: Layers, permission: "levels:manage" },
         { href: getTenantUrl("/admin/classrooms"), label: classroomLabel, icon: School, permission: "classrooms:manage" },
         { href: getTenantUrl("/admin/subjects"), label: subjectsLabel, icon: FileText, permission: "subjects:manage" },

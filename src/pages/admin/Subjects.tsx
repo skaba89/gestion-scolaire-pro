@@ -31,6 +31,7 @@ import {
   Subject
 } from "@/queries/subjects";
 import { useSemesters } from "@/queries/semesters";
+import { useTeachingUnits } from "@/queries/teaching-units";
 import { hasPermission } from "@/lib/permissions";
 import { TableSkeleton } from "@/components/ui/TableSkeleton";
 
@@ -94,6 +95,7 @@ const Subjects = () => {
   const { data: editingSubjectDeptIds = [] } = useSubjectDepartmentAssociations(editingSubject?.id, tenant?.id);
   const { data: editingSubjectPrerequisiteIds = [] } = useSubjectPrerequisites(lmdEnabled ? editingSubject?.id : undefined, tenant?.id);
   const { data: semesters = [] } = useSemesters(lmdEnabled ? tenant?.id : undefined);
+  const { data: teachingUnits = [] } = useTeachingUnits(lmdEnabled ? tenant?.id : undefined);
 
   // Mutations
   const createMutation = useCreateSubject();
@@ -125,7 +127,7 @@ const Subjects = () => {
       name: formData.name,
       code: formData.code || null,
       coefficient: parseFloat(formData.coefficient) || 1,
-      ...(lmdEnabled ? { ects: parseFloat(formData.ects) || 0, semester_id: formData.semester_id || null } : {}),
+      ...(lmdEnabled ? { ects: parseFloat(formData.ects) || 0, semester_id: formData.semester_id || null, teaching_unit_id: formData.teaching_unit_id || null } : {}),
       cm_hours: parseInt(formData.cm_hours) || 0,
       td_hours: parseInt(formData.td_hours) || 0,
       tp_hours: parseInt(formData.tp_hours) || 0,
@@ -283,6 +285,7 @@ const Subjects = () => {
         tenantId={tenant?.id || ""}
         initialDeptIds={editingSubjectDeptIds}
         semesters={semesters}
+        teachingUnits={teachingUnits}
         subjects={subjects}
         initialPrerequisiteIds={editingSubjectPrerequisiteIds}
         onSubmit={handleSubmit}

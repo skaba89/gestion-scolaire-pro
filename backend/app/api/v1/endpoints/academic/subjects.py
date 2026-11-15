@@ -65,6 +65,8 @@ def create_subject(
         raise HTTPException(status_code=400, detail="Tenant ID required")
     try:
         return crud_academic.create_subject(db, subject_in, tenant_id=tenant_id)
+    except crud_academic.InvalidSubjectCurriculumError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -82,6 +84,8 @@ def update_subject(
         raise HTTPException(status_code=400, detail="Tenant ID required")
     try:
         subject = crud_academic.update_subject(db, subject_id, subject_in, tenant_id=tenant_id)
+    except crud_academic.InvalidSubjectCurriculumError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     if not subject:

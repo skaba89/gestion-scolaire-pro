@@ -9,7 +9,7 @@ from app.models import (
     AcademicYear, Term, Campus, Level, Subject,
     Department, Room, Program, Classroom, Enrollment, Student,
     Assessment, Attendance, ScheduleSlot,
-    SubjectPreferredRoom, Faculty, Semester,
+    SubjectPreferredRoom, Faculty, Semester, TeachingUnit,
     subject_levels, subject_departments, classroom_departments, class_subjects,
     subject_prerequisites,
 )
@@ -299,6 +299,9 @@ def _validate_subject_association_fks(
     department_ids: Optional[List] = None,
     level_ids: Optional[List] = None,
     prerequisite_subject_ids: Optional[List] = None,
+    teaching_unit_id=None,
+    semester_id=None,
+    require_active_teaching_unit: bool = False,
 ) -> None:
     if department_ids:
         found = {row.id for row in db.query(Department.id).filter(
@@ -318,10 +321,24 @@ def _validate_subject_association_fks(
         missing = [str(p) for p in prerequisite_subject_ids if p not in found]
         if missing:
             raise ValueError(f"Matière(s) prérequise(s) introuvable(s) dans cet établissement: {', '.join(missing)}")
+    if teaching_unit_id:
+        unit = db.query(TeachingUnit).filter(
+            TeachingUnit.id == teaching_unit_id, TeachingUnit.tenant_id == tenant_id,
+        ).first()
+        if unit is None:
+            raise ValueError("Unité d'enseignement introuvable dans cet établissement")
+        if require_active_teaching_unit and not unit.is_active:
+            raise InvalidSubjectCurriculumError("Une nouvelle affectation est interdite sur une unité d'enseignement archivée")
+        if semester_id is None or str(unit.semester_id) != str(semester_id):
+            raise InvalidSubjectCurriculumError("Le semestre de l'ECUE doit être celui de son unité d'enseignement")
+
+
+class InvalidSubjectCurriculumError(ValueError):
+    """A valid tenant-owned LMD reference is academically inconsistent."""
 
 
 def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subject:
-    if obj_in.ects or obj_in.semester_id or obj_in.prerequisite_subject_ids:
+    if obj_in.ects or obj_in.semester_id or obj_in.prerequisite_subject_ids or obj_in.teaching_unit_id:
         from app.services.education_modules import require_tenant_module
         require_tenant_module(db, tenant_id, "lmd")
     ensure_refs_in_tenant(db, tenant_id, ("semesters", obj_in.semester_id))
@@ -330,6 +347,8 @@ def create_subject(db: Session, obj_in: SubjectCreate, tenant_id: UUID) -> Subje
         department_ids=obj_in.department_ids,
         level_ids=obj_in.level_ids,
         prerequisite_subject_ids=obj_in.prerequisite_subject_ids,
+        teaching_unit_id=obj_in.teaching_unit_id, semester_id=obj_in.semester_id,
+        require_active_teaching_unit=bool(obj_in.teaching_unit_id),
     )
     data = obj_in.model_dump(exclude={"department_ids", "level_ids", "prerequisite_subject_ids"})
     db_obj = Subject(**data, tenant_id=tenant_id)
@@ -375,7 +394,8 @@ def update_subject(db: Session, subject_id: UUID, obj_in: SubjectUpdate, tenant_
 
     update_data = obj_in.model_dump(exclude_unset=True)
     if (("ects" in update_data and update_data["ects"] != db_obj.ects and (update_data["ects"] or db_obj.ects))
-            or ("semester_id" in update_data and update_data["semester_id"] != db_obj.semester_id)):
+            or ("semester_id" in update_data and update_data["semester_id"] != db_obj.semester_id)
+            or ("teaching_unit_id" in update_data and update_data["teaching_unit_id"] != db_obj.teaching_unit_id)):
         from app.services.education_modules import require_tenant_module
         require_tenant_module(db, tenant_id, "lmd")
     dept_ids = update_data.pop("department_ids", None)
@@ -394,6 +414,13 @@ def update_subject(db: Session, subject_id: UUID, obj_in: SubjectUpdate, tenant_
     _validate_subject_association_fks(
         db, tenant_id=tenant_id,
         department_ids=dept_ids, level_ids=level_ids, prerequisite_subject_ids=prereq_ids,
+        teaching_unit_id=update_data.get("teaching_unit_id", db_obj.teaching_unit_id),
+        semester_id=update_data.get("semester_id", db_obj.semester_id),
+        require_active_teaching_unit=(
+            "teaching_unit_id" in update_data
+            and update_data["teaching_unit_id"] != db_obj.teaching_unit_id
+            and update_data["teaching_unit_id"] is not None
+        ),
     )
 
     for field, value in update_data.items():

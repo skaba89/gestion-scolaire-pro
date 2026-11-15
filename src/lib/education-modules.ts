@@ -49,7 +49,7 @@ const PAGE_MODULE: Record<string, string> = {
   attendance: "attendance", "live-attendance": "attendance", badges: "attendance", scan: "attendance",
   "session-attendance": "attendance", "kiosk-devices": "attendance",
   schedule: "schedule", bookings: "schedule", homework: "homework", admissions: "admissions", "pre-registration": "admissions",
-  semesters: "lmd", faculties: "lmd", hr: "hr", "teacher-hours": "hr", inventory: "inventory", orders: "inventory",
+  semesters: "lmd", "teaching-units": "lmd", faculties: "lmd", hr: "hr", "teacher-hours": "hr", inventory: "inventory", orders: "inventory",
   clubs: "student_life", events: "student_life", careers: "student_life", gamification: "student_life",
   "alumni-mentors": "student_life", "alumni-requests": "student_life", "early-warnings": "student_life",
   "ai-insights": "ai", students: "academics", enrollments: "academics", "class-lists": "academics",
