@@ -97,7 +97,7 @@ puis dossier GO/NO-GO et accord distinct pour production.
 | En revue | GRADE-ID-01 (P2) : identité stable du calcul de moyenne | correctif proposé dans cette branche | Tests purs homonymes et lectures SQL sur données conformes à uq_subjects_tenant_name ; SQLite + PostgreSQL. |
 | 1 | P1-5 : sixième check obligatoire | OUVERT | Ajouter E2E Journeys au ruleset sans retirer aucun des cinq contrôles existants. |
 | 2 | API-01, 49 clés | PARTIEL | Par domaine : méthodes, paramètres, corps, réponses, erreurs et autorisations testés ; réduire la référence sans retirer de fonction utile. |
-| 4 | Règles niveau, rattrapages et progression | À AUDITER | Tests croisés sur données identiques et années/périodes distinctes ; pas de validation par arrondi ni double crédit. |
+| 4 | Règles niveau, rattrapages et progression | PARTIEL | Moteur UE/ECUE et compensation central livré avec tests anti-arrondi/double crédit ; modèles de sessions de rattrapage et décisions de jury encore absents. |
 | 5 | S4, RBAC-01, sessions et audit ASVS | OUVERT | Analyse cookies HttpOnly/CSRF, parité permissions et tests IDOR/inter-tenant ; ne pas élargir les droits. |
 | 6 | Finance/SaaS | PARTIEL | Comptes sandbox fournisseurs et définition du périmètre utilisateurs pour quotas ; concurrence, timeout, doublons et rapprochement. |
 | 7 | Offline, appareils et accessibilité | NON VALIDÉ | Coupures/reconnexion/conflits/session expirée + essais appareils ; axe et recette. |

@@ -458,6 +458,9 @@ async def update_tenant_settings(
     # par leur route dédiée, qui les valide (PUT /settings/academic-rules/).
     if ACADEMIC_RULES_KEY in settings_update:
         raise HTTPException(status_code=422, detail="Utiliser /tenants/settings/academic-rules/ pour les règles académiques")
+    from app.services.lmd_validation import SETTINGS_KEY as LMD_VALIDATION_SETTINGS_KEY
+    if LMD_VALIDATION_SETTINGS_KEY in settings_update:
+        raise HTTPException(status_code=422, detail="Utiliser /teaching-units/validation-rules/ pour les règles LMD")
     landing_update = settings_update.get("landing")
     if isinstance(landing_update, dict):
         try:

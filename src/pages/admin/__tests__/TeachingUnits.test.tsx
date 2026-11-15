@@ -4,7 +4,18 @@ import TeachingUnits from "@/pages/admin/TeachingUnits";
 
 const state = vi.hoisted(() => ({
   roles: ["TENANT_ADMIN"],
-  create: vi.fn(), update: vi.fn(),
+  create: vi.fn(), update: vi.fn(), updateRules: vi.fn(),
+  validation: {
+    revision: 3,
+    effective_ecue_pass_grade: 10,
+    rules: {
+      intra_ue_compensation_enabled: false,
+      semester_compensation_enabled: false,
+      semester_pass_grade: 10,
+      minimum_compensable_ue_grade: 5,
+      require_all_ecues_graded: true,
+    },
+  },
 }));
 
 vi.mock("@/contexts/TenantContext", () => ({ useTenant: () => ({ tenant: { id: "tenant-a" } }) }));
@@ -17,6 +28,8 @@ vi.mock("@/queries/teaching-units", () => ({
   ], isLoading: false }),
   useCreateTeachingUnit: () => ({ mutateAsync: state.create, isPending: false }),
   useUpdateTeachingUnit: () => ({ mutateAsync: state.update, isPending: false }),
+  useLmdValidationRules: (_tenantId: string, allowed: boolean) => ({ data: allowed ? state.validation : undefined }),
+  useUpdateLmdValidationRules: () => ({ mutate: state.updateRules, isPending: false }),
 }));
 
 describe("administration des UE", () => {
@@ -38,5 +51,21 @@ describe("administration des UE", () => {
     state.roles = ["TEACHER"];
     render(<TeachingUnits />);
     expect(screen.queryByRole("button", { name: /Nouvelle UE/i })).toBeNull();
+  });
+
+  it("enregistre une configuration LMD versionnée", () => {
+    render(<TeachingUnits />);
+    fireEvent.click(screen.getByLabelText("Compensation au sein de l'UE"));
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer les règles" }));
+    expect(state.updateRules).toHaveBeenCalledWith({
+      expected_revision: 3,
+      rules: expect.objectContaining({ intra_ue_compensation_enabled: true }),
+    });
+  });
+
+  it("n'expose pas la configuration aux rôles sans settings:read", () => {
+    state.roles = ["DEPARTMENT_HEAD"];
+    render(<TeachingUnits />);
+    expect(screen.queryByText("Règles de validation LMD")).toBeNull();
   });
 });

@@ -5,14 +5,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_refs import ensure_refs_in_tenant
 from app.core.tenant_resolution import resolve_current_tenant_id
-from app.models import Subject, TeachingUnit
-from app.schemas.academic import TeachingUnitCreate, TeachingUnitUpdate
+from app.models import Subject, TeachingUnit, Tenant
+from app.schemas.academic import LmdValidationRulesUpdate, TeachingUnitCreate, TeachingUnitUpdate
 from app.services.education_modules import record_configuration_audit
+from app.services.lmd_validation import SETTINGS_KEY, InvalidLmdValidationRules, lmd_rules_payload, validate_lmd_rules
 
 router = APIRouter()
 
@@ -22,6 +24,39 @@ def _tenant_id(request: Request, user: dict, db: Session) -> str:
     if not value:
         raise HTTPException(status_code=400, detail="Contexte établissement requis")
     return str(value)
+
+
+@router.get("/validation-rules/")
+def get_validation_rules(request: Request, db: Session = Depends(get_db),
+                         user: dict = Depends(require_permission("settings:read"))):
+    return lmd_rules_payload(db, _tenant_id(request, user, db))
+
+
+@router.put("/validation-rules/")
+def update_validation_rules(body: LmdValidationRulesUpdate, request: Request, db: Session = Depends(get_db),
+                            user: dict = Depends(require_permission("settings:write"))):
+    tid = _tenant_id(request, user, db)
+    tenant = db.query(Tenant).filter(Tenant.id == tid).with_for_update().populate_existing().first()
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+    current = lmd_rules_payload(db, tid)
+    if current["revision"] != body.expected_revision:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Règles LMD modifiées ; rechargez avant de continuer")
+    try:
+        rules = validate_lmd_rules(body.rules.model_dump())
+    except InvalidLmdValidationRules as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    revision = current["revision"] + 1
+    tenant.settings = {**(tenant.settings or {}), SETTINGS_KEY: {"revision": revision, "rules": rules}}
+    flag_modified(tenant, "settings")
+    record_configuration_audit(
+        db, user_id=user["id"], tenant_id=tid, action="UPDATE_LMD_VALIDATION_RULES",
+        resource_type="TENANT", resource_id=tid,
+        details={"previous_revision": current["revision"], "revision": revision, "rules": rules},
+    )
+    db.commit()
+    return lmd_rules_payload(db, tid)
 
 
 def _payload(db: Session, unit: TeachingUnit, summary=None) -> dict:

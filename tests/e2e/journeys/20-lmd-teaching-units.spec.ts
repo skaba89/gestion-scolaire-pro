@@ -10,6 +10,14 @@ type TeachingUnit = {
   assigned_ects: number;
 };
 
+type ValidationRules = {
+  intra_ue_compensation_enabled: boolean;
+  semester_compensation_enabled: boolean;
+  semester_pass_grade: number;
+  minimum_compensable_ue_grade: number;
+  require_all_ecues_graded: boolean;
+};
+
 test.describe('LMD — unités d’enseignement et ECUE', () => {
   test.use({ storageState: stateFile('admin') });
 
@@ -105,6 +113,41 @@ test.describe('LMD — unités d’enseignement et ECUE', () => {
             expected_revision: current.revision,
             is_active: false,
           });
+        }
+      }
+    }
+  });
+
+  test('configure les compensations avec révision et restaure la règle initiale', async ({ page, request }) => {
+    const admin = api(request, 'admin');
+    const initialResponse = await admin.get('/teaching-units/validation-rules/');
+    expect(initialResponse.status(), await initialResponse.text()).toBe(200);
+    const initial: { revision: number; rules: ValidationRules } = await initialResponse.json();
+
+    try {
+      await page.goto(ulsUrl('/admin/teaching-units'));
+      await expect(page.getByText('Règles de validation LMD', { exact: true })).toBeVisible();
+      const toggle = page.getByLabel("Compensation au sein de l'UE");
+      const before = await toggle.getAttribute('data-state');
+      await toggle.click();
+      const saved = page.waitForResponse(response =>
+        response.url().endsWith('/teaching-units/validation-rules/') && response.request().method() === 'PUT');
+      await page.getByRole('button', { name: 'Enregistrer les règles' }).click();
+      expect((await saved).status()).toBe(200);
+
+      const current = await (await admin.get('/teaching-units/validation-rules/')).json();
+      expect(current.revision).toBe(initial.revision + 1);
+      expect(current.rules.intra_ue_compensation_enabled).toBe(before !== 'checked');
+    } finally {
+      const currentResponse = await admin.get('/teaching-units/validation-rules/');
+      if (currentResponse.status() === 200) {
+        const current = await currentResponse.json();
+        if (current.revision !== initial.revision) {
+          const restored = await admin.put('/teaching-units/validation-rules/', {
+            expected_revision: current.revision,
+            rules: initial.rules,
+          });
+          expect(restored.status(), await restored.text()).toBe(200);
         }
       }
     }

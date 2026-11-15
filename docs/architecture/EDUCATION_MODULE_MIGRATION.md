@@ -72,9 +72,11 @@ données ont été conservées. Privilégier un correctif forward.
 
 Le registre de cycles, le rattachement validé des niveaux et l'héritage des
 règles tenant → cycle → niveau sont présents. Les UE tenant-isolated et leur lien
-optionnel vers les matières/ECUE sont additifs et conservent les historiques. Il
-reste le rattachement dérivé de toutes les ressources, les permissions par
-cycle/utilisateur, les compétences, la compensation, les jurys et diplômes
+optionnel vers les matières/ECUE sont additifs et conservent les historiques. Le
+moteur de validation centralise capitalisation et compensations configurables ;
+ses valeurs par défaut n'élargissent pas les validations historiques. Il reste
+le rattachement dérivé de toutes les ressources, les permissions par
+cycle/utilisateur, les compétences, rattrapages, décisions de jury et diplômes
 complets. Les historiques sans cycle
 ne seront pas attribués automatiquement. Tant que toutes les routes concernées
 ne dérivent pas leur périmètre de la ressource réelle, `cycle_policy_available`

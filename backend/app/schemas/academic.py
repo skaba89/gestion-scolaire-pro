@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from uuid import UUID
 from datetime import date, datetime
 
@@ -261,6 +261,19 @@ class TeachingUnit(TeachingUnitBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class LmdValidationRules(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    intra_ue_compensation_enabled: StrictBool = False
+    semester_compensation_enabled: StrictBool = False
+    semester_pass_grade: float = Field(default=10, gt=0, le=20)
+    minimum_compensable_ue_grade: float = Field(default=5, ge=0, le=20)
+    require_all_ecues_graded: StrictBool = True
+
+class LmdValidationRulesUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=0, strict=True)
+    rules: LmdValidationRules
 
 # --- Program ---
 class ProgramBase(BaseModel):
