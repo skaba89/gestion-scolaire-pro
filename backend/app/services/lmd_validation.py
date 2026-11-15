@@ -12,7 +12,7 @@ from typing import Iterable
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.models import Assessment, Grade, Semester, Student, Subject, TeachingUnit, Tenant
+from app.models import Assessment, ExamSession, Grade, Semester, Student, Subject, TeachingUnit, Tenant
 from app.services.academic_rules import effective_rules
 
 SETTINGS_KEY = "lmd_validation_rules"
@@ -103,30 +103,83 @@ def build_semester_validation(
         TeachingUnit.tenant_id == tenant_id, TeachingUnit.semester_id == semester_id,
     ).order_by(TeachingUnit.code).all()
 
-    scores: dict[str, list[float]] = defaultdict(list)
+    regular_scores: dict[str, list[float]] = defaultdict(list)
+    retake_scores: dict[str, dict[str, dict]] = defaultdict(dict)
     subject_ids = [subject.id for subject in subjects]
     if subject_ids:
-        rows = db.query(Assessment.subject_id, Grade.score, Grade.max_score).join(
+        rows = db.query(
+            Assessment.subject_id, Grade.score, Grade.max_score,
+            ExamSession.id, ExamSession.name, ExamSession.session_type, ExamSession.status,
+            ExamSession.selection_policy, ExamSession.sequence, ExamSession.starts_on,
+        ).join(
             Grade,
             and_(Grade.assessment_id == Assessment.id, Grade.tenant_id == Assessment.tenant_id),
+        ).outerjoin(
+            ExamSession,
+            and_(ExamSession.id == Assessment.exam_session_id,
+                 ExamSession.tenant_id == Assessment.tenant_id),
         ).filter(
             Grade.tenant_id == tenant_id,
             Grade.student_id == student_id,
             Assessment.subject_id.in_(subject_ids),
         ).all()
-        for subject_id, score, max_score in rows:
-            if score is not None and max_score and float(max_score) > 0:
-                scores[str(subject_id)].append(float(score) / float(max_score) * 20)
+        for (subject_id, score, max_score, session_id, session_name, session_type,
+             session_status, policy, sequence, starts_on) in rows:
+            if score is None or not max_score or float(max_score) <= 0:
+                continue
+            normalized = float(score) / float(max_score) * 20
+            subject_key = str(subject_id)
+            # Existing unlinked assessments remain the regular baseline.
+            # A linked session only becomes official once it is CLOSED.
+            if session_id is None:
+                regular_scores[subject_key].append(normalized)
+            elif session_status == "CLOSED" and session_type == "REGULAR":
+                regular_scores[subject_key].append(normalized)
+            elif session_status == "CLOSED" and session_type == "RETAKE":
+                session_key = str(session_id)
+                attempt = retake_scores[subject_key].setdefault(session_key, {
+                    "session_id": session_key, "name": session_name, "session_type": "RETAKE",
+                    "selection_policy": policy, "sequence": sequence,
+                    "starts_on": starts_on.isoformat() if starts_on else None, "scores": [],
+                })
+                attempt["scores"].append(normalized)
 
     ecues = []
     for subject in subjects:
-        raw_scores = scores.get(str(subject.id), [])
+        raw_scores = regular_scores.get(str(subject.id), [])
         average = sum(raw_scores) / len(raw_scores) if raw_scores else None
+        effective_source_session_id = None
+        attempts = []
+        if average is not None:
+            attempts.append({
+                "session_id": None, "name": "Évaluations régulières", "session_type": "REGULAR",
+                "selection_policy": "BASELINE", "sequence": 0, "starts_on": None,
+                "average": _round(average), "applied": True, "effective_after": _round(average),
+            })
+        ordered_retakes = sorted(
+            retake_scores.get(str(subject.id), {}).values(),
+            key=lambda item: (item["sequence"], item["starts_on"] or "", item["session_id"]),
+        )
+        for attempt in ordered_retakes:
+            attempt_average = sum(attempt["scores"]) / len(attempt["scores"])
+            before = average
+            applied = before is None or attempt["selection_policy"] == "LATEST" or attempt_average > before
+            if applied:
+                average = attempt_average
+                effective_source_session_id = attempt["session_id"]
+            attempts.append({
+                key: value for key, value in attempt.items() if key != "scores"
+            } | {
+                "average": _round(attempt_average), "applied": applied,
+                "effective_after": _round(average),
+            })
         ecues.append({
             "id": str(subject.id), "teaching_unit_id": str(subject.teaching_unit_id) if subject.teaching_unit_id else None,
             "code": subject.code, "name": subject.name, "average": _round(average), "_average_raw": average,
             "ects": max(0.0, float(subject.ects or 0)), "coefficient": max(0.0, float(subject.coefficient or 0)),
             "graded": average is not None, "passed": average is not None and average >= pass_grade,
+            "effective_source_session_id": effective_source_session_id,
+            "attempts": attempts,
         })
 
     unit_by_id = {str(unit.id): unit for unit in units}

@@ -18,6 +18,13 @@ type ValidationRules = {
   require_all_ecues_graded: boolean;
 };
 
+type ExamSession = {
+  id: string;
+  revision: number;
+  code: string;
+  status: 'DRAFT' | 'OPEN' | 'CLOSED';
+};
+
 test.describe('LMD — unités d’enseignement et ECUE', () => {
   test.use({ storageState: stateFile('admin') });
 
@@ -151,5 +158,67 @@ test.describe('LMD — unités d’enseignement et ECUE', () => {
         }
       }
     }
+  });
+
+  test('crée, isole, ouvre puis clôture un rattrapage depuis l’administration', async ({ page, request }) => {
+    test.setTimeout(120_000);
+    const admin = api(request, 'admin');
+    const otherTenant = api(request, 'witness');
+    const semestersResponse = await admin.get('/semesters/');
+    expect(semestersResponse.status()).toBe(200);
+    const semesters = await semestersResponse.json();
+    expect(semesters.length).toBeGreaterThan(0);
+    const semester = semesters[0];
+    const suffix = Date.now().toString(36).toUpperCase();
+    const code = `RATT-E2E-${suffix}`;
+    const name = `Rattrapage E2E ${suffix}`;
+
+    await page.goto(ulsUrl('/admin/teaching-units'));
+    await page.getByRole('button', { name: 'Nouvelle session' }).click();
+    await page.getByLabel('Semestre').last().click();
+    await page.getByRole('option', { name: semester.name, exact: true }).click();
+    await page.getByLabel('Code').last().fill(code);
+    await page.getByLabel('Nom').last().fill(name);
+    await page.getByLabel('Type').click();
+    await page.getByRole('option', { name: 'Rattrapage', exact: true }).click();
+    await page.getByLabel('Règle de sélection').click();
+    await page.getByRole('option', { name: 'Meilleure note', exact: true }).click();
+    await page.getByLabel('Ordre').fill('2');
+    await page.getByLabel('Début').fill('2027-02-10');
+    await page.getByLabel('Fin').fill('2027-02-15');
+    const createdResponse = page.waitForResponse(response =>
+      response.url().endsWith('/exam-sessions/') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Créer la session' }).click();
+    expect((await createdResponse).status()).toBe(201);
+    await expect(page.getByText(`${code} — ${name}`, { exact: true })).toBeVisible();
+
+    let session = (await (await admin.get('/exam-sessions/')).json())
+      .find((item: ExamSession) => item.code === code) as ExamSession;
+    expect(session.status).toBe('DRAFT');
+    const otherList = await otherTenant.get('/exam-sessions/');
+    if (otherList.status() === 200) {
+      expect((await otherList.json()).some((item: ExamSession) => item.id === session.id)).toBe(false);
+    } else {
+      expect(otherList.status()).toBe(403);
+    }
+    expect([403, 404]).toContain((await otherTenant.patch(`/exam-sessions/${session.id}/`, {
+      expected_revision: session.revision, status: 'OPEN',
+    })).status());
+
+    const row = page.getByText(`${code} — ${name}`, { exact: true }).locator('xpath=ancestor::div[contains(@class, "rounded-lg")][1]');
+    const openedResponse = page.waitForResponse(response =>
+      response.url().endsWith(`/exam-sessions/${session.id}/`) && response.request().method() === 'PATCH');
+    await row.getByRole('button', { name: 'Ouvrir' }).click();
+    expect((await openedResponse).status()).toBe(200);
+    await expect(row.getByText('OPEN', { exact: true })).toBeVisible();
+
+    session = (await (await admin.get('/exam-sessions/')).json())
+      .find((item: ExamSession) => item.id === session.id);
+    const closedResponse = page.waitForResponse(response =>
+      response.url().endsWith(`/exam-sessions/${session.id}/`) && response.request().method() === 'PATCH');
+    await row.getByRole('button', { name: 'Clôturer' }).click();
+    expect((await closedResponse).status()).toBe(200);
+    await expect(row.getByText('CLOSED', { exact: true })).toBeVisible();
+    expect((await admin.delete(`/exam-sessions/${session.id}/`)).status()).toBe(405);
   });
 });

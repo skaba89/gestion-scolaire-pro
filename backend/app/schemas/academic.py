@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from uuid import UUID
 from datetime import date, datetime
@@ -274,6 +274,45 @@ class LmdValidationRulesUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_revision: int = Field(ge=0, strict=True)
     rules: LmdValidationRules
+
+# --- LMD examination / retake sessions ---
+class ExamSessionBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    semester_id: UUID
+    code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=255)
+    session_type: Literal["REGULAR", "RETAKE"] = "REGULAR"
+    sequence: int = Field(default=1, ge=1)
+    starts_on: date
+    ends_on: date
+    selection_policy: Literal["BEST", "LATEST"] = "BEST"
+
+class ExamSessionCreate(ExamSessionBase):
+    pass
+
+class ExamSessionUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=1, strict=True)
+    semester_id: Optional[UUID] = None
+    code: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    session_type: Optional[Literal["REGULAR", "RETAKE"]] = None
+    sequence: Optional[int] = Field(default=None, ge=1)
+    starts_on: Optional[date] = None
+    ends_on: Optional[date] = None
+    status: Optional[Literal["OPEN", "CLOSED"]] = None
+    selection_policy: Optional[Literal["BEST", "LATEST"]] = None
+
+class ExamSession(ExamSessionBase):
+    id: UUID
+    tenant_id: UUID
+    status: Literal["DRAFT", "OPEN", "CLOSED"]
+    revision: int
+    assessment_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Program ---
 class ProgramBase(BaseModel):

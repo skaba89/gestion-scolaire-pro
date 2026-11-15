@@ -8,6 +8,7 @@ export interface Assessment {
     class_id: string;
     subject_id: string;
     term_id: string;
+    exam_session_id?: string | null;
     name: string;
     type: string;
     date: string;

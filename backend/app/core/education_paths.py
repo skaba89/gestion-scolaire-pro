@@ -18,7 +18,7 @@ _OWNERS = {
                    "/school-life/check-ins", "/school-life/badges", "/school-life/students-without-badges", "/school-life/student-cards"),
     "schedule": ("/schedule", "/schedule-slots", "/class-sessions", "/subject-preferred-rooms", "/school-life/bookings", "/school-life/bookable-resources"),
     "homework": ("/homework", "/homework-submissions"),
-    "lmd": ("/semesters", "/faculties", "/teaching-units"),
+    "lmd": ("/semesters", "/faculties", "/teaching-units", "/exam-sessions"),
     "student_life": ("/clubs", "/alumni", "/gamification", "/achievement-definitions", "/student-achievements",
                      "/point-transactions", "/school-events", "/school-life/events", "/school-life/event-registrations",
                      "/school-life/gamification", "/school-life/early-warnings", "/incidents",

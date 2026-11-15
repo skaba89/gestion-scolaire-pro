@@ -19,6 +19,7 @@ from app.core.education_paths import module_for_path
     ("/api/v1/subjects/uuid/prerequisites/", "lmd"),
     ("/api/v1/semesters/", "lmd"),
     ("/api/v1/teaching-units/", "lmd"),
+    ("/api/v1/exam-sessions/", "lmd"),
     ("/api/v1/hr/alumni-mentors/", "student_life"),
     ("/api/v1/incidents/", "student_life"),
     ("/api/v1/hr/employees/", "hr"),

@@ -15,11 +15,16 @@ def school_db(monkeypatch):
     tenant, other, assessment = (str(uuid4()) for _ in range(3))
     with engine.connect() as connection:
         connection.execute(text("PRAGMA foreign_keys=ON"))
-        connection.execute(text("CREATE TABLE assessments (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL)"))
+        connection.execute(text("CREATE TABLE exam_sessions (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, status TEXT NOT NULL)"))
+        connection.execute(text(
+            "CREATE TABLE assessments (id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, "
+            "class_id TEXT, subject_id TEXT, exam_session_id TEXT)"
+        ))
         connection.execute(text("CREATE TABLE grades (id TEXT PRIMARY KEY, assessment_id TEXT REFERENCES assessments(id) ON DELETE CASCADE, tenant_id TEXT NOT NULL, score FLOAT)"))
         connection.commit()
     with Session(engine) as db:
-        db.execute(text("INSERT INTO assessments VALUES (:id, :tid)"), {"id": assessment, "tid": tenant})
+        db.execute(text("INSERT INTO assessments (id, tenant_id) VALUES (:id, :tid)"),
+                   {"id": assessment, "tid": tenant})
         db.commit()
         monkeypatch.setattr(assessments, "resolve_current_tenant_id", lambda *args: tenant)
         yield db, tenant, other, assessment

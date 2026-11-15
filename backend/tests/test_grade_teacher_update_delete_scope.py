@@ -30,6 +30,7 @@ def test_teacher_update_checks_existing_grade_before_write():
     db = MagicMock()
     with patch.object(api, "resolve_current_tenant_id", return_value=str(uuid4())), \
          patch.object(api.crud_grade, "get_grade", return_value=grade), \
+         patch.object(api, "_ensure_assessment_session_writable"), \
          patch.object(api, "_validate_grade_fks"), \
          patch.object(api, "_require_teacher_grade_write_scope",
                       side_effect=HTTPException(status_code=403)) as scope, \
@@ -47,6 +48,7 @@ def test_teacher_update_validates_destination_before_write():
     next_student = uuid4()
     with patch.object(api, "resolve_current_tenant_id", return_value=str(uuid4())), \
          patch.object(api.crud_grade, "get_grade", return_value=grade), \
+         patch.object(api, "_ensure_assessment_session_writable"), \
          patch.object(api, "_validate_grade_fks"), \
          patch.object(api, "_require_teacher_grade_write_scope",
                       side_effect=[None, HTTPException(status_code=403)]) as scope, \
@@ -67,6 +69,7 @@ def test_teacher_cannot_change_grade_subject():
     db = MagicMock()
     with patch.object(api, "resolve_current_tenant_id", return_value=str(uuid4())), \
          patch.object(api.crud_grade, "get_grade", return_value=grade), \
+         patch.object(api, "_ensure_assessment_session_writable"), \
          patch.object(api, "_validate_grade_fks"), \
          patch.object(api, "_require_teacher_grade_write_scope"), \
          patch.object(api.crud_grade, "update_grade") as save:
@@ -83,6 +86,7 @@ def test_teacher_delete_refuses_out_of_scope_grade():
     db = MagicMock()
     with patch.object(api, "resolve_current_tenant_id", return_value=str(uuid4())), \
          patch.object(api.crud_grade, "get_grade", return_value=_grade()), \
+         patch.object(api, "_ensure_assessment_session_writable"), \
          patch.object(api, "_require_teacher_grade_write_scope",
                       side_effect=HTTPException(status_code=403)), \
          patch.object(api.crud_grade, "delete_grade") as remove:
@@ -113,10 +117,12 @@ def test_teacher_update_and_delete_nonexistent_grade_return_404():
 def test_director_update_keeps_administrative_path():
     db = MagicMock()
     result = MagicMock()
+    current = _grade()
     with patch.object(api, "resolve_current_tenant_id", return_value=str(uuid4())), \
          patch.object(api, "_validate_grade_fks"), \
-         patch.object(api.crud_grade, "get_grade") as read, \
+         patch.object(api, "_ensure_assessment_session_writable"), \
+         patch.object(api.crud_grade, "get_grade", return_value=current) as read, \
          patch.object(api.crud_grade, "update_grade", return_value=result) as save:
         assert api.update_grade(_request(), uuid4(), GradeUpdate(score=14), db, _actor("DIRECTOR")) is result
-    read.assert_not_called()
+    read.assert_called_once()
     save.assert_called_once()

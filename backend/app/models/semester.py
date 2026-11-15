@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, Date, ForeignKey, Boolean
+from sqlalchemy import Column, String, Integer, Float, Date, ForeignKey, Boolean, UniqueConstraint
 
 from app.models.base import Base, GUID, UUIDMixin, TimestampMixin, TenantMixin
 
@@ -12,6 +12,9 @@ class Semester(Base, UUIDMixin, TimestampMixin, TenantMixin):
     breaking the other's callers.
     """
     __tablename__ = "semesters"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_semesters_tenant_id_id"),
+    )
 
     academic_year_id = Column(GUID(), ForeignKey("academic_years.id"), nullable=False)
     name = Column(String(255), nullable=False)

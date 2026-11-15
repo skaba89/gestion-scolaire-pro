@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useTenant } from "@/contexts/TenantContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useTenantNavigate } from "@/hooks/useTenantNavigate";
+import { useEducationModules } from "@/hooks/useEducationModules";
+import { hasPermission } from "@/lib/permissions";
+import { useExamSessions } from "@/queries/exam-sessions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,11 +55,17 @@ interface AssessmentRow {
   weight?: number | null;
   classrooms?: { name?: string | null } | null;
   subjects?: { name?: string | null } | null;
+  exam_session_id?: string | null;
 }
 
 const Grades = () => {
   const { t } = useTranslation();
   const { tenant } = useTenant();
+  const { roles } = useAuth();
+  const { isModuleEnabled } = useEducationModules();
+  const canManageSessions = hasPermission(roles, "settings:manage");
+  const lmdEnabled = isModuleEnabled("lmd");
+  const { data: examSessions = [] } = useExamSessions(tenant?.id, lmdEnabled && canManageSessions);
   const navigate = useTenantNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
@@ -111,8 +121,15 @@ const Grades = () => {
     weight: 1,
     class_id: "",
     subject_id: "",
-    term_id: ""
+    term_id: "",
+    exam_session_id: ""
   });
+
+  const selectedSubject = (subjects || []).find((subject: any) => subject.id === newAssessment.subject_id);
+  const availableSessions = examSessions.filter(session =>
+    session.status !== "CLOSED" && session.semester_id === selectedSubject?.semester_id
+  );
+  const sessionNames = useMemo(() => new Map(examSessions.map(session => [session.id, session.code])), [examSessions]);
 
   const queryClient = useQueryClient();
   const createMutation = useMutation({
@@ -306,6 +323,7 @@ const Grades = () => {
                     <TableHead>{t("grades.type")}</TableHead>
                     <TableHead>{t("grades.colMaxScore")}</TableHead>
                     <TableHead>{t("grades.coefficient")}</TableHead>
+                    {lmdEnabled && <TableHead>Session LMD</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -323,6 +341,8 @@ const Grades = () => {
                       </TableCell>
                       <TableCell>{assessment.max_score}</TableCell>
                       <TableCell>{assessment.weight}</TableCell>
+                      {lmdEnabled && <TableCell>{assessment.exam_session_id ?
+                        <Badge variant="outline">{sessionNames.get(assessment.exam_session_id) || "Session"}</Badge> : "-"}</TableCell>}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -384,7 +404,7 @@ const Grades = () => {
                 <Label>{t("grades.subject")}</Label>
                 <Select
                   value={newAssessment.subject_id}
-                  onValueChange={(v) => setNewAssessment({ ...newAssessment, subject_id: v })}
+                  onValueChange={(v) => setNewAssessment({ ...newAssessment, subject_id: v, exam_session_id: "" })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={t("grades.choose")} />
@@ -397,6 +417,24 @@ const Grades = () => {
                 </Select>
               </div>
             </div>
+            {lmdEnabled && canManageSessions && selectedSubject?.semester_id && <div className="space-y-2">
+              <Label>Session d'examen LMD</Label>
+              <Select value={newAssessment.exam_session_id || "none"}
+                onValueChange={(value) => setNewAssessment({
+                  ...newAssessment, exam_session_id: value === "none" ? "" : value,
+                })}>
+                <SelectTrigger><SelectValue placeholder="Hors session" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Hors session</SelectItem>
+                  {availableSessions.map(session => <SelectItem key={session.id} value={session.id}>
+                    {session.code} — {session.name} ({session.status})
+                  </SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Une session clôturée disparaît de la sélection et son historique devient immuable.
+              </p>
+            </div>}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t("grades.termSemester")}</Label>
