@@ -49,6 +49,7 @@ export function api(request: APIRequestContext, role: Role) {
     post: (url: string, data: unknown) => request.post(`${API}${url}`, { headers, data }),
     put: (url: string, data: unknown) => request.put(`${API}${url}`, { headers, data }),
     patch: (url: string, data: unknown) => request.patch(`${API}${url}`, { headers, data }),
+    delete: (url: string) => request.delete(`${API}${url}`, { headers }),
   };
 }
 

@@ -19,6 +19,7 @@ from app.models.notification import Notification
 from app.models.department import Department
 from app.models.faculty import Faculty
 from app.models.semester import Semester
+from app.models.teaching_unit import TeachingUnit
 from app.models.room import Room
 from app.models.program import Program
 from app.models.classroom import Classroom

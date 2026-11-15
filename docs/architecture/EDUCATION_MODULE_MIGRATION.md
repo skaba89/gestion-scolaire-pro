@@ -70,10 +70,12 @@ données ont été conservées. Privilégier un correctif forward.
 
 ## Lots restant à construire et à vérifier
 
-Le registre de cycles et le rattachement validé des niveaux sont présents. Il
-reste le rattachement dérivé des ressources, les permissions par cycle/utilisateur,
-les règles pédagogiques héritées tenant → cycle → niveau,
-compétences, ECUE, compensation et diplômes complets. Les historiques sans cycle
+Le registre de cycles, le rattachement validé des niveaux et l'héritage des
+règles tenant → cycle → niveau sont présents. Les UE tenant-isolated et leur lien
+optionnel vers les matières/ECUE sont additifs et conservent les historiques. Il
+reste le rattachement dérivé de toutes les ressources, les permissions par
+cycle/utilisateur, les compétences, la compensation, les jurys et diplômes
+complets. Les historiques sans cycle
 ne seront pas attribués automatiquement. Tant que toutes les routes concernées
 ne dérivent pas leur périmètre de la ressource réelle, `cycle_policy_available`
 reste false. Le changement d'abonnement conserve la logique existante sans

@@ -29,6 +29,7 @@ describe("catalogue et règles des modules", () => {
   it.each([
     ["/ecole/admin/library", "library"], ["/admin/admin/subjects", "academics"],
     ["/teacher/student/courses?lesson=1", "elearning"], ["/student/grades", "assessments"],
+    ["/ecole/admin/teaching-units", "lmd"],
     ["/ecole/parent/attendance", "attendance"], ["/ecole/alumni/dashboard", "student_life"],
     ["/ecole/admin/settings", undefined], ["/ecole/parent/messages", undefined],
     ["/ecole/admin/invoices", undefined], ["/ecole/login", undefined],

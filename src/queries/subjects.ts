@@ -19,6 +19,7 @@ export interface Subject {
     // entirely unaffected (see backend/app/services/progression.py and
     // aliases.py::_check_prerequisites_or_raise).
     semester_id?: string | null;
+    teaching_unit_id?: string | null;
 }
 
 export interface SubjectLevel {
@@ -109,6 +110,7 @@ export const useCreateSubject = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["subjects"] });
+            queryClient.invalidateQueries({ queryKey: ["teaching-units"] });
             toast({ title: "Succès", description: "Matière créée avec succès" });
         },
         onError: (error: any) => {
@@ -149,6 +151,7 @@ export const useUpdateSubject = () => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["subjects"] });
+            queryClient.invalidateQueries({ queryKey: ["teaching-units"] });
             toast({ title: "Succès", description: "Matière mise à jour avec succès" });
         },
         onError: (error: any) => {

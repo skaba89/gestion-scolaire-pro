@@ -48,9 +48,10 @@ erDiagram
 4. Pédagogie : l'héritage des seuils de passage et mentions est désormais
    `niveau → cycle → établissement → valeurs habituelles`. Les règles historiques
    par niveau conservent leur priorité et les bulletins dérivent le cycle depuis
-   le niveau réel. La capitalisation, les compétences, ECUE, compensation et
-   diplômes ne sont activables que lorsque leurs parcours réels existent et sont
-   vérifiés.
+   le niveau réel. Les UE sont désormais des ressources tenant-isolated et les
+   matières peuvent devenir leurs ECUE sans réécriture historique. La
+   capitalisation configurable, les compétences, la compensation et les diplômes
+   ne sont activables que lorsque leurs parcours réels existent et sont vérifiés.
 
 ## Compatibilité et sécurité
 

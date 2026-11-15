@@ -1,5 +1,5 @@
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 from datetime import date, datetime
 
@@ -120,6 +120,7 @@ class SubjectBase(BaseModel):
     tp_hours: int = 0
     description: Optional[str] = None
     semester_id: Optional[UUID] = None
+    teaching_unit_id: Optional[UUID] = None
 
 class SubjectCreate(SubjectBase):
     department_ids: Optional[List[UUID]] = None
@@ -136,6 +137,7 @@ class SubjectUpdate(BaseModel):
     tp_hours: Optional[int] = None
     description: Optional[str] = None
     semester_id: Optional[UUID] = None
+    teaching_unit_id: Optional[UUID] = None
     department_ids: Optional[List[UUID]] = None
     level_ids: Optional[List[UUID]] = None
     prerequisite_subject_ids: Optional[List[UUID]] = None
@@ -222,6 +224,39 @@ class SemesterUpdate(BaseModel):
 class Semester(SemesterBase):
     id: UUID
     tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Teaching unit (UE); subjects attached to it are its ECUEs ---
+class TeachingUnitBase(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    semester_id: UUID
+    code: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=255)
+    ects: float = Field(default=0, ge=0)
+    is_active: bool = True
+
+class TeachingUnitCreate(TeachingUnitBase):
+    pass
+
+class TeachingUnitUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: int = Field(ge=1, strict=True)
+    semester_id: Optional[UUID] = None
+    code: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    ects: Optional[float] = Field(default=None, ge=0)
+    is_active: Optional[bool] = None
+
+class TeachingUnit(TeachingUnitBase):
+    id: UUID
+    tenant_id: UUID
+    revision: int
+    assigned_ects: float = 0
+    ects_consistent: bool = False
+    subject_count: int = 0
     created_at: datetime
     updated_at: datetime
 

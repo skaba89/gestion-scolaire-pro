@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { Subject } from "@/queries/subjects";
+import { TeachingUnit } from "@/queries/teaching-units";
 
 export interface SubjectFormValues {
     name: string;
@@ -31,6 +32,7 @@ export interface SubjectFormValues {
     tp_hours: string;
     description: string;
     semester_id: string;
+    teaching_unit_id: string;
 }
 
 interface SubjectFormDialogProps {
@@ -44,6 +46,7 @@ interface SubjectFormDialogProps {
     // semester behaves exactly as before) and course prerequisites
     // (self-referential, so `subjects` excludes the subject being edited).
     semesters?: { id: string; name: string }[];
+    teachingUnits?: TeachingUnit[];
     subjects?: Subject[];
     initialPrerequisiteIds?: string[];
     onSubmit: (formData: SubjectFormValues, deptIds: string[], prerequisiteIds: string[]) => Promise<void>;
@@ -58,6 +61,7 @@ export const SubjectFormDialog = ({
     tenantId,
     initialDeptIds = [],
     semesters = [],
+    teachingUnits = [],
     subjects = [],
     initialPrerequisiteIds = [],
     onSubmit,
@@ -75,6 +79,7 @@ export const SubjectFormDialog = ({
         tp_hours: "0",
         description: "",
         semester_id: "",
+        teaching_unit_id: "",
     });
     const [selectedDeptIds, setSelectedDeptIds] = useState<string[]>([]);
     const [selectedPrerequisiteIds, setSelectedPrerequisiteIds] = useState<string[]>([]);
@@ -91,6 +96,7 @@ export const SubjectFormDialog = ({
                 tp_hours: editingSubject.tp_hours?.toString() || "0",
                 description: editingSubject.description || "",
                 semester_id: editingSubject.semester_id || "",
+                teaching_unit_id: editingSubject.teaching_unit_id || "",
             });
             setSelectedDeptIds(initialDeptIds);
             setSelectedPrerequisiteIds(initialPrerequisiteIds);
@@ -105,6 +111,7 @@ export const SubjectFormDialog = ({
                 tp_hours: "0",
                 description: "",
                 semester_id: "",
+                teaching_unit_id: "",
             });
             setSelectedDeptIds([]);
             setSelectedPrerequisiteIds([]);
@@ -174,7 +181,11 @@ export const SubjectFormDialog = ({
                                 <Label>Semestre (LMD — optionnel)</Label>
                                 <Select
                                     value={formData.semester_id || "none"}
-                                    onValueChange={(v) => setFormData({ ...formData, semester_id: v === "none" ? "" : v })}
+                                    onValueChange={(v) => {
+                                        const semester_id = v === "none" ? "" : v;
+                                        const selectedUnit = teachingUnits.find(unit => unit.id === formData.teaching_unit_id);
+                                        setFormData({ ...formData, semester_id, teaching_unit_id: selectedUnit?.semester_id === semester_id ? formData.teaching_unit_id : "" });
+                                    }}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Aucun semestre" />
@@ -192,6 +203,23 @@ export const SubjectFormDialog = ({
                                     Rattacher cette UE à un semestre permet d'appliquer le seuil de crédits ECTS
                                     de progression (voir la gestion des Semestres).
                                 </p>
+                            </div>
+                        )}
+
+                        {lmdEnabled && formData.semester_id && teachingUnits.some(unit => unit.semester_id === formData.semester_id) && (
+                            <div className="space-y-2">
+                                <Label>Unité d'enseignement (UE — optionnel)</Label>
+                                <Select value={formData.teaching_unit_id || "none"} onValueChange={(value) => {
+                                    const unit = teachingUnits.find(item => item.id === value);
+                                    setFormData({ ...formData, teaching_unit_id: value === "none" ? "" : value, semester_id: unit?.semester_id || formData.semester_id });
+                                }}>
+                                    <SelectTrigger><SelectValue placeholder="Aucune UE" /></SelectTrigger>
+                                    <SelectContent><SelectItem value="none">Aucune UE</SelectItem>
+                                        {teachingUnits.filter(unit => unit.semester_id === formData.semester_id && (unit.is_active || unit.id === editingSubject?.teaching_unit_id)).map(unit =>
+                                            <SelectItem key={unit.id} value={unit.id}>{unit.code} — {unit.name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">Une matière rattachée devient un ECUE de cette unité.</p>
                             </div>
                         )}
 

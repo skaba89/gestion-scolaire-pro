@@ -32,6 +32,7 @@ const StudentDetail = lazy(() => import("@/pages/admin/StudentDetail"));
 const Departments = lazy(() => import("@/pages/admin/Departments"));
 const Faculties = lazy(() => import("@/pages/admin/Faculties"));
 const Semesters = lazy(() => import("@/pages/admin/Semesters"));
+const TeachingUnits = lazy(() => import("@/pages/admin/TeachingUnits"));
 const Programs = lazy(() => import("@/pages/admin/Programs"));
 const Certificates = lazy(() => import("@/pages/admin/Certificates"));
 const EnrollmentStats = lazy(() => import("@/pages/admin/EnrollmentStats"));
@@ -114,6 +115,7 @@ export const AdminRoutes = () => {
             <Route path="departments" element={<Departments />} />
             <Route path="faculties" element={<Faculties />} />
             <Route path="semesters" element={<Semesters />} />
+            <Route path="teaching-units" element={<TeachingUnits />} />
             <Route path="programs" element={<Programs />} />
             <Route path="certificates" element={<Certificates />} />
             <Route path="enrollment-stats" element={<EnrollmentStats />} />
