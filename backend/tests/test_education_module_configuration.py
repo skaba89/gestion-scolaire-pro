@@ -172,6 +172,8 @@ def test_lmd_fields_cannot_reactivate_credits_via_the_shared_subject_api(school)
     assert _save(school).status_code == 200  # primary profile has no LMD
     direct = client.get("/api/v1/teaching-units/", headers=school["headers"]())
     assert direct.status_code == 403 and "lmd" in direct.json()["detail"]
+    sessions = client.get("/api/v1/exam-sessions/", headers=school["headers"]())
+    assert sessions.status_code == 403 and "lmd" in sessions.json()["detail"]
     denied = client.post("/api/v1/subjects/", headers=school["headers"](), json={"name": "UE interdite", "ects": 6})
     assert denied.status_code == 403, denied.text
     allowed = client.post("/api/v1/subjects/", headers=school["headers"](), json={"name": "Français", "ects": 0})

@@ -4,7 +4,7 @@ import TeachingUnits from "@/pages/admin/TeachingUnits";
 
 const state = vi.hoisted(() => ({
   roles: ["TENANT_ADMIN"],
-  create: vi.fn(), update: vi.fn(), updateRules: vi.fn(),
+  create: vi.fn(), update: vi.fn(), updateRules: vi.fn(), createSession: vi.fn(), transitionSession: vi.fn(),
   validation: {
     revision: 3,
     effective_ecue_pass_grade: 10,
@@ -30,6 +30,15 @@ vi.mock("@/queries/teaching-units", () => ({
   useUpdateTeachingUnit: () => ({ mutateAsync: state.update, isPending: false }),
   useLmdValidationRules: (_tenantId: string, allowed: boolean) => ({ data: allowed ? state.validation : undefined }),
   useUpdateLmdValidationRules: () => ({ mutate: state.updateRules, isPending: false }),
+}));
+vi.mock("@/queries/exam-sessions", () => ({
+  useExamSessions: () => ({ data: [{
+    id: "exam-1", tenant_id: "tenant-a", semester_id: "s1", code: "RATTRAPAGE-S1",
+    name: "Rattrapage S1", session_type: "RETAKE", sequence: 2, starts_on: "2027-02-10",
+    ends_on: "2027-02-15", status: "DRAFT", selection_policy: "BEST", revision: 1, assessment_count: 2,
+  }] }),
+  useCreateExamSession: () => ({ mutateAsync: state.createSession, isPending: false }),
+  useTransitionExamSession: () => ({ mutate: state.transitionSession, isPending: false }),
 }));
 
 describe("administration des UE", () => {
@@ -67,5 +76,17 @@ describe("administration des UE", () => {
     state.roles = ["DEPARTMENT_HEAD"];
     render(<TeachingUnits />);
     expect(screen.queryByText("Règles de validation LMD")).toBeNull();
+  });
+
+  it("administre une session historisée et son ouverture versionnée", () => {
+    render(<TeachingUnits />);
+    expect(screen.getByText("RATTRAPAGE-S1 — Rattrapage S1")).toBeInTheDocument();
+    expect(screen.getByText(/2 évaluation/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ouvrir" }));
+    expect(state.transitionSession).toHaveBeenCalledWith({
+      id: "exam-1", expected_revision: 1, status: "OPEN",
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Nouvelle session/i }));
+    expect(screen.getByRole("heading", { name: "Nouvelle session d'examen" })).toBeInTheDocument();
   });
 });

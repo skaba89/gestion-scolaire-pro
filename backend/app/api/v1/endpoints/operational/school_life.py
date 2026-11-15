@@ -223,10 +223,13 @@ def create_grade(
 ):
     # 2026-11-11 (CRAWL-W) : ni FK ni périmètre enseignant n'étaient vérifiés
     # ici, contrairement à POST /grades/ — mêmes contrôles que la route canonique.
-    from app.api.v1.endpoints.academic.grades import _require_teacher_grade_write_scope
+    from app.api.v1.endpoints.academic.grades import (
+        _ensure_assessment_session_writable, _require_teacher_grade_write_scope,
+    )
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     ensure_refs_in_tenant(db, tenant_id, ("students", obj_in.student_id),
                           ("assessments", obj_in.assessment_id), ("subjects", obj_in.subject_id))
+    _ensure_assessment_session_writable(db, tenant_id=tenant_id, assessment_id=obj_in.assessment_id)
     _require_teacher_grade_write_scope(db, tenant_id=tenant_id, current_user=current_user,
                                        student_id=obj_in.student_id, assessment_id=obj_in.assessment_id)
     try:
@@ -249,6 +252,14 @@ def update_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    from app.api.v1.endpoints.academic.grades import _ensure_assessment_session_writable
+    from app.models import Grade as GradeModel
+    current = db.query(GradeModel).filter(GradeModel.id == grade_id, GradeModel.tenant_id == tenant_id).first()
+    if not current:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    _ensure_assessment_session_writable(db, tenant_id=tenant_id, assessment_id=current.assessment_id)
+    _ensure_assessment_session_writable(db, tenant_id=tenant_id,
+                                        assessment_id=obj_in.assessment_id or current.assessment_id)
     result = crud_sl.update_grade(db, grade_id=grade_id, obj_in=obj_in, tenant_id=tenant_id)
     if not result:
         raise HTTPException(status_code=404, detail="Grade not found")
@@ -269,6 +280,8 @@ def delete_grade(
     grade_obj = db.query(GradeModel).filter(GradeModel.id == grade_id, GradeModel.tenant_id == tenant_id).first()
     if not grade_obj:
         raise HTTPException(status_code=404, detail="Grade not found")
+    from app.api.v1.endpoints.academic.grades import _ensure_assessment_session_writable
+    _ensure_assessment_session_writable(db, tenant_id=tenant_id, assessment_id=grade_obj.assessment_id)
     db.delete(grade_obj)
     log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
               action="DELETE_SCHOOL_LIFE_GRADE", resource_type="GRADE",

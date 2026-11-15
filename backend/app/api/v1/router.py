@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
 from app.api.v1.endpoints.core import users, storage, realtime, auth, rgpd, analytics, mfa, tenants, notifications, audit, health, ai, public_pages, webhooks, search, imports as data_imports, billing, platform, saas_enterprise, ministry, whatsapp_webhook
-from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework, transcripts, faculties, semesters, teaching_units
+from app.api.v1.endpoints.academic import students, grades, academic_years, campuses, levels, subjects, departments, terms, assessments, teachers, attendance, homework, transcripts, faculties, semesters, teaching_units, exam_sessions
 from app.api.v1.endpoints.academic import elearning
 from app.api.v1.endpoints.finance import payments, payment_schedules
 from app.api.v1.endpoints.operational import infrastructure, hr, school_life, parents, admissions, schedule, communication, surveys, kiosk, early_warnings
@@ -98,6 +98,7 @@ api_router.include_router(faculties.router, prefix="/faculties", tags=["Facultie
 api_router.include_router(terms.router, prefix="/terms", tags=["Terms"])
 api_router.include_router(semesters.router, prefix="/semesters", tags=["Semesters"])
 api_router.include_router(teaching_units.router, prefix="/teaching-units", tags=["Teaching Units (UE)"])
+api_router.include_router(exam_sessions.router, prefix="/exam-sessions", tags=["LMD Exam Sessions"])
 api_router.include_router(assessments.router, prefix="/assessments", tags=["Assessments"])
 api_router.include_router(teachers.router, prefix="/teachers", tags=["Teachers"])
 api_router.include_router(attendance.router, prefix="/attendance", tags=["Attendance"])

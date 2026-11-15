@@ -21,6 +21,26 @@ from app.schemas.grade import Grade, GradeCreate, GradeUpdate, GradeList
 router = APIRouter()
 
 
+def _ensure_assessment_session_writable(
+    db: Session, *, tenant_id: str, assessment_id: Optional[UUID],
+) -> None:
+    """A closed institutional session freezes every linked grade mutation."""
+    if not assessment_id:
+        return
+    lock = " FOR SHARE OF es" if db.get_bind().dialect.name == "postgresql" else ""
+    session = db.execute(text("""
+        SELECT es.status
+          FROM assessments a
+          JOIN exam_sessions es
+            ON es.id = a.exam_session_id AND es.tenant_id = a.tenant_id
+         WHERE a.id = :assessment_id
+           AND a.tenant_id = :tenant_id
+         LIMIT 1
+    """ + lock), {"assessment_id": str(assessment_id), "tenant_id": tenant_id}).first()
+    if session and session.status == "CLOSED":
+        raise HTTPException(status_code=409, detail="Les notes d'une session clôturée sont immuables")
+
+
 def _validate_grade_fks(db: Session, *, tenant_id: str, student_id=None, subject_id=None, assessment_id=None) -> None:
     """FK injection guard (institutional-readiness audit, 2026-09):
     student_id/subject_id/assessment_id were inserted/updated as-is from
@@ -45,6 +65,9 @@ def _validate_grade_fks(db: Session, *, tenant_id: str, student_id=None, subject
         ), {"id": str(assessment_id), "tid": tenant_id}).first()
         if not exists:
             raise HTTPException(status_code=404, detail="Évaluation introuvable dans cet établissement")
+        _ensure_assessment_session_writable(
+            db, tenant_id=tenant_id, assessment_id=assessment_id,
+        )
 
 
 def _require_teacher_grade_write_scope(
@@ -312,6 +335,12 @@ def update_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
+    current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
+    if not current_grade:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    _ensure_assessment_session_writable(
+        db, tenant_id=tenant_id, assessment_id=current_grade.assessment_id,
+    )
     _validate_grade_fks(
         db, tenant_id=tenant_id, student_id=grade_update.student_id,
         subject_id=grade_update.subject_id, assessment_id=grade_update.assessment_id,
@@ -320,9 +349,6 @@ def update_grade(
     # assessment pair, so a teacher cannot transfer a grade to a class
     # outside their own or edit one that was never theirs.
     if is_scoped_teacher(current_user):
-        current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
-        if not current_grade:
-            raise HTTPException(status_code=404, detail="Grade not found")
         _require_teacher_grade_write_scope(
             db, tenant_id=tenant_id, current_user=current_user,
             student_id=current_grade.student_id, assessment_id=current_grade.assessment_id,
@@ -363,10 +389,13 @@ def delete_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
+    current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
+    if not current_grade:
+        raise HTTPException(status_code=404, detail="Grade not found")
+    _ensure_assessment_session_writable(
+        db, tenant_id=tenant_id, assessment_id=current_grade.assessment_id,
+    )
     if is_scoped_teacher(current_user):
-        current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
-        if not current_grade:
-            raise HTTPException(status_code=404, detail="Grade not found")
         _require_teacher_grade_write_scope(
             db, tenant_id=tenant_id, current_user=current_user,
             student_id=current_grade.student_id, assessment_id=current_grade.assessment_id,

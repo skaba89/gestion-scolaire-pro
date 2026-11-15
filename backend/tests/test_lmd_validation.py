@@ -8,7 +8,7 @@ from conftest import get_test_client
 from app.core.database import SessionLocal, engine
 from app.core.security import create_access_token, get_current_user
 from app.main import app
-from app.models import AcademicYear, Assessment, Grade, Semester, Student, Subject, TeachingUnit, Tenant
+from app.models import AcademicYear, Assessment, ExamSession, Grade, Semester, Student, Subject, TeachingUnit, Tenant
 from app.models.audit_log import AuditLog
 from app.services.lmd_validation import build_semester_validation
 
@@ -111,6 +111,75 @@ def test_multiple_assessments_are_averaged_once_per_ecue():
     assert result["teaching_units"][0]["average"] == 10
     assert result["ects_earned"] == 6
     assert result["ects_possible"] == 6
+
+
+def test_open_retake_is_ignored_then_best_closed_attempt_is_applied():
+    ctx = _fixture((8, 12))
+    with SessionLocal() as db:
+        subject = db.query(Subject).filter(Subject.tenant_id == ctx["tenant"], Subject.code == "ECUE-A").one()
+        session = ExamSession(
+            tenant_id=ctx["tenant"], semester_id=ctx["semester"], code="RATTRAPAGE-S1", name="Rattrapage S1",
+            session_type="RETAKE", sequence=2, starts_on=date(2027, 2, 10), ends_on=date(2027, 2, 15),
+            status="OPEN", selection_policy="BEST",
+        )
+        db.add(session)
+        db.flush()
+        session_id = str(session.id)
+        assessment = Assessment(
+            tenant_id=ctx["tenant"], subject_id=subject.id, academic_year_id=ctx["year"],
+            exam_session_id=session.id, name="Rattrapage Algèbre", date=datetime(2027, 2, 12), max_score=20,
+        )
+        db.add(assessment)
+        db.flush()
+        db.add(Grade(tenant_id=ctx["tenant"], student_id=ctx["student"], subject_id=subject.id,
+                     assessment_id=assessment.id, academic_year_id=ctx["year"], score=14, max_score=20))
+        db.commit()
+        before = build_semester_validation(
+            db, tenant_id=ctx["tenant"], student_id=ctx["student"], semester_id=ctx["semester"],
+        )
+        session.status = "CLOSED"
+        db.commit()
+        after = build_semester_validation(
+            db, tenant_id=ctx["tenant"], student_id=ctx["student"], semester_id=ctx["semester"],
+        )
+    before_ecue = {item["code"]: item for item in before["teaching_units"][0]["ecues"]}["ECUE-A"]
+    after_ecue = {item["code"]: item for item in after["teaching_units"][0]["ecues"]}["ECUE-A"]
+    assert before_ecue["average"] == 8 and len(before_ecue["attempts"]) == 1
+    assert after_ecue["average"] == 14 and after_ecue["passed"] is True
+    assert after_ecue["effective_source_session_id"] == session_id
+    assert after_ecue["attempts"][-1]["applied"] is True
+
+
+def test_best_policy_keeps_higher_regular_grade_but_latest_replaces_it():
+    ctx = _fixture((13, 12))
+    with SessionLocal() as db:
+        subject = db.query(Subject).filter(Subject.tenant_id == ctx["tenant"], Subject.code == "ECUE-A").one()
+        session = ExamSession(
+            tenant_id=ctx["tenant"], semester_id=ctx["semester"], code="RATTRAPAGE-POLICY", name="Rattrapage",
+            session_type="RETAKE", sequence=2, starts_on=date(2027, 2, 10), ends_on=date(2027, 2, 15),
+            status="CLOSED", selection_policy="BEST",
+        )
+        db.add(session)
+        db.flush()
+        assessment = Assessment(tenant_id=ctx["tenant"], subject_id=subject.id, academic_year_id=ctx["year"],
+                                exam_session_id=session.id, name="Rattrapage", date=datetime(2027, 2, 12), max_score=20)
+        db.add(assessment)
+        db.flush()
+        db.add(Grade(tenant_id=ctx["tenant"], student_id=ctx["student"], subject_id=subject.id,
+                     assessment_id=assessment.id, academic_year_id=ctx["year"], score=9, max_score=20))
+        db.commit()
+        best = build_semester_validation(
+            db, tenant_id=ctx["tenant"], student_id=ctx["student"], semester_id=ctx["semester"],
+        )
+        session.selection_policy = "LATEST"
+        db.commit()
+        latest = build_semester_validation(
+            db, tenant_id=ctx["tenant"], student_id=ctx["student"], semester_id=ctx["semester"],
+        )
+    best_ecue = {item["code"]: item for item in best["teaching_units"][0]["ecues"]}["ECUE-A"]
+    latest_ecue = {item["code"]: item for item in latest["teaching_units"][0]["ecues"]}["ECUE-A"]
+    assert best_ecue["average"] == 13 and best_ecue["attempts"][-1]["applied"] is False
+    assert latest_ecue["average"] == 9 and latest_ecue["attempts"][-1]["applied"] is True
 
 
 def test_same_named_units_remain_separate_by_identifier():

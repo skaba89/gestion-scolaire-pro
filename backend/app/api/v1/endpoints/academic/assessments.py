@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_assessment_fks(db: Session, *, tenant_id: str, subject_id: Optional[str],
-                              term_id: Optional[str], class_id: Optional[str]) -> None:
+                              term_id: Optional[str], class_id: Optional[str],
+                              exam_session_id: Optional[str] = None) -> None:
     """DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
     create_assessment/update_assessment inserted/updated subject_id/
     term_id/class_id verbatim with no check they belong to the caller's
@@ -24,11 +25,13 @@ def _validate_assessment_fks(db: Session, *, tenant_id: str, subject_id: Optiona
     tenant's subject/term/class, corrupting joins used by grades/report
     cards/transcripts. Same class of bug already fixed for department
     exam FKs (operational/departments.py)."""
+    subject_semester_id = None
     if subject_id:
-        row = db.execute(text("SELECT id FROM subjects WHERE id = :id AND tenant_id = :tid"),
+        row = db.execute(text("SELECT id, semester_id FROM subjects WHERE id = :id AND tenant_id = :tid"),
                           {"id": subject_id, "tid": tenant_id}).first()
         if not row:
             raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
+        subject_semester_id = str(row.semester_id) if row.semester_id else None
     if term_id:
         row = db.execute(text("SELECT id FROM terms WHERE id = :id AND tenant_id = :tid"),
                           {"id": term_id, "tid": tenant_id}).first()
@@ -39,6 +42,19 @@ def _validate_assessment_fks(db: Session, *, tenant_id: str, subject_id: Optiona
                           {"id": class_id, "tid": tenant_id}).first()
         if not row:
             raise HTTPException(status_code=404, detail="Classe introuvable dans cet établissement")
+    if exam_session_id:
+        lock = " FOR SHARE" if db.get_bind().dialect.name == "postgresql" else ""
+        row = db.execute(text(
+            "SELECT semester_id, status FROM exam_sessions WHERE id = :id AND tenant_id = :tid" + lock
+        ), {"id": exam_session_id, "tid": tenant_id}).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="Session d'examen introuvable dans cet établissement")
+        if row.status == "CLOSED":
+            raise HTTPException(status_code=409, detail="Une session clôturée ne peut plus recevoir d'évaluation")
+        if not subject_semester_id:
+            raise HTTPException(status_code=422, detail="La matière doit être rattachée à un semestre LMD")
+        if str(row.semester_id) != subject_semester_id:
+            raise HTTPException(status_code=422, detail="La matière et la session doivent appartenir au même semestre")
 
 
 def _require_assessment_write(db: Session, *, tenant_id: str, user: dict,
@@ -68,7 +84,11 @@ def _require_assessment_write(db: Session, *, tenant_id: str, user: dict,
 
 def _existing_assessment(db: Session, *, tenant_id: str, assessment_id: UUID):
     row = db.execute(text(
-        "SELECT class_id, subject_id FROM assessments WHERE id = :id AND tenant_id = :tid"
+        """SELECT a.class_id, a.subject_id, a.exam_session_id, es.status AS exam_session_status
+           FROM assessments a
+           LEFT JOIN exam_sessions es
+             ON es.id = a.exam_session_id AND es.tenant_id = a.tenant_id
+           WHERE a.id = :id AND a.tenant_id = :tid"""
     ), {"id": str(assessment_id), "tid": tenant_id}).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Assessment not found")
@@ -85,6 +105,7 @@ class AssessmentCreate(BaseModel):
     weight: Optional[float] = None
     description: Optional[str] = None
     class_id: Optional[str] = None
+    exam_session_id: Optional[str] = None
 
 
 class AssessmentUpdate(BaseModel):
@@ -97,6 +118,7 @@ class AssessmentUpdate(BaseModel):
     weight: Optional[float] = None
     description: Optional[str] = None
     class_id: Optional[str] = None
+    exam_session_id: Optional[str] = None
 
 
 @router.get("/")
@@ -114,7 +136,7 @@ def get_assessments(
         return {"items": []}
 
     query_str = """
-        SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id, a.class_id,
+        SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id, a.class_id, a.exam_session_id,
                a.name, a.assessment_type, a.date, a.max_score, a.weight, a.description,
                a.created_at, a.updated_at,
                s.name as subject_name, s.code as subject_code,
@@ -158,6 +180,7 @@ def get_assessments(
             # porte sur class_id : absent de la réponse, aucune évaluation ne
             # s'affichait jamais côté enseignant.
             "class_id": str(r["class_id"]) if r.get("class_id") else None,
+            "exam_session_id": str(r["exam_session_id"]) if r.get("exam_session_id") else None,
             "name": r["name"],
             "type": r.get("assessment_type"),
             "date": r["date"].isoformat() if r.get("date") and hasattr(r.get("date"), 'isoformat') else str(r.get("date")) if r.get("date") else None,
@@ -187,7 +210,7 @@ def get_assessment_detail(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     row = db.execute(text("""
         SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id,
-               a.class_id, a.name, a.assessment_type, a.date, a.max_score,
+               a.class_id, a.exam_session_id, a.name, a.assessment_type, a.date, a.max_score,
                a.weight, a.description, a.created_at, a.updated_at,
                s.name AS subject_name, s.code AS subject_code,
                t.name AS term_name
@@ -205,6 +228,7 @@ def get_assessment_detail(
         "term_id": str(row["term_id"]) if row["term_id"] else None,
         "academic_year_id": str(row["academic_year_id"]) if row["academic_year_id"] else None,
         "class_id": str(row["class_id"]) if row["class_id"] else None,
+        "exam_session_id": str(row["exam_session_id"]) if row["exam_session_id"] else None,
         "name": row["name"],
         "type": row["assessment_type"],
         "date": row["date"].isoformat() if hasattr(row["date"], "isoformat") else str(row["date"]) if row["date"] else None,
@@ -229,8 +253,11 @@ def create_assessment(
         raise HTTPException(status_code=400, detail="Tenant ID required")
     _require_assessment_write(db, tenant_id=tenant_id, user=current_user,
                               targets=[(assessment.class_id, assessment.subject_id)])
+    if assessment.exam_session_id and not user_has_permission(current_user, "settings:write"):
+        raise HTTPException(status_code=403, detail="Le rattachement à une session est réservé à l'administration")
     _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=assessment.subject_id,
-                              term_id=assessment.term_id, class_id=assessment.class_id)
+                              term_id=assessment.term_id, class_id=assessment.class_id,
+                              exam_session_id=assessment.exam_session_id)
 
     # Build INSERT dynamically based on provided fields
     columns = ["id", "tenant_id", "subject_id", "name", "assessment_type", "date", "max_score", "created_at", "updated_at"]
@@ -264,6 +291,11 @@ def create_assessment(
         values.append(":class_id")
         params["class_id"] = assessment.class_id
 
+    if assessment.exam_session_id:
+        columns.append("exam_session_id")
+        values.append(":exam_session_id")
+        params["exam_session_id"] = assessment.exam_session_id
+
     if assessment.description is not None:
         columns.append("description")
         values.append(":description")
@@ -291,6 +323,7 @@ def create_assessment(
                 "max_score": float(result["max_score"]) if result.get("max_score") else None,
                 "weight": float(result["weight"]) if result.get("weight") else None,
                 "class_id": str(result["class_id"]) if result.get("class_id") else None,
+                "exam_session_id": str(result["exam_session_id"]) if result.get("exam_session_id") else None,
                 "description": result.get("description"),
             }
         raise HTTPException(status_code=500, detail="Failed to create assessment")
@@ -313,8 +346,10 @@ def delete_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
+    if current["exam_session_id"]:
+        raise HTTPException(status_code=409, detail="Une évaluation rattachée à une session ne peut pas être supprimée")
     if not user_has_permission(current_user, "settings:write"):
-        current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
         _require_assessment_write(db, tenant_id=tenant_id, user=current_user,
                                   targets=[(current["class_id"], current["subject_id"])])
 
@@ -367,16 +402,23 @@ def update_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
+    if current["exam_session_status"] == "CLOSED":
+        raise HTTPException(status_code=409, detail="L'historique d'une session clôturée est immuable")
     if not user_has_permission(current_user, "settings:write"):
         # L'enseignant doit avoir droit sur l'évaluation telle qu'elle est ET
         # telle qu'elle sera (pas de déplacement vers la classe d'un collègue).
-        current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
         _require_assessment_write(db, tenant_id=tenant_id, user=current_user, targets=[
             (current["class_id"], current["subject_id"]),
             (assessment.class_id or current["class_id"], assessment.subject_id or current["subject_id"]),
         ])
-    _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=assessment.subject_id,
-                              term_id=assessment.term_id, class_id=assessment.class_id)
+        if assessment.exam_session_id is not None:
+            raise HTTPException(status_code=403, detail="Le rattachement à une session est réservé à l'administration")
+    effective_subject_id = assessment.subject_id or current["subject_id"]
+    effective_session_id = assessment.exam_session_id or current["exam_session_id"]
+    _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=effective_subject_id,
+                              term_id=assessment.term_id, class_id=assessment.class_id,
+                              exam_session_id=effective_session_id)
 
     sets = []
     params = {"id": str(id), "tenant_id": tenant_id}
@@ -391,6 +433,7 @@ def update_assessment(
         "weight": assessment.weight,
         "description": assessment.description,
         "class_id": assessment.class_id,
+        "exam_session_id": assessment.exam_session_id,
     }
 
     for col, val in field_map.items():
@@ -405,7 +448,7 @@ def update_assessment(
     query_str = f"""
         UPDATE assessments SET {', '.join(sets)}
         WHERE id = :id AND tenant_id = :tenant_id
-        RETURNING id, tenant_id, subject_id, term_id, academic_year_id,
+        RETURNING id, tenant_id, subject_id, term_id, academic_year_id, class_id, exam_session_id,
                   name, assessment_type, date, max_score, weight, description, created_at, updated_at
     """
 
@@ -420,6 +463,8 @@ def update_assessment(
             "subject_id": str(result["subject_id"]) if result.get("subject_id") else None,
             "term_id": str(result["term_id"]) if result.get("term_id") else None,
             "academic_year_id": str(result["academic_year_id"]) if result.get("academic_year_id") else None,
+            "class_id": str(result["class_id"]) if result.get("class_id") else None,
+            "exam_session_id": str(result["exam_session_id"]) if result.get("exam_session_id") else None,
             "name": result["name"],
             "type": result.get("assessment_type"),
             "date": result["date"].isoformat() if hasattr(result.get("date", None), "isoformat") else str(result.get("date")),
