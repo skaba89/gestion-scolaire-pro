@@ -123,7 +123,7 @@ def test_same_named_units_remain_separate_by_identifier():
         db.flush()
         subject = Subject(
             tenant_id=ctx["tenant"], semester_id=ctx["semester"], teaching_unit_id=unit.id,
-            code="ECUE-C", name="Algèbre", ects=3, coefficient=1,
+            code="ECUE-C", name="Algèbre avancée", ects=3, coefficient=1,
         )
         db.add(subject)
         db.flush()
