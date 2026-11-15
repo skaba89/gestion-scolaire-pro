@@ -2549,7 +2549,15 @@
     "noLevelRules": "Sin reglas propias: las reglas del centro se aplican en todas partes.",
     "removeLevelRules": "Quitar las reglas propias de {{name}}",
     "chooseLevel": "Elegir…",
-    "addLevelRules": "Añadir reglas propias"
+    "addLevelRules": "Añadir reglas propias",
+    "cycleRulesTitle": "Reglas propias de un ciclo",
+    "cycleRulesDescription": "Se aplican a los niveles del ciclo sin reglas propias. Prioridad: nivel, ciclo, centro.",
+    "noCycleRules": "No hay reglas por ciclo: se aplican las reglas del centro.",
+    "removeCycleRules": "Quitar las reglas propias del ciclo {{name}}",
+    "cycle": "Ciclo educativo",
+    "chooseCycle": "Elegir un ciclo…",
+    "addCycleRules": "Añadir reglas al ciclo",
+    "archivedCycle": "ciclo archivado"
   },
   "accessibility": {
     "skipToContent": "Ir al contenido principal",

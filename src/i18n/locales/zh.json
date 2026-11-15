@@ -2583,7 +2583,15 @@
     "noLevelRules": "没有单独规则：所有年级均使用学校规则。",
     "removeLevelRules": "移除 {{name}} 的单独规则",
     "chooseLevel": "请选择…",
-    "addLevelRules": "添加单独规则"
+    "addLevelRules": "添加单独规则",
+    "cycleRulesTitle": "特定教育阶段的规则",
+    "cycleRulesDescription": "适用于该阶段内未单独设置规则的年级。优先级：年级、阶段、学校。",
+    "noCycleRules": "没有阶段专属规则：使用学校规则。",
+    "removeCycleRules": "移除 {{name}} 阶段的专属规则",
+    "cycle": "教育阶段",
+    "chooseCycle": "选择阶段…",
+    "addCycleRules": "添加阶段规则",
+    "archivedCycle": "已归档阶段"
   },
   "accessibility": {
     "skipToContent": "跳转到主要内容",

@@ -36,7 +36,7 @@ preuve de déploiement ni en validation métier nationale.
 Les classes héritent aujourd'hui d'un cycle via leur niveau, mais les contrôles
 d'accès ne dérivent pas encore systématiquement ce cycle depuis chaque ressource.
 Les rôles restent tenant-scoped. Les politiques tenant → cycle → niveau, règles
-de notation par cycle, compétences, ECUE, compensation, jurys et diplômes ne
+de notation avancée par cycle, compétences, ECUE, compensation, jurys et diplômes ne
 sont pas déclarés fonctionnels. Les établissements historiques doivent affecter
 leurs niveaux explicitement. Une recette avec données anonymisées, tests de
 charge nationale, PRA et validation métier terrain restent NON VÉRIFIÉS.

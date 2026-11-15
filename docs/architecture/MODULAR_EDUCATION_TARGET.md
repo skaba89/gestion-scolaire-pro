@@ -45,10 +45,12 @@ erDiagram
    migration automatique des historiques ambigus. Toute
    route non encore capable de filtrer un cycle doit être explicitement marquée
    non couverte avant d'autoriser des politiques différentes entre cycles.
-4. Pédagogie : étendre les règles existantes avec tests du résultat des bulletins,
-   de la capitalisation et des transitions de configuration. Compétences, ECUE,
-   compensation et diplômes ne sont activables que lorsque leurs parcours réels
-   existent et sont vérifiés.
+4. Pédagogie : l'héritage des seuils de passage et mentions est désormais
+   `niveau → cycle → établissement → valeurs habituelles`. Les règles historiques
+   par niveau conservent leur priorité et les bulletins dérivent le cycle depuis
+   le niveau réel. La capitalisation, les compétences, ECUE, compensation et
+   diplômes ne sont activables que lorsque leurs parcours réels existent et sont
+   vérifiés.
 
 ## Compatibilité et sécurité
 

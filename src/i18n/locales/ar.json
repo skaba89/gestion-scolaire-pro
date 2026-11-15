@@ -2549,7 +2549,15 @@
     "noLevelRules": "لا توجد قواعد خاصة: تُطبَّق قواعد المؤسسة في كل مكان.",
     "removeLevelRules": "إزالة القواعد الخاصة بـ{{name}}",
     "chooseLevel": "اختر…",
-    "addLevelRules": "إضافة قواعد خاصة"
+    "addLevelRules": "إضافة قواعد خاصة",
+    "cycleRulesTitle": "قواعد خاصة بدورة تعليمية",
+    "cycleRulesDescription": "تُطبَّق على مستويات الدورة التي لا تملك قواعد خاصة. الأولوية: المستوى ثم الدورة ثم المؤسسة.",
+    "noCycleRules": "لا توجد قواعد خاصة بالدورات: تُطبَّق قواعد المؤسسة.",
+    "removeCycleRules": "إزالة القواعد الخاصة بدورة {{name}}",
+    "cycle": "الدورة التعليمية",
+    "chooseCycle": "اختر دورة…",
+    "addCycleRules": "إضافة قواعد للدورة",
+    "archivedCycle": "دورة مؤرشفة"
   },
   "accessibility": {
     "skipToContent": "الانتقال إلى المحتوى الرئيسي",

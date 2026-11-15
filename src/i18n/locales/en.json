@@ -2486,7 +2486,15 @@
     "noLevelRules": "No specific rules: the school rules apply everywhere.",
     "removeLevelRules": "Remove the rules specific to {{name}}",
     "chooseLevel": "Choose…",
-    "addLevelRules": "Add specific rules"
+    "addLevelRules": "Add specific rules",
+    "cycleRulesTitle": "Rules for a specific cycle",
+    "cycleRulesDescription": "Applied to levels in the cycle unless they have their own rules. Priority: level, cycle, institution.",
+    "noCycleRules": "No cycle-specific rules: the institution rules apply.",
+    "removeCycleRules": "Remove rules specific to the {{name}} cycle",
+    "cycle": "Education cycle",
+    "chooseCycle": "Choose a cycle…",
+    "addCycleRules": "Add cycle rules",
+    "archivedCycle": "archived cycle"
   },
   "accessibility": {
     "skipToContent": "Skip to main content",

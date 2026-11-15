@@ -18,6 +18,7 @@ client = get_test_client()
 from app.core.database import SessionLocal  # noqa: E402
 from app.core.security import create_access_token, get_current_user  # noqa: E402
 from app.main import app  # noqa: E402
+from app.models.education_cycle import EducationCycle  # noqa: E402
 from app.models.level import Level  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.services.academic_rules import (  # noqa: E402
@@ -75,10 +76,22 @@ def _tenant(settings=None) -> str:
     return tid
 
 
-def _level(tid: str, name="6e") -> str:
+def _cycle(tid: str, name="Primaire") -> str:
+    cid = str(uuid.uuid4())
+    with SessionLocal() as db:
+        db.add(EducationCycle(
+            id=cid, tenant_id=tid, code=f"C-{cid[:8]}", name=name,
+            institution_type="primary", period_type="TRIMESTER",
+            order_index=1, is_active=True, revision=1,
+        ))
+        db.commit()
+    return cid
+
+
+def _level(tid: str, name="6e", cycle_id: str | None = None) -> str:
     lid = str(uuid.uuid4())
     with SessionLocal() as db:
-        db.add(Level(id=lid, tenant_id=tid, name=name, order_index=1))
+        db.add(Level(id=lid, tenant_id=tid, name=name, order_index=1, cycle_id=cycle_id))
         db.commit()
     return lid
 
@@ -120,6 +133,40 @@ class TestEffectiveRules:
             assert mention_for(11, effective_rules(db, tid, uuid.UUID(lid).hex)) == "Insuffisant"
             assert mention_for(12, effective_rules(db, tid, uuid.UUID(lid).hex)) == "Passable"
 
+    def test_level_then_cycle_then_school_precedence(self):
+        tid = _tenant()
+        cid = _cycle(tid, "Collège")
+        inherited_level = _level(tid, "7e", cid)
+        specific_level = _level(tid, "10e", cid)
+        unassigned_level = _level(tid, "Libre")
+        with SessionLocal() as db:
+            tenant = db.query(Tenant).filter(Tenant.id == tid).one()
+            tenant.settings = {"academic_rules": {
+                "default": _rules(passing=11),
+                "cycles": {cid: _rules(passing=12, ab=13)},
+                "levels": {specific_level: _rules(passing=13, ab=14, b=15, tb=17, ex=19)},
+            }}
+            db.commit()
+
+            assert effective_rules(db, tid, specific_level)["passing_grade"] == 13
+            assert effective_rules(db, tid, inherited_level)["passing_grade"] == 12
+            assert effective_rules(db, tid, cycle_id=cid)["passing_grade"] == 12
+            assert effective_rules(db, tid, unassigned_level)["passing_grade"] == 11
+
+    def test_corrupt_level_rule_falls_back_to_its_cycle(self):
+        tid = _tenant()
+        cid = _cycle(tid)
+        lid = _level(tid, "CM2", cid)
+        with SessionLocal() as db:
+            tenant = db.query(Tenant).filter(Tenant.id == tid).one()
+            tenant.settings = {"academic_rules": {
+                "default": _rules(passing=10),
+                "cycles": {cid: _rules(passing=12, ab=13)},
+                "levels": {lid: {"passing_grade": 99}},
+            }}
+            db.commit()
+            assert effective_rules(db, tid, lid)["passing_grade"] == 12
+
     def test_corrupted_stored_rules_fall_back_to_defaults(self):
         tid = _tenant({"academic_rules": {"default": {"passing_grade": 99}}})
         with SessionLocal() as db:
@@ -159,6 +206,39 @@ class TestApi:
         assert "Bien" in resp.json()["detail"]
         assert client.get(URL, headers=h).json()["default"] is None
 
+    def test_admin_saves_cycle_rules_and_levels_expose_their_cycle(self):
+        tid = _tenant()
+        cid = _cycle(tid, "Lycée")
+        lid = _level(tid, "Terminale", cid)
+        h = _as(tid, "TENANT_ADMIN")
+        resp = client.put(URL, json={
+            "default": _rules(passing=10),
+            "cycles": {cid: _rules(passing=12, ab=13)},
+            "levels": {},
+        }, headers=h)
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["cycles"] == [{
+            "cycle_id": cid, "cycle_name": "Lycée", "cycle_code": f"C-{cid[:8]}",
+            "is_active": True, "rules": validate_rules(_rules(passing=12, ab=13)),
+        }]
+        assert body["available_cycles"] == [{
+            "id": cid, "code": f"C-{cid[:8]}", "name": "Lycée", "is_active": True,
+        }]
+        assert body["available_levels"] == [{"id": lid, "name": "Terminale", "cycle_id": cid}]
+
+        # Les anciens clients, qui ne connaissent pas encore `cycles`, ne
+        # doivent jamais effacer silencieusement cette configuration.
+        legacy = client.put(URL, json={"default": _rules(passing=11), "levels": {}}, headers=h)
+        assert legacy.status_code == 200, legacy.text
+        assert legacy.json()["cycles"][0]["rules"]["passing_grade"] == 12
+
+    def test_cycle_of_another_school_is_404(self):
+        tid, other = _tenant(), _tenant()
+        foreign_cycle = _cycle(other)
+        resp = client.put(URL, json={"cycles": {foreign_cycle: _rules()}}, headers=_as(tid, "TENANT_ADMIN"))
+        assert resp.status_code == 404, resp.text
+
     def test_level_of_another_school_is_404(self):
         tid, other = _tenant(), _tenant()
         foreign_level = _level(other)
@@ -190,6 +270,21 @@ class TestBulletinApplication:
 
     def test_school_passing_grade_is_applied_to_the_report_card(self):
         html = self._bulletin(validate_rules(_rules(passing=12, ab=13)), 11.0)
+        assert "Insuffisant" in html and "Passable" not in html
+
+    def test_cycle_rule_is_applied_to_a_level_report_card(self):
+        tid = _tenant()
+        cid = _cycle(tid, "Lycée")
+        lid = _level(tid, "Terminale", cid)
+        with SessionLocal() as db:
+            tenant = db.query(Tenant).filter(Tenant.id == tid).one()
+            tenant.settings = {"academic_rules": {
+                "default": _rules(passing=10),
+                "cycles": {cid: _rules(passing=12, ab=13)},
+                "levels": {},
+            }}
+            db.commit()
+            html = self._bulletin(effective_rules(db, tid, lid), 11.0)
         assert "Insuffisant" in html and "Passable" not in html
 
 
