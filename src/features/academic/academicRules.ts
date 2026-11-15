@@ -15,8 +15,10 @@ export interface AcademicRulesResponse {
   defaults: AcademicRules;
   mention_labels: MentionLabel[];
   default: AcademicRules | null;
+  cycles: { cycle_id: string; cycle_name: string; cycle_code: string; is_active: boolean; rules: AcademicRules }[];
   levels: { level_id: string; level_name: string; rules: AcademicRules }[];
-  available_levels: { id: string; name: string }[];
+  available_cycles: { id: string; code: string; name: string; is_active: boolean }[];
+  available_levels: { id: string; name: string; cycle_id: string | null }[];
 }
 
 export const SCALE_MAX = 20;

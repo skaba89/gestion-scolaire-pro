@@ -7,6 +7,7 @@ les seuils étaient écrits en dur, en double, dans school_life.py
 
 Stockage : `tenants.settings["academic_rules"]` —
     {"default": {"passing_grade": 10, "mentions": [{"label": "Assez Bien", "min": 12}, …]},
+     "cycles":  {"<cycle_id>": {…mêmes clés…}},
      "levels":  {"<level_id>": {…mêmes clés…}}}
 Les valeurs par défaut reproduisent exactement l'ancien comportement : un
 établissement qui ne configure rien obtient les mêmes bulletins qu'avant.
@@ -100,18 +101,63 @@ def _safe(raw, *, tenant_id: str, where: str) -> Optional[dict]:
         return None
 
 
-def effective_rules(db: Session, tenant_id: str, level_id: Optional[str] = None) -> dict:
-    """Règles à appliquer : celles du niveau, sinon celles de l'établissement,
-    sinon les valeurs par défaut."""
+def _canonical_id(value: object) -> Optional[str]:
+    try:
+        return str(UUID(str(value)))
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def effective_rules(
+    db: Session,
+    tenant_id: str,
+    level_id: Optional[str] = None,
+    *,
+    cycle_id: Optional[str] = None,
+) -> dict:
+    """Règles à appliquer : niveau, cycle, établissement, puis défaut.
+
+    Le cycle est normalement dérivé du niveau. ``cycle_id`` reste disponible
+    pour les futurs calculs qui portent directement sur un cycle, mais il est
+    toujours vérifié dans le tenant avant d'être utilisé.
+    """
     stored = _stored(db, tenant_id)
+    resolved_cycle_id = _canonical_id(cycle_id) if cycle_id else None
     if level_id:
         # Raw SQL reads SQLite GUIDs as 32-character hex while the settings
         # endpoint saves level keys as canonical dashed UUID strings.
         # Normalize both variants before looking up level-specific rules.
-        level_key = str(UUID(str(level_id)))
-        per_level = _safe((stored.get("levels") or {}).get(level_key), tenant_id=tenant_id, where=f"niveau {level_key}")
-        if per_level:
-            return per_level
+        level_key = _canonical_id(level_id)
+        if level_key:
+            per_level = _safe(
+                (stored.get("levels") or {}).get(level_key),
+                tenant_id=tenant_id,
+                where=f"niveau {level_key}",
+            )
+            if per_level:
+                return per_level
+
+            from app.models.level import Level
+            row = db.query(Level.cycle_id).filter(
+                Level.tenant_id == str(tenant_id), Level.id == level_key,
+            ).first()
+            if row and row[0]:
+                resolved_cycle_id = _canonical_id(row[0])
+
+    if resolved_cycle_id:
+        from app.models.education_cycle import EducationCycle
+        own_cycle = db.query(EducationCycle.id).filter(
+            EducationCycle.tenant_id == str(tenant_id),
+            EducationCycle.id == resolved_cycle_id,
+        ).first()
+        if own_cycle:
+            per_cycle = _safe(
+                (stored.get("cycles") or {}).get(resolved_cycle_id),
+                tenant_id=tenant_id,
+                where=f"cycle {resolved_cycle_id}",
+            )
+            if per_cycle:
+                return per_cycle
     return _safe(stored.get("default"), tenant_id=tenant_id, where="défaut") or copy.deepcopy(DEFAULT_RULES)
 
 

@@ -78,12 +78,15 @@ export default function AcademicRules() {
   });
 
   const [schoolRules, setSchoolRules] = useState<Rules | null>(null);
+  const [cycleRules, setCycleRules] = useState<Record<string, Rules>>({});
   const [levelRules, setLevelRules] = useState<Record<string, Rules>>({});
+  const [cycleToAdd, setCycleToAdd] = useState<string>("");
   const [levelToAdd, setLevelToAdd] = useState<string>("");
 
   useEffect(() => {
     if (!data) return;
     setSchoolRules(cloneRules(data.default ?? data.defaults));
+    setCycleRules(Object.fromEntries(data.cycles.map((cycle) => [cycle.cycle_id, cloneRules(cycle.rules)])));
     setLevelRules(Object.fromEntries(data.levels.map((l) => [l.level_id, cloneRules(l.rules)])));
   }, [data]);
 
@@ -92,6 +95,7 @@ export default function AcademicRules() {
       const isDefault = JSON.stringify(schoolRules) === JSON.stringify(data?.defaults);
       const { data: saved } = await apiClient.put<AcademicRulesResponse>(URL, {
         default: isDefault ? null : schoolRules,
+        cycles: cycleRules,
         levels: levelRules,
       });
       return saved;
@@ -124,8 +128,13 @@ export default function AcademicRules() {
   }
 
   const levelName = (id: string) => data.available_levels.find((l) => l.id === id)?.name ?? id;
+  const cycleInfo = (id: string) => data.available_cycles.find((cycle) => cycle.id === id);
+  const cycleName = (id: string) => cycleInfo(id)?.name ?? id;
+  const addableCycles = data.available_cycles.filter((cycle) => cycle.is_active && !cycleRules[cycle.id]);
   const addable = data.available_levels.filter((l) => !levelRules[l.id]);
-  const hasProblem = !!firstRuleProblem(schoolRules) || Object.values(levelRules).some((r) => !!firstRuleProblem(r));
+  const hasProblem = !!firstRuleProblem(schoolRules)
+    || Object.values(cycleRules).some((rules) => !!firstRuleProblem(rules))
+    || Object.values(levelRules).some((rules) => !!firstRuleProblem(rules));
 
   return (
     <div className="space-y-6">
@@ -162,6 +171,65 @@ export default function AcademicRules() {
         </CardContent>
       </Card>
 
+      {data.available_cycles.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("academicRules.cycleRulesTitle")}</CardTitle>
+            <CardDescription>{t("academicRules.cycleRulesDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {Object.keys(cycleRules).length === 0 && (
+              <p className="text-sm text-muted-foreground">{t("academicRules.noCycleRules")}</p>
+            )}
+            {Object.entries(cycleRules).map(([id, rules]) => {
+              const cycle = cycleInfo(id);
+              return (
+                <div key={id} className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold">{cycleName(id)}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {cycle?.code}{cycle && !cycle.is_active ? ` · ${t("academicRules.archivedCycle")}` : ""}
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" className="text-destructive"
+                      aria-label={t("academicRules.removeCycleRules", { name: cycleName(id) })}
+                      onClick={() => setCycleRules(Object.fromEntries(Object.entries(cycleRules).filter(([key]) => key !== id)))}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <RulesEditor rules={rules} idPrefix={`cycle-${id}`}
+                    onChange={(next) => setCycleRules({ ...cycleRules, [id]: next })} />
+                </div>
+              );
+            })}
+            {addableCycles.length > 0 && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="space-y-1 sm:w-64">
+                  <Label>{t("academicRules.cycle")}</Label>
+                  <Select value={cycleToAdd} onValueChange={setCycleToAdd}>
+                    <SelectTrigger><SelectValue placeholder={t("academicRules.chooseCycle")} /></SelectTrigger>
+                    <SelectContent>
+                      {addableCycles.map((cycle) => (
+                        <SelectItem key={cycle.id} value={cycle.id}>{cycle.name} ({cycle.code})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button variant="outline" disabled={!cycleToAdd}
+                  onClick={() => {
+                    setCycleRules({ ...cycleRules, [cycleToAdd]: cloneRules(schoolRules) });
+                    setCycleToAdd("");
+                  }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("academicRules.addCycleRules")}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>{t("academicRules.levelRulesTitle", { label: levelLabel })}</CardTitle>
@@ -197,7 +265,12 @@ export default function AcademicRules() {
                 </Select>
               </div>
               <Button variant="outline" disabled={!levelToAdd}
-                onClick={() => { setLevelRules({ ...levelRules, [levelToAdd]: cloneRules(schoolRules) }); setLevelToAdd(""); }}>
+                onClick={() => {
+                  const level = data.available_levels.find((item) => item.id === levelToAdd);
+                  const inherited = (level?.cycle_id && cycleRules[level.cycle_id]) || schoolRules;
+                  setLevelRules({ ...levelRules, [levelToAdd]: cloneRules(inherited) });
+                  setLevelToAdd("");
+                }}>
                 <Plus className="mr-2 h-4 w-4" />
                 {t("academicRules.addLevelRules")}
               </Button>

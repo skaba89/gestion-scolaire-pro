@@ -2486,7 +2486,15 @@
         "noLevelRules": "Aucune règle propre : les règles de l'établissement s'appliquent partout.",
         "removeLevelRules": "Retirer les règles propres à {{name}}",
         "chooseLevel": "Choisir…",
-        "addLevelRules": "Ajouter des règles propres"
+        "addLevelRules": "Ajouter des règles propres",
+        "cycleRulesTitle": "Règles propres à un cycle",
+        "cycleRulesDescription": "Appliquées aux niveaux du cycle qui n'ont pas de règles propres. La priorité est : niveau, cycle, établissement.",
+        "noCycleRules": "Aucune règle propre à un cycle : les règles de l'établissement s'appliquent.",
+        "removeCycleRules": "Retirer les règles propres au cycle {{name}}",
+        "cycle": "Cycle pédagogique",
+        "chooseCycle": "Choisir un cycle…",
+        "addCycleRules": "Ajouter des règles au cycle",
+        "archivedCycle": "cycle archivé"
     },
     "accessibility": {
         "skipToContent": "Aller au contenu principal",

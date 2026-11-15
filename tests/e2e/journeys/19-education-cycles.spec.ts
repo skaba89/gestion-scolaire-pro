@@ -15,6 +15,9 @@ test.describe('Cycles pédagogiques — établissement mixte et mobile', () => {
     expect(levelsResponse.status()).toBe(200);
     const levels = await levelsResponse.json();
     expect(levels.length).toBeGreaterThan(0);
+    const rulesBefore = await (await admin.get('/tenants/settings/academic-rules/')).json();
+    const initialCycleRules = Object.fromEntries(rulesBefore.cycles.map((item: { cycle_id: string; rules: unknown }) => [item.cycle_id, item.rules]));
+    const initialLevelRules = Object.fromEntries(rulesBefore.levels.map((item: { level_id: string; rules: unknown }) => [item.level_id, item.rules]));
     const base = `/${credentials().witness.slug}/admin`;
     let cycle: { id: string; revision: number; is_active: boolean; level_ids: string[] } | undefined;
 
@@ -37,6 +40,24 @@ test.describe('Cycles pédagogiques — établissement mixte et mobile', () => {
         expected_revision: cycle!.revision, level_ids: [levels[0].id],
       })).status()).toBe(404);
 
+      const cycleRules = {
+        passing_grade: 12,
+        mentions: [
+          { label: 'Assez Bien', min: 13 }, { label: 'Bien', min: 15 },
+          { label: 'Très Bien', min: 17 }, { label: 'Excellent', min: 19 },
+        ],
+      };
+      const savedRules = await admin.put('/tenants/settings/academic-rules/', {
+        default: rulesBefore.default,
+        cycles: { ...initialCycleRules, [cycle!.id]: cycleRules },
+        levels: initialLevelRules,
+      });
+      expect(savedRules.status()).toBe(200);
+      await page.goto(`${base}/academic-rules`);
+      await expect(page.locator(`[id="cycle-${cycle!.id}-passing"]`)).toHaveValue('12');
+      await page.goto(`${base}/settings`);
+      await page.getByRole('tab', { name: 'Cycles pédagogiques' }).click();
+
       const card = page.getByRole('heading', { name }).locator('xpath=ancestor::div[contains(@class, "rounded-xl")][1]');
       await card.getByLabel(levels[0].name, { exact: true }).click();
       const assigned = page.waitForResponse(response => response.url().endsWith(`/education/cycles/${cycle!.id}/levels/`) && response.request().method() === 'PUT');
@@ -58,6 +79,11 @@ test.describe('Cycles pédagogiques — établissement mixte et mobile', () => {
       await expect(page.getByRole('heading', { name })).toBeVisible();
       await expect(card.getByText('Archivé', { exact: true })).toBeVisible();
     } finally {
+      await admin.put('/tenants/settings/academic-rules/', {
+        default: rulesBefore.default,
+        cycles: initialCycleRules,
+        levels: initialLevelRules,
+      });
       if (cycle?.is_active) {
         await admin.patch(`/education/cycles/${cycle.id}/`, {
           expected_revision: cycle.revision, is_active: false,

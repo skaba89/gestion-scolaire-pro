@@ -56,7 +56,7 @@ from app.schemas.tenants import (
     TenantAdminUserCreate,
     validate_tenant_slug,
 )
-from app.models import Tenant, AcademicYear, Campus, Level, Subject, User, UserRole
+from app.models import Tenant, AcademicYear, Campus, EducationCycle, Level, Subject, User, UserRole
 from app.services.plan_catalog import TRIAL_PLAN_SLUG, start_trial
 from app.services.academic_rules import (
     DEFAULT_RULES as DEFAULT_ACADEMIC_RULES, MENTION_LABELS, SETTINGS_KEY as ACADEMIC_RULES_KEY,
@@ -504,22 +504,49 @@ async def update_tenant_settings(
 class AcademicRulesBody(BaseModel):
     # null = valeurs par défaut (10/20 ; mentions 12, 14, 16, 18).
     default: Optional[Dict[str, Any]] = None
+    # null/absent preserves cycle rules for backward-compatible clients;
+    # an explicit empty object removes all cycle-specific overrides.
+    cycles: Optional[Dict[str, Dict[str, Any]]] = None
     # level_id → règles propres à ce niveau.
-    levels: Dict[str, Dict[str, Any]] = {}
+    levels: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
 
 def _academic_rules_response(db: Session, tenant: Tenant) -> dict:
     stored = (tenant.settings or {}).get(ACADEMIC_RULES_KEY) or {}
-    levels = {str(l.id): l.name for l in db.query(Level).filter(Level.tenant_id == tenant.id).order_by(Level.order_index)}
+    cycle_rows = db.query(EducationCycle).filter(
+        EducationCycle.tenant_id == tenant.id,
+    ).order_by(EducationCycle.order_index, EducationCycle.name).all()
+    cycles = {str(c.id): c for c in cycle_rows}
+    level_rows = db.query(Level).filter(
+        Level.tenant_id == tenant.id,
+    ).order_by(Level.order_index, Level.name).all()
+    levels = {str(l.id): l for l in level_rows}
     return {
         "defaults": DEFAULT_ACADEMIC_RULES,
         "mention_labels": list(MENTION_LABELS),
         "default": stored.get("default"),
+        "cycles": [
+            {
+                "cycle_id": cid,
+                "cycle_name": cycles[cid].name,
+                "cycle_code": cycles[cid].code,
+                "is_active": cycles[cid].is_active,
+                "rules": rules,
+            }
+            for cid, rules in (stored.get("cycles") or {}).items() if cid in cycles
+        ],
         "levels": [
-            {"level_id": lid, "level_name": levels[lid], "rules": rules}
+            {"level_id": lid, "level_name": levels[lid].name, "rules": rules}
             for lid, rules in (stored.get("levels") or {}).items() if lid in levels
         ],
-        "available_levels": [{"id": lid, "name": name} for lid, name in levels.items()],
+        "available_cycles": [
+            {"id": str(c.id), "code": c.code, "name": c.name, "is_active": c.is_active}
+            for c in cycle_rows
+        ],
+        "available_levels": [
+            {"id": str(level.id), "name": level.name, "cycle_id": str(level.cycle_id) if level.cycle_id else None}
+            for level in level_rows
+        ],
     }
 
 
@@ -551,6 +578,18 @@ def update_academic_rules(
         raise HTTPException(status_code=404, detail="Établissement introuvable")
     try:
         default = validate_academic_rules(body.default) if body.default is not None else None
+        cycles: dict = dict(((tenant.settings or {}).get(ACADEMIC_RULES_KEY) or {}).get("cycles") or {})
+        if body.cycles is not None:
+            cycles = {}
+            own_cycles = {str(c.id) for c in db.query(EducationCycle.id).filter(EducationCycle.tenant_id == tenant.id)}
+            for cycle_id, raw in body.cycles.items():
+                try:
+                    key = str(UUID(str(cycle_id)))
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Cycle invalide")
+                if key not in own_cycles:
+                    raise HTTPException(status_code=404, detail="Cycle introuvable")
+                cycles[key] = validate_academic_rules(raw)
         levels: dict = {}
         if body.levels:
             own = {str(l.id) for l in db.query(Level.id).filter(Level.tenant_id == tenant.id)}
@@ -565,7 +604,7 @@ def update_academic_rules(
     except InvalidAcademicRules as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
-    new_value = {"default": default, "levels": levels}
+    new_value = {"default": default, "cycles": cycles, "levels": levels}
     tenant.settings = {**(tenant.settings or {}), ACADEMIC_RULES_KEY: new_value}
     tenant.updated_at = datetime.now()
     flag_modified(tenant, "settings")
