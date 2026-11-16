@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.client_ip import get_client_ip
+from app.core.cycle_scope import is_cycle_restricted, scoped_class_ids, student_scope_clause
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -146,6 +147,44 @@ def _build_search_query(
     return sql, params
 
 
+def _search_scoped_students(db: Session, tenant_id: str, query: str, limit: int, class_ids: list) -> list[dict]:
+    """Recherche d'élèves d'un compte restreint par cycle (lot B2b).
+
+    Requête ORM (et non le SQL brut de ``RESOURCE_CONFIGS``) : elle applique le
+    périmètre avec la brique commune ``student_scope_clause``, avant la limite."""
+    from sqlalchemy import or_
+    from app.models.student import Student
+
+    pattern = f"%{query}%"
+    rows = (
+        db.query(Student)
+        .filter(
+            Student.tenant_id == tenant_id,
+            student_scope_clause(Student.id, class_ids, tenant_id=tenant_id),
+            or_(
+                Student.first_name.ilike(pattern), Student.last_name.ilike(pattern),
+                Student.registration_number.ilike(pattern), Student.email.ilike(pattern),
+            ),
+        )
+        .order_by(Student.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    config = RESOURCE_CONFIGS["students"]
+    return [
+        {
+            "id": str(row.id),
+            "resource_type": "students",
+            "label": config["label"],
+            "icon": config["icon"],
+            "display_name": f"{row.first_name} {row.last_name}",
+            "subtitle": row.registration_number,
+            "created_at": str(row.created_at) if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+
 @router.get("/")
 @limiter.limit("30/minute")
 def global_search(
@@ -203,17 +242,31 @@ def global_search(
         if not resource_types:
             raise HTTPException(status_code=403, detail="Accès refusé à ce type de ressource")
 
+    # Périmètre par cycle (lot B2b). Compte restreint : les paiements sont
+    # retirés (aucun filtrage par cycle avant le lot B2d, même pour un
+    # ACCOUNTANT) et les élèves sont limités à ceux des cycles du compte.
+    # Les enseignants (annuaire du personnel), matières et niveaux (structure)
+    # ne contiennent aucune donnée d'élève : inchangés.
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
+    if is_cycle_restricted(current_user) and "payments" in resource_types:
+        resource_types = [t for t in resource_types if t != "payments"]
+        if not resource_types:
+            raise HTTPException(status_code=403, detail="Accès refusé à ce type de ressource")
+
     results = {}
     total_count = 0
 
     for resource_type in resource_types:
         config = RESOURCE_CONFIGS[resource_type]
         try:
-            sql, params = _build_search_query(
-                resource_type, config, clean_query, tenant_id, limit
-            )
-            rows = db.execute(text(sql), params).mappings().fetchall()
-            items = [dict(row) for row in rows]
+            if resource_type == "students" and scope_class_ids is not None:
+                items = _search_scoped_students(db, tenant_id, clean_query, limit, scope_class_ids)
+            else:
+                sql, params = _build_search_query(
+                    resource_type, config, clean_query, tenant_id, limit
+                )
+                rows = db.execute(text(sql), params).mappings().fetchall()
+                items = [dict(row) for row in rows]
 
             # Convert datetime objects to strings
             for item in items:

@@ -65,7 +65,7 @@ class TestAssignCardUid:
     def test_assign_card_to_student(self):
         tenant_id = _make_tenant()
         student_id = _make_student(tenant_id)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         card_uid = f"04{uuid.uuid4().hex[:12]}"
 
         resp = client.put(f"{BASE}/{student_id}/", json={"card_uid": card_uid}, headers=headers)
@@ -77,7 +77,7 @@ class TestAssignCardUid:
         card_uid = f"04{uuid.uuid4().hex[:12]}"
         _make_student(tenant_id, card_uid=card_uid)
         student_2 = _make_student(tenant_id)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
 
         resp = client.put(f"{BASE}/{student_2}/", json={"card_uid": card_uid}, headers=headers)
         assert resp.status_code == 409
@@ -86,7 +86,7 @@ class TestAssignCardUid:
         tenant_id = _make_tenant()
         card_uid = f"04{uuid.uuid4().hex[:12]}"
         student_id = _make_student(tenant_id, card_uid=card_uid)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
 
         resp = client.put(f"{BASE}/{student_id}/", json={"card_uid": card_uid, "phone": "622000000"}, headers=headers)
         assert resp.status_code == 200, resp.text

@@ -42,7 +42,7 @@ def test_partial_update_respects_tenant_and_changes_only_provided_fields():
     ) as update:
         response = students.update_student(
             student_id=student_id, student_update=payload,
-            request=_request(), db=db, current_user={"roles": ["TENANT_ADMIN"]},
+            request=_request(), db=db, current_user={"roles": ["TENANT_ADMIN"], "_cycle_ids": None},
         )
     assert response is updated
     update.assert_called_once_with(db, student_id, payload, tenant)
@@ -56,7 +56,7 @@ def test_partial_update_returns_not_found_for_other_tenant():
     ) as update, pytest.raises(HTTPException) as exc:
         students.update_student(
             student_id=student_id, student_update=students.StudentUpdate(last_name="Diallo"),
-            request=_request(), db=db, current_user={"roles": ["TENANT_ADMIN"]},
+            request=_request(), db=db, current_user={"roles": ["TENANT_ADMIN"], "_cycle_ids": None},
         )
     assert exc.value.status_code == 404
     update.assert_called_once()
@@ -72,7 +72,7 @@ def test_partial_update_rejects_duplicate_card_uid_before_edit():
     ), patch.object(students.crud_student, "update_student") as update, pytest.raises(HTTPException) as exc:
         students.update_student(
             student_id=student_id, student_update=students.StudentUpdate(card_uid="RFID-0123"),
-            request=_request(), db=db, current_user={"roles": ["TENANT_ADMIN"]},
+            request=_request(), db=db, current_user={"roles": ["TENANT_ADMIN"], "_cycle_ids": None},
         )
     assert exc.value.status_code == 409
     update.assert_not_called()

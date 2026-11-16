@@ -655,8 +655,14 @@ def delete_room(db: Session, room_id: UUID, tenant_id: UUID) -> bool:
 
 
 # --- Classroom (Classes) ---
-def get_classrooms(db: Session, tenant_id: UUID) -> List[Classroom]:
-    return db.query(Classroom).filter(Classroom.tenant_id == tenant_id).all()
+def get_classrooms(db: Session, tenant_id: UUID, scope_class_ids: Optional[List[UUID]] = None) -> List[Classroom]:
+    """``scope_class_ids`` (périmètre par cycle, lot B2b) : None = toutes les classes ;
+    sinon seulement celles de la liste (vide = aucune)."""
+    query = db.query(Classroom).filter(Classroom.tenant_id == tenant_id)
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import class_scope_clause
+        query = query.filter(class_scope_clause(Classroom.id, scope_class_ids))
+    return query.all()
 
 def get_classroom(db: Session, class_id: UUID, tenant_id: UUID) -> Optional[Classroom]:
     return db.query(Classroom).filter(Classroom.id == class_id, Classroom.tenant_id == tenant_id).first()
@@ -808,6 +814,7 @@ def get_enrollments(
     status: Optional[str] = None,
     academic_year_id: Optional[UUID] = None,
     class_ids: Optional[List[UUID]] = None,
+    scope_class_ids: Optional[List[UUID]] = None,
 ) -> List[Enrollment]:
     query = db.query(Enrollment).options(joinedload(Enrollment.student)).filter(
         Enrollment.tenant_id == tenant_id
@@ -816,6 +823,10 @@ def get_enrollments(
         query = query.filter(Enrollment.class_id == class_id)
     if class_ids is not None:
         query = query.filter(Enrollment.class_id.in_(class_ids))
+    if scope_class_ids is not None:
+        # Périmètre par cycle (lot B2b) : None = pas de restriction ; liste vide = rien.
+        from app.core.cycle_scope import class_scope_clause
+        query = query.filter(class_scope_clause(Enrollment.class_id, scope_class_ids))
     if academic_year_id is not None:
         query = query.filter(Enrollment.academic_year_id == academic_year_id)
     if status is not None:

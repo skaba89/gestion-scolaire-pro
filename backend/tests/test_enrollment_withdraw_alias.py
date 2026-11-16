@@ -87,7 +87,7 @@ def test_parent_cannot_withdraw_an_enrollment():
     tenant_id, class_id, _, _ = _make_fixture()
     enrollment_id = _active_id(tenant_id, class_id)
     app.dependency_overrides[get_current_user] = lambda: {
-        "id": str(uuid.uuid4()), "roles": ["PARENT"], "tenant_id": tenant_id,
+        "id": str(uuid.uuid4()), "roles": ["PARENT"], "tenant_id": tenant_id, "_cycle_ids": None,
     }
     resp = client.delete(ROOT + enrollment_id + "/", headers={
         "Authorization": "Bearer mock-token",

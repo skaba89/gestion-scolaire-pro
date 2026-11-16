@@ -1084,7 +1084,7 @@ document n'en donne que le résumé :
 | Politique | Effet |
 |---|---|
 | `INDEPENDENT` | passage : la réponse ne dépend d'aucun élève ni classe (auth, `/auth/sessions/`, MFA, profil propre, notifications / appareils propres, consentements propres `/consent/` et `/consent/record/`, `/billing/subscription/`, lecture de la structure, `tenants/settings*` en lecture, `education/catalog|configuration|cycles` en lecture) |
-| `FILTERED` | passage : la route filtre elle-même par `_cycle_ids` (aucune en B2a) |
+| `FILTERED` | passage : la route filtre elle-même par `_cycle_ids` (élèves, classes, inscriptions : lot B2b) |
 | `DENY` (défaut) | `403` `{"error_code": "CYCLE_SCOPE_DENIED"}` ; route absente du registre, méthode différente (HEAD…) ou non résolue = refus |
 
 La WebSocket temps réel (`/realtime/ws/...`, authentification JWT propre, hors
@@ -1105,3 +1105,53 @@ cycle : visible des seuls comptes non restreints ; seule une inscription
 `ACTIVE` de l'année courante compte (sans année courante : toute inscription
 `ACTIVE`). Tests : `backend/tests/test_cycle_scope_gate.py`,
 `backend/tests/test_cycle_route_classification.py`.
+
+### Lot B2b (2026-11-16) : élèves, classes, inscriptions, recherche
+
+Aucune permission ajoutée, aucune migration. Routes passées en `FILTERED`
+(le handler filtre ; objet hors périmètre = **404**, jamais 403, y compris
+l'objet inexistant ou d'un autre établissement ; en écriture, tous les
+identifiants reçus sont vérifiés **avant** toute écriture) :
+
+- élèves : `GET /students/` (liste, `total` et pagination exacts : le
+  périmètre est une condition SQL du CRUD), `GET /students/{id}/`,
+  `GET /students/{id}/enrollment/` (une inscription passée dans une classe
+  d'un autre cycle est masquée), `PATCH|PUT|DELETE /students/{id}/` ;
+- classes : `GET /classrooms/` et `GET /infrastructure/classrooms/` (classes
+  du périmètre), `.../classrooms/{id}/subjects/` et `/departments/` (classe du
+  périmètre), `GET /infrastructure/classroom-departments/` ;
+- inscriptions : `GET /enrollments/`, `/enrollments/counts/`,
+  `GET /infrastructure/enrollments/` et `/counts/` (seules les classes du
+  périmètre, compteurs compris) ; `POST /enrollments/` et
+  `POST /infrastructure/enrollments/` (classe cible **et** élève dans le
+  périmètre) ; `POST /enrollments/{id}/transfer/` (inscription d'origine et
+  classe cible) ; `DELETE /enrollments/{id}/` ;
+- liens et matières d'élève : `GET|POST|DELETE /student-parents/`,
+  `GET|POST /student-subjects/`, `DELETE /student-subjects/{subject_id}/`
+  (l'élève visé, directement ou par le lien, doit être dans le périmètre) ;
+- `GET /search/` : les élèves sont limités au périmètre, le type `payments` est
+  **retiré** pour un compte restreint (même comptable) jusqu'au lot B2d ;
+  `teachers` (annuaire du personnel), `subjects` et `levels` (structure) ne
+  contiennent aucune donnée d'élève et restent.
+
+**Élève sans inscription active** (ou dont la classe n'a pas de niveau / de
+cycle) : il n'appartient à aucun cycle, donc invisible d'un compte restreint ;
+**son inscription reste réservée aux comptes non restreints** (404 pour un
+compte restreint, décision validée). Pour inscrire un nouvel élève, passer
+par un compte non restreint.
+
+`INDEPENDENT` : `GET /search/types/`, `GET /infrastructure/programs/`,
+`/rooms/`, `/rooms/count/`, `/all-subject-levels/` (structure, sans donnée
+d'élève ni effectif) ; `GET /students/me/`, `/students/me/reenrollment/`,
+`POST /students/me/reenroll/` et `GET /students/messaging-recipients/`
+(filtrés sur l'`user_id` du compte : un compte du personnel sans fiche élève
+n'obtient rien, avec une fiche élève liée il n'obtient que la sienne).
+
+Restent `DENY` : `POST /students/` (création, décision Q3),
+`GET /students/dashboard/` (agrégats, lot B2e), écritures de classe
+(`POST /classrooms/`, `POST|PUT|DELETE /infrastructure/classrooms/...`,
+affectation de matières), écritures `programs` / `rooms` (Q4).
+
+Comptes non restreints, TENANT_ADMIN, TEACHER (règle `teacher_scope` inchangée)
+et PARENT (`parent_scope` inchangé) : comportement identique à avant. Tests :
+`backend/tests/test_cycle_scope_students.py`.

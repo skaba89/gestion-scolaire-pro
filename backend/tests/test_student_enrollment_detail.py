@@ -59,7 +59,7 @@ def enrollment_ctx():
                           class_id=x["current_class"], academic_year_id=x["current_year"],
                           enrollment_date=date(2026, 9, 2), status="ACTIVE"))
         db.commit()
-    x["user"] = {"id": x["parent"], "tenant_id": x["tid"], "roles": ["PARENT"]}
+    x["user"] = {"id": x["parent"], "tenant_id": x["tid"], "roles": ["PARENT"], "_cycle_ids": None}
     previous = app.dependency_overrides.copy()
     app.dependency_overrides[get_current_user] = lambda: x["user"]
     yield x

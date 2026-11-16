@@ -7,8 +7,11 @@ qu'une route **explicitement classée** :
   (coquille de l'application : authentification, profil propre, structure
   de l'établissement en lecture…). Passage autorisé.
 - ``FILTERED``   : la route filtre elle-même ses données selon
-  ``user["_cycle_ids"]``. Aucune route n'a ce statut en B2a ; les lots
-  B2b à B2e les feront migrer une à une, avec leurs tests.
+  ``user["_cycle_ids"]`` (élèves, classes, inscriptions : lot B2b ; les lots
+  B2c à B2e feront migrer les autres routes une à une, avec leurs tests).
+  La garde laisse passer, **le handler doit filtrer** (404 pour un objet
+  hors périmètre) ; ``test_cycle_route_classification`` vérifie qu'il appelle
+  une brique de ``cycle_scope``.
 - ``DENY``       : refus ``403 CYCLE_SCOPE_DENIED``. C'est le défaut : toute
   route absente du registre est refusée.
 
@@ -94,6 +97,35 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
         "/levels/", "/subjects/", "/departments/", "/faculties/", "/campuses/",
         "/terms/", "/academic-years/", "/semesters/", "/teaching-units/",
     ),
+    # --- Lot B2b : élèves, classes, inscriptions ----------------------------
+    # Structure en lecture, sans donnée d'élève ni effectif.
+    **_routes(
+        Policy.INDEPENDENT, "GET",
+        "/search/types/", "/infrastructure/programs/", "/infrastructure/rooms/",
+        "/infrastructure/rooms/count/", "/infrastructure/all-subject-levels/",
+    ),
+    # Espace de l'élève connecté : filtré sur son propre user_id (un compte du
+    # personnel n'y obtient que son éventuelle propre fiche élève, sinon 403/liste vide).
+    **_routes(Policy.INDEPENDENT, "GET", "/students/me/", "/students/me/reenrollment/", "/students/messaging-recipients/"),
+    **_routes(Policy.INDEPENDENT, "POST", "/students/me/reenroll/"),
+    # Lectures filtrées par le périmètre (le handler restreint ou répond 404).
+    **_routes(
+        Policy.FILTERED, "GET",
+        "/students/", "/students/{student_id}/", "/students/{student_id}/enrollment/",
+        "/classrooms/", "/infrastructure/classrooms/",
+        "/infrastructure/classrooms/{class_id}/subjects/", "/infrastructure/classrooms/{class_id}/departments/",
+        "/infrastructure/classroom-departments/",
+        "/enrollments/", "/enrollments/counts/",
+        "/infrastructure/enrollments/", "/infrastructure/enrollments/counts/",
+        "/student-parents/", "/student-subjects/", "/search/",
+    ),
+    # Écritures : chaque identifiant reçu est vérifié (404) AVANT toute écriture.
+    **_routes(Policy.FILTERED, "PUT PATCH DELETE", "/students/{student_id}/"),
+    **_routes(Policy.FILTERED, "POST", "/enrollments/", "/infrastructure/enrollments/", "/enrollments/{enrollment_id}/transfer/"),
+    **_routes(Policy.FILTERED, "DELETE", "/enrollments/{enrollment_id}/"),
+    **_routes(Policy.FILTERED, "POST DELETE", "/student-parents/"),
+    **_routes(Policy.FILTERED, "POST", "/student-subjects/"),
+    **_routes(Policy.FILTERED, "DELETE", "/student-subjects/{subject_id}/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans

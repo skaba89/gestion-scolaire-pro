@@ -1185,6 +1185,23 @@ ce fichier — pas d'un document de 2025 non révisé.
   être classée (`test_cycle_route_classification.py`). Fusionné ≠ déployé : la
   production reste sur sa révision précédente tant que `deploy/vps/deploy.sh`
   n'a pas été lancé.
+- **2026-11-16 — personnel par cycle, lot B2b (élèves, classes, inscriptions).
+  Non déployé.** Premières routes de données rendues à un compte restreint par
+  cycle, **filtrées côté serveur** : liste / fiche / modification / suppression
+  des élèves, classes, inscriptions (liste, compteurs, création, transfert,
+  retrait), liens parents, matières d'élève et recherche (élèves du périmètre,
+  sans paiements jusqu'à B2d). Hors périmètre ou inexistant : `404`, sans effet
+  en base. Un élève sans inscription active n'appartient à aucun cycle : son
+  inscription reste réservée aux comptes non restreints. Restent refusées :
+  création d'élève, écritures de classe, `/students/dashboard/`. Aucun
+  changement pour les comptes non restreints, admins, enseignants, parents.
+  Aucune migration ni permission. Détail : `docs/PERMISSIONS_MATRIX.md`
+  (lot B2b). Tests : `test_cycle_scope_students.py`. Lot bâti sur B2a (#565,
+  non fusionné à la rédaction). Constats hors lot, non corrigés : la recherche
+  globale (SQL brut) référence une colonne `student_number` absente du modèle
+  `Student` (le type `students` y échoue, non vérifié sur PostgreSQL ; le chemin des comptes restreints utilise l'ORM) et
+  `GET /infrastructure/enrollments/counts/` compare le statut en minuscules
+  (`'active'`) alors qu'il est stocké en majuscules (compteurs vides).
 - **2026-11-16 — fuite des secrets d'établissement corrigée (TENANT-SECRETS-03).**
   `GET /tenants/{tenant_id}/` renvoyait `tenant.settings` sans masquage à tout
   compte de l'établissement (parents et élèves compris) : clés de paiement,

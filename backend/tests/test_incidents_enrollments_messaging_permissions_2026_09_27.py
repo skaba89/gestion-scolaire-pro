@@ -61,7 +61,7 @@ def _make_tenant() -> str:
 
 
 def _as(tenant_id: str, role: str) -> dict:
-    user = {"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id}
+    user = {"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return HEADERS
 

@@ -76,7 +76,7 @@ def test_delete_student_endpoint_returns_conflict_for_protected_history():
     ), pytest.raises(HTTPException) as exc:
         students.delete_student(
             student_id=student_id, request=request, db=db,
-            current_user={"id": str(uuid4()), "tenant_id": str(tenant_id), "roles": ["TENANT_ADMIN"]},
+            current_user={"id": str(uuid4()), "tenant_id": str(tenant_id), "roles": ["TENANT_ADMIN"], "_cycle_ids": None},
         )
     assert exc.value.status_code == 409
     assert "archive" in exc.value.detail

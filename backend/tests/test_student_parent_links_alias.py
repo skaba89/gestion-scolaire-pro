@@ -49,7 +49,7 @@ def links_ctx():
                              parent_id=x["parent"], student_id=x["foreign_child"]))
         db.commit()
 
-    x["user"] = {"id": x["parent"], "tenant_id": x["tenant"], "roles": ["PARENT"]}
+    x["user"] = {"id": x["parent"], "tenant_id": x["tenant"], "roles": ["PARENT"], "_cycle_ids": None}
     previous = app.dependency_overrides.copy()
     app.dependency_overrides[get_current_user] = lambda: x["user"]
     yield x

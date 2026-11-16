@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.parent_scope import parent_student_filter
+from app.core.cycle_scope import (
+    is_cycle_restricted, require_class_in_scope, require_enrollment_in_scope,
+    require_student_in_scope, scoped_class_ids, student_scope_clause,
+)
 from app.core.tenant_resolution import resolve_current_tenant_id
 
 
@@ -52,13 +56,15 @@ def list_enrollments_alias(
             parsed_class_ids = [UUID(token) for token in tokens]
         except ValueError:
             raise HTTPException(status_code=422, detail="class_ids contient un UUID invalide")
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     rows = crud.get_enrollments(
         db,
-        tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
+        tenant_id=tenant_id,
         class_id=class_id,
         academic_year_id=academic_year_id,
         status=status,
         class_ids=parsed_class_ids,
+        scope_class_ids=scoped_class_ids(db, tenant_id, current_user),  # périmètre par cycle (B2b)
     )
     return [EnrollmentSchema.model_validate(r).model_dump(mode="json") for r in rows]
 
@@ -82,11 +88,15 @@ def create_enrollment_alias(
     """POST /enrollments/ — mirrors POST /infrastructure/enrollments/"""
     from app.crud import academic as crud
     from app.schemas.academic import EnrollmentCreate
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2b) : classe cible ET élève dans le périmètre, avant toute écriture.
+    require_class_in_scope(db, tenant_id, current_user, obj_in.class_id)
+    require_student_in_scope(db, tenant_id, current_user, obj_in.student_id)
     try:
         return crud.create_enrollment(
             db,
             obj_in=EnrollmentCreate(**obj_in.model_dump()),
-            tenant_id=str(resolve_current_tenant_id(request, current_user, db)),
+            tenant_id=tenant_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
@@ -109,6 +119,7 @@ def withdraw_enrollment_alias(
     from app.models.enrollment import Enrollment
 
     tenant_id = resolve_current_tenant_id(request, current_user, db)
+    require_enrollment_in_scope(db, tenant_id, current_user, enrollment_id)  # périmètre par cycle (B2b)
     result = db.execute(
         update(Enrollment)
         .where(
@@ -153,6 +164,9 @@ def transfer_enrollment_alias(
     from app.utils.audit import log_audit
 
     tenant_id = resolve_current_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2b) : inscription d'origine ET classe cible dans le périmètre.
+    require_enrollment_in_scope(db, tenant_id, current_user, enrollment_id)
+    require_class_in_scope(db, tenant_id, current_user, body.class_id)
     try:
         previous, new = crud.transfer_enrollment(
             db, enrollment_id=enrollment_id, class_id=body.class_id, tenant_id=tenant_id,
@@ -186,6 +200,11 @@ def enrollment_counts_alias(
 ):
     """GET /enrollments/counts/ — mirrors GET /infrastructure/enrollments/counts/"""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2b) : on ne compte que les classes du périmètre.
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
+    if scope_class_ids is not None:
+        in_scope = {str(c) for c in scope_class_ids}
+        class_ids = [c for c in class_ids if str(c) in in_scope]
     if not class_ids:
         return {}
     rows = db.execute(text("""
@@ -567,6 +586,12 @@ def list_student_parent_links(
             query = query.filter(ParentStudent.parent_id == effective_parent_id)
         if student_id is not None:
             query = query.filter(ParentStudent.student_id == student_id)
+        # Périmètre par cycle (B2b) : seulement les liens d'élèves du périmètre.
+        scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
+        if scope_class_ids is not None:
+            if student_id is not None:
+                require_student_in_scope(db, tenant_id, current_user, student_id)
+            query = query.filter(student_scope_clause(ParentStudent.student_id, scope_class_ids, tenant_id=tenant_id))
         rows = query.order_by(ParentStudent.created_at, ParentStudent.id).all()
         return [ParentStudentSchema.model_validate(row).model_dump(mode="json") for row in rows]
     except SQLAlchemyError as exc:
@@ -595,6 +620,7 @@ def create_student_parent_link(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    require_student_in_scope(db, tenant_id, current_user, link.student_id)  # périmètre par cycle (B2b)
     try:
         obj_in = ParentStudentCreate(
             parent_id=link.parent_id,
@@ -629,6 +655,19 @@ def delete_student_parent_link(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2b) : l'élève visé (directement ou par le lien) doit être
+        # dans le périmètre ; vérifié avant toute suppression.
+        if student_id is not None:
+            require_student_in_scope(db, tenant_id, current_user, student_id)
+        if link_id:
+            from app.models.parent_student import ParentStudent
+            linked = db.query(ParentStudent.student_id).filter(
+                ParentStudent.id == link_id, ParentStudent.tenant_id == tenant_id,
+            ).first()
+            if linked is None:
+                raise HTTPException(status_code=404, detail="Link not found")
+            require_student_in_scope(db, tenant_id, current_user, linked[0])
     try:
         if link_id:
             result = db.execute(text("""
@@ -848,6 +887,7 @@ def list_student_subjects(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    require_student_in_scope(db, tenant_id, current_user, student_id)  # périmètre par cycle (B2b)
     rows = db.execute(text("""
         SELECT s.id, s.name, s.code, s.ects, ss.created_at
         FROM student_subjects ss
@@ -877,6 +917,7 @@ def assign_subjects_to_student(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    require_student_in_scope(db, tenant_id, current_user, body.student_id)  # périmètre par cycle (B2b)
     _validate_student_and_subjects_in_tenant(
         db, tenant_id=tenant_id, student_id=body.student_id, subject_ids=body.subject_ids,
     )
@@ -931,6 +972,7 @@ def unassign_subject_from_student(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    require_student_in_scope(db, tenant_id, current_user, student_id)  # périmètre par cycle (B2b)
     result = db.execute(text("""
         DELETE FROM student_subjects
         WHERE student_id = :sid AND subject_id = :subid AND tenant_id = :tid
@@ -1340,7 +1382,9 @@ def list_classrooms_alias(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
-    results = crud.get_classrooms(db, tenant_id=tenant_id)
+    results = crud.get_classrooms(
+        db, tenant_id=tenant_id, scope_class_ids=scoped_class_ids(db, tenant_id, current_user),  # périmètre par cycle (B2b)
+    )
     classrooms = [{k: str(v) if isinstance(v, UUID) else v for k, v in r.__dict__.items() if not k.startswith('_')} for r in results]
 
     # Filter by level_id if provided

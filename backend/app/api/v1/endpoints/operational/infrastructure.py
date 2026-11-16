@@ -7,6 +7,9 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.teacher_scope import teacher_teaches_class
+from app.core.cycle_scope import (
+    class_scope_clause, require_class_in_scope, require_student_in_scope, scoped_class_ids,
+)
 from app.core.tenant_resolution import resolve_current_tenant_id
 from fastapi import Query
 from app.crud import academic as crud
@@ -129,7 +132,9 @@ def read_classrooms(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    return crud.get_classrooms(db, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (lot B2b) : seulement les classes des cycles du compte.
+    return crud.get_classrooms(db, tenant_id=tenant_id, scope_class_ids=scoped_class_ids(db, tenant_id, current_user))
 
 @router.post("/classrooms/", response_model=Classroom)
 def create_classroom(
@@ -231,6 +236,7 @@ def read_enrollments(
         class_id=class_id,
         status=status,
         academic_year_id=academic_year_id,
+        scope_class_ids=scoped_class_ids(db, tenant_id, current_user),
     )
 
 @router.post("/enrollments/", response_model=Enrollment)
@@ -240,8 +246,12 @@ def create_enrollment(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("enrollments:write")),
 ):
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (lot B2b) : classe cible ET élève dans le périmètre, avant toute écriture.
+    require_class_in_scope(db, tenant_id, current_user, obj_in.class_id)
+    require_student_in_scope(db, tenant_id, current_user, obj_in.student_id)
     try:
-        return crud.create_enrollment(db, obj_in=obj_in, tenant_id=str(resolve_current_tenant_id(request, current_user, db)))
+        return crud.create_enrollment(db, obj_in=obj_in, tenant_id=tenant_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
@@ -264,7 +274,11 @@ def read_classroom_departments(
     current_user: dict = Depends(get_current_user),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    rows = db.execute(classroom_departments.select().where(classroom_departments.c.tenant_id == tenant_id)).fetchall()
+    query = classroom_departments.select().where(classroom_departments.c.tenant_id == tenant_id)
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
+    if scope_class_ids is not None:
+        query = query.where(class_scope_clause(classroom_departments.c.class_id, scope_class_ids))
+    rows = db.execute(query).fetchall()
     return [{"class_id": str(r.class_id), "department_id": str(r.department_id)} for r in rows]
 
 @router.get("/classrooms/{class_id}/subjects/")
@@ -275,6 +289,7 @@ def read_classroom_subjects(
     current_user: dict = Depends(get_current_user),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    require_class_in_scope(db, tenant_id, current_user, class_id)
     rows = db.execute(class_subjects.select().where(
         (class_subjects.c.class_id == class_id) & (class_subjects.c.tenant_id == tenant_id)
     )).fetchall()
@@ -288,6 +303,7 @@ def read_classroom_departments(
     current_user: dict = Depends(get_current_user),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    require_class_in_scope(db, tenant_id, current_user, class_id)
     rows = db.execute(classroom_departments.select().where(
         (classroom_departments.c.class_id == class_id) & (classroom_departments.c.tenant_id == tenant_id)
     )).fetchall()
@@ -310,6 +326,11 @@ def read_enrollment_counts(
     current_user: dict = Depends(get_current_user),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (lot B2b) : on ne compte que les classes du périmètre.
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
+    if scope_class_ids is not None:
+        in_scope = {str(c) for c in scope_class_ids}
+        class_ids = [c for c in class_ids if str(c) in in_scope]
     if not class_ids:
         return {}
     rows = db.execute(text("""

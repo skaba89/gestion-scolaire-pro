@@ -430,7 +430,7 @@ class TestParentStudentLinkIntegrity:
                 parent_id=None,
                 link_id=None,
                 db=db,
-                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id)},
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "_cycle_ids": None},
             )
 
         sql = str(db.execute.call_args_list[0].args[0])
