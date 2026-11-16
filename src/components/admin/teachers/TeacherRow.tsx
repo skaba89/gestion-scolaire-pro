@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { GraduationCap, Mail, Phone, Settings2, Eye, Trash2 } from "lucide-react";
 import { StaffProfile as TeacherProfile } from "@/features/staff/types";
 import { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 
 interface TeacherRowProps {
     teacher: TeacherProfile;
@@ -15,6 +16,7 @@ interface TeacherRowProps {
 }
 
 export const TeacherRow = ({ teacher, onView, onAssign, onDelete, style, className }: TeacherRowProps) => {
+    const { t } = useTranslation();
     return (
         <TableRow style={style} className={className}>
             <TableCell className="font-medium">
@@ -61,7 +63,7 @@ export const TeacherRow = ({ teacher, onView, onAssign, onDelete, style, classNa
                         onClick={() => onAssign(teacher)}
                     >
                         <Settings2 className="w-4 h-4 mr-1" />
-                        <span className="hidden sm:inline">Assignations</span>
+                        <span className="hidden sm:inline">{t("teachingAdmin.assignations")}</span>
                     </Button>
                     <Button
                         variant="outline"
@@ -70,7 +72,7 @@ export const TeacherRow = ({ teacher, onView, onAssign, onDelete, style, classNa
                         onClick={() => onView(teacher)}
                     >
                         <Eye className="w-4 h-4 mr-1" />
-                        <span className="hidden sm:inline">Détails</span>
+                        <span className="hidden sm:inline">{t("teachingAdmin.details")}</span>
                     </Button>
                     <Button
                         variant="ghost"

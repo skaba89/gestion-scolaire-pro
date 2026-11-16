@@ -23,7 +23,8 @@ import {
 import { ScanLine, Plus, Copy, Trash2, Tablet, Check, AlertTriangle, DoorOpen } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { dateFnsLocale } from "@/lib/locale";
+import { Trans, useTranslation } from "react-i18next";
 
 interface KioskDevice {
     id: string;
@@ -40,6 +41,7 @@ interface Room {
 }
 
 export default function KioskDevices() {
+    const { t } = useTranslation();
     const { tenant } = useTenant();
     const queryClient = useQueryClient();
     const [createOpen, setCreateOpen] = useState(false);
@@ -78,7 +80,7 @@ export default function KioskDevices() {
             setCreatedToken(data.token);
             queryClient.invalidateQueries({ queryKey: ["kiosk-devices"] });
         },
-        onError: () => toast.error("Erreur lors de la création de l'appareil"),
+        onError: () => toast.error(t("teachingAdmin.erreurLorsDeLaCreation")),
     });
 
     const revokeMutation = useMutation({
@@ -86,11 +88,11 @@ export default function KioskDevices() {
             await apiClient.delete(`/kiosk/devices/${id}/`);
         },
         onSuccess: () => {
-            toast.success("Appareil révoqué");
+            toast.success(t("teachingAdmin.appareilRevoque"));
             queryClient.invalidateQueries({ queryKey: ["kiosk-devices"] });
             setRevokeTarget(null);
         },
-        onError: () => toast.error("Erreur lors de la révocation"),
+        onError: () => toast.error(t("teachingAdmin.erreurLorsDeLaRevocation")),
     });
 
     const kioskUrl = tenant?.slug ? `${window.location.origin}/kiosk/${tenant.slug}` : "";
@@ -107,7 +109,7 @@ export default function KioskDevices() {
         if (!createdToken) return;
         navigator.clipboard.writeText(createdToken);
         setCopied(true);
-        toast.success("Jeton copié");
+        toast.success(t("teachingAdmin.jetonCopie"));
     };
 
     return (
@@ -116,45 +118,45 @@ export default function KioskDevices() {
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
                         <ScanLine className="h-6 w-6 text-primary" />
-                        Appareils kiosque
+                        {t("teachingAdmin.appareilsKiosque")}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
-                        Tablettes ou téléphones dédiés au scan des présences sans connexion
-                        d'un membre du personnel. Chaque appareil utilise un jeton propre,
-                        révocable à tout moment.
+                        {t("teachingAdmin.kioskSubtitle")}
                     </p>
                 </div>
                 <Button onClick={() => setCreateOpen(true)} className="gap-2">
-                    <Plus className="h-4 w-4" /> Ajouter un appareil
+                    <Plus className="h-4 w-4" /> {t("teachingAdmin.addDevice")}
                 </Button>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Appareils enregistrés</CardTitle>
+                    <CardTitle className="text-base">{t("teachingAdmin.appareilsEnregistres")}</CardTitle>
                     <CardDescription>
-                        Une fois le jeton configuré sur l'appareil (page {" "}
-                        <code className="text-xs bg-muted px-1 py-0.5 rounded">/kiosk/{tenant?.slug || "..."}</code>),
-                        il reste connecté jusqu'à révocation.
+                        <Trans
+                            i18nKey="teachingAdmin.kioskTokenHint"
+                            values={{ slug: tenant?.slug || "..." }}
+                            components={{ code: <code className="text-xs bg-muted px-1 py-0.5 rounded" /> }}
+                        />
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="text-center py-8 text-muted-foreground">Chargement...</div>
+                        <div className="text-center py-8 text-muted-foreground">{t("teachingAdmin.chargement")}</div>
                     ) : !devices || devices.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground italic">
-                            Aucun appareil enregistré pour le moment.
+                            {t("teachingAdmin.aucunAppareilEnregistrePourLe")}
                         </div>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Nom</TableHead>
-                                    <TableHead>Salle</TableHead>
-                                    <TableHead>Statut</TableHead>
-                                    <TableHead>Dernière utilisation</TableHead>
-                                    <TableHead>Créé le</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead>{t("teachingAdmin.nom")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.salle")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.statut")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.derniereUtilisation")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.creeLe")}</TableHead>
+                                    <TableHead className="text-right">{t("teachingAdmin.actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -168,24 +170,24 @@ export default function KioskDevices() {
                                             {device.room_id ? (
                                                 <span className="inline-flex items-center gap-1 text-sm">
                                                     <DoorOpen className="h-3.5 w-3.5 text-muted-foreground" />
-                                                    {roomNameById.get(device.room_id) ?? "Salle inconnue"}
+                                                    {roomNameById.get(device.room_id) ?? t("teachingAdmin.salleInconnue")}
                                                 </span>
                                             ) : (
-                                                <span className="text-sm text-muted-foreground italic">Entrée générale</span>
+                                                <span className="text-sm text-muted-foreground italic">{t("teachingAdmin.entreeGenerale")}</span>
                                             )}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={device.is_active ? "default" : "outline"}>
-                                                {device.is_active ? "Actif" : "Révoqué"}
+                                                {device.is_active ? "Actif" : t("teachingAdmin.revoque")}
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
                                             {device.last_used_at
-                                                ? format(new Date(device.last_used_at), "dd MMM yyyy à HH:mm", { locale: fr })
+                                                ? format(new Date(device.last_used_at), "dd MMM yyyy à HH:mm", { locale: dateFnsLocale() })
                                                 : "Jamais"}
                                         </TableCell>
                                         <TableCell className="text-sm text-muted-foreground">
-                                            {format(new Date(device.created_at), "dd MMM yyyy", { locale: fr })}
+                                            {format(new Date(device.created_at), "dd MMM yyyy", { locale: dateFnsLocale() })}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             {device.is_active && (
@@ -212,48 +214,46 @@ export default function KioskDevices() {
                     {!createdToken ? (
                         <>
                             <DialogHeader>
-                                <DialogTitle>Nouvel appareil kiosque</DialogTitle>
+                                <DialogTitle>{t("teachingAdmin.nouvelAppareilKiosque")}</DialogTitle>
                                 <DialogDescription>
-                                    Donnez un nom pour identifier cet appareil (ex : "Tablette Entrée principale").
+                                    {t("teachingAdmin.deviceNameHint")}
                                 </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4 py-2">
                                 <div className="space-y-2">
-                                    <Label htmlFor="kiosk-label">Nom de l'appareil</Label>
+                                    <Label htmlFor="kiosk-label">{t("teachingAdmin.nomDeLAppareil")}</Label>
                                     <Input
                                         id="kiosk-label" value={label}
                                         onChange={(e) => setLabel(e.target.value)}
-                                        placeholder="Tablette Entrée principale"
+                                        placeholder={t("teachingAdmin.tabletteEntreePrincipale")}
                                         autoFocus
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="kiosk-room">Salle (optionnel)</Label>
+                                    <Label htmlFor="kiosk-room">{t("teachingAdmin.roomOptional")}</Label>
                                     <Select value={roomId || "__none__"} onValueChange={(v) => setRoomId(v === "__none__" ? "" : v)}>
                                         <SelectTrigger id="kiosk-room">
-                                            <SelectValue placeholder="Entrée générale de l'établissement" />
+                                            <SelectValue placeholder={t("teachingAdmin.entreeGeneraleDeLEtablissement")} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="__none__">Entrée générale (pas de salle)</SelectItem>
+                                            <SelectItem value="__none__">{t("teachingAdmin.mainEntranceNoRoom")}</SelectItem>
                                             {(rooms ?? []).map((room) => (
                                                 <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                     <p className="text-xs text-muted-foreground">
-                                        Associez cet appareil à une salle pour badger l'entrée en cours :
-                                        le scan marquera automatiquement l'élève présent pour le cours en
-                                        session dans cette salle.
+                                        {t("teachingAdmin.roomHint")}
                                     </p>
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button variant="outline" onClick={resetCreateDialog}>Annuler</Button>
+                                <Button variant="outline" onClick={resetCreateDialog}>{t("teachingAdmin.annuler")}</Button>
                                 <Button
                                     disabled={!label.trim() || createMutation.isPending}
                                     onClick={() => createMutation.mutate({ label: label.trim(), room_id: roomId || null })}
                                 >
-                                    Créer
+                                    {t("teachingAdmin.creer")}
                                 </Button>
                             </DialogFooter>
                         </>
@@ -261,12 +261,14 @@ export default function KioskDevices() {
                         <>
                             <DialogHeader>
                                 <DialogTitle className="flex items-center gap-2 text-amber-600">
-                                    <AlertTriangle className="h-5 w-5" /> Jeton d'appareil
+                                    <AlertTriangle className="h-5 w-5" /> {t("teachingAdmin.deviceToken")}
                                 </DialogTitle>
                                 <DialogDescription>
-                                    Ce jeton ne sera plus jamais affiché. Copiez-le et saisissez-le
-                                    maintenant sur l'appareil, sur la page {" "}
-                                    <code className="text-xs bg-muted px-1 py-0.5 rounded">/kiosk/{tenant?.slug}</code>.
+                                    <Trans
+                                        i18nKey="teachingAdmin.tokenOnce"
+                                        values={{ slug: tenant?.slug ?? "" }}
+                                        components={{ code: <code className="text-xs bg-muted px-1 py-0.5 rounded" /> }}
+                                    />
                                 </DialogDescription>
                             </DialogHeader>
                             <div className="flex items-center gap-2 py-2">
@@ -277,11 +279,15 @@ export default function KioskDevices() {
                             </div>
                             {kioskUrl && (
                                 <p className="text-xs text-muted-foreground">
-                                    URL de l'appareil : <code className="bg-muted px-1 py-0.5 rounded">{kioskUrl}</code>
+                                    <Trans
+                                        i18nKey="teachingAdmin.deviceUrl"
+                                        values={{ url: kioskUrl }}
+                                        components={{ code: <code className="bg-muted px-1 py-0.5 rounded" /> }}
+                                    />
                                 </p>
                             )}
                             <DialogFooter>
-                                <Button onClick={resetCreateDialog}>J'ai noté le jeton, fermer</Button>
+                                <Button onClick={resetCreateDialog}>{t("teachingAdmin.jAiNoteLeJeton")}</Button>
                             </DialogFooter>
                         </>
                     )}
@@ -292,19 +298,18 @@ export default function KioskDevices() {
             <AlertDialog open={!!revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Révoquer « {revokeTarget?.label} » ?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("teachingAdmin.revokeTitle", { label: revokeTarget?.label ?? "" })}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            L'appareil ne pourra plus enregistrer de présences. Cette action est
-                            irréversible — il faudra créer un nouvel appareil pour le remplacer.
+                            {t("teachingAdmin.revokeHint")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogCancel>{t("teachingAdmin.annuler")}</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             onClick={() => revokeTarget && revokeMutation.mutate(revokeTarget.id)}
                         >
-                            Révoquer
+                            {t("teachingAdmin.revoquer")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

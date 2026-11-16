@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Trash2, BookOpen, School, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface TeacherAssignmentsDialogProps {
   teacher: {
@@ -39,6 +40,7 @@ const TeacherAssignmentsDialog = ({
   open,
   onOpenChange,
 }: TeacherAssignmentsDialogProps) => {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [selectedClassroom, setSelectedClassroom] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -107,7 +109,7 @@ const TeacherAssignmentsDialog = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-assignments"] });
-      toast.success("Assignation ajoutée");
+      toast.success(t("teachingAdmin.assignationAjoutee"));
       setSelectedClassroom("");
       setSelectedSubject("");
     },
@@ -122,7 +124,7 @@ const TeacherAssignmentsDialog = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["teacher-assignments"] });
-      toast.success("Assignation supprimée");
+      toast.success(t("teachingAdmin.assignationSupprimee"));
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.detail || error.message);
@@ -135,10 +137,10 @@ const TeacherAssignmentsDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookOpen className="w-5 h-5" />
-            Assignations de {teacher.first_name} {teacher.last_name}
+            {t("teachingAdmin.assignationsDeFirstNameLast", { first_name: teacher.first_name, last_name: teacher.last_name })}
           </DialogTitle>
           <DialogDescription>
-            Assignez des matières et classes à ce professeur
+            {t("teachingAdmin.assignezDesMatieresEtClasses")}
           </DialogDescription>
         </DialogHeader>
 
@@ -146,13 +148,13 @@ const TeacherAssignmentsDialog = ({
           <div className="space-y-6 py-4">
             {/* Add new assignment */}
             <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
-              <h4 className="font-medium">Nouvelle assignation</h4>
+              <h4 className="font-medium">{t("teachingAdmin.nouvelleAssignation")}</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label>Classe</Label>
+                  <Label>{t("teachingAdmin.classe")}</Label>
                   <Select value={selectedClassroom} onValueChange={setSelectedClassroom}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner" />
+                      <SelectValue placeholder={t("teachingAdmin.selectionner")} />
                     </SelectTrigger>
                     <SelectContent>
                       {classrooms?.map((c: any) => (
@@ -164,10 +166,10 @@ const TeacherAssignmentsDialog = ({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Matière</Label>
+                  <Label>{t("teachingAdmin.matiere")}</Label>
                   <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner" />
+                      <SelectValue placeholder={t("teachingAdmin.selectionner")} />
                     </SelectTrigger>
                     <SelectContent>
                       {subjects?.map((s: any) => (
@@ -189,13 +191,13 @@ const TeacherAssignmentsDialog = ({
                 ) : (
                   <Plus className="w-4 h-4 mr-2" />
                 )}
-                Ajouter l'assignation
+                {t("teachingAdmin.ajouterLAssignation")}
               </Button>
             </div>
 
             {/* Current assignments */}
             <div className="space-y-3">
-              <h4 className="font-medium">Assignations actuelles</h4>
+              <h4 className="font-medium">{t("teachingAdmin.assignationsActuelles")}</h4>
               {isLoading ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -233,7 +235,7 @@ const TeacherAssignmentsDialog = ({
               ) : (
                 <div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/20">
                   <BookOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p>Aucune assignation</p>
+                  <p>{t("teachingAdmin.aucuneAssignation")}</p>
                 </div>
               )}
             </div>

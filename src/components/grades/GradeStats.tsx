@@ -1,5 +1,6 @@
 import { BarChart3, BookOpen, Users, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useTranslation } from "react-i18next";
 
 interface GradeStatsProps {
     totalAssessments: number;
@@ -12,6 +13,7 @@ export const GradeStats = ({
     totalSubjects,
     totalClassrooms,
 }: GradeStatsProps) => {
+    const { t } = useTranslation();
     return (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
@@ -22,7 +24,7 @@ export const GradeStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{totalAssessments}</p>
-                            <p className="text-xs text-muted-foreground">Évaluations</p>
+                            <p className="text-xs text-muted-foreground">{t("teachingAdmin.evaluations")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -35,7 +37,7 @@ export const GradeStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{totalSubjects}</p>
-                            <p className="text-xs text-muted-foreground">Matières</p>
+                            <p className="text-xs text-muted-foreground">{t("teachingAdmin.matieres")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -48,7 +50,7 @@ export const GradeStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{totalClassrooms}</p>
-                            <p className="text-xs text-muted-foreground">Classes</p>
+                            <p className="text-xs text-muted-foreground">{t("teachingAdmin.classes")}</p>
                         </div>
                     </div>
                 </CardContent>
@@ -61,7 +63,7 @@ export const GradeStats = ({
                         </div>
                         <div>
                             <p className="text-2xl font-bold">{totalClassrooms}</p>
-                            <p className="text-xs text-muted-foreground">Classes</p>
+                            <p className="text-xs text-muted-foreground">{t("teachingAdmin.classes")}</p>
                         </div>
                     </div>
                 </CardContent>

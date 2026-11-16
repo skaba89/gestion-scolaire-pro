@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, ReferenceLine } from "recharts";
 import { TrendingUp, TrendingDown, Minus, BookOpen, Trophy, Target, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { dateFnsLocale } from "@/lib/locale";
+import { useTranslation } from "react-i18next";
 
 interface Grade {
   id: string;
@@ -36,6 +37,7 @@ const SUBJECT_COLORS = [
 ];
 
 export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps) => {
+  const { t } = useTranslation();
   const [selectedSubject, setSelectedSubject] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"evolution" | "comparison" | "stats">("evolution");
 
@@ -73,8 +75,8 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
       .sort((a, b) => new Date(a.assessment.date).getTime() - new Date(b.assessment.date).getTime());
 
     return sortedGrades.map((grade) => ({
-      date: format(new Date(grade.assessment.date), "dd/MM", { locale: fr }),
-      fullDate: format(new Date(grade.assessment.date), "d MMMM yyyy", { locale: fr }),
+      date: format(new Date(grade.assessment.date), "dd/MM", { locale: dateFnsLocale() }),
+      fullDate: format(new Date(grade.assessment.date), "d MMMM yyyy", { locale: dateFnsLocale() }),
       score: grade.score !== null ? (grade.score / grade.assessment.max_score) * 20 : 0,
       rawScore: grade.score,
       maxScore: grade.assessment.max_score,
@@ -169,7 +171,7 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
       <Card className={className}>
         <CardContent className="flex flex-col items-center justify-center py-12">
           <BookOpen className="w-12 h-12 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground">Aucune note disponible pour le moment</p>
+          <p className="text-muted-foreground">{t("teachingAdmin.aucuneNoteDisponiblePourLe")}</p>
         </CardContent>
       </Card>
     );
@@ -181,15 +183,15 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5" />
-            Évolution des Notes
+            {t("teachingAdmin.evolutionDesNotes")}
           </CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={selectedSubject} onValueChange={setSelectedSubject}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Toutes les matières" />
+                <SelectValue placeholder={t("teachingAdmin.toutesLesMatieres")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Toutes les matières</SelectItem>
+                <SelectItem value="all">{t("teachingAdmin.toutesLesMatieres")}</SelectItem>
                 {subjects.map((subject) => (
                   <SelectItem key={subject} value={subject}>
                     {subject}
@@ -202,9 +204,9 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
 
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "evolution" | "comparison" | "stats")} className="mt-4">
           <TabsList>
-            <TabsTrigger value="evolution">Évolution</TabsTrigger>
-            <TabsTrigger value="comparison">Par matière</TabsTrigger>
-            <TabsTrigger value="stats">Statistiques</TabsTrigger>
+            <TabsTrigger value="evolution">{t("teachingAdmin.evolution")}</TabsTrigger>
+            <TabsTrigger value="comparison">{t("teachingAdmin.parMatiere")}</TabsTrigger>
+            <TabsTrigger value="stats">{t("teachingAdmin.statistiques")}</TabsTrigger>
           </TabsList>
         </Tabs>
       </CardHeader>
@@ -223,15 +225,15 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-success">{stats.max}/20</div>
-              <div className="text-xs text-muted-foreground">Meilleure note</div>
+              <div className="text-xs text-muted-foreground">{t("teachingAdmin.meilleureNote")}</div>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-destructive">{stats.min}/20</div>
-              <div className="text-xs text-muted-foreground">Note la plus basse</div>
+              <div className="text-xs text-muted-foreground">{t("teachingAdmin.noteLaPlusBasse")}</div>
             </div>
             <div className="bg-muted/50 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-primary">{stats.count}</div>
-              <div className="text-xs text-muted-foreground">Évaluations</div>
+              <div className="text-xs text-muted-foreground">{t("teachingAdmin.evaluations")}</div>
             </div>
           </div>
         )}
@@ -281,7 +283,7 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
               </ResponsiveContainer>
             ) : (
               <div className="flex items-center justify-center h-full text-muted-foreground">
-                Pas assez de données pour afficher l'évolution
+                {t("teachingAdmin.pasAssezDeDonneesPour")}
               </div>
             )}
           </div>
@@ -315,7 +317,7 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
                         <p className={cn("text-lg font-bold", getGradeColor(data.average))}>
                           Moyenne: {data.average}/20
                         </p>
-                        <p className="text-sm text-muted-foreground">{data.count} évaluations</p>
+                        <p className="text-sm text-muted-foreground">{t("teachingAdmin.countEvaluations", { count: data.count })}</p>
                       </div>
                     );
                   }}
@@ -337,7 +339,7 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
               <div className="border border-border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Trophy className="w-5 h-5 text-warning" />
-                  <span className="font-semibold">Meilleure matière</span>
+                  <span className="font-semibold">{t("teachingAdmin.meilleureMatiere")}</span>
                 </div>
                 <p className="text-lg font-bold text-success">{stats.bestSubject.subject}</p>
                 <p className="text-sm text-muted-foreground">
@@ -349,7 +351,7 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
               <div className="border border-border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Target className="w-5 h-5 text-primary" />
-                  <span className="font-semibold">À améliorer</span>
+                  <span className="font-semibold">{t("teachingAdmin.aAmeliorer")}</span>
                 </div>
                 <p className="text-lg font-bold text-warning">{stats.weakestSubject.subject}</p>
                 <p className="text-sm text-muted-foreground">
@@ -360,7 +362,7 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
             <div className="border border-border rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="w-5 h-5 text-primary" />
-                <span className="font-semibold">Tendance</span>
+                <span className="font-semibold">{t("teachingAdmin.tendance")}</span>
               </div>
               <div className="flex items-center gap-2">
                 {getTrendIcon(stats.trend)}
@@ -370,13 +372,13 @@ export const GradeHistoryChart = ({ grades, className }: GradeHistoryChartProps)
                   stats.trend === "down" && "text-destructive",
                   stats.trend === "stable" && "text-muted-foreground"
                 )}>
-                  {stats.trend === "up" && "En progression"}
-                  {stats.trend === "down" && "En baisse"}
+                  {stats.trend === "up" && t("teachingAdmin.trendUp")}
+                  {stats.trend === "down" && t("teachingAdmin.trendDown")}
                   {stats.trend === "stable" && "Stable"}
                 </span>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
-                Basé sur les dernières évaluations
+                {t("teachingAdmin.baseSurLesDernieresEvaluations")}
               </p>
             </div>
           </div>

@@ -18,8 +18,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { History, User, MessageSquare, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
+import { dateFnsLocale } from "@/lib/locale";
+import { Trans, useTranslation } from "react-i18next";
 
 interface GradeHistorySheetProps {
     gradeId?: string;
@@ -29,6 +30,7 @@ interface GradeHistorySheetProps {
 }
 
 const GradeHistorySheet = ({ gradeId, isOpen, onOpenChange, studentName }: GradeHistorySheetProps) => {
+    const { t } = useTranslation();
     const { studentLabel } = useStudentLabel();
     const { data: history, isLoading } = useQuery({
         queryKey: ["grade-history", gradeId],
@@ -48,20 +50,20 @@ const GradeHistorySheet = ({ gradeId, isOpen, onOpenChange, studentName }: Grade
                 <SheetHeader>
                     <div className="flex items-center gap-2 mb-2">
                         <History className="w-5 h-5 text-primary" />
-                        <SheetTitle>Historique de modification</SheetTitle>
+                        <SheetTitle>{t("teachingAdmin.historiqueDeModification")}</SheetTitle>
                     </div>
                     <SheetDescription>
-                        Traçabilité des changements pour <strong>{studentName || `cet ${studentLabel}`}</strong>
+                        <Trans i18nKey="teachingAdmin.historyFor" values={{ name: studentName || t("teachingAdmin.thisStudent", { label: studentLabel }) }} components={{ strong: <strong /> }} />
                     </SheetDescription>
                 </SheetHeader>
 
                 <div className="mt-6">
                     {isLoading ? (
-                        <p className="text-center text-muted-foreground py-8">Chargement de l'historique...</p>
+                        <p className="text-center text-muted-foreground py-8">{t("teachingAdmin.chargementDeLHistorique")}</p>
                     ) : !history || history.length === 0 ? (
                         <div className="text-center py-12 border rounded-xl bg-muted/30">
                             <History className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                            <p className="text-muted-foreground">Aucun historique disponible</p>
+                            <p className="text-muted-foreground">{t("teachingAdmin.aucunHistoriqueDisponible")}</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
@@ -77,7 +79,7 @@ const GradeHistorySheet = ({ gradeId, isOpen, onOpenChange, studentName }: Grade
                                             </div>
                                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
                                                 <Clock className="w-3 h-3" />
-                                                {format(new Date(entry.created_at), "d MMM yyyy HH:mm", { locale: fr })}
+                                                {format(new Date(entry.created_at), "d MMM yyyy HH:mm", { locale: dateFnsLocale() })}
                                             </div>
                                         </div>
 
@@ -94,7 +96,7 @@ const GradeHistorySheet = ({ gradeId, isOpen, onOpenChange, studentName }: Grade
                                         <div className="bg-muted/50 p-2 rounded-lg flex gap-2 items-start">
                                             <MessageSquare className="w-3 h-3 text-muted-foreground mt-1 shrink-0" />
                                             <p className="text-xs text-foreground leading-relaxed italic">
-                                                "{entry.change_reason || "Aucun motif spécifié"}"
+                                                "{entry.change_reason || t("teachingAdmin.aucunMotifSpecifie")}"
                                             </p>
                                         </div>
                                     </div>

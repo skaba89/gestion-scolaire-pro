@@ -8,6 +8,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 
 interface Classroom {
     id: string;
@@ -29,6 +30,7 @@ export const GradeFilters = ({
     onClassroomChange,
     classrooms,
 }: GradeFiltersProps) => {
+    const { t } = useTranslation();
     return (
         <Card>
             <CardContent className="p-4">
@@ -36,7 +38,7 @@ export const GradeFilters = ({
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
-                            placeholder="Rechercher une évaluation..."
+                            placeholder={t("teachingAdmin.rechercherUneEvaluation")}
                             value={searchTerm}
                             onChange={(e) => onSearchChange(e.target.value)}
                             className="pl-10"
@@ -44,10 +46,10 @@ export const GradeFilters = ({
                     </div>
                     <Select value={selectedClassroom} onValueChange={onClassroomChange}>
                         <SelectTrigger className="w-full sm:w-48">
-                            <SelectValue placeholder="Toutes les classes" />
+                            <SelectValue placeholder={t("teachingAdmin.toutesLesClasses")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Toutes les classes</SelectItem>
+                            <SelectItem value="all">{t("teachingAdmin.toutesLesClasses")}</SelectItem>
                             {classrooms.map((classroom) => (
                                 <SelectItem key={classroom.id} value={classroom.id}>
                                     {classroom.name}

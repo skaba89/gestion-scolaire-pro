@@ -119,6 +119,9 @@ const Certificates = () => {
       level: t("certificates.typeLevelTitle")
     };
 
+    // i18n-official-start : attestation officielle (en-tête République de
+    // Guinée), document administratif rédigé en français quelle que soit la
+    // langue de l'interface (garde no-hardcoded-text : zone exclue).
     const certificateContent: Record<CertificateType, string> = {
       enrollment: `est régulièrement inscrit(e) dans notre établissement pour l'année académique ${escapeHTML(enrollment.academic_year.name)} en classe de ${escapeHTML(enrollment.classroom.name)}${enrollment.level ? ` (${escapeHTML(enrollment.level.name)})` : ""}.`,
       attendance: `est régulièrement scolarisé(e) dans notre établissement au titre de l'année académique ${escapeHTML(enrollment.academic_year.name)}. L'${studentLabel} est actuellement en classe de ${escapeHTML(enrollment.classroom.name)}${enrollment.level ? ` (${escapeHTML(enrollment.level.name)})` : ""}.`,
@@ -388,6 +391,7 @@ const Certificates = () => {
       </body>
       </html>
     `;
+    // i18n-official-end
 
     const printWindow = window.open("", "_blank");
     if (printWindow) {
@@ -599,10 +603,10 @@ const Certificates = () => {
                 variant="outline"
                 onClick={downloadCertificatePdf}
                 disabled={!selectedStudent || !enrollment || isLoading}
-                title="Télécharger un fichier PDF réel (archivable), plutôt que la version imprimable du navigateur"
+                title={t("teachingAdmin.downloadRealPdf")}
               >
                 <FileText className="h-4 w-4 mr-2" />
-                PDF
+                {t("teachingAdmin.pdf")}
               </Button>
             </div>
           </CardContent>

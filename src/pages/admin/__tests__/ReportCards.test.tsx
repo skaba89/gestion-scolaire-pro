@@ -1,3 +1,4 @@
+import "@/i18n/config";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, expect, it, vi } from "vitest";
@@ -14,7 +15,6 @@ import type { ReactNode } from "react";
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@/api/client", () => ({ apiClient: { get, post: vi.fn() } }));
 vi.mock("@/contexts/TenantContext", () => ({ useTenant: () => ({ tenant: { id: "tenant-1" } }) }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock("@/hooks/useStudentLabel", () => ({
   useStudentLabel: () => ({ studentLabel: "élève", studentsLabel: "élèves", StudentsLabel: "Élèves" }),

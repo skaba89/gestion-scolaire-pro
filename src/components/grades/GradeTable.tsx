@@ -12,6 +12,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Assessment } from "@/queries/grades";
+import { useTranslation } from "react-i18next";
 
 interface GradeTableProps {
     assessments: Assessment[];
@@ -19,6 +20,7 @@ interface GradeTableProps {
 }
 
 export const GradeTable = ({ assessments = [], isLoading }: GradeTableProps) => {
+    const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
 
     const rowVirtualizer = useVirtualizer({
@@ -45,14 +47,14 @@ export const GradeTable = ({ assessments = [], isLoading }: GradeTableProps) => 
             <CardContent>
                 {isLoading ? (
                     <div className="text-center py-8 text-muted-foreground">
-                        Chargement...
+                        {t("teachingAdmin.chargement")}
                     </div>
                 ) : assessments?.length === 0 ? (
                     <div className="text-center py-12">
                         <BarChart3 className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
-                        <p className="text-muted-foreground">Aucune évaluation trouvée</p>
+                        <p className="text-muted-foreground">{t("teachingAdmin.aucuneEvaluationTrouvee")}</p>
                         <p className="text-sm text-muted-foreground/70">
-                            Créez des évaluations pour commencer à saisir les notes
+                            {t("teachingAdmin.creezDesEvaluationsPourCommencer")}
                         </p>
                     </div>
                 ) : (
@@ -63,12 +65,12 @@ export const GradeTable = ({ assessments = [], isLoading }: GradeTableProps) => 
                         <Table>
                             <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                                 <TableRow>
-                                    <TableHead>Évaluation</TableHead>
-                                    <TableHead>Matière</TableHead>
-                                    <TableHead>Classe</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Note Max</TableHead>
-                                    <TableHead>Coefficient</TableHead>
+                                    <TableHead>{t("teachingAdmin.evaluation")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.matiere")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.classe")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.type")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.noteMax")}</TableHead>
+                                    <TableHead>{t("teachingAdmin.coefficient")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>

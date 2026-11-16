@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 interface TeacherFormDialogProps {
     open: boolean;
@@ -25,6 +26,7 @@ export const TeacherFormDialog = ({
     onSubmit,
     isPending,
 }: TeacherFormDialogProps) => {
+    const { t } = useTranslation();
     const [formData, setFormData] = useState({
         email: "",
         firstName: "",
@@ -47,18 +49,18 @@ export const TeacherFormDialog = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[95vh] flex flex-col p-6">
                 <DialogHeader>
-                    <DialogTitle>Ajouter un professeur</DialogTitle>
+                    <DialogTitle>{t("teachingAdmin.ajouterUnProfesseur")}</DialogTitle>
                     <DialogDescription>
-                        L'utilisateur doit avoir un compte existant
+                        {t("teachingAdmin.lUtilisateurDoitAvoirUn")}
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="flex-1 px-1 overflow-y-auto">
                     <form onSubmit={handleSubmit} className="space-y-4 py-4">
                         <div className="space-y-2">
-                            <Label>Email *</Label>
+                            <Label>{t("teachingAdmin.email2")}</Label>
                             <Input
                                 type="email"
-                                placeholder="professeur@email.com"
+                                placeholder={t("teachingAdmin.professeurEmailCom")}
                                 value={formData.email}
                                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                                 required
@@ -67,17 +69,17 @@ export const TeacherFormDialog = ({
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Prénom</Label>
+                                <Label>{t("teachingAdmin.prenom")}</Label>
                                 <Input
-                                    placeholder="Prénom"
+                                    placeholder={t("teachingAdmin.prenom")}
                                     value={formData.firstName}
                                     onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label>Nom</Label>
+                                <Label>{t("teachingAdmin.nom")}</Label>
                                 <Input
-                                    placeholder="Nom"
+                                    placeholder={t("teachingAdmin.nom")}
                                     value={formData.lastName}
                                     onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
                                 />
@@ -85,7 +87,7 @@ export const TeacherFormDialog = ({
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Téléphone</Label>
+                            <Label>{t("teachingAdmin.telephone")}</Label>
                             <Input
                                 type="tel"
                                 placeholder="+33 6 00 00 00 00"
@@ -100,7 +102,7 @@ export const TeacherFormDialog = ({
                             disabled={!formData.email || isPending}
                         >
                             {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            Ajouter le professeur
+                            {t("teachingAdmin.ajouterLeProfesseur")}
                         </Button>
                     </form>
                 </ScrollArea>

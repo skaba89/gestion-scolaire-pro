@@ -25,6 +25,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { useTranslation } from "react-i18next";
 
 interface TeacherTableProps {
     teachers: TeacherProfile[];
@@ -55,6 +56,7 @@ export const TeacherTable = ({
     onAddClick,
     searchQuery,
 }: TeacherTableProps) => {
+  const { t } = useTranslation();
 
     if (isLoading) {
         return (
@@ -62,7 +64,7 @@ export const TeacherTable = ({
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <GraduationCap className="w-5 h-5" />
-                        Liste des Professeurs
+                        {t("teachingAdmin.listeDesProfesseurs")}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -79,10 +81,10 @@ export const TeacherTable = ({
                     <div>
                         <CardTitle className="flex items-center gap-2">
                             <GraduationCap className="w-5 h-5" />
-                            Liste des Professeurs
+                            {t("teachingAdmin.listeDesProfesseurs")}
                         </CardTitle>
                         <CardDescription>
-                            {teachers.length} enseignant(s) trouvé(s)
+                            {t("teachingAdmin.countEnseignantSTrouveS", { count: teachers.length })}
                         </CardDescription>
                     </div>
                 </div>
@@ -91,8 +93,8 @@ export const TeacherTable = ({
                 {teachers.length === 0 ? (
                     <EmptyState
                         icon={GraduationCap}
-                        title={searchQuery ? "Aucun enseignant trouvé" : "Aucun enseignant"}
-                        description={searchQuery ? "Essayez de modifier votre recherche." : "Commencez par ajouter des enseignants à votre établissement."}
+                        title={searchQuery ? t("teachingAdmin.aucunEnseignantTrouve") : t("teachingAdmin.aucunEnseignant")}
+                        description={searchQuery ? t("teachingAdmin.essayezDeModifierVotreRecherche") : t("teachingAdmin.commencezParAjouterDesEnseignants")}
                         actionLabel="Ajouter un enseignant"
                         onAction={onAddClick}
                     />
@@ -101,11 +103,11 @@ export const TeacherTable = ({
                         <Table>
                             <TableHeader className="bg-background z-10 shadow-sm">
                                 <TableRow>
-                                    <TableHead className="w-[30%]">Nom</TableHead>
-                                    <TableHead className="w-[20%]">Email</TableHead>
-                                    <TableHead className="w-[20%]">Téléphone</TableHead>
-                                    <TableHead className="w-[15%]">Statut</TableHead>
-                                    <TableHead className="text-right w-[15%]">Actions</TableHead>
+                                    <TableHead className="w-[30%]">{t("teachingAdmin.nom")}</TableHead>
+                                    <TableHead className="w-[20%]">{t("teachingAdmin.email")}</TableHead>
+                                    <TableHead className="w-[20%]">{t("teachingAdmin.telephone")}</TableHead>
+                                    <TableHead className="w-[15%]">{t("teachingAdmin.statut")}</TableHead>
+                                    <TableHead className="text-right w-[15%]">{t("teachingAdmin.actions")}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -127,7 +129,7 @@ export const TeacherTable = ({
             {totalCount > 0 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border-t">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>Afficher</span>
+                        <span>{t("teachingAdmin.afficher")}</span>
                         <Select
                             value={pageSize.toString()}
                             onValueChange={(v) => onPageSizeChange(parseInt(v))}
@@ -142,7 +144,7 @@ export const TeacherTable = ({
                                 <SelectItem value="100">100</SelectItem>
                             </SelectContent>
                         </Select>
-                        <span>par page</span>
+                        <span>{t("teachingAdmin.parPage")}</span>
                         <span className="ml-4">
                             {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalCount)} sur {totalCount}
                         </span>
