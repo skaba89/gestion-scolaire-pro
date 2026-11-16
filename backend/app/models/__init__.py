@@ -62,3 +62,4 @@ from app.models.library import LibraryCategory, LibraryResource, LibraryBorrowRe
 from app.models.mfa import MfaBackupCode, EmailOtp, MfaTotpSecret
 from app.models.education_configuration import EducationConfiguration
 from app.models.education_cycle import EducationCycle
+from app.models.staff_cycle_assignment import StaffCycleAssignment

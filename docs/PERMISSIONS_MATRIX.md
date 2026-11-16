@@ -1034,3 +1034,28 @@ leurs appels exigent davantage :
 
 Aucune permission backend ne change pour ces deux entrées : seul le menu
 du comptable les masque (test : `src/routes/admin-navigation-contract.test.ts`).
+
+## Personnel par cycle pédagogique — enregistrement (lot B1, 2026-11-16)
+
+Aucune nouvelle permission. Les restrictions sont **enregistrées mais pas
+encore appliquées** aux données (`cycle_policy_available=false` jusqu'au
+lot B2).
+
+| Action | Route | Qui |
+|---|---|---|
+| Lister le personnel et ses cycles | `GET /education/staff-cycles/` | `settings:read` **et** TENANT_ADMIN / SUPER_ADMIN (403 sinon : la liste expose noms et e-mails du personnel) |
+| Remplacer les cycles d'un compte | `PUT /education/staff-cycles/{user_id}/` (corps `{expected_cycle_ids, cycle_ids}`) | `settings:write` **et** TENANT_ADMIN / SUPER_ADMIN |
+
+Règles (modèle opt-in validé le 2026-11-16) : aucun cycle attribué = aucune
+restriction ; seuls DIRECTOR, DEPARTMENT_HEAD, SECRETARY, STAFF et ACCOUNTANT
+peuvent être restreints (422 pour TEACHER seul, TENANT_ADMIN, SUPER_ADMIN,
+PARENT, STUDENT — la liste vide reste acceptée pour retirer une affectation
+périmée). Compte d'un autre établissement : 404 ; cycle d'un autre
+établissement ou inconnu : 422 (et refus par la clé étrangère composite
+`(tenant_id, cycle_id)` en base) ; cycle archivé ajouté : 409 ; ensemble
+attendu périmé : 409, sans effet. Audit `ASSIGN_STAFF_CYCLES` dans la même
+transaction ; changement effectif → `token_version` du compte incrémenté
+(reconnexion, caches hors ligne purgés). Table `staff_cycle_assignments`
+sous RLS (ENABLE + FORCE). Calcul du périmètre : `backend/app/core/cycle_scope.py`.
+Tests : `backend/tests/test_staff_cycle_assignments.py`,
+`src/components/settings/__tests__/EducationStaffCycleSettings.test.tsx`.
