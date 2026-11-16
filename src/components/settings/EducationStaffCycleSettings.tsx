@@ -102,7 +102,7 @@ export function EducationStaffCycleSettings() {
     </CardHeader>
     <CardContent className="space-y-4">
       {!staff.data.cycle_policy_available && <p className="rounded-lg border bg-muted/30 p-4 text-sm">
-        {t("educationCycles.staff.notEnforced", { defaultValue: "Les affectations sont enregistrées mais ne filtrent pas encore les données : le contrôle d’accès par cycle sera activé dans une prochaine version." })}
+        {t("educationCycles.staff.limitedAccessNotice", { defaultValue: "Un compte limité à des cycles n’accède pour l’instant qu’aux écrans déjà adaptés (connexion, profil, paramètres de l’établissement en lecture, structure en lecture) ; les autres écrans lui sont refusés jusqu’à leur adaptation. Un compte qui cumule un rôle enseignant ou parent perd aussi ces portails tant qu’il est limité. Retirer tous les cycles d’un compte lui rend l’accès complet à sa prochaine connexion (le compte est déconnecté)." })}
       </p>}
       {cycles.data.length === 0 && <p className="text-muted-foreground">{t("educationCycles.empty", { defaultValue: "Aucun cycle défini. Les niveaux existants restent inchangés." })}</p>}
       {staff.data.items.length === 0 ? <p className="text-muted-foreground">{t("educationCycles.staff.empty", { defaultValue: "Aucun membre du personnel concerné." })}</p> :

@@ -63,6 +63,10 @@ sensibles ; idempotence (`core/idempotency.py`) pour les créations financières
   `_table_exists` / `_column_exists` / `_index_exists`, voir `docs/MIGRATION_GUIDE.md`),
   politique RLS pour toute nouvelle table tenant. Ne pas exécuter `alembic upgrade`
   sans accord ; jamais contre une base distante.
+- Périmètre par cycle : toute nouvelle route authentifiée (`get_current_user` /
+  `require_permission`) doit être classée dans `app/core/cycle_routes.py`
+  (`INDEPENDENT` / `FILTERED` en entrée exacte, sinon `DENY`, le défaut) ;
+  `tests/test_cycle_route_classification.py` échoue sinon.
 - Erreurs : lever `SchoolFlowException` / `HTTPException` avec message français ;
   ne jamais renvoyer de trace ni de détail SQL au client.
 

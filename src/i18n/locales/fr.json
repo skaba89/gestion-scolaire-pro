@@ -4689,7 +4689,7 @@
             "description": "Limitez un directeur, un secrétariat ou la comptabilité à certains cycles. Sans cycle coché, la personne garde l’accès à tout l’établissement.",
             "loading": "Chargement du personnel…",
             "loadError": "Les affectations du personnel ne peuvent pas être chargées.",
-            "notEnforced": "Les affectations sont enregistrées mais ne filtrent pas encore les données : le contrôle d’accès par cycle sera activé dans une prochaine version.",
+            "limitedAccessNotice": "Un compte limité à des cycles n’accède pour l’instant qu’aux écrans déjà adaptés (connexion, profil, paramètres de l’établissement en lecture, structure en lecture) ; les autres écrans lui sont refusés jusqu’à leur adaptation. Un compte qui cumule un rôle enseignant ou parent perd aussi ces portails tant qu’il est limité. Retirer tous les cycles d’un compte lui rend l’accès complet à sa prochaine connexion (le compte est déconnecté).",
             "empty": "Aucun membre du personnel concerné.",
             "allCycles": "Tous les cycles",
             "notRestrictable": "Ce compte ne peut pas être limité à des cycles ; vous pouvez seulement retirer ses affectations.",

@@ -10,15 +10,22 @@ Modèle validé le 2026-11-16 (opt-in) :
 - un élève dont la classe n'a pas de niveau, ou dont le niveau n'a pas de
   cycle, n'est visible que des comptes non restreints.
 
-Ce module ne fait que *calculer* le périmètre. Son application aux routes
-est un lot distinct (B2) : tant que ce lot n'est pas livré,
+Ce module calcule le périmètre et fournit les briques de filtrage. Le refus
+par défaut des routes non classées est appliqué par ``get_current_user``
+(lot B2a, registre ``cycle_routes``) ; le filtrage des routes de données
+vient avec les lots B2b à B2e. Tant que ces lots ne sont pas livrés,
 ``cycle_policy_available`` reste ``False``.
 """
 from __future__ import annotations
 
-from typing import Optional
+import logging
+from typing import Iterable, Optional
 
+from fastapi import HTTPException, status
+from sqlalchemy import and_, exists, false, not_, or_, select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 # Rôles qui ne sont jamais limités à des cycles.
 UNRESTRICTED_ROLES = frozenset({"SUPER_ADMIN", "TENANT_ADMIN"})
@@ -56,3 +63,129 @@ def allowed_cycle_ids(db: Session, *, tenant_id, user: dict) -> Optional[frozens
         return None
     cycles = assigned_cycle_ids(db, tenant_id=tenant_id, user_id=user["id"])
     return cycles or None
+
+
+# Rôles pour lesquels la garde n'interroge jamais la base : aucun compte
+# d'élève, de parent ou d'ancien élève ne reçoit d'affectation de cycle.
+NEVER_RESTRICTED_ROLES = frozenset({"STUDENT", "PARENT", "ALUMNI"})
+
+
+def needs_cycle_lookup(roles) -> bool:
+    """Faut-il lire les affectations de ce compte ? (garde de ``get_current_user``)
+
+    Sortie rapide, sans requête, pour les administrateurs d'établissement et
+    pour les comptes uniquement élève/parent/ancien. Tout autre compte est
+    consulté, y compris un TEACHER seul : une affectation résiduelle sur un
+    compte devenu non restreignable le garde restreint (comportement
+    d'``allowed_cycle_ids``, décision Q5). Un TEACHER sans affectation, cas
+    normal, reste sans restriction."""
+    roles = set(roles or [])
+    if roles & UNRESTRICTED_ROLES:
+        return False
+    if roles <= NEVER_RESTRICTED_ROLES:
+        return False
+    return True
+
+
+def allowed_class_ids(db: Session, tenant_id, cycles) -> list:
+    """Classes de l'établissement dont le niveau appartient à un des cycles.
+    Une classe sans niveau, ou dont le niveau n'a pas de cycle, n'en fait
+    jamais partie."""
+    from app.models.classroom import Classroom
+    from app.models.level import Level
+
+    cycles = list(cycles or [])
+    if not cycles:
+        return []
+    rows = db.execute(
+        select(Classroom.id)
+        .join(Level, and_(Level.id == Classroom.level_id, Level.tenant_id == Classroom.tenant_id))
+        .where(
+            Classroom.tenant_id == tenant_id,
+            Level.cycle_id.in_(cycles),
+        )
+    ).all()
+    return [class_id for (class_id,) in rows]
+
+
+def student_scope_clause(column, class_ids: Iterable, *, tenant_id):
+    """Condition SQL « cet élève est inscrit dans une des classes du périmètre ».
+
+    ``column`` est la colonne d'identifiant d'élève de la requête appelante
+    (fixée par le code, jamais par l'utilisateur). Inscription retenue
+    (décision Q1) : statut ``ACTIVE`` de l'année courante ; s'il n'existe pas
+    d'année courante, toute inscription ``ACTIVE``. Périmètre vide : rien."""
+    from app.models.academic_year import AcademicYear
+    from app.models.enrollment import Enrollment
+
+    class_ids = list(class_ids or [])
+    if not class_ids:
+        return false()
+    current_years = select(AcademicYear.id).where(
+        AcademicYear.tenant_id == tenant_id, AcademicYear.is_current.is_(True)
+    )
+    has_current_year = exists(current_years)
+    return exists().where(
+        Enrollment.tenant_id == tenant_id,
+        Enrollment.student_id == column,
+        Enrollment.class_id.in_(class_ids),
+        Enrollment.status == "ACTIVE",
+        or_(Enrollment.academic_year_id.in_(current_years), not_(has_current_year)),
+    )
+
+
+def class_scope_clause(column, class_ids: Iterable):
+    """Condition SQL « cette classe est dans le périmètre » (``column`` fixée par le code)."""
+    class_ids = list(class_ids or [])
+    if not class_ids:
+        return false()
+    return column.in_(class_ids)
+
+
+def _cycles_of(user: dict):
+    """``_cycle_ids`` du dictionnaire utilisateur : ``None`` explicite = non
+    restreint. Clé absente (dict construit hors ``get_current_user``) =
+    erreur : jamais interprétée comme « non restreint » (fail-closed)."""
+    if "_cycle_ids" not in user:
+        logger.error("Périmètre par cycle indisponible : clé _cycle_ids absente du contexte utilisateur")
+        raise RuntimeError("_cycle_ids absent du contexte utilisateur : périmètre par cycle non résolu")
+    return user["_cycle_ids"]
+
+
+def require_student_in_scope(db: Session, tenant_id, user: dict, student_id) -> None:
+    """404 si l'élève est hors périmètre ; sans effet pour un compte non restreint.
+    404 (et non 403) pour ne pas révéler l'existence d'un élève d'un autre cycle."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return
+    from app.models.student import Student
+
+    class_ids = allowed_class_ids(db, tenant_id, cycles)
+    found = db.execute(
+        select(Student.id).where(
+            Student.id == student_id,
+            Student.tenant_id == tenant_id,
+            student_scope_clause(Student.id, class_ids, tenant_id=tenant_id),
+        )
+    ).first()
+    if found is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Élève introuvable")
+
+
+def require_class_in_scope(db: Session, tenant_id, user: dict, class_id) -> None:
+    """404 si la classe est hors périmètre ; sans effet pour un compte non restreint."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return
+    from app.models.classroom import Classroom
+
+    class_ids = allowed_class_ids(db, tenant_id, cycles)
+    found = db.execute(
+        select(Classroom.id).where(
+            Classroom.id == class_id,
+            Classroom.tenant_id == tenant_id,
+            class_scope_clause(Classroom.id, class_ids),
+        )
+    ).first()
+    if found is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classe introuvable")
