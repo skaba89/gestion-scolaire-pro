@@ -23,8 +23,8 @@ import logging
 from typing import Iterable, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, exists, false, not_, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, exists, false, func, not_, or_, select
+from sqlalchemy.orm import Session, aliased
 
 logger = logging.getLogger(__name__)
 
@@ -126,12 +126,15 @@ def student_scope_clause(column, class_ids: Iterable, *, tenant_id):
         AcademicYear.tenant_id == tenant_id, AcademicYear.is_current.is_(True)
     )
     has_current_year = exists(current_years)
+    # Alias : si ``column`` appartient déjà à ``Enrollment`` (listes d'inscriptions), la
+    # sous-requête ne doit pas être corrélée à la ligne externe (même table).
+    enrolled = aliased(Enrollment)
     return exists().where(
-        Enrollment.tenant_id == tenant_id,
-        Enrollment.student_id == column,
-        Enrollment.class_id.in_(class_ids),
-        Enrollment.status == "ACTIVE",
-        or_(Enrollment.academic_year_id.in_(current_years), not_(has_current_year)),
+        enrolled.tenant_id == tenant_id,
+        enrolled.student_id == column,
+        enrolled.class_id.in_(class_ids),
+        func.upper(enrolled.status) == "ACTIVE",
+        or_(enrolled.academic_year_id.in_(current_years), not_(has_current_year)),
     )
 
 
@@ -208,9 +211,10 @@ def require_class_in_scope(db: Session, tenant_id, user: dict, class_id) -> None
 
 
 def require_enrollment_in_scope(db: Session, tenant_id, user: dict, enrollment_id) -> None:
-    """404 si l'inscription n'est pas dans une classe du périmètre ; sans effet pour
-    un compte non restreint. Quel que soit son statut ou son année : une
-    inscription appartient au périmètre par sa classe."""
+    """404 si l'inscription est hors périmètre ; sans effet pour un compte non
+    restreint. Il faut les DEUX conditions : sa classe est dans le périmètre ET
+    son élève y est (inscription ACTIVE de l'année courante dans un cycle du compte) :
+    une inscription résiduelle d'un élève ailleurs n'est pas modifiable."""
     cycles = _cycles_of(user)
     if cycles is None:
         return
@@ -222,6 +226,7 @@ def require_enrollment_in_scope(db: Session, tenant_id, user: dict, enrollment_i
             Enrollment.id == enrollment_id,
             Enrollment.tenant_id == tenant_id,
             class_scope_clause(Enrollment.class_id, class_ids),
+            student_scope_clause(Enrollment.student_id, class_ids, tenant_id=tenant_id),
         )
     ).first()
     if found is None:

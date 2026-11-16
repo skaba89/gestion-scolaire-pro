@@ -83,8 +83,8 @@ def world(school, structure):
         db.commit()
 
 
-def call(school, who, method, url, **kwargs):
-    return client.request(method, f"{API}{url}", headers=school["headers"](who), **kwargs)
+def call(school, who, method, url, extra_headers=None, **kwargs):
+    return client.request(method, f"{API}{url}", headers=school["headers"](who, **(extra_headers or {})), **kwargs)
 
 
 def ids(response, key="id"):
@@ -216,6 +216,21 @@ def test_delete_unrestricted_is_unchanged(school, world):
     assert student_row(world["s_none"]) is None
 
 
+def test_scope_ignores_the_case_of_the_enrollment_status(school, world):
+    """POST /enrollments/ enregistre « active » en minuscules par défaut."""
+    t = school["tenant"]
+    lowered = uuid4()
+    with SessionLocal() as db:
+        db.add(Student(id=lowered, tenant_id=t, registration_number=f"low-{lowered}", first_name="Casse",
+                       last_name="Test", date_of_birth=date(2015, 1, 1), gender=Gender.MALE))
+        db.flush()
+        db.add(Enrollment(tenant_id=t, student_id=lowered, class_id=world["cls_cp"],
+                          academic_year_id=world["year"], status="active"))
+        db.commit()
+    assert str(lowered) in ids(call(school, "secretary", "GET", "/students/"))
+    assert call(school, "secretary", "GET", f"/students/{lowered}/").status_code == 200
+
+
 # --- Classes ------------------------------------------------------------------
 
 CLASSROOM_LISTS = ["/classrooms/", "/infrastructure/classrooms/"]
@@ -252,15 +267,20 @@ ENROLLMENT_LISTS = ["/enrollments/", "/infrastructure/enrollments/"]
 
 
 @pytest.mark.parametrize("url", ENROLLMENT_LISTS)
-def test_enrollment_lists_only_show_classes_of_the_cycle(school, world, url):
+def test_enrollment_lists_only_show_students_of_the_cycle(school, world, url):
+    """Règle : classe dans le périmètre ET élève dans le périmètre (inscription ACTIVE
+    courante dans un cycle du compte). s_withdrawn (retiré) et s_old_only (ACTIVE d'une
+    ancienne année) ne sont pas dans le périmètre : leurs inscriptions sont masquées."""
     rows = call(school, "secretary", "GET", url).json()
-    assert {r["student_id"] for r in rows} == {str(world[n]) for n in ("s_cp", "s_withdrawn", "s_old_only")}
-    assert {r["class_id"] for r in rows} <= {str(world["cls_cp"]), str(world["cls_old"])}
-    assert len(rows) == 3
+    assert {r["student_id"] for r in rows} == {str(world["s_cp"])}
+    assert {r["class_id"] for r in rows} == {str(world["cls_cp"])}
     # Filtre explicite sur une classe hors périmètre : rien (et pas d'élargissement).
     assert call(school, "secretary", "GET", url, params={"class_id": str(world["cls_6e"])}).json() == []
-    in_scope = call(school, "secretary", "GET", url, params={"class_id": str(world["cls_cp"])}).json()
-    assert {r["student_id"] for r in in_scope} == {str(world["s_cp"]), str(world["s_withdrawn"])}
+    assert call(school, "secretary", "GET", url, params={"class_id": str(world["cls_old"])}).json() == []
+    for status in ("withdrawn", "WITHDRAWN", "active"):
+        got = call(school, "secretary", "GET", url, params={"status": status}).json()
+        assert {r["student_id"] for r in got} <= {str(world["s_cp"])}, status
+        assert (status == "active") == bool(got), status
 
 
 @pytest.mark.parametrize("url", ENROLLMENT_LISTS)
@@ -286,6 +306,10 @@ def test_enrollment_counts_alias_only_counts_classes_of_the_cycle(school, world)
 @needs_any_array
 def test_infrastructure_enrollment_counts_never_expose_other_cycles(school, world):
     params = {"class_ids": [str(world["cls_cp"]), str(world["cls_6e"]), str(world["cls_nolevel"])]}
+    # Assertion volontairement faible : cette route compare `status = 'active'` en minuscules alors
+    # que le statut est stocké en majuscules, donc ses compteurs sont toujours vides (bug existant,
+    # corrigé dans une PR séparée). On vérifie seulement qu'aucune autre classe n'est exposée ;
+    # l'assertion exacte est portée par l'alias /enrollments/counts/ (LOWER(status)).
     restricted = call(school, "secretary", "GET", "/infrastructure/enrollments/counts/", params=params).json()
     assert set(restricted) <= {str(world["cls_cp"])}
 
@@ -361,6 +385,22 @@ def test_withdraw_needs_enrollment_in_scope(school, world):
     assert enrollment_status(world["enrollments"]["e_6e"]) == "ACTIVE"
     assert call(school, "secretary", "DELETE", f"/enrollments/{world['enrollments']['e_cp']}/").status_code == 204
     assert enrollment_status(world["enrollments"]["e_cp"]) == "WITHDRAWN"
+
+
+def test_withdraw_and_transfer_refuse_a_residual_enrollment_of_a_student_out_of_scope(school, world):
+    """s_old_only : inscription ACTIVE d'une ancienne année dans cls_old (primaire). La classe
+    est dans le périmètre mais l'élève non (pas d'inscription courante) : 404, rien ne change."""
+    with SessionLocal() as db:
+        residual = db.execute(select(Enrollment.id).where(
+            Enrollment.student_id == world["s_old_only"], Enrollment.class_id == world["cls_old"])).scalar_one()
+    before = enrollment_count(school["tenant"])
+    assert call(school, "secretary", "DELETE", f"/enrollments/{residual}/").status_code == 404
+    assert call(school, "secretary", "POST", f"/enrollments/{residual}/transfer/",
+                json={"class_id": str(world["cls_cp"])}).status_code == 404
+    assert enrollment_status(residual) == "ACTIVE"
+    assert enrollment_count(school["tenant"]) == before
+    # Compte non restreint : inchangé.
+    assert call(school, "secretary_free", "DELETE", f"/enrollments/{residual}/").status_code == 204
 
 
 def test_withdraw_is_unchanged_when_unrestricted(school, world):
@@ -482,7 +522,13 @@ def test_search_students_are_limited_to_the_cycle(school, world):
 def test_search_has_no_payments_for_a_restricted_account(school, world):
     everything = call(school, "secretary", "GET", "/search/", params={"q": "Test"}).json()
     assert "payments" not in everything["types_searched"] and "payments" not in everything["results"]
-    assert "students" in everything["types_searched"] and "teachers" in everything["types_searched"]
+    assert "students" in everything["types_searched"]
+    # Annuaire du personnel : /teachers/ et /users/ sont refusés (Q6), la recherche aussi.
+    assert "teachers" not in everything["types_searched"] and "teachers" not in everything["results"]
+    only_teachers = call(school, "secretary", "GET", "/search/", params={"q": "Test", "types": "teachers"})
+    assert only_teachers.status_code == 403
+    mixed_teachers = call(school, "secretary", "GET", "/search/", params={"q": "Test", "types": "teachers,levels"}).json()
+    assert mixed_teachers["types_searched"] == ["levels"]
     # Même un comptable (qui voit les paiements d'ordinaire) en est privé tant que B2d n'est pas livré.
     accountant = call(school, "accountant", "GET", "/search/", params={"q": "Test", "types": "payments"})
     assert accountant.status_code == 403
@@ -495,6 +541,7 @@ def test_search_is_unchanged_when_unrestricted(school, world):
     assert "payments" in admin["types_searched"] and "students" in admin["types_searched"]
     free = call(school, "secretary_free", "GET", "/search/", params={"q": "Test"}).json()
     assert "students" in free["types_searched"] and "payments" not in free["types_searched"]
+    assert "teachers" in free["types_searched"] and "teachers" in admin["types_searched"]
 
 
 def test_search_types_is_available_to_a_restricted_account(school, world):
@@ -505,7 +552,7 @@ def test_search_types_is_available_to_a_restricted_account(school, world):
 
 @pytest.mark.parametrize("url", [
     "/infrastructure/programs/", "/infrastructure/rooms/", "/infrastructure/rooms/count/",
-    "/infrastructure/all-subject-levels/",
+    "/infrastructure/all-subject-levels/", "/rooms/", "/rooms/count/",
 ])
 def test_structure_reads_are_open_to_a_restricted_account(school, world, url):
     assert call(school, "secretary", "GET", url).status_code == 200
@@ -546,3 +593,124 @@ def test_routes_not_yet_scoped_stay_denied(school, world, method, url, body):
     _assert_denied(response)
     with SessionLocal() as db:
         assert db.query(Classroom).filter(Classroom.tenant_id == school["tenant"], Classroom.name == "6e B").count() == 0
+
+
+# --- Corrections de revue (sécurité / RBAC) -----------------------------------
+
+def _error_body(response):
+    body = response.json()
+    body.pop("request_id", None)
+    return body
+
+
+def test_link_delete_has_no_existence_oracle(school, world):
+    """Un lien inexistant et le lien d'un élève hors périmètre répondent exactement pareil."""
+    unknown = call(school, "director", "DELETE", "/student-parents/", params={"link_id": str(uuid4())})
+    hidden = call(school, "director", "DELETE", "/student-parents/", params={"link_id": str(world["link_6e"])})
+    assert unknown.status_code == hidden.status_code == 404
+    assert _error_body(unknown) == _error_body(hidden)
+
+
+def test_student_parent_list_with_both_filters_and_a_hidden_student_is_404(school, world):
+    parent = str(school["people"]["parent"])
+    response = call(school, "director", "GET", "/student-parents/",
+                    params={"parent_id": parent, "student_id": str(world["s_6e"])})
+    assert response.status_code == 404
+
+
+def test_super_admin_with_tenant_header_is_never_filtered(school, world):
+    from app.core import security
+
+    # Le jeton porte la revendication de rôle : sans elle le middleware de tenant refuse (400).
+    token = security.create_access_token(
+        {"sub": str(school["people"]["superadmin"]), "tenant_id": None, "roles": ["SUPER_ADMIN"]})
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(school["tenant"])}
+
+    def get(url):
+        return client.get(f"{API}{url}", headers=headers)
+
+    assert ids(get("/students/")) == {str(world[n]) for n in ALL_TENANT_STUDENTS}
+    assert get(f"/students/{world['s_6e']}/").status_code == 200
+    assert len(get("/enrollments/").json()) == 7
+    assert ids(get("/classrooms/")) == {
+        str(world[n]) for n in ("cls_cp", "cls_6e", "cls_nolevel", "cls_nocycle", "cls_old")}
+
+
+def test_restricted_account_that_is_also_a_parent_gets_no_union_with_their_children(school, world):
+    with SessionLocal() as db:
+        db.add(ParentStudent(tenant_id=school["tenant"], parent_id=school["people"]["secretary_parent"],
+                             student_id=world["s_6e"]))
+        db.commit()
+    assert call(school, "secretary_parent", "GET", f"/students/{world['s_6e']}/").status_code == 404
+    assert str(world["s_6e"]) not in ids(call(school, "secretary_parent", "GET", "/students/"))
+
+
+@needs_postgres
+def test_restricted_account_that_is_also_a_teacher_gets_no_union_with_their_classes(school, world):
+    from sqlalchemy import text
+    t = school["tenant"]
+    with SessionLocal() as db:
+        db.execute(text("""
+            INSERT INTO teacher_assignments (id, tenant_id, user_id, classroom_id, created_at, updated_at)
+            VALUES (gen_random_uuid(), :tid, :uid, :cid, NOW(), NOW())
+        """), {"tid": str(t), "uid": str(school["people"]["director_teacher"]), "cid": str(world["cls_6e"])})
+        db.commit()
+    try:
+        url = "/infrastructure/enrollments/"
+        assert call(school, "director_teacher", "GET", url, params={"class_id": str(world["cls_6e"])}).json() == []
+        assert call(school, "director_teacher", "GET", f"/students/{world['s_6e']}/").status_code == 404
+    finally:
+        with SessionLocal() as db:
+            switch_tenant_context(db, str(t))
+            db.execute(text("DELETE FROM teacher_assignments WHERE tenant_id = :tid"), {"tid": str(t)})
+            db.commit()
+
+
+def test_restricted_director_teacher_sees_no_other_cycle_enrollments_even_without_assignment(school, world):
+    url = "/infrastructure/enrollments/"
+    assert call(school, "director_teacher", "GET", url, params={"class_id": str(world["cls_6e"])}).json() == []
+
+
+# Garde-fou : chaque route FILTERED du registre a un test comportemental nommé ici.
+FILTERED_ROUTE_TESTS = {
+    ("GET", "/students/"): "test_student_list_is_limited_to_the_cycle_with_exact_total",
+    ("GET", "/students/{student_id}/"): "test_student_detail_in_scope_and_404_elsewhere",
+    ("GET", "/students/{student_id}/enrollment/"): "test_student_enrollment_detail_is_scoped",
+    ("PATCH", "/students/{student_id}/"): "test_update_out_of_scope_is_404_without_effect",
+    ("PUT", "/students/{student_id}/"): "test_update_out_of_scope_is_404_without_effect",
+    ("DELETE", "/students/{student_id}/"): "test_delete_out_of_scope_is_404_without_effect",
+    ("GET", "/classrooms/"): "test_classroom_lists_are_limited_to_the_cycle",
+    ("GET", "/infrastructure/classrooms/"): "test_classroom_lists_are_limited_to_the_cycle",
+    ("GET", "/infrastructure/classrooms/{class_id}/subjects/"): "test_classroom_associations_are_scoped",
+    ("GET", "/infrastructure/classrooms/{class_id}/departments/"): "test_classroom_associations_are_scoped",
+    ("GET", "/infrastructure/classroom-departments/"): "test_classroom_departments_list_is_scoped",
+    ("GET", "/enrollments/"): "test_enrollment_lists_only_show_students_of_the_cycle",
+    ("GET", "/infrastructure/enrollments/"): "test_enrollment_lists_only_show_students_of_the_cycle",
+    ("GET", "/enrollments/counts/"): "test_enrollment_counts_alias_only_counts_classes_of_the_cycle",
+    ("GET", "/infrastructure/enrollments/counts/"): "test_infrastructure_enrollment_counts_never_expose_other_cycles",
+    ("GET", "/student-parents/"): "test_student_parent_links_are_scoped",
+    ("POST", "/student-parents/"): "test_student_parent_link_write_needs_student_in_scope",
+    ("DELETE", "/student-parents/"): "test_student_parent_link_delete_needs_student_in_scope_without_effect",
+    ("GET", "/student-subjects/"): "test_student_subjects_read_is_scoped",
+    ("POST", "/student-subjects/"): "test_student_subjects_write_out_of_scope_is_404_without_effect",
+    ("DELETE", "/student-subjects/{subject_id}/"): "test_student_subjects_write_out_of_scope_is_404_without_effect",
+    ("GET", "/search/"): "test_search_students_are_limited_to_the_cycle",
+    ("POST", "/enrollments/"): "test_create_enrollment_requires_class_and_student_in_scope",
+    ("POST", "/infrastructure/enrollments/"): "test_create_enrollment_requires_class_and_student_in_scope",
+    ("POST", "/enrollments/{enrollment_id}/transfer/"): "test_transfer_needs_origin_and_target_in_scope",
+    ("DELETE", "/enrollments/{enrollment_id}/"): "test_withdraw_needs_enrollment_in_scope",
+}
+
+
+def test_every_filtered_route_has_a_behavioural_test():
+    from app.core.cycle_routes import ROUTE_POLICIES, Policy
+
+    filtered = {key for key, policy in ROUTE_POLICIES.items() if policy is Policy.FILTERED}
+    declared = {(method, f"{API}{path}") for method, path in FILTERED_ROUTE_TESTS}
+    assert filtered == declared, (
+        f"Routes FILTERED sans test comportemental : {sorted(filtered - declared)} ; "
+        f"entrées orphelines : {sorted(declared - filtered)}"
+    )
+    for name in set(FILTERED_ROUTE_TESTS.values()):
+        candidate = globals().get(name)
+        assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"

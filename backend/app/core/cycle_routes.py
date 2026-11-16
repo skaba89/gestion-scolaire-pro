@@ -103,6 +103,7 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
         Policy.INDEPENDENT, "GET",
         "/search/types/", "/infrastructure/programs/", "/infrastructure/rooms/",
         "/infrastructure/rooms/count/", "/infrastructure/all-subject-levels/",
+        "/rooms/", "/rooms/count/",
     ),
     # Espace de l'élève connecté : filtré sur son propre user_id (un compte du
     # personnel n'y obtient que son éventuelle propre fiche élève, sinon 403/liste vide).

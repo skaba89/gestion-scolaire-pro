@@ -665,9 +665,13 @@ def delete_student_parent_link(
             linked = db.query(ParentStudent.student_id).filter(
                 ParentStudent.id == link_id, ParentStudent.tenant_id == tenant_id,
             ).first()
-            if linked is None:
+            try:
+                if linked is None:
+                    raise HTTPException(status_code=404, detail="Link not found")
+                require_student_in_scope(db, tenant_id, current_user, linked[0])
+            except HTTPException:
+                # Même réponse pour un lien inexistant et un lien hors périmètre (pas d'oracle).
                 raise HTTPException(status_code=404, detail="Link not found")
-            require_student_in_scope(db, tenant_id, current_user, linked[0])
     try:
         if link_id:
             result = db.execute(text("""

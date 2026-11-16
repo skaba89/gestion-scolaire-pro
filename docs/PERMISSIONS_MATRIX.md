@@ -1083,7 +1083,7 @@ document n'en donne que le résumé :
 
 | Politique | Effet |
 |---|---|
-| `INDEPENDENT` | passage : la réponse ne dépend d'aucun élève ni classe (auth, `/auth/sessions/`, MFA, profil propre, notifications / appareils propres, consentements propres `/consent/` et `/consent/record/`, `/billing/subscription/`, lecture de la structure, `tenants/settings*` en lecture, `education/catalog|configuration|cycles` en lecture) |
+| `INDEPENDENT` | passage : la réponse ne dépend d'aucun élève ni classe (auth, `/auth/sessions/`, MFA, profil propre, notifications / appareils propres, consentements propres `/consent/` et `/consent/record/`, `/billing/subscription/`, lecture de la structure (dont `/infrastructure/programs|rooms|all-subject-levels/` et l'alias `/rooms/`, `/rooms/count/`), `tenants/settings*` en lecture, `education/catalog|configuration|cycles` en lecture) |
 | `FILTERED` | passage : la route filtre elle-même par `_cycle_ids` (élèves, classes, inscriptions : lot B2b) |
 | `DENY` (défaut) | `403` `{"error_code": "CYCLE_SCOPE_DENIED"}` ; route absente du registre, méthode différente (HEAD…) ou non résolue = refus |
 
@@ -1122,7 +1122,8 @@ identifiants reçus sont vérifiés **avant** toute écriture) :
   périmètre), `GET /infrastructure/classroom-departments/` ;
 - inscriptions : `GET /enrollments/`, `/enrollments/counts/`,
   `GET /infrastructure/enrollments/` et `/counts/` (seules les classes du
-  périmètre, compteurs compris) ; `POST /enrollments/` et
+  périmètre, compteurs compris ; **règle** : la classe de l'inscription ET
+  l'élève sont dans le périmètre, voir ci-dessous) ; `POST /enrollments/` et
   `POST /infrastructure/enrollments/` (classe cible **et** élève dans le
   périmètre) ; `POST /enrollments/{id}/transfer/` (inscription d'origine et
   classe cible) ; `DELETE /enrollments/{id}/` ;

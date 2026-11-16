@@ -244,12 +244,12 @@ def global_search(
 
     # Périmètre par cycle (lot B2b). Compte restreint : les paiements sont
     # retirés (aucun filtrage par cycle avant le lot B2d, même pour un
-    # ACCOUNTANT) et les élèves sont limités à ceux des cycles du compte.
-    # Les enseignants (annuaire du personnel), matières et niveaux (structure)
-    # ne contiennent aucune donnée d'élève : inchangés.
+    # ACCOUNTANT), les enseignants (annuaire du personnel : /teachers/ et /users/
+    # sont refusés, Q6) et les élèves sont limités à ceux des cycles du compte.
+    # Matières et niveaux (structure) ne contiennent aucune donnée d'élève : inchangés.
     scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
-    if is_cycle_restricted(current_user) and "payments" in resource_types:
-        resource_types = [t for t in resource_types if t != "payments"]
+    if is_cycle_restricted(current_user) and {"payments", "teachers"} & set(resource_types):
+        resource_types = [t for t in resource_types if t not in ("payments", "teachers")]
         if not resource_types:
             raise HTTPException(status_code=403, detail="Accès refusé à ce type de ressource")
 

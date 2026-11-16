@@ -825,8 +825,12 @@ def get_enrollments(
         query = query.filter(Enrollment.class_id.in_(class_ids))
     if scope_class_ids is not None:
         # Périmètre par cycle (lot B2b) : None = pas de restriction ; liste vide = rien.
-        from app.core.cycle_scope import class_scope_clause
-        query = query.filter(class_scope_clause(Enrollment.class_id, scope_class_ids))
+        # Classe dans le périmètre ET élève dans le périmètre (inscription ACTIVE courante).
+        from app.core.cycle_scope import class_scope_clause, student_scope_clause
+        query = query.filter(
+            class_scope_clause(Enrollment.class_id, scope_class_ids),
+            student_scope_clause(Enrollment.student_id, scope_class_ids, tenant_id=tenant_id),
+        )
     if academic_year_id is not None:
         query = query.filter(Enrollment.academic_year_id == academic_year_id)
     if status is not None:
