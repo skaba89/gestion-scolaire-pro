@@ -1,5 +1,6 @@
 import { EducationModuleSettings } from "@/components/settings/EducationModuleSettings";
 import { EducationCycleSettings } from "@/components/settings/EducationCycleSettings";
+import { EducationStaffCycleSettings } from "@/components/settings/EducationStaffCycleSettings";
 import { useState } from "react";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -129,7 +130,10 @@ const Settings = () => {
         </TabsContent>
 
         <TabsContent value="cycles">
-          <EducationCycleSettings />
+          <div className="space-y-6">
+            <EducationCycleSettings />
+            <EducationStaffCycleSettings />
+          </div>
         </TabsContent>
 
         <TabsContent value="menu">

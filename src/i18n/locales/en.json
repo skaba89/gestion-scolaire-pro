@@ -4664,6 +4664,29 @@
     "saveError": "The cycle could not be saved.", "statusSaved": "Cycle status saved.",
     "empty": "No cycle defined. Existing levels remain unchanged.", "active": "Active", "archived": "Archived",
     "otherCycle": "another cycle", "saveLevels": "Save levels", "archive": "Archive", "reactivate": "Reactivate",
-    "periods": { "TRIMESTER": "Terms", "SEMESTER": "Semesters", "CUSTOM": "Custom" }
+    "periods": { "TRIMESTER": "Terms", "SEMESTER": "Semesters", "CUSTOM": "Custom" },
+    "staff": {
+      "title": "Staff by cycle",
+      "description": "Limit a director, secretariat or accounting account to some cycles. With no cycle ticked, the person keeps access to the whole institution.",
+      "loading": "Loading staff…",
+      "loadError": "Staff assignments could not be loaded.",
+      "notEnforced": "Assignments are recorded but do not filter data yet: per-cycle access control will be enabled in a future version.",
+      "empty": "No staff member concerned.",
+      "allCycles": "All cycles",
+      "notRestrictable": "This account cannot be limited to cycles; you can only remove its assignments.",
+      "save": "Save",
+      "saved": "Assignment saved. The person will have to sign in again.",
+      "saveError": "The assignment could not be saved.",
+      "truncated": "List limited to the first {{count}} accounts.",
+      "roles": {
+        "DIRECTOR": "Director",
+        "DEPARTMENT_HEAD": "Head of department",
+        "SECRETARY": "Secretary",
+        "STAFF": "Administrative staff",
+        "ACCOUNTANT": "Accountant",
+        "TEACHER": "Teacher",
+        "TENANT_ADMIN": "Administrator"
+      }
+    }
   }
 }

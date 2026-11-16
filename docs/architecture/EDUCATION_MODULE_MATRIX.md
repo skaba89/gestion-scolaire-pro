@@ -44,7 +44,7 @@ S = socle obligatoire ; A = activé par défaut ; O = option désactivée ; — 
 | PARENT | Oui, établissement résolu | Non | Permissions existantes ci-dessous ∩ modules actifs ∩ périmètre tenant |
 | ALUMNI | Oui, établissement résolu | Non | Permissions existantes ci-dessous ∩ modules actifs ∩ périmètre tenant |
 
-Les rôles ne changent pas avec le profil. Aucun compte administratif ou familial n’est dupliqué. Le profil mixte regroupe les capacités existantes ; les restrictions par cycle ne sont pas activables dans ce lot (`cycle_policy_available=false`). Les permissions par utilisateur restent celles des rôles enregistrés en base ; une activation n’accorde aucun privilège.
+Les rôles ne changent pas avec le profil. Aucun compte administratif ou familial n’est dupliqué. Le profil mixte regroupe les capacités existantes ; les restrictions par cycle peuvent être **enregistrées** depuis le lot B1 (2026-11-16, `GET/PUT /education/staff-cycles/`, voir `docs/PERMISSIONS_MATRIX.md`) mais ne filtrent pas encore les données (`cycle_policy_available=false` jusqu'au lot B2). Les permissions par utilisateur restent celles des rôles enregistrés en base ; une activation n’accorde aucun privilège.
 
 ## Permissions serveur exactes par rôle
 
