@@ -194,3 +194,77 @@ class TestTenantInfosSecretRedaction:
         body = resp.json()
         assert body["id"] == tenant_id
         assert body["name"] == "École Secrets Test"
+
+
+class TestTenantDetailSecretRedaction:
+    """GET /tenants/{tenant_id}/ (TENANT-SECRETS-03) — a third route
+    returning tenant.settings, guarded only by get_current_user: any account
+    of the school (PARENT, STUDENT included) could read the payment, SMTP and
+    WhatsApp credentials. Same redaction as /settings/ and /INFOS/."""
+
+    @staticmethod
+    def _url(tenant_id: str) -> str:
+        return f"/api/v1/tenants/{tenant_id}/"
+
+    @pytest.mark.parametrize("role", ["STUDENT", "PARENT", "TEACHER", "SECRETARY", "ACCOUNTANT"])
+    def test_non_privileged_roles_never_see_secrets(self, role):
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id})
+
+        resp = client.get(self._url(tenant_id), headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        for key in _SECRETS:
+            assert key not in body["settings"], f"{key} leaked to role {role}"
+        # Aucune valeur secrète ne doit apparaître ailleurs dans la réponse.
+        for value in _SECRETS.values():
+            assert value not in resp.text
+
+    @pytest.mark.parametrize("role", ["STUDENT", "PARENT"])
+    def test_non_secret_settings_and_tenant_fields_are_kept(self, role):
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id})
+
+        resp = client.get(self._url(tenant_id), headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["id"] == tenant_id
+        assert body["name"] == "École Secrets Test"
+        assert body["settings"]["logoUrl"] == _NON_SECRETS["logoUrl"]
+        assert body["settings"]["cinetPaySiteId"] == _NON_SECRETS["cinetPaySiteId"]
+        assert body["settings"]["quotas"] == _NON_SECRETS["quotas"]
+
+    @pytest.mark.parametrize("role", ["TENANT_ADMIN", "SUPER_ADMIN"])
+    def test_settings_write_holders_still_see_real_secret_values(self, role):
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id})
+
+        resp = client.get(self._url(tenant_id), headers=headers)
+
+        assert resp.status_code == 200, resp.text
+        for key, value in _SECRETS.items():
+            assert resp.json()["settings"].get(key) == value
+
+    def test_redaction_does_not_alter_stored_settings(self):
+        tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["PARENT"], "tenant_id": tenant_id})
+
+        assert client.get(self._url(tenant_id), headers=headers).status_code == 200
+
+        with SessionLocal() as db:
+            stored = db.get(Tenant, uuid.UUID(tenant_id)).settings
+        for key, value in _SECRETS.items():
+            assert stored.get(key) == value
+
+    def test_other_school_is_still_forbidden(self):
+        tenant_id = _make_tenant_with_secrets()
+        other_tenant_id = _make_tenant_with_secrets()
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+
+        resp = client.get(self._url(other_tenant_id), headers=headers)
+
+        assert resp.status_code == 403, resp.text
+        for value in _SECRETS.values():
+            assert value not in resp.text

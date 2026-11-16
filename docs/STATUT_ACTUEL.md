@@ -1185,3 +1185,12 @@ ce fichier — pas d'un document de 2025 non révisé.
   être classée (`test_cycle_route_classification.py`). Fusionné ≠ déployé : la
   production reste sur sa révision précédente tant que `deploy/vps/deploy.sh`
   n'a pas été lancé.
+- **2026-11-16 — fuite des secrets d'établissement corrigée (TENANT-SECRETS-03).**
+  `GET /tenants/{tenant_id}/` renvoyait `tenant.settings` sans masquage à tout
+  compte de l'établissement (parents et élèves compris) : clés de paiement,
+  mot de passe SMTP, jetons WhatsApp/OneSignal/SMS. Même masquage que
+  `/tenants/settings/` et `/tenants/INFOS/`, désormais factorisé
+  (`_settings_visible_to`) ; seuls les titulaires de `settings:write`
+  voient les valeurs. **Déployé en production le 2026-11-16 (`efff465`,
+  migrations jusqu'à `20261116_0001`)** : changer les secrets réellement
+  configurés reste recommandé, ils ont pu être lus avant ce déploiement.

@@ -357,6 +357,17 @@ _TENANT_SETTINGS_SECRET_KEYS = {
 }
 
 
+def _settings_visible_to(current_user: dict, raw_settings) -> dict:
+    """Copie de ``tenant.settings`` sans les secrets pour quiconque n'a pas
+    ``settings:write``. Toute route qui renvoie ``tenant.settings`` à un
+    compte de l'établissement doit passer par ici (TENANT-SECRETS-03)."""
+    visible = dict(raw_settings or {})
+    if not user_has_permission(current_user, "settings:write"):
+        for key in _TENANT_SETTINGS_SECRET_KEYS:
+            visible.pop(key, None)
+    return visible
+
+
 @router.get("/INFOS/", response_model=dict)
 async def get_tenant_infos(
     request: Request,
@@ -371,10 +382,7 @@ async def get_tenant_infos(
     tid_uuid = resolve_current_tenant_id(request, current_user, db)
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
 
-    tenant_settings = dict(tenant.settings or {})
-    if not user_has_permission(current_user, "settings:write"):
-        for key in _TENANT_SETTINGS_SECRET_KEYS:
-            tenant_settings.pop(key, None)
+    tenant_settings = _settings_visible_to(current_user, tenant.settings)
 
     return {
         "id": str(tenant.id),
@@ -429,11 +437,7 @@ async def get_tenant_settings(
         return {}
 
     tenant = db.query(Tenant).filter(Tenant.id == tid_uuid).first()
-    tenant_settings = dict(tenant.settings or {})
-    if not user_has_permission(current_user, "settings:write"):
-        for key in _TENANT_SETTINGS_SECRET_KEYS:
-            tenant_settings.pop(key, None)
-    return tenant_settings
+    return _settings_visible_to(current_user, tenant.settings)
 
 @router.patch("/settings/")
 async def update_tenant_settings(
@@ -1791,7 +1795,11 @@ async def get_tenant(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    return tenant
+    # TENANT-SECRETS-03 : cette route renvoyait tenant.settings en clair à
+    # tout compte de l'établissement (parents et élèves compris). Même
+    # masquage que /settings/ et /INFOS/ ; l'objet ORM n'est pas modifié.
+    response = TenantResponse.model_validate(tenant)
+    return response.model_copy(update={"settings": _settings_visible_to(current_user, tenant.settings)})
 
 
 @router.patch("/{tenant_id}/", response_model=TenantResponse)
