@@ -4742,6 +4742,29 @@
     "saveError": "无法保存学段。", "statusSaved": "学段状态已保存。",
     "empty": "尚未定义学段。现有年级保持不变。", "active": "启用", "archived": "已归档",
     "otherCycle": "其他学段", "saveLevels": "保存年级", "archive": "归档", "reactivate": "重新启用",
-    "periods": { "TRIMESTER": "三学期制", "SEMESTER": "两学期制", "CUSTOM": "自定义" }
+    "periods": { "TRIMESTER": "三学期制", "SEMESTER": "两学期制", "CUSTOM": "自定义" },
+    "staff": {
+      "title": "按学段分配人员",
+      "description": "将校长、秘书处或财务账户限制在部分学段。未勾选任何学段时，该人员保留对整个机构的访问权限。",
+      "loading": "正在加载人员…",
+      "loadError": "无法加载人员分配。",
+      "notEnforced": "分配已记录，但尚未用于过滤数据：按学段的访问控制将在后续版本中启用。",
+      "empty": "没有相关人员。",
+      "allCycles": "所有学段",
+      "notRestrictable": "该账户不能限制到学段；您只能移除其分配。",
+      "save": "保存",
+      "saved": "分配已保存。该人员需要重新登录。",
+      "saveError": "无法保存分配。",
+      "truncated": "列表仅显示前 {{count}} 个账户。",
+      "roles": {
+        "DIRECTOR": "校长",
+        "DEPARTMENT_HEAD": "系主任",
+        "SECRETARY": "秘书",
+        "STAFF": "行政人员",
+        "ACCOUNTANT": "会计",
+        "TEACHER": "教师",
+        "TENANT_ADMIN": "管理员"
+      }
+    }
   }
 }

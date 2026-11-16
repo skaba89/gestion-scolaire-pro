@@ -1142,3 +1142,15 @@ ce fichier — pas d'un document de 2025 non révisé.
   à partir de leur code. Reste de l'administration : lot 2b (enseignants,
   notes, bulletins, certificats, scan, bornes), puis structure,
   planification, finances, vie étudiante et administration, guides en dernier.
+- **2026-11-16 — personnel par cycle, lot B1 (enregistrement seul).** Un
+  administrateur peut limiter un directeur, chef de département, secrétariat,
+  personnel ou comptable à certains cycles d'un établissement mixte
+  (Paramètres → Cycles). Modèle opt-in : sans cycle attribué, aucun compte ne
+  perd d'accès. **Les données ne sont pas encore filtrées** : l'écran et l'API
+  l'affichent, et `cycle_policy_available` reste `false`. Application côté
+  serveur (refus par défaut des routes non classées pour un compte restreint,
+  listes, agrégats, exports, recherche) : lot B2 ; modules par cycle, menus et
+  activation de l'indicateur : lot B3. Migration additive `20261116_0001`
+  (table `staff_cycle_assignments`, RLS FORCE, downgrade sans effet). Fusionné
+  ≠ déployé : la production reste sur sa révision précédente tant que
+  `deploy/vps/deploy.sh` n'a pas été lancé.

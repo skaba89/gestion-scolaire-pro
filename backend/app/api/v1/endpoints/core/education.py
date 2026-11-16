@@ -3,7 +3,7 @@ import re
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 from sqlalchemy.orm import Session
 
@@ -14,9 +14,10 @@ from app.core.education_catalog import (
     resolve_modules,
     validate_institution_type,
 )
+from app.core.cycle_scope import RESTRICTABLE_ROLES, UNRESTRICTED_ROLES, can_be_cycle_restricted
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id, enter_tenant_context_or_404
-from app.models import EducationConfiguration, EducationCycle, Level, Tenant
+from app.models import EducationConfiguration, EducationCycle, Level, StaffCycleAssignment, Tenant, User, UserRole
 from app.services.education_modules import configuration_payload, current_configuration, record_configuration_audit
 
 router = APIRouter()
@@ -70,6 +71,13 @@ class CycleUpdate(BaseModel):
     @classmethod
     def strip_value(cls, value: Optional[str]) -> Optional[str]:
         return value.strip() if value is not None else None
+
+
+class StaffCycleChoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    # Optimistic concurrency: the set the administrator saw before editing.
+    expected_cycle_ids: List[UUID] = Field(default_factory=list, max_length=100)
+    cycle_ids: List[UUID] = Field(default_factory=list, max_length=100)
 
 
 class CycleLevelAssignment(BaseModel):
@@ -332,3 +340,148 @@ def assign_cycle_levels(cycle_id: UUID, body: CycleLevelAssignment, request: Req
     db.commit()
     db.refresh(cycle)
     return _cycle_payload(db, cycle)
+
+
+def _staff_payload(user: User, roles: List[str], cycle_ids) -> dict:
+    return {
+        "user_id": str(user.id),
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "email": user.email,
+        "is_active": bool(user.is_active),
+        "roles": sorted(roles),
+        "restrictable": can_be_cycle_restricted(roles),
+        "cycle_ids": sorted(str(value) for value in cycle_ids),
+    }
+
+
+@router.get("/staff-cycles/")
+def list_staff_cycles(request: Request, db: Session = Depends(get_db),
+                      user: dict = Depends(require_permission("settings:read")),
+                      skip: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=500)):
+    """Personnel restreignable (ou déjà restreint) et ses cycles autorisés.
+
+    Réservé à l'administration : la liste expose noms et e-mails du personnel,
+    que ``settings:read`` (détenu par les enseignants) ne doit pas révéler."""
+    _manager(user)
+    tenant = _tenant(request, db, user)
+    assignments: Dict[str, List[str]] = {}
+    for user_id, cycle_id in (
+        db.query(StaffCycleAssignment.user_id, StaffCycleAssignment.cycle_id)
+        .filter(StaffCycleAssignment.tenant_id == tenant.id)
+        .all()
+    ):
+        assignments.setdefault(str(user_id), []).append(str(cycle_id))
+    # Filter in SQL: a school's user_roles is dominated by students/parents.
+    # Stale rows of a since-promoted administrator stay listed so they can be cleared.
+    restrictable_ids = {str(user_id) for (user_id,) in (
+        db.query(UserRole.user_id)
+        .filter(UserRole.tenant_id == tenant.id, UserRole.role.in_(RESTRICTABLE_ROLES))
+        .distinct()
+        .all()
+    )}
+    eligible = sorted(restrictable_ids | set(assignments))
+    eligible_uuids = [UUID(uid) for uid in eligible]
+    roles_by_user: Dict[str, List[str]] = {}
+    if eligible_uuids:
+        for user_id, role in (
+            db.query(UserRole.user_id, UserRole.role)
+            .filter(UserRole.tenant_id == tenant.id, UserRole.user_id.in_(eligible_uuids))
+            .all()
+        ):
+            roles_by_user.setdefault(str(user_id), []).append(role)
+    users = {
+        str(row.id): row for row in db.query(User).filter(
+            User.tenant_id == tenant.id,
+            User.id.in_(eligible_uuids),
+        ).all()
+    } if eligible_uuids else {}
+    ordered = sorted(
+        users.values(),
+        key=lambda row: ((row.last_name or "").lower(), (row.first_name or "").lower(), row.email or ""),
+    )
+    page = ordered[skip:skip + limit]
+    return {
+        "items": [_staff_payload(row, roles_by_user.get(str(row.id), []), assignments.get(str(row.id), []))
+                  for row in page],
+        "total": len(ordered),
+        "skip": skip,
+        "limit": limit,
+        "restrictable_roles": sorted(RESTRICTABLE_ROLES),
+        "unrestricted_roles": sorted(UNRESTRICTED_ROLES),
+        # Restrictions are recorded but not yet enforced on data routes.
+        "cycle_policy_available": False,
+    }
+
+
+@router.put("/staff-cycles/{user_id}/")
+async def assign_staff_cycles(user_id: UUID, body: StaffCycleChoice, request: Request,
+                              db: Session = Depends(get_db),
+                              user: dict = Depends(require_permission("settings:write"))):
+    """Remplace les cycles autorisés d'un compte du personnel (liste vide = aucune restriction)."""
+    from app.api.v1.endpoints.core.auth import blacklist_all_user_tokens
+
+    _manager(user)
+    tenant = _tenant(request, db, user)
+    # Serialises concurrent edits of the same account's restrictions.
+    target = (
+        db.query(User)
+        .filter(User.id == user_id, User.tenant_id == tenant.id)
+        .with_for_update()
+        .first()
+    )
+    if target is None:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable dans cet établissement")
+    roles = [role for (role,) in db.query(UserRole.role).filter(
+        UserRole.tenant_id == tenant.id, UserRole.user_id == target.id,
+    ).all()]
+    requested = set(body.cycle_ids)
+    if requested and not can_be_cycle_restricted(roles):
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail="Seuls directeur, chef de département, secrétariat, personnel et comptabilité "
+                   "peuvent être limités à des cycles ; l'administration de l'établissement ne l'est jamais",
+        )
+    current_rows = (
+        db.query(StaffCycleAssignment)
+        .filter(StaffCycleAssignment.tenant_id == tenant.id, StaffCycleAssignment.user_id == target.id)
+        .all()
+    )
+    current = {row.cycle_id for row in current_rows}
+    if set(body.expected_cycle_ids) != current:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Affectations modifiées ; rechargez avant de continuer")
+    cycles = {
+        cycle.id: cycle for cycle in db.query(EducationCycle).filter(
+            EducationCycle.tenant_id == tenant.id, EducationCycle.id.in_(requested),
+        ).all()
+    } if requested else {}
+    if set(cycles) != requested:
+        db.rollback()
+        raise HTTPException(status_code=422, detail="Un ou plusieurs cycles sont inconnus dans cet établissement")
+    added, removed = requested - current, current - requested
+    if any(not cycles[cycle_id].is_active for cycle_id in added):
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Un cycle archivé ne peut pas être attribué")
+    if not added and not removed:
+        db.rollback()
+        return _staff_payload(target, roles, current)
+    for row in current_rows:
+        if row.cycle_id in removed:
+            db.delete(row)
+    for cycle_id in added:
+        db.add(StaffCycleAssignment(tenant_id=tenant.id, user_id=target.id, cycle_id=cycle_id, assigned_by=user["id"]))
+    record_configuration_audit(
+        db, user_id=user["id"], tenant_id=str(tenant.id), action="ASSIGN_STAFF_CYCLES",
+        resource_type="USER", resource_id=str(target.id),
+        details={"previous_cycle_ids": sorted(str(value) for value in current),
+                 "cycle_ids": sorted(str(value) for value in requested),
+                 "restricted": bool(requested)},
+    )
+    db.commit()
+    # The account's offline caches and open sessions reflect the old scope:
+    # force a fresh login, as for any other change of access.
+    await blacklist_all_user_tokens(str(target.id))
+    return _staff_payload(target, roles, requested)

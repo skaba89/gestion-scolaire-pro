@@ -4675,6 +4675,29 @@
         "saveLevels": "Enregistrer les niveaux",
         "archive": "Archiver",
         "reactivate": "Réactiver",
-        "periods": { "TRIMESTER": "Trimestres", "SEMESTER": "Semestres", "CUSTOM": "Personnalisée" }
+        "periods": { "TRIMESTER": "Trimestres", "SEMESTER": "Semestres", "CUSTOM": "Personnalisée" },
+        "staff": {
+            "title": "Personnel par cycle",
+            "description": "Limitez un directeur, un secrétariat ou la comptabilité à certains cycles. Sans cycle coché, la personne garde l’accès à tout l’établissement.",
+            "loading": "Chargement du personnel…",
+            "loadError": "Les affectations du personnel ne peuvent pas être chargées.",
+            "notEnforced": "Les affectations sont enregistrées mais ne filtrent pas encore les données : le contrôle d’accès par cycle sera activé dans une prochaine version.",
+            "empty": "Aucun membre du personnel concerné.",
+            "allCycles": "Tous les cycles",
+            "notRestrictable": "Ce compte ne peut pas être limité à des cycles ; vous pouvez seulement retirer ses affectations.",
+            "save": "Enregistrer",
+            "saved": "Affectation enregistrée. La personne devra se reconnecter.",
+            "saveError": "L’affectation n’a pas pu être enregistrée.",
+            "truncated": "Liste limitée aux {{count}} premiers comptes.",
+            "roles": {
+                "DIRECTOR": "Directeur",
+                "DEPARTMENT_HEAD": "Chef de département",
+                "SECRETARY": "Secrétaire",
+                "STAFF": "Personnel administratif",
+                "ACCOUNTANT": "Comptable",
+                "TEACHER": "Enseignant",
+                "TENANT_ADMIN": "Administrateur"
+            }
+        }
     }
 }
