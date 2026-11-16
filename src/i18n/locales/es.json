@@ -4734,7 +4734,7 @@
       "description": "Limite a un director, la secretaría o la contabilidad a algunos ciclos. Sin ningún ciclo marcado, la persona conserva el acceso a todo el centro.",
       "loading": "Cargando personal…",
       "loadError": "No se pudieron cargar las asignaciones del personal.",
-      "notEnforced": "Las asignaciones se registran pero aún no filtran los datos: el control de acceso por ciclo se activará en una próxima versión.",
+      "limitedAccessNotice": "Una cuenta limitada a ciclos solo accede por ahora a las pantallas ya adaptadas (inicio de sesión, perfil, ajustes del centro en lectura, estructura en lectura); las demás pantallas se le deniegan hasta su adaptación. Una cuenta que además tiene un rol de docente o de familia pierde esos portales mientras esté limitada. Quitar todos los ciclos de una cuenta le devuelve el acceso completo en su próximo inicio de sesión (la cuenta se desconecta).",
       "empty": "Ningún miembro del personal afectado.",
       "allCycles": "Todos los ciclos",
       "notRestrictable": "Esta cuenta no puede limitarse a ciclos; solo puede retirar sus asignaciones.",

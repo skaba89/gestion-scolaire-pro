@@ -1160,3 +1160,28 @@ ce fichier — pas d'un document de 2025 non révisé.
   (table `staff_cycle_assignments`, RLS FORCE, downgrade sans effet). Fusionné
   ≠ déployé : la production reste sur sa révision précédente tant que
   `deploy/vps/deploy.sh` n'a pas été lancé.
+
+- **2026-11-16 — personnel par cycle, lot B2a (refus par défaut).** Un compte
+  du personnel auquel un administrateur a attribué des cycles (lot B1) est
+  désormais **restreint côté serveur** : `get_current_user` relit ses
+  affectations et refuse (`403`, `error_code=CYCLE_SCOPE_DENIED`) toute route
+  qui n'est pas classée `INDEPENDENT` dans `backend/app/core/cycle_routes.py`
+  (**registre = source exacte** ; en résumé : authentification et sessions,
+  MFA, profil, notifications et appareils propres, consentements propres,
+  `/billing/subscription/`, lectures de structure, `tenants/settings*` en
+  lecture, `education/catalog|configuration|cycles`). La WebSocket temps réel
+  refuse aussi ces comptes (`4003`). Un compte multi-rôles restreint
+  (DIRECTOR+TEACHER, SECRETARY+PARENT) perd ses portails enseignant / parent
+  jusqu'à B2b–e.
+  Les écrans de données (élèves, notes, présences, finances, agrégats, RH,
+  communication…) sont **refusés à ces comptes jusqu'aux lots B2b à B2e**, qui
+  les rendront accessibles en les filtrant. Sans affectation, aucun changement ;
+  TENANT_ADMIN / SUPER_ADMIN ne sont jamais restreints ; élèves et parents
+  ne déclenchent aucune requête supplémentaire. Briques de filtrage livrées
+  et testées (`cycle_scope.py` : `allowed_class_ids`, `student_scope_clause`,
+  `require_student_in_scope`…), pas encore utilisées par les routes.
+  `cycle_policy_available` reste `false`. Aucune migration, aucune permission
+  ajoutée. Test de classification : toute nouvelle route authentifiée doit
+  être classée (`test_cycle_route_classification.py`). Fusionné ≠ déployé : la
+  production reste sur sa révision précédente tant que `deploy/vps/deploy.sh`
+  n'a pas été lancé.

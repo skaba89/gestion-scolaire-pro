@@ -569,6 +569,39 @@ async def get_current_user(
                     switch_tenant_context(db, resolved_tenant_id)
                     require_enabled_module(db, tenant_obj, module_id)
 
+        # Périmètre par cycle (lot B2a) : refus par défaut pour un compte du
+        # personnel restreint à des cycles. Opt-in : sans affectation, rien
+        # ne change. Le périmètre est relu en base à chaque requête (jamais
+        # depuis le jeton ni un en-tête), sous le contexte RLS du tenant.
+        cycle_ids = None
+        from app.core.cycle_scope import allowed_cycle_ids, needs_cycle_lookup
+        if resolved_tenant_id and needs_cycle_lookup(roles):
+            from app.core.database import switch_tenant_context
+            switch_tenant_context(db, resolved_tenant_id)
+            cycles = allowed_cycle_ids(
+                db, tenant_id=resolved_tenant_id, user={"id": str(user_db.id), "roles": roles}
+            )
+            if cycles is not None:
+                from app.core.cycle_routes import Policy, policy_for, resolve_route_template
+                template = resolve_route_template(request)
+                if policy_for(request.method, template) == Policy.DENY:
+                    # Aucune PII : identifiant d'utilisateur, gabarit de route, méthode.
+                    logger.warning(
+                        "CYCLE_SCOPE_DENIED user=%s method=%s route=%s",
+                        user_db.id, request.method, template or "<unresolved>",
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail={
+                            "error_code": "CYCLE_SCOPE_DENIED",
+                            "message": (
+                                "Votre compte est limité à certains cycles pédagogiques : "
+                                "cette fonctionnalité n'est pas encore disponible pour votre périmètre."
+                            ),
+                        },
+                    )
+                cycle_ids = sorted(cycles)
+
         return {
             "id": str(user_db.id),
             "email": user_db.email,
@@ -585,6 +618,8 @@ async def get_current_user(
             # request. Consumed by require_permission() to fail-close
             # SENSITIVE_PERMISSIONS operations regardless of the caller's role.
             "_revocation_verified": revocation_verified,
+            # Cycles autorisés (liste triée d'identifiants) ou None = non restreint.
+            "_cycle_ids": cycle_ids,
         }
 
 

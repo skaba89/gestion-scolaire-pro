@@ -4689,7 +4689,7 @@
       "description": "Limit a director, secretariat or accounting account to some cycles. With no cycle ticked, the person keeps access to the whole institution.",
       "loading": "Loading staff…",
       "loadError": "Staff assignments could not be loaded.",
-      "notEnforced": "Assignments are recorded but do not filter data yet: per-cycle access control will be enabled in a future version.",
+      "limitedAccessNotice": "An account limited to cycles can currently only access screens that have already been adapted (sign-in, profile, school settings in read-only mode, structure in read-only mode); other screens are denied until they are adapted. An account that also holds a teacher or parent role loses those portals while it is limited. Removing all cycles from an account restores full access at its next sign-in (the account is signed out).",
       "empty": "No staff member concerned.",
       "allCycles": "All cycles",
       "notRestrictable": "This account cannot be limited to cycles; you can only remove its assignments.",

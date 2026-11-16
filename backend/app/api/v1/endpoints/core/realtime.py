@@ -77,7 +77,8 @@ async def websocket_endpoint(
         await websocket.close(code=4001, reason="Token has been revoked")
         return
 
-    from app.core.database import SessionLocal, resolve_authenticated_user_row
+    from app.core.cycle_scope import allowed_cycle_ids, needs_cycle_lookup
+    from app.core.database import SessionLocal, resolve_authenticated_user_row, switch_tenant_context
     from app.models.user_role import UserRole
 
     # SECURITY (restricted-DB-role auth fix, docs/POSTGRES_APP_ROLE.md):
@@ -100,12 +101,28 @@ async def websocket_endpoint(
             return
         db_roles = [role for (role,) in db.query(UserRole.role).filter(UserRole.user_id == user_db.id).all()]
 
+        # Périmètre par cycle (lot B2a) : cette socket relaie tous les
+        # événements du tenant sans filtre par cycle et n'est pas protégée
+        # par get_current_user. Un compte restreint à des cycles en est
+        # exclu tant que les événements ne sont pas filtrés (lots B2b+).
+        cycle_restricted = False
+        if user_db.tenant_id and needs_cycle_lookup(db_roles):
+            switch_tenant_context(db, str(user_db.tenant_id))
+            cycle_restricted = allowed_cycle_ids(
+                db, tenant_id=str(user_db.tenant_id), user={"id": str(user_db.id), "roles": db_roles}
+            ) is not None
+
     # For SUPER_ADMIN, allow cross-tenant access via X-Tenant-ID logic.
     # db_roles (not the token's roles claim) so a revoked SUPER_ADMIN role
     # loses cross-tenant access on the very next connection attempt.
     if token_tenant != tenant_id and "SUPER_ADMIN" not in db_roles:
         logger.warning("WebSocket auth failed: token tenant=%s != path tenant_id=%s", token_tenant, tenant_id)
         await websocket.close(code=4003, reason="Token does not match tenant")
+        return
+
+    if cycle_restricted:
+        logger.warning("WebSocket refusée : compte restreint par cycle (user=%s)", user_id)
+        await websocket.close(code=4003, reason="Cycle scope restriction")
         return
 
     # 3. Accept the connection — authentication passed

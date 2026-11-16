@@ -47,7 +47,7 @@ describe("personnel par cycle", () => {
   it("envoie l'ensemble vu par l'administrateur avec le nouvel ensemble", async () => {
     mount();
     await screen.findByText("Awa Camara");
-    expect(screen.getByText("educationCycles.staff.notEnforced")).toBeInTheDocument();
+    expect(screen.getByText("educationCycles.staff.limitedAccessNotice")).toBeInTheDocument();
     const [firstSave] = screen.getAllByRole("button", { name: "educationCycles.staff.save" });
     expect(firstSave).toBeDisabled();
     fireEvent.click(screen.getAllByLabelText("Collège")[0]);

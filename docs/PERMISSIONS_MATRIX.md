@@ -1037,9 +1037,11 @@ du comptable les masque (test : `src/routes/admin-navigation-contract.test.ts`).
 
 ## Personnel par cycle pédagogique — enregistrement (lot B1, 2026-11-16)
 
-Aucune nouvelle permission. Les restrictions sont **enregistrées mais pas
-encore appliquées** aux données (`cycle_policy_available=false` jusqu'au
-lot B2).
+Aucune nouvelle permission. Les restrictions sont enregistrées ici ; leur
+application (refus par défaut, puis filtrage par lots) est décrite dans la
+section « Périmètre par cycle — application (lot B2a) » ci-dessous
+(`cycle_policy_available=false` tant que le filtrage des écrans de données
+n'est pas livré, lots B2b à B2e).
 
 | Action | Route | Qui |
 |---|---|---|
@@ -1059,3 +1061,47 @@ transaction ; changement effectif → `token_version` du compte incrémenté
 sous RLS (ENABLE + FORCE). Calcul du périmètre : `backend/app/core/cycle_scope.py`.
 Tests : `backend/tests/test_staff_cycle_assignments.py`,
 `src/components/settings/__tests__/EducationStaffCycleSettings.test.tsx`.
+
+## Périmètre par cycle — application (lot B2a, 2026-11-16)
+
+Aucune nouvelle permission : `ROLE_PERMISSIONS` est inchangé. Le périmètre par
+cycle s'ajoute à la permission, il ne l'élargit jamais.
+
+Règle (garde centrale dans `get_current_user`, après le contrôle des modules) :
+un compte portant au moins une affectation de cycle (`staff_cycle_assignments`,
+lue en base à chaque requête, sous RLS) est **restreint**, sauf SUPER_ADMIN et
+TENANT_ADMIN (jamais restreints, même avec une affectation résiduelle). Un
+compte uniquement élève / parent / ancien n'entraîne aucune requête. Une
+affectation résiduelle sur un compte devenu non restreignable (ex. TEACHER seul)
+le garde restreint. Le dictionnaire utilisateur porte `_cycle_ids` (liste triée,
+ou `None` si non restreint).
+
+Pour un compte restreint, chaque route a une politique dans
+`backend/app/core/cycle_routes.py`, clé `(méthode, gabarit complet de route)`.
+**Ce registre est la source exacte** de la liste des routes autorisées ; ce
+document n'en donne que le résumé :
+
+| Politique | Effet |
+|---|---|
+| `INDEPENDENT` | passage : la réponse ne dépend d'aucun élève ni classe (auth, `/auth/sessions/`, MFA, profil propre, notifications / appareils propres, consentements propres `/consent/` et `/consent/record/`, `/billing/subscription/`, lecture de la structure, `tenants/settings*` en lecture, `education/catalog|configuration|cycles` en lecture) |
+| `FILTERED` | passage : la route filtre elle-même par `_cycle_ids` (aucune en B2a) |
+| `DENY` (défaut) | `403` `{"error_code": "CYCLE_SCOPE_DENIED"}` ; route absente du registre, méthode différente (HEAD…) ou non résolue = refus |
+
+La WebSocket temps réel (`/realtime/ws/...`, authentification JWT propre, hors
+`get_current_user`) refuse un compte restreint (fermeture `4003`). Un compte
+**multi-rôles** restreint (DIRECTOR+TEACHER, SECRETARY+PARENT) perd aussi ses
+portails enseignant / parent (routes refusées) jusqu'aux lots B2b à B2e.
+`GET /tenants/{tenant_id}/` est refusé (réservé au portail super-admin).
+
+Les entrées `INDEPENDENT` / `FILTERED` sont exactes (jamais par préfixe) ;
+écritures de structure, RH, communication, utilisateurs (hors `/users/me/`),
+RGPD, inventaire, bibliothèque, enquêtes, clubs, alumni, e-learning, audit et IA
+sont refusés. Élèves, notes, présences, finances et agrégats le restent jusqu'aux
+lots B2b à B2e, qui passeront les routes en `FILTERED` avec les briques de
+`cycle_scope.py` (`student_scope_clause`, `class_scope_clause`,
+`require_student_in_scope` / `require_class_in_scope` : élève ou classe hors
+cycle = **404**, jamais 403). Élève sans niveau ou dont le niveau n'a pas de
+cycle : visible des seuls comptes non restreints ; seule une inscription
+`ACTIVE` de l'année courante compte (sans année courante : toute inscription
+`ACTIVE`). Tests : `backend/tests/test_cycle_scope_gate.py`,
+`backend/tests/test_cycle_route_classification.py`.
