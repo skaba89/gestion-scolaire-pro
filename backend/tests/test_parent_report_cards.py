@@ -69,7 +69,7 @@ def ctx():
             db.add(Grade(id=str(uuid.uuid4()), tenant_id=x["tid"], student_id=x[student], assessment_id=aid,
                          subject_id=x[subject], score=score, max_score=20, coefficient=1))
         db.commit()
-    user = {"id": x["uid"], "tenant_id": x["tid"], "roles": ["PARENT"]}
+    user = {"id": x["uid"], "tenant_id": x["tid"], "roles": ["PARENT"], "_cycle_ids": None}
     previous = app.dependency_overrides.copy()
     app.dependency_overrides[get_current_user] = lambda: user
     x["user"] = user

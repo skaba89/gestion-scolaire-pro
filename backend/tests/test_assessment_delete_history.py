@@ -93,11 +93,11 @@ def test_school_life_mirror_preserves_history(monkeypatch, graded, foreign, expe
                          assessment_id=assessment_id, score=17, max_score=20))
         db.commit()
         if expected == 200:
-            assert school_life.delete_assessment(None, assessment_id, db, {"id": str(uuid4())}) == {"status": "success"}
+            assert school_life.delete_assessment(None, assessment_id, db, {"id": str(uuid4()), "_cycle_ids": None}) == {"status": "success"}
             assert db.get(Assessment, assessment_id) is None
         else:
             with pytest.raises(HTTPException) as exc:
-                school_life.delete_assessment(None, assessment_id, db, {})
+                school_life.delete_assessment(None, assessment_id, db, {"_cycle_ids": None})
             assert exc.value.status_code == expected
             assert db.get(Assessment, assessment_id) is not None
             assert db.get(Grade, grade_id).score == 17

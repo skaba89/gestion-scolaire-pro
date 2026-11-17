@@ -55,7 +55,7 @@ def _tenant() -> str:
 
 
 def _admin_headers(tenant_id: str) -> dict:
-    user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+    user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user["id"], "tenant_id": tenant_id, "roles": user["roles"]})
     return {"Authorization": f"Bearer {token}", "X-Tenant-ID": tenant_id}
@@ -174,7 +174,7 @@ def test_own_tenant_reference_is_accepted():
 def test_teacher_cannot_start_session_for_a_class_they_do_not_teach():
     tenant_a = _tenant()
     class_id = _add(Classroom(id=str(uuid.uuid4()), tenant_id=tenant_a, name="Classe A"))
-    teacher = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_a}
+    teacher = {"id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_a, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: teacher
     token = create_access_token({"sub": teacher["id"], "tenant_id": tenant_a, "roles": ["TEACHER"]})
     resp = client.post("/api/v1/school-life/check-ins/sessions/start/", json={"class_id": class_id},

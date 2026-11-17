@@ -22,7 +22,7 @@ def test_listing_is_scoped_to_tenant():
     db = MagicMock()
     db.execute.return_value.mappings.return_value.all.return_value = []
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
-        result = api.list_early_warnings(request=request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]})
+        result = api.list_early_warnings(request=request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None})
     assert result == []
     sql, params = db.execute.call_args.args
     assert "w.tenant_id = :tid" in str(sql)
@@ -40,7 +40,7 @@ def test_cannot_create_warning_for_student_from_another_tenant():
     )
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
         with pytest.raises(HTTPException) as err:
-            api.create_early_warning(payload, request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]})
+            api.create_early_warning(payload, request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None})
     assert err.value.status_code == 404
     sql, params = db.execute.call_args.args
     assert "tenant_id = :tid" in str(sql)
@@ -55,7 +55,7 @@ def test_cross_tenant_update_does_not_modify_alert():
         with pytest.raises(HTTPException) as err:
             api.update_early_warning(
                 uuid4(), api.EarlyWarningUpdate(status="acknowledged"),
-                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
             )
     assert err.value.status_code == 404
     sql, _ = db.execute.call_args.args
@@ -73,7 +73,7 @@ def test_invalid_transitions_do_not_mutate(initial, desired):
         with pytest.raises(HTTPException) as err:
             api.update_early_warning(
                 uuid4(), api.EarlyWarningUpdate(status=desired, resolution_notes="Réalisé"),
-                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
             )
     assert err.value.status_code == 409
     assert db.execute.call_count == 1
@@ -87,7 +87,7 @@ def test_resolution_requires_human_explanation():
         with pytest.raises(HTTPException) as err:
             api.update_early_warning(
                 uuid4(), api.EarlyWarningUpdate(status="resolved", resolution_notes="  "),
-                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+                request(), db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
             )
     assert err.value.status_code == 422
     db.commit.assert_not_called()
@@ -106,7 +106,7 @@ def test_non_management_roles_cannot_read_nominative_early_warnings(roles):
     db = MagicMock()
     with pytest.raises(HTTPException) as err:
         api.list_early_warnings(request=request(), db=db,
-                                current_user={"id": str(uuid4()), "roles": roles})
+                                current_user={"id": str(uuid4()), "roles": roles, "_cycle_ids": None})
     assert err.value.status_code == 403
     db.execute.assert_not_called()
 
@@ -143,7 +143,7 @@ def test_successful_creation_persists_audits_and_returns_tenant_student():
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id), \
          patch.object(api, "log_audit") as audit:
         result = api.create_early_warning(payload, request(), db=db,
-                                          current_user={"id": user_id, "roles": ["DIRECTOR"]})
+                                          current_user={"id": user_id, "roles": ["DIRECTOR"], "_cycle_ids": None})
     assert result["student"]["first_name"] == "Aminata"
     assert result["status"] == "new"
     assert result["acknowledged_user"] is None
@@ -179,7 +179,7 @@ def test_allowed_workflow_transitions_commit_and_audit(initial, target, notes):
         result = api.update_early_warning(
             warning_id,
             api.EarlyWarningUpdate(status=target, resolution_notes=notes),
-            request(), db=db, current_user={"id": actor_id, "roles": ["DIRECTOR"]},
+            request(), db=db, current_user={"id": actor_id, "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result["status"] == target
     assert db.execute.call_count == 3
@@ -208,7 +208,7 @@ def test_processing_list_displays_server_acknowledger_from_same_tenant_join():
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
         result = api.list_early_warnings(
             request=request(), db=db,
-            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result[0]["acknowledged_user"] == {"first_name": "Fanta", "last_name": "Camara"}
     sql, params = db.execute.call_args.args
@@ -228,7 +228,7 @@ def test_paginated_listing_bounds_results_and_scopes_both_queries_to_tenant():
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
         result = api.list_early_warnings_paginated(
             request=request(), page=2, page_size=20, status="resolved",
-            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result["total"] == 45
     assert result["total_pages"] == 3
@@ -270,7 +270,7 @@ def test_paginated_listing_empty_page_preserves_true_total():
     with patch.object(api, "resolve_current_tenant_id", return_value=uuid4()):
         result = api.list_early_warnings_paginated(
             request=request(), page=4, page_size=1, status=None,
-            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result["items"] == []
     assert result["total"] == 2
@@ -289,7 +289,7 @@ def test_closed_history_group_is_filtered_in_both_count_and_page_queries():
     with patch.object(api, "resolve_current_tenant_id", return_value=uuid4()):
         result = api.list_early_warnings_paginated(
             request=request(), page=2, page_size=12, status=None, group="closed",
-            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result["total"] == 25
     assert result["total_pages"] == 3
@@ -307,7 +307,7 @@ def test_rejects_conflicting_group_and_status_filters_before_querying():
         with pytest.raises(HTTPException) as exc:
             api.list_early_warnings_paginated(
                 request=request(), page=1, page_size=12, status="resolved", group="closed",
-                db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+                db=db, current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
             )
     assert exc.value.status_code == 422
     db.execute.assert_not_called()
@@ -325,7 +325,7 @@ def test_summary_uses_one_tenant_scoped_aggregate_not_loaded_pages():
     with patch.object(api, "resolve_current_tenant_id", return_value=tenant_id):
         result = api.early_warnings_summary(
             request=request(), db=db,
-            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result == totals
     assert result["new"] + result["processing"] + result["closed"] == result["total"]
@@ -343,7 +343,7 @@ def test_summary_rejects_non_management_roles_without_query(roles):
     with pytest.raises(HTTPException) as err:
         api.early_warnings_summary(
             request=request(), db=db,
-            current_user={"id": str(uuid4()), "roles": roles},
+            current_user={"id": str(uuid4()), "roles": roles, "_cycle_ids": None},
         )
     assert err.value.status_code == 403
     db.execute.assert_not_called()
@@ -359,7 +359,7 @@ def test_summary_returns_zero_counts_for_empty_tenant():
     with patch.object(api, "resolve_current_tenant_id", return_value=uuid4()):
         result = api.early_warnings_summary(
             request=request(), db=db,
-            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result == {key: 0 for key in fields}
 
@@ -375,7 +375,7 @@ def test_processing_group_filters_count_and_page_with_tenant():
         result = api.list_early_warnings_paginated(
             request=request(), page=2, page_size=10, status=None,
             group="processing", db=db,
-            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert result["total"] == 21
     assert result["total_pages"] == 3

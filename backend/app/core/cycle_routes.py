@@ -7,8 +7,8 @@ qu'une route **explicitement classée** :
   (coquille de l'application : authentification, profil propre, structure
   de l'établissement en lecture…). Passage autorisé.
 - ``FILTERED``   : la route filtre elle-même ses données selon
-  ``user["_cycle_ids"]`` (élèves, classes, inscriptions : lot B2b ; les lots
-  B2c à B2e feront migrer les autres routes une à une, avec leurs tests).
+  ``user["_cycle_ids"]`` (élèves, classes, inscriptions : lot B2b ; scolarité : B2c-1 ; vie
+  scolaire : B2c-2 ; les lots B2d à B2e feront migrer les autres routes une à une, avec leurs tests).
   La garde laisse passer, **le handler doit filtrer** (404 pour un objet
   hors périmètre) ; ``test_cycle_route_classification`` vérifie qu'il appelle
   une brique de ``cycle_scope``.
@@ -150,6 +150,48 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     # Présence en ligne : le compte ne peut écrire que la sienne (un autre utilisateur exige
     # TENANT_ADMIN/SUPER_ADMIN, jamais restreints) ; aucune donnée d'élève ni de classe.
     **_routes(Policy.INDEPENDENT, "PUT", "/presence/"),
+    # --- Lot B2c-2 : vie scolaire, bulletins, incidents, alertes, badges, rendez-vous ----------
+    # Jumelles /school-life/... des routes B2c-1 : mêmes règles (élève ET classe/évaluation vérifiés
+    # avant toute écriture, 404 uniforme).
+    **_routes(Policy.FILTERED, "GET POST", "/school-life/assessments/", "/school-life/attendance/",
+              "/school-life/grades/"),
+    **_routes(Policy.FILTERED, "PUT DELETE", "/school-life/assessments/{assessment_id}/",
+              "/school-life/attendance/{attendance_id}/", "/school-life/grades/{grade_id}/"),
+    # Pointages (donnée d'élève), séances de pointage (donnée de classe), cartes, badges, élèves sans badge.
+    **_routes(Policy.FILTERED, "GET POST", "/school-life/check-ins/", "/school-life/check-ins/sessions/"),
+    **_routes(Policy.FILTERED, "GET", "/school-life/check-ins/assignments/", "/school-life/check-ins/badges/",
+              "/school-life/badges/", "/school-life/students-without-badges/", "/school-life/student-cards/"),
+    **_routes(Policy.FILTERED, "POST", "/school-life/check-ins/sessions/start/", "/school-life/student-cards/issue/"),
+    **_routes(Policy.FILTERED, "PATCH", "/school-life/check-ins/sessions/{session_id}/end/"),
+    **_routes(Policy.FILTERED, "DELETE", "/school-life/student-cards/{student_id}/"),
+    **_routes(Policy.FILTERED, "GET POST", "/student-badges/"),
+    **_routes(Policy.FILTERED, "DELETE", "/student-badges/{badge_id}/"),
+    # Bulletins et attestations : élève ET classe vérifiés AVANT la mise en file ARQ (le worker n'a pas
+    # d'utilisateur) ; une tâche n'est lisible que par son créateur restreint.
+    **_routes(Policy.FILTERED, "POST", "/school-life/generate-certificate/pdf/",
+              "/school-life/generate-report-card/pdf/", "/school-life/generate-report-card/v2/",
+              "/school-life/generate-report-cards/batch/"),
+    **_routes(Policy.FILTERED, "GET", "/school-life/jobs/{job_id}/", "/school-life/report-cards/class-summary/"),
+    # Alertes précoces (suivent l'élève) ; le résumé n'agrège que les alertes des élèves du périmètre.
+    **_routes(Policy.FILTERED, "GET POST", "/school-life/early-warnings/"),
+    **_routes(Policy.FILTERED, "GET", "/school-life/early-warnings/paginated/", "/school-life/early-warnings/summary/"),
+    **_routes(Policy.FILTERED, "PUT", "/school-life/early-warnings/{warning_id}/"),
+    # Incidents : visibles seulement si leur élève est dans le périmètre.
+    **_routes(Policy.FILTERED, "GET POST", "/incidents/"),
+    **_routes(Policy.FILTERED, "PUT", "/incidents/{incident_id}/", "/incidents/{incident_id}/assign/",
+              "/incidents/{incident_id}/resolve/"),
+    # Rendez-vous parents-enseignants : un rendez-vous d'élève hors périmètre est masqué (404).
+    **_routes(Policy.FILTERED, "GET", "/school-life/appointment-slots/appointments/"),
+    **_routes(Policy.FILTERED, "PATCH", "/school-life/appointment-slots/appointments/{appointment_id}/"),
+    **_routes(Policy.FILTERED, "DELETE", "/school-life/appointment-slots/{slot_id}/"),
+    # Créneaux : aucune donnée d'élève ni de classe (le propriétaire reste contrôlé par le handler).
+    **_routes(Policy.INDEPENDENT, "GET POST", "/school-life/appointment-slots/"),
+    **_routes(Policy.INDEPENDENT, "POST", "/school-life/appointment-slots/bulk/"),
+    **_routes(Policy.FILTERED, "GET POST", "/school-life/event-registrations/"),
+    # Calendrier, ressources réservables, réservations : lecture sans donnée d'élève (vérifié dans le
+    # code) ; les écritures restent DENY (données d'établissement, Q4). gamification/stats reste DENY.
+    **_routes(Policy.INDEPENDENT, "GET", "/school-life/events/", "/school-life/events/export.ics",
+              "/school-life/bookable-resources/", "/school-life/bookings/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans

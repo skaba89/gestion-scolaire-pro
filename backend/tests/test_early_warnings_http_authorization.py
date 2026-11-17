@@ -29,7 +29,7 @@ def _clear_overrides():
 def _identity(roles):
     tid = str(uuid4())
     uid = str(uuid4())
-    user = {"id": uid, "tenant_id": tid, "roles": roles}
+    user = {"id": uid, "tenant_id": tid, "roles": roles, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": uid, "tenant_id": tid, "roles": roles})
     return user, {"Authorization": f"Bearer {token}"}

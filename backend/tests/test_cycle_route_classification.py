@@ -63,6 +63,10 @@ SCOPE_HELPERS = (
     "require_assessment_in_scope", "require_homework_in_scope", "require_submission_in_scope",
     "student_scope_sql", "class_scope_sql", "_require_grade_write_in_scope",
     "_require_attendance_write_in_scope", "_require_existing_attendance_in_scope", "_class_sessions_scope",
+    # Lot B2c-2 : enveloppes locales aux handlers de la vie scolaire.
+    "_require_attendance_record_in_scope", "_require_check_in_session_in_scope",
+    "_require_report_card_in_scope", "_require_slot_without_out_of_scope_appointment",
+    "_require_incident_in_scope", "_early_warning_scope",
 )
 
 

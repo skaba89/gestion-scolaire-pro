@@ -101,7 +101,7 @@ def ctx():
 
 
 def _as(tenant_id: str, *roles: str):
-    user = {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "roles": list(roles)}
+    user = {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "roles": list(roles), "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 

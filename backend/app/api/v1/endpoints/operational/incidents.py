@@ -7,6 +7,9 @@ from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime, timezone
 
+from app.core.cycle_scope import (
+    is_cycle_restricted, require_students_in_scope, scoped_class_ids, student_scope_sql,
+)
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -50,6 +53,30 @@ class AssignRequest(BaseModel):
     notes: Optional[str] = None
 
 
+# --- Périmètre par cycle (lot B2c-2) ---
+# Lien incident -> élève : la seule colonne ``incidents.student_id``. La table
+# ``incident_parties`` que ``create_incident`` alimente n'existe dans aucune migration ni dans
+# ``operational_tables`` (l'insertion échoue déjà : 400) ; elle n'est donc pas lisible ici.
+# Règle choisie pour un compte restreint : un incident n'est visible, modifiable, assignable ou
+# résolvable que si TOUS ses élèves sont dans le périmètre (un incident sans élève lié n'est
+# visible que des comptes non restreints). Le titre, la description et les notes sont communs à
+# toutes les parties : montrer un incident dont un élève est hors périmètre divulguerait son
+# contenu, et masquer seulement les élèves ne protégerait pas le texte libre.
+
+def _require_incident_in_scope(db: Session, tenant_id: str, current_user: dict, incident_id: UUID, detail: str) -> None:
+    """404 (même message qu'un incident inexistant) si l'incident n'est pas dans le périmètre ;
+    sans effet pour un compte non restreint. À appeler AVANT toute écriture."""
+    if not is_cycle_restricted(current_user):
+        return
+    row = db.execute(
+        text("SELECT student_id FROM incidents WHERE id = :iid AND tenant_id = :tid"),
+        {"iid": str(incident_id), "tid": tenant_id},
+    ).first()
+    if row is None or row[0] is None:
+        raise HTTPException(status_code=404, detail=detail)
+    require_students_in_scope(db, tenant_id, current_user, [row[0]], detail=detail)
+
+
 # --- List Incidents ---
 
 @router.get("/")
@@ -74,17 +101,23 @@ def list_incidents(
     # SCALABILITY: bounded by page_size — this table has no purge policy and
     # grows indefinitely, so an unbounded SELECT would eventually load the
     # entire tenant's incident history into memory on every page view.
-    rows = db.execute(text("""
+    scope_sql, scope_binds = "1 = 1", []
+    if is_cycle_restricted(current_user):
+        # Filtre avant LIMIT/OFFSET : seuls les incidents dont l'élève est dans le périmètre.
+        scope_sql, scope_binds = student_scope_sql(
+            "i.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="inc",
+        )
+    rows = db.execute(text(f"""
         SELECT i.*,
                u1.first_name as reporter_first_name, u1.last_name as reporter_last_name,
                u2.first_name as resolver_first_name, u2.last_name as resolver_last_name
         FROM incidents i
         LEFT JOIN users u1 ON u1.id = i.reported_by
         LEFT JOIN users u2 ON u2.id = i.resolved_by
-        WHERE i.tenant_id = :tid
+        WHERE i.tenant_id = :tid AND {scope_sql}
         ORDER BY i.occurred_at DESC
         LIMIT :limit OFFSET :offset
-    """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
+    """).bindparams(*scope_binds), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
 
     return [{
         **dict(r._mapping),
@@ -108,6 +141,12 @@ def create_incident(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-2), avant toute écriture : au moins un élève, tous dans le
+        # périmètre (un incident sans élève serait invisible de son propre auteur).
+        if not incident.student_ids:
+            raise HTTPException(status_code=422, detail="Au moins un élève du périmètre est requis")
+        require_students_in_scope(db, tenant_id, current_user, incident.student_ids)
     try:
         result = db.execute(text("""
             INSERT INTO incidents (id, tenant_id, title, description, incident_type, severity,
@@ -166,6 +205,7 @@ def update_incident(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _require_incident_in_scope(db, tenant_id, current_user, incident_id, "Incident not found")  # B2c-2
     try:
         sets = []
         params = {"iid": str(incident_id), "tid": tenant_id}
@@ -221,6 +261,8 @@ def resolve_incident(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _require_incident_in_scope(db, tenant_id, current_user, incident_id,
+                               "Incident not found or already resolved")  # B2c-2
     try:
         params = {
             "iid": str(incident_id), "tid": tenant_id,
@@ -276,6 +318,7 @@ def assign_incident(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _require_incident_in_scope(db, tenant_id, current_user, incident_id, "Incident not found")  # B2c-2
     try:
         resolver = db.execute(text(
             "SELECT id FROM users WHERE id = :uid AND tenant_id = :tid"

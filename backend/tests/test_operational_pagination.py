@@ -85,6 +85,7 @@ def _as_tenant_admin(tenant_id: str) -> dict:
         "email": "admin@pagination-test.example",
         "roles": ["TENANT_ADMIN"],
         "tenant_id": tenant_id,
+        "_cycle_ids": None,
     }
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user_id, "tenant_id": tenant_id, "roles": ["TENANT_ADMIN"]})

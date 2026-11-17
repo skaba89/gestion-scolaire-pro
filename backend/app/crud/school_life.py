@@ -12,9 +12,16 @@ from app.schemas.school_life import (
     StudentCheckInCreate
 )
 
+# Périmètre par cycle (lot B2c-2) : ``scope_class_ids`` = None -> aucune restriction ; sinon
+# (liste éventuellement vide = rien) seules les données des classes / élèves du périmètre.
+
 # --- Assessment ---
-def get_assessments(db: Session, tenant_id: UUID) -> List[Assessment]:
-    return db.query(Assessment).filter(Assessment.tenant_id == tenant_id).order_by(Assessment.date.desc()).all()
+def get_assessments(db: Session, tenant_id: UUID, scope_class_ids: Optional[list] = None) -> List[Assessment]:
+    query = db.query(Assessment).filter(Assessment.tenant_id == tenant_id)
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import class_scope_clause
+        query = query.filter(class_scope_clause(Assessment.class_id, scope_class_ids))
+    return query.order_by(Assessment.date.desc()).all()
 
 def get_assessment(db: Session, assessment_id: UUID, tenant_id: UUID) -> Optional[Assessment]:
     return db.query(Assessment).filter(Assessment.id == assessment_id, Assessment.tenant_id == tenant_id).first()
@@ -44,8 +51,12 @@ def update_assessment(db: Session, assessment_id: UUID, obj_in: AssessmentUpdate
     return db_obj
 
 # --- Grade ---
-def get_grades(db: Session, tenant_id: UUID, student_id: Optional[UUID] = None) -> List[Grade]:
+def get_grades(db: Session, tenant_id: UUID, student_id: Optional[UUID] = None,
+               scope_class_ids: Optional[list] = None) -> List[Grade]:
     query = db.query(Grade).filter(Grade.tenant_id == tenant_id)
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import student_scope_clause
+        query = query.filter(student_scope_clause(Grade.student_id, scope_class_ids, tenant_id=tenant_id))
     if student_id:
         query = query.filter(Grade.student_id == student_id)
     return query.order_by(Grade.created_at.desc()).all()
@@ -75,8 +86,12 @@ def update_grade(db: Session, grade_id: UUID, obj_in: GradeUpdate, tenant_id: UU
     return db_obj
 
 # --- Attendance ---
-def get_attendance(db: Session, tenant_id: UUID, student_ids: Optional[List[UUID]] = None) -> List[Attendance]:
+def get_attendance(db: Session, tenant_id: UUID, student_ids: Optional[List[UUID]] = None,
+                   scope_class_ids: Optional[list] = None) -> List[Attendance]:
     query = db.query(Attendance).filter(Attendance.tenant_id == tenant_id)
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import student_scope_clause
+        query = query.filter(student_scope_clause(Attendance.student_id, scope_class_ids, tenant_id=tenant_id))
     if student_ids:
         query = query.filter(Attendance.student_id.in_(student_ids))
     return query.order_by(Attendance.date.desc()).all()
@@ -134,9 +149,12 @@ def delete_event(db: Session, event_id: UUID, tenant_id: UUID) -> bool:
 # --- Student Check-In ---
 def get_check_ins(
     db: Session, tenant_id: UUID, student_ids: Optional[List[UUID]] = None,
-    session_id: Optional[UUID] = None,
+    session_id: Optional[UUID] = None, scope_class_ids: Optional[list] = None,
 ) -> List[StudentCheckIn]:
     query = db.query(StudentCheckIn).filter(StudentCheckIn.tenant_id == tenant_id)
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import student_scope_clause
+        query = query.filter(student_scope_clause(StudentCheckIn.student_id, scope_class_ids, tenant_id=tenant_id))
     if student_ids:
         query = query.filter(StudentCheckIn.student_id.in_(student_ids))
     if session_id:

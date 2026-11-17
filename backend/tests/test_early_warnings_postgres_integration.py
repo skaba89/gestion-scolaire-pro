@@ -72,7 +72,7 @@ def school_records():
 
 
 def _user(school):
-    return {"id": school["actor"], "tenant_id": school["tenant_a"], "roles": ["DIRECTOR"]}
+    return {"id": school["actor"], "tenant_id": school["tenant_a"], "roles": ["DIRECTOR"], "_cycle_ids": None}
 
 
 def test_real_pg_create_list_acknowledge_resolve_and_cross_tenant_isolation(school_records):

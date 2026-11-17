@@ -1242,6 +1242,34 @@ ce fichier — pas d'un document de 2025 non révisé.
   Écrans encore affectés pour un compte restreint jusqu'à B2c-2 : fiche élève
   (`StudentDetail`, notes/présences lues via `/school-life/*`, vides) ;
   `LiveAttendance`, `Badges`, `QrScanPage`, `ReportCards` (403).
+- **2026-11-17 — personnel par cycle, lot B2c-2 (vie scolaire, bulletins,
+  incidents, alertes, badges, rendez-vous). Non déployé.** 65 routes jusque-là
+  refusées à un compte restreint : 49 `FILTERED` (jumelles
+  `/school-life/{assessments,grades,attendance}/`, pointages et séances,
+  cartes/badges/élèves sans badge, bulletins et attestations, alertes précoces,
+  incidents, rendez-vous, inscriptions aux événements), 7 `INDEPENDENT`
+  (calendrier, ressources et réservations en lecture, créneaux), 9 `DENY`
+  (écritures événements/ressources/réservations, `gamification/stats/`). Élève /
+  classe / séance / incident vérifiés avant toute écriture et **avant la mise en
+  file ARQ** (hors périmètre : 404, aucune tâche créée) ; `jobs/{id}` limité
+  aux tâches créées par le compte (`payload.user_id`) ; incident visible
+  seulement si tous ses élèves sont dans le périmètre. Aucune migration ni
+  permission ; comptes non restreints, admins, enseignants, parents inchangés.
+  Détail : `docs/PERMISSIONS_MATRIX.md` (lot B2c-2). Tests :
+  `test_cycle_scope_school_life.py`. Défauts préexistants relevés, **non
+  corrigés** : `PUT /school-life/grades/{id}/` lit `obj_in.assessment_id` absent
+  de `GradeUpdate` (500 systématique) ; `PUT /incidents/{id}/resolve/` écrit
+  `resolved_at`, colonne absente de `incidents` (400 systématique) ;
+  `POST /incidents/` avec `student_ids` insère dans `incident_parties`, table
+  absente de toute migration (400, l'incident n'est pas créé) ; `POST
+  /student-badges/` déclare `body: dict` mais le code attend aussi une liste
+  (422) ; `GET /student-badges/` n'a que `get_current_user` et aucun filtre
+  d'appartenance (constat à la lecture du code, non testé) : un élève ou un
+  parent semble pouvoir lister les badges de tout l'établissement (`student_id`,
+  nom du badge) ; `DELETE /student-badges/{id}/` répond 204 même si le badge
+  n'existe pas. Écrans de B2c-1 (fiche élève, `LiveAttendance`, `Badges`,
+  `QrScanPage`, `ReportCards`) : les routes appelées sont désormais filtrées,
+  écrans non vérifiés un par un.
 - **2026-11-17 — fuites de l'historique des notes et des remises de devoirs
   corrigées (GRADE-HISTORY-LEAK-01, HOMEWORK-SUBMISSIONS-LEAK-01).**
   `GET /grade-history/` et `GET /homework-submissions/` ne filtraient que par

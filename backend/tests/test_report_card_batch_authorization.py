@@ -21,7 +21,7 @@ def _req(method="GET"):
 
 
 def _user(role="TEACHER"):
-    return {"id": str(uuid4()), "roles": [role]}
+    return {"id": str(uuid4()), "roles": [role], "_cycle_ids": None}
 
 
 def _batch():

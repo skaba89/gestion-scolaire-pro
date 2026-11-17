@@ -2,7 +2,7 @@
 
 JWT réel, lecture réelle des rôles et des affectations ; seule la révocation
 Redis est contrôlée. Les routes de données restent refusées aux comptes
-restreints jusqu'aux lots B2c-2 à B2e.
+restreints jusqu'aux lots B2d à B2e (agrégats, finances, communication).
 """
 from datetime import date
 from unittest.mock import AsyncMock
@@ -33,7 +33,7 @@ from app.models import (  # noqa: E402
 )
 from app.models.student import Gender  # noqa: E402
 
-DENIED = "/api/v1/school-life/attendance/"       # route de données refusée jusqu'au lot B2c-2 (vie scolaire)
+DENIED = "/api/v1/school-events/"   # route de données restée refusée (hors lots B2a à B2c)
 INDEPENDENT = "/api/v1/users/me/"   # route de coquille
 STRUCTURE = "/api/v1/levels/"       # lecture de structure, INDEPENDENT
 
@@ -372,7 +372,7 @@ def test_require_helpers_are_noop_for_unrestricted_and_404_out_of_scope(school, 
 
 DATA_ROUTES = [
     "/api/v1/payments/invoices/", "/api/v1/payments/fees/", "/api/v1/students/dashboard/", "/api/v1/invoices/",
-    "/api/v1/school-life/attendance/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/school-life/grades/",
+    "/api/v1/school-life/gamification/stats/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/school-events/",
     "/api/v1/parents/children/", "/api/v1/parents/dashboard/",
 ]
 
@@ -383,7 +383,7 @@ def test_data_routes_are_denied_to_a_restricted_account(school, url):
 
 
 @pytest.mark.parametrize("who,url", [
-    ("director_teacher", "/api/v1/school-life/grades/"),
+    ("director_teacher", "/api/v1/school-life/gamification/stats/"),
     ("director_teacher", "/api/v1/teachers/"),
     ("secretary_parent", "/api/v1/parents/children/"),
     ("secretary_parent", "/api/v1/parents/dashboard/"),

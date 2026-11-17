@@ -71,6 +71,7 @@ def _child(tid: str, parent: dict) -> str:
 
 
 def _as(user: dict):
+    user = {**user, "_cycle_ids": None}  # compte non restreint (périmètre par cycle)
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 
